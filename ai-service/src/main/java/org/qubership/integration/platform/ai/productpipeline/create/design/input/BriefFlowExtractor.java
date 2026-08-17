@@ -193,8 +193,7 @@ public final class BriefFlowExtractor {
       }
     }
 
-    List<NormalizedDesignFlow.DataMapping> mappings =
-        toNormalizedMappings(brief, intentToStep, missing);
+    List<NormalizedDesignFlow.DataMapping> mappings = toNormalizedMappings(brief, intentToStep);
     if (!missing.isEmpty()) {
       return new ExtractionResult.NeedsInput(List.copyOf(missing));
     }
@@ -249,10 +248,7 @@ public final class BriefFlowExtractor {
     }
     if (calls.size() != serviceCallSteps.size()) {
       throw new IllegalArgumentException(
-          "Cannot project data mappings: requirement brief has "
-              + calls.size()
-              + " service calls but the authored IDS has "
-              + serviceCallSteps.size());
+          serviceCallCoverageGap(calls.size(), serviceCallSteps.size()));
     }
 
     Map<String, String> intentToStep = new LinkedHashMap<>();
@@ -260,12 +256,7 @@ public final class BriefFlowExtractor {
     for (int i = 0; i < calls.size(); i++) {
       intentToStep.put(calls.get(i).sourceFactId(), serviceCallSteps.get(i).stepId());
     }
-    List<String> missing = new ArrayList<>();
-    List<NormalizedDesignFlow.DataMapping> mappings =
-        toNormalizedMappings(brief, intentToStep, missing);
-    if (!missing.isEmpty()) {
-      throw new IllegalArgumentException(String.join("; ", missing));
-    }
+    List<NormalizedDesignFlow.DataMapping> mappings = toNormalizedMappings(brief, intentToStep);
     return new NormalizedDesignFlow(
         authoredFlow.schemaVersion(),
         authoredFlow.flowId(),
@@ -282,19 +273,14 @@ public final class BriefFlowExtractor {
   }
 
   private static List<NormalizedDesignFlow.DataMapping> toNormalizedMappings(
-      RequirementBrief brief, Map<String, String> intentToStep, List<String> missing) {
+      RequirementBrief brief, Map<String, String> intentToStep) {
     List<NormalizedDesignFlow.DataMapping> mappings = new ArrayList<>();
     for (RequirementDataMapping mapping : brief.dataMappings()) {
       String fromStep = intentToStep.get(mapping.fromIntentRef());
       String toStep = intentToStep.get(mapping.toIntentRef());
       if (fromStep == null || toStep == null) {
-        missing.add(
-            "mapping "
-                + mapping.mappingId()
-                + " intent refs "
-                + mapping.fromIntentRef()
-                + " → "
-                + mapping.toIntentRef());
+        // Leftover capture rows often keep SHA-256 refs that are not ENDPOINT or SERVICE_CALL
+        // fact ids (pin drift, script facts). Drop them; do not dump hashes into chat.
         continue;
       }
       List<String> sourceFactIds =
@@ -318,6 +304,28 @@ public final class BriefFlowExtractor {
               sourceFactIds));
     }
     return List.copyOf(mappings);
+  }
+
+  /**
+   * Overlay cannot bind mapping edges until the authored IDS has one service-call step per brief
+   * SERVICE_CALL fact. Missing steps are an IDS coverage gap: regenerate the diagram, do not invent
+   * step ids.
+   */
+  private static String serviceCallCoverageGap(int briefCalls, int idsCalls) {
+    if (idsCalls < briefCalls) {
+      return "Cannot project data mappings: the authored IDS is missing required outbound"
+          + " service-call steps (brief has "
+          + briefCalls
+          + ", IDS has "
+          + idsCalls
+          + "). Add each SERVICE_CALL as a CIP -> external participant message in the sequence"
+          + " diagram.";
+    }
+    return "Cannot project data mappings: requirement brief has "
+        + briefCalls
+        + (briefCalls == 1 ? " service call" : " service calls")
+        + " but the authored IDS has "
+        + idsCalls;
   }
 
   static boolean isScriptOnlyBrief(RequirementBrief brief) {

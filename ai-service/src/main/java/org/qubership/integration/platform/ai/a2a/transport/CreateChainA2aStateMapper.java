@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ImplementationBlockedRecovery;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
 /**
  * Maps create-chain facade results onto durable A2A Task states.
@@ -226,6 +227,34 @@ public final class CreateChainA2aStateMapper {
         approvalToken(approve.artifactHash()), approve.artifactType(), approve.revision());
   }
 
+  /**
+   * Appends the text tokens an A2A client must echo. Chat has Yes/No and Pass through buttons; A2A
+   * has only the status message, so the keywords that latch {@code pendingDesignMode} travel with
+   * the question.
+   */
+  static String clarifyInstruction(CreateChainPendingAction.Clarify clarify) {
+    Objects.requireNonNull(clarify, "clarify");
+    String gate =
+        clarify.gateId() == null || clarify.gateId().isBlank()
+            ? PipelineGates.gateOf(clarify.reason()).orElse("")
+            : clarify.gateId();
+    String reason = PipelineGates.strip(clarify.reason() == null ? "" : clarify.reason());
+    if (PipelineGates.IDS_PATH_CHOICE.equals(gate)) {
+      return reason + "\nReply \"yes\" or \"no\".";
+    }
+    if (PipelineGates.MAPPING_GAP.equals(gate)) {
+      StringBuilder text = new StringBuilder(reason);
+      for (String edge : clarify.missingEvidence()) {
+        text.append("\n- ").append(edge);
+      }
+      text.append(
+          "\nReply PASS_THROUGH to apply pass-through for every missing edge, or describe EXPLICIT"
+              + " field mappings.");
+      return text.toString();
+    }
+    return reason;
+  }
+
   /** Shortens an artifact hash to the token a client echoes back. */
   public static String approvalToken(String artifactHash) {
     if (artifactHash == null || artifactHash.isBlank()) {
@@ -248,7 +277,7 @@ public final class CreateChainA2aStateMapper {
       return approve.prompt().isBlank() ? instruction : approve.prompt() + "\n" + instruction;
     }
     if (pending instanceof CreateChainPendingAction.Clarify clarify) {
-      return clarify.reason();
+      return clarifyInstruction(clarify);
     }
     return switch (snapshot.status()) {
       case WORKING -> "Working";

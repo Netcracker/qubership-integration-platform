@@ -283,7 +283,9 @@ public final class DesignInputIdsPathPrompts {
         && (normalized.contains("no") || normalized.contains("minimal") || normalized.contains("skip"))) {
       return false;
     }
-    if (normalized.equals("yes") || normalized.equals("y")) {
+    if (normalized.equals("yes")
+        || normalized.equals("y")
+        || normalized.contains("write the document")) {
       return true;
     }
     return normalized.contains("generate full ids")
@@ -293,7 +295,9 @@ public final class DesignInputIdsPathPrompts {
   }
 
   private static boolean isDeriveChoice(String normalized) {
-    if (normalized.equals("no") || normalized.equals("n")) {
+    if (normalized.equals("no")
+        || normalized.equals("n")
+        || normalized.contains("carry on without")) {
       return true;
     }
     return normalized.contains("derive minimal ids")

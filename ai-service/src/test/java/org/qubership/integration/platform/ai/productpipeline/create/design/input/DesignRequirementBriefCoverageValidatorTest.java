@@ -65,6 +65,33 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void passThroughDropsUnboundLeftoverRowsThenFillsRequiredEdges() {
+    RequirementBrief briefWithLeftovers =
+        twoCallBrief(
+            List.of(
+                leftoverHashMapping(
+                    RequirementDataMapping.Stage.INITIALIZATION,
+                    "820d45e25846bb71f78bd5c219f72f87399d7c263d789990f551d38b675bc9e3",
+                    "b96b0eeae09d098d4fd86aaa47ea807df24901586ae64f91542d242845b2271f"),
+                leftoverHashMapping(
+                    RequirementDataMapping.Stage.RESPONSE,
+                    "b96b0eeae09d098d4fd86aaa47ea807df24901586ae64f91542d242845b2271f",
+                    "b8598ee044e21b5e58941a3e896a1c10ed1f3e05c4f031bb743ff8efdcc3d791")));
+
+    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(briefWithLeftovers);
+
+    assertDoesNotThrow(() -> designValidator.validate(filled));
+    assertEquals(3, filled.dataMappings().size());
+    assertTrue(
+        filled.dataMappings().stream()
+            .noneMatch(
+                mapping ->
+                    mapping.fromIntentRef().contains("820d45e2")
+                        || mapping.toIntentRef().contains("b96b0eea")),
+        filled.dataMappings().toString());
+  }
+
+  @Test
   void explicitRulesFillNumberedMissingEdges() {
     RequirementBrief briefWithoutMappings = twoCallBrief(List.of());
 
@@ -226,7 +253,7 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
-  void rejectsPassThroughWithEmptySourceFactIds() {
+  void incompletePassThroughDoesNotCoverRequiredEdges() {
     RequirementDataMapping passThroughWithoutSources =
         new RequirementDataMapping(
             "map-resp",
@@ -239,12 +266,38 @@ class DesignRequirementBriefCoverageValidatorTest {
     RequirementBrief brief =
         twoCallBrief(List.of(initialization(), conversion(), passThroughWithoutSources));
 
+    List<String> missing = designValidator.listMissingEdges(brief);
+    assertTrue(
+        missing.stream().anyMatch(line -> line.contains("RESPONSE")),
+        String.join("\n", missing));
+
     IllegalArgumentException thrown =
         assertThrows(IllegalArgumentException.class, () -> designValidator.validate(brief));
 
-    assertTrue(
+    assertTrue(thrown.getMessage().contains("RESPONSE mapping"), thrown.getMessage());
+    assertFalse(thrown.getMessage().contains("dataMapping stage is required"), thrown.getMessage());
+    assertFalse(
         thrown.getMessage().contains("PASS_THROUGH mapping requires at least one sourceFactId"),
         thrown.getMessage());
+  }
+
+  @Test
+  void scriptOnlyIncompletePassThroughIsAbsenceOfMapping() {
+    RequirementBrief brief = scriptOnlyBrief(List.of(shapelessPassThrough()));
+
+    assertTrue(designValidator.listMissingEdges(brief).isEmpty());
+    assertDoesNotThrow(() -> designValidator.validate(brief));
+  }
+
+  @Test
+  void shapelessLeftoverRowsDoNotCoverServiceCallEdges() {
+    RequirementBrief brief = twoCallBrief(List.of(shapelessPassThrough()));
+
+    List<String> missing = designValidator.listMissingEdges(brief);
+    assertFalse(missing.isEmpty());
+    assertTrue(
+        missing.stream().anyMatch(line -> line.contains("INITIALIZATION")),
+        String.join("\n", missing));
   }
 
   @Test
@@ -288,6 +341,35 @@ class DesignRequirementBriefCoverageValidatorTest {
             List.of(initialization(), conversion()));
 
     assertDoesNotThrow(() -> designValidator.validate(brief));
+  }
+
+  private static RequirementBrief scriptOnlyBrief(List<RequirementDataMapping> mappings) {
+    RequirementFact trigger =
+        new RequirementFact(
+            "trigger-1",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.ENDPOINT,
+            "http-trigger",
+            "GET /greetings");
+    RequirementFact script =
+        new RequirementFact(
+            "script-1",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.BEHAVIOR,
+            "script",
+            "Return greeting text from a script");
+    return briefWithFacts(List.of(trigger, script), mappings);
+  }
+
+  private static RequirementDataMapping shapelessPassThrough() {
+    return new RequirementDataMapping(
+        "map-junk",
+        null,
+        "",
+        "",
+        RequirementDataMapping.Mode.PASS_THROUGH,
+        List.of(),
+        List.of());
   }
 
   private static RequirementBrief twoCallBrief(List<RequirementDataMapping> mappings) {
@@ -345,6 +427,18 @@ class DesignRequirementBriefCoverageValidatorTest {
         RequirementDataMapping.Mode.EXPLICIT,
         List.of(new RequirementDataMapping.Rule("$.customer", "$.body.customer", null)),
         List.of("fact-map-conv"));
+  }
+
+  private static RequirementDataMapping leftoverHashMapping(
+      RequirementDataMapping.Stage stage, String from, String to) {
+    return new RequirementDataMapping(
+        "",
+        stage,
+        from,
+        to,
+        RequirementDataMapping.Mode.PASS_THROUGH,
+        List.of(),
+        List.of("leftover-fact"));
   }
 
   private static RequirementDataMapping response() {

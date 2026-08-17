@@ -12,6 +12,8 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.llm.agent.DesignGeneratorSkillAgent;
 import org.qubership.integration.platform.ai.llm.agent.DesignInputPromptAgent;
@@ -137,6 +139,7 @@ public class DesignInputCapability implements StageCapability {
           .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
           .toMulti();
     }
+    var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
     return Multi.createBy()
         .concatenating()
         .streams(
@@ -144,13 +147,13 @@ public class DesignInputCapability implements StageCapability {
             Uni.createFrom()
                 .item(
                     () -> {
-                      SkillActivitySupport.bindParents(progressSkillId);
+                      SkillActivitySupport.bindWorker(progressSkillId, turnEmit);
                       try {
                         return SkillActivitySupport.wrapTerminal(
                             progressSkillId,
                             List.of(new CapabilitySignal.Completed(runStage(context))));
                       } finally {
-                        SkillActivitySupport.clearParents();
+                        SkillActivitySupport.unbindWorker(turnEmit);
                       }
                     })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
@@ -227,17 +230,18 @@ public class DesignInputCapability implements StageCapability {
       return waitingForIdsChoice(brief, userText, discoveryText);
     }
 
-    RequirementBrief effectiveBrief = brief;
+    RequirementBrief effectiveBrief =
+        brief == null ? null : DesignRequirementDataMappingNormalizer.normalize(brief);
     if (effectiveBrief != null
         && !designCoverageValidator.listMissingEdges(effectiveBrief).isEmpty()) {
       try {
         if (pending != null && hasMappingRuleSyntax(userText)) {
           effectiveBrief =
               designCoverageValidator.withExplicitMappingsForMissingEdges(effectiveBrief, userText);
-        } else if (idsPathPrompts.isPassThroughConfirmation(userText)
-            || effectiveBrief.dataMappings().isEmpty()) {
-          // No mapping declaration means no transformation. Materialize that semantic default so
-          // legacy briefs and simple proxy chains do not stop at a false-positive mapping gap.
+        } else {
+          // Missing SERVICE_CALL topology edges default to PASS_THROUGH. GENERATE used to wait
+          // for a pass_through confirmation whenever leftover capture rows survived
+          // normalization, which blocked design after brief approval.
           effectiveBrief = designCoverageValidator.withPassThroughForMissingEdges(effectiveBrief);
         }
       } catch (IllegalArgumentException ex) {
@@ -310,6 +314,9 @@ public class DesignInputCapability implements StageCapability {
       return new AuthoredDesign(markdown, briefFlowExtractor.withMappings(brief, parsed));
     } catch (IllegalArgumentException ex) {
       firstFailure = ex;
+      if (isInternalMappingOverlayError(ex.getMessage())) {
+        throw ex;
+      }
       LOG.infof("Authored IDS could not be read (%s); asking for a repair", ex.getMessage());
     }
     String markdown = generatedIdsAuthoringAdapter.generate(brief, firstFailure.getMessage());
@@ -375,7 +382,7 @@ public class DesignInputCapability implements StageCapability {
       // Ask for what the design is missing rather than failing the stage. A VALIDATION_FAILURE
       // reopens the previous approval, which drops the caller back onto the requirement brief and
       // loses the turn; an author short of one explicit fact is the far likelier case.
-      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ex.getMessage());
+      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, userFacingAuthoringWait(ex));
     }
   }
 
@@ -411,7 +418,7 @@ public class DesignInputCapability implements StageCapability {
       // Ask for what the design is missing rather than failing the stage. A VALIDATION_FAILURE
       // reopens the previous approval, which drops the caller back onto the requirement brief and
       // loses the turn; an author short of one explicit fact is the far likelier case.
-      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ex.getMessage());
+      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, userFacingAuthoringWait(ex));
     }
   }
 
@@ -425,7 +432,7 @@ public class DesignInputCapability implements StageCapability {
       try {
         designCoverageValidator.validate(brief);
       } catch (IllegalArgumentException ex) {
-        return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ex.getMessage());
+        return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, userFacingAuthoringWait(ex));
       }
       return null;
     }
@@ -445,7 +452,40 @@ public class DesignInputCapability implements StageCapability {
         PipelineGates.tag(
             PipelineGates.MAPPING_GAP,
             DesignInputIdsPathPrompts.encodeMappingGapWait(
-                message, designCoverageValidator.listReadableMissingEdges(brief))));
+                userFacingAuthoringWait(message),
+                designCoverageValidator.listReadableMissingEdges(brief))));
+  }
+
+  /**
+   * Overlay and capture leftovers must never reach chat as fact-id hashes or {@code intent refs}
+   * lines. Coverage-gap waits stay as written: they already name the missing outbound call.
+   */
+  static String userFacingAuthoringWait(IllegalArgumentException ex) {
+    return userFacingAuthoringWait(ex == null ? null : ex.getMessage());
+  }
+
+  static String userFacingAuthoringWait(String message) {
+    if (message == null || message.isBlank()) {
+      return "The authored IDS is missing a required outbound service call from the requirements. "
+          + "Generate an IDS that includes each outbound call, or choose Pass through for the"
+          + " listed mapping edges.";
+    }
+    if (isInternalMappingOverlayError(message)) {
+      return "Some captured mapping rows do not match the trigger or outbound calls in the"
+          + " requirements. Use Pass through for the listed edges, or generate an IDS that"
+          + " includes each outbound call.";
+    }
+    return message;
+  }
+
+  private static boolean isInternalMappingOverlayError(String message) {
+    return message != null
+        && (message.contains("intent refs") || looksLikeFactDigestDump(message));
+  }
+
+  private static boolean looksLikeFactDigestDump(String message) {
+    return message.chars().filter(ch -> ch == '→' || ch == '>').count() >= 1
+        && message.matches("(?s).*\\b[a-f0-9]{32,}\\b.*");
   }
 
   private StageOutcome waitingForIdsChoice(
@@ -563,14 +603,34 @@ public class DesignInputCapability implements StageCapability {
         .append(" the chain name after the dash; the document cannot be read without it.")
         .append("\nUse only Mermaid sequenceDiagram with autonumber.")
         .append("\nDo not invent operationId, packageId, path, method, or mapping rules.")
-        .append("\nName a participant only when the requirements name the system it stands for.")
-        .append(" A chain that answers from its own logic talks to no external system: its")
-        .append(" diagram holds the caller and CIP alone, and the response comes from a script")
-        .append(" step. Do not add an external participant to fill out the diagram.");
-    prompt.append(
-        "\nIf the brief forbids service calls or APIHub, model HTTP GET/POST paths as the CIP "
-            + "chain trigger (Client -> CIP), and return the response from a script — never as an "
-            + "outbound CIP -> external GET/POST service-call.");
+        .append("\nName a participant only when the requirements name the system it stands for.");
+    if (hasPositiveServiceCall(brief)) {
+      prompt.append(
+          "\nThe brief lists SERVICE_CALL facts. The sequence diagram must include each outbound"
+              + " call as CIP -> that external participant. Do not collapse those calls into a"
+              + " script-only Client -> CIP diagram.");
+    } else {
+      prompt
+          .append(" A chain that answers from its own logic talks to no external system: its")
+          .append(" diagram holds the caller and CIP alone, and the response comes from a script")
+          .append(" step. Do not add an external participant to fill out the diagram.");
+      prompt.append(
+          "\nIf the brief forbids service calls or APIHub, model HTTP GET/POST paths as the CIP "
+              + "chain trigger (Client -> CIP), and return the response from a script — never as an "
+              + "outbound CIP -> external GET/POST service-call.");
+    }
     return prompt.toString();
+  }
+
+  private static boolean hasPositiveServiceCall(RequirementBrief brief) {
+    if (brief.facts() == null) {
+      return false;
+    }
+    return brief.facts().stream()
+        .filter(Objects::nonNull)
+        .anyMatch(
+            fact ->
+                fact.polarity() == RequirementFactPolarity.POSITIVE
+                    && fact.kind() == RequirementFactKind.SERVICE_CALL);
   }
 }

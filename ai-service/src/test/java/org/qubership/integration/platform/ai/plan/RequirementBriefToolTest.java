@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.agent.tool.Tool;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -221,6 +222,21 @@ class RequirementBriefToolTest {
     assertTrue(result.contains("Requirement brief captured"), result);
     RequirementBrief brief = getBrief("conv-brief").orElseThrow();
     assertEquals(List.of(initialization, conversion, response), brief.dataMappings());
+  }
+
+  @Test
+  void toolDescriptionLeavesMappingsEmptyWithoutServiceCallFacts() throws Exception {
+    Tool tool =
+        RequirementBriefTool.class
+            .getMethod("captureRequirementBrief", RequirementBriefCapture.class)
+            .getAnnotation(Tool.class);
+    String description = String.join("\n", tool.value());
+
+    assertTrue(description.contains("\"dataMappings\": []"), description);
+    assertTrue(description.contains("no positive SERVICE_CALL"), description);
+    assertTrue(description.contains("leave dataMappings empty"), description);
+    assertTrue(description.contains("stage"), description);
+    assertTrue(description.contains("sourceFactId"), description);
   }
 
   @Test

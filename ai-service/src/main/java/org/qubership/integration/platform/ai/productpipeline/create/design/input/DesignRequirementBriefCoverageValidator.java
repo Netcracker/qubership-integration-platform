@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +17,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDa
 
 /**
  * Design-path ({@code create-chain@2}) coverage for typed mapping intent on a requirement brief.
- * Does not invent mapping rules; fails closed when required stages or modes are incomplete.
+ * Coverage validates topology edges, not junk rows in {@code dataMappings}. Incomplete rows are
+ * dropped first; {@link #validate(RequirementBrief)} runs on the remaining well-shaped mappings.
  *
  * <p>Request-response detection: {@link RequirementFactKind} has no sync/async split. A positive
  * {@code ENDPOINT} fact is treated as request-response unless its {@code capabilityKey} names a
@@ -47,11 +49,11 @@ public final class DesignRequirementBriefCoverageValidator {
 
   public void validate(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
-    List<RequirementDataMapping> mappings = brief.dataMappings();
-    for (RequirementDataMapping mapping : mappings) {
+    RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
+    for (RequirementDataMapping mapping : normalized.dataMappings()) {
       validateMappingShape(mapping);
     }
-    List<String> missing = listMissingEdges(brief);
+    List<String> missing = listMissingEdges(normalized);
     if (!missing.isEmpty()) {
       throw new IllegalArgumentException(missing.getFirst());
     }
@@ -111,8 +113,10 @@ public final class DesignRequirementBriefCoverageValidator {
    */
   public RequirementBrief withPassThroughForMissingEdges(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
-    List<RequirementDataMapping> merged = new ArrayList<>(brief.dataMappings());
-    for (RequiredEdge edge : missingRequiredEdges(brief)) {
+    RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
+    RequirementBrief bound = withMappings(normalized, topologyBoundMappings(normalized));
+    List<RequirementDataMapping> merged = new ArrayList<>(bound.dataMappings());
+    for (RequiredEdge edge : missingRequiredEdges(bound)) {
       if (edge.fromIntentRef() != null) {
         addPassThroughIfMissing(
             merged,
@@ -122,7 +126,7 @@ public final class DesignRequirementBriefCoverageValidator {
             edge.mappingId());
       }
     }
-    return withMappings(brief, merged);
+    return withMappings(bound, merged);
   }
 
   /**
@@ -132,9 +136,10 @@ public final class DesignRequirementBriefCoverageValidator {
   public RequirementBrief withExplicitMappingsForMissingEdges(
       RequirementBrief brief, String specification) {
     Objects.requireNonNull(brief, "brief");
-    List<RequiredEdge> missing = missingRequiredEdges(brief);
+    RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
+    List<RequiredEdge> missing = missingRequiredEdges(normalized);
     if (missing.isEmpty()) {
-      return brief;
+      return normalized;
     }
     if (missing.stream().anyMatch(edge -> edge.fromIntentRef() == null)) {
       throw new IllegalArgumentException(
@@ -182,7 +187,7 @@ public final class DesignRequirementBriefCoverageValidator {
           "Describe at least one mapping rule as sourcePath -> targetPath");
     }
 
-    List<RequirementDataMapping> merged = new ArrayList<>(brief.dataMappings());
+    List<RequirementDataMapping> merged = new ArrayList<>(normalized.dataMappings());
     for (Map.Entry<Integer, List<RequirementDataMapping.Rule>> entry : rulesByEdge.entrySet()) {
       RequiredEdge edge = missing.get(entry.getKey() - 1);
       merged.add(
@@ -195,7 +200,7 @@ public final class DesignRequirementBriefCoverageValidator {
               entry.getValue(),
               List.of("design-input:mapping-answer")));
     }
-    return withMappings(brief, merged);
+    return withMappings(normalized, merged);
   }
 
   private static List<RequiredEdge> missingRequiredEdges(RequirementBrief brief) {
@@ -233,10 +238,27 @@ public final class DesignRequirementBriefCoverageValidator {
             edge ->
                 edge.fromIntentRef() == null
                     || !hasStageEdge(
-                        brief.dataMappings(),
+                        DesignRequirementDataMappingNormalizer.completeMappings(
+                            brief.dataMappings()),
                         edge.stage(),
                         edge.fromIntentRef(),
                         edge.toIntentRef()))
+        .toList();
+  }
+
+  private static List<RequirementDataMapping> topologyBoundMappings(RequirementBrief brief) {
+    Set<String> topologyIds = new LinkedHashSet<>();
+    for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.ENDPOINT)) {
+      topologyIds.add(fact.sourceFactId());
+    }
+    for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.SERVICE_CALL)) {
+      topologyIds.add(fact.sourceFactId());
+    }
+    return DesignRequirementDataMappingNormalizer.completeMappings(brief.dataMappings()).stream()
+        .filter(
+            mapping ->
+                topologyIds.contains(mapping.fromIntentRef())
+                    && topologyIds.contains(mapping.toIntentRef()))
         .toList();
   }
 
@@ -317,7 +339,8 @@ public final class DesignRequirementBriefCoverageValidator {
       String fromIntentRef,
       String toIntentRef) {
     return mappings.stream()
-        .filter(mapping -> mapping != null && mapping.stage() == stage)
+        .filter(DesignRequirementDataMappingNormalizer::isComplete)
+        .filter(mapping -> mapping.stage() == stage)
         .anyMatch(
             mapping ->
                 fromIntentRef.equals(mapping.fromIntentRef())

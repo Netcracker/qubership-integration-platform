@@ -194,7 +194,46 @@ class RequirementAnalysisCapabilityTest {
     assertTrue(message.contains("Change request for this analysis turn:"));
     assertTrue(message.contains("add quartz scheduler"));
     assertTrue(message.contains(approved.planningText()));
+  }
+
+  @Test
+  void buildAnalysisUserMessageDoesNotAskToInventMappingsWithoutServiceCallFacts() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
+
     assertTrue(message.contains("dataMappings"));
+    assertTrue(message.contains("Leave dataMappings empty"));
+    assertFalse(message.contains("Capture typed dataMappings"), message);
+  }
+
+  @Test
+  void buildAnalysisUserMessageAsksForMappingsWhenServiceCallFactsExist() {
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Create order via HTTP POST /orders then call Inventory",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            null,
+            false,
+            List.of(
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.ENDPOINT,
+                    "http-trigger",
+                    "HTTP POST /orders"),
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.SERVICE_CALL,
+                    "http-service-call",
+                    "Inventory API: reserve stock")));
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
+
+    assertTrue(message.contains("Capture typed dataMappings"));
     assertTrue(message.contains("PASS_THROUGH"));
     assertTrue(message.contains("EXPLICIT"));
   }

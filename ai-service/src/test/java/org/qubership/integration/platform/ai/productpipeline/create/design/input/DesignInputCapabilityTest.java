@@ -61,6 +61,37 @@ class DesignInputCapabilityTest {
       ```
       """;
 
+  private static final String SCRIPT_ONLY_HEALTHPROXY_IDS =
+      """
+      ### Integration flow for CIP Chain - HealthProxy
+
+      ```mermaid
+      sequenceDiagram
+          autonumber
+          participant Client as Client
+          participant CIP as CIP Chain
+          Client->>CIP: GET /health-proxy
+          CIP-->>Client: 200 inventory JSON
+      ```
+      """;
+
+  private static final String HEALTHPROXY_WITH_SERVICE_CALL_IDS =
+      """
+      ### Integration flow for CIP Chain - HealthProxy
+
+      ```mermaid
+      sequenceDiagram
+          autonumber
+          participant Client as Client
+          participant CIP as CIP Chain
+          participant Petstore as Petstore Ext
+          Client->>CIP: GET /health-proxy
+          CIP->>Petstore: GET /store/inventory
+          Petstore-->>CIP: inventory JSON
+          CIP-->>Client: 200 inventory JSON
+      ```
+      """;
+
   private static final String FLOWCHART_IDS =
       """
       ### Integration flow for CIP Chain - Orders
@@ -181,6 +212,119 @@ class DesignInputCapabilityTest {
 
 
   @Test
+  void scriptOnlyIncompletePassThroughDoesNotBlockGenerate() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    RequirementBrief scriptOnlyWithJunk =
+        new RequirementBrief(
+            "Greetings",
+            List.of("HTTP GET /greetings"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Return greeting text from a script",
+            "draft-1",
+            "draft",
+            List.of(
+                fact(
+                    "trigger-1",
+                    RequirementFactKind.ENDPOINT,
+                    "http-trigger",
+                    "HTTP GET /greetings"),
+                fact(
+                    "script-1",
+                    RequirementFactKind.BEHAVIOR,
+                    "script",
+                    "Return greeting text from a script")),
+            List.of(shapelessPassThrough()));
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Generate full IDS",
+                    "requirementBrief",
+                    scriptOnlyWithJunk)));
+
+    assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
+    assertFalse(
+        prepared.message() != null && prepared.message().contains("dataMapping stage is required"),
+        prepared.message());
+  }
+
+  @Test
+  void generateDoesNotWaitWhenHealthProxyServiceCallMappingsAreMissing() {
+    DesignInputCapability capability =
+        capabilityWithFixedGenerate(HEALTHPROXY_WITH_SERVICE_CALL_IDS);
+
+    StageOutcome emptyMappings =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Generate full IDS",
+                    "requirementBrief",
+                    healthProxyBrief(List.of()))));
+    assertContinuesWithPassThroughEdges(emptyMappings, StageOutcomeClass.CANDIDATE);
+
+    StageOutcome leftoverMappings =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Generate full IDS",
+                    "requirementBrief",
+                    healthProxyBrief(unboundLeftoverMappings()))));
+    assertContinuesWithPassThroughEdges(leftoverMappings, StageOutcomeClass.CANDIDATE);
+  }
+
+  @Test
+  void skipDoesNotWaitWhenHealthProxyServiceCallMappingsAreMissing() {
+    DesignInputCapability capability =
+        capabilityWithFixedGenerate(HEALTHPROXY_WITH_SERVICE_CALL_IDS);
+
+    StageOutcome emptyMappings =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "no",
+                    "requirementBrief",
+                    healthProxyBrief(List.of()))));
+    assertContinuesWithPassThroughEdges(emptyMappings, StageOutcomeClass.SUCCEEDED);
+
+    StageOutcome leftoverMappings =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "no",
+                    "requirementBrief",
+                    healthProxyBrief(unboundLeftoverMappings()))));
+    assertContinuesWithPassThroughEdges(leftoverMappings, StageOutcomeClass.SUCCEEDED);
+  }
+
+  @Test
   void missingMappingIntentDefaultsToPassThrough() {
     DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
     RequirementBrief briefWithoutMappings =
@@ -215,6 +359,46 @@ class DesignInputCapabilityTest {
     assertTrue(
         flowPayload(prepared).dataMappings().stream()
             .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+  }
+
+  @Test
+  void shapelessLeftoverRowsDefaultToPassThroughOnServiceCallBrief() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    RequirementBrief briefWithShapelessLeftovers =
+        new RequirementBrief(
+            "Orders",
+            List.of("HTTP POST /orders"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Create order",
+            "draft-1",
+            "draft",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
+                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+            List.of(shapelessPassThrough()));
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Derive minimal IDS",
+                    "requirementBrief",
+                    briefWithShapelessLeftovers)));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(DesignMode.DERIVE, modePayload(prepared));
+    assertEquals(2, flowPayload(prepared).dataMappings().size());
+    assertTrue(
+        flowPayload(prepared).dataMappings().stream()
+            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertFalse(
+        prepared.message() != null && prepared.message().contains("dataMapping stage is required"),
+        prepared.message());
   }
 
   @Test
@@ -363,6 +547,89 @@ class DesignInputCapabilityTest {
                     briefWithoutMappings)));
     assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
     assertEquals(DesignMode.GENERATE, modePayload(prepared));
+  }
+
+  @Test
+  void passThroughWithUnboundLeftoverMappingsDoesNotDumpIntentRefs() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR,
+                    DesignMode.GENERATE,
+                    "userText",
+                    "pass_through",
+                    "requirementBrief",
+                    briefWithUnboundLeftoverMappings())));
+
+    assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
+    assertEquals(DesignMode.GENERATE, modePayload(prepared));
+    assertTrue(
+        flowPayload(prepared).dataMappings().stream()
+            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertFalse(containsIntentRefDump(prepared.message()), prepared.message());
+  }
+
+  @Test
+  void skipIdsWithUnboundLeftoverMappingsContinuesWithoutOverlayDump() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "no",
+                    "requirementBrief",
+                    briefWithUnboundLeftoverMappings())));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(DesignMode.DERIVE, modePayload(prepared));
+    assertTrue(
+        flowPayload(prepared).dataMappings().stream()
+            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertFalse(containsIntentRefDump(prepared.message()), prepared.message());
+  }
+
+  @Test
+  void skipIdsWaitsInPlainLanguageWhenAuthoredIdsOmitsRequiredServiceCall() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(SCRIPT_ONLY_HEALTHPROXY_IDS);
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "no",
+                    "requirementBrief",
+                    briefWithUnboundLeftoverMappings())));
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertTrue(
+        prepared.message().contains("missing required outbound service-call"),
+        prepared.message());
+    assertFalse(containsIntentRefDump(prepared.message()), prepared.message());
+  }
+
+  @Test
+  void authoringWaitRewritesIntentRefDumpsIntoPlainLanguage() {
+    String rewritten =
+        DesignInputCapability.userFacingAuthoringWait(
+            "mapping  intent refs 820d45e25846bb71f78bd5c219f72f87399d7c263d789990f551d38b675bc9e3"
+                + " → b96b0eeae09d098d4fd86aaa47ea807df24901586ae64f91542d242845b2271f");
+    assertFalse(containsIntentRefDump(rewritten), rewritten);
+    assertTrue(rewritten.toLowerCase().contains("pass through"), rewritten);
   }
 
   @Test
@@ -538,6 +805,104 @@ class DesignInputCapabilityTest {
    * the wrong move and a rewrite the right one.
    */
   @Test
+  void scriptOnlyIdsIsRepairedWhenBriefRequiresServiceCall() {
+    java.util.List<String> notes = new java.util.ArrayList<>();
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            new IdsDocumentParser(),
+            new NormalizedDesignFlowValidator(),
+            new MinimalIdsRenderer(),
+            new BriefFlowExtractor(),
+            new DesignRequirementBriefCoverageValidator(),
+            (brief, repairNote) -> {
+              notes.add(repairNote);
+              return repairNote == null ? SCRIPT_ONLY_HEALTHPROXY_IDS : VALID_IDS;
+            });
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Generate full IDS",
+                    "requirementBrief",
+                    approvedBriefWithMappings())));
+
+    assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
+    assertEquals(2, notes.size(), "the author must be asked twice");
+    assertNull(notes.get(0), "the first attempt carries no repair note");
+    assertTrue(
+        notes.get(1).contains("missing required outbound service-call"),
+        () -> "the repair note must name the IDS coverage gap: " + notes.get(1));
+  }
+
+  @Test
+  void scriptOnlyIdsAfterRepairWaitsInsteadOfDumpingOverlayException() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(SCRIPT_ONLY_HEALTHPROXY_IDS);
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Generate full IDS",
+                    "requirementBrief",
+                    approvedBriefWithMappings())));
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertTrue(
+        prepared.message().contains("missing required outbound service-call"),
+        prepared.message());
+    assertFalse(
+        prepared.message().contains("Cannot project data mappings: requirement brief has"),
+        prepared.message());
+    assertFalse(containsIntentRefDump(prepared.message()), prepared.message());
+  }
+
+  @Test
+  void authoringPromptRequiresOutboundCallsWhenBriefHasServiceCallFacts() {
+    String prompt = DesignInputCapability.authoringPrompt(approvedBriefWithMappings());
+
+    assertTrue(prompt.contains("SERVICE_CALL"), prompt);
+    assertTrue(prompt.contains("CIP -> that external participant"), prompt);
+    assertFalse(prompt.contains("forbids service calls"), prompt);
+  }
+
+  @Test
+  void authoringPromptKeepsScriptOnlyGuidanceWhenBriefHasNoServiceCall() {
+    RequirementBrief scriptOnly =
+        new RequirementBrief(
+            "Greetings",
+            List.of("HTTP GET /greetings"),
+            List.of("No service calls"),
+            List.of(),
+            List.of(),
+            "Return greeting text from a script",
+            "draft-1",
+            "draft",
+            List.of(
+                fact(
+                    "trigger-1",
+                    RequirementFactKind.ENDPOINT,
+                    "http-trigger",
+                    "HTTP GET /greetings")),
+            List.of());
+
+    String prompt = DesignInputCapability.authoringPrompt(scriptOnly);
+
+    assertTrue(prompt.contains("forbids service calls"), prompt);
+    assertFalse(prompt.contains("CIP -> that external participant"), prompt);
+  }
+
+  @Test
   void unreadableFirstDraftIsRepairedWithTheParserComplaint() {
     java.util.List<String> notes = new java.util.ArrayList<>();
     DesignInputCapability capability =
@@ -660,6 +1025,108 @@ class DesignInputCapabilityTest {
         .map(c -> (NormalizedDesignFlow) c.payload())
         .findFirst()
         .orElseThrow();
+  }
+
+  private static void assertContinuesWithPassThroughEdges(
+      StageOutcome prepared, StageOutcomeClass expectedClass) {
+    assertEquals(expectedClass, prepared.outcomeClass(), prepared.message());
+    assertFalse(
+        prepared.message() != null && prepared.message().contains(PipelineGates.MAPPING_GAP),
+        prepared.message());
+    assertFalse(
+        prepared.message() != null
+            && prepared.message().toLowerCase(java.util.Locale.ROOT).contains("missing data mapping"),
+        prepared.message());
+    List<NormalizedDesignFlow.DataMapping> mappings = flowPayload(prepared).dataMappings();
+    assertEquals(2, mappings.size(), mappings.toString());
+    assertTrue(
+        mappings.stream()
+            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH),
+        mappings.toString());
+    assertTrue(
+        mappings.stream().anyMatch(mapping -> mapping.stage() == NormalizedDesignFlow.MappingStage.INITIALIZATION),
+        mappings.toString());
+    assertTrue(
+        mappings.stream().anyMatch(mapping -> mapping.stage() == NormalizedDesignFlow.MappingStage.RESPONSE),
+        mappings.toString());
+    assertTrue(
+        mappings.stream().allMatch(mapping -> !mapping.sourceFactIds().isEmpty()),
+        mappings.toString());
+  }
+
+  private static RequirementBrief healthProxyBrief(List<RequirementDataMapping> mappings) {
+    return new RequirementBrief(
+        "HealthProxy",
+        List.of("HTTP GET /health-proxy"),
+        List.of(),
+        List.of(),
+        List.of(),
+        "GET /health-proxy calls Petstore Ext getInventory and returns inventory JSON from a script",
+        "draft-1",
+        "draft",
+        List.of(
+            fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger", "GET /health-proxy"),
+            fact(
+                "call-1",
+                RequirementFactKind.SERVICE_CALL,
+                "http-service-call",
+                "Call catalog service 'Petstore Ext'"),
+            fact(
+                "script-1",
+                RequirementFactKind.BEHAVIOR,
+                "script",
+                "Return inventory JSON from a script")),
+        mappings);
+  }
+
+  private static RequirementBrief briefWithUnboundLeftoverMappings() {
+    return new RequirementBrief(
+        "Orders",
+        List.of("HTTP POST /orders"),
+        List.of(),
+        List.of(),
+        List.of(),
+        "Create order",
+        "draft-1",
+        "draft",
+        List.of(
+            fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
+            fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+        unboundLeftoverMappings());
+  }
+
+  private static List<RequirementDataMapping> unboundLeftoverMappings() {
+    return List.of(
+        leftoverHashMapping(
+            RequirementDataMapping.Stage.INITIALIZATION,
+            "820d45e25846bb71f78bd5c219f72f87399d7c263d789990f551d38b675bc9e3",
+            "b96b0eeae09d098d4fd86aaa47ea807df24901586ae64f91542d242845b2271f"),
+        leftoverHashMapping(
+            RequirementDataMapping.Stage.RESPONSE,
+            "b96b0eeae09d098d4fd86aaa47ea807df24901586ae64f91542d242845b2271f",
+            "b8598ee044e21b5e58941a3e896a1c10ed1f3e05c4f031bb743ff8efdcc3d791"));
+  }
+
+  private static RequirementDataMapping leftoverHashMapping(
+      RequirementDataMapping.Stage stage, String from, String to) {
+    return new RequirementDataMapping(
+        "",
+        stage,
+        from,
+        to,
+        RequirementDataMapping.Mode.PASS_THROUGH,
+        List.of(),
+        List.of("leftover-fact"));
+  }
+
+  private static boolean containsIntentRefDump(String message) {
+    if (message == null) {
+      return false;
+    }
+    return message.contains("intent refs")
+        || message.contains("820d45e2")
+        || message.contains("b96b0eea")
+        || message.contains("b8598ee0");
   }
 
   private static RequirementBrief approvedBriefWithMappings() {
@@ -785,6 +1252,17 @@ class DesignInputCapabilityTest {
       String id, RequirementFactKind kind, String capabilityKey, String text) {
     return new RequirementFact(
         id, RequirementFactPolarity.POSITIVE, kind, capabilityKey, text);
+  }
+
+  private static RequirementDataMapping shapelessPassThrough() {
+    return new RequirementDataMapping(
+        "map-junk",
+        null,
+        "",
+        "",
+        RequirementDataMapping.Mode.PASS_THROUGH,
+        List.of(),
+        List.of());
   }
 
   private static RequirementDataMapping mapping(

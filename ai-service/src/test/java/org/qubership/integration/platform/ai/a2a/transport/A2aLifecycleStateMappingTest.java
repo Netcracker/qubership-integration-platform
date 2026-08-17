@@ -116,4 +116,33 @@ class A2aLifecycleStateMappingTest {
                 "task-1", "run-1", CreateChainExecutionStatus.WORKING, 1L, null, ""));
     assertEquals(A2aTaskState.INPUT_REQUIRED, projected.state());
   }
+
+  @Test
+  void idsPathClarifyStatusTellsA2aClientToReplyYesOrNo() {
+    CreateChainPendingAction.Clarify clarify =
+        new CreateChainPendingAction.Clarify(
+            "Do you want an integration design document (IDS) for these requirements?",
+            List.of(),
+            "ids-path-choice");
+    CreateChainExecutionSnapshot snapshot =
+        new CreateChainExecutionSnapshot(
+            "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 1L, clarify, "");
+    ProjectedTask projected = CreateChainA2aStateMapper.project(snapshot, List.of());
+    assertTrue(projected.statusText().contains("Reply \"yes\" or \"no\"."));
+  }
+
+  @Test
+  void mappingGapClarifyStatusTellsA2aClientToReplyPassThrough() {
+    CreateChainPendingAction.Clarify clarify =
+        new CreateChainPendingAction.Clarify(
+            "Some data mappings are still missing before design can continue.",
+            List.of("INITIALIZATION: HTTP GET /health → HTTP GET /status"),
+            "mapping-gap");
+    CreateChainExecutionSnapshot snapshot =
+        new CreateChainExecutionSnapshot(
+            "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 1L, clarify, "");
+    ProjectedTask projected = CreateChainA2aStateMapper.project(snapshot, List.of());
+    assertTrue(projected.statusText().contains("PASS_THROUGH"));
+    assertTrue(projected.statusText().contains("INITIALIZATION: HTTP GET /health"));
+  }
 }

@@ -17,13 +17,15 @@ import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
-import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
+import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -444,12 +446,19 @@ public class RequirementAnalysisCapability implements StageCapability {
     String planning = approved.planningText() == null ? "" : approved.planningText();
     StringBuilder sb = new StringBuilder();
     sb.append("Analyze the approved requirement draft and call captureRequirementBrief now.\n\n");
-    sb.append(
-        "Capture typed dataMappings for every required edge around positive SERVICE_CALL facts. "
-            + "Use PASS_THROUGH with no rules when the user requested no transformation. Use "
-            + "EXPLICIT only for approved sourcePath and targetPath rules; never invent rules. "
-            + "Reuse the sourceFactId values below as fromIntentRef and toIntentRef. Give every "
-            + "PASS_THROUGH mapping at least one approved sourceFactId for provenance.\n\n");
+    if (hasPositiveServiceCall(approved)) {
+      sb.append(
+          "Capture typed dataMappings for every required edge around positive SERVICE_CALL facts. "
+              + "Use PASS_THROUGH with no rules when the user requested no transformation. Use "
+              + "EXPLICIT only for approved sourcePath and targetPath rules; never invent rules. "
+              + "Reuse the sourceFactId values below as fromIntentRef and toIntentRef. Give every "
+              + "PASS_THROUGH mapping at least one approved sourceFactId for provenance.\n\n");
+    } else {
+      sb.append(
+          "Leave dataMappings empty. There are no positive SERVICE_CALL facts, so do not invent "
+              + "mappings. If you still emit a mapping, it must include stage and at least one "
+              + "sourceFactId.\n\n");
+    }
     sb.append("Planning text:\n").append(planning).append('\n');
     if (!approved.facts().isEmpty()) {
       sb.append(
@@ -473,6 +482,15 @@ public class RequirementAnalysisCapability implements StageCapability {
           .append('\n');
     }
     return sb.toString();
+  }
+
+  private static boolean hasPositiveServiceCall(RequirementDraft approved) {
+    return approved.facts().stream()
+        .anyMatch(
+            fact ->
+                fact != null
+                    && fact.polarity() == RequirementFactPolarity.POSITIVE
+                    && fact.kind() == RequirementFactKind.SERVICE_CALL);
   }
 
   private RequirementDraft resolveApprovedDraft(StageExecutionContext context) {

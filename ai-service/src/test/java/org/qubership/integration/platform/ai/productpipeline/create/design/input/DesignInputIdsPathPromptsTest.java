@@ -34,6 +34,12 @@ class DesignInputIdsPathPromptsTest {
         DesignMode.DERIVE,
         DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords("Derive minimal IDS"));
     assertEquals(DesignMode.DERIVE, DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords("no"));
+    assertEquals(
+        DesignMode.GENERATE,
+        DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords("yes, write the document"));
+    assertEquals(
+        DesignMode.DERIVE,
+        DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords("no, carry on without one."));
   }
 
   /**

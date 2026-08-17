@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -103,6 +104,145 @@ class BriefFlowExtractorTest {
         needsInput.missingFacts().stream()
             .anyMatch(m -> m.contains("SERVICE_CALL participant")),
         () -> needsInput.missingFacts().toString());
+  }
+
+  @Test
+  void withMappingsRejectsScriptOnlyIdsWhenBriefRequiresServiceCall() {
+    RequirementBrief brief =
+        brief(
+            "HealthProxy",
+            List.of("HTTP GET /health-proxy"),
+            "Call Petstore Ext getInventory and return inventory JSON",
+            List.of(
+                fact(
+                    "trigger-1",
+                    RequirementFactKind.ENDPOINT,
+                    "HTTP GET /health-proxy"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    "Petstore Ext: getInventory")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+    NormalizedDesignFlow authored =
+        new IdsDocumentParser()
+            .parseFirstFlow(
+                """
+                ### Integration flow for CIP Chain - HealthProxy
+
+                ```mermaid
+                sequenceDiagram
+                    autonumber
+                    participant Client as Client
+                    participant CIP as CIP Chain
+                    Client->>CIP: GET /health-proxy
+                    CIP-->>Client: 200 inventory JSON
+                ```
+                """);
+
+    IllegalArgumentException thrown =
+        assertThrows(
+            IllegalArgumentException.class, () -> extractor.withMappings(brief, authored));
+
+    assertTrue(
+        thrown.getMessage().contains("missing required outbound service-call"),
+        thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("sequence diagram"), thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("brief has 1"), thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("IDS has 0"), thrown.getMessage());
+  }
+
+  @Test
+  void withMappingsProjectsOntoAuthoredServiceCallStepIds() {
+    RequirementBrief brief =
+        brief(
+            "HealthProxy",
+            List.of("HTTP GET /health-proxy"),
+            "Call Petstore Ext getInventory",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP GET /health-proxy"),
+                fact("call-1", RequirementFactKind.SERVICE_CALL, "Petstore Ext: getInventory")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+    NormalizedDesignFlow authored =
+        new IdsDocumentParser()
+            .parseFirstFlow(
+                """
+                ### Integration flow for CIP Chain - HealthProxy
+
+                ```mermaid
+                sequenceDiagram
+                    autonumber
+                    participant Client as Client
+                    participant CIP as CIP Chain
+                    participant Petstore as Petstore Ext
+                    Client->>CIP: GET /health-proxy
+                    CIP->>Petstore: GET /store/inventory
+                    Petstore-->>CIP: inventory JSON
+                    CIP-->>Client: inventory JSON
+                ```
+                """);
+
+    NormalizedDesignFlow projected = extractor.withMappings(brief, authored);
+
+    NormalizedDesignFlow.Step serviceCall =
+        authored.steps().stream()
+            .filter(step -> "service-call".equalsIgnoreCase(step.kind()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(1, projected.dataMappings().size());
+    assertEquals("step-trigger", projected.dataMappings().getFirst().fromStepId());
+    assertEquals(serviceCall.stepId(), projected.dataMappings().getFirst().toStepId());
+  }
+
+  @Test
+  void withMappingsDropsUnboundLeftoverRowsInsteadOfDumpingIntentRefs() {
+    RequirementBrief brief =
+        brief(
+            "HealthProxy",
+            List.of("HTTP GET /health-proxy"),
+            "Call Petstore Ext getInventory",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP GET /health-proxy"),
+                fact("call-1", RequirementFactKind.SERVICE_CALL, "Petstore Ext: getInventory")),
+            List.of(
+                leftoverHashMapping(
+                    RequirementDataMapping.Stage.INITIALIZATION,
+                    "820d45e25846bb71f78bd5c219f72f87399d7c263d789990f551d38b675bc9e3",
+                    "b96b0eeae09d098d4fd86aaa47ea807df24901586ae64f91542d242845b2271f"),
+                leftoverHashMapping(
+                    RequirementDataMapping.Stage.RESPONSE,
+                    "b96b0eeae09d098d4fd86aaa47ea807df24901586ae64f91542d242845b2271f",
+                    "b8598ee044e21b5e58941a3e896a1c10ed1f3e05c4f031bb743ff8efdcc3d791"),
+                passThrough("map-init", "trigger-1", "call-1"),
+                passThrough("map-resp", "call-1", "trigger-1")));
+    NormalizedDesignFlow authored =
+        new IdsDocumentParser()
+            .parseFirstFlow(
+                """
+                ### Integration flow for CIP Chain - HealthProxy
+
+                ```mermaid
+                sequenceDiagram
+                    autonumber
+                    participant Client as Client
+                    participant CIP as CIP Chain
+                    participant Petstore as Petstore Ext
+                    Client->>CIP: GET /health-proxy
+                    CIP->>Petstore: GET /store/inventory
+                    Petstore-->>CIP: inventory JSON
+                    CIP-->>Client: inventory JSON
+                ```
+                """);
+
+    NormalizedDesignFlow projected = extractor.withMappings(brief, authored);
+
+    assertEquals(2, projected.dataMappings().size());
+    assertTrue(
+        projected.dataMappings().stream()
+            .noneMatch(
+                mapping ->
+                    mapping.fromStepId().contains("820d45e2")
+                        || mapping.toStepId().contains("b96b0eea")),
+        projected.dataMappings().toString());
   }
 
   @Test
@@ -215,6 +355,18 @@ class BriefFlowExtractorTest {
 
   private static RequirementFact fact(String id, RequirementFactKind kind, String text) {
     return new RequirementFact(id, RequirementFactPolarity.POSITIVE, kind, null, text);
+  }
+
+  private static RequirementDataMapping leftoverHashMapping(
+      RequirementDataMapping.Stage stage, String from, String to) {
+    return new RequirementDataMapping(
+        "",
+        stage,
+        from,
+        to,
+        RequirementDataMapping.Mode.PASS_THROUGH,
+        List.of(),
+        List.of("leftover-fact"));
   }
 
   private static RequirementDataMapping passThrough(String id, String from, String to) {

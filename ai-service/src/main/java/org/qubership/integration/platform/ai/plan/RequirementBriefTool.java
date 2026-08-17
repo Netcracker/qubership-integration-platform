@@ -95,6 +95,8 @@ public class RequirementBriefTool {
       goal and summary cannot both be blank.
       Facts from the approved draft are pinned by the server (stable sourceFactId values). Focus\
        on goal, summary, inputs, constraints, and assumptions.
+      When there are no positive SERVICE_CALL facts, leave dataMappings empty. Do not invent\
+       mappings. If you emit a mapping, it must include stage and at least one sourceFactId.
       When positive SERVICE_CALL facts exist, capture dataMappings for endpoint to first call\
        (INITIALIZATION), between adjacent calls (CONVERSION), and last call to endpoint (RESPONSE)\
        for request-response triggers. Reuse approved sourceFactId values as fromIntentRef and\
