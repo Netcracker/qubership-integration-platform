@@ -90,7 +90,8 @@ public class CompilerSkillContextBuilder {
         readRequirementBrief(workspace),
         readSelectedPatternText(workspace),
         readGraph(workspace),
-        readGeneratorPlanManifestSummary(workspace));
+        readGeneratorPlanManifestSummary(workspace),
+        ChainEditSkillContext.render(workspace));
   }
 
   public String buildUserMessage(CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
@@ -134,6 +135,11 @@ public class CompilerSkillContextBuilder {
       if (document.phase() == QipKnowledgeCapabilityPhase.GENERATOR && activePlan != null) {
         body.append("Active generator plan slice:\n");
         body.append(formatActivePlan(activePlan)).append("\n\n");
+      }
+      if (document.phase() == QipKnowledgeCapabilityPhase.GENERATOR
+          && snapshot.editContext() != null
+          && !snapshot.editContext().isBlank()) {
+        body.append(snapshot.editContext()).append("\n\n");
       }
     }
 

@@ -138,6 +138,14 @@ public record CompilerExecutionSeed(
     return new CompilerExecutionSeed(workspaceId, true, text, artifacts, preSatisfied);
   }
 
+  /** The same seed with one more artifact, for callers that scope a run after building it. */
+  public CompilerExecutionSeed with(SkillArtifact artifact) {
+    List<SkillArtifact> extended = new ArrayList<>(artifacts);
+    extended.add(Objects.requireNonNull(artifact, "artifact"));
+    return new CompilerExecutionSeed(
+        workspaceId, isolated, seedText, extended, preSatisfiedSkillIds);
+  }
+
   /** Artifact type names the run already holds, in scheduler spelling. */
   public Set<String> presentArtifactTypes() {
     LinkedHashSet<String> present = new LinkedHashSet<>();

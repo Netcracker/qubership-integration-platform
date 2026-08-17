@@ -21,6 +21,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
@@ -37,8 +42,10 @@ import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.agent.ChainPatchAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
@@ -59,6 +66,7 @@ class ChainPatchScenarioTest {
   private ChainPatchSemanticValidator semanticValidator;
   private ChainPatchWriter writer;
   private ChainPatchStore patchStore;
+  private ChainEditCompiler editCompiler;
   private ChainPatchScenario scenario;
 
   @BeforeEach
@@ -83,12 +91,16 @@ class ChainPatchScenarioTest {
         .thenReturn(new ChainPatchWriteResult(List.of("element-script"), List.of(), null, null));
     semanticValidator = mock(ChainPatchSemanticValidator.class);
     when(semanticValidator.introducedProblems(any(), any(), any())).thenReturn(List.of());
+    editCompiler = mock(ChainEditCompiler.class);
+    when(editCompiler.compile(any()))
+        .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.EDIT_CONFIGURATION));
 
     scenario =
         new ChainPatchScenario(
             chainContextExtractor,
             factsService,
             new ChainPlanGraphImporter(objectMapper, new CanonicalGraphDigest(objectMapper)),
+            editCompiler,
             agent,
             patchStore,
             ownership,
@@ -389,6 +401,69 @@ class ChainPatchScenarioTest {
     verify(agent).chat(eq(CONVERSATION_ID), agentMessage.capture());
     assertTrue(agentMessage.getValue().contains("customer id missing"), agentMessage.getValue());
     assertTrue(card.question().contains("Normalize payload"), card.question());
+  }
+
+  @Test
+  void offersTheCompilersNetPatchAsTheCardAndWritesThatSamePatch() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
+
+    ChatEvent.Decision card = decision(run(request("change the operation on the order call")));
+    run(answer(card.artifactHash()));
+
+    verify(agent, never()).chat(any(), any());
+    ArgumentCaptor<GraphPatch> written = ArgumentCaptor.forClass(GraphPatch.class);
+    verify(writer).write(any(), written.capture());
+    assertEquals(
+        List.of("return 201"),
+        written.getValue().propertyPatches().stream().map(p -> p.property().value()).toList());
+  }
+
+  @Test
+  void asksTheCompilersQuestionAndProposesNothing() {
+    when(editCompiler.compile(any()))
+        .thenReturn(
+            new ChainEditOutcome.Clarification(
+                "Several operations match. Which one do you mean?",
+                List.of("Get order status (GET /orders/{id}/status) in Orders")));
+
+    List<ChatEvent> events = run(request("change the operation on the order call"));
+
+    verify(agent, never()).chat(any(), any());
+    assertTrue(
+        events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be shown");
+    assertTrue(text(events).contains("Get order status"), text(events));
+  }
+
+  private void compiles(PropertyPatch propertyPatch) {
+    when(editCompiler.compile(any()))
+        .thenAnswer(
+            invocation -> {
+              ChainEditRequest editRequest = invocation.getArgument(0);
+              ChainPlanGraph base = editRequest.imported().graph();
+              GraphPatch netPatch =
+                  new GraphPatch(
+                      "net-1",
+                      "cip-service-call-generator",
+                      List.of(),
+                      List.of(),
+                      List.of(propertyPatch),
+                      List.of(),
+                      List.of(),
+                      "rebind");
+              return new ChainEditOutcome.Proposal(
+                  netPatch,
+                  base,
+                  base,
+                  new ChainEditIntent(
+                      ChainEditAction.REBIND_SERVICE_CALL,
+                      List.of(propertyPatch.targetNodeId()),
+                      "rebind",
+                      null,
+                      List.of()),
+                  List.of(),
+                  List.of("cip-service-call-generator"),
+                  null);
+            });
   }
 
   private void captures(PropertyPatch propertyPatch) {

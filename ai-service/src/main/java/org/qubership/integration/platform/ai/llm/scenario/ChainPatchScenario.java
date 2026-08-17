@@ -4,10 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import static java.util.stream.Collectors.joining;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
@@ -54,6 +60,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final ChainContextExtractor chainContextExtractor;
   private final ChainCatalogFactsService factsService;
   private final ChainPlanGraphImporter importer;
+  private final ChainEditCompiler editCompiler;
   private final ChainPatchAgent agent;
   private final ChainPatchStore patchStore;
   private final ChainPatchOwnership ownership;
@@ -69,6 +76,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainContextExtractor chainContextExtractor,
       ChainCatalogFactsService factsService,
       ChainPlanGraphImporter importer,
+      ChainEditCompiler editCompiler,
       ChainPatchAgent agent,
       ChainPatchStore patchStore,
       ChainPatchOwnership ownership,
@@ -81,6 +89,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.chainContextExtractor = Objects.requireNonNull(chainContextExtractor);
     this.factsService = Objects.requireNonNull(factsService);
     this.importer = Objects.requireNonNull(importer);
+    this.editCompiler = Objects.requireNonNull(editCompiler);
     this.agent = Objects.requireNonNull(agent);
     this.patchStore = Objects.requireNonNull(patchStore);
     this.ownership = Objects.requireNonNull(ownership);
@@ -124,6 +133,14 @@ public class ChainPatchScenario implements ScenarioHandler {
     patchStore.clearProposal(conversationId);
 
     String userMessage = request == null ? "" : request.getEffectiveUserText();
+
+    // Edits an owning compiler skill knows how to make go through it, because it reads the element
+    // schemas and the catalog. Everything else still falls back to the model-authored patch.
+    ChainEditOutcome compiled = compileEdit(conversationId, chainId, imported, userMessage);
+    if (!(compiled instanceof ChainEditOutcome.Unsupported)) {
+      return fromCompiler(conversationId, chainId, imported, compiled);
+    }
+
     return agent
         .chat(
             conversationId,
@@ -155,7 +172,52 @@ public class ChainPatchScenario implements ScenarioHandler {
               : said);
     }
 
-    GraphPatch proposed = ChainPatchPipeline.toGraphPatch(captured.get(), imported.graph());
+    return offer(
+        conversationId, chainId, imported, ChainPatchPipeline.toGraphPatch(captured.get(), imported.graph()));
+  }
+
+  /**
+   * Compiles the request through the owning skill, and never lets a compiler fault end the turn:
+   * an edit kind nobody owns yet still has the model-authored path behind it.
+   */
+  private ChainEditOutcome compileEdit(
+      String conversationId, String chainId, ImportedChainPlan imported, String userMessage) {
+    try {
+      return editCompiler.compile(
+          new ChainEditRequest(
+              conversationId,
+              chainId,
+              conversationId + "-edit-" + UUID.randomUUID(),
+              imported,
+              userMessage,
+              null));
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "Chain edit compiler failed conversationId=%s chainId=%s", conversationId, chainId);
+      return new ChainEditOutcome.CompilationFailure(
+          "The change could not be compiled: " + e.getMessage());
+    }
+  }
+
+  private Multi<ChatEvent> fromCompiler(
+      String conversationId, String chainId, ImportedChainPlan imported, ChainEditOutcome outcome) {
+    return switch (outcome) {
+      case ChainEditOutcome.Proposal proposal ->
+          offer(conversationId, chainId, imported, proposal.netPatch());
+      case ChainEditOutcome.Clarification(String question, List<String> choices) ->
+          message(
+              choices.isEmpty()
+                  ? question
+                  : question + "\n" + choices.stream().map(c -> "- " + c).collect(joining("\n")));
+      case ChainEditOutcome.ResolutionFailure(String text) -> message(text);
+      case ChainEditOutcome.CompilationFailure(String text) -> message(text);
+      case ChainEditOutcome.Escalation(String text) -> message(text);
+      case ChainEditOutcome.Unsupported ignored ->
+          message("I cannot make that change here yet.");
+    };
+  }
+
+  private Multi<ChatEvent> offer(
+      String conversationId, String chainId, ImportedChainPlan imported, GraphPatch proposed) {
     List<String> shapeErrors = GraphPatchShapeValidator.validate(proposed);
     if (!shapeErrors.isEmpty()) {
       return message("The change could not be read: " + GraphPatchShapeValidator.summarize(shapeErrors));
