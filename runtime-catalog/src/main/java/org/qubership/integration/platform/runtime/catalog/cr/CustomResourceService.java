@@ -62,7 +62,8 @@ public class CustomResourceService {
             V1Secret secret,
             Collection<KubeCustomObject> customResources,
             KubeCustomObject publicHttpRoute,
-            KubeCustomObject privateHttpRoute
+            KubeCustomObject privateHttpRoute,
+            KubeCustomObject egressHttpRoute
     ) {
         public Map<String, V1ConfigMap> getSourceByLabelMap(String label) {
             return integrationSources.stream().collect(Collectors.toMap(
@@ -85,12 +86,15 @@ public class CustomResourceService {
     private final DeploymentRouteMapper deploymentRouteMapper;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy;
     private final YAMLMapper yamlMapper;
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
     private static final String HTTP_ROUTES_PLURAL = "httproutes";
+    private static final String NETWORKING_ISTIO_API_GROUP = "networking.istio.io";
+    private static final String NETWORKING_ISTIO_API_VERSION = "v1";
 
     @Value("${qip.chains.external-routes.base-path}")
     String baseRoutePrefix;
@@ -120,6 +124,8 @@ public class CustomResourceService {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy,
             @Qualifier("httpRoutePrivateNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy,
+            @Qualifier("httpRouteEgressNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
             @Qualifier("engineRoutesNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy,
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper
@@ -134,6 +140,7 @@ public class CustomResourceService {
         this.deploymentRouteMapper = deploymentRouteMapper;
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
         this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
+        this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
         this.engineRoutesNamingStrategy = engineRoutesNamingStrategy;
         this.yamlMapper = yamlMapper;
     }
@@ -143,6 +150,10 @@ public class CustomResourceService {
         ModelMapper.addModelMap("camel.apache.org", "v1", "Integration", "Integrations", CamelKIntegration.class, CamelKIntegrationList.class);
         ModelMapper.addModelMap("monitoring.coreos.com", "v1", "ServiceMonitor", "ServiceMonitors", V1ServiceMonitor.class, V1ServiceMonitorList.class);
         ModelMapper.addModelMap(GATEWAY_API_GROUP, GATEWAY_API_VERSION, "HTTPRoute", HTTP_ROUTES_PLURAL,
+                KubeCustomObject.class, KubeCustomObjectList.class);
+        ModelMapper.addModelMap(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, "ServiceEntry", "serviceentries",
+                KubeCustomObject.class, KubeCustomObjectList.class);
+        ModelMapper.addModelMap(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, "DestinationRule", "destinationrules",
                 KubeCustomObject.class, KubeCustomObjectList.class);
         genericCustomResources.registerModelMaps();
     }
@@ -290,11 +301,15 @@ public class CustomResourceService {
 
         String publicRouteName = httpRoutePublicNamingStrategy.getName(getContextForDomain(name));
         String privateRouteName = httpRoutePrivateNamingStrategy.getName(getContextForDomain(name));
+        String egressRouteName = httpRouteEgressNamingStrategy.getName(getContextForDomain(name));
         KubeCustomObject publicHttpRoute = kubeOperator
                 .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, publicRouteName)
                 .orElse(null);
         KubeCustomObject privateHttpRoute = kubeOperator
                 .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, privateRouteName)
+                .orElse(null);
+        KubeCustomObject egressHttpRoute = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, egressRouteName)
                 .orElse(null);
 
         return Optional.of(new IntegrationResources(
@@ -306,7 +321,8 @@ public class CustomResourceService {
                 secret.orElse(null),
                 customResources,
                 publicHttpRoute,
-                privateHttpRoute
+                privateHttpRoute,
+                egressHttpRoute
         ));
     }
 
@@ -330,6 +346,8 @@ public class CustomResourceService {
                 httpRoutePublicNamingStrategy.getName(context));
         kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
                 httpRoutePrivateNamingStrategy.getName(context));
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                httpRouteEgressNamingStrategy.getName(context));
     }
 
     void deleteEngineRoutes(String name) {
@@ -346,8 +364,9 @@ public class CustomResourceService {
 
         Set<GatewayPathMatch> publicPaths = tierOwnPaths(ownUpdates, RouteType::isExternalTriggerRoute);
         Set<GatewayPathMatch> privatePaths = tierOwnPaths(ownUpdates, RouteType::isPrivateTriggerRoute);
+        Set<GatewayPathMatch> egressPaths = egressOwnPaths(ownUpdates);
 
-        if (publicPaths.isEmpty() && privatePaths.isEmpty()) {
+        if (publicPaths.isEmpty() && privatePaths.isEmpty() && egressPaths.isEmpty()) {
             return;
         }
         if (!publicPaths.isEmpty()) {
@@ -355,6 +374,9 @@ public class CustomResourceService {
         }
         if (!privatePaths.isEmpty()) {
             stripPathsFromTier(httpRoutePrivateNamingStrategy.getName(getContextForDomain(name)), privatePaths, "private");
+        }
+        if (!egressPaths.isEmpty()) {
+            stripPathsFromTier(httpRouteEgressNamingStrategy.getName(getContextForDomain(name)), egressPaths, "egress");
         }
     }
 
@@ -370,6 +392,20 @@ public class CustomResourceService {
         return ownUpdates.stream()
                 .filter(route -> tierPredicate.test(route.getType()))
                 .map(route -> GatewayPathMatch.forPath(baseRoutePrefix + route.getPath()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Builds the set of this snapshot's own egress route path matches. Unlike {@link #tierOwnPaths},
+     * this reads {@code gatewayPrefix} (the resolved internal path, e.g. {@code /system/{id}}), not
+     * {@code baseRoutePrefix + path} -- egress routes' {@code path} is the resolved external target
+     * URL, not a gateway-facing path.
+     */
+    private Set<GatewayPathMatch> egressOwnPaths(List<DeploymentRouteUpdate> ownUpdates) {
+        return ownUpdates.stream()
+                .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
+                        || route.getType() == RouteType.EXTERNAL_SERVICE)
+                .map(route -> GatewayPathMatch.forPath(route.getGatewayPrefix()))
                 .collect(Collectors.toSet());
     }
 

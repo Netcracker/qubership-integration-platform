@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.EgressRouteResourceBuilder.EGRESS_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.HttpRouteResourceBuilder.PRIVATE_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.HttpRouteResourceBuilder.PUBLIC_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
@@ -139,6 +140,9 @@ public class CustomResourceBuildContextFactory {
         }
         if (resources.privateHttpRoute() != null) {
             context.getBuildCache().put(PRIVATE_HTTP_ROUTE_CACHE_KEY, resources.privateHttpRoute().getSpec());
+        }
+        if (resources.egressHttpRoute() != null) {
+            context.getBuildCache().put(EGRESS_HTTP_ROUTE_CACHE_KEY, resources.egressHttpRoute().getSpec());
         }
     }
 

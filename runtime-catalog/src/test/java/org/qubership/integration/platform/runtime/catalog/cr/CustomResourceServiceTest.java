@@ -11,6 +11,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomRe
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.EngineRoutesNamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.HttpRouteEgressNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.HttpRoutePrivateNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.HttpRoutePublicNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
@@ -50,6 +51,7 @@ class CustomResourceServiceTest {
     private static final String DOMAIN = "my-domain";
     private static final String PUBLIC_ROUTE_NAME = "my-domain-v1-chain-public-routes";
     private static final String PRIVATE_ROUTE_NAME = "my-domain-v1-chain-private-routes";
+    private static final String EGRESS_ROUTE_NAME = "my-domain-v1-egress-routes";
     private static final String ENGINE_ROUTE_NAME = "my-domain-v1-routes";
 
     private KubeOperator kubeOperator;
@@ -72,6 +74,9 @@ class CustomResourceServiceTest {
         EngineRoutesNamingStrategy engineRoutesNamingStrategy = new EngineRoutesNamingStrategy(
                 new K8sNameVerifier(), new K8sNameValidator(), integrationResourceNamingStrategy,
                 "-routes");
+        HttpRouteEgressNamingStrategy egressNamingStrategy = new HttpRouteEgressNamingStrategy(
+                new K8sNameVerifier(), new K8sNameValidator(), integrationResourceNamingStrategy,
+                "-egress-routes");
 
         customResourceService = new CustomResourceService(
                 kubeOperator,
@@ -84,6 +89,7 @@ class CustomResourceServiceTest {
                 Mappers.getMapper(DeploymentRouteMapper.class),
                 publicNamingStrategy,
                 privateNamingStrategy,
+                egressNamingStrategy,
                 engineRoutesNamingStrategy,
                 new YAMLMapper()
         );
@@ -137,11 +143,12 @@ class CustomResourceServiceTest {
     }
 
     @Test
-    void deleteHttpRoutesDeletesBothComputedTierNamesUnconditionally() {
+    void deleteHttpRoutesDeletesAllComputedTierNamesUnconditionally() {
         customResourceService.deleteHttpRoutes(DOMAIN);
 
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
+        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, EGRESS_ROUTE_NAME);
     }
 
     @Test
@@ -286,13 +293,18 @@ class CustomResourceServiceTest {
     // and must not defeat the "nothing to do" early return, nor trigger any lookup against either
     // tier's CR.
     @Test
-    void deleteChainSnapshotWithOnlyEgressRoutesDoesNothing() {
+    void deleteChainSnapshotWithOnlyEgressRoutesStripsThemFromTheEgressCr() {
         when(routesGetterService.getRoutes(any())).thenReturn(List.of(
-                DeploymentRoute.builder().path("https://example.com").type(RouteType.EXTERNAL_SENDER).build()));
+                DeploymentRoute.builder().path("https://example.com").gatewayPrefix("/system/service-a")
+                        .type(RouteType.EXTERNAL_SENDER).build()));
+        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(EGRESS_ROUTE_NAME)))
+                .thenReturn(Optional.of(httpRoute(EGRESS_ROUTE_NAME, List.of(rule("/system/service-a")))));
 
         customResourceService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
 
-        verify(kubeOperator, never()).getCustomObject(any(), any(), any(), any());
+        verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME));
+        verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME));
+        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, EGRESS_ROUTE_NAME);
     }
 
     // Finding 4: a rule shape stripPathsFromTier didn't generate itself (no "matches" key at all)

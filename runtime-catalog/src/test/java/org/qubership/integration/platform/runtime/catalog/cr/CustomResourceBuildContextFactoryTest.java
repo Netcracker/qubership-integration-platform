@@ -40,7 +40,7 @@ class CustomResourceBuildContextFactoryTest {
         CamelKIntegration integration = new CamelKIntegration();
         integration.setSpec(new CamelKIntegration.IntegrationSpec());
         CustomResourceService.IntegrationResources resources = new CustomResourceService.IntegrationResources(
-                integration, null, null, null, List.of(), null, List.of(), publicRoute, null);
+                integration, null, null, null, List.of(), null, List.of(), publicRoute, null, null);
         when(customResourceService.getMainIntegrationResources("my-domain")).thenReturn(Optional.of(resources));
 
         CustomResourceBuildContextFactory factory = new CustomResourceBuildContextFactory(
