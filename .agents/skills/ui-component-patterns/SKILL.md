@@ -12,7 +12,11 @@ Use these conventions in `ui/src/components/`.
 - Use Ant Design `Table`.
 - Provide explicit record generic type for table and column definitions.
 - In flex containers, add `flex-table` class.
-- Use `InlineEdit` for editable cells.
+- Use `InlineEdit` for editable cells. Its edit commits on **Enter** only: the antd `Form` inside it is rendered with
+  `component={false}`, so the `onBlur` it passes has no element to attach to and clicking away discards the edit.
+  `onFinish` also toggles twice, so the cell stays open after a commit. Every consumer in the workspace inherits both,
+  so document the Enter-only behavior for users rather than working around it per call site, and fix
+  `src/components/InlineEdit.tsx` if the behavior has to change.
 - Reuse search helpers from `src/components/table/tableSearch.ts` (`normalizeSearchTerm`, `matchesByFields`).
 - In mixed-type search haystacks, do not use `filter(Boolean)`; only filter `null`, `undefined`, and empty string.
 - For action-button columns, use `actions-column` class and helpers/constants from `actionsColumn.ts`.
@@ -33,6 +37,18 @@ Use these conventions in `ui/src/components/`.
 - Close via `closeContainingModal()`.
 - Place modal components under `src/components/modal/`.
 - Wrap destructive actions with `confirmAndRun(message, action)` from `src/misc/confirm-utils.ts`.
+- Take `Upload.Dragger` off the root `antd` import. `antd/es/upload/Dragger` is untranspiled ESM and breaks the jest
+  run; `src/components/modal/ImportSessions.tsx` still imports it that way.
+
+## Unsaved-changes blockers on editor pages
+
+An editor page that guards navigation keeps its dirty flag in a **ref**, not in state, and reads that ref from the
+`useBlocker` predicate; see `src/pages/testing/TestCasePage.tsx` and `src/pages/testing/EndpointMockPage.tsx`. The
+predicate also exempts navigations that stay under the editor's own path, so switching sub-tabs does not prompt.
+
+Do not reach for `src/components/services/useUnsavedChangesWithModal.tsx` here. It reads a state flag, so a save that
+clears the flag and navigates in the same tick is blocked by its own navigation: the blocker still sees the render in
+which the flag was set.
 
 ## Forms
 

@@ -28,7 +28,10 @@ The UI uses interface + dual implementation:
 Prefer existing helpers under `src/misc/`:
 
 - `confirm-utils.ts`: `confirmAndRun()` for destructive action confirmation
-- `format-utils.ts`: date/file-size formatting
+- `format-utils.ts`: date/file-size formatting, and `formatOptional()`. `formatOptional` tests the value for
+  truthiness, so it renders a **zero** as the empty placeholder. A numeric field whose zero is meaningful needs its own
+  formatter; `src/components/testing/endpointMocks.ts` has `formatMockNumber` for the mock delay, which is created as
+  `0`.
 - `date-utils.ts`: timestamp operations
 - `download-utils.ts`: file download flow (Blob to link click)
 - `file-utils.ts`: file reading and validation
@@ -37,5 +40,21 @@ Prefer existing helpers under `src/misc/`:
 - `tree-utils.ts`: folder/chain tree traversal
 - `clipboard-util.ts`: clipboard copy helper
 - `log-export-utils.ts`: Excel log export
+- `protocol-utils.ts`: protocol classification. `isHttpProtocol()` accepts **soap** as well as http, so a check that
+  has to mean HTTP alone compares `normalizeProtocol()` against `"http"` itself, the way
+  `src/components/testing/testingElements.ts` does.
 
 When adding new helper logic, first verify an existing utility does not already solve the same concern.
+
+## The testing-service list contract
+
+Every list request the testing service serves is validated per entity, and a mismatch is a 400 rather than a silently
+ignored parameter:
+
+- `sort_by` is checked against the fields that entity declares (`internal/dao/sorting.go`).
+- A filter is checked for a known feature, a condition declared for that feature, and the value count that condition
+  takes (`internal/dao/filtering.go`).
+
+The client mirrors both in `src/hooks/filter/useTestingFilter.ts` and `src/hooks/testing/useTestingEntityList.ts`.
+**A new sortable column needs its wire name added to that entity's sort-field tuple first.** Without it, every sorted
+request on that list comes back 400. The same holds for a new filter column and its conditions.
