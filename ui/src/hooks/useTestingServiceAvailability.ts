@@ -13,19 +13,13 @@ export type TestingServiceAvailability = {
 
 /**
  * Resolves once whether the testing section may be shown. An absent service is a
- * normal outcome, not an error: the query swallows the failure and retries are off
- * so a missing deployment cannot produce a request storm.
+ * normal outcome, not an error: a failed request leaves the section hidden, and
+ * retries are off so a missing deployment cannot produce a request storm.
  */
 export function useTestingServiceAvailability(): TestingServiceAvailability {
-  const { data, isLoading } = useQuery<TestingServiceMode | null>({
+  const { data, isLoading } = useQuery<TestingServiceMode>({
     queryKey: testingServiceModeQueryKey,
-    queryFn: async () => {
-      try {
-        return await api.getTestingServiceMode();
-      } catch {
-        return null;
-      }
-    },
+    queryFn: () => api.getTestingServiceMode(),
     enabled: !isVsCode,
     retry: false,
     staleTime: Infinity,

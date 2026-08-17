@@ -22,9 +22,10 @@ jest.mock("../../src/api/rest/vscodeExtensionApi", () => ({
 
 import { useTestingServiceAvailability } from "../../src/hooks/useTestingServiceAvailability";
 
-// The client keeps the library's own retry policy on purpose. Turning retries
-// off here would satisfy the no-retry-storm test through the harness rather than
-// through the hook, which is what it is meant to guard.
+// The client keeps the library's own retry policy on purpose: it retries a
+// failed query three times. Turning retries off here would satisfy the
+// no-retry-storm test through the harness rather than through the hook, and the
+// hook's own `retry: false` is what that test guards.
 function createWrapper(queryClient = new QueryClient()) {
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -61,18 +62,26 @@ describe("useTestingServiceAvailability", () => {
     expect(result.current.isAvailable).toBe(false);
   });
 
+  // The failure has to reach the query rather than be resolved inside the query
+  // function: a swallowed one is a success the retry policy never sees.
   it("should report the service unavailable when the mode request fails", async () => {
     mockGetTestingServiceMode.mockRejectedValue(new Error("Network Error"));
+    const queryClient = new QueryClient();
 
-    const { result } = renderAvailability();
+    const { result } = renderAvailability(queryClient);
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isAvailable).toBe(false);
+    expect(queryClient.getQueryState(["testing-service", "mode"])?.status).toBe(
+      "error",
+    );
   });
 
   // An absent testing service is a normal deployment, so it must not produce a
   // retry storm. The client above retries by the library default, so this holds
-  // only because the hook itself refuses to.
+  // only because the hook itself refuses to. Nothing may swallow the failure
+  // inside the query function either: a rejection the hook resolves instead
+  // would leave `retry: false` guarding nothing.
   it("should ask once when the mode request fails", async () => {
     mockGetTestingServiceMode.mockRejectedValue(new Error("Network Error"));
 
