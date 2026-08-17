@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { Breadcrumb, Empty, Flex, Skeleton, Tabs } from "antd";
 import {
+  BlockerFunction,
   Outlet,
   useBlocker,
   useLocation,
@@ -170,8 +171,16 @@ export const EndpointMockPage: React.FC = () => {
     void navigate(listPath);
   }, [navigate, listPath]);
 
+  // Sub-tabs are routes of this editor, so only a navigation that leaves it prompts.
+  const editorPath = `${listPath}/${mockId ?? ""}`;
   const blocker = useBlocker(
-    useCallback(() => !readonly && hasChangesRef.current, [readonly]),
+    useCallback<BlockerFunction>(
+      ({ nextLocation }) =>
+        !readonly &&
+        hasChangesRef.current &&
+        !nextLocation.pathname.startsWith(editorPath),
+      [readonly, editorPath],
+    ),
   );
 
   useEffect(() => {

@@ -5,6 +5,8 @@ import { TestingNamedParameter } from "../../api/apiTypes.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { tableEmpty } from "../table/tableEmpty.tsx";
 
+type KeyedParameter = TestingNamedParameter & { key: number };
+
 export type NameValueTableProps = {
   title: string;
   values: TestingNamedParameter[] | null;
@@ -22,6 +24,12 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   "data-testid": dataTestId,
 }) => {
   const rows = useMemo(() => values ?? [], [values]);
+  // Pairs carry no id, so the row key comes from a keyed copy rather than from
+  // the row index, which antd deprecated on `rowKey`.
+  const keyedRows = useMemo<KeyedParameter[]>(
+    () => rows.map((row, index) => ({ ...row, key: index })),
+    [rows],
+  );
 
   const replaceRow = (index: number, changes: Partial<TestingNamedParameter>) =>
     onChange(
@@ -31,7 +39,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   const removeRow = (index: number) =>
     onChange(rows.filter((_, i) => i !== index));
 
-  const columns: TableProps<TestingNamedParameter>["columns"] = [
+  const columns: TableProps<KeyedParameter>["columns"] = [
     {
       title: "Name",
       key: "name",
@@ -72,7 +80,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
             key: "actions",
             width: 48,
             className: "actions-column",
-            render: (_: unknown, __: TestingNamedParameter, index: number) => (
+            render: (_: unknown, __: KeyedParameter, index: number) => (
               <Tooltip title="Delete">
                 <Button
                   type="text"
@@ -100,12 +108,12 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
           </Button>
         )}
       </Flex>
-      <Table<TestingNamedParameter>
+      <Table<KeyedParameter>
         size="small"
         columns={columns}
-        dataSource={rows}
+        dataSource={keyedRows}
         pagination={false}
-        rowKey={(_, index) => index ?? 0}
+        rowKey="key"
         locale={{ emptyText: tableEmpty(`No ${title.toLowerCase()}`) }}
       />
     </div>

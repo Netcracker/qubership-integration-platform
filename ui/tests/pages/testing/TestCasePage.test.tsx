@@ -420,6 +420,32 @@ describe("TestCasePage unsaved changes", () => {
     expect(mockUpdateTestCase).not.toHaveBeenCalled();
   });
 
+  it("should switch sub-tabs without prompting while changes are pending", async () => {
+    const { router } = await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByText("Request"));
+
+    await screen.findByLabelText("Trigger");
+    expect(router.state.location.pathname).toBe(`${CHAIN_EDITOR_PATH}/request`);
+    expect(mockShowModal).not.toHaveBeenCalled();
+  });
+
+  it("should keep the pending changes when a sub-tab is switched", async () => {
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByText("Request"));
+    await screen.findByLabelText("Trigger");
+    fireEvent.click(screen.getByText("General"));
+
+    expect(await screen.findByLabelText("Name")).toHaveValue("Renamed");
+  });
+
   it("should save before leaving when the prompt is answered save", async () => {
     await renderChainEditor();
 

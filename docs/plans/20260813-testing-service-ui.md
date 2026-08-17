@@ -656,18 +656,27 @@ very list.
 
 ### Task 14: Verify acceptance criteria
 
-- [ ] verify all requirements from Overview are implemented
-- [ ] run `npm -w @netcracker/qip-ui test`, the lint script and the type check
-- [ ] confirm the library build still succeeds: `npm -w @netcracker/qip-ui run build:lib`
-- [ ] bring up the full stack and open `http://localhost:8080` in Chrome — never port 4200, which serves no data
-- [ ] click through: create a test case on a deployed chain, fill trigger and request, add matchers of several types including a JSON one and a `match` one (whose parameter is `pattern`), save, run it, watch the run reach a terminal state, open the errors of a failing matcher, follow the session link into the trace
-- [ ] restart a finished run from both the run list and the case-run list, and cancel a running one
-- [ ] click through mocks: create a mock (confirm it is enabled by default), run a case that hits it, confirm the mocked response is what the chain received
-- [ ] assemble a run from cases of two different chains through the admin list, and confirm select-all beyond the loaded page acts on everything matching the filters
-- [ ] open an editor from the admin list and confirm it is read-only, including the matchers table
-- [ ] verify column settings survive a page reload
-- [ ] navigate directly to a testing URL with the service stopped and confirm the guard redirects instead of erroring, with no retry storm in the network tab
-- [ ] check the browser console for errors and verify light and dark themes on every new screen
+- [x] verify all requirements from Overview are implemented
+- [x] run `npm -w @netcracker/qip-ui test`, the lint script and the type check — 239 suites / 3210 tests pass, eslint reports 0 errors (74 pre-existing warnings, none in testing files), `tsc --noEmit` clean
+- [x] confirm the library build still succeeds: `npm -w @netcracker/qip-ui run build:lib` — succeeds once `@netcracker/qip-schemas` is built; the schemas workspace is a prerequisite, not a regression
+- [x] bring up the full stack and open `http://localhost:8080` in Chrome — never port 4200, which serves no data — the Testing tab and the admin Testing group both render
+- [x] click through: create a test case on a deployed chain, fill trigger and request, add matchers of several types including a JSON one and a `match` one (whose parameter is `pattern`), save, run it, watch the run reach a terminal state, open the errors of a failing matcher, follow the session link into the trace — the saved payload carries `value` / `pattern` / `path`+`sample` exactly per matcher type, the run reached Finished, the errors page rendered the failing rule, and the session link resolved the external id into the trace
+- [x] restart a finished run from both the run list and the case-run list, and cancel a running one — both restarts produced a new run set (the run list refreshed itself); cancel turned the pending case Canceled and left the started one Running, as its confirmation promises
+- [x] click through mocks: create a mock (confirm it is enabled by default), run a case that hits it, confirm the mocked response is what the chain received — the mock defaulted to enabled/200/0, and the session trace records the sender's body as the mocked one although the sender points at an unreachable host
+- [x] assemble a run from cases of two different chains through the admin list, and confirm select-all beyond the loaded page acts on everything matching the filters — the run held case runs of two chains, and select-all deleted all 26 cases while only 20 were loaded
+- [x] open an editor from the admin list and confirm it is read-only, including the matchers table — fields disabled, no save toolbar, and the matchers table drops its selection column and its toolbar while keeping local search
+- [x] verify column settings survive a page reload — a column enabled in the settings panel was still there after a full reload
+- [x] navigate directly to a testing URL with the service stopped and confirm the guard redirects instead of erroring, with no retry storm in the network tab — with the mode call failing the guard landed on `/not-found`, the chain page dropped its Testing tab, and exactly one mode request was made
+- [x] check the browser console for errors and verify light and dark themes on every new screen — both themes render every screen legibly, and the console is clean after the two fixes below
+
+➕ Two defects were found and fixed during this pass. The unsaved-changes blocker of both editors fired on their **own** sub-tab navigation, so moving from General to Request offered to discard the edit; it now blocks only a navigation that leaves the editor, with regression tests in both page suites. `NameValueTable` keyed its rows through antd's deprecated `rowKey` index parameter, which warned on every render; it now keys off a keyed copy of the pairs.
+
+⚠️ A **service-side** defect this UI only reports: `test_cases_view` joins `matchers` twice, so `validation_rule_count` and `enabled_rule_count` come back squared — three matchers are shown as nine Rules. The list renders what the service returns; the fix belongs to the Go module of plan 1
+(`migrations/00000000000100__init.tx.up.sql`).
+
+⚠️ The shared `InlineEdit` commits only on Enter — its antd `Form` renders no element (`component={false}`), so the `onBlur` it passes never fires, and its `onFinish` toggles twice and leaves the cell open. Every consumer in the workspace behaves this way, and the component is untouched by this branch, so the matchers table inherits it rather than causing it.
+
+➕ The testing service resolves an `http-trigger` through its `contextPath` property, which specification-driven triggers do not carry. The click-through therefore ran on a purpose-built chain (`Testing verification chain`) with a plain trigger plus an `http-sender` aimed at an unreachable host, which also makes the mock interception unambiguous.
 
 ### Task 15: [Final] Update documentation
 
