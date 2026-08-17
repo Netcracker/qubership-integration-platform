@@ -35,23 +35,10 @@ import {
 import { TestCaseRuns } from "../../../src/pages/testing/TestCaseRuns.tsx";
 import { ChainHeaderTestRoot } from "../../helpers/renderWithChainHeader.tsx";
 import { triggerIntersection } from "../../setup/intersection-observer.ts";
-
-let capturedConfirm:
-  | { title: React.ReactNode; content?: React.ReactNode; onOk: () => unknown }
-  | undefined;
-
-/** A column as the page hands it to the table, before the table reads it. */
-type RenderedColumn = {
-  key?: React.Key;
-  title?: React.ReactNode;
-  sorter?: unknown;
-};
-
-let mockRenderedColumns: RenderedColumn[] = [];
-
-function mockRecordColumns(columns: unknown): void {
-  mockRenderedColumns = (columns ?? []) as RenderedColumn[];
-}
+import {
+  type CapturedConfirm,
+  mockListScaffolding,
+} from "../../helpers/testingListScaffolding.ts";
 
 jest.mock("../../../src/api/api.ts", () => ({
   api: {
@@ -94,7 +81,7 @@ jest.mock("antd", () => {
   }>("tests/helpers/chainPageAntdJestMock");
   return createChainPageAntdMock({
     Table: (props: Parameters<typeof mockLightweightTable>[0]) => {
-      mockRecordColumns(props.columns);
+      mockListScaffolding.recordColumns(props.columns);
       return react.createElement(mockLightweightTable, props);
     },
   });
@@ -141,13 +128,10 @@ jest.mock("../../../src/hooks/useNotificationService.tsx", () => ({
 }));
 
 jest.mock("../../../src/misc/confirm-utils.ts", () => ({
-  confirmAndRun: (options: {
-    title: React.ReactNode;
-    content?: React.ReactNode;
-    onOk: () => unknown;
-  }) => {
-    capturedConfirm = options;
-  },
+  // Called, not referenced: the factory runs while the page module loads, before
+  // this suite's own imports are initialized.
+  confirmAndRun: (options: CapturedConfirm) =>
+    mockListScaffolding.captureConfirm(options),
 }));
 
 jest.mock("../../../src/hooks/filter/useTestingFilter.ts", () => {
@@ -227,21 +211,22 @@ function lastListSpecification(): TestingSelectionSpecification {
 }
 
 function sortableColumnKeys(): string[] {
-  return mockRenderedColumns
+  return mockListScaffolding.columns
     .filter((column) => column.sorter)
     .map((column) => String(column.key));
 }
 
 /** Sort key the named column carries, so no test types a key of its own. */
 function sortKeyOfColumn(title: string): string {
-  const column = mockRenderedColumns.find((entry) => entry.title === title);
+  const column = mockListScaffolding.columns.find(
+    (entry) => entry.title === title,
+  );
   expect(column?.sorter).toBe(true);
   return String(column?.key);
 }
 
 beforeEach(() => {
-  capturedConfirm = undefined;
-  mockRenderedColumns = [];
+  mockListScaffolding.reset();
   mockUseParams.mockReturnValue({ chainId: "chain-1" });
   mockGetChains.mockResolvedValue([]);
   mockGetElements.mockResolvedValue([]);
@@ -522,10 +507,10 @@ describe("TestCaseRuns actions", () => {
     fireEvent.click(screen.getAllByRole("checkbox")[1]);
     fireEvent.click(screen.getByTestId("test-case-runs-cancel"));
 
-    expect(capturedConfirm?.content).toBe(
+    expect(mockListScaffolding.confirm?.content).toBe(
       "Cancel 1 test case run? A case that already started keeps running.",
     );
-    await capturedConfirm?.onOk();
+    await mockListScaffolding.confirm?.onOk();
     expect(mockCancelTestCaseRuns).toHaveBeenCalledWith(["run-1"]);
   });
 
@@ -555,10 +540,10 @@ describe("TestCaseRuns actions", () => {
     fireEvent.click(screen.getByTestId("table-selection-all-matching"));
     fireEvent.click(screen.getByTestId("test-case-runs-cancel"));
 
-    expect(capturedConfirm?.content).toBe(
+    expect(mockListScaffolding.confirm?.content).toBe(
       "Cancel all test case runs that match the filters? A case that already started keeps running.",
     );
-    await capturedConfirm?.onOk();
+    await mockListScaffolding.confirm?.onOk();
     // The resolver has to repeat the selection of the list, or the cancel would
     // reach past the chain the list is scoped to.
     expect(mockGetTestCaseRunIds).toHaveBeenCalledWith(lastListSpecification());
@@ -592,7 +577,7 @@ describe("TestCaseRuns actions", () => {
 
     fireEvent.click(screen.getByTestId("table-selection-all-matching"));
     fireEvent.click(screen.getByTestId("test-case-runs-cancel"));
-    await capturedConfirm?.onOk();
+    await mockListScaffolding.confirm?.onOk();
 
     expect(mockGetTestCaseRunIds).toHaveBeenCalledWith(lastListSpecification());
     expect(mockGetTestCaseRunIds).toHaveBeenCalledWith({
@@ -618,7 +603,7 @@ describe("TestCaseRuns actions", () => {
 
     fireEvent.click(screen.getByTestId("table-selection-all-matching"));
     fireEvent.click(screen.getByTestId("test-case-runs-cancel"));
-    await capturedConfirm?.onOk();
+    await mockListScaffolding.confirm?.onOk();
 
     expect(mockGetTestCaseRunIds).toHaveBeenCalledWith(lastListSpecification());
     expect(mockGetTestCaseRunIds).toHaveBeenCalledWith({
@@ -652,7 +637,7 @@ describe("TestCaseRuns actions", () => {
     fireEvent.click(screen.getByTestId("test-case-runs-restart"));
     fireEvent.click(screen.getByTestId("test-case-runs-export"));
 
-    expect(capturedConfirm).toBeUndefined();
+    expect(mockListScaffolding.confirm).toBeUndefined();
     expect(mockStartTestsRun).not.toHaveBeenCalled();
     expect(mockExportTestCaseRuns).not.toHaveBeenCalled();
   });
@@ -706,7 +691,7 @@ describe("TestCaseRuns selection lifetime", () => {
 
     // Rows the search has hidden are rows a cancel must not reach.
     fireEvent.click(screen.getByTestId("test-case-runs-cancel"));
-    expect(capturedConfirm).toBeUndefined();
+    expect(mockListScaffolding.confirm).toBeUndefined();
 
     fireEvent.click(screen.getAllByRole("checkbox")[1]);
     expect(rowCheckedState()).toEqual([true, false]);
