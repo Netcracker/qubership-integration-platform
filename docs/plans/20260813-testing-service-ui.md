@@ -526,15 +526,34 @@ import or create, and delete.
 **Files:**
 - Create: `ui/src/pages/testing/EndpointMockPage.tsx`
 - Create: `ui/src/components/testing/endpointMock/*.tsx`
+- Modify: `ui/src/App.tsx`
 - Create: `ui/tests/pages/testing/EndpointMockPage.test.tsx`
 
-- [ ] build three routed sub-tabs — general, response, request-matchers — with the index redirect to general
-- [ ] general tab carries both the general fields and the endpoint picker
-- [ ] gate save on name, chain, element and matcher validity — no method here
-- [ ] guard navigation away from unsaved changes, which the source does for this editor too
-- [ ] support the read-only variant
-- [ ] write tests for sub-tab routing, the save payload and read-only mode
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] build three routed sub-tabs — general, response, request-matchers — with the index redirect to general
+- [x] general tab carries both the general fields and the endpoint picker
+- [x] gate save on name, chain, element and matcher validity — no method here
+- [x] guard navigation away from unsaved changes, which the source does for this editor too
+- [x] support the read-only variant
+- [x] write tests for sub-tab routing, the save payload and read-only mode
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The update payload was re-read off the Go service and agrees with the plan: `POST /endpoint-mocks/{id}` replaces
+the endpoint reference, the response settings and every matcher from the body
+(`internal/services/endpoint_mocks_service.go`), so the editor sends the whole entity and the service reassigns
+matcher ids. Response settings are `message` (body plus headers), `status` and `delay` — `internal/dao/model.go`,
+field for field what `apiTypes.ts` already declares.
+
+➕ One thing the plan does not state: the service rejects a response status outside 100–599, tolerating only a stored
+zero, which it answers as 200 (`endpointMockViolations`). The status field is bounded to that range rather than left
+open, so nothing the editor saves comes back a violation.
+
+➕ The response tab reuses `NameValueTable` for the headers and `Script` in `json` mode for the body, as the request
+tab of task 8 does. The endpoint picker sits on the general tab, where the plan puts it, and reuses `flattenElements`
+plus `isHttpEndpoint` from task 9 — a mock endpoint can be nested in a container.
+
+➕ The page mirrors `TestCasePage` throughout: the outlet-context draft, the routed sub-tabs, and the ref-based
+unsaved-changes blocker, which `useUnsavedChangesWithModal` cannot replace because it reads a state flag and would
+prompt on the editor's own post-save navigation.
 
 ### Task 11: Test case runs
 

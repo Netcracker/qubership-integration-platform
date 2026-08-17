@@ -76,6 +76,10 @@ import { TestCasePage } from "./pages/testing/TestCasePage.tsx";
 import { TestCaseGeneralTab } from "./components/testing/testCase/TestCaseGeneralTab.tsx";
 import { TestCaseRequestTab } from "./components/testing/testCase/TestCaseRequestTab.tsx";
 import { TestCaseResponseValidationTab } from "./components/testing/testCase/TestCaseResponseValidationTab.tsx";
+import { EndpointMockPage } from "./pages/testing/EndpointMockPage.tsx";
+import { EndpointMockGeneralTab } from "./components/testing/endpointMock/EndpointMockGeneralTab.tsx";
+import { EndpointMockResponseTab } from "./components/testing/endpointMock/EndpointMockResponseTab.tsx";
+import { EndpointMockRequestMatchersTab } from "./components/testing/endpointMock/EndpointMockRequestMatchersTab.tsx";
 
 const { Header, Content } = Layout;
 
@@ -177,24 +181,13 @@ const router = createBrowserRouter(
               path="endpoint-mocks"
               element={<EndpointMocks variant="admin-page" />}
             />
-            <Route
-              path="endpoint-mocks/:mockId"
-              element={<TestingPlaceholder name="Endpoint mock" />}
-            >
+            <Route path="endpoint-mocks/:mockId" element={<EndpointMockPage />}>
               <Route index element={<Navigate to="general" replace />} />
-              <Route
-                path="general"
-                element={<TestingPlaceholder name="Endpoint mock general" />}
-              />
-              <Route
-                path="response"
-                element={<TestingPlaceholder name="Endpoint mock response" />}
-              />
+              <Route path="general" element={<EndpointMockGeneralTab />} />
+              <Route path="response" element={<EndpointMockResponseTab />} />
               <Route
                 path="request-matchers"
-                element={
-                  <TestingPlaceholder name="Endpoint mock request matchers" />
-                }
+                element={<EndpointMockRequestMatchersTab />}
               />
             </Route>
             <Route
@@ -261,22 +254,14 @@ const router = createBrowserRouter(
               <Route path="endpoint-mocks" element={<EndpointMocks />} />
               <Route
                 path="endpoint-mocks/:mockId"
-                element={<TestingPlaceholder name="Endpoint mock" />}
+                element={<EndpointMockPage />}
               >
                 <Route index element={<Navigate to="general" replace />} />
-                <Route
-                  path="general"
-                  element={<TestingPlaceholder name="Endpoint mock general" />}
-                />
-                <Route
-                  path="response"
-                  element={<TestingPlaceholder name="Endpoint mock response" />}
-                />
+                <Route path="general" element={<EndpointMockGeneralTab />} />
+                <Route path="response" element={<EndpointMockResponseTab />} />
                 <Route
                   path="request-matchers"
-                  element={
-                    <TestingPlaceholder name="Endpoint mock request matchers" />
-                  }
+                  element={<EndpointMockRequestMatchersTab />}
                 />
               </Route>
               <Route

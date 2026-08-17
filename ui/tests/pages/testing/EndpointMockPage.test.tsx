@@ -1,0 +1,517 @@
+/**
+ * @jest-environment jsdom
+ */
+import React from "react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import "@testing-library/jest-dom";
+import {
+  createMemoryRouter,
+  Navigate,
+  RouterProvider,
+  type RouteObject,
+} from "react-router";
+import {
+  Element,
+  EndpointMock,
+  MatcherEntityType,
+  MatcherType,
+} from "../../../src/api/apiTypes.ts";
+import { api } from "../../../src/api/api.ts";
+import { EndpointMockPage } from "../../../src/pages/testing/EndpointMockPage.tsx";
+import { EndpointMockGeneralTab } from "../../../src/components/testing/endpointMock/EndpointMockGeneralTab.tsx";
+import { EndpointMockResponseTab } from "../../../src/components/testing/endpointMock/EndpointMockResponseTab.tsx";
+import { EndpointMockRequestMatchersTab } from "../../../src/components/testing/endpointMock/EndpointMockRequestMatchersTab.tsx";
+import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
+import type { UserPermissions } from "../../../src/permissions/types.ts";
+import { openSelect, querySelectOption } from "../../helpers/antdSelect.ts";
+import { installDataRouterGlobals } from "../../helpers/dataRouterGlobals.ts";
+
+installDataRouterGlobals();
+
+jest.mock("../../../src/api/api.ts", () => ({
+  api: {
+    getEndpointMock: jest.fn(),
+    updateEndpointMock: jest.fn(),
+    getElements: jest.fn(),
+    getChain: jest.fn(),
+  },
+}));
+
+const mockGetEndpointMock = jest.spyOn(api, "getEndpointMock");
+const mockUpdateEndpointMock = jest.spyOn(api, "updateEndpointMock");
+const mockGetElements = jest.spyOn(api, "getElements");
+const mockGetChain = jest.spyOn(api, "getChain");
+
+jest.mock("antd", () =>
+  require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
+);
+
+jest.mock("../../../src/icons/IconProvider.tsx", () => ({
+  OverridableIcon: ({ name }: { name: string }) => (
+    <span data-testid={`icon-${name}`} />
+  ),
+}));
+
+jest.mock("../../../src/components/Script.tsx", () => ({
+  Script: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange?: (value: string) => void;
+  }) => (
+    <textarea
+      aria-label="Body"
+      value={value}
+      onChange={(event) => onChange?.(event.target.value)}
+    />
+  ),
+}));
+
+const mockShowModal = jest.fn();
+
+jest.mock("../../../src/Modals.tsx", () => ({
+  useModalsContext: () => ({ showModal: mockShowModal, closeModal: jest.fn() }),
+}));
+
+const mockNotificationService = {
+  requestFailed: jest.fn(),
+  errorWithDetails: jest.fn(),
+  info: jest.fn(),
+  warning: jest.fn(),
+};
+
+jest.mock("../../../src/hooks/useNotificationService.tsx", () => ({
+  useNotificationService: () => mockNotificationService,
+}));
+
+const ALL_PERMISSIONS: UserPermissions = {
+  chain: ["read", "update", "execute", "import", "export"],
+  adminTools: ["read", "update", "execute", "import", "export"],
+};
+
+function endpointMock(overrides: Partial<EndpointMock> = {}): EndpointMock {
+  return {
+    id: "mock-1",
+    name: "First mock",
+    description: "First description",
+    enabled: true,
+    endpointReference: { chainId: "chain-1", elementId: "element-1" },
+    responseSettings: {
+      message: { body: "{}", headers: [{ name: "Accept", value: "text/csv" }] },
+      status: 200,
+      delay: 0,
+    },
+    requestMatchers: [
+      {
+        id: "rule-1",
+        name: "body exists",
+        description: "",
+        enabled: true,
+        type: MatcherType.EXIST,
+        entityType: MatcherEntityType.BODY,
+        entityName: null,
+        parameters: [],
+      },
+    ],
+    createdBy: "author",
+    createdAt: "2026-08-13T10:00:00.000Z",
+    updatedBy: null,
+    updatedAt: null,
+    ...overrides,
+  };
+}
+
+function sender(overrides: Partial<Element> = {}): Element {
+  return {
+    id: "element-1",
+    name: "Outgoing call",
+    description: "",
+    chainId: "chain-1",
+    type: "http-sender",
+    properties: {} as never,
+    mandatoryChecksPassed: true,
+    ...overrides,
+  };
+}
+
+function editorRoutes(): RouteObject[] {
+  return [
+    { index: true, element: <div>endpoint mocks list</div> },
+    {
+      path: ":mockId",
+      element: <EndpointMockPage />,
+      children: [
+        { index: true, element: <Navigate to="general" replace /> },
+        { path: "general", element: <EndpointMockGeneralTab /> },
+        { path: "response", element: <EndpointMockResponseTab /> },
+        {
+          path: "request-matchers",
+          element: <EndpointMockRequestMatchersTab />,
+        },
+      ],
+    },
+  ];
+}
+
+function renderEditor(
+  path: string,
+  permissions: UserPermissions = ALL_PERMISSIONS,
+) {
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/chains/:chainId/testing/endpoint-mocks",
+        children: editorRoutes(),
+      },
+      { path: "/admintools/testing/endpoint-mocks", children: editorRoutes() },
+    ],
+    { initialEntries: [path] },
+  );
+  const utils = render(
+    <UserPermissionsContext.Provider value={permissions}>
+      <RouterProvider router={router} />
+    </UserPermissionsContext.Provider>,
+  );
+  return { ...utils, router };
+}
+
+const CHAIN_EDITOR_PATH = "/chains/chain-1/testing/endpoint-mocks/mock-1";
+const ADMIN_EDITOR_PATH = "/admintools/testing/endpoint-mocks/mock-1";
+
+async function renderChainEditor(
+  permissions: UserPermissions = ALL_PERMISSIONS,
+) {
+  const result = renderEditor(CHAIN_EDITOR_PATH, permissions);
+  await screen.findByLabelText("Name");
+  return result;
+}
+
+beforeEach(() => {
+  mockShowModal.mockClear();
+  mockGetEndpointMock.mockResolvedValue(endpointMock());
+  mockUpdateEndpointMock.mockImplementation((_id, request) =>
+    Promise.resolve({ ...endpointMock(), ...request }),
+  );
+  mockGetElements.mockResolvedValue([sender()]);
+  mockGetChain.mockResolvedValue({
+    id: "chain-1",
+    name: "Order chain",
+  } as never);
+});
+
+describe("EndpointMockPage sub-tab routing", () => {
+  it("should redirect the editor index to the general tab", async () => {
+    const { router } = await renderChainEditor();
+
+    expect(router.state.location.pathname).toBe(`${CHAIN_EDITOR_PATH}/general`);
+    expect(screen.getByLabelText("Name")).toHaveValue("First mock");
+  });
+
+  it("should open the response tab when its tab is selected", async () => {
+    const { router } = await renderChainEditor();
+
+    fireEvent.click(screen.getByText("Response"));
+
+    await screen.findByLabelText("Status Code");
+    expect(router.state.location.pathname).toBe(
+      `${CHAIN_EDITOR_PATH}/response`,
+    );
+    expect(screen.getByLabelText("Delay, ms")).toBeInTheDocument();
+  });
+
+  it("should open the request matchers tab when its tab is selected", async () => {
+    await renderChainEditor();
+
+    fireEvent.click(screen.getByText("Request Matchers"));
+
+    expect(await screen.findByText("body exists")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add matcher")).toBeInTheDocument();
+  });
+});
+
+describe("EndpointMockPage general tab", () => {
+  it("should offer the HTTP endpoints of the chain", async () => {
+    mockGetElements.mockResolvedValue([
+      sender(),
+      sender({ id: "element-2", name: "Mapper", type: "mapper" }),
+    ]);
+    await renderChainEditor();
+
+    const endpoint = await screen.findByLabelText("Endpoint");
+    openSelect(endpoint.closest(".ant-select") as HTMLElement);
+
+    await waitFor(() =>
+      expect(querySelectOption("Outgoing call")).not.toBeNull(),
+    );
+    expect(querySelectOption("Mapper")).toBeNull();
+  });
+
+  it("should show the chain of a mock opened outside a chain", async () => {
+    renderEditor(ADMIN_EDITOR_PATH);
+
+    expect(await screen.findByText("Order chain")).toBeInTheDocument();
+  });
+});
+
+describe("EndpointMockPage response tab", () => {
+  it("should edit the response headers", async () => {
+    await renderChainEditor();
+    fireEvent.click(screen.getByText("Response"));
+
+    const section = await screen.findByTestId("response-headers");
+    fireEvent.change(within(section).getByDisplayValue("text/csv"), {
+      target: { value: "application/json" },
+    });
+
+    expect(
+      within(section).getByDisplayValue("application/json"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("EndpointMockPage save gating", () => {
+  it("should keep Save disabled until something changes", async () => {
+    await renderChainEditor();
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
+  });
+
+  it("should disable Save when the name is emptied", async () => {
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: " " } });
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+  });
+
+  it("should disable Save when the mock names no endpoint", async () => {
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({
+        endpointReference: { chainId: "chain-1", elementId: "" },
+      }),
+    );
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+  });
+
+  it("should enable Save without a method, which a mock has none of", async () => {
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Reworded" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
+  });
+
+  it("should disable Save when a matcher is incomplete", async () => {
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({
+        requestMatchers: [
+          {
+            id: "rule-1",
+            name: "",
+            description: "",
+            enabled: true,
+            type: MatcherType.EXIST,
+            entityType: MatcherEntityType.BODY,
+            entityName: null,
+            parameters: [],
+          },
+        ],
+      }),
+    );
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+  });
+});
+
+describe("EndpointMockPage saving", () => {
+  it("should send the edited mock and return to the list", async () => {
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: " Renamed " },
+    });
+    fireEvent.click(screen.getByTestId("endpoint-mock-save"));
+
+    await waitFor(() =>
+      expect(mockUpdateEndpointMock).toHaveBeenCalledTimes(1),
+    );
+    expect(mockUpdateEndpointMock).toHaveBeenCalledWith("mock-1", {
+      name: "Renamed",
+      description: "First description",
+      enabled: true,
+      endpointReference: { chainId: "chain-1", elementId: "element-1" },
+      responseSettings: {
+        message: {
+          body: "{}",
+          headers: [{ name: "Accept", value: "text/csv" }],
+        },
+        status: 200,
+        delay: 0,
+      },
+      requestMatchers: [expect.objectContaining({ name: "body exists" })],
+    });
+    expect(await screen.findByText("endpoint mocks list")).toBeInTheDocument();
+    expect(mockShowModal).not.toHaveBeenCalled();
+  });
+
+  it("should stay on the editor when saving fails", async () => {
+    mockUpdateEndpointMock.mockRejectedValue(new Error("boom"));
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByTestId("endpoint-mock-save"));
+
+    await waitFor(() =>
+      expect(mockNotificationService.requestFailed).toHaveBeenCalledWith(
+        "Failed to save the endpoint mock",
+        expect.any(Error),
+      ),
+    );
+    expect(screen.queryByText("endpoint mocks list")).not.toBeInTheDocument();
+  });
+});
+
+describe("EndpointMockPage unsaved changes", () => {
+  it("should leave without prompting when nothing changed", async () => {
+    await renderChainEditor();
+
+    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+
+    expect(await screen.findByText("endpoint mocks list")).toBeInTheDocument();
+    expect(mockShowModal).not.toHaveBeenCalled();
+  });
+
+  it("should prompt before leaving with unsaved changes", async () => {
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+
+    await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("endpoint mocks list")).not.toBeInTheDocument();
+  });
+
+  it("should discard the changes when the prompt is answered no", async () => {
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+
+    await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
+    const modal = (
+      mockShowModal.mock.calls[0][0] as { component: React.ReactElement }
+    ).component as React.ReactElement<{ onNo: () => void }>;
+    modal.props.onNo();
+
+    expect(await screen.findByText("endpoint mocks list")).toBeInTheDocument();
+    expect(mockUpdateEndpointMock).not.toHaveBeenCalled();
+  });
+
+  it("should save before leaving when the prompt is answered save", async () => {
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+
+    await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
+    const modal = (
+      mockShowModal.mock.calls[0][0] as { component: React.ReactElement }
+    ).component as React.ReactElement<{ onYes: () => void }>;
+    modal.props.onYes();
+
+    await waitFor(() =>
+      expect(mockUpdateEndpointMock).toHaveBeenCalledTimes(1),
+    );
+    expect(await screen.findByText("endpoint mocks list")).toBeInTheDocument();
+  });
+});
+
+describe("EndpointMockPage read-only mode", () => {
+  it("should hide the toolbar and disable the fields outside a chain", async () => {
+    renderEditor(ADMIN_EDITOR_PATH);
+    await screen.findByLabelText("Name");
+
+    expect(screen.queryByTestId("endpoint-mock-save")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mock-cancel"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toBeDisabled();
+    expect(screen.getByLabelText("Description")).toBeDisabled();
+  });
+
+  it("should disable the response fields outside a chain", async () => {
+    renderEditor(ADMIN_EDITOR_PATH);
+    await screen.findByLabelText("Name");
+
+    fireEvent.click(screen.getByText("Response"));
+
+    expect(await screen.findByLabelText("Status Code")).toBeDisabled();
+    const section = screen.getByTestId("response-headers");
+    expect(within(section).queryByLabelText("Delete")).not.toBeInTheDocument();
+  });
+
+  it("should render the matchers table read-only outside a chain", async () => {
+    renderEditor(ADMIN_EDITOR_PATH);
+    await screen.findByLabelText("Name");
+
+    fireEvent.click(screen.getByText("Request Matchers"));
+
+    expect(await screen.findByText("body exists")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Add matcher")).not.toBeInTheDocument();
+  });
+
+  it("should leave without prompting outside a chain", async () => {
+    const { router } = renderEditor(ADMIN_EDITOR_PATH);
+    await screen.findByLabelText("Name");
+
+    await router.navigate("/admintools/testing/endpoint-mocks");
+
+    expect(await screen.findByText("endpoint mocks list")).toBeInTheDocument();
+    expect(mockShowModal).not.toHaveBeenCalled();
+  });
+});
+
+describe("EndpointMockPage permission gating", () => {
+  it("should hide the save actions without the update right", async () => {
+    await renderChainEditor({ chain: ["read"] });
+
+    expect(screen.queryByTestId("endpoint-mock-save")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mock-cancel"),
+    ).not.toBeInTheDocument();
+  });
+});
