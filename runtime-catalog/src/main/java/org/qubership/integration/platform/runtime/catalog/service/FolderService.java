@@ -52,6 +52,7 @@ import static java.util.Objects.nonNull;
 @Transactional
 public class FolderService {
     private static final String FOLDER_WITH_ID_NOT_FOUND_MESSAGE = "Can't find folder with id: ";
+    private static final String PARENT_FOLDER = "parentFolder";
 
     private final FolderRepository folderRepository;
     private final ActionsLogService actionLogger;
@@ -166,8 +167,8 @@ public class FolderService {
 
         Specification<Folder> folderSpecification = (r, q, cb) ->
                 isNull(request.getFolderId())
-                        ? cb.isNull(r.get("parentFolder").get("id"))
-                        : cb.equal(r.get("parentFolder").get("id"), cb.literal(request.getFolderId()));
+                        ? cb.isNull(r.get(PARENT_FOLDER).get("id"))
+                        : cb.equal(r.get(PARENT_FOLDER).get("id"), cb.literal(request.getFolderId()));
 
         Specification<Folder> searchSpecification = null;
 
@@ -186,7 +187,7 @@ public class FolderService {
                     criteriaBuilder.literal(0L)));
 
             Specification<Chain> chainSpecification = (r, q, cb) ->
-                    cb.isTrue(cb.function("catalog.is_parent_folder", Boolean.class, root.get("id"), chainRoot.get("parentFolder").get("id")));
+                    cb.isTrue(cb.function("catalog.is_parent_folder", Boolean.class, root.get("id"), chainRoot.get(PARENT_FOLDER).get("id")));
             if (StringUtils.isNotBlank(request.getSearchString())) {
                 chainSpecification = chainSpecification.and(chainFilterSpecificationBuilder.buildSearch(request.getSearchString()));
             }
@@ -305,8 +306,8 @@ public class FolderService {
     public List<Chain> findNestedChains(String folderId, FolderContentFilter filter) {
         List<Folder> nestedFolders = folderRepository.findNestedFolders(folderId);
         Specification<Chain> specification = (root, query, criteriaBuilder) -> criteriaBuilder.or(
-                root.get("parentFolder").in(nestedFolders),
-                criteriaBuilder.equal(root.get("parentFolder").get("id"), folderId)
+                root.get(PARENT_FOLDER).in(nestedFolders),
+                criteriaBuilder.equal(root.get(PARENT_FOLDER).get("id"), folderId)
         );
         if (nonNull(filter)) {
             specification = specification.and(filter.getSpecification());
