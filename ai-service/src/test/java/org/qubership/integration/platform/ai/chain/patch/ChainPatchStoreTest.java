@@ -59,10 +59,51 @@ class ChainPatchStoreTest {
     store.putCapture(CONVERSATION_ID, setScript("return 201"));
 
     ChainPatchCapture captured = store.takeCapture(CONVERSATION_ID).orElseThrow();
-    assertEquals(2, captured.propertyPatches().size());
+    assertEquals(1, captured.propertyPatches().size());
+    assertEquals("return 201", captured.propertyPatches().get(0).property().value());
+  }
+
+  /**
+   * The model's other habit: rather than adding to what it said, it says the whole thing again with
+   * the part it forgot. Appending that verbatim gave the applier two ADDs of one element and it
+   * refused the patch as self-contradictory.
+   */
+  @Test
+  void takesACorrectionAsOneChangeRatherThanTwo() {
+    ChainPatchStore store = new ChainPatchStore();
+
+    store.putCapture(CONVERSATION_ID, addElementAndEdge());
+    store.putCapture(CONVERSATION_ID, addElementAndEdge());
+
+    ChainPatchCapture captured = store.takeCapture(CONVERSATION_ID).orElseThrow();
+    assertEquals(1, captured.nodePatches().size());
+    assertEquals(1, captured.edgePatches().size());
+  }
+
+  @Test
+  void keepsWhatACorrectionAddsAlongsideWhatItRepeats() {
+    ChainPatchStore store = new ChainPatchStore();
+
+    store.putCapture(CONVERSATION_ID, addElementAndEdge());
+    store.putCapture(CONVERSATION_ID, addElementAndEdgePlusContainer());
+
+    ChainPatchCapture captured = store.takeCapture(CONVERSATION_ID).orElseThrow();
+    assertEquals(2, captured.nodePatches().size());
     assertEquals(
-        "return 201",
-        captured.propertyPatches().get(captured.propertyPatches().size() - 1).property().value());
+        List.of("node-new", "node-branch"),
+        captured.nodePatches().stream().map(patch -> patch.node().nodeId()).toList());
+  }
+
+  /** Adding and removing one element is a contradiction; folding must not resolve it silently. */
+  @Test
+  void keepsAnAddAndARemoveOfTheSameElementApart() {
+    ChainPatchStore store = new ChainPatchStore();
+
+    store.putCapture(CONVERSATION_ID, addElementAndEdge());
+    store.putCapture(CONVERSATION_ID, removeNode("node-new"));
+
+    ChainPatchCapture captured = store.takeCapture(CONVERSATION_ID).orElseThrow();
+    assertEquals(2, captured.nodePatches().size());
   }
 
   @Test
@@ -96,6 +137,31 @@ class ChainPatchStoreTest {
                 null)),
         List.of(),
         "Adds the enrichment step.");
+  }
+
+  /** The same change again, with the container it forgot the first time. */
+  private static ChainPatchCapture addElementAndEdgePlusContainer() {
+    ChainPatchCapture repeated = addElementAndEdge();
+    return new ChainPatchCapture(
+        repeated.patchId(),
+        List.of(
+            repeated.nodePatches().get(0),
+            new NodePatch(
+                GraphPatchOperation.ADD,
+                new ChainPlanNode("node-branch", "if", "Bulk orders", null, null, List.of()),
+                null)),
+        repeated.edgePatches(),
+        List.of(),
+        repeated.rationale());
+  }
+
+  private static ChainPatchCapture removeNode(String nodeId) {
+    return new ChainPatchCapture(
+        null,
+        List.of(new NodePatch(GraphPatchOperation.REMOVE, null, nodeId)),
+        List.of(),
+        List.of(),
+        "Drops it after all.");
   }
 
   private static ChainPatchCapture removeEdge(String edgeId) {

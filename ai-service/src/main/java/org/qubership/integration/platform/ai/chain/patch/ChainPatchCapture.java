@@ -35,11 +35,17 @@ public record ChainPatchCapture(
   /**
    * One change built from two tool calls, in the order the model made them.
    *
-   * <p>The tool asks to be called once and the model does not always oblige: it decomposes an edit
-   * -- add the element, connect it, cut the connection it replaces -- across calls. Keeping only the
-   * last one silently threw away most of what it said and left a fragment that reads as a different
-   * change entirely. Nothing here judges whether the pieces fit; the removal closure refuses a patch
-   * that contradicts itself and the semantic validator refuses one that would break the chain.
+   * <p>The tool asks to be called once and the model does not always oblige, and it does not oblige
+   * in one of two ways. It decomposes -- add the element in one call, cut the connection it replaces
+   * in the next -- and it corrects, re-sending the whole change with the part it forgot. Keeping
+   * only the last call threw away most of a decomposed edit; appending blindly turned a correction
+   * into a duplicate of everything it repeated. So operations are folded by what they act on: a
+   * later call that names the same element again replaces what the earlier one said about it, and
+   * anything it does not name is left standing.
+   *
+   * <p>Nothing here judges whether the pieces fit. Adding and removing the same element is still a
+   * contradiction, kept as two entries for the removal closure to refuse rather than quietly
+   * resolved by whichever call came last.
    */
   public ChainPatchCapture mergedWith(ChainPatchCapture later) {
     if (later == null) {
@@ -47,20 +53,61 @@ public record ChainPatchCapture(
     }
     return new ChainPatchCapture(
         patchId != null ? patchId : later.patchId(),
-        concat(nodePatches, later.nodePatches()),
-        concat(edgePatches, later.edgePatches()),
-        concat(propertyPatches, later.propertyPatches()),
+        fold(nodePatches, later.nodePatches(), ChainPatchCapture::nodeKey),
+        fold(edgePatches, later.edgePatches(), ChainPatchCapture::edgeKey),
+        fold(propertyPatches, later.propertyPatches(), ChainPatchCapture::propertyKey),
         joinRationales(rationale, later.rationale()));
   }
 
-  private static <T> List<T> concat(List<T> first, List<T> second) {
+  /** Earlier first, later winning on a repeat, and the position of first mention preserved. */
+  private static <T> List<T> fold(
+      List<T> first, List<T> second, java.util.function.Function<T, String> key) {
     if (first == null || first.isEmpty()) {
       return second == null ? List.of() : List.copyOf(second);
     }
     if (second == null || second.isEmpty()) {
       return List.copyOf(first);
     }
-    return java.util.stream.Stream.concat(first.stream(), second.stream()).toList();
+    java.util.Map<String, T> folded = new java.util.LinkedHashMap<>();
+    for (T patch : first) {
+      folded.put(key.apply(patch), patch);
+    }
+    for (T patch : second) {
+      folded.put(key.apply(patch), patch);
+    }
+    return List.copyOf(folded.values());
+  }
+
+  /** Operation stays in the key, so an add and a remove of one element read as the conflict it is. */
+  private static String nodeKey(NodePatch patch) {
+    if (patch == null) {
+      return "node:null";
+    }
+    String id =
+        patch.node() != null && patch.node().nodeId() != null
+            ? patch.node().nodeId()
+            : patch.targetNodeId();
+    return "node:" + patch.operation() + ":" + id;
+  }
+
+  private static String edgeKey(EdgePatch patch) {
+    if (patch == null) {
+      return "edge:null";
+    }
+    String id =
+        patch.edge() != null && patch.edge().edgeId() != null
+            ? patch.edge().edgeId()
+            : patch.targetEdgeId();
+    return "edge:" + patch.operation() + ":" + id;
+  }
+
+  /** Keyed without the operation: a second value for one key is a correction, not a contradiction. */
+  private static String propertyKey(PropertyPatch patch) {
+    if (patch == null) {
+      return "property:null";
+    }
+    String key = patch.property() == null ? null : patch.property().key();
+    return "property:" + patch.targetNodeId() + ":" + key;
   }
 
   /** Both sentences reach the card: each call explains only the part of the change it carried. */
