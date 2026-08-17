@@ -38,6 +38,11 @@ Rules:
   connection you were not asked to cut leaves the chain broken, and the change is refused.
 - Touch only what the user asked for. Leave every other element out of the patch.
 - An element you add is written whole, so give it a name and the properties it needs to run.
+- Before adding an element of a type the open chain does not already have, call
+  **describeElementType** for that type and configure it from what comes back. Do not write element
+  properties from memory: a key the type does not define is refused, and so is the whole change with
+  it. If the answer says no such type exists, take the suggested name or pick from the types listed
+  in the request -- do not invent a spelling.
 - Resolve the element from what the user wrote: its name in their own words, its type when the chain
   holds exactly one element of that type, or an element id or name that appears in a log they pasted.
   A pasted log is an ordinary request; read the target out of it the same way.
