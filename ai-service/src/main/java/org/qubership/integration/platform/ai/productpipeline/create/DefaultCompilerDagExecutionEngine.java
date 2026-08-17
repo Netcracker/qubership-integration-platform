@@ -216,13 +216,15 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       BiConsumer<String, String> skillProgress) {
     CompilerPlanningRequest request =
         toPlanningRequest(engineRequest, languageVersion, attemptId);
-    seedBrief(request);
+    CompilerExecutionSeed seed = engineRequest.effectiveSeed();
+    String workspaceId = seed.workspaceId();
+    applySeed(seed);
     PinnedRunContext pinned = resolvePinnedRun(engineRequest);
     ResolvedCompilerDag dag = engineRequest.executionDag();
-    PlanningSchedulerState state = seededState(dag);
+    PlanningSchedulerState state = seededState(dag, seed);
     List<String> executed = new ArrayList<>();
     Map<String, ValidationResult> validatorPasses = new HashMap<>();
-    SkillWorkspace workspace = workspaceStore.getOrCreate(request.conversationId());
+    SkillWorkspace workspace = workspaceStore.getOrCreate(workspaceId);
     PlanningPatchLedger.Builder patchLedger = new PlanningPatchLedger.Builder();
 
     boolean running = true;
@@ -246,11 +248,12 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           try {
             List<SkillArtifact> outputs =
                 executeNode(
-                    request, workspace, state, node, pinned, dag, validatorPasses, patchLedger);
+                    request, seed, workspace, state, node, pinned, dag, validatorPasses, patchLedger);
             outputs =
-                materializeGraphPatchOutputs(request, workspace, node, outputs, pinned, patchLedger);
+                materializeGraphPatchOutputs(
+                    request, seed, workspace, node, outputs, pinned, patchLedger);
             for (SkillArtifact output : outputs) {
-              workspaceStore.putArtifact(request.conversationId(), output);
+              workspaceStore.putArtifact(workspaceId, output);
             }
             state = applyCompletion(state, node, outputs);
             executed.add(node.skillId());
@@ -264,11 +267,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
                   node.skillId(),
                   node.executionMode());
               skillProgress.accept(node.skillId(), "error");
-              List<SkillArtifact> fallback =
-                  fallbackOutputsAfterSkillFailure(request.conversationId(), node);
-              fallback =
-                  requireChainStructureFallback(
-                      request.conversationId(), node, fallback, ex);
+              List<SkillArtifact> fallback = fallbackOutputsAfterSkillFailure(workspaceId, node);
+              fallback = requireChainStructureFallback(workspaceId, node, fallback, ex);
               state = applyCompletion(state, node, fallback);
               executed.add(node.skillId());
             } else {
@@ -286,7 +286,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     if (!stopAfterAssemblyAndMandatoryValidators(dag, state)) {
       throw new IllegalStateException("contract failure: planner stopped before mandatory nodes completed");
     }
-    return toResult(request.conversationId(), executed, patchLedger.build());
+    return toResult(workspaceId, executed, patchLedger.build());
   }
 
   private static CompilerPlanningRequest toPlanningRequest(
@@ -410,8 +410,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return List.copyOf(augmented);
   }
 
+  @SuppressWarnings("java:S107")
   private List<SkillArtifact> executeNode(
       CompilerPlanningRequest request,
+      CompilerExecutionSeed seed,
       SkillWorkspace workspace,
       PlanningSchedulerState state,
       ResolvedCompilerNode node,
@@ -429,9 +431,9 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               SkillSubgraph.BUILD_CHAIN,
               state.invocationCount(),
               false,
-              planningSeedText(request.requirementBrief()));
+              seed.seedText());
       GraphPatchExecutionContext executionContext =
-          buildExecutionContext(request, workspace, node, pinned);
+          buildExecutionContext(request, seed, workspace, node, pinned);
       if (executionContext != null) {
         executionContextStore.set(request.conversationId(), node.skillId(), executionContext);
       }
@@ -616,8 +618,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return new CompilerValidationBundle(1, graphDigest, List.copyOf(passes));
   }
 
+  @SuppressWarnings("java:S107")
   private List<SkillArtifact> materializeGraphPatchOutputs(
       CompilerPlanningRequest request,
+      CompilerExecutionSeed seed,
       SkillWorkspace workspace,
       ResolvedCompilerNode node,
       List<SkillArtifact> outputs,
@@ -644,7 +648,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         new GraphPatchExecutionContext(
             request.runId(),
             node.skillId(),
-            sha256Text(planningSeedText(request.requirementBrief())),
+            sha256Text(seed.seedText()),
             canonicalGraphDigest.sha256(inputGraph),
             pinned.pin().compilerPackageDigest(),
             request.languageVersion(),
@@ -881,12 +885,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return true;
   }
 
-  private PlanningSchedulerState seededState(ResolvedCompilerDag dag) {
-    Set<String> present = new LinkedHashSet<>();
-    present.add(SkillArtifactType.RAW_USER_REQUEST.name());
-    present.add(SkillArtifactType.REQUIREMENT_BRIEF.name());
-    Set<String> completed = new LinkedHashSet<>();
-    completed.add(REQUIREMENT_ANALYZER_SKILL);
+  private static PlanningSchedulerState seededState(
+      ResolvedCompilerDag dag, CompilerExecutionSeed seed) {
+    Set<String> present = new LinkedHashSet<>(seed.presentArtifactTypes());
+    Set<String> completed = new LinkedHashSet<>(seed.preSatisfiedSkillIds());
     return new PlanningSchedulerState(dag, present, completed, Set.of(), java.util.Map.of(), 0, 0);
   }
 
@@ -907,6 +909,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
 
   private GraphPatchExecutionContext buildExecutionContext(
       CompilerPlanningRequest request,
+      CompilerExecutionSeed seed,
       SkillWorkspace workspace,
       ResolvedCompilerNode node,
       PinnedRunContext pinned) {
@@ -921,7 +924,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return new GraphPatchExecutionContext(
         request.runId(),
         node.skillId(),
-        sha256Text(planningSeedText(request.requirementBrief())),
+        sha256Text(seed.seedText()),
         canonicalGraphDigest.sha256(inputGraph),
         pinned.pin().compilerPackageDigest(),
         request.languageVersion(),
@@ -947,28 +950,18 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     }
   }
 
-  private void seedBrief(CompilerPlanningRequest request) {
-    String conversationId = request.conversationId();
-    RequirementBrief brief = request.requirementBrief();
-    workspaceStore.putArtifact(
-        conversationId,
-        SkillArtifact.of(
-            SkillArtifactType.RAW_USER_REQUEST,
-            "planning-seed",
-            new SkillArtifactPayload.RawUserRequestPayload(planningSeedText(brief), List.of())));
-    workspaceStore.putArtifact(
-        conversationId,
-        SkillArtifact.of(
-            SkillArtifactType.REQUIREMENT_BRIEF,
-            REQUIREMENT_ANALYZER_SKILL,
-            new SkillArtifactPayload.RequirementBriefPayload(brief)));
-  }
-
-  private static String planningSeedText(RequirementBrief brief) {
-    if (brief.approvedDraftText() != null && !brief.approvedDraftText().isBlank()) {
-      return brief.approvedDraftText();
+  /**
+   * Writes the seed into the workspace the run owns. An isolated run clears that workspace first,
+   * so nothing another conversation or an earlier run left behind can be read as this run's own
+   * input.
+   */
+  private void applySeed(CompilerExecutionSeed seed) {
+    if (seed.isolated()) {
+      workspaceStore.clear(seed.workspaceId());
     }
-    return RequirementBriefText.format(brief);
+    for (SkillArtifact artifact : seed.artifacts()) {
+      workspaceStore.putArtifact(seed.workspaceId(), artifact);
+    }
   }
 
   private CompilerDagExecutionResult toResult(

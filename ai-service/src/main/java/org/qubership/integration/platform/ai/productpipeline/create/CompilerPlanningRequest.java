@@ -18,7 +18,8 @@ public record CompilerPlanningRequest(
 
   public CompilerPlanningRequest {
     Objects.requireNonNull(conversationId, "conversationId");
-    Objects.requireNonNull(requirementBrief, "requirementBrief");
+    // An edit run has no requirement brief: the chain it edits already exists, and fabricating one
+    // would smuggle invented requirements into a generator as though a reader had approved them.
     dependencyClosure = dependencyClosure == null ? List.of() : List.copyOf(dependencyClosure);
     expectedSkillOrder = expectedSkillOrder == null ? List.of() : List.copyOf(expectedSkillOrder);
     languageVersion =

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.skill.workspace;
 
+import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.plan.CompilerStatus;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
@@ -42,6 +44,8 @@ public sealed interface SkillArtifactPayload
         SkillArtifactPayload.PlanCaptureOutcomePayload,
         SkillArtifactPayload.MaterializationMapPayload,
         SkillArtifactPayload.ReconcileResultPayload,
+        SkillArtifactPayload.ChainEditIntentPayload,
+        SkillArtifactPayload.ServiceCallBindingsPayload,
         SkillArtifactPayload.CatalogChainSnapshotPayload {
 
   record RawUserRequestPayload(String effectiveText, List<String> attachmentObjectKeys)
@@ -85,6 +89,15 @@ public sealed interface SkillArtifactPayload
   record MaterializationMapPayload(MaterializationMap map) implements SkillArtifactPayload {}
 
   record ReconcileResultPayload(ReconcileResult result) implements SkillArtifactPayload {}
+
+  record ChainEditIntentPayload(ChainEditIntent intent) implements SkillArtifactPayload {}
+
+  record ServiceCallBindingsPayload(List<ResolvedServiceCallBinding> bindings)
+      implements SkillArtifactPayload {
+    public ServiceCallBindingsPayload {
+      bindings = bindings == null ? List.of() : List.copyOf(bindings);
+    }
+  }
 
   record CatalogChainSnapshotPayload(ChainCatalogFacts facts) implements SkillArtifactPayload {}
 
