@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -8,7 +7,6 @@ import static java.util.stream.Collectors.joining;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
@@ -17,13 +15,10 @@ import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
-import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
-import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
-import org.qubership.integration.platform.ai.chain.patch.ChainPatchPipeline;
-import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
-import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
+import org.qubership.integration.platform.ai.chain.patch.ChainEditProposalAssembler;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSummary;
+import java.util.Optional;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriter;
 import org.qubership.integration.platform.ai.chain.patch.PatchedChain;
@@ -34,15 +29,10 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtr
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
-import org.qubership.integration.platform.ai.llm.agent.ChainPatchAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
-import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
-import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchShapeValidator;
-import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
-import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 
 /**
  * Changes part of a chain the user already has in the catalog.
@@ -63,15 +53,10 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final ChainPlanGraphImporter importer;
   private final ChainEditCompiler editCompiler;
   private final ChainEditEscalationStore escalationStore;
-  private final ChainPatchAgent agent;
+  private final ChainEditProposalAssembler assembler;
   private final ChainPatchStore patchStore;
-  private final ChainPatchOwnership ownership;
-  private final ValidatedGraphPatchApplier patchApplier;
-  private final ChainPatchSemanticValidator semanticValidator;
   private final ChainPatchWriter writer;
   private final CanonicalGraphDigest canonicalGraphDigest;
-  private final ChainElementCatalog elementCatalog;
-  private final ObjectMapper objectMapper;
 
   @Inject
   public ChainPatchScenario(
@@ -80,29 +65,19 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainPlanGraphImporter importer,
       ChainEditCompiler editCompiler,
       ChainEditEscalationStore escalationStore,
-      ChainPatchAgent agent,
+      ChainEditProposalAssembler assembler,
       ChainPatchStore patchStore,
-      ChainPatchOwnership ownership,
-      ValidatedGraphPatchApplier patchApplier,
-      ChainPatchSemanticValidator semanticValidator,
       ChainPatchWriter writer,
-      CanonicalGraphDigest canonicalGraphDigest,
-      ChainElementCatalog elementCatalog,
-      ObjectMapper objectMapper) {
+      CanonicalGraphDigest canonicalGraphDigest) {
     this.chainContextExtractor = Objects.requireNonNull(chainContextExtractor);
     this.factsService = Objects.requireNonNull(factsService);
     this.importer = Objects.requireNonNull(importer);
     this.editCompiler = Objects.requireNonNull(editCompiler);
     this.escalationStore = Objects.requireNonNull(escalationStore);
-    this.agent = Objects.requireNonNull(agent);
+    this.assembler = Objects.requireNonNull(assembler);
     this.patchStore = Objects.requireNonNull(patchStore);
-    this.ownership = Objects.requireNonNull(ownership);
-    this.patchApplier = Objects.requireNonNull(patchApplier);
-    this.semanticValidator = Objects.requireNonNull(semanticValidator);
     this.writer = Objects.requireNonNull(writer);
     this.canonicalGraphDigest = Objects.requireNonNull(canonicalGraphDigest);
-    this.elementCatalog = elementCatalog;
-    this.objectMapper = Objects.requireNonNull(objectMapper);
   }
 
   @Override
@@ -135,60 +110,20 @@ public class ChainPatchScenario implements ScenarioHandler {
           .item(ChatEvent.error("Failed to read chain from catalog: " + e.getMessage()));
     }
 
-    // The capture is cleared first so a turn that proposes nothing cannot answer with the last one.
+    // The last proposal is cleared first so a turn that proposes nothing cannot be answered with it.
     // An unanswered import escalation goes with it: declining it is saying something else next.
-    patchStore.takeCapture(conversationId);
     patchStore.clearProposal(conversationId);
     escalationStore.clear(conversationId);
 
     String userMessage = request == null ? "" : request.getEffectiveUserText();
-
-    // Edits an owning compiler skill knows how to make go through it, because it reads the element
-    // schemas and the catalog. Everything else still falls back to the model-authored patch.
-    ChainEditOutcome compiled = compileEdit(conversationId, chainId, imported, userMessage);
-    if (!(compiled instanceof ChainEditOutcome.Unsupported)) {
-      return fromCompiler(conversationId, chainId, imported, compiled);
-    }
-
-    return agent
-        .chat(
-            conversationId,
-            ChainPatchPipeline.buildPatchRequest(
-                objectMapper, imported.graph(), userMessage, elementCatalog))
-        .collect()
-        .asList()
-        .onItem()
-        .transformToMulti(
-            said -> proposalFrom(conversationId, chainId, imported, String.join("", said)))
-        .onFailure()
-        .recoverWithMulti(
-            e -> {
-              LOG.errorf(e, "Chain patch agent failed conversationId=%s", conversationId);
-              return Multi.createFrom().item(ChatEvent.error("Failed to plan the change: " + e.getMessage()));
-            });
+    return fromCompiler(
+        conversationId,
+        chainId,
+        imported,
+        compileEdit(conversationId, chainId, imported, userMessage));
   }
 
-  private Multi<ChatEvent> proposalFrom(
-      String conversationId, String chainId, ImportedChainPlan imported, String said) {
-    Optional<ChainPatchCapture> captured = patchStore.takeCapture(conversationId);
-    if (captured.isEmpty()) {
-      // The model resolves the target element itself. When a description fits several elements or
-      // none, it names the candidates or asks for an exact name instead of calling the tool, and
-      // that question is what the reader has to see to answer it.
-      return message(
-          said.isBlank()
-              ? "I read the chain but proposed no change. Say which element to change and how."
-              : said);
-    }
-
-    return offer(
-        conversationId, chainId, imported, ChainPatchPipeline.toGraphPatch(captured.get(), imported.graph()));
-  }
-
-  /**
-   * Compiles the request through the owning skill, and never lets a compiler fault end the turn:
-   * an edit kind nobody owns yet still has the model-authored path behind it.
-   */
+  /** Compiles the request through the owning skill, reporting a compiler fault as the turn's answer. */
   private ChainEditOutcome compileEdit(
       String conversationId, String chainId, ImportedChainPlan imported, String userMessage) {
     try {
@@ -220,8 +155,8 @@ public class ChainPatchScenario implements ScenarioHandler {
       case ChainEditOutcome.ResolutionFailure(String text) -> message(text);
       case ChainEditOutcome.CompilationFailure(String text) -> message(text);
       case ChainEditOutcome.Escalation escalation -> escalate(conversationId, chainId, escalation);
-      case ChainEditOutcome.Unsupported ignored ->
-          message("I cannot make that change here yet.");
+      case ChainEditOutcome.Unsupported(var action) ->
+          message("No compiler skill owns a " + action + " edit, so I did not change anything.");
     };
   }
 
@@ -277,49 +212,25 @@ public class ChainPatchScenario implements ScenarioHandler {
 
   private Multi<ChatEvent> offer(
       String conversationId, String chainId, ImportedChainPlan imported, GraphPatch proposed) {
-    List<String> shapeErrors = GraphPatchShapeValidator.validate(proposed);
-    if (!shapeErrors.isEmpty()) {
-      return message("The change could not be read: " + GraphPatchShapeValidator.summarize(shapeErrors));
+    ChainEditProposalAssembler.Assembled assembled =
+        assembler.assemble(imported, chainId, proposed, true);
+    if (assembled instanceof ChainEditProposalAssembler.Assembled.Refused(String reason, var kind)) {
+      return message(reason);
     }
+    ChainEditProposalAssembler.Assembled.Ready ready =
+        (ChainEditProposalAssembler.Assembled.Ready) assembled;
 
-    // Grown to include everything the catalog will cascade, so the card, the write and the digest
-    // all describe the same change.
-    ChainPatchRemovalClosure.Expansion expansion =
-        ChainPatchRemovalClosure.expand(imported.graph(), proposed);
-    if (!expansion.coherent()) {
-      return message(
-          "The change contradicts itself: " + String.join("; ", expansion.conflicts()));
-    }
-    GraphPatch patch = expansion.patch();
-
-    GraphPatchApplyResult applied =
-        patchApplier.apply(
-            ChainPatchPipeline.executionContext(imported, chainId, patch, ownership, true), patch);
-    if (!applied.applied()) {
-      String summary = applied.validationResult().summary();
-      return message(
-          ChainPatchPipeline.isOwnershipViolation(applied)
-              ? "That change is outside what I may edit here: " + summary
-              : "The change could not be applied: " + summary);
-    }
-
-    // Asked before the card, not after it: a card for a change already known to be refused costs
-    // the reader an answer that can only be thrown away.
-    List<String> introduced =
-        semanticValidator.introducedProblems(imported.graph(), applied.graph(), patch);
-    if (!introduced.isEmpty()) {
-      return message(
-          "That change would leave the chain broken: " + String.join("; ", introduced));
-    }
-
-    PatchedChain patched =
-        new PatchedChain(imported.graph(), applied.graph(), imported.materializationMap());
-    String patchHash = canonicalGraphDigest.sha256(applied.graph());
-    String summary = ChainPatchSummary.describe(imported.graph(), patch);
+    String patchHash = canonicalGraphDigest.sha256(ready.patched().graph());
+    String summary = ChainPatchSummary.describe(imported.graph(), ready.patch());
     patchStore.putProposal(
         conversationId,
         new ProposedChainPatch(
-            chainId, patch, patched, patchHash, imported.baseGraphDigest(), summary));
+            chainId,
+            ready.patch(),
+            ready.patched(),
+            patchHash,
+            imported.baseGraphDigest(),
+            summary));
 
     return Multi.createFrom().item(ChatEvent.chainPatchDecision(patchHash, summary));
   }

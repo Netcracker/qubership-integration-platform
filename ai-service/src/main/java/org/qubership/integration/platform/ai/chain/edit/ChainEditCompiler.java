@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
@@ -30,6 +31,8 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
@@ -140,6 +143,9 @@ public class ChainEditCompiler {
   public ChainEditOutcome compile(
       ChainEditRequest request, ChainEditIntent intent, ResolvedServiceCallBinding importedBinding) {
     ImportedChainPlan imported = request.imported();
+    if (deterministic(intent.action())) {
+      return transform(request, intent);
+    }
     CompilerRunPin pin;
     try {
       pin = resolvePin(request.conversationId());
@@ -200,6 +206,51 @@ public class ChainEditCompiler {
     }
 
     return runCompiler(request, scoped, bindings, generatorSkillId, pin);
+  }
+
+  private static boolean deterministic(ChainEditAction action) {
+    return action == ChainEditAction.DELETE
+        || action == ChainEditAction.DISCONNECT
+        || action == ChainEditAction.REORDER;
+  }
+
+  /**
+   * The edits the platform already knows how to make, made without a model or a compiler run.
+   *
+   * <p>The removal closure runs here rather than in the caller, so the net patch a reader approves
+   * already names every descendant, dependency and connection the catalog will take with it.
+   */
+  private ChainEditOutcome transform(ChainEditRequest request, ChainEditIntent intent) {
+    ChainPlanGraph base = request.imported().graph();
+    GraphPatch requested =
+        switch (intent.action()) {
+          case DELETE -> ChainEditDeterministicTransforms.delete(intent.targetNodeIds());
+          case DISCONNECT ->
+              ChainEditDeterministicTransforms.disconnect(base, intent.targetNodeIds());
+          default -> ChainEditDeterministicTransforms.reorder(intent.targetNodeIds());
+        };
+    ChainPatchRemovalClosure.Expansion expansion =
+        ChainPatchRemovalClosure.expand(base, requested);
+    if (!expansion.coherent()) {
+      return new ChainEditOutcome.ResolutionFailure(
+          "The change contradicts itself: " + String.join("; ", expansion.conflicts()));
+    }
+    GraphPatchApplyResult applied = new GraphPatchApplier().apply(base, expansion.patch());
+    if (!applied.applied()) {
+      return new ChainEditOutcome.CompilationFailure(
+          "The change could not be applied: " + applied.validationResult().summary());
+    }
+    if (CanonicalGraphDiff.isEmpty(expansion.patch())) {
+      return new ChainEditOutcome.ResolutionFailure("That request changes nothing in the chain.");
+    }
+    return new ChainEditOutcome.Proposal(
+        expansion.patch(),
+        base,
+        applied.graph(),
+        intent,
+        List.of(),
+        List.of(ChainEditDeterministicTransforms.class.getSimpleName()),
+        null);
   }
 
   @SuppressWarnings("java:S107")
@@ -276,6 +327,16 @@ public class ChainEditCompiler {
     if (CanonicalGraphDiff.isEmpty(netPatch)) {
       return new ChainEditOutcome.ResolutionFailure(
           "Compiling that request changed nothing in the chain.");
+    }
+    // Checked after the run, not before it: a package that changed underneath a running compilation
+    // would otherwise produce a proposal pinned to content the runtime no longer has.
+    try {
+      runPinResolver.verifyAvailable(manifest);
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "Compiler pin mismatch runId=%s", runId);
+      return new ChainEditOutcome.CompilationFailure(
+          "The compiler package changed while this edit was compiling, so there is nothing to"
+              + " approve. Ask for the change again.");
     }
     return new ChainEditOutcome.Proposal(
         netPatch,

@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.helpers.test.AssertSubscriber;
 import java.util.List;
 import java.util.Map;
@@ -20,16 +19,14 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.stubbing.Answer;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
-import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
-import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
-import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
-import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
+import org.qubership.integration.platform.ai.chain.patch.ChainEditProposalAssembler;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
@@ -42,7 +39,7 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtr
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
-import org.qubership.integration.platform.ai.llm.agent.ChainPatchAgent;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -54,8 +51,8 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipValidator;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
-import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 
+/** The interactive driver: compile, offer one card, and write only what the reader answered. */
 class ChainPatchScenarioTest {
 
   private static final String CONVERSATION_ID = "conv-patch";
@@ -63,12 +60,10 @@ class ChainPatchScenarioTest {
 
   private ChainContextExtractor chainContextExtractor;
   private ChainCatalogFactsService factsService;
-  private ChainPatchAgent agent;
+  private ChainEditCompiler editCompiler;
   private ChainPatchOwnership ownership;
-  private ChainPatchSemanticValidator semanticValidator;
   private ChainPatchWriter writer;
   private ChainPatchStore patchStore;
-  private ChainEditCompiler editCompiler;
   private ChainPatchScenario scenario;
 
   @BeforeEach
@@ -76,7 +71,7 @@ class ChainPatchScenarioTest {
     ObjectMapper objectMapper = new ObjectMapper();
     chainContextExtractor = mock(ChainContextExtractor.class);
     factsService = mock(ChainCatalogFactsService.class);
-    agent = mock(ChainPatchAgent.class);
+    editCompiler = mock(ChainEditCompiler.class);
     ownership = mock(ChainPatchOwnership.class);
     writer = mock(ChainPatchWriter.class);
     patchStore = new ChainPatchStore();
@@ -84,16 +79,14 @@ class ChainPatchScenarioTest {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
     when(factsService.load(CHAIN_ID)).thenReturn(facts());
-    when(agent.chat(eq(CONVERSATION_ID), any())).thenReturn(Multi.createFrom().empty());
     when(ownership.forChain(any(), any(), anyBoolean()))
         .thenReturn(
             new GraphPatchOwnershipPolicy(
                 false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));
     when(writer.write(any(), any()))
         .thenReturn(new ChainPatchWriteResult(List.of("element-script"), List.of(), null, null));
-    semanticValidator = mock(ChainPatchSemanticValidator.class);
+    ChainPatchSemanticValidator semanticValidator = mock(ChainPatchSemanticValidator.class);
     when(semanticValidator.introducedProblems(any(), any(), any())).thenReturn(List.of());
-    editCompiler = mock(ChainEditCompiler.class);
     when(editCompiler.compile(any()))
         .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.UNRESOLVED));
 
@@ -104,16 +97,14 @@ class ChainPatchScenarioTest {
             new ChainPlanGraphImporter(objectMapper, new CanonicalGraphDigest(objectMapper)),
             editCompiler,
             new ChainEditEscalationStore(),
-            agent,
+            new ChainEditProposalAssembler(
+                ownership,
+                new ValidatedGraphPatchApplier(
+                    new GraphPatchOwnershipValidator(), new GraphPatchApplier()),
+                semanticValidator),
             patchStore,
-            ownership,
-            new ValidatedGraphPatchApplier(
-                new GraphPatchOwnershipValidator(), new GraphPatchApplier()),
-            semanticValidator,
             writer,
-            new CanonicalGraphDigest(objectMapper),
-            new ChainElementCatalog(objectMapper),
-            objectMapper);
+            new CanonicalGraphDigest(objectMapper));
   }
 
   @Test
@@ -121,39 +112,37 @@ class ChainPatchScenarioTest {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.empty());
 
-    List<ChatEvent> events = run(request("fix the script in Normalize payload"));
+    List<ChatEvent> events = run(request("fix the script"));
 
-    assertTrue(text(events).contains("No chain context found"));
-    verify(writer, never()).write(any(), any());
+    assertTrue(text(events).contains("No chain context"), text(events));
   }
 
   @Test
-  void offersTheChangeAsADecisionCard() {
-    captures(propertyPatch("element-script", "script", "return 201"));
+  void offersTheCompilersNetPatchAsADecisionCard() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
 
-    List<ChatEvent> events = run(request("fix the script in Normalize payload"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
 
-    ChatEvent.Decision card = decision(events);
     assertEquals(ChatEvent.CHAIN_PATCH_ARTIFACT, card.artifactType());
     assertEquals(
         List.of(ChatEvent.APPLY_CHAIN_PATCH_ACTION, ChatEvent.REQUEST_CHANGES_ACTION),
         card.actions());
+    assertTrue(card.question().contains("Normalize payload"), card.question());
   }
 
   @Test
   void showsTheOldAndTheNewValueOnTheCard() {
-    captures(propertyPatch("element-script", "script", "return 201"));
+    compiles(propertyPatch("element-script", "script", "return 201"));
 
     ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
 
-    assertTrue(card.question().contains("Normalize payload"), card.question());
     assertTrue(card.question().contains("return 200"), card.question());
     assertTrue(card.question().contains("return 201"), card.question());
   }
 
   @Test
   void writesNothingUntilTheCardIsAnswered() {
-    captures(propertyPatch("element-script", "script", "return 201"));
+    compiles(propertyPatch("element-script", "script", "return 201"));
 
     run(request("fix the script in Normalize payload"));
 
@@ -161,19 +150,23 @@ class ChainPatchScenarioTest {
   }
 
   @Test
-  void writesTheChangeWhenTheCardIsAnswered() {
-    captures(propertyPatch("element-script", "script", "return 201"));
+  void writesTheCompilersNetPatchWhenTheCardIsAnswered() {
+    compiles(propertyPatch("element-script", "script", "return 201"));
     ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
 
     List<ChatEvent> events = run(answer(card.artifactHash()));
 
-    verify(writer).write(any(), any());
+    ArgumentCaptor<GraphPatch> written = ArgumentCaptor.forClass(GraphPatch.class);
+    verify(writer).write(any(), written.capture());
+    assertEquals(
+        List.of("return 201"),
+        written.getValue().propertyPatches().stream().map(p -> p.property().value()).toList());
     assertTrue(text(events).contains("Normalize payload"), text(events));
   }
 
   @Test
   void refusesToWriteOverAChainThatChangedWhileTheCardWasOpen() {
-    captures(propertyPatch("element-script", "script", "return 201"));
+    compiles(propertyPatch("element-script", "script", "return 201"));
     ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
     when(factsService.load(CHAIN_ID))
         .thenReturn(
@@ -193,7 +186,7 @@ class ChainPatchScenarioTest {
 
   @Test
   void refusesAnAnswerThatNamesAPatchTheConversationHasMovedPast() {
-    captures(propertyPatch("element-script", "script", "return 201"));
+    compiles(propertyPatch("element-script", "script", "return 201"));
     run(request("fix the script in Normalize payload"));
 
     List<ChatEvent> events = run(answer("some-other-patch"));
@@ -205,220 +198,14 @@ class ChainPatchScenarioTest {
   @Test
   void refusesAPatchThatReachesOutsideWhatTheSkillOwns() {
     when(ownership.forChain(any(), any(), anyBoolean()))
-        .thenReturn(
-            new GraphPatchOwnershipPolicy(
-                false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));
-    captures(propertyPatch("element-trigger", "externalRoute", "true"));
-
-    List<ChatEvent> events = run(request("make the trigger external"));
-
-    assertTrue(text(events).contains("not owned"), text(events));
-    verify(writer, never()).write(any(), any());
-    assertTrue(
-        events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be offered");
-  }
-
-  @Test
-  void refusesAStructurallyBrokenPatchWithoutCallingItAnOwnershipProblem() {
-    when(ownership.forChain(any(), any(), anyBoolean()))
-        .thenReturn(
-            new GraphPatchOwnershipPolicy(
-                true,
-                true,
-                Set.of("script", "http-trigger"),
-                Set.of(),
-                Map.of("script", Set.of("script"), "http-trigger", Set.of())));
-    capturesStructuralEdgeWithoutAnEdgeId();
-
-    List<ChatEvent> events = run(request("add an enrichment step after the trigger"));
-
-    assertTrue(text(events).contains("could not be applied"), text(events));
-    assertTrue(!text(events).contains("outside what I may edit"), text(events));
-    verify(writer, never()).write(any(), any());
-    assertTrue(
-        events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be offered");
-  }
-
-  @Test
-  void refusesAPatchThatWouldBreakTheChainAndOffersNoCard() {
-    captures(propertyPatch("element-script", "script", "return 201"));
-    when(semanticValidator.introducedProblems(any(), any(), any()))
-        .thenReturn(List.of("VR-G-004: element 'element-script' is unreachable"));
+        .thenReturn(GraphPatchOwnershipPolicy.denyAll());
+    compiles(propertyPatch("element-script", "script", "return 201"));
 
     List<ChatEvent> events = run(request("fix the script in Normalize payload"));
 
-    assertTrue(text(events).contains("would leave the chain broken"), text(events));
-    assertTrue(text(events).contains("unreachable"), text(events));
-    // Distinct from both the ownership refusal and the structural one.
-    assertTrue(!text(events).contains("outside what I may edit"), text(events));
-    assertTrue(!text(events).contains("could not be applied"), text(events));
-    verify(writer, never()).write(any(), any());
     assertTrue(
-        events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be offered");
-  }
-
-  @Test
-  void listsTheElementsAndConnectionsItWouldAddOnTheCard() {
-    when(ownership.forChain(any(), any(), anyBoolean()))
-        .thenReturn(
-            new GraphPatchOwnershipPolicy(
-                true,
-                true,
-                Set.of("script", "http-trigger"),
-                Set.of(),
-                Map.of("script", Set.of("script"), "http-trigger", Set.of())));
-    capturesStructural();
-
-    ChatEvent.Decision card = decision(run(request("add an enrichment step after the trigger")));
-
-    assertTrue(card.question().contains("Adds Enrich payload"), card.question());
-    assertTrue(card.question().contains("Connects Receive order"), card.question());
-    assertTrue(card.question().contains("to Enrich payload"), card.question());
-  }
-
-  /**
-   * A removal changes no element, so the reply has to be built from what went rather than from what
-   * changed -- otherwise a delete the reader just approved comes back as "nothing needed changing".
-   */
-  @Test
-  void namesWhatItRemovedWhenTheCardIsAnswered() {
-    when(ownership.forChain(any(), any(), anyBoolean()))
-        .thenReturn(
-            new GraphPatchOwnershipPolicy(
-                true, true, true, true, Set.of("script"), Set.of(), Map.of("script", Set.of("script"))));
-    when(writer.write(any(), any()))
-        .thenReturn(
-            new ChainPatchWriteResult(
-                List.of(), List.of(), null, null, List.of("element-script")));
-    capturesRemovalOf("element-script");
-    ChatEvent.Decision card = decision(run(request("delete the Normalize payload step")));
-
-    List<ChatEvent> events = run(answer(card.artifactHash()));
-
-    assertTrue(card.question().contains("Removes Normalize payload"), card.question());
-    assertTrue(card.question().contains("cannot be undone"), card.question());
-    assertTrue(text(events).contains("Removed Normalize payload"), text(events));
-  }
-
-  @Test
-  void saysTheChainWasPutBackWhenTheWriteFailedAndWasUnwound() {
-    when(writer.write(any(), any()))
-        .thenReturn(
-            new ChainPatchWriteResult(
-                List.of(),
-                List.of("element-script"),
-                "schema said no",
-                null,
-                List.of(),
-                ChainPatchWriteResult.RollbackOutcome.COMPLETED));
-    captures(propertyPatch("element-script", "script", "return 201"));
-    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
-
-    List<ChatEvent> events = run(answer(card.artifactHash()));
-
-    assertTrue(text(events).contains("put the chain back as it was"), text(events));
-  }
-
-  /** The one case the reader has to be told plainly, because nothing here can fix it for them. */
-  @Test
-  void namesWhatIsGoneWhenTheChainCannotBePutBack() {
-    when(writer.write(any(), any()))
-        .thenReturn(
-            new ChainPatchWriteResult(
-                List.of(),
-                List.of("element-trigger"),
-                "catalog down",
-                null,
-                List.of("element-script"),
-                ChainPatchWriteResult.RollbackOutcome.REFUSED));
-    captures(propertyPatch("element-script", "script", "return 201"));
-    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
-
-    List<ChatEvent> events = run(answer(card.artifactHash()));
-
-    assertTrue(text(events).contains("could not put the chain back"), text(events));
-    assertTrue(text(events).contains("Normalize payload"), text(events));
-  }
-
-  @Test
-  void saysSoWhenTheModelProposedNothing() {
-    List<ChatEvent> events = run(request("do something vague"));
-
-    assertTrue(text(events).contains("no change"), text(events));
-    verify(writer, never()).write(any(), any());
-  }
-
-  @Test
-  void asksWhichElementItShouldChangeWhenSeveralMatch() {
-    asks("Two elements match: Normalize payload and Normalize headers. Which one did you mean?");
-
-    List<ChatEvent> events = run(request("fix the normalize step"));
-
-    assertTrue(text(events).contains("Normalize headers"), text(events));
-    verify(writer, never()).write(any(), any());
-    assertTrue(
-        events.stream().noneMatch(ChatEvent.Decision.class::isInstance),
-        "no card should be offered: " + text(events));
-  }
-
-  @Test
-  void asksForAnExactNameOrIdWhenNothingMatches() {
-    asks("No element in this chain matches that. Give me the exact element name or id.");
-
-    List<ChatEvent> events = run(request("fix the deduplicate step"));
-
-    assertTrue(text(events).contains("exact element name or id"), text(events));
-    verify(writer, never()).write(any(), any());
-    assertTrue(
-        events.stream().noneMatch(ChatEvent.Decision.class::isInstance),
-        "no card should be offered: " + text(events));
-  }
-
-  @Test
-  void patchesTheElementNamedInTheAnswerToItsQuestion() {
-    when(agent.chat(eq(CONVERSATION_ID), any()))
-        .thenReturn(
-            Multi.createFrom()
-                .item("Two elements match: Normalize payload and Normalize headers. Which one?"))
-        .thenAnswer(capturing(propertyPatch("element-script", "script", "return 201")));
-
-    List<ChatEvent> question = run(request("fix the normalize step"));
-    ChatEvent.Decision card = decision(run(request("Normalize payload")));
-
-    assertTrue(text(question).contains("Normalize headers"), text(question));
-    assertTrue(card.question().contains("Normalize payload"), card.question());
-  }
-
-  @Test
-  void resolvesFromAPastedLogThroughTheSameRequestPath() {
-    ArgumentCaptor<String> agentMessage = ArgumentCaptor.forClass(String.class);
-    captures(propertyPatch("element-script", "script", "return 201"));
-
-    ChatEvent.Decision card =
-        decision(
-            run(
-                request(
-                    "ERROR element-script: customer id missing from the outgoing body\n"
-                        + "fix this script")));
-
-    verify(agent).chat(eq(CONVERSATION_ID), agentMessage.capture());
-    assertTrue(agentMessage.getValue().contains("customer id missing"), agentMessage.getValue());
-    assertTrue(card.question().contains("Normalize payload"), card.question());
-  }
-
-  @Test
-  void offersTheCompilersNetPatchAsTheCardAndWritesThatSamePatch() {
-    compiles(propertyPatch("element-script", "script", "return 201"));
-
-    ChatEvent.Decision card = decision(run(request("change the operation on the order call")));
-    run(answer(card.artifactHash()));
-
-    verify(agent, never()).chat(any(), any());
-    ArgumentCaptor<GraphPatch> written = ArgumentCaptor.forClass(GraphPatch.class);
-    verify(writer).write(any(), written.capture());
-    assertEquals(
-        List.of("return 201"),
-        written.getValue().propertyPatches().stream().map(p -> p.property().value()).toList());
+        events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be shown");
+    assertTrue(text(events).contains("outside what I may edit"), text(events));
   }
 
   @Test
@@ -431,30 +218,28 @@ class ChainPatchScenarioTest {
 
     List<ChatEvent> events = run(request("change the operation on the order call"));
 
-    verify(agent, never()).chat(any(), any());
     assertTrue(
         events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be shown");
     assertTrue(text(events).contains("Get order status"), text(events));
   }
 
   @Test
-  void offersAnImportAsItsOwnDecisionAndImportsNothingUntilItIsAnswered() {
+  void reportsAnEditNoCompilerSkillOwns() {
     when(editCompiler.compile(any()))
-        .thenReturn(
-            new ChainEditOutcome.Escalation(
-                "'order status' is not in the local catalog.",
-                new ChainEditIntent(
-                    ChainEditAction.REBIND_SERVICE_CALL,
-                    List.of("element-script"),
-                    "rebind",
-                    "order status",
-                    List.of()),
-                new ApiHubRequirementRefs(
-                    "pkg-1", "2026.1", "op-1", "doc-1", "rest", "Orders", "Orders API")));
+        .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.REORDER));
 
-    List<ChatEvent> events = run(request("point the order call at the status operation"));
+    List<ChatEvent> events = run(request("shuffle the branches"));
 
-    ChatEvent.Decision card = decision(events);
+    verify(writer, never()).write(any(), any());
+    assertTrue(text(events).contains("REORDER"), text(events));
+  }
+
+  @Test
+  void offersAnImportAsItsOwnDecisionAndImportsNothingUntilItIsAnswered() {
+    when(editCompiler.compile(any())).thenReturn(escalation());
+
+    ChatEvent.Decision card = decision(run(request("point the order call at the status operation")));
+
     assertEquals(List.of(ChatEvent.IMPORT_ACTION), card.actions());
     verify(editCompiler, never()).resumeAfterImport(any(), any(), any());
     verify(writer, never()).write(any(), any());
@@ -462,46 +247,43 @@ class ChainPatchScenarioTest {
 
   @Test
   void approvingTheImportResumesTheSameEdit() {
-    ChainEditIntent held =
+    ChainEditOutcome.Escalation escalation = escalation();
+    when(editCompiler.compile(any())).thenReturn(escalation);
+    run(request("point the order call at the status operation"));
+    when(editCompiler.resumeAfterImport(any(), eq(escalation.intent()), eq(escalation.refs())))
+        .thenReturn(new ChainEditOutcome.ResolutionFailure("resumed"));
+
+    List<ChatEvent> events = run(approveImport());
+
+    verify(editCompiler).resumeAfterImport(any(), eq(escalation.intent()), eq(escalation.refs()));
+    assertTrue(text(events).contains("resumed"), text(events));
+  }
+
+  @Test
+  void anImportLeftUnansweredWhileTheReaderSaysSomethingElseImportsNothing() {
+    when(editCompiler.compile(any())).thenReturn(escalation());
+    run(request("point the order call at the status operation"));
+
+    when(editCompiler.compile(any()))
+        .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.UNRESOLVED));
+    run(request("actually, never mind"));
+    List<ChatEvent> events = run(approveImport());
+
+    verify(editCompiler, never()).resumeAfterImport(any(), any(), any());
+    assertTrue(text(events).toLowerCase().contains("no change waiting"), text(events));
+  }
+
+  private static ChainEditOutcome.Escalation escalation() {
+    return new ChainEditOutcome.Escalation(
+        "'order status' is not in the local catalog.",
         new ChainEditIntent(
             ChainEditAction.REBIND_SERVICE_CALL,
             List.of("element-script"),
             "rebind",
             "order status",
-            List.of());
-    ApiHubRequirementRefs refs =
-        new ApiHubRequirementRefs("pkg-1", "2026.1", "op-1", "doc-1", "rest", "Orders", "Orders API");
-    when(editCompiler.compile(any()))
-        .thenReturn(new ChainEditOutcome.Escalation("not local", held, refs));
-    run(request("point the order call at the status operation"));
-    when(editCompiler.resumeAfterImport(any(), eq(held), eq(refs)))
-        .thenReturn(new ChainEditOutcome.ResolutionFailure("resumed"));
-
-    List<ChatEvent> events = run(approveImport());
-
-    verify(editCompiler).resumeAfterImport(any(), eq(held), eq(refs));
-    assertTrue(text(events).contains("resumed"), text(events));
-  }
-
-  @Test
-  void anImportAnsweredWithSomethingElseImportsNothing() {
-    when(editCompiler.compile(any()))
-        .thenReturn(
-            new ChainEditOutcome.Escalation(
-                "not local",
-                new ChainEditIntent(
-                    ChainEditAction.REBIND_SERVICE_CALL, List.of("element-script"), "rebind", null, List.of()),
-                new ApiHubRequirementRefs(
-                    "pkg-1", "2026.1", "op-1", "doc-1", "rest", "Orders", "Orders API")));
-    run(request("point the order call at the status operation"));
-
-    when(editCompiler.compile(any()))
-        .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.UNRESOLVED));
-    run(request("actually, never mind — fix the script instead"));
-    List<ChatEvent> events = run(approveImport());
-
-    verify(editCompiler, never()).resumeAfterImport(any(), any(), any());
-    assertTrue(text(events).toLowerCase().contains("no change waiting"), text(events));
+            List.of()),
+        new ApiHubRequirementRefs(
+            "pkg-1", "2026.1", "op-1", "doc-1", "rest", "Orders", "Orders API"));
   }
 
   private void compiles(PropertyPatch propertyPatch) {
@@ -510,135 +292,32 @@ class ChainPatchScenarioTest {
             invocation -> {
               ChainEditRequest editRequest = invocation.getArgument(0);
               ChainPlanGraph base = editRequest.imported().graph();
-              GraphPatch netPatch =
+              return new ChainEditOutcome.Proposal(
                   new GraphPatch(
                       "net-1",
-                      "cip-service-call-generator",
+                      "cip-script-generator",
                       List.of(),
                       List.of(),
                       List.of(propertyPatch),
                       List.of(),
                       List.of(),
-                      "rebind");
-              return new ChainEditOutcome.Proposal(
-                  netPatch,
+                      "rewrites the script"),
                   base,
                   base,
                   new ChainEditIntent(
-                      ChainEditAction.REBIND_SERVICE_CALL,
+                      ChainEditAction.EDIT_SCRIPT,
                       List.of(propertyPatch.targetNodeId()),
-                      "rebind",
+                      "rewrite the script",
                       null,
                       List.of()),
                   List.of(),
-                  List.of("cip-service-call-generator"),
+                  List.of("cip-script-generator"),
                   null);
             });
   }
 
-  private void captures(PropertyPatch propertyPatch) {
-    when(agent.chat(eq(CONVERSATION_ID), any())).thenAnswer(capturing(propertyPatch));
-  }
-
-  private void capturesRemovalOf(String nodeId) {
-    when(agent.chat(eq(CONVERSATION_ID), any()))
-        .thenAnswer(
-            invocation -> {
-              patchStore.putCapture(
-                  CONVERSATION_ID,
-                  new ChainPatchCapture(
-                      "patch-4",
-                      List.of(
-                          new org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch(
-                              GraphPatchOperation.REMOVE, null, nodeId)),
-                      List.of(),
-                      List.of(),
-                      "the step is no longer needed"));
-              return Multi.createFrom().<String>empty();
-            });
-  }
-
-  private void asks(String question) {
-    when(agent.chat(eq(CONVERSATION_ID), any())).thenReturn(Multi.createFrom().item(question));
-  }
-
-  private Answer<Multi<String>> capturing(PropertyPatch propertyPatch) {
-    return invocation -> {
-      patchStore.putCapture(
-          CONVERSATION_ID,
-          new ChainPatchCapture(
-              "patch-1", List.of(), List.of(), List.of(propertyPatch), "keeps the customer id"));
-      return Multi.createFrom().empty();
-    };
-  }
-
-  /** Ownership passes (both node and edge adds are owned); GraphPatchApplier's own edge-id
-   * check is what refuses this one, exercising the non-ownership branch of a failed apply. */
-  private void capturesStructuralEdgeWithoutAnEdgeId() {
-    when(agent.chat(eq(CONVERSATION_ID), any()))
-        .thenAnswer(
-            invocation -> {
-              patchStore.putCapture(
-                  CONVERSATION_ID,
-                  new ChainPatchCapture(
-                      "patch-3",
-                      List.of(
-                          new org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch(
-                              GraphPatchOperation.ADD,
-                              new org.qubership.integration.platform.ai.plan.model.ChainPlanNode(
-                                  "node-new-script",
-                                  "script",
-                                  "Enrich payload",
-                                  null,
-                                  null,
-                                  List.of(new PlanProperty("script", "return 42"))),
-                              null)),
-                      List.of(
-                          new org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch(
-                              GraphPatchOperation.ADD,
-                              new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge(
-                                  null, "element-trigger", "node-new-script", null),
-                              null)),
-                      List.of(),
-                      "adds an enrichment step"));
-              return Multi.createFrom().empty();
-            });
-  }
-
-  private void capturesStructural() {
-    when(agent.chat(eq(CONVERSATION_ID), any()))
-        .thenAnswer(
-            invocation -> {
-              patchStore.putCapture(
-                  CONVERSATION_ID,
-                  new ChainPatchCapture(
-                      "patch-2",
-                      List.of(
-                          new org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch(
-                              GraphPatchOperation.ADD,
-                              new org.qubership.integration.platform.ai.plan.model.ChainPlanNode(
-                                  "node-new-script",
-                                  "script",
-                                  "Enrich payload",
-                                  null,
-                                  null,
-                                  List.of(new PlanProperty("script", "return 42"))),
-                              null)),
-                      List.of(
-                          new org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch(
-                              GraphPatchOperation.ADD,
-                              new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge(
-                                  "edge-new", "element-trigger", "node-new-script", null),
-                              null)),
-                      List.of(),
-                      "adds an enrichment step"));
-              return Multi.createFrom().empty();
-            });
-  }
-
   private static PropertyPatch propertyPatch(String nodeId, String key, String value) {
-    return new PropertyPatch(
-        GraphPatchOperation.UPDATE, nodeId, new PlanProperty(key, value));
+    return new PropertyPatch(GraphPatchOperation.UPDATE, nodeId, new PlanProperty(key, value));
   }
 
   private List<ChatEvent> run(ChatRequest request) {

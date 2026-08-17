@@ -293,10 +293,35 @@ class ChainEditCompilerTest {
   }
 
   @Test
-  void anEditNoSkillOwnsYetFallsBackToTheCaller() {
-    intentReply = intent("REORDER", TARGET, "put the catch branch first");
+  void areorderIsMadeDeterministicallyWithoutRunningTheCompiler() {
+    intentReply = intent("REORDER", UNRELATED + ", " + TARGET, "put the invoice call first");
 
-    assertInstanceOf(ChainEditOutcome.Unsupported.class, compiler.compile(request()));
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    assertEquals(
+        Map.of("priority", "0"), changedProperties(proposal.netPatch(), UNRELATED));
+    assertEquals(Map.of("priority", "1"), changedProperties(proposal.netPatch(), TARGET));
+    org.junit.jupiter.api.Assertions.assertNull(
+        engine.lastRequest.get(), "a deterministic edit runs no compiler DAG");
+  }
+
+  @Test
+  void aDeletionCarriesTheCatalogCascadeIntoTheNetPatch() {
+    intentReply = intent("DELETE", TARGET, "remove the order call");
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    assertEquals(
+        List.of(TARGET),
+        proposal.netPatch().nodePatches().stream()
+            .map(patch -> patch.targetNodeId())
+            .toList());
+    assertTrue(
+        proposal.netPatch().edgePatches().stream()
+            .anyMatch(patch -> "edge-1".equals(patch.targetEdgeId())),
+        "the connection out of the deleted element goes too");
   }
 
   @Test

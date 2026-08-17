@@ -70,3 +70,10 @@ sent "delete a step" into CREATE and answered it with a requirement-analysis app
 What is not yet known: how much of the measured failure is the dev model rather than the design.
 `gpt-4o-mini` drops required fields as the patch grows, and a stronger model may not. Binding
 resolution is not in that category -- no model can infer an operation catalogue it cannot read.
+
+---
+
+**Superseded in part by
+[ADR 0004](0004-compile-every-chain-edit-through-an-owning-skill.md).** The direct model-authored
+property fast path above is gone: every edit now compiles through an owning skill, and the fast
+path is a smaller compiler subgraph. The rest of this record still holds.
