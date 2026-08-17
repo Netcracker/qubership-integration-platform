@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,8 +29,20 @@ var RunStatuses = []string{
 }
 
 // The values of the entity_type enum are the keys of the data getter table in
-// internal/matching, which is where they are declared. The http_method enum
-// takes the method names net/http already declares.
+// internal/matching, which is where they are declared.
+
+// HTTPMethods is the http_method enum as the service sees it. A request setting
+// is held to this set, so a method the type does not have is refused as a bad
+// request instead of reaching PostgreSQL as an enum literal. net/http declares
+// OPTIONS, CONNECT and TRACE as well; this enum does not take them.
+var HTTPMethods = []string{
+	http.MethodGet,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodHead,
+}
 
 // Metadata carries the audit columns. Embedding it also installs the
 // BeforeAppendModel hook that fills them in.

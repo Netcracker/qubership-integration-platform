@@ -616,6 +616,78 @@ func TestUpdateRefusesAValidationRuleTheStoredTestCaseDoesNotCarry(t *testing.T)
 	assert.Empty(t, f.testCases.updated)
 }
 
+func testCaseWithMethod(method string) *dao.TestCase {
+	return &dao.TestCase{
+		Name:            "order flow",
+		RequestSettings: &dao.RequestSettings{Method: method, Timeout: 1000},
+	}
+}
+
+// The method column is the http_method enum, so a value outside it reaches
+// PostgreSQL as a bad enum literal and comes back a 500 quoting an SQLSTATE.
+// The caller learns nothing actionable from that, and the UI is not the only
+// way in: an import or a direct call carries whatever it was given.
+func TestCreateRefusesARequestMethodTheEnumDoesNotTake(t *testing.T) {
+	for name, method := range map[string]string{
+		"a method the enum leaves out":   http.MethodOptions,
+		"a method spelled in lower case": "get",
+		"no method at all":               "",
+		"a method that is not one":       "FETCH",
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newTestCasesFixture()
+
+			created, err := f.service.Create(context.Background(), testCaseWithMethod(method))
+
+			require.ErrorIs(t, err, ErrInvalidRequest)
+			assert.Nil(t, created)
+			assert.Empty(t, f.testCases.inserted, "nothing is stored for a refused test case")
+		})
+	}
+}
+
+func TestUpdateRefusesARequestMethodTheEnumDoesNotTake(t *testing.T) {
+	f := newTestCasesFixture()
+	id := uuid.New()
+	f.testCases.existing[id] = &dao.TestCaseView{TestCase: dao.TestCase{ID: id, Name: "old"}}
+	testCase := testCaseWithMethod(http.MethodOptions)
+	testCase.ID = id
+
+	updated, err := f.service.Update(context.Background(), testCase)
+
+	require.ErrorIs(t, err, ErrInvalidRequest)
+	assert.Nil(t, updated)
+	assert.Empty(t, f.testCases.updated, "nothing is stored for a refused test case")
+}
+
+// Every method the enum takes goes through, so the check refuses what the column
+// refuses and nothing besides.
+func TestCreateAcceptsEveryMethodTheEnumTakes(t *testing.T) {
+	for _, method := range dao.HTTPMethods {
+		t.Run(method, func(t *testing.T) {
+			f := newTestCasesFixture()
+
+			created, err := f.service.Create(context.Background(), testCaseWithMethod(method))
+
+			require.NoError(t, err)
+			require.NotNil(t, created)
+			assert.Len(t, f.testCases.inserted, 1)
+		})
+	}
+}
+
+// A test case carrying no request settings names no method, and that is the
+// shape the create dialog stores before the request tab is filled in.
+func TestCreateAcceptsATestCaseWithoutRequestSettings(t *testing.T) {
+	f := newTestCasesFixture()
+
+	created, err := f.service.Create(context.Background(), &dao.TestCase{Name: "order flow"})
+
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Len(t, f.testCases.inserted, 1)
+}
+
 // The refusal is about the imported file, so the importer reads what to fix
 // rather than the generic message a failing save reports.
 func TestImportReportsARefusedValidationRuleWithItsReason(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"mime/multipart"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -185,7 +186,23 @@ func testCaseViolations(testCase *dao.TestCase) []violation {
 	if testCase == nil {
 		return nil
 	}
-	return matcherViolations("response validation rule", testCase.ResponseValidationRules)
+	return append(requestSettingsViolations(testCase.RequestSettings),
+		matcherViolations("response validation rule", testCase.ResponseValidationRules)...)
+}
+
+// requestSettingsViolations refuses a method the http_method enum does not take.
+// The column is that enum, so PostgreSQL rejects the insert on its own — but as
+// a 500 quoting an SQLSTATE, which says nothing the caller can act on. Nothing
+// stored can carry such a method, so this violation is never one to tolerate.
+func requestSettingsViolations(requestSettings *dao.RequestSettings) []violation {
+	if requestSettings == nil || slices.Contains(dao.HTTPMethods, requestSettings.Method) {
+		return nil
+	}
+	return []violation{{
+		key: fmt.Sprintf("request method %q", requestSettings.Method),
+		message: fmt.Sprintf("request method %q is not one of %v",
+			requestSettings.Method, dao.HTTPMethods),
+	}}
 }
 
 func (s *testCasesService) updateTriggerReference(
