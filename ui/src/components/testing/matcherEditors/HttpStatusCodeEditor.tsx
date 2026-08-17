@@ -6,17 +6,21 @@ import { MatcherParametersView } from "./MatcherParametersView.tsx";
 import { HTTP_STATUS_CODE_OPTIONS } from "./httpStatusCodes.ts";
 
 export type HttpStatusCodeEditorProps = {
+  /** The name the matching engine reads — `value`, as for any `equal` matcher. */
+  parameterName: string;
   parameters: TestingNamedParameter[] | null;
   onChange: (parameters: TestingNamedParameter[]) => void;
 };
 
 /** Picks the status an `equal` matcher over the response status compares against. */
 export const HttpStatusCodeEditor: React.FC<HttpStatusCodeEditorProps> = ({
+  parameterName,
   parameters,
   onChange,
 }) => {
   const value =
-    parameters?.find((parameter) => parameter.name === "value")?.value ?? "";
+    parameters?.find((parameter) => parameter.name === parameterName)?.value ??
+    "";
 
   return (
     <InlineEdit<{ statusCode: string }>
@@ -31,7 +35,7 @@ export const HttpStatusCodeEditor: React.FC<HttpStatusCodeEditorProps> = ({
       }
       viewer={<MatcherParametersView parameters={parameters} />}
       onSubmit={({ statusCode }) =>
-        onChange(statusCode ? [{ name: "value", value: statusCode }] : [])
+        onChange(statusCode ? [{ name: parameterName, value: statusCode }] : [])
       }
     />
   );

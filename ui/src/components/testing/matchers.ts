@@ -55,9 +55,11 @@ export function getEntityTypesForOwnerKind(
 }
 
 /**
- * Parameter names the matching engine reads, per matcher type. Nothing on the
- * server checks these: a matcher stored under any other name is accepted and
- * then never fires, so this map is the only guard.
+ * Parameter names the matching engine reads, per matcher type. A missing one is
+ * refused at save time, since the service builds every matcher through the same
+ * predicate factory the run paths use. An extra parameter under a name no
+ * predicate reads is stored and then ignored, and this map is the only guard
+ * against that half.
  *
  * The JSON matchers name `path` although the service reads it as optional and
  * falls back to the whole document. Requiring it here keeps every editor writing
@@ -213,7 +215,7 @@ export function matchersAreValid(
 export type MatcherParameterEditor =
   | { kind: "none" }
   | { kind: "single"; parameterName: string }
-  | { kind: "status" }
+  | { kind: "status"; parameterName: string }
   | { kind: "json"; documentParameterName: string };
 
 /**
@@ -228,14 +230,15 @@ export function getMatcherParameterEditor(
   if (!names || names.length === 0) {
     return { kind: "none" };
   }
-  if (type === MatcherType.MATCH_JSON_SCHEMA) {
-    return { kind: "json", documentParameterName: "schema" };
-  }
-  if (type === MatcherType.MATCH_JSON) {
-    return { kind: "json", documentParameterName: "sample" };
+  // A JSON matcher names `path` first and the document it is matched against second.
+  if (
+    type === MatcherType.MATCH_JSON_SCHEMA ||
+    type === MatcherType.MATCH_JSON
+  ) {
+    return { kind: "json", documentParameterName: names[1] };
   }
   if (type === MatcherType.EQUAL && entityType === MatcherEntityType.STATUS) {
-    return { kind: "status" };
+    return { kind: "status", parameterName: names[0] };
   }
   return { kind: "single", parameterName: names[0] };
 }

@@ -48,6 +48,7 @@ export const MatcherParametersCell: React.FC<MatcherParametersCellProps> = ({
     if (editor.kind === "status") {
       return (
         <HttpStatusCodeEditor
+          parameterName={editor.parameterName}
           parameters={matcher.parameters}
           onChange={onChange}
         />

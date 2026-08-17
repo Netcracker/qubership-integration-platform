@@ -154,7 +154,7 @@ describe("parameter editor selection", () => {
   test("should select the status picker only for equal over status", () => {
     expect(
       getMatcherParameterEditor(MatcherType.EQUAL, MatcherEntityType.STATUS),
-    ).toEqual({ kind: "status" });
+    ).toEqual({ kind: "status", parameterName: "value" });
     expect(
       getMatcherParameterEditor(MatcherType.EQUAL, MatcherEntityType.BODY),
     ).toEqual({ kind: "single", parameterName: "value" });
