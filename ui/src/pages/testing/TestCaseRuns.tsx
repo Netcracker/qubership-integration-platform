@@ -39,6 +39,7 @@ import {
   testCaseRunsListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
+import { useTestsRunStarter } from "../../hooks/testing/useTestsRunStarter.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
@@ -200,46 +201,11 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     }
   }, [selectedRowKeys, collectTargetIds, exportEntities, notificationService]);
 
-  const handleRestart = useCallback(async () => {
-    if (selectedRowKeys.length === 0) {
-      return;
-    }
-    try {
-      const ids = await collectTargetIds();
-      if (ids.length === 0) {
-        return;
-      }
-      const newRunId = await api.startTestsRun(
-        ids,
-        TestsRunSource.TEST_CASE_RUNS,
-      );
-      // The run lives under Admin Tools, which chain rights alone do not open, so
-      // the chain scope names the run rather than linking into a section the
-      // reader may not reach.
-      notificationService.info(
-        "Test run started",
-        chainId ? (
-          newRunId
-        ) : (
-          <a
-            onClick={() =>
-              void navigate(`/admintools/testing/test-runs/${newRunId}`)
-            }
-          >
-            {newRunId}
-          </a>
-        ),
-      );
-    } catch (error) {
-      notificationService.requestFailed("Failed to start a test run", error);
-    }
-  }, [
+  const { isStarting, startRun } = useTestsRunStarter({
     chainId,
-    selectedRowKeys,
+    source: TestsRunSource.TEST_CASE_RUNS,
     collectTargetIds,
-    navigate,
-    notificationService,
-  ]);
+  });
 
   const cancelSelected = useCallback(async () => {
     try {
@@ -472,7 +438,9 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
           buttonProps={{
             "data-testid": "test-case-runs-restart",
             iconName: "redo",
-            onClick: () => void handleRestart(),
+            loading: isStarting,
+            disabled: isStarting,
+            onClick: () => void startRun(),
           }}
         />
         <ProtectedButton
@@ -495,7 +463,14 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
         />
       </>
     ),
-    [permissions, handleRefresh, handleRestart, handleCancel, handleExport],
+    [
+      permissions,
+      handleRefresh,
+      isStarting,
+      startRun,
+      handleCancel,
+      handleExport,
+    ],
   );
 
   const toolbar = useMemo(
@@ -529,6 +504,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     allLoaded,
     filters,
     permissions,
+    isStarting,
   ]);
 
   const table = (

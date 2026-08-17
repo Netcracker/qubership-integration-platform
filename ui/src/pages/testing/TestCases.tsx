@@ -30,6 +30,7 @@ import {
   testCasesListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
+import { useTestsRunStarter } from "../../hooks/testing/useTestsRunStarter.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
@@ -121,43 +122,10 @@ export const TestCases: React.FC<TestCasesProps> = ({
     }
   }, [selectedRowKeys, collectTargetIds, exportEntities, notificationService]);
 
-  const handleRun = useCallback(async () => {
-    if (selectedRowKeys.length === 0) {
-      return;
-    }
-    try {
-      const ids = await collectTargetIds();
-      if (ids.length === 0) {
-        return;
-      }
-      const runId = await api.startTestsRun(ids);
-      // The run lives under Admin Tools, which chain rights alone do not open, so
-      // the chain scope names the run rather than linking into a section the
-      // reader may not reach.
-      notificationService.info(
-        "Test run started",
-        chainId ? (
-          runId
-        ) : (
-          <a
-            onClick={() =>
-              void navigate(`/admintools/testing/test-runs/${runId}`)
-            }
-          >
-            {runId}
-          </a>
-        ),
-      );
-    } catch (error) {
-      notificationService.requestFailed("Failed to start a test run", error);
-    }
-  }, [
+  const { isStarting, startRun } = useTestsRunStarter({
     chainId,
-    selectedRowKeys,
     collectTargetIds,
-    navigate,
-    notificationService,
-  ]);
+  });
 
   const deleteSelected = useCallback(async () => {
     try {
@@ -389,7 +357,9 @@ export const TestCases: React.FC<TestCasesProps> = ({
           buttonProps={{
             "data-testid": "test-cases-run",
             iconName: "play",
-            onClick: () => void handleRun(),
+            loading: isStarting,
+            disabled: isStarting,
+            onClick: () => void startRun(),
           }}
         />
         <ProtectedButton
@@ -440,7 +410,8 @@ export const TestCases: React.FC<TestCasesProps> = ({
       chainId,
       permissions,
       handleRefresh,
-      handleRun,
+      isStarting,
+      startRun,
       handleExport,
       handleImport,
       handleDelete,
@@ -479,6 +450,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
     allLoaded,
     filters,
     permissions,
+    isStarting,
   ]);
 
   const table = (

@@ -28,6 +28,7 @@ import {
   testsRunsListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
+import { useTestsRunStarter } from "../../hooks/testing/useTestsRunStarter.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
@@ -104,35 +105,11 @@ export const TestRuns: React.FC = () => {
   }, [selectedRowKeys, collectTargetIds, exportEntities, notificationService]);
 
   // A restart lands in this very list, so the rows are reloaded once it starts.
-  const handleRestart = useCallback(async () => {
-    if (selectedRowKeys.length === 0) {
-      return;
-    }
-    try {
-      const ids = await collectTargetIds();
-      if (ids.length === 0) {
-        return;
-      }
-      const newRunId = await api.startTestsRun(ids, TestsRunSource.TESTS_RUNS);
-      notificationService.info(
-        "Test run started",
-        <a onClick={() => void navigate(`${SECTION_PATH}/${newRunId}`)}>
-          {newRunId}
-        </a>,
-      );
-      clearSelection();
-      refresh();
-    } catch (error) {
-      notificationService.requestFailed("Failed to start a test run", error);
-    }
-  }, [
-    selectedRowKeys,
+  const { isStarting, startRun } = useTestsRunStarter({
+    source: TestsRunSource.TESTS_RUNS,
     collectTargetIds,
-    clearSelection,
-    refresh,
-    navigate,
-    notificationService,
-  ]);
+    onStarted: handleRefresh,
+  });
 
   const cancelSelected = useCallback(async () => {
     try {
@@ -305,7 +282,9 @@ export const TestRuns: React.FC = () => {
           buttonProps={{
             "data-testid": "test-runs-restart",
             iconName: "redo",
-            onClick: () => void handleRestart(),
+            loading: isStarting,
+            disabled: isStarting,
+            onClick: () => void startRun(),
           }}
         />
         <ProtectedButton
@@ -340,7 +319,8 @@ export const TestRuns: React.FC = () => {
     [
       permissions,
       handleRefresh,
-      handleRestart,
+      isStarting,
+      startRun,
       handleCancel,
       handleExport,
       handleDelete,

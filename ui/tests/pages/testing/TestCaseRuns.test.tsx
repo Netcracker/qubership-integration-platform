@@ -530,6 +530,28 @@ describe("TestCaseRuns actions", () => {
     expect(mockNotificationService.info).toHaveBeenCalled();
   });
 
+  // A second click before the service answers would start a second run over the
+  // same cases, which nothing undoes.
+  it("should start one run when the action is clicked twice", async () => {
+    let finishRun: (runId: string) => void = () => undefined;
+    mockStartTestsRun.mockReturnValue(
+      new Promise<string>((resolve) => {
+        finishRun = resolve;
+      }),
+    );
+    await renderWithRuns([testCaseRun()]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    fireEvent.click(screen.getByTestId("test-case-runs-restart"));
+    fireEvent.click(screen.getByTestId("test-case-runs-restart"));
+
+    await waitFor(() => expect(mockStartTestsRun).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("test-case-runs-restart")).toBeDisabled();
+    await act(async () => finishRun("tests-run-9"));
+    expect(mockStartTestsRun).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("test-case-runs-restart")).not.toBeDisabled();
+  });
+
   it("should resolve targets server-side when everything matching is selected", async () => {
     mockGetTestCaseRunIds.mockResolvedValue(["run-1", "run-2", "run-99"]);
     await renderWithRuns([

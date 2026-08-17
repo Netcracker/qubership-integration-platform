@@ -573,13 +573,36 @@ describe("TestCases bulk actions", () => {
     fireEvent.click(screen.getAllByRole("checkbox")[1]);
     fireEvent.click(screen.getByTestId("test-cases-run"));
 
+    // No source: the service starts from test cases when it is given none.
     await waitFor(() =>
-      expect(mockStartTestsRun).toHaveBeenCalledWith(["case-1"]),
+      expect(mockStartTestsRun).toHaveBeenCalledWith(["case-1"], undefined),
     );
     expect(mockNotificationService.info).toHaveBeenCalledWith(
       "Test run started",
       expect.anything(),
     );
+  });
+
+  // A second click before the service answers would start a second run over the
+  // same cases, which nothing undoes.
+  it("should start one run when the action is clicked twice", async () => {
+    let finishRun: (runId: string) => void = () => undefined;
+    mockStartTestsRun.mockReturnValue(
+      new Promise<string>((resolve) => {
+        finishRun = resolve;
+      }),
+    );
+    await renderWithCases([testCase()]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    fireEvent.click(screen.getByTestId("test-cases-run"));
+    fireEvent.click(screen.getByTestId("test-cases-run"));
+
+    await waitFor(() => expect(mockStartTestsRun).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("test-cases-run")).toBeDisabled();
+    await act(async () => finishRun("run-7"));
+    expect(mockStartTestsRun).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("test-cases-run")).not.toBeDisabled();
   });
 
   it("should do nothing when no row is selected", async () => {
