@@ -125,3 +125,15 @@ Use `qip_direct_agent` first and verify:
 
 Then repeat the flow with `qip_top_level_agent`. Confirm that it stops for explicit user approval and never generates
 an approval decision itself.
+
+## Create a chain from ADK Web
+
+1. Open <http://localhost:8000> and select **`qip_direct_agent`**.
+2. Send a short English requirement, for example: HTTP trigger GET `/health` plus one downstream HTTP GET `/status`.
+3. When the Task asks for approval, reply with the printed token (`approve` plus the 8-character hash).
+4. When it asks for an IDS, reply `yes` or `no` (not a longer sentence). `no` skips showing the design document.
+5. When it asks for mappings, reply `PASS_THROUGH` unless you need explicit field mappings.
+6. Continue the same session for later approvals (`approve <hash>`). Do not start a new chat.
+
+`qip_direct_agent` pins `metadata.skillId=create-chain@2` and restores `task_id` on continue turns. The HITL send
+button in ADK Web may stay disabled after paste; press Enter in the interrupt box to submit.
