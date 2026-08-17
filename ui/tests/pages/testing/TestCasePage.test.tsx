@@ -20,7 +20,7 @@ import {
   Element,
   MatcherEntityType,
   MatcherType,
-  TestCase,
+  TestCaseView,
 } from "../../../src/api/apiTypes.ts";
 import { api } from "../../../src/api/api.ts";
 import { TestCasePage } from "../../../src/pages/testing/TestCasePage.tsx";
@@ -96,7 +96,7 @@ const ALL_PERMISSIONS: UserPermissions = {
   adminTools: ["read", "update", "execute", "import", "export"],
 };
 
-function testCase(overrides: Partial<TestCase> = {}): TestCase {
+function testCase(overrides: Partial<TestCaseView> = {}): TestCaseView {
   return {
     id: "case-1",
     name: "First case",
@@ -122,6 +122,8 @@ function testCase(overrides: Partial<TestCase> = {}): TestCase {
         parameters: [],
       },
     ],
+    validationRuleCount: 1,
+    enabledRuleCount: 1,
     createdBy: "author",
     createdAt: "2026-08-13T10:00:00.000Z",
     updatedBy: null,

@@ -693,7 +693,7 @@ export interface Api {
     specification: TestingSelectionSpecification,
   ): Promise<string[]>;
 
-  getTestCase(id: string): Promise<TestCase>;
+  getTestCase(id: string): Promise<TestCaseView>;
 
   createTestCase(testCase: TestCaseRequest): Promise<TestCase>;
 

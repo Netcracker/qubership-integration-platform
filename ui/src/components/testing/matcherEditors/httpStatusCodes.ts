@@ -1,5 +1,5 @@
 /** HTTP status codes offered by the status-code picker, with their reason phrases. */
-export const HTTP_STATUS_CODES: { code: number; reason: string }[] = [
+const HTTP_STATUS_CODES: { code: number; reason: string }[] = [
   { code: 200, reason: "OK" },
   { code: 201, reason: "Created" },
   { code: 202, reason: "Accepted" },

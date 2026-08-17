@@ -1298,7 +1298,7 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getTestCaseIds not implemented.");
   }
 
-  getTestCase(): Promise<TestCase> {
+  getTestCase(): Promise<TestCaseView> {
     throw new Error("Method getTestCase not implemented.");
   }
 

@@ -2533,8 +2533,8 @@ export class RestApi implements Api {
   ): Promise<string[]> =>
     this.listTestingEntityIds("test-cases", specification);
 
-  getTestCase = async (id: string): Promise<TestCase> =>
-    this.getTestingEntity<TestCase>("test-cases", id);
+  getTestCase = async (id: string): Promise<TestCaseView> =>
+    this.getTestingEntity<TestCaseView>("test-cases", id);
 
   createTestCase = async (testCase: TestCaseRequest): Promise<TestCase> => {
     const response = await this.instance.post<TestCase>(
