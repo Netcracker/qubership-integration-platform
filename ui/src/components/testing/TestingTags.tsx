@@ -1,38 +1,42 @@
 import React from "react";
-import { Tag } from "antd";
 import { TestingImportStatus, TestRunStatus } from "../../api/apiTypes.ts";
+import { StatusToneTag, type StatusTone } from "../labels/StatusToneTag.tsx";
 import { formatSnakeCased, PLACEHOLDER } from "../../misc/format-utils.ts";
 
 export const EnabledTag: React.FC<{ enabled: boolean }> = ({ enabled }) => (
-  <Tag color={enabled ? "green" : "default"}>
+  <StatusToneTag tone={enabled ? "success" : "neutral"}>
     {enabled ? "Enabled" : "Disabled"}
-  </Tag>
+  </StatusToneTag>
 );
 
 export const ReadinessTag: React.FC<{ ready: boolean }> = ({ ready }) => (
-  <Tag color={ready ? "blue" : "warning"}>{ready ? "Ready" : "Incomplete"}</Tag>
+  <StatusToneTag tone={ready ? "processing" : "warning"}>
+    {ready ? "Ready" : "Incomplete"}
+  </StatusToneTag>
 );
 
-const RUN_STATUS_COLORS: Record<TestRunStatus, string> = {
-  [TestRunStatus.PENDING]: "default",
+const RUN_STATUS_TONES: Record<TestRunStatus, StatusTone> = {
+  [TestRunStatus.PENDING]: "neutral",
   [TestRunStatus.RUNNING]: "processing",
   [TestRunStatus.FINISHED]: "success",
   [TestRunStatus.CANCELED]: "warning",
-  [TestRunStatus.SKIPPED]: "default",
+  [TestRunStatus.SKIPPED]: "neutral",
 };
 
 export const RunStatusTag: React.FC<{ status: TestRunStatus | null }> = ({
   status,
 }) =>
   status ? (
-    <Tag color={RUN_STATUS_COLORS[status]}>{formatSnakeCased(status)}</Tag>
+    <StatusToneTag tone={RUN_STATUS_TONES[status]}>
+      {formatSnakeCased(status)}
+    </StatusToneTag>
   ) : (
     <>{PLACEHOLDER}</>
   );
 
-const IMPORT_STATUS_COLORS: Record<TestingImportStatus, string> = {
-  [TestingImportStatus.CREATED]: "green",
-  [TestingImportStatus.UPDATED]: "blue",
+const IMPORT_STATUS_TONES: Record<TestingImportStatus, StatusTone> = {
+  [TestingImportStatus.CREATED]: "success",
+  [TestingImportStatus.UPDATED]: "processing",
   [TestingImportStatus.ERROR]: "error",
 };
 
@@ -45,5 +49,7 @@ const IMPORT_STATUS_LABELS: Record<TestingImportStatus, string> = {
 export const ImportResultTag: React.FC<{ status: TestingImportStatus }> = ({
   status,
 }) => (
-  <Tag color={IMPORT_STATUS_COLORS[status]}>{IMPORT_STATUS_LABELS[status]}</Tag>
+  <StatusToneTag tone={IMPORT_STATUS_TONES[status]}>
+    {IMPORT_STATUS_LABELS[status]}
+  </StatusToneTag>
 );
