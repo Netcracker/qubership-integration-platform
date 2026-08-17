@@ -2,7 +2,7 @@ import React from "react";
 import { theme, Tooltip, Typography } from "antd";
 import {
   TestingMatcher,
-  TestingMatcherParameter,
+  TestingNamedParameter,
 } from "../../../api/apiTypes.ts";
 import {
   getMatcherParameterEditor,
@@ -16,7 +16,7 @@ import { SingleParameterEditor } from "./SingleParameterEditor.tsx";
 export type MatcherParametersCellProps = {
   matcher: TestingMatcher;
   readonly?: boolean;
-  onChange: (parameters: TestingMatcherParameter[]) => void;
+  onChange: (parameters: TestingNamedParameter[]) => void;
 };
 
 /** Selects the editor the matcher type calls for, and flags invalid parameters. */

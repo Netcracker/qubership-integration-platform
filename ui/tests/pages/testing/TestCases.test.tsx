@@ -18,9 +18,9 @@ import {
   type CreateTestCaseModalProps,
 } from "../../../src/components/modal/testing/CreateTestCaseModal.tsx";
 import {
-  ImportTestCasesModal,
-  type ImportTestCasesModalProps,
-} from "../../../src/components/modal/testing/ImportTestCasesModal.tsx";
+  TestingImportModal,
+  type TestingImportModalProps,
+} from "../../../src/components/modal/testing/TestingImportModal.tsx";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import type { UserPermissions } from "../../../src/permissions/types.ts";
 import { useTestingFilter } from "../../../src/hooks/filter/useTestingFilter.ts";
@@ -55,6 +55,7 @@ const mockExportTestCases = jest.spyOn(api, "exportTestCases");
 const mockStartTestsRun = jest.spyOn(api, "startTestsRun");
 const mockGetChains = jest.spyOn(api, "getChains");
 const mockGetElements = jest.spyOn(api, "getElements");
+const mockImportTestCases = jest.spyOn(api, "importTestCases");
 
 const mockNavigate = jest.fn();
 const mockUseParams: jest.Mock<{ chainId?: string }> = jest.fn(() => ({
@@ -346,7 +347,6 @@ describe("TestCases filters and sorting", () => {
     mockUseTestingFilter.mockReturnValue({
       filters,
       filterButton: null,
-      resetFilters: jest.fn(),
     });
 
     await renderWithCases([testCase()]);
@@ -560,8 +560,15 @@ describe("TestCases create and import", () => {
 
     fireEvent.click(screen.getByTestId("test-cases-import"));
 
-    const modal = shownModal<ImportTestCasesModalProps>();
-    expect(modal.type).toBe(ImportTestCasesModal);
+    const modal = shownModal<TestingImportModalProps>();
+    expect(modal.type).toBe(TestingImportModal);
+    expect(modal.props.title).toBe("Import Test Cases");
+
+    // The binding is what a copy-paste would get wrong, so it is exercised.
+    await modal.props.importFiles([new File([""], "cases.zip")]);
+    expect(mockImportTestCases).toHaveBeenCalledWith([
+      expect.objectContaining({ name: "cases.zip" }),
+    ]);
 
     modal.props.onImported();
     await waitFor(() => expect(mockGetTestCases).toHaveBeenCalled());

@@ -11,9 +11,9 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { useTestingServiceAvailability } from "../../hooks/useTestingServiceAvailability.ts";
 
 /** Path the guard sends a visitor to when the testing service is not deployed. */
-export const NOT_FOUND_PATH = "/not-found";
+const NOT_FOUND_PATH = "/not-found";
 
-export const TESTING_SECTIONS = [
+const TESTING_SECTIONS = [
   { key: "test-cases", icon: "checkSquare", label: "Test Cases" },
   { key: "endpoint-mocks", icon: "api", label: "Endpoint Mocks" },
   { key: "test-case-runs", icon: "carryOut", label: "Test Case Runs" },
@@ -31,7 +31,7 @@ function getActiveSection(pathname: string): string {
   return segments[index + 1] ?? TESTING_SECTIONS[0].key;
 }
 
-export const TestingSidebar = ({ collapsed }: { collapsed: boolean }) => {
+export const TestingSidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { chainId } = useParams();
@@ -47,14 +47,13 @@ export const TestingSidebar = ({ collapsed }: { collapsed: boolean }) => {
       selectedKeys={[getActiveSection(location.pathname)]}
       onClick={handleClick}
       items={menuItems}
-      inlineCollapsed={collapsed}
     />
   );
 };
 
 /** Chain-scoped shell: the section menu beside the screen the route selected. */
 export const TestingLayout = () => (
-  <PageWithSidebar sidebar={<TestingSidebar collapsed={false} />}>
+  <PageWithSidebar sidebar={<TestingSidebar />}>
     <Outlet />
   </PageWithSidebar>
 );

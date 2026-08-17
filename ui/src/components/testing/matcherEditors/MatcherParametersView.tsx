@@ -1,9 +1,9 @@
 import React from "react";
 import { Typography } from "antd";
-import { TestingMatcherParameter } from "../../../api/apiTypes.ts";
+import { TestingNamedParameter } from "../../../api/apiTypes.ts";
 
 export type MatcherParametersViewProps = {
-  parameters: TestingMatcherParameter[] | null;
+  parameters: TestingNamedParameter[] | null;
 };
 
 /** A single parameter shows its value alone; several show `name: value` per line. */

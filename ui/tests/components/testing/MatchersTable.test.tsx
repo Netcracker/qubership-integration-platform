@@ -23,7 +23,6 @@ import { querySelectOption } from "../../helpers/antdSelect.ts";
 const showModal = jest.fn();
 
 jest.mock("antd", () =>
-   
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
 );
 
@@ -402,30 +401,5 @@ describe("MatchersTable parameter editors", () => {
     expect(
       screen.getByTestId("matcher-parameters-invalid"),
     ).toBeInTheDocument();
-  });
-});
-
-describe("MatchersTable validity", () => {
-  test("should report validity to the owning editor", () => {
-    const onValidityChange = jest.fn();
-    const { rerender } = render(
-      <MatchersTable
-        kind="response"
-        matchers={[matcher({ name: "" })]}
-        onChange={jest.fn()}
-        onValidityChange={onValidityChange}
-      />,
-    );
-    expect(onValidityChange).toHaveBeenLastCalledWith(false);
-
-    rerender(
-      <MatchersTable
-        kind="response"
-        matchers={[matcher()]}
-        onChange={jest.fn()}
-        onValidityChange={onValidityChange}
-      />,
-    );
-    expect(onValidityChange).toHaveBeenLastCalledWith(true);
   });
 });

@@ -1362,10 +1362,6 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getTestsRunIds not implemented.");
   }
 
-  getTestsRun(): Promise<TestsRunView> {
-    throw new Error("Method getTestsRun not implemented.");
-  }
-
   deleteTestsRuns(): Promise<void> {
     throw new Error("Method deleteTestsRuns not implemented.");
   }

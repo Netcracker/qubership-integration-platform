@@ -25,9 +25,7 @@ export const RunStatusTag: React.FC<{ status: TestRunStatus | null }> = ({
   status,
 }) =>
   status ? (
-    <Tag color={RUN_STATUS_COLORS[status] ?? "default"}>
-      {formatSnakeCased(status)}
-    </Tag>
+    <Tag color={RUN_STATUS_COLORS[status]}>{formatSnakeCased(status)}</Tag>
   ) : (
     <>{PLACEHOLDER}</>
   );
@@ -47,7 +45,5 @@ const IMPORT_STATUS_LABELS: Record<TestingImportStatus, string> = {
 export const ImportResultTag: React.FC<{ status: TestingImportStatus }> = ({
   status,
 }) => (
-  <Tag color={IMPORT_STATUS_COLORS[status] ?? "default"}>
-    {IMPORT_STATUS_LABELS[status] ?? status}
-  </Tag>
+  <Tag color={IMPORT_STATUS_COLORS[status]}>{IMPORT_STATUS_LABELS[status]}</Tag>
 );

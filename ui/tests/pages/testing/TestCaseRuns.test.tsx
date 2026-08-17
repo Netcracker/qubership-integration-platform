@@ -378,7 +378,6 @@ describe("TestCaseRuns filters and sorting", () => {
     mockUseTestingFilter.mockReturnValue({
       filters,
       filterButton: null,
-      resetFilters: jest.fn(),
     });
 
     await renderWithRuns([testCaseRun()]);

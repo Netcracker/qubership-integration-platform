@@ -15,9 +15,9 @@ import {
   type CreateEndpointMockModalProps,
 } from "../../../src/components/modal/testing/CreateEndpointMockModal.tsx";
 import {
-  ImportEndpointMocksModal,
-  type ImportEndpointMocksModalProps,
-} from "../../../src/components/modal/testing/ImportEndpointMocksModal.tsx";
+  TestingImportModal,
+  type TestingImportModalProps,
+} from "../../../src/components/modal/testing/TestingImportModal.tsx";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import type { UserPermissions } from "../../../src/permissions/types.ts";
 import { useTestingFilter } from "../../../src/hooks/filter/useTestingFilter.ts";
@@ -50,6 +50,7 @@ const mockDeleteEndpointMocks = jest.spyOn(api, "deleteEndpointMocks");
 const mockExportEndpointMocks = jest.spyOn(api, "exportEndpointMocks");
 const mockGetChains = jest.spyOn(api, "getChains");
 const mockGetElements = jest.spyOn(api, "getElements");
+const mockImportEndpointMocks = jest.spyOn(api, "importEndpointMocks");
 
 const mockNavigate = jest.fn();
 const mockUseParams: jest.Mock<{ chainId?: string }> = jest.fn(() => ({
@@ -335,7 +336,6 @@ describe("EndpointMocks filters and sorting", () => {
     mockUseTestingFilter.mockReturnValue({
       filters,
       filterButton: null,
-      resetFilters: jest.fn(),
     });
 
     await renderWithMocks([endpointMock()]);
@@ -502,8 +502,15 @@ describe("EndpointMocks create and import", () => {
 
     fireEvent.click(screen.getByTestId("endpoint-mocks-import"));
 
-    const modal = shownModal<ImportEndpointMocksModalProps>();
-    expect(modal.type).toBe(ImportEndpointMocksModal);
+    const modal = shownModal<TestingImportModalProps>();
+    expect(modal.type).toBe(TestingImportModal);
+    expect(modal.props.title).toBe("Import Endpoint Mocks");
+
+    // The binding is what a copy-paste would get wrong, so it is exercised.
+    await modal.props.importFiles([new File([""], "mocks.zip")]);
+    expect(mockImportEndpointMocks).toHaveBeenCalledWith([
+      expect.objectContaining({ name: "mocks.zip" }),
+    ]);
 
     modal.props.onImported();
     await waitFor(() => expect(mockGetEndpointMocks).toHaveBeenCalled());

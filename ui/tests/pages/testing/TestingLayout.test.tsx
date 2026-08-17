@@ -39,7 +39,7 @@ function renderSidebar(pathname: string) {
           path="/chains/:chainId/testing/*"
           element={
             <>
-              <TestingSidebar collapsed={false} />
+              <TestingSidebar />
               <CurrentPath />
             </>
           }

@@ -1556,19 +1556,14 @@ export type TestingAuditFields = {
   updatedAt: string | null;
 };
 
-export type TestingHeader = {
+export type TestingNamedParameter = {
   name: string;
   value: string;
 };
 
 export type TestingMessage = {
   body: string | null;
-  headers: TestingHeader[] | null;
-};
-
-export type TestingNamedParameter = {
-  name: string;
-  value: string;
+  headers: TestingNamedParameter[] | null;
 };
 
 export type TestingRequestSettings = {
@@ -1585,19 +1580,10 @@ export type TestingResponseSettings = {
   delay: number;
 };
 
-export type TriggerReference = {
+/** The chain element a test case drives or an endpoint mock answers for. */
+export type TestingElementReference = {
   chainId: string;
   elementId: string;
-};
-
-export type EndpointReference = {
-  chainId: string;
-  elementId: string;
-};
-
-export type TestingMatcherParameter = {
-  name: string;
-  value: string;
 };
 
 // The service assigns an id on save, so matchers built in the editor have none yet.
@@ -1609,7 +1595,7 @@ export type TestingMatcher = {
   type: MatcherType;
   entityType: MatcherEntityType;
   entityName: string | null;
-  parameters: TestingMatcherParameter[] | null;
+  parameters: TestingNamedParameter[] | null;
 };
 
 export type TestCase = TestingAuditFields & {
@@ -1617,7 +1603,7 @@ export type TestCase = TestingAuditFields & {
   name: string;
   description: string;
   enabled: boolean;
-  triggerReference: TriggerReference | null;
+  triggerReference: TestingElementReference | null;
   requestSettings: TestingRequestSettings | null;
   responseValidationRules: TestingMatcher[] | null;
 };
@@ -1634,7 +1620,7 @@ export type EndpointMock = TestingAuditFields & {
   name: string;
   description: string;
   enabled: boolean;
-  endpointReference: EndpointReference | null;
+  endpointReference: TestingElementReference | null;
   responseSettings: TestingResponseSettings | null;
   requestMatchers: TestingMatcher[] | null;
 };
@@ -1720,6 +1706,8 @@ export type TestingFilter = {
   values: string[];
 };
 
+// `ids` mirrors the service's own selection shape. The lists never set it: they
+// narrow by filters and let the service resolve the ids of a whole selection.
 export type TestingSelectionSpecification = {
   ids?: string[];
   searchText?: string;

@@ -738,8 +738,6 @@ export interface Api {
     specification: TestingSelectionSpecification,
   ): Promise<string[]>;
 
-  getTestsRun(id: string): Promise<TestsRunView>;
-
   deleteTestsRuns(ids: string[]): Promise<void>;
 
   cancelTestsRuns(ids: string[]): Promise<void>;

@@ -7,7 +7,7 @@ import {
   TestingImportResult,
   TestingImportStatus,
 } from "../../../../src/api/apiTypes.ts";
-import { ImportTestCasesModal } from "../../../../src/components/modal/testing/ImportTestCasesModal.tsx";
+import { TestingImportModal } from "../../../../src/components/modal/testing/TestingImportModal.tsx";
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,
@@ -65,7 +65,14 @@ function importResult(
 
 function renderModal() {
   const onImported = jest.fn();
-  const utils = render(<ImportTestCasesModal onImported={onImported} />);
+  const utils = render(
+    <TestingImportModal
+      title="Import Test Cases"
+      failureMessage="Failed to import test cases"
+      importFiles={(files) => mockImportTestCases(files)}
+      onImported={onImported}
+    />,
+  );
   return { ...utils, onImported };
 }
 
@@ -95,7 +102,7 @@ beforeEach(() => {
   mockImportTestCases.mockResolvedValue([importResult()]);
 });
 
-describe("ImportTestCasesModal", () => {
+describe("TestingImportModal", () => {
   it("should keep Import disabled until an archive is attached", () => {
     renderModal();
 

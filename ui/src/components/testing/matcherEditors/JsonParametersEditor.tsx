@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "antd";
-import { TestingMatcherParameter } from "../../../api/apiTypes.ts";
+import { TestingNamedParameter } from "../../../api/apiTypes.ts";
 import { useModalsContext } from "../../../Modals.tsx";
 import { JsonMatcherParametersModal } from "../../modal/testing/JsonMatcherParametersModal.tsx";
 import { MatcherParametersView } from "./MatcherParametersView.tsx";
@@ -8,8 +8,8 @@ import { MatcherParametersView } from "./MatcherParametersView.tsx";
 export type JsonParametersEditorProps = {
   /** `schema` for a JSON Schema matcher, `sample` for a JSON one. */
   documentParameterName: string;
-  parameters: TestingMatcherParameter[] | null;
-  onChange: (parameters: TestingMatcherParameter[]) => void;
+  parameters: TestingNamedParameter[] | null;
+  onChange: (parameters: TestingNamedParameter[]) => void;
 };
 
 /** The path and the JSON document need more room than a cell, so they get a modal. */

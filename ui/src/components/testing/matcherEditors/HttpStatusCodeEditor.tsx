@@ -1,13 +1,13 @@
 import React from "react";
-import { TestingMatcherParameter } from "../../../api/apiTypes.ts";
+import { TestingNamedParameter } from "../../../api/apiTypes.ts";
 import { InlineEdit } from "../../InlineEdit.tsx";
 import { SelectEdit } from "../../table/SelectEdit.tsx";
 import { MatcherParametersView } from "./MatcherParametersView.tsx";
 import { HTTP_STATUS_CODE_OPTIONS } from "./httpStatusCodes.ts";
 
 export type HttpStatusCodeEditorProps = {
-  parameters: TestingMatcherParameter[] | null;
-  onChange: (parameters: TestingMatcherParameter[]) => void;
+  parameters: TestingNamedParameter[] | null;
+  onChange: (parameters: TestingNamedParameter[]) => void;
 };
 
 /** Picks the status an `equal` matcher over the response status compares against. */

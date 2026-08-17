@@ -1,5 +1,5 @@
 import React from "react";
-import { TestingMatcherParameter } from "../../../api/apiTypes.ts";
+import { TestingNamedParameter } from "../../../api/apiTypes.ts";
 import { InlineEdit } from "../../InlineEdit.tsx";
 import { TextValueEdit } from "../../table/TextValueEdit.tsx";
 import { MatcherParametersView } from "./MatcherParametersView.tsx";
@@ -7,8 +7,8 @@ import { MatcherParametersView } from "./MatcherParametersView.tsx";
 export type SingleParameterEditorProps = {
   /** The name the matching engine reads — `value` for most types, `pattern` for `match`. */
   parameterName: string;
-  parameters: TestingMatcherParameter[] | null;
-  onChange: (parameters: TestingMatcherParameter[]) => void;
+  parameters: TestingNamedParameter[] | null;
+  onChange: (parameters: TestingNamedParameter[]) => void;
 };
 
 export const SingleParameterEditor: React.FC<SingleParameterEditorProps> = ({

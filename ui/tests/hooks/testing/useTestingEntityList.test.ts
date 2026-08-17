@@ -142,7 +142,9 @@ describe("useTestingEntityList", () => {
   it("should resolve names from one chains request outside a chain", async () => {
     const { result } = renderList();
 
-    await waitFor(() => expect(result.current.chains).toHaveLength(1));
+    await waitFor(() =>
+      expect(result.current.getChainName("chain-1")).toBe("Order Intake"),
+    );
 
     expect(mockApi.getChains).toHaveBeenCalledTimes(1);
     expect(mockApi.getElements).not.toHaveBeenCalled();
@@ -155,7 +157,9 @@ describe("useTestingEntityList", () => {
   it("should not refetch the list when the name caches arrive", async () => {
     const { result } = renderList();
 
-    await waitFor(() => expect(result.current.chains).toHaveLength(1));
+    await waitFor(() =>
+      expect(result.current.getChainName("chain-1")).toBe("Order Intake"),
+    );
     await waitFor(() => expect(result.current.items).toHaveLength(1));
 
     expect(mockApi.getTestCases).toHaveBeenCalledTimes(1);
@@ -164,7 +168,9 @@ describe("useTestingEntityList", () => {
   it("should resolve element names from the chain in context", async () => {
     const { result } = renderList({ chainId: "chain-1" });
 
-    await waitFor(() => expect(result.current.elements).toHaveLength(1));
+    await waitFor(() =>
+      expect(result.current.getElementName("element-1")).toBe("HTTP Trigger"),
+    );
 
     expect(result.current.getElementName("element-1")).toBe("HTTP Trigger");
   });

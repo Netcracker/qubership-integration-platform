@@ -33,8 +33,7 @@ export function useTestingServiceAvailability(): TestingServiceAvailability {
     refetchOnMount: false,
   });
 
-  return {
-    isAvailable: !isVsCode && data?.production === false,
-    isLoading: !isVsCode && isLoading,
-  };
+  // A disabled query holds no data and reports isLoading false, so the VS Code
+  // case needs no guard of its own here.
+  return { isAvailable: data?.production === false, isLoading };
 }
