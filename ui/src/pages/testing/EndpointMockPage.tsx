@@ -18,7 +18,7 @@ import {
 import { api } from "../../api/api.ts";
 import { EndpointMock, EndpointMockRequest } from "../../api/apiTypes.ts";
 import { UnsavedChangesModal } from "../../components/modal/UnsavedChangesModal.tsx";
-import { useRegisterChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
+import { TableToolbar } from "../../components/table/TableToolbar.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import {
   endpointMockViolations,
@@ -239,47 +239,6 @@ export const EndpointMockPage: React.FC = () => {
     [endpointMock, chainId, readonly, handleChange],
   );
 
-  // Save and Cancel belong to the chain header, where they stay in view on a
-  // long tab, as they do on the Logging and Properties tabs. The admin scope is
-  // read-only and has no chain header, so it registers nothing.
-  useRegisterChainHeaderActions(
-    readonly || !endpointMock ? undefined : (
-      <>
-        <ProtectedButton
-          require={permissions.write}
-          tooltipProps={{ title: "Discard the changes" }}
-          buttonProps={{
-            "data-testid": "endpoint-mock-cancel",
-            children: "Cancel",
-            onClick: handleCancel,
-          }}
-        />
-        <ProtectedButton
-          require={permissions.write}
-          tooltipProps={{ title: "Save the endpoint mock" }}
-          buttonProps={{
-            "data-testid": "endpoint-mock-save",
-            type: "primary",
-            children: "Save",
-            loading: saving,
-            disabled: !hasChanges || !isValid,
-            onClick: handleSave,
-          }}
-        />
-      </>
-    ),
-    [
-      readonly,
-      endpointMock,
-      permissions.write,
-      saving,
-      hasChanges,
-      isValid,
-      handleCancel,
-      handleSave,
-    ],
-  );
-
   if (loading) {
     return <Skeleton active />;
   }
@@ -307,6 +266,36 @@ export const EndpointMockPage: React.FC = () => {
         }
       />
       <Outlet context={editorContext} />
+      {readonly ? null : (
+        <TableToolbar
+          data-testid="endpoint-mock-editor-toolbar"
+          actions={
+            <>
+              <ProtectedButton
+                require={permissions.write}
+                tooltipProps={{ title: "Discard the changes" }}
+                buttonProps={{
+                  "data-testid": "endpoint-mock-cancel",
+                  children: "Cancel",
+                  onClick: handleCancel,
+                }}
+              />
+              <ProtectedButton
+                require={permissions.write}
+                tooltipProps={{ title: "Save the endpoint mock" }}
+                buttonProps={{
+                  "data-testid": "endpoint-mock-save",
+                  type: "primary",
+                  children: "Save",
+                  loading: saving,
+                  disabled: !hasChanges || !isValid,
+                  onClick: handleSave,
+                }}
+              />
+            </>
+          }
+        />
+      )}
     </Flex>
   );
 };

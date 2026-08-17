@@ -31,7 +31,6 @@ import { UserPermissionsContext } from "../../../src/permissions/UserPermissions
 import type { UserPermissions } from "../../../src/permissions/types.ts";
 import { openSelect, querySelectOption } from "../../helpers/antdSelect.ts";
 import { installDataRouterGlobals } from "../../helpers/dataRouterGlobals.ts";
-import { ChainHeaderTestRoot } from "../../helpers/renderWithChainHeader.tsx";
 
 installDataRouterGlobals();
 
@@ -79,9 +78,6 @@ const mockShowModal = jest.fn();
 
 jest.mock("../../../src/Modals.tsx", () => ({
   useModalsContext: () => ({ showModal: mockShowModal, closeModal: jest.fn() }),
-  // ChainHeaderTestRoot mounts Modals; the prompt itself is asserted through
-  // mockShowModal, so the provider only has to render its children.
-  Modals: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const mockNotificationService = {
@@ -182,13 +178,9 @@ function renderEditor(
     ],
     { initialEntries: [path] },
   );
-  // Save and Cancel register into the chain header, so the editor is rendered
-  // under the same provider the chain page gives it.
   const utils = render(
     <UserPermissionsContext.Provider value={permissions}>
-      <ChainHeaderTestRoot>
-        <RouterProvider router={router} />
-      </ChainHeaderTestRoot>
+      <RouterProvider router={router} />
     </UserPermissionsContext.Provider>,
   );
   return { ...utils, router };

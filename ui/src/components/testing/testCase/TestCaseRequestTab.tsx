@@ -13,7 +13,6 @@ import { PLACEHOLDER } from "../../../misc/format-utils.ts";
 import { useTestCaseEditor } from "../../../pages/testing/TestCasePage.tsx";
 import { NameValueTable } from "../NameValueTable.tsx";
 import { getHttpMethods, isHttpTrigger } from "../testingElements.ts";
-import { EDITOR_FORM_LAYOUT, SHORT_CONTROL_WIDTH } from "../editorLayout.ts";
 
 /** Settings a case saved before it named a trigger has none of yet. */
 const EMPTY_REQUEST_SETTINGS: TestingRequestSettings = {
@@ -69,8 +68,8 @@ export const TestCaseRequestTab: React.FC = () => {
     updateSettings({ message: { ...message, ...changes } });
 
   return (
-    <Flex vertical style={{ flex: 1, minWidth: 0 }}>
-      <Form {...EDITOR_FORM_LAYOUT} disabled={readonly}>
+    <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
+      <Form layout="vertical" disabled={readonly} style={{ maxWidth: 720 }}>
         {chainId ? null : (
           <Form.Item label="Chain" required>
             {referenceChainId ? (
@@ -113,7 +112,6 @@ export const TestCaseRequestTab: React.FC = () => {
         >
           <Select
             aria-label="Method"
-            style={{ maxWidth: SHORT_CONTROL_WIDTH }}
             options={methodOptions}
             placeholder="Select a method"
             value={settings.method || undefined}
@@ -124,44 +122,43 @@ export const TestCaseRequestTab: React.FC = () => {
           <InputNumber
             aria-label="Timeout, ms"
             min={0}
-            style={{ width: "100%", maxWidth: SHORT_CONTROL_WIDTH }}
+            style={{ width: "100%" }}
             value={settings.timeout}
             onChange={(timeout) => updateSettings({ timeout: timeout ?? 0 })}
           />
         </Form.Item>
-        <Form.Item label="Path Parameters">
-          <NameValueTable
-            data-testid="path-parameters"
-            rowNoun="parameter"
-            values={settings.pathParameters}
-            readonly={readonly}
-            onChange={(pathParameters: TestingNamedParameter[]) =>
-              updateSettings({ pathParameters })
-            }
-          />
-        </Form.Item>
-        <Form.Item label="Query Parameters">
-          <NameValueTable
-            data-testid="query-parameters"
-            rowNoun="parameter"
-            values={settings.queryParameters}
-            readonly={readonly}
-            onChange={(queryParameters: TestingNamedParameter[]) =>
-              updateSettings({ queryParameters })
-            }
-          />
-        </Form.Item>
-        <Form.Item label="Headers">
-          <NameValueTable
-            data-testid="headers"
-            rowNoun="header"
-            values={message.headers}
-            readonly={readonly}
-            onChange={(headers: TestingNamedParameter[]) =>
-              updateMessage({ headers })
-            }
-          />
-        </Form.Item>
+      </Form>
+      <NameValueTable
+        data-testid="path-parameters"
+        title="Path Parameters"
+        rowNoun="parameter"
+        values={settings.pathParameters}
+        readonly={readonly}
+        onChange={(pathParameters: TestingNamedParameter[]) =>
+          updateSettings({ pathParameters })
+        }
+      />
+      <NameValueTable
+        data-testid="query-parameters"
+        title="Query Parameters"
+        rowNoun="parameter"
+        values={settings.queryParameters}
+        readonly={readonly}
+        onChange={(queryParameters: TestingNamedParameter[]) =>
+          updateSettings({ queryParameters })
+        }
+      />
+      <NameValueTable
+        data-testid="headers"
+        title="Headers"
+        rowNoun="header"
+        values={message.headers}
+        readonly={readonly}
+        onChange={(headers: TestingNamedParameter[]) =>
+          updateMessage({ headers })
+        }
+      />
+      <Form layout="vertical">
         <Form.Item label="Body">
           <Script
             data-testid="request-body"
