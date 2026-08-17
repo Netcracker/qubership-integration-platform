@@ -133,6 +133,11 @@
             <artifactId>quarkus-flow</artifactId>
             <version>${quarkus-flow.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.flow</groupId>
+            <artifactId>quarkus-flow-jpa</artifactId>
+            <version>${quarkus-flow.version}</version>
+        </dependency>
 
         <!-- LangChain4j / Quarkus LangChain4j -->
         <dependency>
