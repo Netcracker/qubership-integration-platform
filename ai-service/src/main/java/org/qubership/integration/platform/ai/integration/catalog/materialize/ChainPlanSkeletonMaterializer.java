@@ -143,13 +143,7 @@ public class ChainPlanSkeletonMaterializer {
 
   private List<CatalogRestClient.ElementSummaryDto> readBackGeneratedChildren(
       String chainId, String parentElementId) {
-    CatalogElementResponseDto parent;
-    try {
-      parent = catalogRestClient.getElement(chainId, parentElementId);
-    } catch (RuntimeException e) {
-      LOG.debugf(e, "Failed to load parent %s for generated-child adoption", parentElementId);
-      return List.of();
-    }
+    CatalogElementResponseDto parent = catalogRestClient.getElement(chainId, parentElementId);
     return flattenGeneratedChildren(toSummary(parent), parentElementId);
   }
 
@@ -209,8 +203,7 @@ public class ChainPlanSkeletonMaterializer {
   private static boolean isUnmappedDirectChild(
       ChainPlanNode child, String parentNodeId, Map<String, String> nodeIdToElementId) {
     return parentNodeId.equals(child.parentNodeId())
-        && !nodeIdToElementId.containsKey(child.nodeId())
-        && !ChainPlanGraphValidator.isTriggerElementType(child.type());
+        && !nodeIdToElementId.containsKey(child.nodeId());
   }
 
   private static List<CatalogRestClient.ElementSummaryDto> flattenGeneratedChildren(
@@ -318,13 +311,15 @@ public class ChainPlanSkeletonMaterializer {
       ChainPlanNode node, Map<String, String> nodeIdToElementId) {
     String elementType = trim(node.type());
     String parentNodeId = trim(node.parentNodeId());
-    if (ChainPlanGraphValidator.isTriggerElementType(elementType)) {
-      if (parentNodeId != null && !parentNodeId.isEmpty()) {
-        LOG.infof(
-            "Materializing trigger node %s at chain root (ignoring containment parentNodeId=%s)",
-            node.nodeId(), parentNodeId);
-      }
-      return null;
+    if (ChainPlanGraphValidator.isTriggerElementType(elementType)
+        && parentNodeId != null
+        && !parentNodeId.isEmpty()) {
+      throw new IllegalStateException(
+          "Cannot materialize trigger '"
+              + node.nodeId()
+              + "' under parent '"
+              + parentNodeId
+              + "': catalog triggers belong at chain root");
     }
     if (parentNodeId == null || parentNodeId.isEmpty()) {
       return null;

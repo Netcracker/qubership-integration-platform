@@ -291,7 +291,7 @@ class ChainPlanSkeletonMaterializerTest {
                 new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of()),
                 new ChainPlanNode("catch", "catch-2", "Catch", "tcff", null, List.of()),
                 new ChainPlanNode("finally", "finally-2", "Finally", "tcff", null, List.of()),
-                new ChainPlanNode("trigger", "http-trigger", "Trigger", "try", null, List.of())),
+                new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of())),
             List.of());
 
     MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
@@ -342,7 +342,7 @@ class ChainPlanSkeletonMaterializerTest {
                 new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of()),
                 new ChainPlanNode("catch", "catch-2", "Catch", "tcff", null, List.of()),
                 new ChainPlanNode("finally", "finally-2", "Finally", "tcff", null, List.of()),
-                new ChainPlanNode("trigger", "http-trigger", "Trigger", "try", null, List.of())),
+                new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of())),
             List.of());
 
     MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
@@ -474,26 +474,17 @@ class ChainPlanSkeletonMaterializerTest {
   }
 
   @Test
-  void createsTriggerAtChainRootEvenWhenPlanNestsItUnderContainer() {
+  void rejectsTriggerWithContainmentParent() {
     when(catalogRestClient.createElement(
             eq(CHAIN_ID), eq(new CatalogCreateElementRequest("try-catch-finally-2", null, null))))
         .thenReturn(
-            new CatalogRestClient.ChainDiffDto(
-                List.of(
-                    new CatalogRestClient.ElementSummaryDto(
-                        "el-tcff", "try-catch-finally-2", Map.of())),
-                List.of(),
-                List.of()));
-    when(catalogRestClient.createElement(
-            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("http-trigger", null, null))))
-        .thenReturn(
-            new CatalogRestClient.ChainDiffDto(
-                List.of(
-                    new CatalogRestClient.ElementSummaryDto("el-trigger", "http-trigger", Map.of())),
-                List.of(),
-                List.of()));
-
-    when(catalogRestClient.getElement(CHAIN_ID, "el-tcff")).thenReturn(containerWithShells());
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-tcff",
+                    "try-catch-finally-2",
+                    Map.of(),
+                    null,
+                    List.of(new CatalogRestClient.ElementSummaryDto("el-try", "try-2", Map.of())))));
 
     ChainPlanGraph graph =
         new ChainPlanGraph(
@@ -505,13 +496,66 @@ class ChainPlanSkeletonMaterializerTest {
                 new ChainPlanNode("trigger", "http-trigger", "Trigger", "try", null, List.of())),
             List.of());
 
+    SkeletonMaterializationException thrown =
+        assertThrows(
+            SkeletonMaterializationException.class,
+            () -> materializer.materializeElements(graph, CHAIN_ID));
+
+    assertTrue(thrown.getCause() instanceof IllegalStateException);
+    assertTrue(thrown.getCause().getMessage().contains("trigger"));
+    assertTrue(thrown.getCause().getMessage().contains("try"));
+    verify(catalogRestClient, never())
+        .createElement(
+            eq(CHAIN_ID),
+            argThat(request -> request != null && "http-trigger".equals(request.type())));
+  }
+
+  @Test
+  void createsTriggerAtChainRootWhenParentIsNull() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("http-trigger", null, null))))
+        .thenReturn(
+            created(new CatalogRestClient.ElementSummaryDto("el-trigger", "http-trigger", Map.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of())),
+            List.of());
+
     MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
 
     assertEquals("el-trigger", map.nodeIdToElementId().get("trigger"));
     verify(catalogRestClient)
         .createElement(
-            eq(CHAIN_ID),
-            eq(new CatalogCreateElementRequest("http-trigger", null, null)));
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("http-trigger", null, null)));
+  }
+
+  @Test
+  void failsWhenRequiredParentReadBackThrows() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
+        .thenReturn(created(new CatalogRestClient.ElementSummaryDto("el-cond", "condition", Map.of())));
+    when(catalogRestClient.getElement(CHAIN_ID, "el-cond"))
+        .thenThrow(new RuntimeException("catalog 500"));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("cond", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if-1", "if", "If", "cond", null, List.of())),
+            List.of());
+
+    assertThrows(
+        SkeletonMaterializationException.class,
+        () -> materializer.materializeElements(graph, CHAIN_ID));
+
+    verify(catalogRestClient, never())
+        .createElement(
+            eq(CHAIN_ID), argThat(request -> request != null && "if".equals(request.type())));
   }
 
   @Test
