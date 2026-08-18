@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphReadBackVerifier;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
@@ -44,6 +45,7 @@ class ChainPatchWriterOptionalGeneratedChildrenTest {
   @Mock private DeterministicElementSchemaService schemaService;
   @Mock private ChainPlanConnectionsMaterializer connectionsMaterializer;
   @Mock private ChainPlanRemovalsMaterializer removalsMaterializer;
+  @Mock private CatalogGraphReadBackVerifier readBackVerifier;
 
   private ChainPlanSkeletonMaterializer skeletonMaterializer;
   private ChainPlanPropertiesMaterializer propertiesMaterializer;
@@ -63,6 +65,9 @@ class ChainPatchWriterOptionalGeneratedChildrenTest {
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
                 List.of(), List.of(), List.of(), List.of(), null));
+    lenient()
+        .when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn(null);
     CatalogGraphMaterializer graphMaterializer =
         new CatalogGraphMaterializer(
             propertiesMaterializer,
@@ -70,7 +75,8 @@ class ChainPatchWriterOptionalGeneratedChildrenTest {
             connectionsMaterializer,
             removalsMaterializer,
             catalogRestClient,
-            descriptorLoader);
+            descriptorLoader,
+            readBackVerifier);
     writer =
         new ChainPatchWriter(
             graphMaterializer,
