@@ -9,6 +9,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +20,7 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -106,7 +108,7 @@ class CatalogGraphMaterializerTest {
                 CHAIN_ID, "demo-chain", "Demo", 0, 0, "", List.of(), List.of(), "built_in_catalog"));
 
     ChainPlanGraph desired = twoNodeGraph();
-    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
         .thenReturn("catalog-trigger-1", "catalog-script-1");
 
     new ProductChainMaterializer(
@@ -155,12 +157,12 @@ class CatalogGraphMaterializerTest {
                     "try-2",
                     "catalog-try-2")));
 
-    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any()))
-        .thenReturn("catalog-new-script");
+    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
+        .thenReturn("catalog-condition", "catalog-if");
     when(removalsMaterializer.apply(any(), any(), any(), any()))
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
-                List.of("dep-old"), List.of(), List.of(), List.of(), null))
+                List.of("dep-block"), List.of(), List.of(), List.of(), null))
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
                 List.of(), List.of("catalog-removed"), List.of(), List.of(), null));
@@ -168,12 +170,30 @@ class CatalogGraphMaterializerTest {
 
     materializer.apply(CHAIN_ID, current, desired, map);
 
-    InOrder order = inOrder(skeletonMaterializer, propertiesMaterializer, catalogRestClient, connectionsMaterializer, removalsMaterializer);
-    order.verify(skeletonMaterializer).materializeElement(any(), any(), eq(CHAIN_ID), any());
+    ArgumentCaptor<List<ChainPlanEdge>> dependencyEdges =
+        ArgumentCaptor.forClass(List.class);
+    InOrder order =
+        inOrder(
+            skeletonMaterializer,
+            propertiesMaterializer,
+            removalsMaterializer,
+            catalogRestClient,
+            connectionsMaterializer);
+    order.verify(skeletonMaterializer, times(2))
+        .materializeElement(any(), any(), eq(CHAIN_ID), any(), any());
+    order.verify(skeletonMaterializer)
+        .finishCreatedContainers(eq(CHAIN_ID), any(), any(), any());
     order.verify(propertiesMaterializer).apply(any(), any());
+    order.verify(removalsMaterializer)
+        .apply(any(), eq(Set.of()), dependencyEdges.capture(), any());
     order.verify(catalogRestClient).transferElements(eq(CHAIN_ID), any());
     order.verify(connectionsMaterializer).apply(any(), any());
-    order.verify(removalsMaterializer).apply(any(), eq(Set.of("removed-node")), any(), any());
+    order.verify(removalsMaterializer)
+        .apply(any(), eq(Set.of("removed-node")), eq(List.of()), any());
+
+    assertEquals(
+        List.of("edge-block", "edge-old"),
+        dependencyEdges.getValue().stream().map(ChainPlanEdge::edgeId).toList());
   }
 
   @Test
@@ -272,9 +292,10 @@ class CatalogGraphMaterializerTest {
             new ChainPlanNode("try-2", "try-2", "Try", null, null, List.of()),
             new ChainPlanNode(
                 "service-call", "service-call", "Call", "try-2", null, List.of()),
+            new ChainPlanNode("condition-1", "condition", "Cond", "try-2", null, List.of()),
             new ChainPlanNode(
-                "new-script", "script", "New", "try-2", null, List.of(new PlanProperty("script", "42")))),
-        List.of(new ChainPlanEdge("edge-new", "trigger-1", "new-script", null)));
+                "if-1", "if", "If", "condition-1", null, List.of(new PlanProperty("script", "42")))),
+        List.of(new ChainPlanEdge("edge-new", "trigger-1", "if-1", null)));
   }
 
   private static ChainSection section() {

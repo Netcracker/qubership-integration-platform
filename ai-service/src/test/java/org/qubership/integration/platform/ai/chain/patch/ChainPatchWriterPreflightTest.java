@@ -309,7 +309,7 @@ class ChainPatchWriterPreflightTest {
   }
 
   private void assertNoCatalogMutation() {
-    verify(skeletonMaterializer, never()).materializeElement(any(), any(), any(), any());
+    verify(skeletonMaterializer, never()).materializeElement(any(), any(), any(), any(), any());
     verify(propertiesMaterializer, never()).apply(any(), any());
     verify(connectionsMaterializer, never()).apply(any(), any());
     verify(removalsMaterializer, never()).apply(any(), any(), any(), any());

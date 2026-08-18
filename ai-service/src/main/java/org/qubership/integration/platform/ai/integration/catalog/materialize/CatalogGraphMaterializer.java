@@ -91,8 +91,6 @@ public class CatalogGraphMaterializer {
     List<ChainPlanEdge> addedEdges = addedEdges(patch);
     List<EdgeReplacement> replacements = edgeReplacements(patch, currentGraph);
     List<ParentTransfer> parentTransfers = parentTransfers(patch, currentGraph);
-    boolean removesSomething =
-        !removedNodeIds(patch).isEmpty() || !removedEdges(patch, currentGraph).isEmpty();
 
     CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
     try {
@@ -105,22 +103,34 @@ public class CatalogGraphMaterializer {
         new LinkedHashMap<>(materializationMap.nodeIdToElementId());
     List<String> failed = new ArrayList<>();
     String error = null;
+    MaterializationAttemptContext createAttempt = new MaterializationAttemptContext();
+    boolean createdInAttempt = false;
 
     for (String nodeId : addedNodeIds) {
       if (nodeIdToElementId.containsKey(nodeId)) {
         continue;
       }
+      createdInAttempt = true;
       ChainPlanNode node = node(desiredGraph, nodeId);
       try {
         String elementId =
             skeletonMaterializer.materializeElement(
-                desiredGraph, node, chainId, new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId)));
+                desiredGraph,
+                node,
+                chainId,
+                new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId)),
+                createAttempt);
         nodeIdToElementId.put(nodeId, elementId);
       } catch (RuntimeException e) {
         LOG.errorf(e, "Failed to create element for node %s in chain %s", nodeId, chainId);
         failed.add(nodeId);
         error = error == null ? e.getMessage() : error;
       }
+    }
+
+    if (createdInAttempt && failed.isEmpty() && error == null) {
+      skeletonMaterializer.finishCreatedContainers(
+          chainId, nodeIdToElementId, createAttempt, cache);
     }
 
     MaterializationMap map = new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));
@@ -150,10 +160,17 @@ public class CatalogGraphMaterializer {
     List<ChainPlanEdge> recreatableEdges = new ArrayList<>();
     List<ChainPlanEdge> replacedOldEdges =
         replacements.stream().map(EdgeReplacement::before).filter(Objects::nonNull).toList();
-    if (!replacedOldEdges.isEmpty() && failed.isEmpty() && error == null) {
-      var removed = removalsMaterializer.apply(currentGraph, Set.of(), replacedOldEdges, map);
+    List<ChainPlanEdge> obsoleteDependencyEdges = new ArrayList<>(replacedOldEdges);
+    for (ChainPlanEdge removedEdge : removedEdges(patch, currentGraph)) {
+      if (!containsEdge(obsoleteDependencyEdges, removedEdge)) {
+        obsoleteDependencyEdges.add(removedEdge);
+      }
+    }
+    if (!obsoleteDependencyEdges.isEmpty() && failed.isEmpty() && error == null) {
+      var removed =
+          removalsMaterializer.apply(currentGraph, Set.of(), obsoleteDependencyEdges, map);
       if (!removed.removedDependencyIds().isEmpty()) {
-        recreatableEdges.addAll(replacedOldEdges);
+        recreatableEdges.addAll(obsoleteDependencyEdges);
       }
       failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
       error = error == null ? removed.error() : error;
@@ -192,18 +209,12 @@ public class CatalogGraphMaterializer {
     }
 
     List<String> removedElementIds = List.of();
-    if (failed.isEmpty() && error == null && removesSomething) {
-      Set<String> removedNodeIds = removedNodeIds(patch);
-      List<ChainPlanEdge> removedEdges = removedEdges(patch, currentGraph);
-      if (!removedNodeIds.isEmpty() || !removedEdges.isEmpty()) {
-        var removed = removalsMaterializer.apply(currentGraph, removedNodeIds, removedEdges, map);
-        removedElementIds = removed.removedElementIds();
-        if (!removed.removedDependencyIds().isEmpty()) {
-          recreatableEdges.addAll(removedEdges);
-        }
-        failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
-        error = error == null ? removed.error() : error;
-      }
+    Set<String> removedNodeIds = removedNodeIds(patch);
+    if (failed.isEmpty() && error == null && !removedNodeIds.isEmpty()) {
+      var removed = removalsMaterializer.apply(currentGraph, removedNodeIds, List.of(), map);
+      removedElementIds = removed.removedElementIds();
+      failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
+      error = error == null ? removed.error() : error;
     }
 
     List<String> changed =
@@ -255,6 +266,18 @@ public class CatalogGraphMaterializer {
 
   private static Map<String, String> copyMap(MaterializationMap map) {
     return map.nodeIdToElementId() == null ? Map.of() : Map.copyOf(map.nodeIdToElementId());
+  }
+
+  private static boolean containsEdge(List<ChainPlanEdge> edges, ChainPlanEdge candidate) {
+    if (candidate == null || candidate.edgeId() == null) {
+      return false;
+    }
+    for (ChainPlanEdge edge : edges) {
+      if (edge != null && candidate.edgeId().equals(edge.edgeId())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static Set<String> removedNodeIds(GraphPatch patch) {
