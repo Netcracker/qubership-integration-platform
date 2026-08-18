@@ -1041,6 +1041,7 @@ export type IntegrationSystem = BaseEntity & {
   extendedProtocol: string;
   specification: string;
   labels?: EntityLabel[];
+  discovered?: string;
 };
 
 export type ContextSystem = BaseEntity & {
