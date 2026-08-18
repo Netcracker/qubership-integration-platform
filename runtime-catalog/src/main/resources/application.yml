@@ -291,7 +291,7 @@ qip:
     private:
       name: private-gateway
     internal:
-      name: internal-gateway
+      name: internal-gateway-service
   engine:
     app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   control-plane:

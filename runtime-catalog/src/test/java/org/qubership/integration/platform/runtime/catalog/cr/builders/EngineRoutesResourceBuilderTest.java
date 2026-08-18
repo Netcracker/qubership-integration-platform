@@ -45,7 +45,7 @@ class EngineRoutesResourceBuilderTest {
         ReflectionTestUtils.setField(builder, "publicRoutePrefixV1", "/api/v1/qip/engine");
         ReflectionTestUtils.setField(builder, "publicGatewayName", "public-gateway");
         ReflectionTestUtils.setField(builder, "privateGatewayName", "private-gateway");
-        ReflectionTestUtils.setField(builder, "internalGatewayName", "internal-gateway");
+        ReflectionTestUtils.setField(builder, "internalGatewayName", "internal-gateway-service");
         ReflectionTestUtils.setField(builder, "domainLabel", "my-domain-label");
         ReflectionTestUtils.setField(builder, "bgVersionLabel", "bg-version");
         ReflectionTestUtils.setField(builder, "bgVersion", "v1");
@@ -75,7 +75,7 @@ class EngineRoutesResourceBuilderTest {
 
         assertTrue(result.contains("name: public-gateway"));
         assertTrue(result.contains("name: private-gateway"));
-        assertTrue(result.contains("name: internal-gateway"));
+        assertTrue(result.contains("name: internal-gateway-service"));
         assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/sessions"));
         assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/chains/"));
         assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/live-exchanges"));

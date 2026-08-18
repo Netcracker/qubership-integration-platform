@@ -276,7 +276,7 @@ qip:
     private:
       name: private-gateway
     internal:
-      name: internal-gateway
+      name: internal-gateway-service
   control-plane:
     enabled: ${CONTROL_PLANE_ENABLED:false}
     mesh-type: ${SERVICE_MESH_TYPE:Core}
