@@ -146,6 +146,64 @@ public class ChainPlanSkeletonMaterializer {
     generatedChildRemover.removeUnclaimed(chainId, nodeIdToElementId, attempt, cache);
   }
 
+  /**
+   * Records already-mapped container nodes so optional generated children can be pruned on CREATE
+   * resume without recreating the parent.
+   */
+  public void seedMappedContainersForPrune(
+      ChainPlanGraph graph,
+      List<String> addedNodeIds,
+      Map<String, String> nodeIdToElementId,
+      String chainId,
+      MaterializationAttemptContext attempt,
+      CatalogElementDescriptorCache cache) {
+    Objects.requireNonNull(graph, "graph");
+    Objects.requireNonNull(addedNodeIds, "addedNodeIds");
+    Objects.requireNonNull(nodeIdToElementId, "nodeIdToElementId");
+    Objects.requireNonNull(chainId, "chainId");
+    Objects.requireNonNull(attempt, "attempt");
+    Objects.requireNonNull(cache, "cache");
+    for (String nodeId : addedNodeIds) {
+      String elementId = nodeIdToElementId.get(nodeId);
+      if (elementId == null || attempt.containsContainer(elementId)) {
+        continue;
+      }
+      ChainPlanNode node =
+          graph.nodes().stream()
+              .filter(candidate -> nodeId.equals(candidate.nodeId()))
+              .findFirst()
+              .orElse(null);
+      if (node == null || node.type() == null) {
+        continue;
+      }
+      try {
+        var descriptor = cache.require(node.type());
+        if (!descriptor.container()) {
+          continue;
+        }
+        boolean hasOptionalChild =
+            descriptor.allowedChildren().values().stream().anyMatch(q -> q.minimum() == 0);
+        if (!hasOptionalChild) {
+          continue;
+        }
+      } catch (RuntimeException e) {
+        LOG.warnf(
+            e,
+            "Skipping prune seed for mapped node %s in chain %s: %s",
+            nodeId,
+            chainId,
+            e.getMessage());
+        continue;
+      }
+      List<CatalogRestClient.ElementSummaryDto> generated =
+          readBackGeneratedChildren(chainId, elementId);
+      if (generated.isEmpty()) {
+        continue;
+      }
+      attempt.recordCreatedContainer(elementId, node.type(), generated);
+    }
+  }
+
   public List<CatalogElementResponseDto> listElements(String chainId) {
     if (chainId == null || chainId.isBlank()) {
       throw new IllegalArgumentException("chainId is required");

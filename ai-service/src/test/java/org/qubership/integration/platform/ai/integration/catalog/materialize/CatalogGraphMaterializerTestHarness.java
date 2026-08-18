@@ -79,6 +79,10 @@ final class CatalogGraphMaterializerTestHarness {
     return catalog;
   }
 
+  CatalogGraphMaterializer materializer() {
+    return materializer;
+  }
+
   String chainId() {
     return CHAIN_ID;
   }
