@@ -5,7 +5,9 @@ kind: Gateway
 metadata:
   annotations:
     networking.istio.io/service-type: NodePort
-  name: private-gateway
+    # This forces Istio to name the created K8s Service "public-gateway"
+    gateway.istio.io/name-override: "public-gateway"
+  name: public-gateway
 spec:
   gatewayClassName: istio
   listeners:

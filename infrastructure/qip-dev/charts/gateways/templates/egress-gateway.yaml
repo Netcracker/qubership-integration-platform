@@ -5,6 +5,8 @@ kind: Gateway
 metadata:
   annotations:
     networking.istio.io/service-type: NodePort
+    # This forces Istio to name the created K8s Service "egress-gateway"
+    gateway.istio.io/name-override: "egress-gateway"
   name: egress-gateway
 spec:
   gatewayClassName: istio
