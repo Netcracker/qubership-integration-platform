@@ -19,7 +19,7 @@
             <process ref="contextPropagationProcessor"/>
             <process ref="httpProducerCharsetProcessor"/>
 
-            <toD allowOptimisedComponents="false" uri="http:stub?connectTimeout=120000&amp;connectionRequestTimeout=120000&amp;soTimeout=120000&amp;responseTimeout=120000&amp;httpClientConfigurer=#a4af88ef-fdb5-453d-9ce3-d6f20413311b&amp;followRedirects=true"/>
+            <toD allowOptimisedComponents="false" uri="http:stub?connectTimeout=120000&amp;connectionRequestTimeout=120000&amp;soTimeout=120000&amp;responseTimeout=120000&amp;httpClientConfigurer=#a4af88ef-fdb5-453d-9ce3-d6f20413311b&amp;followRedirects=true&amp;okStatusCodeRange=200-399"/>
 
             <process ref="correlationIdReceiverProcessor"/>
             <doCatch>

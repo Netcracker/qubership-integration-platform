@@ -269,7 +269,7 @@
                     <process ref="httpSenderProcessor"/>
                     <toD uri="http:stub{{escape (manualQuery
                                                         jsonQueryParameters=(environmentPropertiesJson)
-                                                        httpClientConfigurer=(identifier prefix='#'))}}&amp;followRedirects=true" allowOptimisedComponents="false"/>
+                                                        httpClientConfigurer=(identifier prefix='#'))}}&amp;followRedirects=true&amp;okStatusCodeRange=200-399" allowOptimisedComponents="false"/>
                 {{/if-property}}
 
                 {{#if-property 'integrationOperationProtocolType' equals='graphql'}}

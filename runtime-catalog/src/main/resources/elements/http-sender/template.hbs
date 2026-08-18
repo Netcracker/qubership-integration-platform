@@ -49,7 +49,7 @@
             <process ref="contextPropagationProcessor"/>
         {{/if-property}}
         <process ref="httpProducerCharsetProcessor"/>
-        <toD uri="http:stub{{escape (query)}}{{#if-property 'connectTimeout' not-empty=''}}&amp;connectionRequestTimeout={{property 'connectTimeout'}}&amp;soTimeout={{property 'connectTimeout'}}&amp;responseTimeout={{property 'connectTimeout'}}{{/if-property}}&amp;httpClientConfigurer=#{{identifier}}&amp;followRedirects=true" allowOptimisedComponents="false"/>
+        <toD uri="http:stub{{escape (query)}}{{#if-property 'connectTimeout' not-empty=''}}&amp;connectionRequestTimeout={{property 'connectTimeout'}}&amp;soTimeout={{property 'connectTimeout'}}&amp;responseTimeout={{property 'connectTimeout'}}{{/if-property}}&amp;httpClientConfigurer=#{{identifier}}&amp;followRedirects=true&amp;okStatusCodeRange=200-399" allowOptimisedComponents="false"/>
 
         {{#if-property 'correlationIdName' presented=''}}
             <process ref="correlationIdReceiverProcessor" />
