@@ -44,7 +44,8 @@ class IstioRoutesRegistrationServiceTest {
     @BeforeEach
     void setUp() {
         kubeOperator = mock(KubeOperator.class);
-        service = new IstioRoutesRegistrationService(kubeOperator, new ObjectMapper(), NAMESPACE, BASE_PATH);
+        service = new IstioRoutesRegistrationService(kubeOperator, new ObjectMapper(), NAMESPACE, BASE_PATH,
+                "public-gateway", "private-gateway", "egress-gateway");
     }
 
     @Test

@@ -283,8 +283,15 @@ qip:
     default: default
   gateway:
     egress:
+      name: egress-gateway
       protocol: http
       url: egress-gateway:8080
+    public:
+      name: public-gateway
+    private:
+      name: private-gateway
+    internal:
+      name: internal-gateway
   engine:
     app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   control-plane:

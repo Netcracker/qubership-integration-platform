@@ -47,7 +47,6 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
-    private static final String EGRESS_GATEWAY_NAME = "egress-gateway";
 
     private static final String NETWORKING_ISTIO_API_GROUP = "networking.istio.io";
     private static final String NETWORKING_ISTIO_API_VERSION = "v1";
@@ -57,6 +56,9 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     private final DeploymentRouteMapper deploymentRouteMapper;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
+
+    @Value("${qip.gateway.egress.name}")
+    String egressGatewayName;
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -160,7 +162,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         spec.withArray("parentRefs").addObject()
                 .put("group", GATEWAY_API_GROUP)
                 .put("kind", "Gateway")
-                .put("name", EGRESS_GATEWAY_NAME);
+                .put("name", egressGatewayName);
         ArrayNode rules = spec.withArray("rules");
         preservedRules.forEach(rules::add);
         newRules.forEach(rules::add);

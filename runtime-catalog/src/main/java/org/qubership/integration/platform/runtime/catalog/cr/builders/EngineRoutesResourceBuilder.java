@@ -43,9 +43,6 @@ public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapsho
     private static final String TEMPLATE_NAME = "engine-routes";
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
-    private static final String PUBLIC_GATEWAY_NAME = "public-gateway";
-    private static final String PRIVATE_GATEWAY_NAME = "private-gateway";
-    private static final String INTERNAL_GATEWAY_SERVICE_NAME = "internal-gateway-service";
 
     private static final String V1_ROUTE_PREFIX = "/v1/engine";
     private static final String SESSIONS_PATH = "/sessions";
@@ -65,6 +62,15 @@ public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapsho
 
     @Value("${qip.control-plane.routes.public.v1-prefix:/api/v1/qip/engine}")
     String publicRoutePrefixV1;
+
+    @Value("${qip.gateway.public.name}")
+    String publicGatewayName;
+
+    @Value("${qip.gateway.private.name}")
+    String privateGatewayName;
+
+    @Value("${qip.gateway.internal.name}")
+    String internalGatewayName;
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -145,9 +151,9 @@ public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapsho
                 rule(domain, CHECKPOINT_SESSIONS_PATH_PREFIX, backendServiceName),
                 rule(domain, LIVE_EXCHANGES_PATH, backendServiceName));
         List<ParentRefData> parentRefs = List.of(
-                parentRef(GATEWAY_API_GROUP, "Gateway", PUBLIC_GATEWAY_NAME),
-                parentRef(GATEWAY_API_GROUP, "Gateway", PRIVATE_GATEWAY_NAME),
-                parentRef("", "Service", INTERNAL_GATEWAY_SERVICE_NAME));
+                parentRef(GATEWAY_API_GROUP, "Gateway", publicGatewayName),
+                parentRef(GATEWAY_API_GROUP, "Gateway", privateGatewayName),
+                parentRef("", "Service", internalGatewayName));
 
         TemplateData templateData = TemplateData.builder()
                 .name(engineRoutesNamingStrategy.getName(context))

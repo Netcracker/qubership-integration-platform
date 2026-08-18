@@ -268,6 +268,15 @@ qip:
     thread-pool:
       core-size: 3
       max-size: 3
+  gateway:
+    egress:
+      name: egress-gateway
+    public:
+      name: public-gateway
+    private:
+      name: private-gateway
+    internal:
+      name: internal-gateway
   control-plane:
     enabled: ${CONTROL_PLANE_ENABLED:false}
     mesh-type: ${SERVICE_MESH_TYPE:Core}

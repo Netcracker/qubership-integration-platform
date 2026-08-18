@@ -50,6 +50,7 @@ class EgressRouteResourceBuilderTest {
                 org.mapstruct.factory.Mappers.getMapper(DeploymentRouteMapper.class),
                 egressNamingStrategy,
                 new K8sNameValidator());
+        org.springframework.test.util.ReflectionTestUtils.setField(builder, "egressGatewayName", "egress-gateway");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "domainLabel", "qip.domain");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersionLabel", "qip.bg-version");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersion", "v1");

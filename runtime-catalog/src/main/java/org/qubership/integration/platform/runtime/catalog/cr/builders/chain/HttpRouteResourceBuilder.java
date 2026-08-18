@@ -42,8 +42,6 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
-    private static final String PUBLIC_GATEWAY_NAME = "public-gateway";
-    private static final String PRIVATE_GATEWAY_NAME = "private-gateway";
     private static final int BACKEND_PORT = 8080;
 
     private final YAMLMapper yamlMapper;
@@ -56,6 +54,12 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
 
     @Value("${qip.chains.external-routes.base-path}")
     String baseRoutePrefix;
+
+    @Value("${qip.gateway.public.name}")
+    String publicGatewayName;
+
+    @Value("${qip.gateway.private.name}")
+    String privateGatewayName;
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -106,9 +110,9 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
 
         StringBuilder out = new StringBuilder();
         appendTier(out, context, routes, RouteType::isExternalTriggerRoute,
-                httpRoutePublicNamingStrategy, PUBLIC_GATEWAY_NAME, PUBLIC_HTTP_ROUTE_CACHE_KEY, backendServiceName);
+                httpRoutePublicNamingStrategy, publicGatewayName, PUBLIC_HTTP_ROUTE_CACHE_KEY, backendServiceName);
         appendTier(out, context, routes, RouteType::isPrivateTriggerRoute,
-                httpRoutePrivateNamingStrategy, PRIVATE_GATEWAY_NAME, PRIVATE_HTTP_ROUTE_CACHE_KEY, backendServiceName);
+                httpRoutePrivateNamingStrategy, privateGatewayName, PRIVATE_HTTP_ROUTE_CACHE_KEY, backendServiceName);
         return out.toString();
     }
 

@@ -55,6 +55,8 @@ class HttpRouteResourceBuilderTest {
                 publicNamingStrategy, privateNamingStrategy, serviceNamingStrategy,
                 new K8sNameValidator());
         ReflectionTestUtils.setField(builder, "baseRoutePrefix", "/qip-routes");
+        ReflectionTestUtils.setField(builder, "publicGatewayName", "public-gateway");
+        ReflectionTestUtils.setField(builder, "privateGatewayName", "private-gateway");
         ReflectionTestUtils.setField(builder, "domainLabel", "my-domain-label");
         ReflectionTestUtils.setField(builder, "bgVersionLabel", "bg-version");
         ReflectionTestUtils.setField(builder, "bgVersion", "v1");

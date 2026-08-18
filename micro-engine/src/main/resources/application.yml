@@ -80,6 +80,15 @@ qip:
   variables:
     default-secret:
       enabled: ${DEFAULT_SECRET_ENABLED:false}
+  gateway:
+    egress:
+      name: egress-gateway
+    public:
+      name: public-gateway
+    private:
+      name: private-gateway
+    internal:
+      name: internal-gateway
   control-plane:
     egress:
       name: egress-gateway

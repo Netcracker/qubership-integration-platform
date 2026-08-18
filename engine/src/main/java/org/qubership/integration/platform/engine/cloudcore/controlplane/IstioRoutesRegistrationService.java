@@ -46,9 +46,6 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
     private static final String HTTP_ROUTES_PLURAL = "httproutes";
-    private static final String PUBLIC_GATEWAY_NAME = "public-gateway";
-    private static final String PRIVATE_GATEWAY_NAME = "private-gateway";
-    private static final String EGRESS_GATEWAY_NAME = "egress-gateway";
     private static final int BACKEND_PORT = 8080;
 
     private static final String NETWORKING_ISTIO_API_GROUP = "networking.istio.io";
@@ -60,31 +57,40 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     private final ObjectMapper objectMapper;
     private final String namespace;
     private final String baseRoutePrefix;
+    private final String publicGatewayName;
+    private final String privateGatewayName;
+    private final String egressGatewayName;
 
     @Autowired
     public IstioRoutesRegistrationService(
             KubeOperator kubeOperator,
             ObjectMapper objectMapper,
             @Value("${cloud.microservice.namespace}") String namespace,
-            @Value("${qip.chains.external-routes.base-path}") String baseRoutePrefix
+            @Value("${qip.chains.external-routes.base-path}") String baseRoutePrefix,
+            @Value("${qip.gateway.public.name}") String publicGatewayName,
+            @Value("${qip.gateway.private.name}") String privateGatewayName,
+            @Value("${qip.gateway.egress.name}") String egressGatewayName
     ) {
         this.kubeOperator = kubeOperator;
         this.objectMapper = objectMapper;
         this.namespace = namespace;
         this.baseRoutePrefix = baseRoutePrefix;
+        this.publicGatewayName = publicGatewayName;
+        this.privateGatewayName = privateGatewayName;
+        this.egressGatewayName = egressGatewayName;
     }
 
     @Override
     public synchronized void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
             throws ControlPlaneException {
-        mergeTierRoutes(tierRequest(endpoint, "public"), deploymentRoutes, PUBLIC_GATEWAY_NAME,
+        mergeTierRoutes(tierRequest(endpoint, "public"), deploymentRoutes, publicGatewayName,
                 this::triggerPathMatch, route -> buildTriggerRule(route, endpoint));
     }
 
     @Override
     public synchronized void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
             throws ControlPlaneException {
-        mergeTierRoutes(tierRequest(endpoint, "private"), deploymentRoutes, PRIVATE_GATEWAY_NAME,
+        mergeTierRoutes(tierRequest(endpoint, "private"), deploymentRoutes, privateGatewayName,
                 this::triggerPathMatch, route -> buildTriggerRule(route, endpoint));
     }
 
@@ -95,7 +101,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .filter(route -> RouteType.isPublicTriggerRoute(route.getType()))
                 .toList();
         if (!publicRoutes.isEmpty()) {
-            mergeTierRoutes(tierRequest(deploymentName, "public"), publicRoutes, PUBLIC_GATEWAY_NAME,
+            mergeTierRoutes(tierRequest(deploymentName, "public"), publicRoutes, publicGatewayName,
                     this::triggerPathMatch, null);
         }
 
@@ -103,7 +109,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .filter(route -> RouteType.isPrivateTriggerRoute(route.getType()))
                 .toList();
         if (!privateRoutes.isEmpty()) {
-            mergeTierRoutes(tierRequest(deploymentName, "private"), privateRoutes, PRIVATE_GATEWAY_NAME,
+            mergeTierRoutes(tierRequest(deploymentName, "private"), privateRoutes, privateGatewayName,
                     this::triggerPathMatch, null);
         }
     }
@@ -129,7 +135,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                     "Failed to update host-keyed egress resources after " + MAX_MERGE_ATTEMPTS + " attempts", e);
         }
 
-        mergeTierRoutes(egressTierRequest(endpoint), routes, EGRESS_GATEWAY_NAME,
+        mergeTierRoutes(egressTierRequest(endpoint), routes, egressGatewayName,
                 this::egressPathMatch, this::buildEgressRule);
     }
 
