@@ -20,9 +20,12 @@ import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
 import org.qubership.integration.platform.engine.model.gatewayapi.ParentReference;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -358,7 +361,20 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
-    void upsertHostResourceIgnoresAConcurrentConflictOnHostKeyedObjects() {
+    void upsertHostResourceRetriesOnceOnConflictThenSucceeds() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        doThrow(new KubeApiConflictException("conflict"))
+                .doNothing()
+                .when(kubeOperator)
+                .createOrReplaceCustomObject(argThat(r -> "serviceentries".equals(r.getResourceNamePlural())));
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
+
+        assertDoesNotThrow(() -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
+    }
+
+    @Test
+    void postEgressGatewayRoutesGivesUpAfterThreeConflictsOnAHostResourceAndWrapsAsControlPlaneException() {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
         doThrow(new KubeApiConflictException("conflict"))
                 .when(kubeOperator)
@@ -366,7 +382,119 @@ class IstioRoutesRegistrationServiceTest {
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
 
-        assertDoesNotThrow(() -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
+        assertThrows(ControlPlaneException.class,
+                () -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
+
+        verify(kubeOperator, times(3)).createOrReplaceCustomObject(
+                argThat(r -> "serviceentries".equals(r.getResourceNamePlural())));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesMergesANewPortIntoAnExistingServiceEntryForTheSameHost() {
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingServiceEntry(port(8443, "https", "HTTPS"))));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        KubeCustomObjectRequest serviceEntryRequest = captor.getAllValues().stream()
+                .filter(r -> "serviceentries".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+        List<Map<String, Object>> ports = (List<Map<String, Object>>) serviceEntryRequest.getBody().getSpec().get("ports");
+        Set<Integer> portNumbers = ports.stream().map(p -> (Integer) p.get("number")).collect(Collectors.toSet());
+        assertEquals(Set.of(8443, 9443), portNumbers);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesReplacesAnExistingPortWithTheSameNumberInsteadOfDuplicating() {
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingServiceEntry(port(443, "https", "HTTPS"))));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        KubeCustomObjectRequest serviceEntryRequest = captor.getAllValues().stream()
+                .filter(r -> "serviceentries".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+        List<Map<String, Object>> ports = (List<Map<String, Object>>) serviceEntryRequest.getBody().getSpec().get("ports");
+        assertEquals(1, ports.size());
+        assertEquals(443, ports.get(0).get("number"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesMergesANewPortLevelSettingIntoAnExistingDestinationRuleForTheSameHost() {
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingDestinationRule(portLevelSetting(8443))));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        KubeCustomObjectRequest destinationRuleRequest = captor.getAllValues().stream()
+                .filter(r -> "destinationrules".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+        Map<String, Object> trafficPolicy =
+                (Map<String, Object>) destinationRuleRequest.getBody().getSpec().get("trafficPolicy");
+        List<Map<String, Object>> portLevelSettings = (List<Map<String, Object>>) trafficPolicy.get("portLevelSettings");
+        Set<Integer> portNumbers = portLevelSettings.stream()
+                .map(pls -> (Integer) ((Map<String, Object>) pls.get("port")).get("number"))
+                .collect(Collectors.toSet());
+        assertEquals(Set.of(8443, 9443), portNumbers);
+    }
+
+    private Map<String, Object> port(int number, String name, String protocol) {
+        Map<String, Object> port = new LinkedHashMap<>();
+        port.put("number", number);
+        port.put("name", name);
+        port.put("protocol", protocol);
+        return port;
+    }
+
+    private Map<String, Object> portLevelSetting(int number) {
+        Map<String, Object> portLevelSetting = new LinkedHashMap<>();
+        portLevelSetting.put("port", Map.of("number", number));
+        portLevelSetting.put("tls", Map.of("mode", "SIMPLE", "sni", "api.example.com"));
+        return portLevelSetting;
+    }
+
+    private KubeCustomObject existingServiceEntry(Map<String, Object> existingPort) {
+        Map<String, Object> spec = new LinkedHashMap<>();
+        spec.put("hosts", List.of("api.example.com"));
+        spec.put("location", "MESH_EXTERNAL");
+        spec.put("resolution", "DNS");
+        spec.put("ports", List.of(existingPort));
+        return KubeCustomObject.builder()
+                .apiVersion("networking.istio.io/v1")
+                .kind("ServiceEntry")
+                .metadata(metadataWithVersion("api-example-com-hash", "1"))
+                .spec(spec)
+                .build();
+    }
+
+    private KubeCustomObject existingDestinationRule(Map<String, Object> existingPortLevelSetting) {
+        Map<String, Object> spec = new LinkedHashMap<>();
+        spec.put("host", "api.example.com");
+        spec.put("trafficPolicy", Map.of("portLevelSettings", List.of(existingPortLevelSetting)));
+        return KubeCustomObject.builder()
+                .apiVersion("networking.istio.io/v1")
+                .kind("DestinationRule")
+                .metadata(metadataWithVersion("api-example-com-hash", "1"))
+                .spec(spec)
+                .build();
     }
 
     private V1ObjectMeta metadataWithVersion(String name, String resourceVersion) {

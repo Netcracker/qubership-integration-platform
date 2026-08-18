@@ -11,6 +11,8 @@ import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContex
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentRouteUpdate;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
@@ -33,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -48,12 +51,15 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
     private static final String NETWORKING_ISTIO_API_GROUP = "networking.istio.io";
     private static final String NETWORKING_ISTIO_API_VERSION = "v1";
+    private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
+    private static final String DESTINATION_RULES_PLURAL = "destinationrules";
 
     private final YAMLMapper yamlMapper;
     private final RoutesGetterService routesGetterService;
     private final DeploymentRouteMapper deploymentRouteMapper;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
+    private final KubeOperator kubeOperator;
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -73,13 +79,15 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
             @Qualifier("httpRouteEgressNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
 
-            K8sNameValidator k8sNameValidator
+            K8sNameValidator k8sNameValidator,
+            KubeOperator kubeOperator
     ) {
         this.yamlMapper = yamlMapper;
         this.routesGetterService = routesGetterService;
         this.deploymentRouteMapper = deploymentRouteMapper;
         this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
         this.k8sNameValidator = k8sNameValidator;
+        this.kubeOperator = kubeOperator;
     }
 
     @Override
@@ -232,12 +240,16 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     }
 
     private void appendHostResources(StringBuilder out, List<DeploymentRouteUpdate> routes) {
-        Map<String, EgressTarget> targetsByHost = new LinkedHashMap<>();
+        // Keyed on (host, port), not host alone: two routes can legitimately share a host on
+        // different ports, and each such pair must reach appendServiceEntry/appendDestinationRule
+        // so its port gets merged in -- deduping by host alone would silently drop every port but
+        // one, even within this single build.
+        Map<String, EgressTarget> targetsByHostAndPort = new LinkedHashMap<>();
         for (DeploymentRouteUpdate route : routes) {
             EgressTarget target = EgressTarget.parse(route.getPath());
-            targetsByHost.putIfAbsent(target.host(), target);
+            targetsByHostAndPort.putIfAbsent(target.host() + ":" + target.port(), target);
         }
-        for (EgressTarget target : targetsByHost.values()) {
+        for (EgressTarget target : targetsByHostAndPort.values()) {
             appendServiceEntry(out, target);
             if (target.isHttps()) {
                 appendDestinationRule(out, target);
@@ -246,39 +258,95 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     }
 
     private void appendServiceEntry(StringBuilder out, EgressTarget target) {
+        String name = target.hostResourceName();
+        JsonNode existingSpec = existingHostResourceSpec(SERVICE_ENTRIES_PLURAL, name);
+
+        ObjectNode newPort = yamlMapper.createObjectNode();
+        newPort.put("number", target.port());
+        newPort.put("name", target.isHttps() ? "https" : "http");
+        newPort.put("protocol", target.isHttps() ? "HTTPS" : "HTTP");
+
         ObjectNode serviceEntry = yamlMapper.createObjectNode();
         serviceEntry.put("apiVersion", NETWORKING_ISTIO_API_GROUP + "/" + NETWORKING_ISTIO_API_VERSION);
         serviceEntry.put("kind", "ServiceEntry");
-        serviceEntry.withObjectProperty("metadata").put("name", target.hostResourceName());
+        serviceEntry.withObjectProperty("metadata").put("name", name);
 
         ObjectNode spec = serviceEntry.withObjectProperty("spec");
         spec.withArray("hosts").add(target.host());
         spec.put("location", "MESH_EXTERNAL");
         spec.put("resolution", "DNS");
-        ObjectNode port = spec.withArray("ports").addObject();
-        port.put("number", target.port());
-        port.put("name", target.isHttps() ? "https" : "http");
-        port.put("protocol", target.isHttps() ? "HTTPS" : "HTTP");
+        ArrayNode ports = spec.withArray("ports");
+        mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(), newPort)
+                .forEach(ports::add);
 
-        appendYamlDocument(out, serviceEntry, "ServiceEntry " + target.hostResourceName());
+        appendYamlDocument(out, serviceEntry, "ServiceEntry " + name);
     }
 
     private void appendDestinationRule(StringBuilder out, EgressTarget target) {
-        ObjectNode destinationRule = yamlMapper.createObjectNode();
-        destinationRule.put("apiVersion", NETWORKING_ISTIO_API_GROUP + "/" + NETWORKING_ISTIO_API_VERSION);
-        destinationRule.put("kind", "DestinationRule");
-        destinationRule.withObjectProperty("metadata").put("name", target.hostResourceName());
+        String name = target.hostResourceName();
+        JsonNode existingSpec = existingHostResourceSpec(DESTINATION_RULES_PLURAL, name);
 
-        ObjectNode spec = destinationRule.withObjectProperty("spec");
-        spec.put("host", target.host());
-        ObjectNode portLevelSettings = spec.withObjectProperty("trafficPolicy")
-                .withArray("portLevelSettings").addObject();
-        portLevelSettings.withObjectProperty("port").put("number", target.port());
-        ObjectNode tls = portLevelSettings.withObjectProperty("tls");
+        ObjectNode newPortLevelSetting = yamlMapper.createObjectNode();
+        newPortLevelSetting.putObject("port").put("number", target.port());
+        ObjectNode tls = newPortLevelSetting.putObject("tls");
         tls.put("mode", "SIMPLE");
         tls.put("sni", target.host());
 
-        appendYamlDocument(out, destinationRule, "DestinationRule " + target.hostResourceName());
+        ObjectNode destinationRule = yamlMapper.createObjectNode();
+        destinationRule.put("apiVersion", NETWORKING_ISTIO_API_GROUP + "/" + NETWORKING_ISTIO_API_VERSION);
+        destinationRule.put("kind", "DestinationRule");
+        destinationRule.withObjectProperty("metadata").put("name", name);
+
+        ObjectNode spec = destinationRule.withObjectProperty("spec");
+        spec.put("host", target.host());
+        ArrayNode portLevelSettings = spec.withObjectProperty("trafficPolicy").withArray("portLevelSettings");
+        JsonNode existingPortLevelSettings = existingSpec.path("trafficPolicy").path("portLevelSettings");
+        mergedEntries(existingPortLevelSettings,
+                entry -> entry.path("port").path("number").asInt(), newPortLevelSetting)
+                .forEach(portLevelSettings::add);
+
+        appendYamlDocument(out, destinationRule, "DestinationRule " + name);
+    }
+
+    /**
+     * Fetches {@code name}'s current spec (as a generic {@link JsonNode} tree, since
+     * {@code ServiceEntry}/{@code DestinationRule} have no typed POJO here), or an empty
+     * {@link ObjectNode} if the object doesn't exist yet. Read before every build so
+     * {@link #appendServiceEntry}/{@link #appendDestinationRule} can merge this chain's port into
+     * whatever ports other chains already contributed for the same host, instead of overwriting
+     * them -- see {@link #mergedEntries}.
+     */
+    private JsonNode existingHostResourceSpec(String plural, String name) {
+        try {
+            return kubeOperator
+                    .getCustomObject(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, plural, name)
+                    .map(obj -> (JsonNode) yamlMapper.valueToTree(obj.getSpec()))
+                    .orElseGet(yamlMapper::createObjectNode);
+        } catch (KubeApiException e) {
+            throw new CustomResourceBuildError("Failed to fetch existing " + plural + " '" + name + "' for merge", e);
+        }
+    }
+
+    /**
+     * Returns {@code existingList}'s entries with any entry sharing {@code newEntry}'s key (per
+     * {@code keyExtractor}) removed, plus {@code newEntry} appended -- i.e. add-or-replace-by-key,
+     * never duplicate. {@code existingList} may be a Jackson {@code MissingNode} (absent field);
+     * that's treated as an empty list, not an error.
+     */
+    private List<JsonNode> mergedEntries(
+            JsonNode existingList, Function<JsonNode, Integer> keyExtractor, JsonNode newEntry
+    ) {
+        int newKey = keyExtractor.apply(newEntry);
+        List<JsonNode> merged = new ArrayList<>();
+        if (existingList.isArray()) {
+            for (JsonNode entry : existingList) {
+                if (!keyExtractor.apply(entry).equals(newKey)) {
+                    merged.add(entry);
+                }
+            }
+        }
+        merged.add(newEntry);
+        return merged;
     }
 
     private void appendYamlDocument(StringBuilder out, ObjectNode document, String description) {

@@ -7,9 +7,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.cr.BuildInfo;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
@@ -19,21 +21,29 @@ import org.qubership.integration.platform.runtime.catalog.service.RoutesGetterSe
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class EgressRouteResourceBuilderTest {
 
+    private static final String ISTIO_GROUP = "networking.istio.io";
+    private static final String ISTIO_VERSION = "v1";
+
     private RoutesGetterService routesGetterService;
+    private KubeOperator kubeOperator;
     private EgressRouteResourceBuilder builder;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         routesGetterService = mock(RoutesGetterService.class);
+        kubeOperator = mock(KubeOperator.class);
+        when(kubeOperator.getCustomObject(any(), any(), any(), any())).thenReturn(Optional.empty());
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> egressNamingStrategy =
                 context -> "my-domain-v1-egress-routes";
 
@@ -48,7 +58,8 @@ class EgressRouteResourceBuilderTest {
                 routesGetterService,
                 org.mapstruct.factory.Mappers.getMapper(DeploymentRouteMapper.class),
                 egressNamingStrategy,
-                new K8sNameValidator());
+                new K8sNameValidator(),
+                kubeOperator);
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "domainLabel", "qip.domain");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersionLabel", "qip.bg-version");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersion", "v1");
@@ -142,6 +153,93 @@ class EgressRouteResourceBuilderTest {
 
         assertTrue(result.contains("/system/other-elem"));
         assertTrue(result.contains("/system/elem-a"));
+    }
+
+    @Test
+    void buildMergesANewPortIntoAnExistingServiceEntryForTheSameHost() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("https://api.example.com:9443/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+        when(kubeOperator.getCustomObject(eq(ISTIO_GROUP), eq(ISTIO_VERSION), eq("serviceentries"), any()))
+                .thenReturn(Optional.of(existingServiceEntry(port(8443, "https", "HTTPS"))));
+
+        String result = builder.build(contextWithSnapshot("snap-1"));
+
+        assertTrue(result.contains("number: 8443"));
+        assertTrue(result.contains("number: 9443"));
+    }
+
+    @Test
+    void buildReplacesAnExistingPortWithTheSameNumberInsteadOfDuplicating() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-a")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+        when(kubeOperator.getCustomObject(eq(ISTIO_GROUP), eq(ISTIO_VERSION), eq("serviceentries"), any()))
+                .thenReturn(Optional.of(existingServiceEntry(port(443, "https", "HTTPS"))));
+
+        String result = builder.build(contextWithSnapshot("snap-1"));
+
+        // The DestinationRule this https route also gets has its own "number: 443" under
+        // portLevelSettings, so scope the count to the ServiceEntry document alone.
+        String serviceEntrySection = result.substring(result.indexOf("kind: ServiceEntry"));
+        int destinationRuleIndex = serviceEntrySection.indexOf("kind: DestinationRule");
+        if (destinationRuleIndex != -1) {
+            serviceEntrySection = serviceEntrySection.substring(0, destinationRuleIndex);
+        }
+        assertEqualsOccurrences(1, "number: 443", serviceEntrySection);
+    }
+
+    @Test
+    void buildMergesANewPortLevelSettingIntoAnExistingDestinationRuleForTheSameHost() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("https://api.example.com:9443/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+        when(kubeOperator.getCustomObject(eq(ISTIO_GROUP), eq(ISTIO_VERSION), eq("destinationrules"), any()))
+                .thenReturn(Optional.of(existingDestinationRule(portLevelSetting(8443))));
+
+        String result = builder.build(contextWithSnapshot("snap-1"));
+
+        assertTrue(result.contains("number: 8443"));
+        assertTrue(result.contains("number: 9443"));
+    }
+
+    private Map<String, Object> port(int number, String name, String protocol) {
+        Map<String, Object> port = new LinkedHashMap<>();
+        port.put("number", number);
+        port.put("name", name);
+        port.put("protocol", protocol);
+        return port;
+    }
+
+    private Map<String, Object> portLevelSetting(int number) {
+        Map<String, Object> portLevelSetting = new LinkedHashMap<>();
+        portLevelSetting.put("port", Map.of("number", number));
+        portLevelSetting.put("tls", Map.of("mode", "SIMPLE", "sni", "api.example.com"));
+        return portLevelSetting;
+    }
+
+    private KubeCustomObject existingServiceEntry(Map<String, Object> existingPort) {
+        Map<String, Object> spec = new LinkedHashMap<>();
+        spec.put("hosts", List.of("api.example.com"));
+        spec.put("location", "MESH_EXTERNAL");
+        spec.put("resolution", "DNS");
+        spec.put("ports", List.of(existingPort));
+        return KubeCustomObject.builder()
+                .apiVersion(ISTIO_GROUP + "/" + ISTIO_VERSION)
+                .kind("ServiceEntry")
+                .spec(spec)
+                .build();
+    }
+
+    private KubeCustomObject existingDestinationRule(Map<String, Object> existingPortLevelSetting) {
+        Map<String, Object> spec = new LinkedHashMap<>();
+        spec.put("host", "api.example.com");
+        spec.put("trafficPolicy", Map.of("portLevelSettings", List.of(existingPortLevelSetting)));
+        return KubeCustomObject.builder()
+                .apiVersion(ISTIO_GROUP + "/" + ISTIO_VERSION)
+                .kind("DestinationRule")
+                .spec(spec)
+                .build();
     }
 
     private void assertEqualsOccurrences(int expected, String needle, String haystack) {

@@ -1,7 +1,10 @@
 package org.qubership.integration.platform.engine.cloudcore.controlplane;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
@@ -108,11 +111,23 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     @Override
     public synchronized void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint)
             throws ControlPlaneException {
-        routes.stream()
-                .map(route -> EgressTarget.parse(route.getPath()))
-                .collect(Collectors.toMap(EgressTarget::host, Function.identity(), (first, second) -> first))
-                .values()
-                .forEach(this::upsertHostResources);
+        try {
+            // Dedupe by (host, port), not host alone: two routes can legitimately share a host on
+            // different ports, and each such pair must reach upsertHostResources so its port gets
+            // merged in -- deduping by host alone would silently drop every port but one, even
+            // within this single call.
+            routes.stream()
+                    .map(route -> EgressTarget.parse(route.getPath()))
+                    .collect(Collectors.toMap(
+                            target -> target.host() + ":" + target.port(),
+                            Function.identity(),
+                            (first, second) -> first))
+                    .values()
+                    .forEach(this::upsertHostResources);
+        } catch (KubeApiConflictException e) {
+            throw new ControlPlaneException(
+                    "Failed to update host-keyed egress resources after " + MAX_MERGE_ATTEMPTS + " attempts", e);
+        }
 
         mergeTierRoutes(egressTierRequest(endpoint), routes, EGRESS_GATEWAY_NAME,
                 this::egressPathMatch, this::buildEgressRule);
@@ -298,9 +313,12 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
      * {@code DestinationRule}) that registers {@code target}'s host with the mesh. Both are named
      * deterministically from the host alone ({@link EgressTarget#hostResourceName()}), so every
      * route that targets the same external host -- across every chain this namespace hosts --
-     * converges on the same pair of objects, and their content is fully determined by the
-     * host/port/scheme: any deployer can safely overwrite it wholesale. Never deleted; see the
-     * design spec's cleanup non-goal.
+     * converges on the same pair of objects. Different routes can legitimately target the same
+     * host on different ports, so the write is a read-merge-write keyed on {@code port.number}
+     * (via {@link #upsertHostResource}), not a blind overwrite -- a blind overwrite would let
+     * whichever chain deploys last silently erase every other chain's port entry for that host.
+     * Never deleted; see the design spec's cleanup non-goal (ports are only ever added or updated,
+     * never removed, even when their contributing chain undeploys).
      */
     private void upsertHostResources(EgressTarget target) {
         String name = target.hostResourceName();
@@ -311,59 +329,114 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     }
 
     private void upsertServiceEntry(String name, EgressTarget target) {
-        Map<String, Object> spec = Map.of(
-                "hosts", List.of(target.host()),
-                "location", "MESH_EXTERNAL",
-                "resolution", "DNS",
-                "ports", List.of(Map.of(
-                        "number", target.port(),
-                        "name", target.isHttps() ? "https" : "http",
-                        "protocol", target.isHttps() ? "HTTPS" : "HTTP")));
+        ObjectNode newPort = objectMapper.createObjectNode();
+        newPort.put("number", target.port());
+        newPort.put("name", target.isHttps() ? "https" : "http");
+        newPort.put("protocol", target.isHttps() ? "HTTPS" : "HTTP");
+
         upsertHostResource(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, SERVICE_ENTRIES_PLURAL,
-                "ServiceEntry", name, spec);
+                "ServiceEntry", name, existingSpec -> {
+                    ObjectNode spec = objectMapper.createObjectNode();
+                    spec.putArray("hosts").add(target.host());
+                    spec.put("location", "MESH_EXTERNAL");
+                    spec.put("resolution", "DNS");
+                    ArrayNode ports = spec.putArray("ports");
+                    mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(), newPort)
+                            .forEach(ports::add);
+                    return spec;
+                });
     }
 
     private void upsertDestinationRule(String name, EgressTarget target) {
-        Map<String, Object> spec = Map.of(
-                "host", target.host(),
-                "trafficPolicy", Map.of(
-                        "portLevelSettings", List.of(Map.of(
-                                "port", Map.of("number", target.port()),
-                                "tls", Map.of("mode", "SIMPLE", "sni", target.host())))));
+        ObjectNode newPortLevelSetting = objectMapper.createObjectNode();
+        newPortLevelSetting.putObject("port").put("number", target.port());
+        ObjectNode tls = newPortLevelSetting.putObject("tls");
+        tls.put("mode", "SIMPLE");
+        tls.put("sni", target.host());
+
         upsertHostResource(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, DESTINATION_RULES_PLURAL,
-                "DestinationRule", name, spec);
+                "DestinationRule", name, existingSpec -> {
+                    ObjectNode spec = objectMapper.createObjectNode();
+                    spec.put("host", target.host());
+                    ArrayNode portLevelSettings = spec.putObject("trafficPolicy").putArray("portLevelSettings");
+                    JsonNode existingPortLevelSettings = existingSpec.path("trafficPolicy").path("portLevelSettings");
+                    mergedEntries(existingPortLevelSettings,
+                            entry -> entry.path("port").path("number").asInt(), newPortLevelSetting)
+                            .forEach(portLevelSettings::add);
+                    return spec;
+                });
     }
 
-    private void upsertHostResource(
-            String group, String version, String plural, String kind, String name, Map<String, Object> spec
+    /**
+     * Returns {@code existingList}'s entries with any entry sharing {@code newEntry}'s key (per
+     * {@code keyExtractor}) removed, plus {@code newEntry} appended -- i.e. add-or-replace-by-key,
+     * never duplicate. {@code existingList} may be a Jackson {@code MissingNode} (absent field);
+     * that's treated as an empty list, not an error.
+     */
+    private List<JsonNode> mergedEntries(
+            JsonNode existingList, Function<JsonNode, Integer> keyExtractor, JsonNode newEntry
     ) {
-        V1ObjectMeta metadata = new V1ObjectMeta();
-        metadata.setName(name);
-        metadata.setNamespace(namespace);
+        int newKey = keyExtractor.apply(newEntry);
+        List<JsonNode> merged = new ArrayList<>();
+        if (existingList.isArray()) {
+            for (JsonNode entry : existingList) {
+                if (!keyExtractor.apply(entry).equals(newKey)) {
+                    merged.add(entry);
+                }
+            }
+        }
+        merged.add(newEntry);
+        return merged;
+    }
 
-        KubeCustomObjectRequest request = KubeCustomObjectRequest.builder()
-                .group(group)
-                .version(version)
-                .resourceNamePlural(plural)
-                .body(KubeCustomObject.builder()
-                        .apiVersion(group + "/" + version)
-                        .kind(kind)
-                        .metadata(metadata)
-                        .spec(spec)
-                        .build())
-                .build();
+    /**
+     * Creates or updates a host-keyed egress resource ({@code ServiceEntry}/{@code DestinationRule})
+     * by reading its current spec (if any), letting {@code specMerger} fold the new content into it,
+     * and writing the result back with optimistic-concurrency retry -- the same read-merge-write-
+     * with-retry shape {@link #mergeTierRoutes} uses for the shared HTTPRoute tiers, applied here
+     * because these resources are shared across chains too and must not lose another chain's port
+     * entry to a concurrent write.
+     */
+    private void upsertHostResource(
+            String group, String version, String plural, String kind, String name,
+            Function<JsonNode, ObjectNode> specMerger
+    ) {
+        for (int attempt = 1; attempt <= MAX_MERGE_ATTEMPTS; attempt++) {
+            V1ObjectMeta metadata = new V1ObjectMeta();
+            metadata.setName(name);
+            metadata.setNamespace(namespace);
 
-        Optional<KubeCustomObject> existing = kubeOperator.getCustomObject(request);
-        request.getBody().getMetadata().setResourceVersion(
-                existing.map(obj -> obj.getMetadata().getResourceVersion()).orElse(null));
+            KubeCustomObjectRequest request = KubeCustomObjectRequest.builder()
+                    .group(group)
+                    .version(version)
+                    .resourceNamePlural(plural)
+                    .body(KubeCustomObject.builder()
+                            .apiVersion(group + "/" + version)
+                            .kind(kind)
+                            .metadata(metadata)
+                            .build())
+                    .build();
 
-        try {
-            kubeOperator.createOrReplaceCustomObject(request);
-        } catch (KubeApiConflictException e) {
-            // Another pod created or updated the same host-keyed object concurrently. Its content
-            // is fully determined by the host, so whichever write won is equivalent -- nothing to
-            // reconcile.
-            log.debug("Concurrent update of {} '{}', skipping (content is host-derived and equivalent)", kind, name);
+            Optional<KubeCustomObject> existing = kubeOperator.getCustomObject(request);
+            JsonNode existingSpec = existing
+                    .map(obj -> (JsonNode) objectMapper.valueToTree(obj.getSpec()))
+                    .orElseGet(objectMapper::createObjectNode);
+
+            ObjectNode mergedSpec = specMerger.apply(existingSpec);
+            request.getBody().setSpec(objectMapper.convertValue(mergedSpec, new TypeReference<Map<String, Object>>() {}));
+            request.getBody().getMetadata().setResourceVersion(
+                    existing.map(obj -> obj.getMetadata().getResourceVersion()).orElse(null));
+
+            try {
+                kubeOperator.createOrReplaceCustomObject(request);
+                return;
+            } catch (KubeApiConflictException e) {
+                if (attempt == MAX_MERGE_ATTEMPTS) {
+                    throw e;
+                }
+                log.warn("Concurrent update detected for {} '{}' on attempt {}/{}, retrying",
+                        kind, name, attempt, MAX_MERGE_ATTEMPTS);
+            }
         }
     }
 
