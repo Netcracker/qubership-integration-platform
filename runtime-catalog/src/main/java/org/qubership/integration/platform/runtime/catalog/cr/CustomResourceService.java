@@ -158,6 +158,22 @@ public class CustomResourceService {
         genericCustomResources.registerModelMaps();
     }
 
+    /**
+     * Every existing {@code ServiceEntry} in this namespace, unfiltered -- there's no per-domain
+     * label to scope by, since a single {@code ServiceEntry} can be shared across every domain that
+     * targets its host. Used to seed {@code EgressRouteResourceBuilder}'s build cache so it can
+     * merge its own port into whatever another domain already contributed for the same host,
+     * instead of overwriting it; see {@code CustomResourceBuildContextFactory}.
+     */
+    public List<KubeCustomObject> getExistingServiceEntries() {
+        return kubeOperator.getServiceEntries();
+    }
+
+    /** Same rationale as {@link #getExistingServiceEntries}, for {@code DestinationRule}. */
+    public List<KubeCustomObject> getExistingDestinationRules() {
+        return kubeOperator.getDestinationRules();
+    }
+
     public void deploy(String resourceText) throws CustomResourceDeployError {
         try {
             List<Object> resources = Yaml.loadAll(resourceText);

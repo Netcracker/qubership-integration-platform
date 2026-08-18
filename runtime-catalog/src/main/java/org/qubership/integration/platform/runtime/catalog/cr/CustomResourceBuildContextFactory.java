@@ -4,6 +4,7 @@ import io.kubernetes.client.openapi.models.V1ConfigMap;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.SourceDslConfigMapNamingStrategy;
@@ -21,6 +22,8 @@ import java.util.*;
 
 import static java.util.Objects.isNull;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.EgressRouteResourceBuilder.EGRESS_HTTP_ROUTE_CACHE_KEY;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.EgressRouteResourceBuilder.destinationRuleCacheKey;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.EgressRouteResourceBuilder.serviceEntryCacheKey;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.HttpRouteResourceBuilder.PRIVATE_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.HttpRouteResourceBuilder.PUBLIC_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
@@ -70,6 +73,12 @@ public class CustomResourceBuildContextFactory {
         if (appendToExising) {
             addAppendConfigurationToContext(context);
         }
+
+        // Unlike the rest of addAppendConfigurationToContext, this runs regardless of
+        // appendToExising: ServiceEntry/DestinationRule are shared across every domain that targets
+        // a given external host, not scoped to this one, so another domain's existing contribution
+        // matters even on this domain's very first build.
+        putHostResourceSpecsToBuildCache(context);
 
         return context;
     }
@@ -143,6 +152,26 @@ public class CustomResourceBuildContextFactory {
         }
         if (resources.egressHttpRoute() != null) {
             context.getBuildCache().put(EGRESS_HTTP_ROUTE_CACHE_KEY, resources.egressHttpRoute().getSpec());
+        }
+    }
+
+    /**
+     * Seeds every existing {@code ServiceEntry}/{@code DestinationRule}'s current spec into the
+     * build cache, keyed by {@code EgressRouteResourceBuilder}'s host-derived cache keys, so that
+     * builder can merge its own port into whatever another domain already contributed for the same
+     * host instead of overwriting it -- without needing to talk to Kubernetes itself. Unlike
+     * {@link #putHttpRouteRulesToBuildCache} (three fixed, per-domain-named CRs), there's no way to
+     * know in advance which hosts this build's routes will touch, so every existing one is fetched
+     * and seeded; {@code EgressRouteResourceBuilder} looks up only the keys it actually needs.
+     */
+    private void putHostResourceSpecsToBuildCache(ResourceBuildContext<List<Snapshot>> context) {
+        for (KubeCustomObject serviceEntry : customResourceService.getExistingServiceEntries()) {
+            getName(serviceEntry).ifPresent(name ->
+                    context.getBuildCache().put(serviceEntryCacheKey(name), serviceEntry.getSpec()));
+        }
+        for (KubeCustomObject destinationRule : customResourceService.getExistingDestinationRules()) {
+            getName(destinationRule).ifPresent(name ->
+                    context.getBuildCache().put(destinationRuleCacheKey(name), destinationRule.getSpec()));
         }
     }
 

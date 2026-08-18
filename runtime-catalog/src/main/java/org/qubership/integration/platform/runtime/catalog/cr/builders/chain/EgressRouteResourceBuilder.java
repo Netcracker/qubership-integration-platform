@@ -11,8 +11,6 @@ import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContex
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
-import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentRouteUpdate;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
@@ -44,6 +42,8 @@ import java.util.stream.Collectors;
 public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     public static final String EGRESS_HTTP_ROUTE_CACHE_KEY = "egressHttpRoute";
     private static final String ROUTES_CACHE_KEY = "egressRouteResourceBuilder.routes";
+    private static final String SERVICE_ENTRY_CACHE_KEY_PREFIX = "egressServiceEntry:";
+    private static final String DESTINATION_RULE_CACHE_KEY_PREFIX = "egressDestinationRule:";
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
@@ -51,15 +51,12 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
     private static final String NETWORKING_ISTIO_API_GROUP = "networking.istio.io";
     private static final String NETWORKING_ISTIO_API_VERSION = "v1";
-    private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
-    private static final String DESTINATION_RULES_PLURAL = "destinationrules";
 
     private final YAMLMapper yamlMapper;
     private final RoutesGetterService routesGetterService;
     private final DeploymentRouteMapper deploymentRouteMapper;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
-    private final KubeOperator kubeOperator;
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -79,15 +76,23 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
             @Qualifier("httpRouteEgressNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
 
-            K8sNameValidator k8sNameValidator,
-            KubeOperator kubeOperator
+            K8sNameValidator k8sNameValidator
     ) {
         this.yamlMapper = yamlMapper;
         this.routesGetterService = routesGetterService;
         this.deploymentRouteMapper = deploymentRouteMapper;
         this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
         this.k8sNameValidator = k8sNameValidator;
-        this.kubeOperator = kubeOperator;
+    }
+
+    /** Build-cache key under which the current spec of the named {@code ServiceEntry} is seeded. */
+    public static String serviceEntryCacheKey(String hostResourceName) {
+        return SERVICE_ENTRY_CACHE_KEY_PREFIX + hostResourceName;
+    }
+
+    /** Build-cache key under which the current spec of the named {@code DestinationRule} is seeded. */
+    public static String destinationRuleCacheKey(String hostResourceName) {
+        return DESTINATION_RULE_CACHE_KEY_PREFIX + hostResourceName;
     }
 
     @Override
@@ -101,7 +106,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
         StringBuilder out = new StringBuilder();
         appendEgressHttpRoute(out, context, routes);
-        appendHostResources(out, routes);
+        appendHostResources(out, context, routes);
         return out.toString();
     }
 
@@ -239,7 +244,9 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         return preserved;
     }
 
-    private void appendHostResources(StringBuilder out, List<DeploymentRouteUpdate> routes) {
+    private void appendHostResources(
+            StringBuilder out, ResourceBuildContext<List<Snapshot>> context, List<DeploymentRouteUpdate> routes
+    ) {
         // Keyed on (host, port), not host alone: two routes can legitimately share a host on
         // different ports, and each such pair must reach appendServiceEntry/appendDestinationRule
         // so its port gets merged in -- deduping by host alone would silently drop every port but
@@ -250,16 +257,16 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
             targetsByHostAndPort.putIfAbsent(target.host() + ":" + target.port(), target);
         }
         for (EgressTarget target : targetsByHostAndPort.values()) {
-            appendServiceEntry(out, target);
+            appendServiceEntry(out, context, target);
             if (target.isHttps()) {
-                appendDestinationRule(out, target);
+                appendDestinationRule(out, context, target);
             }
         }
     }
 
-    private void appendServiceEntry(StringBuilder out, EgressTarget target) {
+    private void appendServiceEntry(StringBuilder out, ResourceBuildContext<List<Snapshot>> context, EgressTarget target) {
         String name = target.hostResourceName();
-        JsonNode existingSpec = existingHostResourceSpec(SERVICE_ENTRIES_PLURAL, name);
+        JsonNode existingSpec = existingHostResourceSpec(context, serviceEntryCacheKey(name));
 
         ObjectNode newPort = yamlMapper.createObjectNode();
         newPort.put("number", target.port());
@@ -282,9 +289,9 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         appendYamlDocument(out, serviceEntry, "ServiceEntry " + name);
     }
 
-    private void appendDestinationRule(StringBuilder out, EgressTarget target) {
+    private void appendDestinationRule(StringBuilder out, ResourceBuildContext<List<Snapshot>> context, EgressTarget target) {
         String name = target.hostResourceName();
-        JsonNode existingSpec = existingHostResourceSpec(DESTINATION_RULES_PLURAL, name);
+        JsonNode existingSpec = existingHostResourceSpec(context, destinationRuleCacheKey(name));
 
         ObjectNode newPortLevelSetting = yamlMapper.createObjectNode();
         newPortLevelSetting.putObject("port").put("number", target.port());
@@ -309,22 +316,23 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     }
 
     /**
-     * Fetches {@code name}'s current spec (as a generic {@link JsonNode} tree, since
-     * {@code ServiceEntry}/{@code DestinationRule} have no typed POJO here), or an empty
-     * {@link ObjectNode} if the object doesn't exist yet. Read before every build so
-     * {@link #appendServiceEntry}/{@link #appendDestinationRule} can merge this chain's port into
-     * whatever ports other chains already contributed for the same host, instead of overwriting
-     * them -- see {@link #mergedEntries}.
+     * Reads {@code cacheKey}'s spec out of the build cache (as a generic {@link JsonNode} tree,
+     * since {@code ServiceEntry}/{@code DestinationRule} have no typed POJO here), or an empty
+     * {@link ObjectNode} if nothing was seeded there -- meaning either the object doesn't exist yet,
+     * or (for the "localdev"/no-cluster-access case) nothing seeds this cache at all. Nothing here
+     * talks to Kubernetes directly: {@code CustomResourceBuildContextFactory} seeds every existing
+     * {@code ServiceEntry}/{@code DestinationRule}'s spec into the build cache up front, the same way
+     * it seeds the {@code HTTPRoute} tiers', so this builder stays a pure YAML generator like its
+     * siblings. See {@link #serviceEntryCacheKey}/{@link #destinationRuleCacheKey} for the key
+     * scheme and merging this chain's own port in, not overwriting another chain's.
      */
-    private JsonNode existingHostResourceSpec(String plural, String name) {
-        try {
-            return kubeOperator
-                    .getCustomObject(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, plural, name)
-                    .map(obj -> (JsonNode) yamlMapper.valueToTree(obj.getSpec()))
-                    .orElseGet(yamlMapper::createObjectNode);
-        } catch (KubeApiException e) {
-            throw new CustomResourceBuildError("Failed to fetch existing " + plural + " '" + name + "' for merge", e);
+    @SuppressWarnings("unchecked")
+    private JsonNode existingHostResourceSpec(ResourceBuildContext<List<Snapshot>> context, String cacheKey) {
+        Object cached = context.getBuildCache().get(cacheKey);
+        if (!(cached instanceof Map<?, ?> existingSpecMap)) {
+            return yamlMapper.createObjectNode();
         }
+        return yamlMapper.valueToTree((Map<String, Object>) existingSpecMap);
     }
 
     /**

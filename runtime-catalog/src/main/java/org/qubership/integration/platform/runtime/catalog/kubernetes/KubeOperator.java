@@ -408,6 +408,35 @@ public class KubeOperator {
         }
     }
 
+    public List<KubeCustomObject> getServiceEntries() throws KubeApiException {
+        return listCustomObjects(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, SERVICE_ENTRIES_PLURAL);
+    }
+
+    public List<KubeCustomObject> getDestinationRules() throws KubeApiException {
+        return listCustomObjects(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, DESTINATION_RULES_PLURAL);
+    }
+
+    /**
+     * Lists every object of the given kind in this namespace, unfiltered by label -- unlike
+     * {@link #getCustomObjectsByLabelAndDefinition}, which scopes to one domain's own resources.
+     * {@code ServiceEntry}/{@code DestinationRule} are shared across every domain that targets a
+     * given external host, so there's no single domain label to filter by; callers that only need
+     * specific ones filter the result themselves. A 404 (the CRD itself isn't installed, e.g. a
+     * Core-mesh cluster with no Istio CRDs) is treated as "none exist" rather than an error.
+     */
+    private List<KubeCustomObject> listCustomObjects(String group, String version, String plural) throws KubeApiException {
+        try {
+            Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
+            KubeCustomObjectList listObject = fromRawObject(rawListObj, new TypeToken<KubeCustomObjectList>() {}.getType());
+            return listObject.getItems();
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                return List.of();
+            }
+            throw new KubeApiException("Failed to list custom objects.", exception);
+        }
+    }
+
     public Optional<KubeCustomObject> getCustomObject(String group, String version, String plural, String name)
             throws KubeApiException {
         try {
