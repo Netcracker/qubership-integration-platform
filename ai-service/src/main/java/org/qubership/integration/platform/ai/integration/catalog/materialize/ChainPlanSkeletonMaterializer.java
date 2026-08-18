@@ -97,16 +97,45 @@ public class ChainPlanSkeletonMaterializer {
         && currentMap.nodeIdToElementId().containsKey(node.nodeId())) {
       throw new IllegalStateException("Node '" + node.nodeId() + "' is already materialized");
     }
+    MaterializationAttemptContext attempt = new MaterializationAttemptContext();
+    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
     Map<String, String> nodeIdToElementId =
         new LinkedHashMap<>(
             currentMap.nodeIdToElementId() == null ? Map.of() : currentMap.nodeIdToElementId());
     Set<String> usedElementIds = new HashSet<>(nodeIdToElementId.values());
-    MaterializationAttemptContext attempt = new MaterializationAttemptContext();
-    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
     String elementId =
         materializeOne(graph, node, chainId, nodeIdToElementId, usedElementIds, attempt);
     finishCreatedContainers(chainId, nodeIdToElementId, attempt, cache);
     return elementId;
+  }
+
+  /**
+   * Creates one catalog element without pruning generated children. Callers that materialize
+   * multiple nodes in one graph write must invoke {@link #finishCreatedContainers} once after all
+   * creates in the attempt.
+   */
+  public String materializeElement(
+      ChainPlanGraph graph,
+      ChainPlanNode node,
+      String chainId,
+      MaterializationMap currentMap,
+      MaterializationAttemptContext attempt) {
+    Objects.requireNonNull(graph, "graph");
+    Objects.requireNonNull(node, "node");
+    Objects.requireNonNull(currentMap, "currentMap");
+    Objects.requireNonNull(attempt, "attempt");
+    if (chainId == null || chainId.isBlank()) {
+      throw new IllegalArgumentException("chainId is required");
+    }
+    if (currentMap.nodeIdToElementId() != null
+        && currentMap.nodeIdToElementId().containsKey(node.nodeId())) {
+      throw new IllegalStateException("Node '" + node.nodeId() + "' is already materialized");
+    }
+    Map<String, String> nodeIdToElementId =
+        new LinkedHashMap<>(
+            currentMap.nodeIdToElementId() == null ? Map.of() : currentMap.nodeIdToElementId());
+    Set<String> usedElementIds = new HashSet<>(nodeIdToElementId.values());
+    return materializeOne(graph, node, chainId, nodeIdToElementId, usedElementIds, attempt);
   }
 
   public void finishCreatedContainers(

@@ -91,20 +91,20 @@ class ChainPatchWriterTest {
 
   @Test
   void createsTheElementsThePatchAdds() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-new-script");
 
     ChainPatchWriteResult result = writer.write(chainWithAddedScript(), addScriptPatch());
 
     ArgumentCaptor<ChainPlanNode> created = ArgumentCaptor.forClass(ChainPlanNode.class);
-    verify(skeletonMaterializer).materializeElement(any(), created.capture(), eq("chain-1"), any());
+    verify(skeletonMaterializer).materializeElement(any(), created.capture(), eq("chain-1"), any(), any());
     assertEquals("node-new-script", created.getValue().nodeId());
     assertTrue(result.succeeded());
   }
 
   @Test
   void bindsANewElementToItsCatalogIdBeforeWritingItsProperties() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-new-script");
 
     writer.write(chainWithAddedScript(), addScriptPatch());
@@ -116,7 +116,7 @@ class ChainPatchWriterTest {
 
   @Test
   void writesTheWholeOfANewElementRatherThanPartOfIt() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-new-script");
 
     writer.write(chainWithAddedScript(), addScriptPatch());
@@ -129,7 +129,7 @@ class ChainPatchWriterTest {
 
   @Test
   void connectsWhatThePatchConnects() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-new-script");
 
     writer.write(chainWithAddedScript(), addScriptPatch());
@@ -144,7 +144,7 @@ class ChainPatchWriterTest {
 
   @Test
   void reportsAnElementThatCouldNotBeCreated() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenThrow(new IllegalStateException("catalog refused"));
 
     ChainPatchWriteResult result = writer.write(chainWithAddedScript(), addScriptPatch());
@@ -322,7 +322,7 @@ class ChainPatchWriterTest {
 
   @Test
   void deletesTheElementItCreatedWhenTheWriteFailsAfterwards() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-new-script");
     when(propertiesMaterializer.apply(any(), any()))
         .thenReturn(new PropertiesApplyResult(0, List.of("node-new-script"), "schema said no"));
@@ -337,7 +337,7 @@ class ChainPatchWriterTest {
 
   @Test
   void putsBackThePropertyValueTheChainHeldBefore() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenThrow(new IllegalStateException("catalog said no"));
 
     ChainPatchWriteResult result =
@@ -354,7 +354,7 @@ class ChainPatchWriterTest {
   /** The merge never deletes a key, so a key the patch introduced cannot be taken back off. */
   @Test
   void reportsAPartialRollbackWhenThePatchIntroducedThePropertyKey() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenThrow(new IllegalStateException("catalog said no"));
 
     ChainPatchWriteResult result =
@@ -367,7 +367,7 @@ class ChainPatchWriterTest {
   void removesNothingWhenAConnectionCouldNotBeCreated() {
     // A patch that both connects and removes: a connection that did not land must stop the
     // removal, because a removal is the step no later failure can take back.
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-new-script");
     when(connectionsMaterializer.apply(any(), any()))
         .thenReturn(new ConnectionsApplyResult(0, List.of("edge-new")));
@@ -381,10 +381,14 @@ class ChainPatchWriterTest {
 
   @Test
   void drawsBackTheConnectionsItCutWhenTheElementDeleteFails() {
-    when(removalsMaterializer.apply(any(), any(), any(), any()))
+    when(removalsMaterializer.apply(any(), eq(Set.of()), any(), any()))
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
-                List.of(), List.of("dep-1"), List.of("element-script"), List.of(), "catalog down"));
+                List.of(), List.of("dep-1"), List.of(), List.of(), null));
+    when(removalsMaterializer.apply(any(), eq(Set.of("element-script")), eq(List.of()), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of(), List.of(), List.of("element-script"), List.of(), "catalog down"));
 
     ChainPatchWriteResult result = writer.write(connectedChain(), removeScriptAndItsEdgePatch());
 
@@ -397,11 +401,15 @@ class ChainPatchWriterTest {
 
   @Test
   void refusesToRollBackOnceAnElementIsGone() {
-    when(removalsMaterializer.apply(any(), any(), any(), any()))
+    when(removalsMaterializer.apply(any(), eq(Set.of()), any(), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of(), List.of("dep-1"), List.of(), List.of(), null));
+    when(removalsMaterializer.apply(any(), eq(Set.of("element-script")), eq(List.of()), any()))
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
                 List.of("element-script"),
-                List.of("dep-1"),
+                List.of(),
                 List.of("element-trigger"),
                 List.of(),
                 "catalog down"));
@@ -414,7 +422,7 @@ class ChainPatchWriterTest {
 
   @Test
   void leavesACleanWriteAlone() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-new-script");
 
     ChainPatchWriteResult result = writer.write(chainWithAddedScript(), addScriptPatch());
@@ -527,14 +535,14 @@ class ChainPatchWriterTest {
    */
   @Test
   void createsAContainerBeforeTheChildItHolds() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-id");
 
     writer.write(chainWithBranchListedAfterItsChild(), addBranchAndChildPatch());
 
     ArgumentCaptor<ChainPlanNode> created = ArgumentCaptor.forClass(ChainPlanNode.class);
     verify(skeletonMaterializer, org.mockito.Mockito.times(2))
-        .materializeElement(any(), created.capture(), eq("chain-1"), any());
+        .materializeElement(any(), created.capture(), eq("chain-1"), any(), any());
     assertEquals(
         List.of("node-branch", "node-child"),
         created.getAllValues().stream().map(ChainPlanNode::nodeId).toList());
@@ -542,7 +550,7 @@ class ChainPatchWriterTest {
 
   @Test
   void transfersAnExistingServiceCallUnderANewlyAddedTry2() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-try-2");
     stubCompatibleTry2AndServiceCallDescriptors();
     stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
@@ -619,7 +627,7 @@ class ChainPatchWriterTest {
 
   @Test
   void deletesBlockingDependenciesThenTransfersThenCreatesDesiredDependencies() {
-    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-try-2");
     stubCompatibleTry2AndServiceCallDescriptors();
     stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
