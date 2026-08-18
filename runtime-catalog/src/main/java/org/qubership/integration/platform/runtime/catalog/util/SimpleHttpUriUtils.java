@@ -22,7 +22,9 @@ import java.util.regex.Pattern;
 
 public class SimpleHttpUriUtils {
     private static final String PROTOCOL_DOMAIN_REGEX = "^https?://[^:/]+(:\\d{1,5})?";
+    private static final String PROTOCOL_ADDRESS_REGEX = "^[^:/]+(:\\d{1,5})?";
     private static final Pattern PROTOCOL_DOMAIN_PATTERN = Pattern.compile(PROTOCOL_DOMAIN_REGEX);
+    private static final Pattern PROTOCOL_ADDRESS_PATTERN = Pattern.compile(PROTOCOL_ADDRESS_REGEX);
 
     /**
      * This method extracts path and query without validation
@@ -49,6 +51,24 @@ public class SimpleHttpUriUtils {
 
     public static boolean isValidProtocolAndDomainWithPort(String uri) {
         return PROTOCOL_DOMAIN_PATTERN.matcher(uri).find();
+    }
+
+    public static String formatUri(String uri) throws MalformedURLException {
+        if (uri == null) {
+            return null;
+        }
+
+        Matcher matcher = PROTOCOL_DOMAIN_PATTERN.matcher(uri);
+        if (matcher.find()) {
+            return uri;
+        }
+
+        matcher = PROTOCOL_ADDRESS_PATTERN.matcher(uri);
+        if (matcher.find()) {
+            return "https://" + uri;
+        }
+
+        throw new MalformedURLException("URI " + uri + " invalid, failed to format");
     }
 }
 
