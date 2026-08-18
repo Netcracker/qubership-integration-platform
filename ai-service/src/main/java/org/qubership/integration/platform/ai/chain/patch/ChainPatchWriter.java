@@ -11,7 +11,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ProjectionAction;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -19,6 +25,8 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cha
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanSkeletonMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogTransferElementsRequest;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -48,17 +56,23 @@ public class ChainPatchWriter {
   private final ChainPlanSkeletonMaterializer skeletonMaterializer;
   private final ChainPlanConnectionsMaterializer connectionsMaterializer;
   private final ChainPlanRemovalsMaterializer removalsMaterializer;
+  private final CatalogRestClient catalogRestClient;
+  private final CatalogElementDescriptorLoader descriptorLoader;
 
   @Inject
   public ChainPatchWriter(
       ChainPlanPropertiesMaterializer propertiesMaterializer,
       ChainPlanSkeletonMaterializer skeletonMaterializer,
       ChainPlanConnectionsMaterializer connectionsMaterializer,
-      ChainPlanRemovalsMaterializer removalsMaterializer) {
+      ChainPlanRemovalsMaterializer removalsMaterializer,
+      @RestClient CatalogRestClient catalogRestClient,
+      CatalogElementDescriptorLoader descriptorLoader) {
     this.propertiesMaterializer = Objects.requireNonNull(propertiesMaterializer);
     this.skeletonMaterializer = Objects.requireNonNull(skeletonMaterializer);
     this.connectionsMaterializer = Objects.requireNonNull(connectionsMaterializer);
     this.removalsMaterializer = Objects.requireNonNull(removalsMaterializer);
+    this.catalogRestClient = Objects.requireNonNull(catalogRestClient);
+    this.descriptorLoader = Objects.requireNonNull(descriptorLoader);
   }
 
   public ChainPatchWriteResult write(PatchedChain patched, GraphPatch patch) {
@@ -69,16 +83,19 @@ public class ChainPatchWriter {
     Map<String, Set<String>> changedKeysByNodeId = changedKeysByNodeId(patch);
     List<ChainPlanEdge> addedEdges = addedEdges(patch);
     List<EdgeReplacement> replacements = edgeReplacements(patch, patched.before());
-    // Edges and removals count toward "the patch does something": a patch whose only content is a
-    // connection between two elements the chain already has, or the removal of one, adds no node
-    // and changes no property, and must still reach its materializer rather than being read as an
-    // empty change. The same is true of an endpoint retarget: UPDATE is not ADD and not REMOVE.
+    List<ParentTransfer> parentTransfers = parentTransfers(patch, patched.before());
+    // Edges, removals, and parent moves count toward "the patch does something": a patch whose only
+    // content is a connection between two elements the chain already has, the removal of one, or a
+    // parent-only UPDATE, adds no node and changes no property, and must still reach its writer
+    // rather than being read as an empty change. The same is true of an endpoint retarget: UPDATE
+    // is not ADD and not REMOVE.
     boolean removesSomething =
         !removedNodeIds(patch).isEmpty() || !removedEdges(patch, patched.before()).isEmpty();
     if (addedNodeIds.isEmpty()
         && changedKeysByNodeId.isEmpty()
         && addedEdges.isEmpty()
         && replacements.isEmpty()
+        && parentTransfers.isEmpty()
         && !removesSomething) {
       return new ChainPatchWriteResult(List.of(), List.of(), null, patched.materializationMap());
     }
@@ -125,8 +142,16 @@ public class ChainPatchWriter {
       error = error == null ? applied.firstValidationError() : error;
     }
 
+    // Destination checks run before any transfer mutation. An incompatible parent must not delete
+    // blocking dependencies or call transfer. Catalog ids come from the map after ADD, so a newly
+    // created logical parent is already the generated catalog id.
+    if (!parentTransfers.isEmpty() && failed.isEmpty() && error == null) {
+      error = preflightTransfers(parentTransfers, patched, map);
+    }
+
     // An endpoint retarget has to drop the old catalog dependency before the new one is written.
-    // Leaving both in place is how a chain forks through the old route and the new one.
+    // Leaving both in place is how a chain forks through the old route and the new one. The same
+    // delete is what unblocks a transfer: a leftover inbound dependency fails catalog validation.
     List<ChainPlanEdge> recreatableEdges = new ArrayList<>();
     List<ChainPlanEdge> replacedOldEdges =
         replacements.stream().map(EdgeReplacement::before).filter(Objects::nonNull).toList();
@@ -138,6 +163,10 @@ public class ChainPatchWriter {
       }
       failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
       error = error == null ? removed.error() : error;
+    }
+
+    if (!parentTransfers.isEmpty() && failed.isEmpty() && error == null) {
+      error = transferGroupedByParent(parentTransfers, map);
     }
 
     // Connections come last among the constructive steps, and only on a clean creation: an edge to
@@ -191,7 +220,18 @@ public class ChainPatchWriter {
     }
 
     List<String> changed =
-        touched.stream().map(ChainPlanNode::nodeId).filter(id -> !failed.contains(id)).toList();
+        new ArrayList<>(
+            touched.stream()
+                .map(ChainPlanNode::nodeId)
+                .filter(id -> !failed.contains(id))
+                .toList());
+    if (error == null) {
+      for (ParentTransfer transfer : parentTransfers) {
+        if (!failed.contains(transfer.nodeId()) && !changed.contains(transfer.nodeId())) {
+          changed.add(transfer.nodeId());
+        }
+      }
+    }
 
     ChainPatchWriteResult.RollbackOutcome rollback =
         failed.isEmpty() && error == null
@@ -544,6 +584,167 @@ public class ChainPatchWriter {
   }
 
   private record EdgeReplacement(ChainPlanEdge before, ChainPlanEdge after) {}
+
+  private record ParentTransfer(String nodeId, String parentNodeId, String movedType) {}
+
+  /**
+   * Node UPDATE patches whose after parent differs from the pre-patch graph. Type, label, and order
+   * changes do not transfer; only a parent change does.
+   */
+  private static List<ParentTransfer> parentTransfers(GraphPatch patch, ChainPlanGraph before) {
+    if (patch.nodePatches() == null || before == null || before.nodes() == null) {
+      return List.of();
+    }
+    Map<String, ChainPlanNode> beforeById = new LinkedHashMap<>();
+    for (ChainPlanNode node : before.nodes()) {
+      if (node != null && node.nodeId() != null) {
+        beforeById.put(node.nodeId(), node);
+      }
+    }
+    List<ParentTransfer> transfers = new ArrayList<>();
+    for (NodePatch nodePatch : patch.nodePatches()) {
+      if (nodePatch == null
+          || nodePatch.operation() != GraphPatchOperation.UPDATE
+          || nodePatch.node() == null) {
+        continue;
+      }
+      String nodeId =
+          nodePatch.targetNodeId() != null ? nodePatch.targetNodeId() : nodePatch.node().nodeId();
+      ChainPlanNode previous = nodeId == null ? null : beforeById.get(nodeId);
+      if (previous == null
+          || Objects.equals(previous.parentNodeId(), nodePatch.node().parentNodeId())) {
+        continue;
+      }
+      String movedType =
+          nodePatch.node().type() != null ? nodePatch.node().type() : previous.type();
+      transfers.add(new ParentTransfer(nodeId, nodePatch.node().parentNodeId(), movedType));
+    }
+    return List.copyOf(transfers);
+  }
+
+  /**
+   * Fails closed on an unloadable descriptor, a non-container destination, a child type the
+   * destination does not allow, or a parent type the moved element does not accept.
+   */
+  private String preflightTransfers(
+      List<ParentTransfer> transfers, PatchedChain patched, MaterializationMap map) {
+    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
+    for (ParentTransfer transfer : transfers) {
+      String elementId = catalogId(map, transfer.nodeId());
+      String parentId = catalogId(map, transfer.parentNodeId());
+      if (elementId == null) {
+        return cannotTransfer(transfer.nodeId(), "catalog id is unknown.");
+      }
+      if (transfer.parentNodeId() != null && parentId == null) {
+        return cannotTransferUnder(
+            elementId, transfer.parentNodeId(), "catalog id for parent is unknown.");
+      }
+      String destinationType = destinationType(patched.graph(), transfer.parentNodeId());
+      if (transfer.parentNodeId() != null && destinationType == null) {
+        return cannotTransferUnder(
+            elementId, transfer.parentNodeId(), "destination node is missing.");
+      }
+      CatalogElementDescriptor destination;
+      CatalogElementDescriptor moved;
+      try {
+        if (destinationType != null) {
+          destination = cache.require(destinationType);
+        } else {
+          destination = null;
+        }
+        moved = cache.require(transfer.movedType());
+      } catch (CatalogElementDescriptorException e) {
+        return e.getMessage();
+      }
+      if (destination != null && !destination.container()) {
+        return cannotTransferUnder(
+            elementId, parentId, "destination type '" + destinationType + "' is not a container.");
+      }
+      if (destination != null
+          && !destination.allowedChildren().isEmpty()
+          && !destination.allowedChildren().containsKey(transfer.movedType())) {
+        return cannotTransferUnder(
+            elementId, parentId, "child type '" + transfer.movedType() + "' is not allowed.");
+      }
+      if (!moved.parentRestriction().isEmpty()
+          && (destinationType == null || !moved.parentRestriction().contains(destinationType))) {
+        return cannotTransferUnder(
+            elementId, parentId, "parent type '" + destinationType + "' is not permitted.");
+      }
+    }
+    return null;
+  }
+
+  /**
+   * One transfer call per destination catalog parent, then a parent read-back for every moved id.
+   * HTTP 200 is not proof: the catalog transfer endpoint can create a dependency instead.
+   */
+  private String transferGroupedByParent(List<ParentTransfer> transfers, MaterializationMap map) {
+    Map<String, List<String>> elementsByParent = new LinkedHashMap<>();
+    for (ParentTransfer transfer : transfers) {
+      String elementId = catalogId(map, transfer.nodeId());
+      String parentId = catalogId(map, transfer.parentNodeId());
+      if (elementId == null) {
+        return cannotTransfer(transfer.nodeId(), "catalog id is unknown.");
+      }
+      if (transfer.parentNodeId() != null && parentId == null) {
+        return cannotTransferUnder(
+            elementId, transfer.parentNodeId(), "catalog id for parent is unknown.");
+      }
+      elementsByParent.computeIfAbsent(parentId, key -> new ArrayList<>()).add(elementId);
+    }
+    for (Map.Entry<String, List<String>> group : elementsByParent.entrySet()) {
+      String parentId = group.getKey();
+      List<String> elements = List.copyOf(group.getValue());
+      try {
+        catalogRestClient.transferElements(
+            map.chainId(), new CatalogTransferElementsRequest(parentId, null, elements));
+      } catch (RuntimeException e) {
+        return "Cannot transfer elements under '" + parentId + "': " + e.getMessage();
+      }
+      for (String elementId : elements) {
+        CatalogElementResponseDto readBack;
+        try {
+          readBack = catalogRestClient.getElement(map.chainId(), elementId);
+        } catch (RuntimeException e) {
+          return cannotTransferUnder(elementId, parentId, e.getMessage());
+        }
+        String actualParent = readBack == null ? null : readBack.parentElementId;
+        if (!Objects.equals(parentId, actualParent)) {
+          return cannotTransferUnder(
+              elementId, parentId, "catalog parent is still '" + actualParent + "'.");
+        }
+      }
+    }
+    return null;
+  }
+
+  private static String cannotTransfer(String elementId, String reason) {
+    return "Cannot transfer element '" + elementId + "': " + reason;
+  }
+
+  private static String cannotTransferUnder(String elementId, String parentId, String reason) {
+    return "Cannot transfer element '" + elementId + "' under '" + parentId + "': " + reason;
+  }
+
+  private static String destinationType(ChainPlanGraph graph, String parentNodeId) {
+    if (parentNodeId == null || graph == null || graph.nodes() == null) {
+      return null;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node != null && parentNodeId.equals(node.nodeId())) {
+        return node.type();
+      }
+    }
+    return null;
+  }
+
+  private static String catalogId(MaterializationMap map, String nodeId) {
+    if (nodeId == null || map == null || map.nodeIdToElementId() == null) {
+      return null;
+    }
+    return map.nodeIdToElementId().get(nodeId);
+  }
 
   private static Map<String, Set<String>> changedKeysByNodeId(GraphPatch patch) {
     Map<String, Set<String>> changedKeys = new LinkedHashMap<>();

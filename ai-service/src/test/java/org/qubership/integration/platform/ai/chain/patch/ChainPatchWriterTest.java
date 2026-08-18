@@ -10,6 +10,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +20,9 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ConnectionsApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -26,6 +30,8 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cha
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanSkeletonMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogTransferElementsRequest;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -43,6 +49,8 @@ class ChainPatchWriterTest {
   private ChainPlanSkeletonMaterializer skeletonMaterializer;
   private ChainPlanConnectionsMaterializer connectionsMaterializer;
   private ChainPlanRemovalsMaterializer removalsMaterializer;
+  private CatalogRestClient catalogRestClient;
+  private CatalogElementDescriptorLoader descriptorLoader;
   private ChainPatchWriter writer;
 
   @BeforeEach
@@ -60,12 +68,16 @@ class ChainPatchWriterTest {
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
                 List.of(), List.of(), List.of(), List.of(), null));
+    catalogRestClient = mock(CatalogRestClient.class);
+    descriptorLoader = mock(CatalogElementDescriptorLoader.class);
     writer =
         new ChainPatchWriter(
             propertiesMaterializer,
             skeletonMaterializer,
             connectionsMaterializer,
-            removalsMaterializer);
+            removalsMaterializer,
+            catalogRestClient,
+            descriptorLoader);
   }
 
   @Test
@@ -518,6 +530,116 @@ class ChainPatchWriterTest {
         created.getAllValues().stream().map(ChainPlanNode::nodeId).toList());
   }
 
+  @Test
+  void transfersAnExistingServiceCallUnderANewlyAddedTry2() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenReturn("catalog-try-2");
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+
+    ChainPatchWriteResult result =
+        writer.write(chainWrappingServiceCallInTry2(), wrapServiceCallInNewTry2Patch());
+
+    ArgumentCaptor<CatalogTransferElementsRequest> request =
+        ArgumentCaptor.forClass(CatalogTransferElementsRequest.class);
+    org.mockito.InOrder order = inOrder(catalogRestClient);
+    order.verify(catalogRestClient).transferElements(eq("chain-1"), request.capture());
+    order.verify(catalogRestClient).getElement("chain-1", "catalog-service-call");
+    assertEquals("catalog-try-2", request.getValue().parentId());
+    assertEquals(List.of("catalog-service-call"), request.getValue().elements());
+    assertEquals(
+        "catalog-service-call",
+        result.materializationMap().nodeIdToElementId().get("element-service-call"));
+    assertTrue(result.succeeded());
+  }
+
+  @Test
+  void movesTwoConnectedElementsSharingAParentInOneTransfer() {
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-call-a", "catalog-try-2");
+    stubSuccessfulTransfer("catalog-call-b", "catalog-try-2");
+
+    ChainPatchWriteResult result =
+        writer.write(chainMovingTwoCallsUnderExistingTry2(), reparentTwoCallsUnderTry2Patch());
+
+    ArgumentCaptor<CatalogTransferElementsRequest> request =
+        ArgumentCaptor.forClass(CatalogTransferElementsRequest.class);
+    verify(catalogRestClient, times(1)).transferElements(eq("chain-1"), request.capture());
+    assertEquals("catalog-try-2", request.getValue().parentId());
+    assertEquals(List.of("catalog-call-a", "catalog-call-b"), request.getValue().elements());
+    assertTrue(result.succeeded());
+  }
+
+  @Test
+  void failsBeforeTransferWhenTheDestinationIsNotAContainer() {
+    when(descriptorLoader.load("try-2")).thenReturn(nonContainer("try-2"));
+    when(descriptorLoader.load("service-call")).thenReturn(leaf("service-call"));
+
+    ChainPatchWriteResult result =
+        writer.write(chainReparentingServiceCallUnderExistingTry2(), reparentServiceCallUnderTry2Patch());
+
+    assertFalse(result.succeeded());
+    verify(catalogRestClient, never()).transferElements(any(), any());
+  }
+
+  @Test
+  void failsWhenTransferLeavesTheElementUnderItsOldParent() {
+    stubCompatibleTry2AndServiceCallDescriptors();
+    when(catalogRestClient.transferElements(eq("chain-1"), any()))
+        .thenReturn(
+            new CatalogRestClient.ChainDiffDto(
+                List.of(),
+                List.of(),
+                List.of(
+                    new CatalogRestClient.DependencySummaryDto(
+                        "dep-created", "catalog-service-call", "catalog-try-2"))));
+    when(catalogRestClient.getElement("chain-1", "catalog-service-call"))
+        .thenReturn(catalogElement("catalog-service-call", null));
+
+    ChainPatchWriteResult result =
+        writer.write(chainReparentingServiceCallUnderExistingTry2(), reparentServiceCallUnderTry2Patch());
+
+    verify(catalogRestClient).transferElements(eq("chain-1"), any());
+    verify(catalogRestClient).getElement("chain-1", "catalog-service-call");
+    assertFalse(result.succeeded());
+    assertEquals(
+        "Cannot transfer element 'catalog-service-call' under 'catalog-try-2': catalog parent is still 'null'.",
+        result.error());
+  }
+
+  @Test
+  void deletesBlockingDependenciesThenTransfersThenCreatesDesiredDependencies() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenReturn("catalog-try-2");
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+
+    ChainPatchWriteResult result =
+        writer.write(
+            chainWrappingServiceCallAndRetargetingTrigger(),
+            wrapServiceCallAndRetargetTriggerPatch());
+
+    org.mockito.InOrder order =
+        inOrder(removalsMaterializer, catalogRestClient, connectionsMaterializer);
+    order.verify(removalsMaterializer).apply(any(), any(), any(), any());
+    order.verify(catalogRestClient).transferElements(eq("chain-1"), any());
+    order.verify(connectionsMaterializer).apply(any(), any());
+    assertTrue(result.succeeded());
+  }
+
+  @Test
+  void writesAParentOnlyUpdateInsteadOfTreatingItAsEmpty() {
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+
+    ChainPatchWriteResult result =
+        writer.write(chainReparentingServiceCallUnderExistingTry2(), reparentServiceCallUnderTry2Patch());
+
+    verify(catalogRestClient).transferElements(eq("chain-1"), any());
+    verify(propertiesMaterializer, never()).apply(any(), any());
+    assertTrue(result.succeeded());
+  }
+
   /** The graph lists the child first, exactly as the patch named them. */
   private static PatchedChain chainWithBranchListedAfterItsChild() {
     PatchedChain base = patchedChain();
@@ -917,5 +1039,221 @@ class ChainPatchWriterTest {
         null,
         List.of(),
         "keeps the customer id");
+  }
+
+  private void stubCompatibleTry2AndServiceCallDescriptors() {
+    when(descriptorLoader.load("try-2")).thenReturn(container("try-2"));
+    when(descriptorLoader.load("service-call")).thenReturn(leaf("service-call"));
+  }
+
+  private void stubSuccessfulTransfer(String elementId, String parentId) {
+    lenient()
+        .when(catalogRestClient.transferElements(eq("chain-1"), any()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+    when(catalogRestClient.getElement("chain-1", elementId))
+        .thenReturn(catalogElement(elementId, parentId));
+  }
+
+  private static CatalogElementResponseDto catalogElement(String id, String parentId) {
+    CatalogElementResponseDto dto = new CatalogElementResponseDto();
+    dto.id = id;
+    dto.parentElementId = parentId;
+    return dto;
+  }
+
+  private static CatalogElementDescriptor container(String type) {
+    return new CatalogElementDescriptor(
+        type, true, Map.of(), List.of(), false, "priority", false, false, false, true);
+  }
+
+  private static CatalogElementDescriptor leaf(String type) {
+    return new CatalogElementDescriptor(
+        type, false, Map.of(), List.of(), false, "priority", false, false, false, true);
+  }
+
+  private static CatalogElementDescriptor nonContainer(String type) {
+    return leaf(type);
+  }
+
+  private static PatchedChain chainWrappingServiceCallInTry2() {
+    return new PatchedChain(
+        serviceCallAtRootGraph(List.of()),
+        serviceCallUnderTry2Graph(List.of()),
+        serviceCallMaterializationMap());
+  }
+
+  private static GraphPatch wrapServiceCallInNewTry2Patch() {
+    return new GraphPatch(
+        "patch-wrap-try2",
+        "chain-patch",
+        List.of(addTry2Patch(), reparentServiceCallNodePatch()),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        "wraps the service call in a generated try-2");
+  }
+
+  private static PatchedChain chainReparentingServiceCallUnderExistingTry2() {
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Order sync", "Syncs orders"),
+            List.of(triggerNode(), serviceCallNode(null), try2Node()),
+            List.of());
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            before.schemaVersion(),
+            before.chain(),
+            List.of(triggerNode(), serviceCallNode("node-try-2"), try2Node()),
+            List.of());
+    return new PatchedChain(
+        before,
+        after,
+        new MaterializationMap(
+            "chain-1",
+            Map.of(
+                "element-trigger", "element-trigger",
+                "element-service-call", "catalog-service-call",
+                "node-try-2", "catalog-try-2")));
+  }
+
+  private static GraphPatch reparentServiceCallUnderTry2Patch() {
+    return new GraphPatch(
+        "patch-reparent",
+        "chain-patch",
+        List.of(reparentServiceCallNodePatch()),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        "moves the service call under try-2");
+  }
+
+  private static PatchedChain chainMovingTwoCallsUnderExistingTry2() {
+    ChainPlanNode callA =
+        new ChainPlanNode("element-call-a", "service-call", "Call A", "node-try-2", null, List.of());
+    ChainPlanNode callB =
+        new ChainPlanNode("element-call-b", "service-call", "Call B", "node-try-2", null, List.of());
+    ChainPlanNode callABefore =
+        new ChainPlanNode("element-call-a", "service-call", "Call A", null, null, List.of());
+    ChainPlanNode callBBefore =
+        new ChainPlanNode("element-call-b", "service-call", "Call B", null, null, List.of());
+    ChainPlanEdge internal =
+        new ChainPlanEdge("edge-a-b", "element-call-a", "element-call-b", null);
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Order sync", "Syncs orders"),
+            List.of(try2Node(), callABefore, callBBefore),
+            List.of(internal));
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            before.schemaVersion(),
+            before.chain(),
+            List.of(try2Node(), callA, callB),
+            List.of(internal));
+    return new PatchedChain(
+        before,
+        after,
+        new MaterializationMap(
+            "chain-1",
+            Map.of(
+                "node-try-2", "catalog-try-2",
+                "element-call-a", "catalog-call-a",
+                "element-call-b", "catalog-call-b")));
+  }
+
+  private static GraphPatch reparentTwoCallsUnderTry2Patch() {
+    return new GraphPatch(
+        "patch-reparent-two",
+        "chain-patch",
+        List.of(
+            new NodePatch(
+                GraphPatchOperation.UPDATE,
+                new ChainPlanNode(
+                    "element-call-a", "service-call", "Call A", "node-try-2", null, List.of()),
+                "element-call-a"),
+            new NodePatch(
+                GraphPatchOperation.UPDATE,
+                new ChainPlanNode(
+                    "element-call-b", "service-call", "Call B", "node-try-2", null, List.of()),
+                "element-call-b")),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        "moves two connected calls under the same try-2");
+  }
+
+  private static PatchedChain chainWrappingServiceCallAndRetargetingTrigger() {
+    ChainPlanGraph before = serviceCallAtRootGraph(
+        List.of(new ChainPlanEdge("edge-trigger-call", "element-trigger", "element-service-call", null)));
+    ChainPlanGraph after = serviceCallUnderTry2Graph(
+        List.of(new ChainPlanEdge("edge-trigger-call", "element-trigger", "node-try-2", null)));
+    return new PatchedChain(before, after, serviceCallMaterializationMap());
+  }
+
+  private static GraphPatch wrapServiceCallAndRetargetTriggerPatch() {
+    return new GraphPatch(
+        "patch-wrap-retarget",
+        "chain-patch",
+        List.of(addTry2Patch(), reparentServiceCallNodePatch()),
+        List.of(
+            new EdgePatch(
+                GraphPatchOperation.UPDATE,
+                new ChainPlanEdge("edge-trigger-call", "element-trigger", "node-try-2", null),
+                "edge-trigger-call")),
+        List.of(),
+        null,
+        List.of(),
+        "wraps the service call and retargets the trigger onto try-2");
+  }
+
+  private static ChainPlanGraph serviceCallAtRootGraph(List<ChainPlanEdge> edges) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Order sync", "Syncs orders"),
+        List.of(triggerNode(), serviceCallNode(null)),
+        edges);
+  }
+
+  private static ChainPlanGraph serviceCallUnderTry2Graph(List<ChainPlanEdge> edges) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Order sync", "Syncs orders"),
+        List.of(triggerNode(), serviceCallNode("node-try-2"), try2Node()),
+        edges);
+  }
+
+  private static MaterializationMap serviceCallMaterializationMap() {
+    return new MaterializationMap(
+        "chain-1",
+        Map.of(
+            "element-trigger", "element-trigger",
+            "element-service-call", "catalog-service-call"));
+  }
+
+  private static NodePatch addTry2Patch() {
+    return new NodePatch(GraphPatchOperation.ADD, try2Node(), null);
+  }
+
+  private static NodePatch reparentServiceCallNodePatch() {
+    return new NodePatch(
+        GraphPatchOperation.UPDATE, serviceCallNode("node-try-2"), "element-service-call");
+  }
+
+  private static ChainPlanNode triggerNode() {
+    return new ChainPlanNode(
+        "element-trigger", "http-trigger", "Receive order", null, null, List.of());
+  }
+
+  private static ChainPlanNode serviceCallNode(String parentNodeId) {
+    return new ChainPlanNode(
+        "element-service-call", "service-call", "Call orders", parentNodeId, null, List.of());
+  }
+
+  private static ChainPlanNode try2Node() {
+    return new ChainPlanNode("node-try-2", "try-2", "Try", null, null, List.of());
   }
 }
