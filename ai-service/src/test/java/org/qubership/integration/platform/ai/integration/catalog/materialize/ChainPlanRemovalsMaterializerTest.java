@@ -135,20 +135,21 @@ class ChainPlanRemovalsMaterializerTest {
         assertEquals("catalog down", result.error());
     }
 
-    @Test
-    void removesNoConnectionWhenTheChainCannotBeListed() {
-        when(catalogRestClient.listDependencies("chain-1")).thenThrow(new RuntimeException("catalog down"));
+  @Test
+  void failsWhenDependencyListingFails() {
+    when(catalogRestClient.listDependencies("chain-1")).thenThrow(new RuntimeException("catalog down"));
 
-        ChainPlanRemovalsMaterializer.RemovalsApplyResult result = materializer.apply(
-                graph(List.of(node("a", null), node("b", null)), List.of(edge("a->b", "a", "b"))),
-                Set.of(),
-                List.of(edge("a->b", "a", "b")),
-                map(Map.of("a", "el-a", "b", "el-b")));
+    ChainPlanRemovalsMaterializer.RemovalsApplyResult result = materializer.apply(
+        graph(List.of(node("a", null), node("b", null)), List.of(edge("a->b", "a", "b"))),
+        Set.of(),
+        List.of(edge("a->b", "a", "b")),
+        map(Map.of("a", "el-a", "b", "el-b")));
 
-        assertTrue(result.succeeded());
-        assertTrue(result.removedDependencyIds().isEmpty());
-        verify(catalogRestClient, never()).deleteDependencies(any(), any());
-    }
+    assertFalse(result.succeeded());
+    assertEquals(List.of("a->b"), result.failedEdgeIds());
+    assertEquals("catalog down", result.error());
+    verify(catalogRestClient, never()).deleteDependencies(any(), any());
+  }
 
     private static MaterializationMap map(Map<String, String> nodeIdToElementId) {
         return new MaterializationMap("chain-1", nodeIdToElementId);

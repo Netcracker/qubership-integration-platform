@@ -134,9 +134,18 @@ public class CatalogGraphMaterializer {
       }
     }
 
-    if (createdInAttempt && failed.isEmpty() && error == null) {
-      skeletonMaterializer.finishCreatedContainers(
-          chainId, nodeIdToElementId, createAttempt, cache);
+    if (failed.isEmpty() && error == null) {
+      skeletonMaterializer.seedMappedContainersForPrune(
+          desiredGraph, addedNodeIds, nodeIdToElementId, chainId, createAttempt, cache);
+    }
+    if ((createdInAttempt || !createAttempt.isEmpty()) && failed.isEmpty() && error == null) {
+      try {
+        skeletonMaterializer.finishCreatedContainers(
+            chainId, nodeIdToElementId, createAttempt, cache);
+      } catch (RuntimeException e) {
+        LOG.errorf(e, "Failed to prune unclaimed generated children in chain %s", chainId);
+        error = error == null ? e.getMessage() : error;
+      }
     }
 
     MaterializationMap map = new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.chain.patch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
@@ -763,7 +765,11 @@ class ChainPatchWriterTest {
     when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
         .thenReturn("catalog-try-2");
     stubCompatibleTry2AndServiceCallDescriptors();
-    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+    when(catalogRestClient.transferElements(eq("chain-1"), any()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+    when(catalogRestClient.getElement("chain-1", "catalog-service-call"))
+        .thenReturn(catalogElement("catalog-service-call", "catalog-try-2"))
+        .thenReturn(catalogElement("catalog-service-call", null));
     when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
         .thenReturn("read-back failed");
 
@@ -775,6 +781,113 @@ class ChainPatchWriterTest {
     CatalogTransferElementsRequest inverse = requests.getAllValues().get(1);
     assertNull(inverse.parentId());
     assertEquals(List.of("catalog-service-call"), inverse.elements());
+    verify(catalogRestClient, times(2)).getElement("chain-1", "catalog-service-call");
+  }
+
+  @Test
+  void inverseTransferReportsPartialWhenRestoredParentMismatches() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
+        .thenReturn("catalog-try-2");
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+    when(catalogRestClient.getElement("chain-1", "catalog-service-call"))
+        .thenReturn(catalogElement("catalog-service-call", "catalog-try-2"));
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("read-back failed");
+
+    ChainPatchWriteResult result =
+        writer.write(chainWrappingServiceCallInTry2(), wrapServiceCallInNewTry2Patch());
+
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.PARTIAL, result.rollback());
+    assertTrue(result.uncompensated().contains("catalog-service-call"));
+  }
+
+  @Test
+  void unwindsWrapperWhenOptionalChildPruneDeleteThrows() {
+    ChainPlanSkeletonMaterializer realSkeleton =
+        new ChainPlanSkeletonMaterializer(catalogRestClient, descriptorLoader);
+    CatalogGraphMaterializer graphMaterializer =
+        new CatalogGraphMaterializer(
+            propertiesMaterializer,
+            realSkeleton,
+            connectionsMaterializer,
+            removalsMaterializer,
+            catalogRestClient,
+            descriptorLoader,
+            readBackVerifier);
+    ChainPatchWriter localWriter =
+        new ChainPatchWriter(
+            graphMaterializer,
+            propertiesMaterializer,
+            connectionsMaterializer,
+            removalsMaterializer,
+            catalogRestClient);
+    when(descriptorLoader.load("try-catch-finally-2"))
+        .thenReturn(
+            container(
+                "try-catch-finally-2",
+                Map.of(
+                    "try-2", CatalogChildQuantity.ONE,
+                    "catch-2", CatalogChildQuantity.ONE_OR_MANY,
+                    "finally-2", CatalogChildQuantity.ONE_OR_ZERO)));
+    when(descriptorLoader.load("try-2")).thenReturn(container("try-2"));
+    when(descriptorLoader.load("catch-2")).thenReturn(leaf("catch-2"));
+    stubCompatibleTry2AndServiceCallDescriptors();
+    when(catalogRestClient.createElement(eq("chain-1"), any()))
+        .thenReturn(
+            new CatalogRestClient.ChainDiffDto(
+                List.of(
+                    new CatalogRestClient.ElementSummaryDto(
+                        "catalog-wrapper",
+                        "try-catch-finally-2",
+                        Map.of(),
+                        null,
+                        List.of(
+                            new CatalogRestClient.ElementSummaryDto(
+                                "catalog-try-2", "try-2", Map.of(), "catalog-wrapper", null),
+                            new CatalogRestClient.ElementSummaryDto(
+                                "catalog-catch", "catch-2", Map.of(), "catalog-wrapper", null),
+                            new CatalogRestClient.ElementSummaryDto(
+                                "catalog-finally", "finally-2", Map.of(), "catalog-wrapper", null)))),
+                List.of(),
+                List.of()));
+    when(catalogRestClient.listElements("chain-1")).thenReturn(List.of());
+    CatalogElementResponseDto wrapperElement = catalogElement("catalog-wrapper", null);
+    wrapperElement.type = "try-catch-finally-2";
+    CatalogElementResponseDto try2Child = catalogElement("catalog-try-2", "catalog-wrapper");
+    try2Child.type = "try-2";
+    CatalogElementResponseDto catchChild = catalogElement("catalog-catch", "catalog-wrapper");
+    catchChild.type = "catch-2";
+    CatalogElementResponseDto finallyChild = catalogElement("catalog-finally", "catalog-wrapper");
+    finallyChild.type = "finally-2";
+    wrapperElement.children = List.of(try2Child, catchChild, finallyChild);
+    when(catalogRestClient.getElement(eq("chain-1"), eq("catalog-wrapper"))).thenReturn(wrapperElement);
+    when(catalogRestClient.getElement(eq("chain-1"), eq("catalog-try-2")))
+        .thenReturn(catalogElement("catalog-try-2", "catalog-wrapper"));
+    when(catalogRestClient.getElement(eq("chain-1"), eq("catalog-catch")))
+        .thenReturn(catalogElement("catalog-catch", "catalog-wrapper"));
+    when(catalogRestClient.getElement(eq("chain-1"), eq("catalog-finally")))
+        .thenReturn(catalogElement("catalog-finally", "catalog-wrapper"));
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+    when(catalogRestClient.deleteElements(eq("chain-1"), eq(List.of("catalog-finally"))))
+        .thenThrow(new IllegalStateException("finally delete failed"));
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("read-back failed");
+
+    ChainPatchWriteResult result =
+        localWriter.write(chainWrappingServiceCallInTry2WithWrapper(), wrapServiceCallInWrapperPatch());
+
+    assertFalse(result.succeeded());
+    assertNotNull(result.error());
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
+    verify(catalogRestClient).deleteElements(eq("chain-1"), eq(List.of("catalog-finally")));
+
+    ArgumentCaptor<Set<String>> removedNodes = ArgumentCaptor.forClass(Set.class);
+    verify(removalsMaterializer, org.mockito.Mockito.atLeastOnce())
+        .apply(any(), removedNodes.capture(), any(), any());
+    Set<String> deletedOnRollback = removedNodes.getAllValues().get(removedNodes.getAllValues().size() - 1);
+    assertTrue(deletedOnRollback.contains("node-wrapper"));
+    assertTrue(deletedOnRollback.contains("catalog-finally"));
   }
 
   @Test
@@ -1388,14 +1501,23 @@ class ChainPatchWriterTest {
         .when(catalogRestClient.transferElements(eq("chain-1"), any()))
         .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
     when(catalogRestClient.getElement("chain-1", elementId))
-        .thenReturn(catalogElement(elementId, parentId));
+        .thenReturn(catalogElement(elementId, parentId))
+        .thenReturn(catalogElement(elementId, null));
   }
 
   private static CatalogElementResponseDto catalogElement(String id, String parentId) {
     CatalogElementResponseDto dto = new CatalogElementResponseDto();
     dto.id = id;
     dto.parentElementId = parentId;
+    if (id != null && id.startsWith("catalog-")) {
+      dto.type = id.substring("catalog-".length());
+    }
     return dto;
+  }
+
+  private static CatalogElementDescriptor container(String type, Map<String, CatalogChildQuantity> children) {
+    return new CatalogElementDescriptor(
+        type, true, children, List.of(), false, "priority", false, false, false, true);
   }
 
   private static CatalogElementDescriptor container(String type) {
@@ -1410,6 +1532,67 @@ class ChainPatchWriterTest {
 
   private static CatalogElementDescriptor nonContainer(String type) {
     return leaf(type);
+  }
+
+  private static PatchedChain chainWrappingServiceCallInTry2WithWrapper() {
+    return new PatchedChain(
+        serviceCallAtRootGraph(List.of()),
+        serviceCallUnderWrapperGraph(List.of()),
+        serviceCallMaterializationMap());
+  }
+
+  private static GraphPatch wrapServiceCallInWrapperPatch() {
+    return new GraphPatch(
+        "patch-wrap-wrapper",
+        "chain-patch",
+        List.of(
+            addWrapperPatch(),
+            addTry2UnderWrapperPatch(),
+            addCatchUnderWrapperPatch(),
+            reparentServiceCallNodePatch()),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        "wraps the service call in try-catch-finally-2");
+  }
+
+  private static ChainPlanGraph serviceCallUnderWrapperGraph(List<ChainPlanEdge> edges) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Order sync", "Syncs orders"),
+        List.of(
+            triggerNode(),
+            wrapperNode(),
+            try2UnderWrapperNode(),
+            catchUnderWrapperNode(),
+            serviceCallNode("node-try-2")),
+        edges);
+  }
+
+  private static NodePatch addWrapperPatch() {
+    return new NodePatch(GraphPatchOperation.ADD, wrapperNode(), null);
+  }
+
+  private static NodePatch addTry2UnderWrapperPatch() {
+    return new NodePatch(GraphPatchOperation.ADD, try2UnderWrapperNode(), null);
+  }
+
+  private static NodePatch addCatchUnderWrapperPatch() {
+    return new NodePatch(GraphPatchOperation.ADD, catchUnderWrapperNode(), null);
+  }
+
+  private static ChainPlanNode wrapperNode() {
+    return new ChainPlanNode(
+        "node-wrapper", "try-catch-finally-2", "Wrapper", null, null, List.of());
+  }
+
+  private static ChainPlanNode try2UnderWrapperNode() {
+    return new ChainPlanNode("node-try-2", "try-2", "Try", "node-wrapper", null, List.of());
+  }
+
+  private static ChainPlanNode catchUnderWrapperNode() {
+    return new ChainPlanNode("node-catch", "catch-2", "Catch", "node-wrapper", null, List.of());
   }
 
   private static PatchedChain chainWrappingServiceCallInTry2() {

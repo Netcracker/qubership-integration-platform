@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cha
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CompletedTransfer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogTransferElementsRequest;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -191,15 +192,33 @@ public class ChainPatchWriter {
     }
     boolean complete = true;
     for (Map.Entry<String, List<String>> group : elementsByParent.entrySet()) {
+      String priorParentId = group.getKey();
+      List<String> elements = List.copyOf(group.getValue());
       try {
         catalogRestClient.transferElements(
             map.chainId(),
-            new CatalogTransferElementsRequest(
-                group.getKey(), null, List.copyOf(group.getValue())));
+            new CatalogTransferElementsRequest(priorParentId, null, elements));
       } catch (RuntimeException e) {
         LOG.error("Inverse transfer failed", e);
-        uncompensated.addAll(group.getValue());
+        uncompensated.addAll(elements);
         complete = false;
+        continue;
+      }
+      for (String elementId : elements) {
+        CatalogElementResponseDto readBack;
+        try {
+          readBack = catalogRestClient.getElement(map.chainId(), elementId);
+        } catch (RuntimeException e) {
+          LOG.error("Inverse transfer read-back failed", e);
+          uncompensated.add(elementId);
+          complete = false;
+          continue;
+        }
+        String actualParent = readBack == null ? null : readBack.parentElementId;
+        if (!Objects.equals(priorParentId, actualParent)) {
+          uncompensated.add(elementId);
+          complete = false;
+        }
       }
     }
     return complete;

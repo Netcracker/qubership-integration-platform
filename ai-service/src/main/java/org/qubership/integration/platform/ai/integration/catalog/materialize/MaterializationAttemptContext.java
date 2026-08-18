@@ -36,6 +36,11 @@ public final class MaterializationAttemptContext {
     return containersCreatedInAttempt.isEmpty();
   }
 
+  boolean containsContainer(String containerElementId) {
+    return containerElementId != null
+        && containersCreatedInAttempt.contains(containerElementId);
+  }
+
   List<CreatedContainer> createdContainers() {
     return List.copyOf(createdContainers.values());
   }

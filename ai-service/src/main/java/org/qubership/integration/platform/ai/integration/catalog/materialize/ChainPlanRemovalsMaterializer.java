@@ -57,12 +57,16 @@ public class ChainPlanRemovalsMaterializer {
       return new RemovalsApplyResult(List.of(), List.of(), List.of(), List.of(), null);
     }
 
-    List<String> dependencyIds = resolveDependencyIds(edges, map);
+    DependencyResolution dependencyResolution = resolveDependencyIds(edges, map);
+    List<String> dependencyIds = dependencyResolution.dependencyIds();
     List<String> failedEdgeIds = new ArrayList<>();
-    String error = null;
+    String error = dependencyResolution.error();
+    if (error != null) {
+      edges.forEach(edge -> failedEdgeIds.add(edge.edgeId()));
+    }
 
     List<String> removedDependencyIds = List.of();
-    if (!dependencyIds.isEmpty()) {
+    if (error == null && !dependencyIds.isEmpty()) {
       try {
         catalogRestClient.deleteDependencies(map.chainId(), dependencyIds);
         removedDependencyIds = dependencyIds;
@@ -104,17 +108,19 @@ public class ChainPlanRemovalsMaterializer {
    * have taken it already as a side effect of some earlier removal, and complaining about work
    * that is already done helps nobody.
    */
-  private List<String> resolveDependencyIds(List<ChainPlanEdge> edges, MaterializationMap map) {
+  private record DependencyResolution(List<String> dependencyIds, String error) {}
+
+  private DependencyResolution resolveDependencyIds(List<ChainPlanEdge> edges, MaterializationMap map) {
     if (edges.isEmpty()) {
-      return List.of();
+      return new DependencyResolution(List.of(), null);
     }
     Map<String, String> dependencyIdByEdgeKey = new LinkedHashMap<>();
     List<CatalogDependencyDto> live;
     try {
       live = catalogRestClient.listDependencies(map.chainId());
     } catch (RuntimeException e) {
-      LOG.warnf(e, "listDependencies failed for chain %s; no connection will be removed", map.chainId());
-      return List.of();
+      LOG.errorf(e, "listDependencies failed for chain %s", map.chainId());
+      return new DependencyResolution(List.of(), e.getMessage());
     }
     for (CatalogDependencyDto dependency : live == null ? List.<CatalogDependencyDto>of() : live) {
       if (dependency != null && dependency.id != null) {
@@ -136,7 +142,7 @@ public class ChainPlanRemovalsMaterializer {
         resolved.add(dependencyId);
       }
     }
-    return List.copyOf(resolved);
+    return new DependencyResolution(List.copyOf(resolved), null);
   }
 
   /**
