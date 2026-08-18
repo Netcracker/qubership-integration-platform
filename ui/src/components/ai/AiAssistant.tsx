@@ -3,9 +3,10 @@ import {
   Divider,
   Drawer,
   Modal,
+  Select,
   Space,
-  Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import Input from "antd/es/input/index";
@@ -48,7 +49,6 @@ import {
   ensureAssistantPlaceholder,
   getResponseTail,
   getRoleLabel,
-  parseChatMeta,
   shouldHideEmptyStreamingAssistant,
   upsertAssistantMessage,
   withoutErrorVariantMessages,
@@ -68,7 +68,10 @@ import {
   tryParseChainModificationProposal,
 } from "./chainModificationContent.ts";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
-import { INPUT_TEXTAREA_ROWS, SEND_KEY } from "./aiAssistantConstants.ts";
+import { SEND_KEY } from "./aiAssistantConstants.ts";
+import { AiEmptyState } from "./AiEmptyState.tsx";
+import { AiAssistantHeaderActions } from "./AiAssistantHeaderActions.tsx";
+import { AiComposerActions } from "./AiComposerActions.tsx";
 import { AiActivityInline } from "./activity/AiActivityInline.tsx";
 import { attachActivityToLastAssistant } from "./activity/activitySummary.ts";
 import { useActivityStore } from "./activity/activityStore.ts";
@@ -78,6 +81,7 @@ import {
 } from "./conversationTurnApi.ts";
 import {
   shouldShowErrorToastForAbort,
+  findUserIndexAtOrBefore,
   getVisibleChatMessages,
   sliceMessagesForEdit,
   sliceMessagesForRegenerate,
@@ -88,7 +92,6 @@ import type { ChainPlanStatusDto } from "../../api/ai/chainPlanClient.ts";
 import {
   approveChainPlanForBuild,
   dismissChainPlanOpenItems,
-  fetchChainPlanDetail,
   fetchChainPlanStatus,
 } from "../../api/ai/chainPlanClient.ts";
 import { fetchOpenDecision } from "../../api/ai/decisionClient.ts";
@@ -107,6 +110,19 @@ interface ResponseResult {
 // ---------------------------------------------------------------------------
 
 const UI_REFRESH_THROTTLE_MS = 150;
+const DRAWER_Z_INDEX = 2000;
+const SESSION_SELECT_DROPDOWN_Z_INDEX = DRAWER_Z_INDEX + 100;
+const SESSION_SELECT_DROPDOWN_MIN_WIDTH = 320;
+/** First line of the user message, capped so session labels stay readable. */
+const SESSION_TITLE_MAX_LENGTH = 100;
+
+function sessionTitleFromUserMessage(content: string): string {
+  const firstLine = content.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
+  if (firstLine.length <= SESSION_TITLE_MAX_LENGTH) {
+    return firstLine;
+  }
+  return `${firstLine.slice(0, SESSION_TITLE_MAX_LENGTH)}...`;
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -152,9 +168,6 @@ export const AiAssistant: React.FC = () => {
   // Chain plan
   const [chainPlanStatus, setChainPlanStatus] =
     useState<ChainPlanStatusDto | null>(null);
-  const [chainPlanModalOpen, setChainPlanModalOpen] = useState(false);
-  const [chainPlanDetailJson, setChainPlanDetailJson] = useState<string>("");
-  const [chainPlanDetailLoading, setChainPlanDetailLoading] = useState(false);
 
   const assistantName = getConfig().aiAssistantName ?? "Rocky";
   const { drawerWidth, isResizing, onResizeMouseDown } =
@@ -833,15 +846,6 @@ export const AiAssistant: React.FC = () => {
     }
   };
 
-  const handleTabEdit = (
-    targetKey: string | React.MouseEvent | React.KeyboardEvent,
-    action: "add" | "remove",
-  ) => {
-    if (action === "remove" && typeof targetKey === "string") {
-      handleDeleteSession(targetKey);
-    }
-  };
-
   const handleAbort = useCallback(() => {
     abortControllerRef.current?.abort();
     activityStore.markRunningCancelled();
@@ -958,7 +962,13 @@ export const AiAssistant: React.FC = () => {
     const rawValue =
       inputValue || inputRef.current?.resizableTextArea?.textArea?.value || "";
     const messageText = rawValue.trim();
-    if ((!messageText && attachedFiles.length === 0) || isLoading) return;
+    if (
+      (!messageText && attachedFiles.length === 0) ||
+      isLoading ||
+      isStreaming
+    ) {
+      return;
+    }
     shouldAutoScrollRef.current = true;
 
     const sessionId = currentSessionId ?? sessionStore.createSession().id;
@@ -1026,16 +1036,17 @@ export const AiAssistant: React.FC = () => {
       after &&
       (after.title === "New Chat" || after.title.match(/^Chat \d+$/))
     ) {
-      const title =
-        userMessage.content.slice(0, 30) +
-        (userMessage.content.length > 30 ? "..." : "");
-      sessionStore.updateSessionTitle(sessionId, title);
+      sessionStore.updateSessionTitle(
+        sessionId,
+        sessionTitleFromUserMessage(userMessage.content),
+      );
       refreshSessions();
     }
   }, [
     currentSessionId,
     inputValue,
     isLoading,
+    isStreaming,
     attachedFiles,
     refreshSessions,
     sendToProvider,
@@ -1115,26 +1126,6 @@ export const AiAssistant: React.FC = () => {
   ]);
 
   // ---------------------------------------------------------------------------
-  // Chain plan modal
-  // ---------------------------------------------------------------------------
-
-  const handleOpenChainPlanModal = useCallback(async () => {
-    const cid = currentSession?.conversationId;
-    if (!cid) return;
-    setChainPlanModalOpen(true);
-    setChainPlanDetailLoading(true);
-    setChainPlanDetailJson("");
-    try {
-      const detail = await fetchChainPlanDetail(cid);
-      setChainPlanDetailJson(detail ? JSON.stringify(detail, null, 2) : "");
-    } catch {
-      setChainPlanDetailJson("");
-    } finally {
-      setChainPlanDetailLoading(false);
-    }
-  }, [currentSession?.conversationId]);
-
-  // ---------------------------------------------------------------------------
   // handleClear
   // ---------------------------------------------------------------------------
 
@@ -1160,7 +1151,6 @@ export const AiAssistant: React.FC = () => {
     );
     activityStore.reset();
     setChainPlanStatus(null);
-    setChainPlanModalOpen(false);
     refreshSessions();
   }, [
     isLoading,
@@ -1235,6 +1225,12 @@ export const AiAssistant: React.FC = () => {
       );
       if (fullIndex < 0) return;
 
+      const userFullIndex = findUserIndexAtOrBefore(
+        session.messages,
+        fullIndex,
+      );
+      if (userFullIndex < 0) return;
+
       const serviceUrl = getAiServiceUrl();
       const conversationId = session.conversationId;
       if (conversationId && serviceUrl) {
@@ -1242,7 +1238,7 @@ export const AiAssistant: React.FC = () => {
           await truncateConversation(
             serviceUrl,
             conversationId,
-            toServerAfterMessageIndex(session.messages, fullIndex),
+            toServerAfterMessageIndex(session.messages, userFullIndex),
           );
         } catch (err) {
           console.error("[AiAssistant] Regenerate truncate failed", err);
@@ -1252,7 +1248,7 @@ export const AiAssistant: React.FC = () => {
 
       const baseMessages = sliceMessagesForRegenerate(
         session.messages,
-        fullIndex,
+        userFullIndex,
       );
       sessionStore.updateSessionMessages(currentSessionId, baseMessages);
       refreshSessions();
@@ -1281,21 +1277,25 @@ export const AiAssistant: React.FC = () => {
   // Derived state
   // ---------------------------------------------------------------------------
 
-  const meta = useMemo(() => {
-    const msgs = currentSession?.messages ?? [];
-    const lastMeta = [...msgs]
-      .reverse()
-      .find((m) => m.role === "system" && m.content.startsWith("__META__"));
-    if (!lastMeta) return null;
-    return parseChatMeta(lastMeta.content.replace("__META__", ""));
-  }, [currentSession?.messages]);
-
   const visibleMessages = useMemo(
     () => getVisibleChatMessages(currentSession?.messages ?? []),
     [currentSession?.messages],
   );
 
-  const showStreamAbort = isLoading || isStreaming;
+  const lastAssistantVisibleIndex = useMemo(() => {
+    for (let i = visibleMessages.length - 1; i >= 0; i -= 1) {
+      if (visibleMessages[i]?.role === "assistant") {
+        return i;
+      }
+    }
+    return -1;
+  }, [visibleMessages]);
+
+  const handleCopyMessage = useCallback((text: string) => {
+    void navigator.clipboard.writeText(text);
+  }, []);
+
+  const isTurnInFlight = isLoading || isStreaming;
   const hasActivity = activityStore.rows.length > 0;
 
   /**
@@ -1329,11 +1329,14 @@ export const AiAssistant: React.FC = () => {
       el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }, []);
 
-  const tabItems = sessions.map((session) => ({
-    key: session.id,
-    label: session.title,
-    children: null,
-  }));
+  const sessionOptions = useMemo(
+    () =>
+      sessions.map((session) => ({
+        value: session.id,
+        label: session.title,
+      })),
+    [sessions],
+  );
 
   // ---------------------------------------------------------------------------
   // Render
@@ -1368,22 +1371,11 @@ export const AiAssistant: React.FC = () => {
               <span style={{ fontSize: 16, fontWeight: 500 }}>
                 {assistantName}
               </span>
-              <Space size="small">
-                <Button
-                  size="small"
-                  icon={<OverridableIcon name="plus" />}
-                  onClick={handleCreateSession}
-                >
-                  New Chat
-                </Button>
-                <Button
-                  size="small"
-                  onClick={() => void handleClear()}
-                  disabled={isLoading || isStreaming}
-                >
-                  Clear
-                </Button>
-              </Space>
+              <AiAssistantHeaderActions
+                onNewChat={handleCreateSession}
+                onClearChat={handleClear}
+                clearDisabled={isLoading || isStreaming}
+              />
             </div>
           </div>
         }
@@ -1398,7 +1390,7 @@ export const AiAssistant: React.FC = () => {
           if (nowOpen) scrollToBottom();
         }}
         width={drawerWidth}
-        zIndex={2000}
+        zIndex={DRAWER_Z_INDEX}
         rootClassName="ai-assistant-drawer"
       >
         <div
@@ -1407,16 +1399,36 @@ export const AiAssistant: React.FC = () => {
         />
 
         {sessions.length > 0 && currentSessionId && (
-          <Tabs
-            activeKey={currentSessionId}
-            onChange={handleSessionChange}
-            onEdit={handleTabEdit}
-            items={tabItems}
-            type="editable-card"
-            hideAdd
-            style={{ marginBottom: 6 }}
-            size="small"
-          />
+          <Space.Compact className="ai-session-switcher" block>
+            <Select
+              size="small"
+              className="ai-session-switcher__select"
+              value={currentSessionId}
+              onChange={handleSessionChange}
+              options={sessionOptions}
+              popupMatchSelectWidth={false}
+              classNames={{ popup: { root: "ai-session-switcher__dropdown" } }}
+              styles={{
+                popup: {
+                  root: {
+                    zIndex: SESSION_SELECT_DROPDOWN_Z_INDEX,
+                    minWidth: Math.max(
+                      drawerWidth,
+                      SESSION_SELECT_DROPDOWN_MIN_WIDTH,
+                    ),
+                  },
+                },
+              }}
+              getPopupContainer={() => document.body}
+            />
+            <Button
+              size="small"
+              icon={<OverridableIcon name="delete" />}
+              title="Delete chat"
+              aria-label="Delete chat"
+              onClick={() => handleDeleteSession(currentSessionId)}
+            />
+          </Space.Compact>
         )}
 
         <div className="ai-chat-root">
@@ -1436,22 +1448,10 @@ export const AiAssistant: React.FC = () => {
           )}
 
           {chainPlanStatus?.hasActivePlan && currentSession?.conversationId && (
-            <div
-              className="ai-chain-plan-toolbar"
-              style={{
-                marginBottom: 8,
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
-              <Button
-                size="small"
-                onClick={() => void handleOpenChainPlanModal()}
-              >
-                View plan
-              </Button>
+            <div className="ai-chain-plan-toolbar">
+              <Tag color={chainPlanStatus.approved ? "success" : "default"}>
+                {chainPlanStatus.approved ? "Approved" : "Draft"}
+              </Tag>
               <Button
                 size="small"
                 type="primary"
@@ -1460,14 +1460,6 @@ export const AiAssistant: React.FC = () => {
               >
                 Build chain
               </Button>
-              <Tag color={chainPlanStatus.approved ? "success" : "default"}>
-                {chainPlanStatus.approved ? "Approved" : "Draft"}
-              </Tag>
-              {chainPlanStatus.planId ? (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  planId: {chainPlanStatus.planId}
-                </Typography.Text>
-              ) : null}
             </div>
           )}
 
@@ -1477,11 +1469,7 @@ export const AiAssistant: React.FC = () => {
             onScroll={handleScroll}
           >
             {visibleMessages.length === 0 ? (
-              <div className="ai-empty-state">
-                <Typography.Text type="secondary">
-                  Ask a question about QIP, chains, services, or elements.
-                </Typography.Text>
-              </div>
+              <AiEmptyState assistantName={assistantName} />
             ) : (
               <>
                 {visibleMessages.map((message, index) => {
@@ -1519,6 +1507,16 @@ export const AiAssistant: React.FC = () => {
                     !narrativeContent.trim() &&
                     !hasActivity &&
                     !showPersistedActivity;
+                  const turnIdle = !isLoading && !isStreaming;
+                  const showEdit = isUser && turnIdle;
+                  const showCopy =
+                    message.role === "assistant" &&
+                    !isErrorBubble &&
+                    Boolean(narrativeContent.trim());
+                  const showRegenerate =
+                    message.role === "assistant" &&
+                    index === lastAssistantVisibleIndex &&
+                    turnIdle;
 
                   return (
                     <div
@@ -1527,11 +1525,16 @@ export const AiAssistant: React.FC = () => {
                         isErrorBubble ? " ai-message--error" : ""
                       }`}
                     >
-                      <div className="ai-message__meta">
-                        <span className="ai-message__role">
-                          {getRoleLabel(message.role, assistantName)}
-                        </span>
-                      </div>
+                      {!isUser ? (
+                        <div className="ai-message__meta">
+                          <Typography.Text
+                            type="secondary"
+                            className="ai-message__role"
+                          >
+                            {getRoleLabel(message.role, assistantName)}
+                          </Typography.Text>
+                        </div>
+                      ) : null}
                       <div className="ai-message__bubble">
                         {showLiveActivity ? (
                           <AiActivityInline
@@ -1546,7 +1549,7 @@ export const AiAssistant: React.FC = () => {
                             summary={message.activity.summary}
                           />
                         ) : null}
-                        {isErrorBubble ? (
+                        {isErrorBubble && (
                           <div className="ai-message__error">
                             <Typography.Text type="danger">
                               {message.content}
@@ -1560,11 +1563,12 @@ export const AiAssistant: React.FC = () => {
                               </Typography.Paragraph>
                             ) : null}
                           </div>
-                        ) : narrativeContent.trim() ? (
+                        )}
+                        {!isErrorBubble && narrativeContent.trim() && (
                           <MarkdownRenderer>
                             {narrativeContent}
                           </MarkdownRenderer>
-                        ) : null}
+                        )}
                         {message.decision ? (
                           <AiDecisionCard
                             decision={message.decision}
@@ -1613,15 +1617,7 @@ export const AiAssistant: React.FC = () => {
                           !isStreaming &&
                           looksLikeValidationResult(message.content) &&
                           chainContext?.chain?.id && (
-                            <div
-                              className="ai-message__plan-actions"
-                              style={{
-                                marginTop: 14,
-                                paddingTop: 12,
-                                borderTop:
-                                  "1px solid var(--vscode-border, #eee)",
-                              }}
-                            >
+                            <div className="ai-message__plan-actions">
                               <Button
                                 type="primary"
                                 size="middle"
@@ -1633,35 +1629,55 @@ export const AiAssistant: React.FC = () => {
                               </Button>
                             </div>
                           )}
-
-                        {isUser && !isLoading && !isStreaming && (
-                          <div className="ai-message__actions">
-                            <Button
-                              size="small"
-                              type="text"
-                              icon={<OverridableIcon name="edit" />}
-                              title="Edit message and send again"
-                              onClick={() =>
-                                void handlePrepareRegenerateFromIndex(index)
-                              }
-                            />
-                            <Button
-                              size="small"
-                              type="text"
-                              icon={
-                                <OverridableIcon
-                                  name="redo"
-                                  className="ai-icon-rotate-vertical"
-                                />
-                              }
-                              title="Regenerate from this answer"
-                              onClick={() =>
-                                void handleRegenerateFromIndex(index)
-                              }
-                            />
-                          </div>
-                        )}
                       </div>
+                      {showEdit || showCopy || showRegenerate ? (
+                        <Space size="small" className="ai-message__actions">
+                          {showEdit ? (
+                            <Tooltip title="Edit message and send again">
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<OverridableIcon name="edit" />}
+                                aria-label="Edit message and send again"
+                                onClick={() =>
+                                  void handlePrepareRegenerateFromIndex(index)
+                                }
+                              />
+                            </Tooltip>
+                          ) : null}
+                          {showCopy ? (
+                            <Tooltip title="Copy">
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<OverridableIcon name="copy" />}
+                                aria-label="Copy"
+                                onClick={() =>
+                                  handleCopyMessage(narrativeContent)
+                                }
+                              />
+                            </Tooltip>
+                          ) : null}
+                          {showRegenerate ? (
+                            <Tooltip title="Regenerate this answer">
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={
+                                  <OverridableIcon
+                                    name="redo"
+                                    className="ai-icon-rotate-vertical"
+                                  />
+                                }
+                                aria-label="Regenerate this answer"
+                                onClick={() =>
+                                  void handleRegenerateFromIndex(index)
+                                }
+                              />
+                            </Tooltip>
+                          ) : null}
+                        </Space>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -1671,9 +1687,12 @@ export const AiAssistant: React.FC = () => {
                     "user" && (
                     <div className="ai-message ai-message--assistant">
                       <div className="ai-message__meta">
-                        <span className="ai-message__role">
+                        <Typography.Text
+                          type="secondary"
+                          className="ai-message__role"
+                        >
                           {getRoleLabel("assistant", assistantName)}
-                        </span>
+                        </Typography.Text>
                       </div>
                       <div className="ai-message__bubble">
                         {hasActivity ? (
@@ -1730,43 +1749,20 @@ export const AiAssistant: React.FC = () => {
             />
 
             {attachedFiles.length > 0 && (
-              <div
-                className="ai-input__attachments"
-                style={{
-                  marginBottom: 8,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  alignItems: "center",
-                }}
-              >
+              <div className="ai-input__attachments">
                 {attachedFiles.map((file, i) => (
-                  <span
+                  <Tag
                     key={`${file.name}-${i}`}
-                    style={{
-                      fontSize: 12,
-                      padding: "2px 8px",
-                      background: "var(--vscode-badge-background, #eee)",
-                      borderRadius: 4,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 4,
+                    closable
+                    onClose={(event) => {
+                      event.preventDefault();
+                      setAttachedFiles((prev) =>
+                        prev.filter((_, j) => j !== i),
+                      );
                     }}
                   >
                     {file.name}
-                    <Button
-                      type="text"
-                      size="small"
-                      style={{ padding: 0, minWidth: 20 }}
-                      icon={<OverridableIcon name="close" />}
-                      onClick={() =>
-                        setAttachedFiles((prev) =>
-                          prev.filter((_, j) => j !== i),
-                        )
-                      }
-                      aria-label="Remove attachment"
-                    />
-                  </span>
+                  </Tag>
                 ))}
               </div>
             )}
@@ -1775,55 +1771,26 @@ export const AiAssistant: React.FC = () => {
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Type your message..."
-              rows={INPUT_TEXTAREA_ROWS}
-              disabled={isLoading || isStreaming}
+              placeholder={`Ask ${assistantName} about this chain...`}
+              autoSize={{ minRows: 1, maxRows: 8 }}
               onKeyDown={(e) => {
                 if (e.key === SEND_KEY && !e.shiftKey) {
                   e.preventDefault();
-                  void handleSend();
+                  if (!isTurnInFlight) {
+                    void handleSend();
+                  }
                 }
               }}
             />
 
-            <div className="ai-input__actions">
-              <Space size="small">
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<OverridableIcon name="paperClip" />}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || isStreaming}
-                  aria-label="Attach file"
-                  title="Attach file"
-                />
-                {meta?.usage?.totalTokens ? (
-                  <Typography.Text type="secondary" className="ai-meta">
-                    Tokens: {meta.usage.totalTokens} · {meta.durationMs}ms
-                  </Typography.Text>
-                ) : null}
-                <Button
-                  type="primary"
-                  className={
-                    showStreamAbort
-                      ? "ai-send-button ai-send-button--loading"
-                      : "ai-send-button"
-                  }
-                  onClick={() => {
-                    if (showStreamAbort) {
-                      handleAbort();
-                    } else {
-                      void handleSend();
-                    }
-                  }}
-                >
-                  {showStreamAbort && (
-                    <OverridableIcon name="redo" style={{ marginRight: 6 }} />
-                  )}
-                  {showStreamAbort ? "Abort" : "Send"}
-                </Button>
-              </Space>
-            </div>
+            <AiComposerActions
+              isTurnInFlight={isTurnInFlight}
+              onAttach={() => fileInputRef.current?.click()}
+              onSend={() => {
+                void handleSend();
+              }}
+              onAbort={handleAbort}
+            />
           </div>
         </div>
 
@@ -1852,47 +1819,6 @@ export const AiAssistant: React.FC = () => {
           }}
         />
       </Drawer>
-
-      <Modal
-        title="Chain implementation plan"
-        open={chainPlanModalOpen}
-        onCancel={() => setChainPlanModalOpen(false)}
-        footer={
-          <Space>
-            <Button
-              onClick={() => {
-                void navigator.clipboard?.writeText(chainPlanDetailJson);
-              }}
-            >
-              Copy JSON
-            </Button>
-            <Button type="primary" onClick={() => setChainPlanModalOpen(false)}>
-              Close
-            </Button>
-          </Space>
-        }
-        width="min(920px, 95vw)"
-        destroyOnHidden
-      >
-        {chainPlanDetailLoading ? (
-          <Typography.Text type="secondary">Loading…</Typography.Text>
-        ) : chainPlanDetailJson ? (
-          <pre
-            style={{
-              maxHeight: 500,
-              overflow: "auto",
-              fontSize: 12,
-              background: "var(--vscode-editor-background, #f5f5f5)",
-              padding: 12,
-              borderRadius: 4,
-            }}
-          >
-            {chainPlanDetailJson}
-          </pre>
-        ) : (
-          <Typography.Text type="secondary">No plan data.</Typography.Text>
-        )}
-      </Modal>
     </>
   );
 };

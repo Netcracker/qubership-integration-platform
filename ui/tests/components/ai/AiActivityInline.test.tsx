@@ -228,7 +228,32 @@ describe("AiActivityInline", () => {
     const bubble = declarationsFor(css, ".ai-message__bubble");
     expect(bubble).toContain("overflow: visible");
     expect(bubble).not.toContain("overflow-x: hidden");
-    expect(bubble).toMatch(/padding: 8px 12px 10px 10px/);
+    expect(bubble).not.toMatch(/padding:/);
+
+    const assistantBubble = declarationsFor(
+      css,
+      ".ai-message--assistant .ai-message__bubble",
+    );
+    expect(hasDeclaration(assistantBubble, "padding", "0")).toBe(true);
+    expect(hasDeclaration(assistantBubble, "border", "none")).toBe(true);
+    expect(hasDeclaration(assistantBubble, "background", "transparent")).toBe(
+      true,
+    );
+
+    const userBubble = declarationsFor(
+      css,
+      ".ai-message--user .ai-message__bubble",
+    );
+    expect(hasDeclaration(userBubble, "border", "none")).toBe(true);
+    expect(userBubble).toMatch(/padding: 8px 12px/);
+    expect(userBubble).toContain("--vscode-textCodeBlock-background");
+
+    const errorBubble = declarationsFor(
+      css,
+      ".ai-message--error .ai-message__bubble",
+    );
+    expect(errorBubble).toContain("--vscode-errorForeground");
+    expect(errorBubble).toMatch(/padding: 8px 12px/);
 
     const activityBubble = declarationsFor(
       css,
