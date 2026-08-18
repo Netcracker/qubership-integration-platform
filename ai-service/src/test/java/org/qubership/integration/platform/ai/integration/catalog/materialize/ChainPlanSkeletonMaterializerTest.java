@@ -21,6 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -34,12 +36,14 @@ class ChainPlanSkeletonMaterializerTest {
   private static final String CHAIN_ID = "chain-1";
 
   @Mock private CatalogRestClient catalogRestClient;
+  @Mock private CatalogElementDescriptorLoader descriptorLoader;
 
   private ChainPlanSkeletonMaterializer materializer;
 
   @BeforeEach
   void setUp() {
-    materializer = new ChainPlanSkeletonMaterializer(catalogRestClient);
+    CatalogElementDescriptorTestSupport.stubPermissive(descriptorLoader);
+    materializer = new ChainPlanSkeletonMaterializer(catalogRestClient, descriptorLoader);
   }
 
   @Test

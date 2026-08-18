@@ -18,6 +18,8 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflight;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ProjectionAction;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -100,6 +102,15 @@ public class ChainPatchWriter {
       return new ChainPatchWriteResult(List.of(), List.of(), null, patched.materializationMap());
     }
 
+    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
+    try {
+      new DesiredGraphDescriptorPreflight()
+          .validate(patched.graph(), patched.before(), cache);
+    } catch (DesiredGraphDescriptorPreflightException e) {
+      return new ChainPatchWriteResult(
+          List.of(), List.of(), e.getMessage(), patched.materializationMap());
+    }
+
     Map<String, String> nodeIdToElementId =
         new LinkedHashMap<>(patched.materializationMap().nodeIdToElementId());
     String chainId = patched.materializationMap().chainId();
@@ -146,7 +157,7 @@ public class ChainPatchWriter {
     // blocking dependencies or call transfer. Catalog ids come from the map after ADD, so a newly
     // created logical parent is already the generated catalog id.
     if (!parentTransfers.isEmpty() && failed.isEmpty() && error == null) {
-      error = preflightTransfers(parentTransfers, patched, map);
+      error = preflightTransfers(parentTransfers, patched, map, cache);
     }
 
     // An endpoint retarget has to drop the old catalog dependency before the new one is written.
@@ -627,8 +638,10 @@ public class ChainPatchWriter {
    * destination does not allow, or a parent type the moved element does not accept.
    */
   private String preflightTransfers(
-      List<ParentTransfer> transfers, PatchedChain patched, MaterializationMap map) {
-    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
+      List<ParentTransfer> transfers,
+      PatchedChain patched,
+      MaterializationMap map,
+      CatalogElementDescriptorCache cache) {
     for (ParentTransfer transfer : transfers) {
       String elementId = catalogId(map, transfer.nodeId());
       String parentId = catalogId(map, transfer.parentNodeId());

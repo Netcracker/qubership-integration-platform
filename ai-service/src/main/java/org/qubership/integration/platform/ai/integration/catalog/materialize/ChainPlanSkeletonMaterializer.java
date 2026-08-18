@@ -13,6 +13,10 @@ import java.util.Set;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflight;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
@@ -26,10 +30,14 @@ public class ChainPlanSkeletonMaterializer {
   private static final Logger LOG = Logger.getLogger(ChainPlanSkeletonMaterializer.class);
 
   private final CatalogRestClient catalogRestClient;
+  private final CatalogElementDescriptorLoader descriptorLoader;
 
   @Inject
-  public ChainPlanSkeletonMaterializer(@RestClient CatalogRestClient catalogRestClient) {
+  public ChainPlanSkeletonMaterializer(
+      @RestClient CatalogRestClient catalogRestClient,
+      CatalogElementDescriptorLoader descriptorLoader) {
     this.catalogRestClient = catalogRestClient;
+    this.descriptorLoader = Objects.requireNonNull(descriptorLoader, "descriptorLoader");
   }
 
   public MaterializationMap materializeElements(ChainPlanGraph graph, String chainId) {
@@ -41,6 +49,10 @@ public class ChainPlanSkeletonMaterializer {
       throw new IllegalArgumentException("graph must contain at least one node");
     }
 
+    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
+    new DesiredGraphDescriptorPreflight()
+        .validate(graph, emptyCurrentGraph(graph), cache);
+
     try {
       Map<String, String> nodeIdToElementId = new LinkedHashMap<>();
       Set<String> usedElementIds = new HashSet<>();
@@ -50,6 +62,8 @@ public class ChainPlanSkeletonMaterializer {
         }
       }
       return new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));
+    } catch (DesiredGraphDescriptorPreflightException e) {
+      throw e;
     } catch (RuntimeException e) {
       boolean chainDeleted = rollbackChain(chainId, e);
       throw new SkeletonMaterializationException(chainId, chainDeleted, e);
@@ -279,6 +293,10 @@ public class ChainPlanSkeletonMaterializer {
 
   private static String trim(String value) {
     return value != null ? value.trim() : null;
+  }
+
+  private static ChainPlanGraph emptyCurrentGraph(ChainPlanGraph desired) {
+    return new ChainPlanGraph(desired.schemaVersion(), desired.chain(), List.of(), List.of());
   }
 
   private Set<String> listElementIds(String chainId) {

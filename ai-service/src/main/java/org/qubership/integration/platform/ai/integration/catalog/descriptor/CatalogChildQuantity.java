@@ -13,5 +13,24 @@ public enum CatalogChildQuantity {
   @JsonProperty("two-or-many")
   TWO_OR_MANY,
   @JsonProperty("one")
-  ONE
+  ONE;
+
+  /** Inclusive lower bound on direct children of this type. */
+  public int minimum() {
+    return switch (this) {
+      case ANY, ONE_OR_ZERO -> 0;
+      case ONE, ONE_OR_MANY -> 1;
+      case TWO_OR_MANY -> 2;
+    };
+  }
+
+  /**
+   * Inclusive upper bound on direct children of this type, or {@code null} when unbounded.
+   */
+  public Integer maximum() {
+    return switch (this) {
+      case ONE, ONE_OR_ZERO -> 1;
+      case ANY, ONE_OR_MANY, TWO_OR_MANY -> null;
+    };
+  }
 }

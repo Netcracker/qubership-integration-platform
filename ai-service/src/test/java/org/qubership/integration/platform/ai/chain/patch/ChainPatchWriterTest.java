@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ConnectionsApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -70,6 +71,7 @@ class ChainPatchWriterTest {
                 List.of(), List.of(), List.of(), List.of(), null));
     catalogRestClient = mock(CatalogRestClient.class);
     descriptorLoader = mock(CatalogElementDescriptorLoader.class);
+    CatalogElementDescriptorTestSupport.stubPermissive(descriptorLoader);
     writer =
         new ChainPatchWriter(
             propertiesMaterializer,
