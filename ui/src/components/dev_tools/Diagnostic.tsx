@@ -99,7 +99,7 @@ export const Diagnostic: React.FC = () => {
 
   const columns: ColumnsTypeWithSettings<DiagnosticValidationTableItem> = [
     {
-      title: "Name",
+      title: "Title",
       dataIndex: "title",
       key: "title",
       settings: {
