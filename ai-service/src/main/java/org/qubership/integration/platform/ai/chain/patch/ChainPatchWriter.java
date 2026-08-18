@@ -105,6 +105,8 @@ public class ChainPatchWriter {
 
     MaterializationMap map = new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));
     // New elements now have catalog ids, so placement-only and no-op retargets can be dropped.
+    // FAIL_INVALID is recorded here so the delete/create steps below stay gated off.
+    error = error == null ? invalidReplacementError(replacements, patched, map) : error;
     replacements = catalogReplacements(replacements, patched, map);
     List<String> written = new ArrayList<>(addedNodeIds);
     written.removeAll(failed);
@@ -482,9 +484,34 @@ public class ChainPatchWriter {
   }
 
   /**
+   * Fails the write when either projected endpoint pair cannot be resolved. Returning the message
+   * here, rather than skipping the UPDATE, keeps the old catalog dependency in place.
+   */
+  private static String invalidReplacementError(
+      List<EdgeReplacement> replacements, PatchedChain patched, MaterializationMap map) {
+    for (EdgeReplacement replacement : replacements) {
+      var oldProjection =
+          ChainPlanConnectionsMaterializer.project(replacement.before(), patched.before(), map);
+      var newProjection =
+          ChainPlanConnectionsMaterializer.project(replacement.after(), patched.graph(), map);
+      if (oldProjection.action() == ProjectionAction.FAIL_INVALID
+          || newProjection.action() == ProjectionAction.FAIL_INVALID) {
+        String edgeId =
+            replacement.after() != null
+                ? replacement.after().edgeId()
+                : replacement.before().edgeId();
+        return "cannot project updated edge " + edgeId;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Drops parent-to-child placement edges and no-op retargets whose catalog endpoints did not
-   * change. The decision is the connections materializer's own projection, so UPDATE never writes a
-   * dependency that ADD would have skipped.
+   * change. FAIL_INVALID is not a skip: {@link #invalidReplacementError} fails the write and this
+   * method leaves the replacement out so the old dependency is not deleted. The decision is the
+   * connections materializer's own projection, so UPDATE never writes a dependency that ADD would
+   * have skipped.
    */
   private static List<EdgeReplacement> catalogReplacements(
       List<EdgeReplacement> replacements, PatchedChain patched, MaterializationMap map) {
@@ -494,6 +521,10 @@ public class ChainPatchWriter {
           ChainPlanConnectionsMaterializer.project(replacement.before(), patched.before(), map);
       var newProjection =
           ChainPlanConnectionsMaterializer.project(replacement.after(), patched.graph(), map);
+      if (oldProjection.action() == ProjectionAction.FAIL_INVALID
+          || newProjection.action() == ProjectionAction.FAIL_INVALID) {
+        continue;
+      }
       boolean oldCatalog = oldProjection.action() == ProjectionAction.CREATE;
       boolean newCatalog = newProjection.action() == ProjectionAction.CREATE;
       if (!oldCatalog && !newCatalog) {

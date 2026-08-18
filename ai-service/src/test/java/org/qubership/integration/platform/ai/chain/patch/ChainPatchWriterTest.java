@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chain.patch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -488,6 +489,16 @@ class ChainPatchWriterTest {
     verify(connectionsMaterializer, never()).apply(any(), any());
   }
 
+  @Test
+  void failsAnUpdateWhoseNewEndpointsCannotBeProjected() {
+    ChainPatchWriteResult result =
+        writer.write(chainWithRetargetedEdgeMissingToInMap(), retargetEdgePatch());
+
+    assertFalse(result.succeeded());
+    verify(removalsMaterializer, never()).apply(any(), any(), any(), any());
+    verify(connectionsMaterializer, never()).apply(any(), any());
+  }
+
   /**
    * A model that adds a branch and its contents does not reliably name the branch first, and the
    * catalog cannot attach a child to a parent that does not exist yet.
@@ -777,6 +788,22 @@ class ChainPatchWriterTest {
         null,
         List.of(),
         "retargets the trigger onto the enrich step");
+  }
+
+  /**
+   * Same retarget as {@link #chainWithRetargetedEdge()}, but the new {@code to} node has no catalog
+   * id, so the after-side projection is {@code FAIL_INVALID}.
+   */
+  private static PatchedChain chainWithRetargetedEdgeMissingToInMap() {
+    PatchedChain patched = chainWithRetargetedEdge();
+    return new PatchedChain(
+        patched.before(),
+        patched.graph(),
+        new MaterializationMap(
+            patched.materializationMap().chainId(),
+            Map.of(
+                "element-trigger", "element-trigger",
+                "element-script", "element-script")));
   }
 
   /**
