@@ -8,13 +8,18 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
+import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElement;
+import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
@@ -28,6 +33,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 
 @ExtendWith(MockitoExtension.class)
 class ProductChainMaterializerTest {
@@ -42,7 +48,10 @@ class ProductChainMaterializerTest {
 
   @BeforeEach
   void setUp() {
-    materializer = new ProductChainMaterializer(catalog, artifactStore, factsService);
+    ObjectMapper objectMapper = new ObjectMapper();
+    ChainPlanGraphImporter graphImporter =
+        new ChainPlanGraphImporter(objectMapper, new CanonicalGraphDigest(objectMapper));
+    materializer = new ProductChainMaterializer(catalog, artifactStore, factsService, graphImporter);
   }
 
   @Test
@@ -187,6 +196,18 @@ class ProductChainMaterializerTest {
     ProductChainMaterializer.Inputs inputs = inputs();
     when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo"))
         .thenReturn(io.smallrye.mutiny.Uni.createFrom().item("catalog-chain-1"));
+    when(factsService.load("catalog-chain-1"))
+        .thenReturn(
+            new ChainCatalogFacts(
+                "catalog-chain-1",
+                "demo-chain",
+                "Demo",
+                0,
+                0,
+                "",
+                List.of(),
+                List.of(),
+                "built_in_catalog"));
     when(catalog.applyGraph(any(), any(), any()))
         .thenReturn(
             io.smallrye.mutiny.Uni.createFrom()
@@ -208,6 +229,148 @@ class ProductChainMaterializerTest {
     assertThrows(IllegalStateException.class, () -> materializer.resume(inputs, null));
   }
 
+  @Test
+  void doesNotRecreateParentAfterCrashBetweenCreateAndCheckpoint() {
+    ChainPlanGraph desired = conditionGraph();
+    ProductChainMaterializer.Inputs inputs =
+        new ProductChainMaterializer.Inputs(RUN_ID, desired, runManifest(RUN_ID), "graph-digest-1");
+    MaterializationCheckpoint checkpoint =
+        new MaterializationCheckpoint(
+            1,
+            RUN_ID,
+            "catalog-chain-1",
+            MaterializationPhase.CHAIN,
+            new MaterializationMap("catalog-chain-1", Map.of("trigger-1", "catalog-trigger-1")),
+            null,
+            Map.of());
+    when(factsService.load("catalog-chain-1")).thenReturn(conditionFacts());
+
+    ArgumentCaptor<MaterializationMap> mapCaptor = ArgumentCaptor.forClass(MaterializationMap.class);
+    when(catalog.applyGraph(any(), eq(desired), mapCaptor.capture()))
+        .thenReturn(
+            io.smallrye.mutiny.Uni.createFrom()
+                .item(
+                    new CatalogGraphMaterializeResult(
+                        new MaterializationMap(
+                            "catalog-chain-1",
+                            Map.of(
+                                "trigger-1", "catalog-trigger-1",
+                                "condition-1", "catalog-condition-1",
+                                "if-1", "catalog-if-1")),
+                        List.of("trigger-1", "condition-1", "if-1"),
+                        List.of(),
+                        null,
+                        List.of(),
+                        List.of(),
+                        Map.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        false)));
+    when(factsService.load("catalog-chain-1")).thenReturn(conditionFacts());
+
+    materializer.resume(inputs, checkpoint);
+
+    Map<String, String> seededMap = mapCaptor.getValue().nodeIdToElementId();
+    assertEquals("catalog-condition-1", seededMap.get("condition-1"));
+    assertEquals("catalog-if-1", seededMap.get("if-1"));
+    verify(catalog, never()).resolveOrCreateChain(any(), any(), any());
+  }
+
+  @Test
+  void adoptsGeneratedChildrenFromReadBackWithoutSecondCreate() {
+    ChainPlanGraph desired = conditionGraph();
+    ProductChainMaterializer.Inputs inputs =
+        new ProductChainMaterializer.Inputs(RUN_ID, desired, runManifest(RUN_ID), "graph-digest-1");
+    MaterializationCheckpoint checkpoint =
+        new MaterializationCheckpoint(
+            1,
+            RUN_ID,
+            "catalog-chain-1",
+            MaterializationPhase.CHAIN,
+            new MaterializationMap(
+                "catalog-chain-1",
+                Map.of("trigger-1", "catalog-trigger-1", "condition-1", "catalog-condition-1")),
+            null,
+            Map.of());
+    when(factsService.load("catalog-chain-1")).thenReturn(conditionFacts());
+
+    ArgumentCaptor<MaterializationMap> mapCaptor = ArgumentCaptor.forClass(MaterializationMap.class);
+    when(catalog.applyGraph(any(), eq(desired), mapCaptor.capture()))
+        .thenReturn(
+            io.smallrye.mutiny.Uni.createFrom()
+                .item(
+                    new CatalogGraphMaterializeResult(
+                        new MaterializationMap(
+                            "catalog-chain-1",
+                            Map.of(
+                                "trigger-1", "catalog-trigger-1",
+                                "condition-1", "catalog-condition-1",
+                                "if-1", "catalog-if-1")),
+                        List.of(),
+                        List.of(),
+                        null,
+                        List.of(),
+                        List.of(),
+                        Map.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        false)));
+
+    materializer.resume(inputs, checkpoint);
+
+    assertEquals("catalog-if-1", mapCaptor.getValue().nodeIdToElementId().get("if-1"));
+  }
+
+  @Test
+  void checkpointMappingIsNotRebound() {
+    ChainPlanGraph desired = twinConditionGraph();
+    ProductChainMaterializer.Inputs inputs =
+        new ProductChainMaterializer.Inputs(RUN_ID, desired, runManifest(RUN_ID), "graph-digest-1");
+    MaterializationCheckpoint checkpoint =
+        new MaterializationCheckpoint(
+            1,
+            RUN_ID,
+            "catalog-chain-1",
+            MaterializationPhase.CHAIN,
+            new MaterializationMap(
+                "catalog-chain-1",
+                Map.of(
+                    "trigger-1", "catalog-trigger-1",
+                    "condition-1", "catalog-condition-a")),
+            null,
+            Map.of());
+    when(factsService.load("catalog-chain-1")).thenReturn(twinConditionFacts());
+
+    ArgumentCaptor<MaterializationMap> mapCaptor = ArgumentCaptor.forClass(MaterializationMap.class);
+    when(catalog.applyGraph(any(), eq(desired), mapCaptor.capture()))
+        .thenAnswer(
+            invocation ->
+                io.smallrye.mutiny.Uni.createFrom()
+                    .item(
+                        new CatalogGraphMaterializeResult(
+                            invocation.getArgument(2),
+                            List.of(),
+                            List.of(),
+                            null,
+                            List.of(),
+                            List.of(),
+                            Map.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            false)));
+
+    materializer.resume(inputs, checkpoint);
+
+    assertEquals("catalog-condition-a", mapCaptor.getValue().nodeIdToElementId().get("condition-1"));
+    assertEquals("catalog-condition-b", mapCaptor.getValue().nodeIdToElementId().get("condition-2"));
+  }
+
   private static ProductChainMaterializer.Inputs inputs() {
     return new ProductChainMaterializer.Inputs(RUN_ID, graph(), runManifest(RUN_ID), "graph-digest-1");
   }
@@ -225,6 +388,63 @@ class ProductChainMaterializerTest {
             new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
             new ChainPlanNode("script-1", "script", "Script", "trigger-1", null, List.of())),
         List.of(new ChainPlanEdge("edge-1", "trigger-1", "script-1", null)));
+  }
+
+  private static ChainPlanGraph conditionGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo-chain", "Demo"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            new ChainPlanNode("condition-1", "condition", "Condition", "trigger-1", null, List.of()),
+            new ChainPlanNode("if-1", "if", "If", "condition-1", null, List.of())),
+        List.of());
+  }
+
+  private static ChainPlanGraph twinConditionGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo-chain", "Demo"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            new ChainPlanNode("condition-1", "condition", "Condition A", "trigger-1", null, List.of()),
+            new ChainPlanNode("condition-2", "condition", "Condition B", "trigger-1", null, List.of())),
+        List.of());
+  }
+
+  private static ChainCatalogFacts conditionFacts() {
+    return new ChainCatalogFacts(
+        "catalog-chain-1",
+        "demo-chain",
+        "Demo",
+        3,
+        0,
+        "",
+        List.of(
+            new ChainCatalogElement("catalog-trigger-1", "http-trigger", "Trigger", null, Map.of()),
+            new ChainCatalogElement(
+                "catalog-condition-1", "condition", "Condition", "catalog-trigger-1", Map.of()),
+            new ChainCatalogElement("catalog-if-1", "if", "If", "catalog-condition-1", Map.of())),
+        List.of(),
+        "built_in_catalog");
+  }
+
+  private static ChainCatalogFacts twinConditionFacts() {
+    return new ChainCatalogFacts(
+        "catalog-chain-1",
+        "demo-chain",
+        "Demo",
+        3,
+        0,
+        "",
+        List.of(
+            new ChainCatalogElement("catalog-trigger-1", "http-trigger", "Trigger", null, Map.of()),
+            new ChainCatalogElement(
+                "catalog-condition-a", "condition", "Condition A", "catalog-trigger-1", Map.of()),
+            new ChainCatalogElement(
+                "catalog-condition-b", "condition", "Condition B", "catalog-trigger-1", Map.of())),
+        List.of(),
+        "built_in_catalog");
   }
 
   private static RunManifest runManifest(String runId) {
