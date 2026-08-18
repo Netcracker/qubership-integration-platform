@@ -190,6 +190,32 @@ class CompilerSkillContextBuilderAddonTest {
   }
 
   @Test
+  void errorHandlingGeneratorRestatesWrapConstraintAfterSkillDocument() {
+    CompilerSkillDocument document =
+        documentService.loadByCapabilityId("cip-error-handling-generator");
+    String wrapConstraint =
+        "When wrapping, UPDATE parentNodeId only for those target element ids. Never reparent a"
+            + " trigger.";
+    CompilerSkillInputSnapshot snapshot =
+        new CompilerSkillInputSnapshot(
+            "Wrap the script in try-catch",
+            "Add error handling",
+            null,
+            null,
+            null,
+            wrapConstraint);
+
+    String message = contextBuilder.buildUserMessage(document, snapshot);
+
+    int skillDocIndex = message.indexOf("Compiler skill document");
+    int finalConstraintIndex = message.indexOf("Final edit constraint");
+    assertTrue(skillDocIndex >= 0);
+    assertTrue(finalConstraintIndex >= 0);
+    assertTrue(skillDocIndex < finalConstraintIndex);
+    assertTrue(message.substring(finalConstraintIndex).contains("Never reparent a trigger"));
+  }
+
+  @Test
   void patternSelectorPromptAsksForGoldenPatternCapture() {
     CompilerSkillDocument document =
         documentService.loadByCapabilityId("cip-pattern-selector");
