@@ -171,6 +171,47 @@ class ChainPlanSkeletonMaterializerTest {
   }
 
   @Test
+  void reusesGeneratedIfBeforeCreatingTheSecond() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-cond",
+                    "condition",
+                    Map.of(),
+                    null,
+                    List.of(new CatalogRestClient.ElementSummaryDto("el-generated", "if", Map.of())))));
+    when(catalogRestClient.listElements(CHAIN_ID)).thenReturn(List.of());
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null))))
+        .thenReturn(created(new CatalogRestClient.ElementSummaryDto("el-created", "if", Map.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("cond", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if-1", "if", "If 1", "cond", null, List.of()),
+                new ChainPlanNode("if-2", "if", "If 2", "cond", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-generated", map.nodeIdToElementId().get("if-1"));
+    assertEquals("el-created", map.nodeIdToElementId().get("if-2"));
+
+    var order = inOrder(catalogRestClient);
+    order
+        .verify(catalogRestClient)
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null)));
+    order
+        .verify(catalogRestClient)
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null)));
+  }
+
+  @Test
   void existingMappingWins() {
     when(catalogRestClient.createElement(
             eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
@@ -416,6 +457,90 @@ class ChainPlanSkeletonMaterializerTest {
         .createElement(
             eq(CHAIN_ID),
             eq(new CatalogCreateElementRequest("try-2", "el-parent", null)));
+  }
+
+  @Test
+  void createsExtraCatchUnderExistingWrapper() {
+    CatalogElementResponseDto wrapper = new CatalogElementResponseDto();
+    wrapper.id = "el-tcff";
+    wrapper.type = "try-catch-finally-2";
+    CatalogElementResponseDto existingCatch = new CatalogElementResponseDto();
+    existingCatch.id = "el-catch-1";
+    existingCatch.type = "catch-2";
+    existingCatch.parentElementId = "el-tcff";
+    wrapper.children = List.of(existingCatch);
+    when(catalogRestClient.getElement(CHAIN_ID, "el-tcff")).thenReturn(wrapper);
+    when(catalogRestClient.listElements(CHAIN_ID)).thenReturn(List.of());
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("catch-2", "el-tcff", null))))
+        .thenReturn(created(new CatalogRestClient.ElementSummaryDto("el-catch-2", "catch-2", Map.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("tcff", "try-catch-finally-2", "Try/Catch", null, null, List.of()),
+                new ChainPlanNode("catch-1", "catch-2", "Catch 1", "tcff", null, List.of()),
+                new ChainPlanNode("catch-2", "catch-2", "Catch 2", "tcff", null, List.of())),
+            List.of());
+    ChainPlanNode secondCatch =
+        graph.nodes().stream().filter(node -> "catch-2".equals(node.nodeId())).findFirst().orElseThrow();
+
+    String elementId =
+        materializer.materializeElement(
+            graph,
+            secondCatch,
+            CHAIN_ID,
+            new MaterializationMap(
+                CHAIN_ID, Map.of("tcff", "el-tcff", "catch-1", "el-catch-1")));
+
+    assertEquals("el-catch-2", elementId);
+    verify(catalogRestClient)
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("catch-2", "el-tcff", null)));
+    verify(catalogRestClient, never())
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("catch-2", "el-catch-1", null)));
+  }
+
+  @Test
+  void createsExtraSplitElement() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("split-2", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-split",
+                    "split-2",
+                    Map.of(),
+                    null,
+                    List.of(
+                        new CatalogRestClient.ElementSummaryDto(
+                            "el-main", "main-split-element-2", Map.of()),
+                        new CatalogRestClient.ElementSummaryDto(
+                            "el-branch-1", "split-element-2", Map.of())))));
+    when(catalogRestClient.listElements(CHAIN_ID)).thenReturn(List.of());
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("split-element-2", "el-split", null))))
+        .thenReturn(
+            created(new CatalogRestClient.ElementSummaryDto("el-branch-2", "split-element-2", Map.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("split", "split-2", "Split", null, null, List.of()),
+                new ChainPlanNode("branch-1", "split-element-2", "Branch 1", "split", null, List.of()),
+                new ChainPlanNode("branch-2", "split-element-2", "Branch 2", "split", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-branch-1", map.nodeIdToElementId().get("branch-1"));
+    assertEquals("el-branch-2", map.nodeIdToElementId().get("branch-2"));
+    verify(catalogRestClient)
+        .createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("split-element-2", "el-split", null)));
   }
 
   @Test
