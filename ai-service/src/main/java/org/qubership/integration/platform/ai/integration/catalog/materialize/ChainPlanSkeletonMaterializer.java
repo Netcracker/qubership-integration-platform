@@ -31,13 +31,25 @@ public class ChainPlanSkeletonMaterializer {
 
   private final CatalogRestClient catalogRestClient;
   private final CatalogElementDescriptorLoader descriptorLoader;
+  private final UnclaimedGeneratedChildRemover generatedChildRemover;
+
+  public ChainPlanSkeletonMaterializer(
+      CatalogRestClient catalogRestClient, CatalogElementDescriptorLoader descriptorLoader) {
+    this(
+        catalogRestClient,
+        descriptorLoader,
+        new UnclaimedGeneratedChildRemover(catalogRestClient));
+  }
 
   @Inject
   public ChainPlanSkeletonMaterializer(
       @RestClient CatalogRestClient catalogRestClient,
-      CatalogElementDescriptorLoader descriptorLoader) {
+      CatalogElementDescriptorLoader descriptorLoader,
+      UnclaimedGeneratedChildRemover generatedChildRemover) {
     this.catalogRestClient = catalogRestClient;
     this.descriptorLoader = Objects.requireNonNull(descriptorLoader, "descriptorLoader");
+    this.generatedChildRemover =
+        Objects.requireNonNull(generatedChildRemover, "generatedChildRemover");
   }
 
   public MaterializationMap materializeElements(ChainPlanGraph graph, String chainId) {
@@ -56,11 +68,14 @@ public class ChainPlanSkeletonMaterializer {
     try {
       Map<String, String> nodeIdToElementId = new LinkedHashMap<>();
       Set<String> usedElementIds = new HashSet<>();
+      MaterializationAttemptContext attempt = new MaterializationAttemptContext();
       for (ChainPlanNode node : orderParentBeforeChild(graph)) {
         if (!nodeIdToElementId.containsKey(node.nodeId())) {
-          materializeOne(graph, node, chainId, nodeIdToElementId, usedElementIds);
+          materializeOne(
+              graph, node, chainId, nodeIdToElementId, usedElementIds, attempt);
         }
       }
+      finishCreatedContainers(chainId, nodeIdToElementId, attempt, cache);
       return new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));
     } catch (DesiredGraphDescriptorPreflightException e) {
       throw e;
@@ -86,7 +101,20 @@ public class ChainPlanSkeletonMaterializer {
         new LinkedHashMap<>(
             currentMap.nodeIdToElementId() == null ? Map.of() : currentMap.nodeIdToElementId());
     Set<String> usedElementIds = new HashSet<>(nodeIdToElementId.values());
-    return materializeOne(graph, node, chainId, nodeIdToElementId, usedElementIds);
+    MaterializationAttemptContext attempt = new MaterializationAttemptContext();
+    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
+    String elementId =
+        materializeOne(graph, node, chainId, nodeIdToElementId, usedElementIds, attempt);
+    finishCreatedContainers(chainId, nodeIdToElementId, attempt, cache);
+    return elementId;
+  }
+
+  public void finishCreatedContainers(
+      String chainId,
+      Map<String, String> nodeIdToElementId,
+      MaterializationAttemptContext attempt,
+      CatalogElementDescriptorCache cache) {
+    generatedChildRemover.removeUnclaimed(chainId, nodeIdToElementId, attempt, cache);
   }
 
   public List<CatalogElementResponseDto> listElements(String chainId) {
@@ -105,7 +133,8 @@ public class ChainPlanSkeletonMaterializer {
       ChainPlanNode node,
       String chainId,
       Map<String, String> nodeIdToElementId,
-      Set<String> usedElementIds) {
+      Set<String> usedElementIds,
+      MaterializationAttemptContext attempt) {
     String elementType = trim(node.type());
     if (elementType == null || elementType.isEmpty()) {
       throw new IllegalStateException("Node '" + node.nodeId() + "' has blank element type");
@@ -142,6 +171,7 @@ public class ChainPlanSkeletonMaterializer {
     }
     adoptPlannedDirectChildren(
         graph, node.nodeId(), generated, nodeIdToElementId, usedElementIds);
+    attempt.recordCreatedContainer(elementId, elementType, generated);
     return elementId;
   }
 
