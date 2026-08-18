@@ -94,7 +94,8 @@ class ChainPatchWriterTest {
             graphMaterializer,
             propertiesMaterializer,
             connectionsMaterializer,
-            removalsMaterializer);
+            removalsMaterializer,
+            catalogRestClient);
   }
 
   @Test
@@ -677,6 +678,166 @@ class ChainPatchWriterTest {
     verify(catalogRestClient).transferElements(eq("chain-1"), any());
     verify(propertiesMaterializer, never()).apply(any(), any());
     assertTrue(result.succeeded());
+  }
+
+  @Test
+  void compensatesInReverseSpecOrder() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
+        .thenReturn("catalog-try-2");
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+    when(removalsMaterializer.apply(any(), any(), any(), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of(), List.of("dep-old"), List.of(), List.of(), null));
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("read-back failed");
+
+    ChainPatchWriteResult result =
+        writer.write(
+            chainWrappingServiceCallAndRetargetingTrigger(),
+            wrapServiceCallAndRetargetTriggerPatch());
+
+    ArgumentCaptor<CatalogTransferElementsRequest> transfers =
+        ArgumentCaptor.forClass(CatalogTransferElementsRequest.class);
+    verify(catalogRestClient, times(2)).transferElements(eq("chain-1"), transfers.capture());
+    assertEquals("catalog-try-2", transfers.getAllValues().get(0).parentId());
+    assertNull(transfers.getAllValues().get(1).parentId());
+
+    ArgumentCaptor<ChainPlanGraph> connected = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    verify(connectionsMaterializer, times(2)).apply(connected.capture(), any());
+    ChainPlanEdge restored =
+        connected.getAllValues().get(connected.getAllValues().size() - 1).edges().get(0);
+    assertEquals("element-trigger", restored.fromNodeId());
+    assertEquals("element-service-call", restored.toNodeId());
+
+    ArgumentCaptor<Set<String>> removedNodes = ArgumentCaptor.forClass(Set.class);
+    ArgumentCaptor<List<ChainPlanEdge>> removedEdges = ArgumentCaptor.forClass(List.class);
+    verify(removalsMaterializer, times(3)).apply(any(), removedNodes.capture(), removedEdges.capture(), any());
+    assertTrue(
+        removedEdges.getAllValues().stream()
+            .anyMatch(
+                edges ->
+                    edges.size() == 1
+                        && "node-try-2".equals(edges.get(0).toNodeId())));
+    assertTrue(
+        removedNodes.getAllValues().stream().anyMatch(nodes -> nodes.equals(Set.of("node-try-2"))));
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
+    assertFalse(result.succeeded());
+  }
+
+  @Test
+  void inverseTransferUsesCatalogIdsAndPriorParent() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
+        .thenReturn("catalog-try-2");
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("read-back failed");
+
+    writer.write(chainWrappingServiceCallInTry2(), wrapServiceCallInNewTry2Patch());
+
+    ArgumentCaptor<CatalogTransferElementsRequest> requests =
+        ArgumentCaptor.forClass(CatalogTransferElementsRequest.class);
+    verify(catalogRestClient, times(2)).transferElements(eq("chain-1"), requests.capture());
+    CatalogTransferElementsRequest inverse = requests.getAllValues().get(1);
+    assertNull(inverse.parentId());
+    assertEquals(List.of("catalog-service-call"), inverse.elements());
+  }
+
+  @Test
+  void transfersAreJournaledWhenALaterStepFails() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
+        .thenReturn("catalog-try-2");
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("read-back failed");
+
+    ChainPatchWriteResult result =
+        writer.write(chainWrappingServiceCallInTry2(), wrapServiceCallInNewTry2Patch());
+
+    verify(catalogRestClient, times(2)).transferElements(eq("chain-1"), any());
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
+    assertFalse(result.succeeded());
+  }
+
+  @Test
+  void deletingCreatedContainerRemovesGeneratedChildren() {
+    ChainPlanSkeletonMaterializer realSkeleton =
+        new ChainPlanSkeletonMaterializer(catalogRestClient, descriptorLoader);
+    CatalogGraphMaterializer graphMaterializer =
+        new CatalogGraphMaterializer(
+            propertiesMaterializer,
+            realSkeleton,
+            connectionsMaterializer,
+            removalsMaterializer,
+            catalogRestClient,
+            descriptorLoader,
+            readBackVerifier);
+    ChainPatchWriter localWriter =
+        new ChainPatchWriter(
+            graphMaterializer,
+            propertiesMaterializer,
+            connectionsMaterializer,
+            removalsMaterializer,
+            catalogRestClient);
+    when(catalogRestClient.createElement(eq("chain-1"), any()))
+        .thenReturn(
+            new CatalogRestClient.ChainDiffDto(
+                List.of(
+                    new CatalogRestClient.ElementSummaryDto(
+                        "catalog-try-2",
+                        "try-2",
+                        Map.of(),
+                        null,
+                        List.of(
+                            new CatalogRestClient.ElementSummaryDto(
+                                "catalog-generated-catch",
+                                "catch-2",
+                                Map.of(),
+                                "catalog-try-2",
+                                null)))),
+                List.of(),
+                List.of()));
+    when(catalogRestClient.listElements("chain-1")).thenReturn(List.of());
+    when(catalogRestClient.getElement(eq("chain-1"), eq("catalog-try-2")))
+        .thenReturn(catalogElement("catalog-try-2", null));
+    when(catalogRestClient.getElement(eq("chain-1"), eq("catalog-generated-catch")))
+        .thenReturn(catalogElement("catalog-generated-catch", "catalog-try-2"));
+    stubCompatibleTry2AndServiceCallDescriptors();
+    stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("read-back failed");
+
+    localWriter.write(chainWrappingServiceCallInTry2(), wrapServiceCallInNewTry2Patch());
+
+    ArgumentCaptor<Set<String>> removedNodes = ArgumentCaptor.forClass(Set.class);
+    verify(removalsMaterializer, org.mockito.Mockito.atLeastOnce())
+        .apply(any(), removedNodes.capture(), any(), any());
+    Set<String> deletedOnRollback = removedNodes.getAllValues().get(removedNodes.getAllValues().size() - 1);
+    assertTrue(deletedOnRollback.contains("node-try-2"));
+    assertTrue(deletedOnRollback.contains("catalog-generated-catch"));
+  }
+
+  @Test
+  void namesWhatItCouldNotCompensate() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
+        .thenReturn("catalog-try-2");
+    stubCompatibleTry2AndServiceCallDescriptors();
+    when(catalogRestClient.transferElements(eq("chain-1"), any()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()))
+        .thenThrow(new IllegalStateException("catalog down"));
+    when(catalogRestClient.getElement("chain-1", "catalog-service-call"))
+        .thenReturn(catalogElement("catalog-service-call", "catalog-try-2"));
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("read-back failed");
+
+    ChainPatchWriteResult result =
+        writer.write(chainWrappingServiceCallInTry2(), wrapServiceCallInNewTry2Patch());
+
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.PARTIAL, result.rollback());
+    assertTrue(result.uncompensated().contains("catalog-service-call"));
   }
 
   /** The graph lists the child first, exactly as the patch named them. */

@@ -82,7 +82,8 @@ class ChainPatchWriterPreflightTest {
             graphMaterializer,
             propertiesMaterializer,
             connectionsMaterializer,
-            removalsMaterializer);
+            removalsMaterializer,
+            catalogRestClient);
   }
 
   @Test

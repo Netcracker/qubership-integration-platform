@@ -82,7 +82,8 @@ class ChainPatchWriterOptionalGeneratedChildrenTest {
             graphMaterializer,
             propertiesMaterializer,
             connectionsMaterializer,
-            removalsMaterializer);
+            removalsMaterializer,
+            catalogRestClient);
     when(catalogRestClient.listElements(CHAIN_ID)).thenReturn(List.of());
   }
 
