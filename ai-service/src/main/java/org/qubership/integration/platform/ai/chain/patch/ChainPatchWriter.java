@@ -107,53 +107,71 @@ public class ChainPatchWriter {
         introducedKeyStays(
             patched.before(), applied.changedKeysByNodeId(), applied.createdNodeIds());
 
+    List<String> introducedKeys =
+        introducedPropertyKeys(
+            patched.before(), applied.changedKeysByNodeId(), applied.createdNodeIds());
+
     if (applied.createdNodeIds().isEmpty()
         && applied.createdEdges().isEmpty()
         && applied.recreatableEdges().isEmpty()
         && applied.completedTransfers().isEmpty()
         && applied.adoptedGeneratedCatalogIds().isEmpty()
         && priorValues.isEmpty()) {
-      return introducedKeyStays ? UnwindResult.partial(List.of()) : UnwindResult.notAttempted();
+      return introducedKeyStays ? UnwindResult.partial(introducedKeys) : UnwindResult.notAttempted();
     }
 
     List<String> uncompensated = new ArrayList<>();
+    if (introducedKeyStays) {
+      uncompensated.addAll(introducedKeys);
+    }
     boolean complete = !introducedKeyStays;
 
     if (!applied.createdEdges().isEmpty()) {
+      List<String> createdDepMarkers = edgeIds(applied.createdEdges());
       complete &=
           step(
               () ->
                   removalsMaterializer
                       .apply(patched.graph(), Set.of(), applied.createdEdges(), map)
-                      .succeeded());
+                      .succeeded(),
+              uncompensated,
+              createdDepMarkers);
     }
     if (!applied.completedTransfers().isEmpty()) {
-      complete &= step(() -> inverseTransfer(map, applied.completedTransfers(), uncompensated));
+      complete &= inverseTransfer(map, applied.completedTransfers(), uncompensated);
     }
     if (!applied.recreatableEdges().isEmpty()) {
+      List<String> removedDepMarkers = edgeIds(applied.recreatableEdges());
       complete &=
           step(
               () ->
                   connectionsMaterializer
                       .apply(edgesOnly(patched.before(), applied.recreatableEdges()), map)
                       .failedEdgeIds()
-                      .isEmpty());
+                      .isEmpty(),
+              uncompensated,
+              removedDepMarkers);
     }
     if (!priorValues.isEmpty()) {
+      List<String> propertyMarkers =
+          propertyRestoreMarkers(patched.before(), applied.changedKeysByNodeId(), priorValues);
       complete &=
           step(
               () ->
                   propertiesMaterializer
                       .apply(nodesOnly(patched.before(), priorValues), map)
                       .failedNodeIds()
-                      .isEmpty());
+                      .isEmpty(),
+              uncompensated,
+              propertyMarkers);
     }
     if (!applied.createdNodeIds().isEmpty() || !applied.adoptedGeneratedCatalogIds().isEmpty()) {
+      List<String> createdElementMarkers = createdElementMarkers(applied, map);
       complete &=
           step(
-              () ->
-                  deleteCreatedElements(
-                      patched.graph(), applied, map));
+              () -> deleteCreatedElements(patched.graph(), applied, map),
+              uncompensated,
+              createdElementMarkers);
     }
 
     return complete
@@ -253,13 +271,82 @@ public class ChainPatchWriter {
     return false;
   }
 
-  private boolean step(BooleanSupplier compensation) {
+  private static boolean step(
+      BooleanSupplier compensation, List<String> uncompensated, List<String> failureMarkers) {
     try {
-      return compensation.getAsBoolean();
+      boolean succeeded = compensation.getAsBoolean();
+      if (!succeeded) {
+        uncompensated.addAll(failureMarkers);
+      }
+      return succeeded;
     } catch (RuntimeException e) {
       LOG.error("Rollback step failed", e);
+      uncompensated.addAll(failureMarkers);
       return false;
     }
+  }
+
+  private static List<String> introducedPropertyKeys(
+      ChainPlanGraph before,
+      Map<String, Set<String>> changedKeysByNodeId,
+      List<String> createdNodeIds) {
+    List<String> keys = new ArrayList<>();
+    for (Map.Entry<String, Set<String>> entry : changedKeysByNodeId.entrySet()) {
+      if (createdNodeIds.contains(entry.getKey())) {
+        continue;
+      }
+      ChainPlanNode node =
+          before.nodes() == null
+              ? null
+              : before.nodes().stream()
+                  .filter(candidate -> entry.getKey().equals(candidate.nodeId()))
+                  .findFirst()
+                  .orElse(null);
+      if (node == null) {
+        continue;
+      }
+      Set<String> had =
+          node.properties() == null
+              ? Set.of()
+              : node.properties().stream().map(PlanProperty::key).collect(Collectors.toSet());
+      for (String key : entry.getValue()) {
+        if (!had.contains(key)) {
+          keys.add(entry.getKey() + ":" + key);
+        }
+      }
+    }
+    return keys;
+  }
+
+  private static List<String> propertyRestoreMarkers(
+      ChainPlanGraph before,
+      Map<String, Set<String>> changedKeysByNodeId,
+      List<ChainPlanNode> priorValues) {
+    List<String> markers = new ArrayList<>();
+    for (ChainPlanNode node : priorValues) {
+      Set<String> changedKeys = changedKeysByNodeId.get(node.nodeId());
+      if (changedKeys == null) {
+        continue;
+      }
+      for (String key : changedKeys) {
+        markers.add(node.nodeId() + ":" + key);
+      }
+    }
+    return markers;
+  }
+
+  private static List<String> edgeIds(List<ChainPlanEdge> edges) {
+    return edges.stream().map(ChainPlanEdge::edgeId).toList();
+  }
+
+  private static List<String> createdElementMarkers(
+      CatalogGraphMaterializeResult applied, MaterializationMap map) {
+    List<String> markers = new ArrayList<>();
+    for (String nodeId : applied.createdNodeIds()) {
+      markers.add(map.nodeIdToElementId().getOrDefault(nodeId, nodeId));
+    }
+    markers.addAll(applied.adoptedGeneratedCatalogIds());
+    return markers;
   }
 
   private static ChainPlanGraph edgesOnly(ChainPlanGraph graph, List<ChainPlanEdge> edges) {

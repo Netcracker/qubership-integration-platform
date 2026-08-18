@@ -383,6 +383,7 @@ class ChainPatchWriterTest {
         writer.write(chainWithAddedScriptAndNewKey(), addScriptAndSetNewKeyPatch());
 
     assertEquals(ChainPatchWriteResult.RollbackOutcome.PARTIAL, result.rollback());
+    assertTrue(result.uncompensated().contains("element-script:language"));
   }
 
   @Test
@@ -695,8 +696,39 @@ class ChainPatchWriterTest {
 
     ChainPatchWriteResult result =
         writer.write(
-            chainWrappingServiceCallAndRetargetingTrigger(),
-            wrapServiceCallAndRetargetTriggerPatch());
+            chainWrappingServiceCallRetargetingTriggerAndProperty(),
+            wrapServiceCallRetargetTriggerAndPropertyPatch());
+
+    org.mockito.InOrder order =
+        inOrder(
+            removalsMaterializer,
+            catalogRestClient,
+            connectionsMaterializer,
+            propertiesMaterializer,
+            removalsMaterializer);
+    order.verify(removalsMaterializer).apply(any(), any(), any(), any());
+    order.verify(catalogRestClient).transferElements(eq("chain-1"), any());
+    order.verify(connectionsMaterializer).apply(any(), any());
+    order.verify(removalsMaterializer).apply(any(), any(), any(), any());
+    order.verify(catalogRestClient).transferElements(eq("chain-1"), any());
+    order.verify(connectionsMaterializer).apply(any(), any());
+    order.verify(propertiesMaterializer).apply(any(), any());
+    order.verify(removalsMaterializer).apply(any(), any(), any(), any());
+
+    ArgumentCaptor<ChainPlanGraph> properties = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    verify(propertiesMaterializer, times(2)).apply(properties.capture(), any());
+    ChainPlanNode restoredServiceCall =
+        properties.getAllValues().get(1).nodes().stream()
+            .filter(node -> "element-service-call".equals(node.nodeId()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(
+        "5000",
+        restoredServiceCall.properties().stream()
+            .filter(property -> "connectTimeout".equals(property.key()))
+            .findFirst()
+            .orElseThrow()
+            .value());
 
     ArgumentCaptor<CatalogTransferElementsRequest> transfers =
         ArgumentCaptor.forClass(CatalogTransferElementsRequest.class);
@@ -838,6 +870,21 @@ class ChainPatchWriterTest {
 
     assertEquals(ChainPatchWriteResult.RollbackOutcome.PARTIAL, result.rollback());
     assertTrue(result.uncompensated().contains("catalog-service-call"));
+  }
+
+  @Test
+  void namesUncompensatedWhenPropertyRestoreFails() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
+        .thenThrow(new IllegalStateException("catalog said no"));
+    when(propertiesMaterializer.apply(any(), any()))
+        .thenReturn(new PropertiesApplyResult(1, List.of(), null))
+        .thenReturn(new PropertiesApplyResult(0, List.of("element-script"), "catalog down"));
+
+    ChainPatchWriteResult result =
+        writer.write(chainWithAddedScriptAndReconfigured(), addScriptAndReconfigurePatch());
+
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.PARTIAL, result.rollback());
+    assertTrue(result.uncompensated().contains("element-script:script"));
   }
 
   /** The graph lists the child first, exactly as the patch named them. */
@@ -1484,6 +1531,20 @@ class ChainPatchWriterTest {
     return new PatchedChain(before, after, serviceCallMaterializationMap());
   }
 
+  private static PatchedChain chainWrappingServiceCallRetargetingTriggerAndProperty() {
+    ChainPlanGraph before =
+        serviceCallAtRootGraph(
+            List.of(
+                new ChainPlanEdge("edge-trigger-call", "element-trigger", "element-service-call", null)),
+            List.of(new PlanProperty("connectTimeout", "5000")));
+    ChainPlanGraph after =
+        serviceCallUnderTry2Graph(
+            List.of(
+                new ChainPlanEdge("edge-trigger-call", "element-trigger", "node-try-2", null)),
+            List.of(new PlanProperty("connectTimeout", "30000")));
+    return new PatchedChain(before, after, serviceCallMaterializationMap());
+  }
+
   private static GraphPatch wrapServiceCallAndRetargetTriggerPatch() {
     return new GraphPatch(
         "patch-wrap-retarget",
@@ -1500,19 +1561,46 @@ class ChainPatchWriterTest {
         "wraps the service call and retargets the trigger onto try-2");
   }
 
+  private static GraphPatch wrapServiceCallRetargetTriggerAndPropertyPatch() {
+    GraphPatch base = wrapServiceCallAndRetargetTriggerPatch();
+    return new GraphPatch(
+        base.patchId(),
+        base.ownerCapabilityId(),
+        base.nodePatches(),
+        base.edgePatches(),
+        List.of(
+            new PropertyPatch(
+                GraphPatchOperation.UPDATE,
+                "element-service-call",
+                new PlanProperty("connectTimeout", "30000"))),
+        null,
+        List.of(),
+        base.rationale());
+  }
+
   private static ChainPlanGraph serviceCallAtRootGraph(List<ChainPlanEdge> edges) {
+    return serviceCallAtRootGraph(edges, List.of());
+  }
+
+  private static ChainPlanGraph serviceCallAtRootGraph(
+      List<ChainPlanEdge> edges, List<PlanProperty> serviceCallProperties) {
     return new ChainPlanGraph(
         "1.0",
         new ChainSection("Order sync", "Syncs orders"),
-        List.of(triggerNode(), serviceCallNode(null)),
+        List.of(triggerNode(), serviceCallNode(null, serviceCallProperties)),
         edges);
   }
 
   private static ChainPlanGraph serviceCallUnderTry2Graph(List<ChainPlanEdge> edges) {
+    return serviceCallUnderTry2Graph(edges, List.of());
+  }
+
+  private static ChainPlanGraph serviceCallUnderTry2Graph(
+      List<ChainPlanEdge> edges, List<PlanProperty> serviceCallProperties) {
     return new ChainPlanGraph(
         "1.0",
         new ChainSection("Order sync", "Syncs orders"),
-        List.of(triggerNode(), serviceCallNode("node-try-2"), try2Node()),
+        List.of(triggerNode(), serviceCallNode("node-try-2", serviceCallProperties), try2Node()),
         edges);
   }
 
@@ -1539,8 +1627,12 @@ class ChainPatchWriterTest {
   }
 
   private static ChainPlanNode serviceCallNode(String parentNodeId) {
+    return serviceCallNode(parentNodeId, List.of());
+  }
+
+  private static ChainPlanNode serviceCallNode(String parentNodeId, List<PlanProperty> properties) {
     return new ChainPlanNode(
-        "element-service-call", "service-call", "Call orders", parentNodeId, null, List.of());
+        "element-service-call", "service-call", "Call orders", parentNodeId, null, properties);
   }
 
   private static ChainPlanNode try2Node() {
