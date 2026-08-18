@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
@@ -62,14 +63,20 @@ class ChainPatchWriterOptionalGeneratedChildrenTest {
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
                 List.of(), List.of(), List.of(), List.of(), null));
-    writer =
-        new ChainPatchWriter(
+    CatalogGraphMaterializer graphMaterializer =
+        new CatalogGraphMaterializer(
             propertiesMaterializer,
             skeletonMaterializer,
             connectionsMaterializer,
             removalsMaterializer,
             catalogRestClient,
             descriptorLoader);
+    writer =
+        new ChainPatchWriter(
+            graphMaterializer,
+            propertiesMaterializer,
+            connectionsMaterializer,
+            removalsMaterializer);
     when(catalogRestClient.listElements(CHAIN_ID)).thenReturn(List.of());
   }
 

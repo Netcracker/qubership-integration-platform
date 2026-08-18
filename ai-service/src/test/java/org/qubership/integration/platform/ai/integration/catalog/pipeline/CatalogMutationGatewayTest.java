@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.integration.catalog.pipeline;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -16,11 +15,9 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequiremen
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportService;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogChainPublicationService;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanSkeletonMaterializer;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
-import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -28,9 +25,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 @ExtendWith(MockitoExtension.class)
 class CatalogMutationGatewayTest {
 
-  @Mock private ChainPlanSkeletonMaterializer skeletonMaterializer;
-  @Mock private ChainPlanPropertiesMaterializer propertiesMaterializer;
-  @Mock private ChainPlanConnectionsMaterializer connectionsMaterializer;
+  @Mock private CatalogGraphMaterializer graphMaterializer;
   @Mock private ApiHubSpecificationImportService apiHubSpecificationImportService;
   @Mock private CatalogChainPublicationService chainPublicationService;
 
@@ -40,81 +35,24 @@ class CatalogMutationGatewayTest {
   void setUp() {
     gateway =
         new CatalogMutationGateway(
-            skeletonMaterializer,
-            propertiesMaterializer,
-            connectionsMaterializer,
-            apiHubSpecificationImportService,
-            chainPublicationService);
+            graphMaterializer, apiHubSpecificationImportService, chainPublicationService);
   }
 
   @Test
-  void materializeSkeletonElementsDelegatesToSkeletonMaterializer() {
-    ChainPlanGraph graph = validGraph();
+  void applyGraphDelegatesToMaterializer() {
+    ChainPlanGraph current = validGraph();
+    ChainPlanGraph desired = validGraph();
     MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
-    when(skeletonMaterializer.materializeElements(graph, "chain-1")).thenReturn(map);
+    CatalogGraphMaterializeResult expected =
+        new CatalogGraphMaterializeResult(
+            map, List.of("n1"), List.of(), null, List.of(), List.of(), Map.of(), List.of(), List.of(), false);
+    when(graphMaterializer.apply("chain-1", current, desired, map)).thenReturn(expected);
 
-    MaterializationMap result =
-        gateway.materializeSkeletonElements(graph, "chain-1").await().indefinitely();
-
-    assertEquals(map, result);
-    verify(skeletonMaterializer).materializeElements(graph, "chain-1");
-  }
-
-  @Test
-  void materializeSkeletonElementDelegatesToSkeletonMaterializer() {
-    ChainPlanGraph graph = validGraph();
-    ChainPlanNode node = graph.nodes().get(0);
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of());
-    when(skeletonMaterializer.materializeElement(graph, node, "chain-1", map)).thenReturn("el-1");
-
-    String result =
-        gateway.materializeSkeletonElement(graph, node, "chain-1", map).await().indefinitely();
-
-    assertEquals("el-1", result);
-    verify(skeletonMaterializer).materializeElement(graph, node, "chain-1", map);
-  }
-
-  @Test
-  void listElementsDelegatesToSkeletonMaterializer() {
-    CatalogElementResponseDto element = new CatalogElementResponseDto();
-    element.id = "el-1";
-    when(skeletonMaterializer.listElements("chain-1")).thenReturn(List.of(element));
-
-    List<CatalogElementResponseDto> result = gateway.listElements("chain-1").await().indefinitely();
-
-    assertEquals(1, result.size());
-    assertSame(element, result.get(0));
-    verify(skeletonMaterializer).listElements("chain-1");
-  }
-
-  @Test
-  void applyPropertiesDelegatesToPropertiesMaterializer() {
-    ChainPlanGraph graph = validGraph();
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
-    ChainPlanPropertiesMaterializer.PropertiesApplyResult expected =
-        new ChainPlanPropertiesMaterializer.PropertiesApplyResult(1, List.of(), null);
-    when(propertiesMaterializer.apply(graph, map)).thenReturn(expected);
-
-    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
-        gateway.applyProperties(graph, map).await().indefinitely();
+    CatalogGraphMaterializeResult result =
+        gateway.applyGraph(current, desired, map).await().indefinitely();
 
     assertEquals(expected, result);
-    verify(propertiesMaterializer).apply(graph, map);
-  }
-
-  @Test
-  void applyConnectionsDelegatesToConnectionsMaterializer() {
-    ChainPlanGraph graph = validGraph();
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
-    ChainPlanConnectionsMaterializer.ConnectionsApplyResult expected =
-        new ChainPlanConnectionsMaterializer.ConnectionsApplyResult(2, List.of());
-    when(connectionsMaterializer.apply(graph, map)).thenReturn(expected);
-
-    ChainPlanConnectionsMaterializer.ConnectionsApplyResult result =
-        gateway.applyConnections(graph, map).await().indefinitely();
-
-    assertEquals(expected, result);
-    verify(connectionsMaterializer).apply(graph, map);
+    verify(graphMaterializer).apply("chain-1", current, desired, map);
   }
 
   @Test
