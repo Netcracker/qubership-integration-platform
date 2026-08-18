@@ -50,6 +50,7 @@ public class CatalogGraphMaterializer {
   private final ChainPlanRemovalsMaterializer removalsMaterializer;
   private final CatalogRestClient catalogRestClient;
   private final CatalogElementDescriptorLoader descriptorLoader;
+  private final CatalogGraphReadBackVerifier readBackVerifier;
 
   @Inject
   public CatalogGraphMaterializer(
@@ -58,13 +59,15 @@ public class CatalogGraphMaterializer {
       ChainPlanConnectionsMaterializer connectionsMaterializer,
       ChainPlanRemovalsMaterializer removalsMaterializer,
       @RestClient CatalogRestClient catalogRestClient,
-      CatalogElementDescriptorLoader descriptorLoader) {
+      CatalogElementDescriptorLoader descriptorLoader,
+      CatalogGraphReadBackVerifier readBackVerifier) {
     this.propertiesMaterializer = Objects.requireNonNull(propertiesMaterializer);
     this.skeletonMaterializer = Objects.requireNonNull(skeletonMaterializer);
     this.connectionsMaterializer = Objects.requireNonNull(connectionsMaterializer);
     this.removalsMaterializer = Objects.requireNonNull(removalsMaterializer);
     this.catalogRestClient = Objects.requireNonNull(catalogRestClient);
     this.descriptorLoader = Objects.requireNonNull(descriptorLoader);
+    this.readBackVerifier = Objects.requireNonNull(readBackVerifier);
   }
 
   public CatalogGraphMaterializeResult apply(
@@ -85,6 +88,9 @@ public class CatalogGraphMaterializer {
       return CatalogGraphMaterializeResult.noOp(
           new MaterializationMap(chainId, copyMap(materializationMap)));
     }
+
+    MaterializationMap originalMap =
+        new MaterializationMap(chainId, copyMap(materializationMap));
 
     List<String> addedNodeIds = addedNodeIds(desiredGraph, patch);
     Map<String, Set<String>> changedKeysByNodeId = changedKeysByNodeId(patch);
@@ -229,6 +235,17 @@ public class CatalogGraphMaterializer {
           changed.add(transfer.nodeId());
         }
       }
+    }
+
+    if (failed.isEmpty() && error == null) {
+      error =
+          readBackVerifier.verify(
+              chainId,
+              currentGraph,
+              desiredGraph,
+              map,
+              originalMap,
+              List.copyOf(written));
     }
 
     return new CatalogGraphMaterializeResult(

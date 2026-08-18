@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphReadBackVerifier;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ConnectionsApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -50,6 +51,7 @@ class ChainPatchWriterPreflightTest {
   private ChainPlanRemovalsMaterializer removalsMaterializer;
   private CatalogRestClient catalogRestClient;
   private CatalogElementDescriptorLoader descriptorLoader;
+  private CatalogGraphReadBackVerifier readBackVerifier;
   private ChainPatchWriter writer;
 
   @BeforeEach
@@ -60,6 +62,7 @@ class ChainPatchWriterPreflightTest {
     removalsMaterializer = mock(ChainPlanRemovalsMaterializer.class);
     catalogRestClient = mock(CatalogRestClient.class);
     descriptorLoader = mock(CatalogElementDescriptorLoader.class);
+    readBackVerifier = mock(CatalogGraphReadBackVerifier.class);
     when(propertiesMaterializer.apply(any(), any()))
         .thenReturn(new PropertiesApplyResult(1, List.of(), null));
     when(connectionsMaterializer.apply(any(), any()))
@@ -72,7 +75,8 @@ class ChainPatchWriterPreflightTest {
             connectionsMaterializer,
             removalsMaterializer,
             catalogRestClient,
-            descriptorLoader);
+            descriptorLoader,
+            readBackVerifier);
     writer =
         new ChainPatchWriter(
             graphMaterializer,

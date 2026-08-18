@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphReadBackVerifier;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ConnectionsApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -53,6 +54,7 @@ class ChainPatchWriterTest {
   private ChainPlanRemovalsMaterializer removalsMaterializer;
   private CatalogRestClient catalogRestClient;
   private CatalogElementDescriptorLoader descriptorLoader;
+  private CatalogGraphReadBackVerifier readBackVerifier;
   private ChainPatchWriter writer;
 
   @BeforeEach
@@ -72,6 +74,11 @@ class ChainPatchWriterTest {
                 List.of(), List.of(), List.of(), List.of(), null));
     catalogRestClient = mock(CatalogRestClient.class);
     descriptorLoader = mock(CatalogElementDescriptorLoader.class);
+    readBackVerifier = mock(CatalogGraphReadBackVerifier.class);
+    lenient()
+        .when(
+            readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn(null);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptorLoader);
     CatalogGraphMaterializer graphMaterializer =
         new CatalogGraphMaterializer(
@@ -80,7 +87,8 @@ class ChainPatchWriterTest {
             connectionsMaterializer,
             removalsMaterializer,
             catalogRestClient,
-            descriptorLoader);
+            descriptorLoader,
+            readBackVerifier);
     writer =
         new ChainPatchWriter(
             graphMaterializer,
@@ -152,6 +160,19 @@ class ChainPatchWriterTest {
     assertTrue(!result.succeeded());
     assertEquals(List.of("node-new-script"), result.failedElementIds());
     verify(connectionsMaterializer, org.mockito.Mockito.never()).apply(any(), any());
+  }
+
+  @Test
+  void failsWhenReadBackVerificationFails() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any(), any()))
+        .thenReturn("catalog-new-script");
+    when(readBackVerifier.verify(any(), any(), any(), any(), any(), any()))
+        .thenReturn("Catalog read-back verification failed: stale parent");
+
+    ChainPatchWriteResult result = writer.write(chainWithAddedScript(), addScriptPatch());
+
+    assertFalse(result.succeeded());
+    assertEquals("Catalog read-back verification failed: stale parent", result.error());
   }
 
   @Test
