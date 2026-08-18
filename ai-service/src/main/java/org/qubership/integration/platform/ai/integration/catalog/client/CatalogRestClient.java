@@ -5,6 +5,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainSearchRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateChainRequest;
@@ -72,6 +73,12 @@ public interface CatalogRestClient {
   @GET
   @Path("/v1/catalog/chains/{chainId}/snapshots")
   List<SnapshotDto> listSnapshots(@PathParam("chainId") String chainId);
+
+  // ── Element library ──────────────────────────────────────────────────────
+
+  @GET
+  @Path("/v1/library/{name}")
+  CatalogElementDescriptorDto getLibraryElement(@PathParam("name") String name);
 
   // ── Elements ─────────────────────────────────────────────────────────────
 
