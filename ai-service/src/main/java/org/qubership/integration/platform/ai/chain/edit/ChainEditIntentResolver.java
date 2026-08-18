@@ -71,9 +71,9 @@ public class ChainEditIntentResolver {
         case "action" -> action = value;
         case "targets" -> targets = value;
         case "change" -> change = value;
-        case "lookup" -> lookup = value;
-        case "elementtype" -> elementType = value;
-        case "ambiguous" -> ambiguous = value;
+        case "lookup" -> lookup = noneToBlank(value);
+        case "elementtype" -> elementType = noneToBlank(value);
+        case "ambiguous" -> ambiguous = noneToBlank(value);
         default -> {
           // Any other line is prose the format did not ask for; the five keys carry the answer.
         }
@@ -145,6 +145,15 @@ public class ChainEditIntentResolver {
       }
     }
     return ids;
+  }
+
+  /** A model asked to leave a line empty often writes "none" instead; the two mean the same. */
+  private static String noneToBlank(String value) {
+    String trimmed = value == null ? "" : value.trim();
+    return switch (trimmed.toLowerCase(Locale.ROOT)) {
+      case "none", "n/a", "na", "-", "null" -> "";
+      default -> trimmed;
+    };
   }
 
   private static String blankToNull(String value) {

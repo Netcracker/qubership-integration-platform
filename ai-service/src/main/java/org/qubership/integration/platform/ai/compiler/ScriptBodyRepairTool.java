@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -25,6 +26,8 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 
@@ -52,6 +55,7 @@ public class ScriptBodyRepairTool {
   private final GeneratorReadinessEvaluator readinessEvaluator;
   private final GraphPatchApplier patchApplier;
   private final CaptureAttemptFeedbackStore feedbackStore;
+  private final GraphPatchExecutionContextStore executionContextStore;
 
   @Inject
   ScriptBodyRepairTool(
@@ -60,13 +64,15 @@ public class ScriptBodyRepairTool {
       ChainPlanStore planStore,
       GeneratorReadinessEvaluator readinessEvaluator,
       GraphPatchApplier patchApplier,
-      CaptureAttemptFeedbackStore feedbackStore) {
+      CaptureAttemptFeedbackStore feedbackStore,
+      GraphPatchExecutionContextStore executionContextStore) {
     this.captureRouter = captureRouter;
     this.captureSession = captureSession;
     this.planStore = planStore;
     this.readinessEvaluator = readinessEvaluator;
     this.patchApplier = patchApplier;
     this.feedbackStore = feedbackStore;
+    this.executionContextStore = executionContextStore;
   }
 
   @Tool(
@@ -125,7 +131,7 @@ public class ScriptBodyRepairTool {
     }
     CaptureKey key =
         CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR, conversationId, capabilityId);
-    ChainPlanGraph base = planStore.get(conversationId).orElse(null);
+    ChainPlanGraph base = resolveBaseGraph(conversationId, capabilityId);
     if (base == null) {
       return recordFailure(conversationId, capabilityId, "CHAIN_PLAN_GRAPH is required");
     }
@@ -182,6 +188,24 @@ public class ScriptBodyRepairTool {
     // Terminal signal: PreventsErrorHandlerExecution aborts the streaming tool loop so
     // CaptureRepairRunner can complete and harvest can run without waiting for an LLM end-turn.
     throw new CaptureValidationException(accepted);
+  }
+
+  /**
+   * The graph this repair validates against. An edit run's compiler workspace is isolated from
+   * the chat conversation it belongs to, so {@link ChainPlanStore}, which is keyed by the
+   * conversation itself, does not hold it -- {@link GraphPatchExecutionContextStore} does, keyed
+   * by conversation and capability the way {@code CompilerGraphPatchTool} already reads it.
+   */
+  private ChainPlanGraph resolveBaseGraph(String conversationId, String capabilityId) {
+    Optional<GraphPatchExecutionContext> executionContext =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .filter(context -> context.inputGraph() != null);
+    if (executionContext.isPresent()) {
+      return executionContext.get().inputGraph();
+    }
+    return planStore.get(conversationId).orElse(null);
   }
 
   private static String validateCapture(ScriptBodyRepairCapture capture, List<String> missingNodeIds) {

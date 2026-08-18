@@ -180,7 +180,12 @@ public class ChainEditCompiler {
     List<ResolvedServiceCallBinding> bindings;
     if (importedBinding != null) {
       bindings = List.of(importedBinding);
-    } else if (scoped.action() == ChainEditAction.REBIND_SERVICE_CALL) {
+    } else if (scoped.action() == ChainEditAction.REBIND_SERVICE_CALL
+        || (scoped.action() == ChainEditAction.ADD_ELEMENTS
+            && "service-call".equals(scoped.requestedElementType()))) {
+      // A new service-call needs the same complete binding a rebind does -- the generator owns
+      // the field set (id, method, path, protocol...) as one unit, and nothing here lets it invent
+      // the values that describe a real catalog operation.
       ChainPlanNode target = node(imported.graph(), scopedTargets.get(0));
       ServiceCallBindingOutcome resolved =
           bindingResolver.resolve(
@@ -205,7 +210,38 @@ public class ChainEditCompiler {
       bindings = List.of();
     }
 
-    return runCompiler(request, scoped, bindings, generatorSkillId, pin);
+    ChainPlanGraph seedGraph = imported.graph();
+    if (scoped.action() == ChainEditAction.ADD_ELEMENTS
+        && "repairScriptBodies".equals(captureToolOf(pin, generatorSkillId))) {
+      // cip-script-generator's capture tool only configures a node that already exists -- an
+      // edit's cut DAG has no structure generator to have placed it upstream, so the shell goes in
+      // deterministically here. The final proposal still diffs against the true imported graph, so
+      // the reader sees placement and configuration as one change.
+      ChainEditNodePlacement.Placement placement =
+          ChainEditNodePlacement.insertAfter(
+              imported.graph(),
+              scoped.targetNodeIds(),
+              scoped.requestedElementType(),
+              "New " + scoped.requestedElementType());
+      seedGraph = placement.graph();
+      scoped =
+          new ChainEditIntent(
+              scoped.action(),
+              List.of(placement.newNodeId()),
+              scoped.requestedChange(),
+              scoped.externalBindingQuery(),
+              scoped.requestedElementType(),
+              List.of());
+    }
+    return runCompiler(request, scoped, bindings, generatorSkillId, pin, seedGraph);
+  }
+
+  private static String captureToolOf(CompilerRunPin pin, String skillId) {
+    return pin.resolvedDag().nodes().stream()
+        .filter(node -> skillId.equals(node.skillId()))
+        .map(node -> node.captureTool())
+        .findFirst()
+        .orElse(null);
   }
 
   private static boolean deterministic(ChainEditAction action) {
@@ -259,14 +295,15 @@ public class ChainEditCompiler {
       ChainEditIntent intent,
       List<ResolvedServiceCallBinding> bindings,
       String generatorSkillId,
-      CompilerRunPin pin) {
+      CompilerRunPin pin,
+      ChainPlanGraph seedGraph) {
     ImportedChainPlan imported = request.imported();
     String runId = request.editRunId();
     CompilerExecutionSeed seed =
         CompilerExecutionSeed.forEdit(
                 runId,
                 request.userRequest(),
-                imported.graph(),
+                seedGraph,
                 imported.materializationMap(),
                 intent,
                 bindings,

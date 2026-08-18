@@ -53,7 +53,8 @@ class ScriptBodyRepairToolTest {
             planStore,
             new GeneratorReadinessEvaluator(),
             new GraphPatchApplier(),
-            feedbackStore);
+            feedbackStore,
+            new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore());
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, CAPABILITY_ID);
   }

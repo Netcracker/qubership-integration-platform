@@ -30,7 +30,18 @@ none, is not resolved: list what it could mean under `ambiguous` and leave `targ
 which element a reader meant is the one mistake here that changes the wrong thing in their chain.
 
 For `ADD_ELEMENTS`, the targets are the existing elements the new one goes next to, and
-`elementType` is the catalog element type to add.
+`elementType` is the catalog element type to add. Use the catalog's own type name, not a
+paraphrase — it is looked up literally against what each compiler skill owns:
+
+- error handling, try/catch, "handle failures" → `try-catch-finally-2`
+- a new branch on an existing condition → `if` (the condition container itself already exists)
+- a script step → `script`
+- a call to another service → `service-call`
+
+When a request describes several new elements at once (a branch holding a script and a service
+call, a try/catch with a script inside the catch), resolve only the first one — the element that
+has to exist before the others can be placed inside or after it. Say so in `change`, so the reader
+knows the rest comes as its own turn once this one lands.
 
 ## Reply format
 

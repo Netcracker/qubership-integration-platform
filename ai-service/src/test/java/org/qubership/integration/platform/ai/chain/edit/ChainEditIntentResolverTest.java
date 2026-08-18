@@ -65,6 +65,23 @@ class ChainEditIntentResolverTest {
   }
 
   @Test
+  void aLiteralNoneOnAmbiguousDoesNotBlockResolution() {
+    ChainEditIntent intent =
+        resolve(
+            """
+            action: ADD_ELEMENTS
+            targets: call-orders
+            change: add a script after the order call
+            lookup:
+            elementType: script
+            ambiguous: none
+            """);
+
+    assertTrue(intent.resolved(), intent.unresolvedAmbiguities().toString());
+    assertEquals(List.of("call-orders"), intent.targetNodeIds());
+  }
+
+  @Test
   void proseAroundTheAnswerIsIgnored() {
     ChainEditIntent intent =
         resolve(
