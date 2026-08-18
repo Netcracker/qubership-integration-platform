@@ -5,13 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -398,6 +401,93 @@ class ChainPatchWriterTest {
     verify(removalsMaterializer, org.mockito.Mockito.never()).apply(any(), any(), any(), any());
   }
 
+  @Test
+  void replacesACatalogDependencyWhenAnUpdateChangesAnEndpoint() {
+    ChainPatchWriteResult result = writer.write(chainWithRetargetedEdge(), retargetEdgePatch());
+
+    ArgumentCaptor<Set<String>> removedNodes = ArgumentCaptor.forClass(Set.class);
+    ArgumentCaptor<List<ChainPlanEdge>> removedEdges = ArgumentCaptor.forClass(List.class);
+    ArgumentCaptor<ChainPlanGraph> created = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    org.mockito.InOrder order = inOrder(removalsMaterializer, connectionsMaterializer);
+    order.verify(removalsMaterializer).apply(any(), removedNodes.capture(), removedEdges.capture(), any());
+    order.verify(connectionsMaterializer).apply(created.capture(), any());
+    assertTrue(removedNodes.getValue().isEmpty());
+    assertEquals(
+        List.of(new ChainPlanEdge("edge-trigger-script", "element-trigger", "element-script", null)),
+        removedEdges.getValue());
+    assertEquals(
+        List.of(new ChainPlanEdge("edge-trigger-script", "element-trigger", "element-enrich", null)),
+        created.getValue().edges());
+    assertTrue(result.succeeded());
+  }
+
+  @Test
+  void matchesTheCatalogDependencyByEndpointPairNotPlanEdgeId() {
+    // Plan edge ids are synthesized on import and stay stable while endpoints change. The writer
+    // must hand the old and new endpoint pairs to the materializers, not the plan edge id as a
+    // catalog dependency id.
+    writer.write(chainWithRetargetedEdge(), retargetEdgePatch());
+
+    ArgumentCaptor<List<ChainPlanEdge>> removedEdges = ArgumentCaptor.forClass(List.class);
+    ArgumentCaptor<ChainPlanGraph> created = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    verify(removalsMaterializer).apply(any(), any(), removedEdges.capture(), any());
+    verify(connectionsMaterializer).apply(created.capture(), any());
+    ChainPlanEdge removed = removedEdges.getValue().get(0);
+    ChainPlanEdge createdEdge = created.getValue().edges().get(0);
+    assertEquals("edge-trigger-script", removed.edgeId());
+    assertEquals("edge-trigger-script", createdEdge.edgeId());
+    assertEquals("element-trigger", removed.fromNodeId());
+    assertEquals("element-script", removed.toNodeId());
+    assertEquals("element-trigger", createdEdge.fromNodeId());
+    assertEquals("element-enrich", createdEdge.toNodeId());
+  }
+
+  @Test
+  void writesAnUpdateOnlyPatchInsteadOfTreatingItAsEmpty() {
+    ChainPatchWriteResult result = writer.write(chainWithRetargetedEdge(), retargetEdgePatch());
+
+    verify(removalsMaterializer).apply(any(), any(), any(), any());
+    verify(connectionsMaterializer).apply(any(), any());
+    verify(propertiesMaterializer, never()).apply(any(), any());
+    assertTrue(result.succeeded());
+  }
+
+  @Test
+  void restoresTheRemovedDependencyWhenTheWriteFailsAfterDeletingIt() {
+    when(removalsMaterializer.apply(any(), any(), any(), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of(), List.of("dep-old"), List.of(), List.of(), null));
+    when(connectionsMaterializer.apply(any(), any()))
+        .thenReturn(new ConnectionsApplyResult(0, List.of("edge-trigger-script")))
+        .thenReturn(new ConnectionsApplyResult(1, List.of()));
+
+    ChainPatchWriteResult result = writer.write(chainWithRetargetedEdge(), retargetEdgePatch());
+
+    ArgumentCaptor<ChainPlanGraph> graphs = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    verify(connectionsMaterializer, org.mockito.Mockito.times(2)).apply(graphs.capture(), any());
+    assertEquals("element-enrich", graphs.getAllValues().get(0).edges().get(0).toNodeId());
+    assertEquals("element-script", graphs.getAllValues().get(1).edges().get(0).toNodeId());
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
+    assertTrue(!result.succeeded());
+  }
+
+  @Test
+  void skipsAStructuralParentToChildEdgeUpdate() {
+    writer.write(chainWithRetargetedStructuralEdge(), retargetStructuralEdgePatch());
+
+    verify(removalsMaterializer, never()).apply(any(), any(), any(), any());
+    verify(connectionsMaterializer, never()).apply(any(), any());
+  }
+
+  @Test
+  void skipsAnUpdateWhoseProjectedEndpointPairDidNotChange() {
+    writer.write(chainWithAliasRetargetedEdge(), retargetEdgeToAliasPatch());
+
+    verify(removalsMaterializer, never()).apply(any(), any(), any(), any());
+    verify(connectionsMaterializer, never()).apply(any(), any());
+  }
+
   /**
    * A model that adds a branch and its contents does not reliably name the branch first, and the
    * catalog cannot attach a child to a parent that does not exist yet.
@@ -638,6 +728,154 @@ class ChainPatchWriterTest {
         null,
         List.of(),
         "reconfigures one element and removes another");
+  }
+
+  /** Trigger already wired to the script; the patch retargets that same plan edge onto enrich. */
+  private static PatchedChain chainWithRetargetedEdge() {
+    ChainPlanGraph base = patchedChain().graph();
+    List<ChainPlanNode> nodes =
+        List.of(
+            base.nodes().get(0),
+            base.nodes().get(1),
+            new ChainPlanNode("element-enrich", "script", "Enrich payload", null, null, List.of()));
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            base.schemaVersion(),
+            base.chain(),
+            nodes,
+            List.of(
+                new ChainPlanEdge("edge-trigger-script", "element-trigger", "element-script", null)));
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            base.schemaVersion(),
+            base.chain(),
+            nodes,
+            List.of(
+                new ChainPlanEdge("edge-trigger-script", "element-trigger", "element-enrich", null)));
+    return new PatchedChain(
+        before,
+        after,
+        new MaterializationMap(
+            "chain-1",
+            Map.of(
+                "element-trigger", "element-trigger",
+                "element-script", "element-script",
+                "element-enrich", "element-enrich")));
+  }
+
+  private static GraphPatch retargetEdgePatch() {
+    return new GraphPatch(
+        "patch-update-edge",
+        "chain-patch",
+        null,
+        List.of(
+            new EdgePatch(
+                GraphPatchOperation.UPDATE,
+                new ChainPlanEdge("edge-trigger-script", "element-trigger", "element-enrich", null),
+                "edge-trigger-script")),
+        List.of(),
+        null,
+        List.of(),
+        "retargets the trigger onto the enrich step");
+  }
+
+  /**
+   * Same catalog endpoints after the update: plan node ids change, materialization maps both pairs
+   * onto the same catalog elements.
+   */
+  private static PatchedChain chainWithAliasRetargetedEdge() {
+    ChainPlanGraph base = patchedChain().graph();
+    List<ChainPlanNode> nodes =
+        List.of(
+            base.nodes().get(0),
+            base.nodes().get(1),
+            new ChainPlanNode("alias-trigger", "http-trigger", "Receive order", null, null, List.of()),
+            new ChainPlanNode("alias-script", "script", "Normalize payload", null, null, List.of()));
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            base.schemaVersion(),
+            base.chain(),
+            nodes,
+            List.of(
+                new ChainPlanEdge("edge-trigger-script", "element-trigger", "element-script", null)));
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            base.schemaVersion(),
+            base.chain(),
+            nodes,
+            List.of(new ChainPlanEdge("edge-trigger-script", "alias-trigger", "alias-script", null)));
+    return new PatchedChain(
+        before,
+        after,
+        new MaterializationMap(
+            "chain-1",
+            Map.of(
+                "element-trigger", "catalog-trigger",
+                "element-script", "catalog-script",
+                "alias-trigger", "catalog-trigger",
+                "alias-script", "catalog-script")));
+  }
+
+  private static GraphPatch retargetEdgeToAliasPatch() {
+    return new GraphPatch(
+        "patch-update-alias",
+        "chain-patch",
+        null,
+        List.of(
+            new EdgePatch(
+                GraphPatchOperation.UPDATE,
+                new ChainPlanEdge("edge-trigger-script", "alias-trigger", "alias-script", null),
+                "edge-trigger-script")),
+        List.of(),
+        null,
+        List.of(),
+        "rewrites plan endpoints that already map to the same catalog pair");
+  }
+
+  private static PatchedChain chainWithRetargetedStructuralEdge() {
+    ChainPlanGraph base = patchedChain().graph();
+    List<ChainPlanNode> nodes =
+        List.of(
+            new ChainPlanNode("element-if", "if", "Bulk", null, null, List.of()),
+            new ChainPlanNode("element-child-a", "script", "Tag A", "element-if", null, List.of()),
+            new ChainPlanNode("element-child-b", "script", "Tag B", "element-if", null, List.of()));
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            base.schemaVersion(),
+            base.chain(),
+            nodes,
+            List.of(new ChainPlanEdge("edge-if-child", "element-if", "element-child-a", null)));
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            base.schemaVersion(),
+            base.chain(),
+            nodes,
+            List.of(new ChainPlanEdge("edge-if-child", "element-if", "element-child-b", null)));
+    return new PatchedChain(
+        before,
+        after,
+        new MaterializationMap(
+            "chain-1",
+            Map.of(
+                "element-if", "element-if",
+                "element-child-a", "element-child-a",
+                "element-child-b", "element-child-b")));
+  }
+
+  private static GraphPatch retargetStructuralEdgePatch() {
+    return new GraphPatch(
+        "patch-update-structural",
+        "chain-patch",
+        null,
+        List.of(
+            new EdgePatch(
+                GraphPatchOperation.UPDATE,
+                new ChainPlanEdge("edge-if-child", "element-if", "element-child-b", null),
+                "edge-if-child")),
+        List.of(),
+        null,
+        List.of(),
+        "retargets a parent-to-child placement edge");
   }
 
   private static GraphPatch patchOn(String nodeId, String key, String value) {

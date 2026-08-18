@@ -83,6 +83,18 @@ public class ChainPlanConnectionsMaterializer {
     return new ConnectionsApplyResult(createdCount, List.copyOf(failedEdgeIds));
   }
 
+  /**
+   * Same CREATE / skip / fail decision as {@link #apply}. An UPDATE only replaces a catalog
+   * dependency when ADD would have written one.
+   */
+  public static Projection project(
+      ChainPlanEdge edge, ChainPlanGraph graph, MaterializationMap map) {
+    Objects.requireNonNull(edge, "edge");
+    Objects.requireNonNull(graph, "graph");
+    Objects.requireNonNull(map, "map");
+    return classify(edge, nodesById(graph), map);
+  }
+
   private static Map<String, ChainPlanNode> nodesById(ChainPlanGraph graph) {
     Map<String, ChainPlanNode> index = new LinkedHashMap<>();
     if (graph.nodes() == null) {
@@ -154,14 +166,22 @@ public class ChainPlanConnectionsMaterializer {
     return parentNodeId == null || parentNodeId.isBlank();
   }
 
-  private enum ProjectionAction {
+  public enum ProjectionAction {
     CREATE,
     SKIP_STRUCTURAL,
     SKIP_NON_DEPENDENCY,
     FAIL_INVALID
   }
 
-  private record Projection(ProjectionAction action, String fromElementId, String toElementId) {
+  public record Projection(ProjectionAction action, String fromElementId, String toElementId) {
+
+    /** Catalog endpoint pair, or null when this edge is not a catalog dependency. */
+    public String edgeKey() {
+      if (fromElementId == null || toElementId == null) {
+        return null;
+      }
+      return CatalogDependencyKeys.edgeKey(fromElementId, toElementId);
+    }
   }
 
   public record ConnectionsApplyResult(int createdCount, List<String> failedEdgeIds) {

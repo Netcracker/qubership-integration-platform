@@ -13,6 +13,7 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ProjectionAction;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer.PropertiesApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
@@ -67,15 +68,17 @@ public class ChainPatchWriter {
     List<String> addedNodeIds = addedNodeIds(patched.graph(), patch);
     Map<String, Set<String>> changedKeysByNodeId = changedKeysByNodeId(patch);
     List<ChainPlanEdge> addedEdges = addedEdges(patch);
+    List<EdgeReplacement> replacements = edgeReplacements(patch, patched.before());
     // Edges and removals count toward "the patch does something": a patch whose only content is a
     // connection between two elements the chain already has, or the removal of one, adds no node
     // and changes no property, and must still reach its materializer rather than being read as an
-    // empty change.
+    // empty change. The same is true of an endpoint retarget: UPDATE is not ADD and not REMOVE.
     boolean removesSomething =
         !removedNodeIds(patch).isEmpty() || !removedEdges(patch, patched.before()).isEmpty();
     if (addedNodeIds.isEmpty()
         && changedKeysByNodeId.isEmpty()
         && addedEdges.isEmpty()
+        && replacements.isEmpty()
         && !removesSomething) {
       return new ChainPatchWriteResult(List.of(), List.of(), null, patched.materializationMap());
     }
@@ -101,6 +104,8 @@ public class ChainPatchWriter {
     }
 
     MaterializationMap map = new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));
+    // New elements now have catalog ids, so placement-only and no-op retargets can be dropped.
+    replacements = catalogReplacements(replacements, patched, map);
     List<String> written = new ArrayList<>(addedNodeIds);
     written.removeAll(failed);
     List<ChainPlanNode> touched = touchedNodes(patched.graph(), written, changedKeysByNodeId);
@@ -118,25 +123,47 @@ public class ChainPatchWriter {
       error = error == null ? applied.firstValidationError() : error;
     }
 
-    // Connections come last and only on a clean creation: an edge to an element that was not
-    // created would be recorded as a failure the reader can do nothing with.
+    // An endpoint retarget has to drop the old catalog dependency before the new one is written.
+    // Leaving both in place is how a chain forks through the old route and the new one.
+    List<ChainPlanEdge> recreatableEdges = new ArrayList<>();
+    List<ChainPlanEdge> replacedOldEdges =
+        replacements.stream().map(EdgeReplacement::before).filter(Objects::nonNull).toList();
+    if (!replacedOldEdges.isEmpty() && failed.isEmpty() && error == null) {
+      var removed =
+          removalsMaterializer.apply(patched.before(), Set.of(), replacedOldEdges, map);
+      if (!removed.removedDependencyIds().isEmpty()) {
+        recreatableEdges.addAll(replacedOldEdges);
+      }
+      failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
+      error = error == null ? removed.error() : error;
+    }
+
+    // Connections come last among the constructive steps, and only on a clean creation: an edge to
+    // an element that was not created would be recorded as a failure the reader can do nothing with.
+    List<ChainPlanEdge> edgesToCreate = new ArrayList<>(addedEdges);
+    if (failed.isEmpty() && error == null) {
+      replacements.stream()
+          .map(EdgeReplacement::after)
+          .filter(Objects::nonNull)
+          .forEach(edgesToCreate::add);
+    }
     List<ChainPlanEdge> createdEdges = List.of();
-    if (!addedEdges.isEmpty() && failed.isEmpty() && error == null) {
+    if (!edgesToCreate.isEmpty() && failed.isEmpty() && error == null) {
       var connected =
           connectionsMaterializer.apply(
               new ChainPlanGraph(
                   patched.graph().schemaVersion(),
                   patched.graph().chain(),
                   patched.graph().nodes(),
-                  List.copyOf(addedEdges)),
+                  List.copyOf(edgesToCreate)),
               map);
       if (connected.failedEdgeIds().isEmpty()) {
-        createdEdges = addedEdges;
+        createdEdges = List.copyOf(edgesToCreate);
       } else {
         error = "connections not created: " + String.join(", ", connected.failedEdgeIds());
         // Whatever the materializer did get through still has to be taken back.
         createdEdges =
-            addedEdges.stream()
+            edgesToCreate.stream()
                 .filter(edge -> !connected.failedEdgeIds().contains(edge.edgeId()))
                 .toList();
       }
@@ -146,7 +173,6 @@ public class ChainPatchWriter {
     // first -- and only on a clean write, because past this point the patch is no longer undoable
     // by anything this service can do.
     List<String> removedElementIds = List.of();
-    List<ChainPlanEdge> recreatableEdges = List.of();
     if (failed.isEmpty() && error == null) {
       Set<String> removedNodeIds = removedNodeIds(patch);
       List<ChainPlanEdge> removedEdges = removedEdges(patch, patched.before());
@@ -154,10 +180,9 @@ public class ChainPatchWriter {
         var removed =
             removalsMaterializer.apply(patched.before(), removedNodeIds, removedEdges, map);
         removedElementIds = removed.removedElementIds();
-        recreatableEdges =
-            removed.removedDependencyIds().isEmpty()
-                ? List.<ChainPlanEdge>of()
-                : List.copyOf(removedEdges);
+        if (!removed.removedDependencyIds().isEmpty()) {
+          recreatableEdges.addAll(removedEdges);
+        }
         failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
         error = error == null ? removed.error() : error;
       }
@@ -421,6 +446,73 @@ public class ChainPatchWriter {
         .map(EdgePatch::edge)
         .toList();
   }
+
+  /**
+   * Pairs each UPDATE with the edge the pre-patch graph still holds, looked up by logical edge id.
+   *
+   * <p>The catalog dependency is identified by endpoints, not by this id; the id is only how the
+   * patch names which connection changed.
+   */
+  private static List<EdgeReplacement> edgeReplacements(GraphPatch patch, ChainPlanGraph before) {
+    if (patch.edgePatches() == null || before == null || before.edges() == null) {
+      return List.of();
+    }
+    Map<String, ChainPlanEdge> beforeById = new LinkedHashMap<>();
+    for (ChainPlanEdge edge : before.edges()) {
+      if (edge != null && edge.edgeId() != null) {
+        beforeById.put(edge.edgeId(), edge);
+      }
+    }
+    List<EdgeReplacement> replacements = new ArrayList<>();
+    for (EdgePatch edgePatch : patch.edgePatches()) {
+      if (edgePatch == null
+          || edgePatch.operation() != GraphPatchOperation.UPDATE
+          || edgePatch.edge() == null) {
+        continue;
+      }
+      String edgeId =
+          edgePatch.targetEdgeId() != null ? edgePatch.targetEdgeId() : edgePatch.edge().edgeId();
+      ChainPlanEdge previous = edgeId == null ? null : beforeById.get(edgeId);
+      if (previous == null) {
+        continue;
+      }
+      replacements.add(new EdgeReplacement(previous, edgePatch.edge()));
+    }
+    return List.copyOf(replacements);
+  }
+
+  /**
+   * Drops parent-to-child placement edges and no-op retargets whose catalog endpoints did not
+   * change. The decision is the connections materializer's own projection, so UPDATE never writes a
+   * dependency that ADD would have skipped.
+   */
+  private static List<EdgeReplacement> catalogReplacements(
+      List<EdgeReplacement> replacements, PatchedChain patched, MaterializationMap map) {
+    List<EdgeReplacement> catalog = new ArrayList<>();
+    for (EdgeReplacement replacement : replacements) {
+      var oldProjection =
+          ChainPlanConnectionsMaterializer.project(replacement.before(), patched.before(), map);
+      var newProjection =
+          ChainPlanConnectionsMaterializer.project(replacement.after(), patched.graph(), map);
+      boolean oldCatalog = oldProjection.action() == ProjectionAction.CREATE;
+      boolean newCatalog = newProjection.action() == ProjectionAction.CREATE;
+      if (!oldCatalog && !newCatalog) {
+        continue;
+      }
+      if (oldCatalog
+          && newCatalog
+          && Objects.equals(oldProjection.edgeKey(), newProjection.edgeKey())) {
+        continue;
+      }
+      catalog.add(
+          new EdgeReplacement(
+              oldCatalog ? replacement.before() : null,
+              newCatalog ? replacement.after() : null));
+    }
+    return List.copyOf(catalog);
+  }
+
+  private record EdgeReplacement(ChainPlanEdge before, ChainPlanEdge after) {}
 
   private static Map<String, Set<String>> changedKeysByNodeId(GraphPatch patch) {
     Map<String, Set<String>> changedKeys = new LinkedHashMap<>();
