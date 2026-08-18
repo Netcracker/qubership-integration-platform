@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -479,17 +480,6 @@ class ChainPlanSkeletonMaterializerTest {
 
   @Test
   void rejectsTriggerWithContainmentParent() {
-    when(catalogRestClient.createElement(
-            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("try-catch-finally-2", null, null))))
-        .thenReturn(
-            created(
-                new CatalogRestClient.ElementSummaryDto(
-                    "el-tcff",
-                    "try-catch-finally-2",
-                    Map.of(),
-                    null,
-                    List.of(new CatalogRestClient.ElementSummaryDto("el-try", "try-2", Map.of())))));
-
     ChainPlanGraph graph =
         new ChainPlanGraph(
             "1.0",
@@ -500,18 +490,14 @@ class ChainPlanSkeletonMaterializerTest {
                 new ChainPlanNode("trigger", "http-trigger", "Trigger", "try", null, List.of())),
             List.of());
 
-    SkeletonMaterializationException thrown =
+    DesiredGraphDescriptorPreflightException thrown =
         assertThrows(
-            SkeletonMaterializationException.class,
+            DesiredGraphDescriptorPreflightException.class,
             () -> materializer.materializeElements(graph, CHAIN_ID));
 
-    assertTrue(thrown.getCause() instanceof IllegalStateException);
-    assertTrue(thrown.getCause().getMessage().contains("trigger"));
-    assertTrue(thrown.getCause().getMessage().contains("try"));
-    verify(catalogRestClient, never())
-        .createElement(
-            eq(CHAIN_ID),
-            argThat(request -> request != null && "http-trigger".equals(request.type())));
+    assertTrue(thrown.getMessage().contains("trigger"));
+    assertTrue(thrown.getMessage().contains("try"));
+    verify(catalogRestClient, never()).createElement(any(), any());
   }
 
   @Test

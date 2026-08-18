@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 
@@ -97,7 +98,9 @@ public final class DesiredGraphDescriptorPreflight {
     }
     String parentType = trim(parent.type());
     CatalogElementDescriptor destination = descriptors.get(parentType);
-    if (child != null && !child.allowedInContainers()) {
+    // Live catalog triggers omit allowedInContainers (DTO default true). Family membership is the
+    // trigger test; allowedInContainers is a separate placement flag used by types such as reuse.
+    if (ChainPlanGraphValidator.isTriggerElementType(childType)) {
       throw new DesiredGraphDescriptorPreflightException(
           "Cannot place trigger '"
               + node.nodeId()
@@ -106,6 +109,13 @@ public final class DesiredGraphDescriptorPreflight {
               + "') under parent '"
               + parentId
               + "': catalog triggers belong at chain root.");
+    }
+    if (child != null && !child.allowedInContainers()) {
+      throw placement(
+          node.nodeId(),
+          childType,
+          parentId,
+          "this type is not allowed in containers.");
     }
     if (destination != null && !destination.container()) {
       throw placement(

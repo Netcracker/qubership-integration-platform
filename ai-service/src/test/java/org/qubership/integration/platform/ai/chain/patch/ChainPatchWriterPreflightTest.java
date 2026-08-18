@@ -164,6 +164,7 @@ class ChainPatchWriterPreflightTest {
   @Test
   void rejectsTriggerWithContainmentParent() {
     when(descriptorLoader.load("box")).thenReturn(container("box", Map.of()));
+    // Live http-trigger omits allowedInContainers (DTO default true); still a nested trigger.
     when(descriptorLoader.load("http-trigger")).thenReturn(trigger("http-trigger"));
     ChainPlanGraph desired =
         graph(node("wrapper", "box", null), node("trigger", "http-trigger", "wrapper"));

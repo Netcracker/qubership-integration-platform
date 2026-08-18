@@ -59,9 +59,14 @@ public final class CatalogElementDescriptorTestSupport {
         true);
   }
 
+  /**
+   * Live-shaped trigger stub. Catalog trigger YAML omits {@code allowedInContainers}, so the DTO
+   * default {@code true} wins. Nested-trigger preflight must use trigger-family membership, not
+   * this flag.
+   */
   public static CatalogElementDescriptor trigger(String type) {
     return new CatalogElementDescriptor(
-        type, false, Map.of(), List.of(), false, "priority", false, false, false, false);
+        type, false, Map.of(), List.of(), false, "priority", false, false, false, true);
   }
 
   public static CatalogElementDescriptor deprecatedContainer(String type) {
