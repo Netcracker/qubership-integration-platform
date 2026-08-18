@@ -94,7 +94,8 @@ class ChainPatchWriterRepeatableBranchesTest {
             graphMaterializer,
             propertiesMaterializer,
             connectionsMaterializer,
-            removalsMaterializer);
+            removalsMaterializer,
+            catalogRestClient);
   }
 
   @Test

@@ -347,6 +347,8 @@ class CreateChainProductPipelineRestartIT {
                           Map.of(),
                           desired.edges(),
                           List.of(),
+                          List.of(),
+                          List.of(),
                           false));
             });
     when(factsService.load("catalog-chain-1")).thenReturn(matchingFacts());

@@ -45,7 +45,7 @@ class CatalogMutationGatewayTest {
     MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
     CatalogGraphMaterializeResult expected =
         new CatalogGraphMaterializeResult(
-            map, List.of("n1"), List.of(), null, List.of(), List.of(), Map.of(), List.of(), List.of(), false);
+            map, List.of("n1"), List.of(), null, List.of(), List.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), false);
     when(graphMaterializer.apply("chain-1", current, desired, map)).thenReturn(expected);
 
     CatalogGraphMaterializeResult result =

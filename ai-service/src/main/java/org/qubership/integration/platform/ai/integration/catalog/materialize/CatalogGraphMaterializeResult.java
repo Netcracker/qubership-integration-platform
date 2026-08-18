@@ -16,6 +16,8 @@ public record CatalogGraphMaterializeResult(
     Map<String, Set<String>> changedKeysByNodeId,
     List<ChainPlanEdge> createdEdges,
     List<ChainPlanEdge> recreatableEdges,
+    List<CompletedTransfer> completedTransfers,
+    List<String> adoptedGeneratedCatalogIds,
     boolean noOp) {
 
   public CatalogGraphMaterializeResult {
@@ -26,6 +28,10 @@ public record CatalogGraphMaterializeResult(
     changedKeysByNodeId = changedKeysByNodeId == null ? Map.of() : Map.copyOf(changedKeysByNodeId);
     createdEdges = createdEdges == null ? List.of() : List.copyOf(createdEdges);
     recreatableEdges = recreatableEdges == null ? List.of() : List.copyOf(recreatableEdges);
+    completedTransfers =
+        completedTransfers == null ? List.of() : List.copyOf(completedTransfers);
+    adoptedGeneratedCatalogIds =
+        adoptedGeneratedCatalogIds == null ? List.of() : List.copyOf(adoptedGeneratedCatalogIds);
   }
 
   public boolean succeeded() {
@@ -34,6 +40,7 @@ public record CatalogGraphMaterializeResult(
 
   public static CatalogGraphMaterializeResult noOp(MaterializationMap map) {
     return new CatalogGraphMaterializeResult(
-        map, List.of(), List.of(), null, List.of(), List.of(), Map.of(), List.of(), List.of(), true);
+        map, List.of(), List.of(), null, List.of(), List.of(), Map.of(), List.of(), List.of(),
+        List.of(), List.of(), true);
   }
 }

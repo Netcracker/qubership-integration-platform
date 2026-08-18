@@ -72,6 +72,8 @@ class ProductChainMaterializerTest {
                         Map.of(),
                         List.of(inputs.graph().edges().get(0)),
                         List.of(),
+                        List.of(),
+                        List.of(),
                         false)));
     when(factsService.load("catalog-chain-1"))
         .thenReturn(
@@ -159,6 +161,8 @@ class ProductChainMaterializerTest {
                         Map.of(),
                         List.of(),
                         List.of(),
+                        List.of(),
+                        List.of(),
                         false)));
     when(factsService.load("catalog-chain-1"))
         .thenReturn(
@@ -195,6 +199,8 @@ class ProductChainMaterializerTest {
                         List.of(),
                         List.of(),
                         Map.of(),
+                        List.of(),
+                        List.of(),
                         List.of(),
                         List.of(),
                         false)));

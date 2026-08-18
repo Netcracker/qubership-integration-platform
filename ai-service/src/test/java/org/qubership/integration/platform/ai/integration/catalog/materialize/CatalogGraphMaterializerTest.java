@@ -141,7 +141,8 @@ class CatalogGraphMaterializerTest {
 
     ChainPatchWriter editAdapter =
         new ChainPatchWriter(
-            spyMaterializer, propertiesMaterializer, connectionsMaterializer, removalsMaterializer);
+            spyMaterializer, propertiesMaterializer, connectionsMaterializer, removalsMaterializer,
+            catalogRestClient);
     ChainPlanGraph editDesired =
         new ChainPlanGraph(
             desired.schemaVersion(),

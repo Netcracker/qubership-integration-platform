@@ -21,7 +21,8 @@ public record ChainPatchWriteResult(
     String error,
     MaterializationMap materializationMap,
     List<String> removedElementIds,
-    RollbackOutcome rollback) {
+    RollbackOutcome rollback,
+    List<String> uncompensated) {
 
   /**
    * What the writer did about a write that failed partway.
@@ -47,7 +48,6 @@ public record ChainPatchWriteResult(
     this(changedElementIds, failedElementIds, error, materializationMap, List.of());
   }
 
-  /** For a write that had nothing to unwind. */
   public ChainPatchWriteResult(
       List<String> changedElementIds,
       List<String> failedElementIds,
@@ -60,7 +60,25 @@ public record ChainPatchWriteResult(
         error,
         materializationMap,
         removedElementIds,
-        RollbackOutcome.NOT_ATTEMPTED);
+        RollbackOutcome.NOT_ATTEMPTED,
+        List.of());
+  }
+
+  public ChainPatchWriteResult(
+      List<String> changedElementIds,
+      List<String> failedElementIds,
+      String error,
+      MaterializationMap materializationMap,
+      List<String> removedElementIds,
+      RollbackOutcome rollback) {
+    this(
+        changedElementIds,
+        failedElementIds,
+        error,
+        materializationMap,
+        removedElementIds,
+        rollback,
+        List.of());
   }
 
   public ChainPatchWriteResult {
@@ -68,6 +86,7 @@ public record ChainPatchWriteResult(
     failedElementIds = failedElementIds == null ? List.of() : List.copyOf(failedElementIds);
     removedElementIds = removedElementIds == null ? List.of() : List.copyOf(removedElementIds);
     rollback = rollback == null ? RollbackOutcome.NOT_ATTEMPTED : rollback;
+    uncompensated = uncompensated == null ? List.of() : List.copyOf(uncompensated);
   }
 
   public boolean succeeded() {

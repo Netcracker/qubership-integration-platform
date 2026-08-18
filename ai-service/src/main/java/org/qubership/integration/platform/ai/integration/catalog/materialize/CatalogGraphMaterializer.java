@@ -182,8 +182,10 @@ public class CatalogGraphMaterializer {
       error = error == null ? removed.error() : error;
     }
 
+    List<CompletedTransfer> completedTransfers = new ArrayList<>();
     if (!parentTransfers.isEmpty() && failed.isEmpty() && error == null) {
-      error = transferGroupedByParent(parentTransfers, map);
+      error =
+          transferGroupedByParent(parentTransfers, currentGraph, map, completedTransfers);
     }
 
     List<ChainPlanEdge> edgesToCreate = new ArrayList<>(addedEdges);
@@ -248,6 +250,9 @@ public class CatalogGraphMaterializer {
               List.copyOf(written));
     }
 
+    List<String> adoptedGeneratedCatalogIds =
+        adoptedGeneratedCatalogIds(createAttempt, nodeIdToElementId, written);
+
     return new CatalogGraphMaterializeResult(
         map,
         List.copyOf(changed),
@@ -258,6 +263,8 @@ public class CatalogGraphMaterializer {
         changedKeysByNodeId,
         createdEdges,
         recreatableEdges,
+        List.copyOf(completedTransfers),
+        adoptedGeneratedCatalogIds,
         false);
   }
 
@@ -276,6 +283,8 @@ public class CatalogGraphMaterializer {
         List.of(),
         List.of(),
         Map.of(),
+        List.of(),
+        List.of(),
         List.of(),
         List.of(),
         false);
@@ -561,8 +570,13 @@ public class CatalogGraphMaterializer {
     return null;
   }
 
-  private String transferGroupedByParent(List<ParentTransfer> transfers, MaterializationMap map) {
+  private String transferGroupedByParent(
+      List<ParentTransfer> transfers,
+      ChainPlanGraph currentGraph,
+      MaterializationMap map,
+      List<CompletedTransfer> completedTransfers) {
     Map<String, List<String>> elementsByParent = new LinkedHashMap<>();
+    Map<String, String> priorParentByElement = new LinkedHashMap<>();
     for (ParentTransfer transfer : transfers) {
       String elementId = catalogId(map, transfer.nodeId());
       String parentId = catalogId(map, transfer.parentNodeId());
@@ -573,6 +587,7 @@ public class CatalogGraphMaterializer {
         return cannotTransferUnder(
             elementId, transfer.parentNodeId(), "catalog id for parent is unknown.");
       }
+      priorParentByElement.put(elementId, priorParentCatalogId(currentGraph, map, transfer.nodeId()));
       elementsByParent.computeIfAbsent(parentId, key -> new ArrayList<>()).add(elementId);
     }
     for (Map.Entry<String, List<String>> group : elementsByParent.entrySet()) {
@@ -596,9 +611,53 @@ public class CatalogGraphMaterializer {
           return cannotTransferUnder(
               elementId, parentId, "catalog parent is still '" + actualParent + "'.");
         }
+        completedTransfers.add(
+            new CompletedTransfer(elementId, priorParentByElement.get(elementId)));
       }
     }
     return null;
+  }
+
+  private static String priorParentCatalogId(
+      ChainPlanGraph currentGraph, MaterializationMap map, String nodeId) {
+    if (currentGraph == null || currentGraph.nodes() == null) {
+      return null;
+    }
+    for (ChainPlanNode node : currentGraph.nodes()) {
+      if (node != null && nodeId.equals(node.nodeId())) {
+        return catalogId(map, node.parentNodeId());
+      }
+    }
+    return null;
+  }
+
+  private static List<String> adoptedGeneratedCatalogIds(
+      MaterializationAttemptContext attempt,
+      Map<String, String> nodeIdToElementId,
+      List<String> createdNodeIds) {
+    if (attempt.isEmpty()) {
+      return List.of();
+    }
+    Set<String> createdCatalogIds = new LinkedHashSet<>();
+    for (String nodeId : createdNodeIds) {
+      String catalogId = nodeIdToElementId.get(nodeId);
+      if (catalogId != null) {
+        createdCatalogIds.add(catalogId);
+      }
+    }
+    List<String> adopted = new ArrayList<>();
+    for (MaterializationAttemptContext.CreatedContainer container : attempt.createdContainers()) {
+      if (!createdCatalogIds.contains(container.elementId())) {
+        continue;
+      }
+      for (CatalogRestClient.ElementSummaryDto generated : container.generatedChildren()) {
+        String childId = generated.id() == null ? null : generated.id().trim();
+        if (childId != null && !childId.isEmpty() && !createdCatalogIds.contains(childId)) {
+          adopted.add(childId);
+        }
+      }
+    }
+    return List.copyOf(adopted);
   }
 
   private static String cannotTransfer(String elementId, String reason) {
