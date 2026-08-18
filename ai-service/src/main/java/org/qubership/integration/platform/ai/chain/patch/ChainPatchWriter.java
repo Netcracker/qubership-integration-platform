@@ -118,6 +118,9 @@ public class ChainPatchWriter {
     String error = null;
 
     for (String nodeId : addedNodeIds) {
+      if (nodeIdToElementId.containsKey(nodeId)) {
+        continue;
+      }
       ChainPlanNode node = node(patched.graph(), nodeId);
       try {
         String elementId =
