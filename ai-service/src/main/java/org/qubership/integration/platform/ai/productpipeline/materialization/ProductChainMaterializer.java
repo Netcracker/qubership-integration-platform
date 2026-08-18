@@ -10,14 +10,11 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanSkeletonMaterializer;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
-import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
-import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -31,18 +28,15 @@ public class ProductChainMaterializer {
   private static final String PRODUCER_VERSION = "1";
 
   private final CatalogMutationGateway catalog;
-  private final PendingNodeRecoveryResolver resolver;
   private final ProductPipelineArtifactStore artifactStore;
   private final ChainCatalogFactsService factsService;
 
   @Inject
   public ProductChainMaterializer(
       CatalogMutationGateway catalog,
-      PendingNodeRecoveryResolver resolver,
       ProductPipelineArtifactStore artifactStore,
       ChainCatalogFactsService factsService) {
     this.catalog = Objects.requireNonNull(catalog, "catalog");
-    this.resolver = Objects.requireNonNull(resolver, "resolver");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.factsService = Objects.requireNonNull(factsService, "factsService");
   }
@@ -70,27 +64,16 @@ public class ProductChainMaterializer {
       phase = current.completedPhase();
     }
 
-    if (phase == MaterializationPhase.CHAIN) {
-      map = materializeElements(inputs, current, chainId, map);
+    if (phase == MaterializationPhase.CHAIN
+        || phase == MaterializationPhase.PROPERTIES
+        || phase == MaterializationPhase.CONNECTIONS) {
+      appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN, map, null);
+      map = applyGraph(inputs, chainId, map);
       current = appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.ELEMENTS, map, null);
       phase = current.completedPhase();
     }
 
     if (phase == MaterializationPhase.ELEMENTS) {
-      applyProperties(inputs.graph(), chainId, map);
-      current =
-          appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.PROPERTIES, map, null);
-      phase = current.completedPhase();
-    }
-
-    if (phase == MaterializationPhase.PROPERTIES) {
-      applyConnections(inputs.graph(), chainId, map);
-      current =
-          appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CONNECTIONS, map, null);
-      phase = current.completedPhase();
-    }
-
-    if (phase == MaterializationPhase.CONNECTIONS) {
       factsService.load(chainId);
       current =
           appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.READ_BACK, map, null);
@@ -167,60 +150,18 @@ public class ProductChainMaterializer {
         .indefinitely();
   }
 
-  private Map<String, String> materializeElements(
-      Inputs inputs, MaterializationCheckpoint checkpoint, String chainId, Map<String, String> existingMap) {
-    Map<String, String> map = new LinkedHashMap<>(existingMap);
-    String resumePending = normalize(checkpoint.pendingNodeId());
-    for (ChainPlanNode node : ChainPlanSkeletonMaterializer.orderParentBeforeChild(inputs.graph())) {
-      if (map.containsKey(node.nodeId())) {
-        continue;
-      }
-      if (resumePending != null && resumePending.equals(node.nodeId())) {
-        List<CatalogElementResponseDto> catalogFacts =
-            catalog.listElements(chainId).await().indefinitely();
-        String recovered =
-            resolver.resolve(node, catalogFacts, new MaterializationMap(chainId, Map.copyOf(map)));
-        if (recovered != null) {
-          map.put(node.nodeId(), recovered);
-          resumePending = null;
-          continue;
-        }
-      }
-      appendCheckpoint(inputs, inputs.runId(), chainId, MaterializationPhase.CHAIN, map, node.nodeId());
-      String createdElementId =
-          catalog
-              .materializeSkeletonElement(
-                  inputs.graph(), node, chainId, new MaterializationMap(chainId, Map.copyOf(map)))
-              .await()
-              .indefinitely();
-      map.put(node.nodeId(), createdElementId);
-      resumePending = null;
-    }
-    return map;
-  }
-
-  private void applyProperties(ChainPlanGraph graph, String chainId, Map<String, String> map) {
-    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
-        catalog
-            .applyProperties(graph, new MaterializationMap(chainId, Map.copyOf(map)))
-            .await()
-            .indefinitely();
-    if (result.failedNodeIds() != null && !result.failedNodeIds().isEmpty()) {
+  private Map<String, String> applyGraph(Inputs inputs, String chainId, Map<String, String> existingMap) {
+    MaterializationMap checkpointMap = new MaterializationMap(chainId, Map.copyOf(existingMap));
+    ChainPlanGraph desired = inputs.graph();
+    ChainPlanGraph current = CatalogGraphMaterializer.emptyCurrent(desired);
+    CatalogGraphMaterializeResult result =
+        catalog.applyGraph(current, desired, checkpointMap).await().indefinitely();
+    if (!result.succeeded()) {
       throw new IllegalStateException(
-          "property materialization failed for nodes " + result.failedNodeIds());
+          "graph materialization failed: "
+              + (result.error() == null ? result.failedNodeIds() : result.error()));
     }
-  }
-
-  private void applyConnections(ChainPlanGraph graph, String chainId, Map<String, String> map) {
-    ChainPlanConnectionsMaterializer.ConnectionsApplyResult result =
-        catalog
-            .applyConnections(graph, new MaterializationMap(chainId, Map.copyOf(map)))
-            .await()
-            .indefinitely();
-    if (result.failedEdgeIds() != null && !result.failedEdgeIds().isEmpty()) {
-      throw new IllegalStateException(
-          "connection materialization failed for edges " + result.failedEdgeIds());
-    }
+    return new LinkedHashMap<>(result.materializationMap().nodeIdToElementId());
   }
 
   private MaterializationCheckpoint appendCheckpoint(

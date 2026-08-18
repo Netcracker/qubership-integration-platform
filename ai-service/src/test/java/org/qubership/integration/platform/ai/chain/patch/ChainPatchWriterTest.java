@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ConnectionsApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -72,14 +73,20 @@ class ChainPatchWriterTest {
     catalogRestClient = mock(CatalogRestClient.class);
     descriptorLoader = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptorLoader);
-    writer =
-        new ChainPatchWriter(
+    CatalogGraphMaterializer graphMaterializer =
+        new CatalogGraphMaterializer(
             propertiesMaterializer,
             skeletonMaterializer,
             connectionsMaterializer,
             removalsMaterializer,
             catalogRestClient,
             descriptorLoader);
+    writer =
+        new ChainPatchWriter(
+            graphMaterializer,
+            propertiesMaterializer,
+            connectionsMaterializer,
+            removalsMaterializer);
   }
 
   @Test
@@ -149,14 +156,14 @@ class ChainPatchWriterTest {
 
   @Test
   void leavesConnectionsAloneWhenThePatchAddsNone() {
-    writer.write(patchedChain(), patchOn("element-script", "script", "return 201"));
+    writer.write(patchedChainWithScriptValue("return 201"), patchOn("element-script", "script", "return 201"));
 
     verify(connectionsMaterializer, org.mockito.Mockito.never()).apply(any(), any());
   }
 
   @Test
   void writesOnlyTheElementsThePatchNames() {
-    writer.write(patchedChain(), patchOn("element-script", "script", "return 201"));
+    writer.write(patchedChainWithScriptValue("return 201"), patchOn("element-script", "script", "return 201"));
 
     ChainPlanGraph written = capturedGraph();
     assertEquals(1, written.nodes().size());
@@ -165,7 +172,7 @@ class ChainPatchWriterTest {
 
   @Test
   void writesOnlyThePropertiesThePatchChanges() {
-    writer.write(patchedChain(), patchOn("element-script", "script", "return 201"));
+    writer.write(patchedChainWithScriptValue("return 201"), patchOn("element-script", "script", "return 201"));
 
     ChainPlanNode written = capturedGraph().nodes().get(0);
     assertEquals(
@@ -175,14 +182,14 @@ class ChainPatchWriterTest {
 
   @Test
   void leavesTheElementNameAloneWhenOnlyAPropertyChanged() {
-    writer.write(patchedChain(), patchOn("element-script", "script", "return 201"));
+    writer.write(patchedChainWithScriptValue("return 201"), patchOn("element-script", "script", "return 201"));
 
     assertNull(capturedGraph().nodes().get(0).label());
   }
 
   @Test
   void keepsTheChainBindingOfTheImportedChain() {
-    writer.write(patchedChain(), patchOn("element-script", "script", "return 201"));
+    writer.write(patchedChainWithScriptValue("return 201"), patchOn("element-script", "script", "return 201"));
 
     ArgumentCaptor<MaterializationMap> map = ArgumentCaptor.forClass(MaterializationMap.class);
     verify(propertiesMaterializer).apply(any(), map.capture());
@@ -192,7 +199,7 @@ class ChainPatchWriterTest {
   @Test
   void reportsTheElementsItChanged() {
     ChainPatchWriteResult result =
-        writer.write(patchedChain(), patchOn("element-script", "script", "return 201"));
+        writer.write(patchedChainWithScriptValue("return 201"), patchOn("element-script", "script", "return 201"));
 
     assertEquals(List.of("element-script"), result.changedElementIds());
     assertTrue(result.succeeded());
@@ -204,7 +211,7 @@ class ChainPatchWriterTest {
         .thenReturn(new PropertiesApplyResult(0, List.of("element-script"), "schema said no"));
 
     ChainPatchWriteResult result =
-        writer.write(patchedChain(), patchOn("element-script", "script", "return 201"));
+        writer.write(patchedChainWithScriptValue("return 201"), patchOn("element-script", "script", "return 201"));
 
     assertEquals(List.of("element-script"), result.failedElementIds());
     assertEquals("schema said no", result.error());
@@ -233,7 +240,8 @@ class ChainPatchWriterTest {
             new ChainSection("Order sync", "Syncs orders"),
             patchedChain().graph().nodes(),
             List.of(new ChainPlanEdge("edge-new", "element-trigger", "element-script", null)));
-    PatchedChain patched = new PatchedChain(graph, patchedChain().materializationMap());
+    PatchedChain patched =
+        new PatchedChain(patchedChain().graph(), graph, patchedChain().materializationMap());
 
     ChainPatchWriteResult result =
         writer.write(
@@ -277,7 +285,7 @@ class ChainPatchWriterTest {
     // Removal is the one step nothing can take back, so it must come after every step that can.
     // A patch that both reconfigures and removes puts the two in the same write to be ordered.
     PatchedChain patched =
-        new PatchedChain(patchedChain().graph(), patchedChain().graph(), patchedChain().materializationMap());
+        new PatchedChain(patchedChain().graph(), afterRemoveTriggerAndReconfigure(), patchedChain().materializationMap());
 
     writer.write(patched, removeAndReconfigurePatch());
 
@@ -291,7 +299,7 @@ class ChainPatchWriterTest {
     when(propertiesMaterializer.apply(any(), any()))
         .thenReturn(new PropertiesApplyResult(0, List.of("element-script"), "schema said no"));
     PatchedChain patched =
-        new PatchedChain(patchedChain().graph(), patchedChain().graph(), patchedChain().materializationMap());
+        new PatchedChain(patchedChain().graph(), afterRemoveTriggerAndReconfigure(), patchedChain().materializationMap());
 
     writer.write(patched, removeAndReconfigurePatch());
 
@@ -333,13 +341,13 @@ class ChainPatchWriterTest {
         .thenThrow(new IllegalStateException("catalog said no"));
 
     ChainPatchWriteResult result =
-        writer.write(chainWithAddedScript(), addScriptAndReconfigurePatch());
+        writer.write(chainWithAddedScriptAndReconfigured(), addScriptAndReconfigurePatch());
 
     ArgumentCaptor<ChainPlanGraph> written = ArgumentCaptor.forClass(ChainPlanGraph.class);
     verify(propertiesMaterializer, org.mockito.Mockito.times(2)).apply(written.capture(), any());
     ChainPlanGraph restored = written.getAllValues().get(1);
     assertEquals("element-script", restored.nodes().get(0).nodeId());
-    assertEquals("return 201", restored.nodes().get(0).properties().get(0).value());
+    assertEquals("return 8", restored.nodes().get(0).properties().get(0).value());
     assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
   }
 
@@ -350,7 +358,7 @@ class ChainPatchWriterTest {
         .thenThrow(new IllegalStateException("catalog said no"));
 
     ChainPatchWriteResult result =
-        writer.write(chainWithAddedScript(), addScriptAndSetNewKeyPatch());
+        writer.write(chainWithAddedScriptAndNewKey(), addScriptAndSetNewKeyPatch());
 
     assertEquals(ChainPatchWriteResult.RollbackOutcome.PARTIAL, result.rollback());
   }
@@ -654,7 +662,7 @@ class ChainPatchWriterTest {
                 new ChainPlanNode("node-child", "script", "Tag", "node-branch", null, List.of()),
                 new ChainPlanNode("node-branch", "if", "Bulk", null, null, List.of())),
             List.of());
-    return new PatchedChain(graph, base.materializationMap());
+    return new PatchedChain(base.graph(), graph, base.materializationMap());
   }
 
   private static GraphPatch addBranchAndChildPatch() {
@@ -683,32 +691,59 @@ class ChainPatchWriterTest {
     return graph.getValue();
   }
 
+  /** Imported chain before any edit in this test class. */
+  private static ChainPlanGraph importedGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Order sync", "Syncs orders"),
+        List.of(
+            new ChainPlanNode(
+                "element-trigger", "http-trigger", "Receive order", null, null, List.of()),
+            new ChainPlanNode(
+                "element-script",
+                "script",
+                "Normalize payload",
+                null,
+                null,
+                List.of(
+                    new PlanProperty("script", "return 8"),
+                    new PlanProperty("connectTimeout", "30000")))),
+        List.of());
+  }
+
+  private static MaterializationMap importedMap() {
+    return new MaterializationMap(
+        "chain-1",
+        Map.of(
+            "element-trigger", "element-trigger",
+            "element-script", "element-script"));
+  }
+
   /** The chain after the patch was applied: the script node already carries the new body. */
   private static PatchedChain patchedChain() {
-    ChainPlanGraph graph =
-        new ChainPlanGraph(
-            "1.0",
-            new ChainSection("Order sync", "Syncs orders"),
+    return new PatchedChain(importedGraph(), importedGraph(), importedMap());
+  }
+
+  private static PatchedChain patchedChainWithScriptValue(String scriptValue) {
+    ChainPlanGraph before = importedGraph();
+    ChainPlanNode script = before.nodes().get(1);
+    ChainPlanNode updatedScript =
+        new ChainPlanNode(
+            script.nodeId(),
+            script.type(),
+            script.label(),
+            script.parentNodeId(),
+            script.order(),
             List.of(
-                new ChainPlanNode(
-                    "element-trigger", "http-trigger", "Receive order", null, null, List.of()),
-                new ChainPlanNode(
-                    "element-script",
-                    "script",
-                    "Normalize payload",
-                    null,
-                    null,
-                    List.of(
-                        new PlanProperty("script", "return 201"),
-                        new PlanProperty("connectTimeout", "30000")))),
-            List.of());
-    return new PatchedChain(
-        graph,
-        new MaterializationMap(
-            "chain-1",
-            Map.of(
-                "element-trigger", "element-trigger",
-                "element-script", "element-script")));
+                new PlanProperty("script", scriptValue),
+                new PlanProperty("connectTimeout", "30000")));
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            before.schemaVersion(),
+            before.chain(),
+            List.of(before.nodes().get(0), updatedScript),
+            before.edges());
+    return new PatchedChain(before, after, importedMap());
   }
 
   /** The chain after a patch that adds one script and wires the trigger to it. */
@@ -731,7 +766,52 @@ class ChainPatchWriterTest {
             List.of(
                 new ChainPlanEdge(
                     "edge-new", "element-trigger", "node-new-script", null)));
-    return new PatchedChain(graph, base.materializationMap());
+    return new PatchedChain(base.graph(), graph, base.materializationMap());
+  }
+
+  private static PatchedChain chainWithAddedScriptAndReconfigured() {
+    PatchedChain added = chainWithAddedScript();
+    ChainPlanNode script = added.before().nodes().get(1);
+    ChainPlanNode reconfiguredScript =
+        new ChainPlanNode(
+            script.nodeId(),
+            script.type(),
+            script.label(),
+            script.parentNodeId(),
+            script.order(),
+            List.of(
+                new PlanProperty("script", "return 9"),
+                new PlanProperty("connectTimeout", "30000")));
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            added.graph().schemaVersion(),
+            added.graph().chain(),
+            List.of(added.graph().nodes().get(0), reconfiguredScript, added.graph().nodes().get(2)),
+            added.graph().edges());
+    return new PatchedChain(added.before(), after, added.materializationMap());
+  }
+
+  private static PatchedChain chainWithAddedScriptAndNewKey() {
+    PatchedChain added = chainWithAddedScript();
+    ChainPlanNode script = added.before().nodes().get(1);
+    ChainPlanNode withLanguage =
+        new ChainPlanNode(
+            script.nodeId(),
+            script.type(),
+            script.label(),
+            script.parentNodeId(),
+            script.order(),
+            List.of(
+                new PlanProperty("script", script.properties().get(0).value()),
+                new PlanProperty("connectTimeout", "30000"),
+                new PlanProperty("language", "groovy")));
+    ChainPlanGraph after =
+        new ChainPlanGraph(
+            added.graph().schemaVersion(),
+            added.graph().chain(),
+            List.of(added.graph().nodes().get(0), withLanguage, added.graph().nodes().get(2)),
+            added.graph().edges());
+    return new PatchedChain(added.before(), after, added.materializationMap());
   }
 
   private static GraphPatch addScriptPatch() {
@@ -849,6 +929,24 @@ class ChainPatchWriterTest {
         null,
         List.of(),
         "removes the normalize step");
+  }
+
+  private static ChainPlanGraph afterRemoveTriggerAndReconfigure() {
+    ChainPlanGraph base = patchedChain().graph();
+    return new ChainPlanGraph(
+        base.schemaVersion(),
+        base.chain(),
+        List.of(
+            new ChainPlanNode(
+                "element-script",
+                "script",
+                "Normalize payload",
+                null,
+                null,
+                List.of(
+                    new PlanProperty("script", "return 9"),
+                    new PlanProperty("connectTimeout", "30000")))),
+        List.of());
   }
 
   private static GraphPatch removeAndReconfigurePatch() {

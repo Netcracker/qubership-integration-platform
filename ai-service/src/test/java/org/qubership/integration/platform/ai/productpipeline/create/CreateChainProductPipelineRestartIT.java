@@ -33,8 +33,8 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
@@ -65,7 +65,6 @@ import org.qubership.integration.platform.ai.productpipeline.materialization.Mat
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationResult;
-import org.qubership.integration.platform.ai.productpipeline.materialization.PendingNodeRecoveryResolver;
 import org.qubership.integration.platform.ai.productpipeline.materialization.ProductChainMaterializer;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
@@ -255,15 +254,14 @@ class CreateChainProductPipelineRestartIT {
             .outcomeClass());
 
     verify(catalog, never()).resolveOrCreateChain(anyString(), anyString(), any());
-    verify(catalog, never()).materializeSkeletonElement(any(), any(), anyString(), any());
+    verify(catalog, never()).applyGraph(any(), any(), any());
     assertEquals(0, chainCreates.get());
     assertEquals(0, elementCreates.get());
   }
 
   private MaterializationCapability materializationCapability() {
     ProductChainMaterializer materializer =
-        new ProductChainMaterializer(
-            catalog, new PendingNodeRecoveryResolver(), artifactStore, factsService);
+        new ProductChainMaterializer(catalog, artifactStore, factsService);
     return new MaterializationCapability(
         artifactStore, materializer, factsService, new ChainReconcileService());
   }
@@ -328,37 +326,33 @@ class CreateChainProductPipelineRestartIT {
               chainCreates.incrementAndGet();
               return Uni.createFrom().item("catalog-chain-1");
             });
-    when(catalog.materializeSkeletonElement(any(), any(), anyString(), any()))
+    when(catalog.applyGraph(any(), any(), any()))
         .thenAnswer(
             invocation -> {
               elementCreates.incrementAndGet();
-              ChainPlanNode node = invocation.getArgument(1);
+              ChainPlanGraph desired = invocation.getArgument(1);
               return Uni.createFrom()
                   .item(
-                      "trigger-1".equals(node.nodeId())
-                          ? "catalog-trigger-1"
-                          : "catalog-script-1");
+                      new CatalogGraphMaterializeResult(
+                          new MaterializationMap(
+                              "catalog-chain-1",
+                              Map.of(
+                                  "trigger-1", "catalog-trigger-1",
+                                  "script-1", "catalog-script-1")),
+                          List.of("trigger-1", "script-1"),
+                          List.of(),
+                          null,
+                          List.of(),
+                          List.of("trigger-1", "script-1"),
+                          Map.of(),
+                          desired.edges(),
+                          List.of(),
+                          false));
             });
-    when(catalog.applyProperties(any(), any()))
-        .thenReturn(
-            Uni.createFrom()
-                .item(new ChainPlanPropertiesMaterializer.PropertiesApplyResult(0, List.of(), null)));
-    when(catalog.applyConnections(any(), any()))
-        .thenReturn(
-            Uni.createFrom()
-                .item(new ChainPlanConnectionsMaterializer.ConnectionsApplyResult(0, List.of())));
     when(factsService.load("catalog-chain-1")).thenReturn(matchingFacts());
   }
 
   private void stubCatalogAfterElements() {
-    when(catalog.applyProperties(any(), any()))
-        .thenReturn(
-            Uni.createFrom()
-                .item(new ChainPlanPropertiesMaterializer.PropertiesApplyResult(0, List.of(), null)));
-    when(catalog.applyConnections(any(), any()))
-        .thenReturn(
-            Uni.createFrom()
-                .item(new ChainPlanConnectionsMaterializer.ConnectionsApplyResult(0, List.of())));
     when(factsService.load("catalog-chain-1")).thenReturn(matchingFacts());
   }
 

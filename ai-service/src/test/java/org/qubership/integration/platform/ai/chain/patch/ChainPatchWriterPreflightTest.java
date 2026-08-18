@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ConnectionsApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -34,6 +35,7 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cha
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanSkeletonMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
@@ -63,23 +65,30 @@ class ChainPatchWriterPreflightTest {
     when(connectionsMaterializer.apply(any(), any()))
         .thenReturn(new ConnectionsApplyResult(1, List.of()));
     stubPermissive(descriptorLoader);
-    writer =
-        new ChainPatchWriter(
+    CatalogGraphMaterializer graphMaterializer =
+        new CatalogGraphMaterializer(
             propertiesMaterializer,
             skeletonMaterializer,
             connectionsMaterializer,
             removalsMaterializer,
             catalogRestClient,
             descriptorLoader);
+    writer =
+        new ChainPatchWriter(
+            graphMaterializer,
+            propertiesMaterializer,
+            connectionsMaterializer,
+            removalsMaterializer);
   }
 
   @Test
   void rejectsChildUnderNonContainer() {
     when(descriptorLoader.load("script")).thenReturn(leaf("script"));
+    ChainPlanGraph before = graph(node("parent-script", "script", null));
     ChainPlanGraph desired =
         graph(node("parent-script", "script", null), node("child-script", "script", "parent-script"));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("parent-script"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("parent-script"));
 
     assertRejected(result, "child-script", "parent-script", "not a container");
     assertNoCatalogMutation();
@@ -90,10 +99,11 @@ class ChainPatchWriterPreflightTest {
     when(descriptorLoader.load("box"))
         .thenReturn(container("box", Map.of("role", CatalogChildQuantity.ANY)));
     when(descriptorLoader.load("script")).thenReturn(leaf("script"));
+    ChainPlanGraph before = graph(node("parent-box", "box", null));
     ChainPlanGraph desired =
         graph(node("parent-box", "box", null), node("child-script", "script", "parent-box"));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("parent-box"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("parent-box"));
 
     assertRejected(result, "child-script", "script", "not allowed");
     assertNoCatalogMutation();
@@ -103,10 +113,11 @@ class ChainPatchWriterPreflightTest {
   void rejectsParentRestrictionMismatch() {
     when(descriptorLoader.load("box")).thenReturn(container("box", Map.of()));
     when(descriptorLoader.load("role")).thenReturn(leafRestrictedTo("role", "try-2"));
+    ChainPlanGraph before = graph(node("parent-box", "box", null));
     ChainPlanGraph desired =
         graph(node("parent-box", "box", null), node("child-role", "role", "parent-box"));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("parent-box"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("parent-box"));
 
     assertRejected(result, "child-role", "box", "not permitted");
     assertNoCatalogMutation();
@@ -117,10 +128,11 @@ class ChainPatchWriterPreflightTest {
     when(descriptorLoader.load("fan"))
         .thenReturn(container("fan", Map.of("branch", CatalogChildQuantity.TWO_OR_MANY)));
     when(descriptorLoader.load("branch")).thenReturn(leaf("branch"));
+    ChainPlanGraph before = graph(node("fan-1", "fan", null));
     ChainPlanGraph desired =
         graph(node("fan-1", "fan", null), node("branch-1", "branch", "fan-1"));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("fan-1"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("fan-1"));
 
     assertRejected(result, "fan-1", "branch", "minimum");
     assertNoCatalogMutation();
@@ -131,13 +143,15 @@ class ChainPatchWriterPreflightTest {
     when(descriptorLoader.load("box"))
         .thenReturn(container("box", Map.of("cap", CatalogChildQuantity.ONE)));
     when(descriptorLoader.load("cap")).thenReturn(leaf("cap"));
+    ChainPlanGraph before =
+        graph(node("box-1", "box", null), node("cap-1", "cap", "box-1"));
     ChainPlanGraph desired =
         graph(
             node("box-1", "box", null),
             node("cap-1", "cap", "box-1"),
             node("cap-2", "cap", "box-1"));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("box-1"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("box-1"));
 
     assertRejected(result, "box-1", "cap", "maximum");
     assertNoCatalogMutation();
@@ -153,9 +167,10 @@ class ChainPatchWriterPreflightTest {
                     "role", CatalogChildQuantity.ONE,
                     "cap", CatalogChildQuantity.ANY)));
     when(descriptorLoader.load("cap")).thenReturn(leaf("cap"));
+    ChainPlanGraph before = graph(node("box-1", "box", null));
     ChainPlanGraph desired = graph(node("box-1", "box", null), node("cap-1", "cap", "box-1"));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("box-1"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("box-1"));
 
     assertRejected(result, "box-1", "role", "missing mandatory");
     assertNoCatalogMutation();
@@ -166,10 +181,11 @@ class ChainPatchWriterPreflightTest {
     when(descriptorLoader.load("box")).thenReturn(container("box", Map.of()));
     // Live http-trigger omits allowedInContainers (DTO default true); still a nested trigger.
     when(descriptorLoader.load("http-trigger")).thenReturn(trigger("http-trigger"));
+    ChainPlanGraph before = graph(node("wrapper", "box", null));
     ChainPlanGraph desired =
         graph(node("wrapper", "box", null), node("trigger", "http-trigger", "wrapper"));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("wrapper"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("wrapper"));
 
     assertRejected(result, "trigger", "wrapper", "chain root");
     assertNoCatalogMutation();
@@ -178,9 +194,10 @@ class ChainPatchWriterPreflightTest {
   @Test
   void rejectsEmptyMandatoryInnerContentContainer() {
     when(descriptorLoader.load("shell")).thenReturn(containerRequiringInner("shell"));
+    ChainPlanGraph before = graph();
     ChainPlanGraph desired = graph(node("shell-1", "shell", null));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("shell-1"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("shell-1"));
 
     assertRejected(result, "shell-1", "shell", "inner content");
     assertNoCatalogMutation();
@@ -215,9 +232,10 @@ class ChainPatchWriterPreflightTest {
   void rejectsUnknownDescriptor() {
     when(descriptorLoader.load("unknown-type"))
         .thenThrow(new CatalogElementDescriptorException("unknown-type", "not found."));
+    ChainPlanGraph before = graph();
     ChainPlanGraph desired = graph(node("n1", "unknown-type", null));
 
-    ChainPatchWriteResult result = writer.write(mutating(desired), touch("n1"));
+    ChainPatchWriteResult result = writer.write(introducing(before, desired), touch("n1"));
 
     assertRejected(result, "unknown-type", "not found");
     assertNoCatalogMutation();
@@ -227,17 +245,36 @@ class ChainPatchWriterPreflightTest {
   void preservesDeprecatedContainerAlreadyInCurrentChain() {
     when(descriptorLoader.load("choice")).thenReturn(deprecatedContainer("choice"));
     when(descriptorLoader.load("script")).thenReturn(leaf("script"));
-    ChainPlanGraph current =
+    ChainPlanGraph before =
         graph(node("choice-1", "choice", null), node("script-1", "script", null));
+    ChainPlanGraph desired = touchedScript(before, "script-1");
 
-    ChainPatchWriteResult result = writer.write(mutating(current), touch("script-1"));
+    ChainPatchWriteResult result = writer.write(new PatchedChain(before, desired, map(before)), touch("script-1"));
 
     assertTrue(result.succeeded());
     verify(propertiesMaterializer).apply(any(), any());
   }
 
-  private static PatchedChain mutating(ChainPlanGraph desired) {
-    return new PatchedChain(desired, desired, map(desired));
+  private static PatchedChain introducing(ChainPlanGraph before, ChainPlanGraph desired) {
+    return new PatchedChain(before, desired, map(desired));
+  }
+
+  private static ChainPlanGraph touchedScript(ChainPlanGraph graph, String nodeId) {
+    List<ChainPlanNode> nodes =
+        graph.nodes().stream()
+            .map(
+                node ->
+                    nodeId.equals(node.nodeId())
+                        ? new ChainPlanNode(
+                            node.nodeId(),
+                            node.type(),
+                            node.label(),
+                            node.parentNodeId(),
+                            node.order(),
+                            List.of(new PlanProperty("script", "return 1")))
+                        : node)
+            .toList();
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), nodes, graph.edges());
   }
 
   private static MaterializationMap map(ChainPlanGraph graph) {
