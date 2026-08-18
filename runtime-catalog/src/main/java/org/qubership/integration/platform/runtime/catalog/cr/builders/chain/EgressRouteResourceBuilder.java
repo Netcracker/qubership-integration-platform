@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
+import org.qubership.integration.platform.runtime.catalog.cr.EgressServiceRouteFormatter;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
@@ -112,6 +113,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
             updates = deploymentRouteMapper.asUpdates(routes).stream()
                     .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
                             || route.getType() == RouteType.EXTERNAL_SERVICE)
+                    .map(EgressServiceRouteFormatter::formatServiceRoute)
                     .toList();
         }
         context.getBuildCache().put(ROUTES_CACHE_KEY, updates);

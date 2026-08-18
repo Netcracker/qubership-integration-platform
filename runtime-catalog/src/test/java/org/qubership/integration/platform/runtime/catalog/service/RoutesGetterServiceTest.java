@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
@@ -19,8 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
@@ -28,11 +24,14 @@ import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.SERVICE_CALL_COMPONENT;
 
 /**
- * Verifies that {@link RoutesGetterService#getRoutes} builds EXTERNAL_SERVICE routes exactly the
- * way engine's {@code RegisterRoutesInControlPlaneAction.formatServiceRoutes} does: a
- * scheme-normalized path and a SHA-1 hash of (path, connectTimeout) appended to the gateway
- * prefix. Both write to the same shared HTTPRoute by name, so they must produce identical values
- * for the same underlying route.
+ * Verifies {@link RoutesGetterService#getRoutes} builds EXTERNAL_SERVICE routes with the RAW
+ * environment address and an UN-hashed {@code gatewayPrefix} ({@code /system/{elementId}}).
+ * This is deliberate, not an oversight: this method's output also feeds the deployment payload
+ * engine/micro-engine receive, and their own {@code formatServiceRoutes}/equivalent unconditionally
+ * appends a scheme-normalization + SHA-1 hash downstream of this method. Pre-hashing here would
+ * double that transformation for the live-registration path. Build-time CR generation applies the
+ * same transformation itself, locally, via {@code EgressServiceRouteFormatter} -- see
+ * {@code EgressServiceRouteFormatterTest} for that half of the contract.
  */
 class RoutesGetterServiceTest {
 
@@ -79,7 +78,7 @@ class RoutesGetterServiceTest {
     }
 
     @Test
-    void externalServiceRouteGetsSchemeAndHashSuffixApplied() {
+    void externalServiceRouteKeepsRawAddressAndUnhashedGatewayPrefix() {
         IntegrationSystem system = IntegrationSystem.builder()
                 .id(SYSTEM_ID)
                 .integrationSystemType(IntegrationSystemType.EXTERNAL)
@@ -93,13 +92,12 @@ class RoutesGetterServiceTest {
         assertEquals(1, routes.size());
         DeploymentRoute route = routes.get(0);
         assertEquals(RouteType.EXTERNAL_SERVICE, route.getType());
-        assertEquals("https://example.com", route.getPath());
-        assertTrue(route.getGatewayPrefix().matches("^/system/elem-a/[0-9a-f]{40}$"),
-                () -> "unexpected gatewayPrefix: " + route.getGatewayPrefix());
+        assertEquals("example.com", route.getPath());
+        assertEquals("/system/elem-a", route.getGatewayPrefix());
     }
 
     @Test
-    void twoElementsOnTheSameSystemShareTheHashSuffixButHaveDistinctPrefixes() {
+    void twoElementsOnTheSameSystemShareTheSameUnhashedPrefixPattern() {
         IntegrationSystem system = IntegrationSystem.builder()
                 .id(SYSTEM_ID)
                 .integrationSystemType(IntegrationSystemType.EXTERNAL)
@@ -113,29 +111,9 @@ class RoutesGetterServiceTest {
         List<DeploymentRoute> routes = routesGetterService.getRoutes(ANY_SPEC);
 
         assertEquals(2, routes.size());
-        String hashA = routes.get(0).getGatewayPrefix().substring("/system/elem-a/".length());
-        String hashB = routes.get(1).getGatewayPrefix().substring("/system/elem-b/".length());
-        assertEquals(hashA, hashB);
-        assertNotEquals(routes.get(0).getGatewayPrefix(), routes.get(1).getGatewayPrefix());
-        assertEquals("/system/elem-a/" + hashA, routes.get(0).getGatewayPrefix());
-        assertEquals("/system/elem-b/" + hashB, routes.get(1).getGatewayPrefix());
-    }
-
-    @Test
-    void hashMatchesEngineAlgorithmExactly() {
-        IntegrationSystem system = IntegrationSystem.builder()
-                .id(SYSTEM_ID)
-                .integrationSystemType(IntegrationSystemType.EXTERNAL)
-                .build();
-        Environment environment = Environment.builder().address("backend.internal:8443/base").build();
-        stubSystem(system, environment, 7000L);
-        stubElements(List.of(serviceCallElement("elem-a", SYSTEM_ID)));
-
-        List<DeploymentRoute> routes = routesGetterService.getRoutes(ANY_SPEC);
-
-        String formattedPath = "https://backend.internal:8443/base";
-        String expectedHash = DigestUtils.sha1Hex(StringUtils.joinWith(",", formattedPath, 7000L));
-        assertEquals(formattedPath, routes.get(0).getPath());
-        assertEquals("/system/elem-a/" + expectedHash, routes.get(0).getGatewayPrefix());
+        assertEquals("/system/elem-a", routes.get(0).getGatewayPrefix());
+        assertEquals("/system/elem-b", routes.get(1).getGatewayPrefix());
+        assertEquals("https://api.example.com", routes.get(0).getPath());
+        assertEquals("https://api.example.com", routes.get(1).getPath());
     }
 }

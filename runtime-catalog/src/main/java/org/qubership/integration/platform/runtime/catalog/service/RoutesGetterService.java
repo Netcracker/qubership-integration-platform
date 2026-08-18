@@ -1,8 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
@@ -146,25 +144,19 @@ public class RoutesGetterService {
 
             RouteType routeType = getRouteTypeForSystemType(system.getIntegrationSystemType());
 
-            // Mirror engine's RegisterRoutesInControlPlaneAction.formatServiceRoutes: normalize the
-            // address to always carry a scheme, then append a hash of (path, connectTimeout) to the
-            // gateway prefix. Engine and this build-time path write to the same HTTPRoute by name, so
-            // they must produce identical values. INTERNAL_SERVICE/IMPLEMENTED_SERVICE addresses may
-            // not be HTTP URLs, so, like engine, only EXTERNAL_SERVICE gets this treatment.
-            String pathHashSuffix = "";
-            if (RouteType.EXTERNAL_SERVICE.equals(routeType)) {
-                try {
-                    path = SimpleHttpUriUtils.formatUri(path);
-                } catch (MalformedURLException e) {
-                    throw new DeploymentProcessingException(
-                            "Failed to build egress routes. Invalid environment address for system " + system.getId());
-                }
-                pathHashSuffix = "/" + DigestUtils.sha1Hex(StringUtils.joinWith(",", path, connectionTimeout));
-            }
+            // NOTE: this method's output feeds the deployment payload engine/micro-engine receive
+            // (via EngineController's REST endpoint / the baked micro-engine artifact) in addition to
+            // this module's own build-time CR generation. Engine's
+            // RegisterRoutesInControlPlaneAction.formatServiceRoutes (and micro-engine's
+            // RouteRegistrationService equivalent) unconditionally append their own hash to
+            // gatewayPrefix for EXTERNAL_SERVICE routes downstream of this method -- so this method
+            // must NOT pre-hash, or the live-registered path ends up hashed twice. Build-time CR
+            // generation applies the same transformation itself, locally, via
+            // EgressServiceRouteFormatter -- see EgressRouteResourceBuilder/CustomResourceService.
 
             List<ChainElement> elements = systemsIds.get(system.getId());
             for (ChainElement element : elements) {
-                String gatewayPrefix = String.format("/system/%s%s", element.getOriginalId(), pathHashSuffix);
+                String gatewayPrefix = String.format("/system/%s", element.getOriginalId());
 
                 routes.add(DeploymentRoute.builder()
                         .type(routeType)

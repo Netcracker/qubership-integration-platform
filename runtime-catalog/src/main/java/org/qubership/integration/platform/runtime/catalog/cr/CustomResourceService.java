@@ -399,12 +399,15 @@ public class CustomResourceService {
      * Builds the set of this snapshot's own egress route path matches. Unlike {@link #tierOwnPaths},
      * this reads {@code gatewayPrefix} (the resolved internal path, e.g. {@code /system/{id}}), not
      * {@code baseRoutePrefix + path} -- egress routes' {@code path} is the resolved external target
-     * URL, not a gateway-facing path.
+     * URL, not a gateway-facing path. {@code EXTERNAL_SERVICE} routes are additionally run through
+     * {@link EgressServiceRouteFormatter} so the computed match reflects the hashed {@code gatewayPrefix}
+     * this module's own {@code EgressRouteResourceBuilder} actually wrote to the cluster.
      */
     private Set<GatewayPathMatch> egressOwnPaths(List<DeploymentRouteUpdate> ownUpdates) {
         return ownUpdates.stream()
                 .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
                         || route.getType() == RouteType.EXTERNAL_SERVICE)
+                .map(EgressServiceRouteFormatter::formatServiceRoute)
                 .map(route -> GatewayPathMatch.forPath(route.getGatewayPrefix()))
                 .collect(Collectors.toSet());
     }
