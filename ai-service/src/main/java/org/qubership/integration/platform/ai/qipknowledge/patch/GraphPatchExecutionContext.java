@@ -17,10 +17,40 @@ public record GraphPatchExecutionContext(
     List<CompilationArtifacts.Reference> consumedArtifacts,
     ChainPlanGraph inputGraph,
     GraphPatchOwnershipPolicy ownership,
-    String attemptId) {
+    String attemptId,
+    List<String> editTargetNodeIds) {
 
   public GraphPatchExecutionContext {
     consumedArtifacts = consumedArtifacts == null ? List.of() : List.copyOf(consumedArtifacts);
     ownership = ownership == null ? GraphPatchOwnershipPolicy.denyAll() : ownership;
+    editTargetNodeIds = editTargetNodeIds == null ? List.of() : List.copyOf(editTargetNodeIds);
+  }
+
+  /** Create path and callers with no named edit targets. */
+  public GraphPatchExecutionContext(
+      String runId,
+      String skillId,
+      String requirementDigest,
+      String inputGraphDigest,
+      String compilerPackageDigest,
+      String languageVersion,
+      RequirementBrief requirementBrief,
+      List<CompilationArtifacts.Reference> consumedArtifacts,
+      ChainPlanGraph inputGraph,
+      GraphPatchOwnershipPolicy ownership,
+      String attemptId) {
+    this(
+        runId,
+        skillId,
+        requirementDigest,
+        inputGraphDigest,
+        compilerPackageDigest,
+        languageVersion,
+        requirementBrief,
+        consumedArtifacts,
+        inputGraph,
+        ownership,
+        attemptId,
+        List.of());
   }
 }

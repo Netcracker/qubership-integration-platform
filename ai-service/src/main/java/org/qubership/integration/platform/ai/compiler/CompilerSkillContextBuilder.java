@@ -155,6 +155,7 @@ public class CompilerSkillContextBuilder {
     body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
     body.append(document.markdown());
     appendRuntimeContextPackage(body, conversationId, document, snapshot);
+    appendFinalEditConstraint(body, document, snapshot);
 
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
   }
@@ -369,6 +370,17 @@ public class CompilerSkillContextBuilder {
           .append("\n");
     }
     body.append("\n");
+  }
+
+  private static void appendFinalEditConstraint(
+      StringBuilder body, CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
+    if (document.phase() != QipKnowledgeCapabilityPhase.GENERATOR
+        || snapshot.editContext() == null
+        || snapshot.editContext().isBlank()) {
+      return;
+    }
+    body.append("\nFinal edit constraint (overrides earlier topology advice):\n");
+    body.append(snapshot.editContext()).append('\n');
   }
 
   private void appendAddonSections(StringBuilder body, CompilerSkillDocument document) {

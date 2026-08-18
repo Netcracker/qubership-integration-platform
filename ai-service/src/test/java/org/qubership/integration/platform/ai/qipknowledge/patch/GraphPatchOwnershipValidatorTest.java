@@ -387,6 +387,112 @@ class GraphPatchOwnershipValidatorTest {
   }
 
   @Test
+  void rejectsReparentOfATriggerUnderOwnedShellAddedInSamePatch() {
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", "demo"),
+            List.of(
+                new ChainPlanNode("http-trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode(
+                    "service-call-1", "service-call", "Call", null, null, List.of())),
+            List.of());
+    GraphPatch patch =
+        wrapperPatch(
+            new ChainPlanNode(
+                "http-trigger-1",
+                "http-trigger",
+                "Trigger",
+                "try-2",
+                null,
+                List.of()),
+            "http-trigger-1");
+    GraphPatchExecutionContext context =
+        context(before, ehOwnership(), List.of("service-call-1"));
+
+    GraphPatchApplyResult result = applier.apply(context, patch);
+
+    assertFalse(result.validationResult().valid());
+    assertSame(before, result.graph());
+    assertTrue(
+        result.validationResult().summary().contains("http-trigger-1"),
+        result.validationResult().summary());
+  }
+
+  @Test
+  void acceptsReparentOfNamedEditTargetUnderOwnedShellAddedInSamePatch() {
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", "demo"),
+            List.of(
+                new ChainPlanNode("http-trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode(
+                    "service-call-1", "service-call", "Call", null, null, List.of())),
+            List.of());
+    GraphPatch patch =
+        wrapperPatch(
+            new ChainPlanNode(
+                "service-call-1",
+                "service-call",
+                "Call",
+                "try-2",
+                null,
+                List.of()),
+            "service-call-1");
+    GraphPatchExecutionContext context =
+        context(before, ehOwnership(), List.of("service-call-1"));
+
+    GraphPatchApplyResult result = applier.apply(context, patch);
+
+    assertTrue(result.validationResult().valid(), result.validationResult().summary());
+    assertTrue(
+        result.graph().nodes().stream()
+            .anyMatch(
+                node ->
+                    node.nodeId().equals("service-call-1")
+                        && "try-2".equals(node.parentNodeId())
+                        && "service-call".equals(node.type())));
+  }
+
+  @Test
+  void rejectsReparentOfANodeThatIsNotAnEditTarget() {
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", "demo"),
+            List.of(
+                new ChainPlanNode("http-trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode(
+                    "service-call-1", "service-call", "Call", null, null, List.of()),
+                new ChainPlanNode(
+                    "script-1",
+                    "script",
+                    "Main workflow step",
+                    null,
+                    null,
+                    List.of(new PlanProperty("script", "return 200")))),
+            List.of());
+    GraphPatch patch =
+        wrapperPatch(
+            new ChainPlanNode(
+                "script-1",
+                "script",
+                "Main workflow step",
+                "try-2",
+                null,
+                List.of()),
+            "script-1");
+    GraphPatchExecutionContext context =
+        context(before, ehOwnership(), List.of("service-call-1"));
+
+    GraphPatchApplyResult result = applier.apply(context, patch);
+
+    assertFalse(result.validationResult().valid());
+    assertSame(before, result.graph());
+  }
+
+  @Test
   void rejectsForeignReparentWhenMayAddNodesIsFalse() {
     ChainPlanGraph before = graphWithTwoNodes();
     GraphPatch patch =
@@ -494,8 +600,39 @@ class GraphPatchOwnershipValidatorTest {
     return new PropertyPatch(GraphPatchOperation.ADD, nodeId, new PlanProperty(key, value));
   }
 
+  private static GraphPatch wrapperPatch(ChainPlanNode reparented, String targetNodeId) {
+    return new GraphPatch(
+        "patch-eh-wrap",
+        "cip-error-handling-generator",
+        List.of(
+            new NodePatch(
+                GraphPatchOperation.ADD,
+                new ChainPlanNode("try-2", "try-2", "Try block", null, null, List.of()),
+                null),
+            new NodePatch(GraphPatchOperation.UPDATE, reparented, targetNodeId)),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "Wrap under owned try-2");
+  }
+
+  private static GraphPatchOwnershipPolicy ehOwnership() {
+    return ownership(
+        true,
+        true,
+        Set.of("try-catch-finally-2", "try-2", "catch-2", "finally-2"),
+        Set.of(),
+        Map.of("catch-2", Set.of("exception", "priority")));
+  }
+
   private static GraphPatchExecutionContext context(
       ChainPlanGraph inputGraph, GraphPatchOwnershipPolicy ownership) {
+    return context(inputGraph, ownership, List.of());
+  }
+
+  private static GraphPatchExecutionContext context(
+      ChainPlanGraph inputGraph, GraphPatchOwnershipPolicy ownership, List<String> editTargetNodeIds) {
     return new GraphPatchExecutionContext(
         "run-1",
         "cip-script-generator",
@@ -508,7 +645,8 @@ class GraphPatchOwnershipValidatorTest {
         List.of(),
         inputGraph,
         ownership,
-        "");
+        "",
+        editTargetNodeIds);
   }
 
   private static GraphPatchOwnershipPolicy ownership(

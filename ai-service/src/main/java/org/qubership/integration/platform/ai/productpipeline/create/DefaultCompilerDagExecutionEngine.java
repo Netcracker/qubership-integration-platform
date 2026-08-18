@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecut
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
+import org.qubership.integration.platform.ai.compiler.ChainEditSkillContext;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
@@ -656,7 +657,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             pinned.manifest().sourceReferences(),
             inputGraph,
             node.ownership(),
-            request.attemptId());
+            request.attemptId(),
+            ChainEditSkillContext.targetNodeIds(workspace));
     var applied = validatedGraphPatchApplier.apply(context, patch);
     if (!applied.validationResult().valid()) {
       throw new IllegalStateException("contract failure: " + applied.validationResult().summary());
@@ -932,7 +934,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         pinned.manifest().sourceReferences(),
         inputGraph,
         ownershipFor(node),
-        request.attemptId());
+        request.attemptId(),
+        ChainEditSkillContext.targetNodeIds(workspace));
   }
 
   private static GraphPatchOwnershipPolicy ownershipFor(ResolvedCompilerNode node) {

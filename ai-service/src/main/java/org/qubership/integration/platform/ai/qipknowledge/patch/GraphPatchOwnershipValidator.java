@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -39,7 +40,13 @@ public class GraphPatchOwnershipValidator {
 
     List<String> findings = new ArrayList<>();
     validateNodeOwnership(
-        ownership, patch, nodeTypeByNodeId, samePatchAddedNodeIds, existingNodesById, findings);
+        ownership,
+        patch,
+        nodeTypeByNodeId,
+        samePatchAddedNodeIds,
+        existingNodesById,
+        context.editTargetNodeIds(),
+        findings);
     validateEdgeOwnership(
         ownership,
         patch,
@@ -63,6 +70,7 @@ public class GraphPatchOwnershipValidator {
       Map<String, String> nodeTypeByNodeId,
       Set<String> samePatchAddedNodeIds,
       Map<String, ChainPlanNode> existingNodesById,
+      List<String> editTargetNodeIds,
       List<String> findings) {
     if (patch.nodePatches() == null) {
       return;
@@ -111,6 +119,10 @@ public class GraphPatchOwnershipValidator {
                 + incoming.type()
                 + "' is not allowed");
       }
+      if (rejectDisallowedReparent(
+          existing, incoming, targetNodeId, editTargetNodeIds, samePatchAddedNodeIds, findings)) {
+        continue;
+      }
       if (ownership.nodeTypes().contains(targetType)) {
         validateEmbeddedPropertyKeys(ownership, targetType, incoming.properties(), findings);
         continue;
@@ -118,6 +130,39 @@ public class GraphPatchOwnershipValidator {
       validateForeignNodeUpdate(
           ownership, targetNodeId, existing, incoming, samePatchAddedNodeIds, nodeTypeByNodeId, findings);
     }
+  }
+
+  private static boolean rejectDisallowedReparent(
+      ChainPlanNode existing,
+      ChainPlanNode incoming,
+      String targetNodeId,
+      List<String> editTargetNodeIds,
+      Set<String> samePatchAddedNodeIds,
+      List<String> findings) {
+    boolean parentChanging =
+        incoming.parentNodeId() != null
+            && !Objects.equals(incoming.parentNodeId(), existing.parentNodeId());
+    if (!parentChanging) {
+      return false;
+    }
+    if (ChainPlanGraphValidator.isTriggerElementType(existing.type())) {
+      findings.add(
+          "cannot reparent trigger node '"
+              + targetNodeId
+              + "'; keep the trigger at root and wrap the named edit target");
+      return true;
+    }
+    if (editTargetNodeIds != null
+        && !editTargetNodeIds.isEmpty()
+        && !editTargetNodeIds.contains(targetNodeId)
+        && !samePatchAddedNodeIds.contains(targetNodeId)) {
+      findings.add(
+          "cannot reparent node '"
+              + targetNodeId
+              + "'; UPDATE parentNodeId only for named edit targets");
+      return true;
+    }
+    return false;
   }
 
   /**

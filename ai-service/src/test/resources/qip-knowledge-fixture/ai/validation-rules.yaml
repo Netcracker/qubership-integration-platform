@@ -86,8 +86,8 @@ validation_rules:
     category: "Grammar"
     name: "Condition-If Parent-Child"
     severity: "ERROR"
-    validation_logic: "IF condition.if_children_count != 1 THEN FAIL"
-    recommended_fix: "Every condition MUST have exactly one if child."
+    validation_logic: "IF condition.if_children_count < 1 THEN FAIL"
+    recommended_fix: "Every condition MUST have one or more if children. Additional branches are sibling if nodes under the same condition; else is optional."
     references: ["CORPORATE_CIP_STANDARDS.md §2.2"]
 
   VR-G-006:
@@ -434,8 +434,8 @@ validation_rules:
     category: "Execution Order"
     name: "Multi-Way Default Branch Defensive"
     severity: "WARNING"
-    validation_logic: "IF multi-way routing chain (nested condition/if/else) has no terminal else THEN WARN. (Legacy: choice without otherwise.)"
-    recommended_fix: "Add a final else (default branch) for defensive programming. choice/otherwise is DEPRECATED — use nested condition/if/else."
+    validation_logic: "IF multi-way routing chain (condition with two or more if children) has no terminal else THEN WARN. (Legacy: choice without otherwise.)"
+    recommended_fix: "Add a final else (default branch) for defensive programming. choice/otherwise is DEPRECATED — use condition with sibling if children."
     references: ["grammar-standard.md §1.5", "ADR-007"]
 
   VR-X-004:

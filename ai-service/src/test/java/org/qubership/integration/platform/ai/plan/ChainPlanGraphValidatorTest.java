@@ -281,6 +281,47 @@ class ChainPlanGraphValidatorTest {
   }
 
   @Test
+  void acceptsConditionWithTwoDirectIfChildrenAndOptionalElse() {
+    List<String> errors =
+        validator.validate(
+            new ChainPlanGraph(
+                "1.0",
+                new ChainSection("lang-router", "Lang router"),
+                List.of(
+                    new ChainPlanNode("trigger", "http-trigger", "HTTP", null, null, List.of()),
+                    new ChainPlanNode("route", "condition", "Route", null, null, List.of()),
+                    new ChainPlanNode(
+                        "if-en",
+                        "if",
+                        "English",
+                        "route",
+                        null,
+                        List.of(
+                            new PlanProperty("condition", "${header.lang} == 'en'"),
+                            new PlanProperty("priority", "0"))),
+                    new ChainPlanNode(
+                        "if-ru",
+                        "if",
+                        "Russian",
+                        "route",
+                        null,
+                        List.of(
+                            new PlanProperty("condition", "${header.lang} == 'ru'"),
+                            new PlanProperty("priority", "1"))),
+                    new ChainPlanNode("else-1", "else", "Default", "route", null, List.of()),
+                    new ChainPlanNode("script-en", "script", "EN", "if-en", null, List.of()),
+                    new ChainPlanNode("script-ru", "script", "RU", "if-ru", null, List.of()),
+                    new ChainPlanNode("script-other", "script", "Other", "else-1", null, List.of())),
+                List.of(
+                    new ChainPlanEdge("e1", "trigger", "route", null),
+                    new ChainPlanEdge("e2", "if-en", "script-en", null),
+                    new ChainPlanEdge("e3", "if-ru", "script-ru", null),
+                    new ChainPlanEdge("e4", "else-1", "script-other", null))));
+
+    assertTrue(errors.isEmpty(), String.join("; ", errors));
+  }
+
+  @Test
   void acceptsServiceCallSkeletonWithoutOperationBinding() {
     List<String> errors =
         validator.validate(

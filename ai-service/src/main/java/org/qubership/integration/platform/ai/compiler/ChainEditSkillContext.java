@@ -18,6 +18,17 @@ public final class ChainEditSkillContext {
 
   private ChainEditSkillContext() {}
 
+  public static List<String> targetNodeIds(SkillWorkspace workspace) {
+    if (workspace == null) {
+      return List.of();
+    }
+    return workspace
+        .get(SkillArtifactType.CHAIN_EDIT_INTENT)
+        .map(a -> ((SkillArtifactPayload.ChainEditIntentPayload) a.payload()).intent())
+        .map(intent -> intent.targetNodeIds() == null ? List.<String>of() : intent.targetNodeIds())
+        .orElse(List.of());
+  }
+
   public static String render(SkillWorkspace workspace) {
     ChainEditIntent intent =
         workspace
@@ -44,6 +55,9 @@ public final class ChainEditSkillContext {
     }
     body.append(
         "Change only the target element ids. Every other element and connection stays as it is.\n");
+    body.append(
+        "When wrapping, UPDATE parentNodeId only for those target element ids. Never reparent a"
+            + " trigger.\n");
 
     for (ResolvedServiceCallBinding binding : bindings) {
       body.append("\nResolved catalog operation for element '")
