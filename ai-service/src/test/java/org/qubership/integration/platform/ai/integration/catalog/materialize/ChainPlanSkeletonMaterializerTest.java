@@ -5,13 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +40,274 @@ class ChainPlanSkeletonMaterializerTest {
   @BeforeEach
   void setUp() {
     materializer = new ChainPlanSkeletonMaterializer(catalogRestClient);
+  }
+
+  @Test
+  void adoptsGeneratedChildFromCreateResponse() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-cond",
+                    "condition",
+                    Map.of(),
+                    null,
+                    List.of(new CatalogRestClient.ElementSummaryDto("el-if", "if", Map.of())))));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("cond", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if-1", "if", "If", "cond", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-cond", map.nodeIdToElementId().get("cond"));
+    assertEquals("el-if", map.nodeIdToElementId().get("if-1"));
+
+    var order = inOrder(catalogRestClient);
+    order
+        .verify(catalogRestClient)
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null)));
+    verify(catalogRestClient, never()).getElement(eq(CHAIN_ID), any());
+    verify(catalogRestClient, never())
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null)));
+  }
+
+  @Test
+  void readsParentBackWhenCreateResponseHasNoChildren() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("try-catch-finally-2", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto("el-tcff", "try-catch-finally-2", Map.of())));
+
+    CatalogElementResponseDto liveParent = new CatalogElementResponseDto();
+    liveParent.id = "el-tcff";
+    liveParent.type = "try-catch-finally-2";
+    CatalogElementResponseDto tryShell = new CatalogElementResponseDto();
+    tryShell.id = "el-try";
+    tryShell.type = "try-2";
+    liveParent.children = List.of(tryShell);
+    when(catalogRestClient.getElement(CHAIN_ID, "el-tcff")).thenReturn(liveParent);
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("tcff", "try-catch-finally-2", "Try/Catch", null, null, List.of()),
+                new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-tcff", map.nodeIdToElementId().get("tcff"));
+    assertEquals("el-try", map.nodeIdToElementId().get("try"));
+
+    var order = inOrder(catalogRestClient);
+    order
+        .verify(catalogRestClient)
+        .createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("try-catch-finally-2", null, null)));
+    order.verify(catalogRestClient).getElement(CHAIN_ID, "el-tcff");
+    verify(catalogRestClient, never())
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("try-2", "el-tcff", null)));
+  }
+
+  @Test
+  void doesNotAdoptPreexistingUnrelatedChild() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto("el-cond", "condition", Map.of()),
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-old-if", "if", Map.of(), "el-other-cond", List.of())));
+    CatalogElementResponseDto liveParent = new CatalogElementResponseDto();
+    liveParent.id = "el-cond";
+    liveParent.type = "condition";
+    liveParent.children = List.of();
+    when(catalogRestClient.getElement(CHAIN_ID, "el-cond")).thenReturn(liveParent);
+
+    CatalogElementResponseDto otherCondition = new CatalogElementResponseDto();
+    otherCondition.id = "el-other-cond";
+    otherCondition.type = "condition";
+    CatalogElementResponseDto oldIf = new CatalogElementResponseDto();
+    oldIf.id = "el-old-if";
+    oldIf.type = "if";
+    oldIf.parentElementId = "el-other-cond";
+    otherCondition.children = List.of(oldIf);
+    when(catalogRestClient.listElements(CHAIN_ID)).thenReturn(List.of(otherCondition));
+
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null))))
+        .thenReturn(created(new CatalogRestClient.ElementSummaryDto("el-new-if", "if", Map.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("cond", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if-1", "if", "If", "cond", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-new-if", map.nodeIdToElementId().get("if-1"));
+    assertFalse(map.nodeIdToElementId().containsValue("el-old-if"));
+    verify(catalogRestClient)
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null)));
+  }
+
+  @Test
+  void existingMappingWins() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-cond",
+                    "condition",
+                    Map.of(),
+                    null,
+                    List.of(new CatalogRestClient.ElementSummaryDto("el-generated", "if", Map.of())))));
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null))))
+        .thenReturn(created(new CatalogRestClient.ElementSummaryDto("el-created", "if", Map.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("cond", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if-1", "if", "If 1", "cond", null, List.of()),
+                new ChainPlanNode("if-2", "if", "If 2", "cond", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-generated", map.nodeIdToElementId().get("if-1"));
+    assertEquals("el-created", map.nodeIdToElementId().get("if-2"));
+    verify(catalogRestClient)
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null)));
+  }
+
+  @Test
+  void flattensDuplicateIdsInCreateTree() {
+    CatalogRestClient.ElementSummaryDto nestedIf =
+        new CatalogRestClient.ElementSummaryDto("el-if", "if", Map.of(), "el-cond", List.of());
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-cond", "condition", Map.of(), null, List.of(nestedIf)),
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-if", "if", Map.of(), "el-cond", List.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("cond", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if-1", "if", "If", "cond", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-if", map.nodeIdToElementId().get("if-1"));
+    verify(catalogRestClient, never())
+        .createElement(eq(CHAIN_ID), eq(new CatalogCreateElementRequest("if", "el-cond", null)));
+    verify(catalogRestClient, never()).getElement(eq(CHAIN_ID), any());
+  }
+
+  @Test
+  void retryProducesTheSameMap() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("condition", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-cond",
+                    "condition",
+                    Map.of(),
+                    null,
+                    List.of(
+                        new CatalogRestClient.ElementSummaryDto("el-z", "if", Map.of()),
+                        new CatalogRestClient.ElementSummaryDto("el-a", "if", Map.of())))));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("cond", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if-1", "if", "If 1", "cond", null, List.of()),
+                new ChainPlanNode("if-2", "if", "If 2", "cond", null, List.of())),
+            List.of());
+
+    MaterializationMap first = materializer.materializeElements(graph, CHAIN_ID);
+    MaterializationMap second = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals(Map.of("cond", "el-cond", "if-1", "el-z", "if-2", "el-a"), first.nodeIdToElementId());
+    assertEquals(first.nodeIdToElementId(), second.nodeIdToElementId());
+  }
+
+  @Test
+  void tryCatchShellsUseTheGeneralAdopter() {
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("try-catch-finally-2", null, null))))
+        .thenReturn(
+            created(
+                new CatalogRestClient.ElementSummaryDto(
+                    "el-tcff",
+                    "try-catch-finally-2",
+                    Map.of(),
+                    null,
+                    List.of(
+                        new CatalogRestClient.ElementSummaryDto("el-try", "try-2", Map.of()),
+                        new CatalogRestClient.ElementSummaryDto("el-catch", "catch-2", Map.of()),
+                        new CatalogRestClient.ElementSummaryDto(
+                            "el-finally", "finally-2", Map.of())))));
+    when(catalogRestClient.createElement(
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("http-trigger", null, null))))
+        .thenReturn(
+            created(new CatalogRestClient.ElementSummaryDto("el-trigger", "http-trigger", Map.of())));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("tcff", "try-catch-finally-2", "Try/Catch", null, null, List.of()),
+                new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of()),
+                new ChainPlanNode("catch", "catch-2", "Catch", "tcff", null, List.of()),
+                new ChainPlanNode("finally", "finally-2", "Finally", "tcff", null, List.of()),
+                new ChainPlanNode("trigger", "http-trigger", "Trigger", "try", null, List.of())),
+            List.of());
+
+    MaterializationMap map = materializer.materializeElements(graph, CHAIN_ID);
+
+    assertEquals("el-try", map.nodeIdToElementId().get("try"));
+    assertEquals("el-catch", map.nodeIdToElementId().get("catch"));
+    assertEquals("el-finally", map.nodeIdToElementId().get("finally"));
+    assertEquals("el-trigger", map.nodeIdToElementId().get("trigger"));
+    verify(catalogRestClient, never())
+        .createElement(
+            eq(CHAIN_ID),
+            argThat(
+                request ->
+                    request != null
+                        && Set.of("try-2", "catch-2", "finally-2").contains(request.type())));
+    verify(catalogRestClient, never()).getElement(eq(CHAIN_ID), any());
   }
 
   @Test
@@ -288,7 +559,7 @@ class ChainPlanSkeletonMaterializerTest {
                 List.of(),
                 List.of()));
     when(catalogRestClient.createElement(
-            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("script", "el-try", null))))
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("script", null, null))))
         .thenReturn(
             new CatalogRestClient.ChainDiffDto(
                 List.of(new CatalogRestClient.ElementSummaryDto("el-parse", "script", Map.of())),
@@ -316,7 +587,7 @@ class ChainPlanSkeletonMaterializerTest {
     assertEquals("el-parse", map.nodeIdToElementId().get("parse"));
     verify(catalogRestClient)
         .createElement(
-            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("script", "el-try", null)));
+            eq(CHAIN_ID), eq(new CatalogCreateElementRequest("script", null, null)));
   }
 
   @Test
@@ -460,6 +731,11 @@ class ChainPlanSkeletonMaterializerTest {
     assertThrows(
         IllegalArgumentException.class,
         () -> materializer.materializeElements(singleNodeGraph(), "  "));
+  }
+
+  private static CatalogRestClient.ChainDiffDto created(
+      CatalogRestClient.ElementSummaryDto... elements) {
+    return new CatalogRestClient.ChainDiffDto(List.of(elements), List.of(), List.of());
   }
 
   private static ChainPlanGraph singleNodeGraph() {

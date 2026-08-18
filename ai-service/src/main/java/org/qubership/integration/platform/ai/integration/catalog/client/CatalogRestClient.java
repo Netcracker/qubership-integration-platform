@@ -196,7 +196,22 @@ public interface CatalogRestClient {
       List<CatalogChainLabel> labels) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  record ElementSummaryDto(String id, String type, Map<String, Object> properties) {}
+  record ElementSummaryDto(
+      String id,
+      String type,
+      Map<String, Object> properties,
+      String parentElementId,
+      List<ElementSummaryDto> children) {
+
+    /** Keeps existing test and call sites on the three-field constructor. */
+    public ElementSummaryDto(String id, String type, Map<String, Object> properties) {
+      this(id, type, properties, null, null);
+    }
+
+    public ElementSummaryDto {
+      children = children == null ? List.of() : List.copyOf(children);
+    }
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record DependencySummaryDto(String id, String from, String to) {}
