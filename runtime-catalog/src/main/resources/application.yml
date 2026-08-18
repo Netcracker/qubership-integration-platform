@@ -192,6 +192,7 @@ qip:
       http-route:
         public-suffix: -chain-public-routes
         private-suffix: -chain-private-routes
+        egress-suffix: -egress-routes
       engine-routes:
         suffix: -routes
     build:

@@ -120,6 +120,16 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
 
     private static final int MAX_MERGE_ATTEMPTS = 3;
 
+    /**
+     * Merges {@code givenRoutes} into the named gateway tier's HTTPRoute, retrying on a
+     * concurrent-update conflict up to {@link #MAX_MERGE_ATTEMPTS} times.
+     *
+     * @param ruleBuilder builds the replacement {@link HTTPRouteRule} for each route whose path
+     *                    matches {@code pathMatchExtractor}. Pass {@code null} for removal-only
+     *                    mode: matching paths are stripped from the tier and no new rules are
+     *                    added back. {@link #removeEngineRoutes} relies on this; every other
+     *                    caller (the POST-style tiers) must pass a real builder.
+     */
     private void mergeTierRoutes(
             KubeCustomObjectRequest tierRequest,
             List<DeploymentRouteUpdate> givenRoutes,
