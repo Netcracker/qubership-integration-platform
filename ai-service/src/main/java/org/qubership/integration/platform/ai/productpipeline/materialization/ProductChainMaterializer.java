@@ -6,10 +6,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogElementAdoptionBinder;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
@@ -30,15 +32,18 @@ public class ProductChainMaterializer {
   private final CatalogMutationGateway catalog;
   private final ProductPipelineArtifactStore artifactStore;
   private final ChainCatalogFactsService factsService;
+  private final ChainPlanGraphImporter graphImporter;
 
   @Inject
   public ProductChainMaterializer(
       CatalogMutationGateway catalog,
       ProductPipelineArtifactStore artifactStore,
-      ChainCatalogFactsService factsService) {
+      ChainCatalogFactsService factsService,
+      ChainPlanGraphImporter graphImporter) {
     this.catalog = Objects.requireNonNull(catalog, "catalog");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.factsService = Objects.requireNonNull(factsService, "factsService");
+    this.graphImporter = Objects.requireNonNull(graphImporter, "graphImporter");
   }
 
   public MaterializationResult resume(Inputs inputs, MaterializationCheckpoint checkpoint) {
@@ -151,7 +156,8 @@ public class ProductChainMaterializer {
   }
 
   private Map<String, String> applyGraph(Inputs inputs, String chainId, Map<String, String> existingMap) {
-    MaterializationMap checkpointMap = new MaterializationMap(chainId, Map.copyOf(existingMap));
+    Map<String, String> seededMap = seedMaterializationMapFromReadBack(inputs.graph(), chainId, existingMap);
+    MaterializationMap checkpointMap = new MaterializationMap(chainId, Map.copyOf(seededMap));
     ChainPlanGraph desired = inputs.graph();
     ChainPlanGraph current = CatalogGraphMaterializer.emptyCurrent(desired);
     CatalogGraphMaterializeResult result =
@@ -162,6 +168,14 @@ public class ProductChainMaterializer {
               + (result.error() == null ? result.failedNodeIds() : result.error()));
     }
     return new LinkedHashMap<>(result.materializationMap().nodeIdToElementId());
+  }
+
+  private Map<String, String> seedMaterializationMapFromReadBack(
+      ChainPlanGraph desired, String chainId, Map<String, String> checkpointMap) {
+    ChainCatalogFacts facts = factsService.load(chainId);
+    Objects.requireNonNull(graphImporter.importChain(facts), "imported");
+    return CatalogElementAdoptionBinder.mergeImportedBindings(
+        desired, checkpointMap, facts.elements());
   }
 
   private MaterializationCheckpoint appendCheckpoint(

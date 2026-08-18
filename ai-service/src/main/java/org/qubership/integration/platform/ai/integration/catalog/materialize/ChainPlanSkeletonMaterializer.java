@@ -210,7 +210,7 @@ public class ChainPlanSkeletonMaterializer {
    */
   private String adoptMatchingGeneratedChild(
       String chainId, String parentElementId, String childType, Set<String> usedElementIds) {
-    return firstUnclaimedOfType(
+    return CatalogElementAdoptionBinder.firstUnclaimedOfType(
         readBackGeneratedChildren(chainId, parentElementId), childType, usedElementIds);
   }
 
@@ -233,31 +233,13 @@ public class ChainPlanSkeletonMaterializer {
       if (!isUnmappedDirectChild(child, parentNodeId, nodeIdToElementId)) {
         continue;
       }
-      String adoptedId = firstUnclaimedOfType(generated, child.type(), usedElementIds);
+      String adoptedId =
+          CatalogElementAdoptionBinder.firstUnclaimedOfType(generated, child.type(), usedElementIds);
       if (adoptedId != null) {
         nodeIdToElementId.put(child.nodeId(), adoptedId);
         usedElementIds.add(adoptedId);
       }
     }
-  }
-
-  private static String firstUnclaimedOfType(
-      List<CatalogRestClient.ElementSummaryDto> generated,
-      String childType,
-      Set<String> usedElementIds) {
-    String typeKey = childType != null ? childType.trim() : "";
-    if (typeKey.isEmpty() || generated == null) {
-      return null;
-    }
-    for (CatalogRestClient.ElementSummaryDto candidate : generated) {
-      String candidateId = trim(candidate.id());
-      if (candidateId != null
-          && !usedElementIds.contains(candidateId)
-          && typeKey.equals(trim(candidate.type()))) {
-        return candidateId;
-      }
-    }
-    return null;
   }
 
   private static boolean hasUnmappedPlannedDirectChildren(

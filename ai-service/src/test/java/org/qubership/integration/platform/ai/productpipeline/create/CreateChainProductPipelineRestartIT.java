@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogDependency;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElement;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
@@ -260,8 +261,11 @@ class CreateChainProductPipelineRestartIT {
   }
 
   private MaterializationCapability materializationCapability() {
+    ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    ChainPlanGraphImporter graphImporter =
+        new ChainPlanGraphImporter(objectMapper, new CanonicalGraphDigest(objectMapper));
     ProductChainMaterializer materializer =
-        new ProductChainMaterializer(catalog, artifactStore, factsService);
+        new ProductChainMaterializer(catalog, artifactStore, factsService, graphImporter);
     return new MaterializationCapability(
         artifactStore, materializer, factsService, new ChainReconcileService());
   }

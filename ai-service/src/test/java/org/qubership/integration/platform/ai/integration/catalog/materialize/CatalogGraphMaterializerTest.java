@@ -132,8 +132,13 @@ class CatalogGraphMaterializerTest {
                 "trigger-1", "catalog-trigger-1",
                 "script-1", "catalog-script-1")));
 
-    new ProductChainMaterializer(
-            gateway, mock(ProductPipelineArtifactStore.class), pipelineFactsService)
+    ProductChainMaterializer materializer =
+        new ProductChainMaterializer(
+            gateway,
+            mock(ProductPipelineArtifactStore.class),
+            pipelineFactsService,
+            new ChainPlanGraphImporter(new ObjectMapper(), new CanonicalGraphDigest(new ObjectMapper())));
+    materializer
         .resume(new ProductChainMaterializer.Inputs("run-1", desired, runManifest(), "digest"), null);
 
     verify(spyMaterializer)
