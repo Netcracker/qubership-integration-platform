@@ -157,8 +157,11 @@ public class SystemService extends SystemBaseService {
         JsonNode environmentProperties = activeEnvironment != null
             ? activeEnvironment.getProperties()
             : null;
-        timeout = environmentProperties != null
-            ? environmentProperties.get(CONNECT_TIMEOUT).asLong(120000L)
+        JsonNode timeoutPropertiesValue = environmentProperties != null
+            ? environmentProperties.get(CONNECT_TIMEOUT)
+            : null;
+        timeout = timeoutPropertiesValue != null
+            ? timeoutPropertiesValue.asLong(120000L)
             : timeout;
         return timeout;
     }
