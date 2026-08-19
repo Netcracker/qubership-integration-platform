@@ -197,6 +197,13 @@ jobs:
           # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
           cache: "maven"
 
+      - name: Pre-install integration-build-library into .m2
+        if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
+        run: |
+          set -eu
+          mvn --batch-mode -f integration-build-pipeline/pom.xml install \
+            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
+
       - name: Update OpenAPI specifications
         working-directory: ${{ inputs.module }}
         env:
