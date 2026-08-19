@@ -28,14 +28,14 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
  * for a node the intent names as a target, and edges may be added, removed, or rewritten only
  * where they touch the target boundary or a new node.
  *
- * <p>Connections of a displaced node are derived here rather than taken on trust. When the capture
- * drops them, incoming hops attach to the new subgraph's entry and outgoing hops leave from its
- * exit. Both ends come from the new nodes: the entry has no incoming edge from another new node,
- * and the exit has no outgoing edge to another new node. A wrapping container has neither, so it
- * is both ends. A generator that relists the connections is accepted as is. An insertion that
- * keeps the address elements in place does not restore a dropped address edge: the capture already
- * replaced that hop with the new subgraph. A replacement omits the address element; its neighbours
- * follow the same entry and exit rule.
+ * <p>Connections of a displaced node are derived, rather than taken on trust, by {@link
+ * ChainEditBoundaryWiring}. When the capture drops them, incoming hops attach to the new
+ * subgraph's entry and outgoing hops leave from its exit. Both ends come from the new nodes: the
+ * entry has no incoming edge from another new node, and the exit has no outgoing edge to another
+ * new node. A wrapping container has neither, so it is both ends. A generator that relists the
+ * connections is accepted as is. An insertion that keeps the address elements in place does not
+ * restore a dropped address edge: the capture already replaced that hop with the new subgraph. A
+ * replacement omits the address element; its neighbours follow the same entry and exit rule.
  */
 public final class ChainEditStructureMerge {
 
@@ -164,7 +164,8 @@ public final class ChainEditStructureMerge {
       acceptedProposed.add(candidate);
       connections.add(connectionKey(candidate.fromNodeId(), candidate.toNodeId()));
     }
-    SubgraphEnds ends = deriveSubgraphEnds(newNodeIds, acceptedProposed, mergedNodes);
+    ChainEditBoundaryWiring.SubgraphEnds ends =
+        ChainEditBoundaryWiring.deriveSubgraphEnds(newNodeIds, acceptedProposed, mergedNodes);
 
     for (ChainPlanEdge existing : baseList) {
       ChainPlanEdge candidate = proposedById.get(existing.edgeId());
@@ -173,7 +174,7 @@ public final class ChainEditStructureMerge {
           || !mergedNodeIds.contains(candidate.toNodeId())) {
         if (referencesAny(existing, removed)) {
           ChainPlanEdge recovered =
-              recoverReplacedTargetEdge(existing, removed, ends, mergedNodeIds);
+              ChainEditBoundaryWiring.rewireReplacedEndpoint(existing, removed, ends, mergedNodeIds);
           if (recovered != null
               && connections.add(connectionKey(recovered.fromNodeId(), recovered.toNodeId()))) {
             restored.add(recovered);
@@ -186,7 +187,7 @@ public final class ChainEditStructureMerge {
                 "structure capture removed unrelated edge '" + existing.edgeId() + "'");
           }
           ChainPlanEdge recovered =
-              recoverDroppedTargetEdge(existing, mergedNodes, baseNodeIds, ends);
+              ChainEditBoundaryWiring.rewireMovedEndpoint(existing, mergedNodes, baseNodeIds, ends);
           if (recovered != null
               && connections.add(connectionKey(recovered.fromNodeId(), recovered.toNodeId()))) {
             restored.add(recovered);
@@ -216,31 +217,6 @@ public final class ChainEditStructureMerge {
     List<ChainPlanEdge> merged = new ArrayList<>(acceptedProposed);
     merged.addAll(restored);
     return List.copyOf(merged);
-  }
-
-  /**
-   * Rebuilds a connection that used to touch a replaced element.
-   *
-   * <p>Incoming hops attach to the subgraph entry; outgoing hops leave from the exit. A hop whose
-   * both ends were replaced is dropped: it lived inside the old element, not among its neighbours.
-   */
-  private static ChainPlanEdge recoverReplacedTargetEdge(
-      ChainPlanEdge edge, Set<String> removed, SubgraphEnds ends, Set<String> mergedNodeIds) {
-    boolean fromRemoved = removed.contains(edge.fromNodeId());
-    boolean toRemoved = removed.contains(edge.toNodeId());
-    if (fromRemoved && toRemoved) {
-      return null;
-    }
-    String from = fromRemoved ? firstNonBlank(ends.exit(), null) : edge.fromNodeId();
-    String to = toRemoved ? firstNonBlank(ends.entry(), null) : edge.toNodeId();
-    if (from == null
-        || to == null
-        || !mergedNodeIds.contains(from)
-        || !mergedNodeIds.contains(to)
-        || Objects.equals(from, to)) {
-      return null;
-    }
-    return new ChainPlanEdge(edge.edgeId(), from, to, edge.scopeNodeId());
   }
 
   /**
@@ -289,117 +265,6 @@ public final class ChainEditStructureMerge {
     }
     return new ChainPlanNode(
         node.nodeId(), node.type(), node.label(), containerParent, node.order(), node.properties());
-  }
-
-  /**
-   * Rebuilds a dropped connection only when an endpoint actually moved.
-   *
-   * <p>Incoming hops attach to the subgraph entry; outgoing hops leave from the exit. A connection
-   * whose two ends nested into the same new container stays as it was: both endpoints are still
-   * siblings, just one level deeper.
-   *
-   * <p>An insertion that keeps the address elements where they are is different. The capture
-   * replaces the address edge with the new subgraph, and neither endpoint moves, so putting that
-   * edge back would leave the old hop beside the splice.
-   */
-  private static ChainPlanEdge recoverDroppedTargetEdge(
-      ChainPlanEdge edge,
-      Map<String, ChainPlanNode> mergedNodes,
-      Set<String> baseNodeIds,
-      SubgraphEnds ends) {
-    String fromContainer = newContainerOf(edge.fromNodeId(), mergedNodes, baseNodeIds);
-    String toContainer = newContainerOf(edge.toNodeId(), mergedNodes, baseNodeIds);
-    if (Objects.equals(fromContainer, toContainer) && !baseNodeIds.contains(fromContainer)) {
-      return edge;
-    }
-    boolean fromMoved = !Objects.equals(fromContainer, edge.fromNodeId());
-    boolean toMoved = !Objects.equals(toContainer, edge.toNodeId());
-    if (!fromMoved && !toMoved) {
-      return null;
-    }
-    String from = fromMoved ? firstNonBlank(ends.exit(), fromContainer) : edge.fromNodeId();
-    String to = toMoved ? firstNonBlank(ends.entry(), toContainer) : edge.toNodeId();
-    if (Objects.equals(from, edge.fromNodeId()) && Objects.equals(to, edge.toNodeId())) {
-      return null;
-    }
-    return new ChainPlanEdge(edge.edgeId(), from, to, edge.scopeNodeId());
-  }
-
-  /**
-   * Entry and exit of the new subgraph, derived from the new nodes themselves.
-   *
-   * <p>Only surface new nodes count: a child such as {@code try} is not an end of the flow. Among
-   * those, the entry has no incoming edge from another new node and the exit has no outgoing edge
-   * to another new node. Several disconnected surface nodes leave the end unset so a moved endpoint
-   * can fall back to the container it nested into.
-   */
-  private static SubgraphEnds deriveSubgraphEnds(
-      Set<String> newNodeIds,
-      List<ChainPlanEdge> proposedEdges,
-      Map<String, ChainPlanNode> mergedNodes) {
-    if (newNodeIds.isEmpty()) {
-      return new SubgraphEnds(null, null);
-    }
-    Set<String> withIncoming = new LinkedHashSet<>();
-    Set<String> withOutgoing = new LinkedHashSet<>();
-    for (ChainPlanEdge edge : proposedEdges) {
-      if (newNodeIds.contains(edge.fromNodeId()) && newNodeIds.contains(edge.toNodeId())) {
-        withOutgoing.add(edge.fromNodeId());
-        withIncoming.add(edge.toNodeId());
-      }
-    }
-    Set<String> surface = new LinkedHashSet<>();
-    for (String nodeId : newNodeIds) {
-      ChainPlanNode node = mergedNodes.get(nodeId);
-      String parentId = node == null ? null : node.parentNodeId();
-      if (parentId == null || parentId.isBlank() || !newNodeIds.contains(parentId)) {
-        surface.add(nodeId);
-      }
-    }
-    return new SubgraphEnds(
-        uniqueSurfaceEnd(surface, withIncoming), uniqueSurfaceEnd(surface, withOutgoing));
-  }
-
-  private static String uniqueSurfaceEnd(Set<String> surface, Set<String> connected) {
-    String found = null;
-    for (String nodeId : surface) {
-      if (connected.contains(nodeId)) {
-        continue;
-      }
-      if (found != null) {
-        return null;
-      }
-      found = nodeId;
-    }
-    return found;
-  }
-
-  private static String firstNonBlank(String preferred, String fallback) {
-    return preferred == null || preferred.isBlank() ? fallback : preferred;
-  }
-
-  private record SubgraphEnds(String entry, String exit) {}
-
-  /**
-   * The outermost container this write adds above {@code nodeId}, or {@code nodeId} when the node
-   * did not move into one.
-   */
-  private static String newContainerOf(
-      String nodeId, Map<String, ChainPlanNode> mergedNodes, Set<String> baseNodeIds) {
-    String outermost = null;
-    Set<String> visited = new LinkedHashSet<>();
-    ChainPlanNode node = mergedNodes.get(nodeId);
-    while (node != null && visited.add(node.nodeId())) {
-      String parentId = node.parentNodeId();
-      if (parentId == null || parentId.isBlank()) {
-        break;
-      }
-      if (!baseNodeIds.contains(parentId)) {
-        outermost = parentId;
-      }
-      node = mergedNodes.get(parentId);
-    }
-    return outermost == null ? nodeId : outermost;
   }
 
   private static String connectionKey(String fromNodeId, String toNodeId) {
