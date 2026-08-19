@@ -37,6 +37,15 @@ public record CompilerExecutionSeed(
     List<SkillArtifact> artifacts,
     Set<String> preSatisfiedSkillIds) {
 
+  /**
+   * Producer id of every artifact an edit run seeds before any skill has run.
+   *
+   * <p>An edit seeds CHAIN_STRUCTURE with the imported graph so downstream skills have a starting
+   * shape. That makes the seed indistinguishable from a real capture unless the producer is
+   * checked, which is how a failed structure stage used to pass for a successful one.
+   */
+  public static final String SEED_PRODUCER = "chain-edit-seed";
+
   /** The skill CREATE marks satisfied before the compiler DAG starts. */
   public static final String REQUIREMENT_ANALYZER_SKILL = "cip-requirement-analyzer";
 
@@ -100,35 +109,35 @@ public record CompilerExecutionSeed(
     artifacts.add(
         SkillArtifact.of(
             SkillArtifactType.RAW_USER_REQUEST,
-            "chain-edit-seed",
+            SEED_PRODUCER,
             new SkillArtifactPayload.RawUserRequestPayload(text, List.of())));
     artifacts.add(
         SkillArtifact.of(
             SkillArtifactType.CHAIN_PLAN_GRAPH,
-            "chain-edit-seed",
+            SEED_PRODUCER,
             new SkillArtifactPayload.ChainPlanGraphPayload(importedGraph)));
     artifacts.add(
         SkillArtifact.of(
             SkillArtifactType.CHAIN_STRUCTURE,
-            "chain-edit-seed",
+            SEED_PRODUCER,
             new SkillArtifactPayload.ChainStructurePayload(
                 new ChainStructure(importedGraph, List.of(), List.of()))));
     if (materializationMap != null) {
       artifacts.add(
           SkillArtifact.of(
               SkillArtifactType.MATERIALIZATION_MAP,
-              "chain-edit-seed",
+              SEED_PRODUCER,
               new SkillArtifactPayload.MaterializationMapPayload(materializationMap)));
     }
     artifacts.add(
         SkillArtifact.of(
             SkillArtifactType.CHAIN_EDIT_INTENT,
-            "chain-edit-seed",
+            SEED_PRODUCER,
             new SkillArtifactPayload.ChainEditIntentPayload(intent)));
     artifacts.add(
         SkillArtifact.of(
             SkillArtifactType.SERVICE_CALL_BINDINGS,
-            "chain-edit-seed",
+            SEED_PRODUCER,
             new SkillArtifactPayload.ServiceCallBindingsPayload(
                 bindings == null ? List.of() : bindings)));
     LinkedHashSet<String> preSatisfied = new LinkedHashSet<>(EDIT_PRE_SATISFIED_SKILLS);

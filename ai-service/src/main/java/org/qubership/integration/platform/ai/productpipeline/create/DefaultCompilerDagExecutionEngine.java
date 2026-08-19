@@ -384,6 +384,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     SkillArtifact structureArtifact =
         fallback.stream()
             .filter(artifact -> artifact.type() == SkillArtifactType.CHAIN_STRUCTURE)
+            .filter(artifact -> !CompilerExecutionSeed.SEED_PRODUCER.equals(artifact.producerSkillId()))
             .findFirst()
             .orElseThrow(
                 () ->

@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.eq;
@@ -159,6 +160,39 @@ class CompilerDagExecutionEngineTest {
   }
 
   @Test
+  void aFailedStructureSkillDoesNotPassTheSeededStructureOffAsItsOutput() {
+    String conversationId = "conv-structure-failed";
+    ResolvedCompilerDag dag = dagWithStructureGenerator();
+    when(skillRegistry.require("cip-structure-generator")).thenReturn(new FailingStructureExecutor());
+
+    // An edit run seeds the imported graph as CHAIN_STRUCTURE before any skill runs. The failed
+    // skill must not inherit it, or the caller reads an untouched graph as a completed stage.
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_STRUCTURE,
+            CompilerExecutionSeed.SEED_PRODUCER,
+            new SkillArtifactPayload.ChainStructurePayload(
+                new ChainStructure(graphForAssembly(), List.of(), List.of()))));
+
+    CompilerDagExecutionRequest request =
+        new CompilerDagExecutionRequest(
+            "run-1",
+            conversationId,
+            manifestFor(dag),
+            brief(),
+            null,
+            dag,
+            List.of(),
+            List.of(),
+            List.of());
+
+    assertThrows(
+        PlanningSkillArtifactUnavailableException.class,
+        () -> engine.execute(request, (skillId, status) -> {}).await().indefinitely());
+  }
+
+  @Test
   void engineImplementsSharedInterface() {
     assertTrue(engine instanceof CompilerDagExecutionEngine);
   }
@@ -272,6 +306,30 @@ class CompilerDagExecutionEngineTest {
         "dag");
   }
 
+  private static ResolvedCompilerDag dagWithStructureGenerator() {
+    return new ResolvedCompilerDag(
+        List.of(
+            new ResolvedCompilerNode(
+                "cip-structure-generator",
+                "Planning",
+                null,
+                List.of(SkillArtifactType.REQUIREMENT_BRIEF.name()),
+                List.of(SkillArtifactType.CHAIN_STRUCTURE.name()),
+                List.of(),
+                "captureChainStructure",
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                0,
+                0,
+                true,
+                CompilerNodeExecutionMode.LLM_SKILL,
+                null)),
+        List.of(),
+        "dag");
+  }
+
   private static ResolvedCompilerNode node(ResolvedCompilerDag dag, String skillId) {
     return dag.nodes().stream()
         .filter(n -> n.skillId().equals(skillId))
@@ -298,6 +356,33 @@ class CompilerDagExecutionEngineTest {
                     new org.qubership.integration.platform.ai.plan.model.PlanProperty(
                         "externalRoute", "false")))),
         List.of());
+  }
+
+  private static final class FailingStructureExecutor implements SkillExecutor {
+    @Override
+    public String skillId() {
+      return "cip-structure-generator";
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.REQUIREMENT_BRIEF);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.CHAIN_STRUCTURE);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      return Uni.createFrom().item(SkillExecutionResult.failed("capture rejected"));
+    }
   }
 
   private static final class PatternExecutor implements SkillExecutor {
