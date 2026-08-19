@@ -1,0 +1,20 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+id: "some-id"
+name: "Sample API"
+content:
+  specificationType: "asyncapi"
+  specificationVersion: "3.1.0"
+  version: "1.0.1"
+  operations:
+    - id: "generated-id"
+      type: "asyncapi"
+      name: Unique string used to identify the operation (operationId)
+      channel: "some.channel.name"
+      method: subscribe
+
+      description: A verbose explanation of the operation.
+      summary: A short summary of what the operation is about.
+  specifications:
+    - filePath: "some-resource-name.yaml"
+      isRoot: true

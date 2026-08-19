@@ -1,0 +1,21 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+id: "some-id"
+name: "Sample API"
+content:
+  specificationType: "openapi"
+  specificationVersion: "3.1.0"
+  version: "1.0.1"
+  operations:
+    - id: "getCustomers"
+      type: "openapi"
+      path: "/customer"
+      method: get
+
+      name: Unique string used to identify the operation (operationId)
+      description:  A verbose explanation of the operation behavior.
+      summary: A short summary of what the operation does
+      isDeprecated: true
+  specifications:
+    - filePath: "some-resource-name.yaml"
+      isRoot: true
