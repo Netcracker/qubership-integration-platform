@@ -4,13 +4,14 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditCapture;
 
 /**
- * Reads a change request and says which action it asks for and which elements it acts on.
+ * Reads a change request and returns a typed {@link ChainEditCapture}.
  *
- * <p>It holds no tools and writes no patch. Everything that needs a schema, a catalog lookup, or a
- * topology decision happens afterwards in the owning compiler skill, so a weaker model dropping a
- * required property here cannot reach the catalog.
+ * <p>It holds no tools and writes no patch. Java validates the capture against the imported graph
+ * and applies it. It does not infer the action, type, targets, or placement from English in the
+ * request.
  */
 @RegisterAiService(
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
@@ -26,5 +27,5 @@ Chain elements (id | type | label):
 User request:
 {userRequest}\
 """)
-  String resolve(String elements, String userRequest);
+  ChainEditCapture resolve(String elements, String userRequest);
 }

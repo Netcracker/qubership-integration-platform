@@ -25,6 +25,9 @@ public class CaptureRepairMessageBuilder {
           "node '([^']+)' \\(([^)]+)\\) has unknown property key '([^']+)'",
           Pattern.CASE_INSENSITIVE);
 
+  private static final Pattern MISSING_EDGE =
+      Pattern.compile("must have an (outgoing|execution) edge", Pattern.CASE_INSENSITIVE);
+
   private static final Map<String, String> COMPLETENESS_INSTRUCTIONS = buildCompletenessInstructions();
 
   private final DeterministicElementSchemaService schemaService;
@@ -152,12 +155,23 @@ public class CaptureRepairMessageBuilder {
           .append(" again.");
     }
     List<String> lines = validationLines(summary);
+    boolean propertyDefect = false;
+    boolean missingEdge = false;
     for (String line : lines) {
       message.append("\n- ").append(line);
       // Graph / schema cues only when summary matches unknown-property structure patterns.
-      appendAllowedKeysHint(message, line);
+      propertyDefect |= appendAllowedKeysHint(message, line);
+      missingEdge |= MISSING_EDGE.matcher(line).find();
     }
-    if (fieldHints == null || fieldHints.isEmpty()) {
+    if (missingEdge) {
+      message.append(
+          "\nAdd the missing connection to the graph's edges array as one entry with edgeId,"
+              + " fromNodeId, and toNodeId. A parentNodeId nests an element; it does not connect"
+              + " the flow.");
+    }
+    // Only a property defect is worth a property-schema lookup. Sending the generator to the
+    // schema tool for an edge or containment defect costs it a repair turn on the wrong question.
+    if (propertyDefect) {
       message.append(
           "\nCall describeElementPatchSchema for allowed property keys before adding properties.");
     }
@@ -195,10 +209,11 @@ public class CaptureRepairMessageBuilder {
     return lines;
   }
 
-  private void appendAllowedKeysHint(StringBuilder message, String validationLine) {
+  /** Appends the per-key advice for a property defect, and reports whether the line was one. */
+  private boolean appendAllowedKeysHint(StringBuilder message, String validationLine) {
     Matcher matcher = UNKNOWN_PROPERTY_KEY.matcher(validationLine);
     if (!matcher.find()) {
-      return;
+      return false;
     }
     String nodeId = matcher.group(1);
     String elementType = matcher.group(2);
@@ -212,7 +227,7 @@ public class CaptureRepairMessageBuilder {
     Set<String> allowedKeys =
         schemaService.allowedPatchPropertyKeys(elementType);
     if (allowedKeys.isEmpty()) {
-      return;
+      return true;
     }
     String sample =
         allowedKeys.stream()
@@ -228,6 +243,7 @@ public class CaptureRepairMessageBuilder {
         .append(". Use describeElementPatchSchema('")
         .append(elementType)
         .append("').");
+    return true;
   }
 
   private static String truncate(String message) {

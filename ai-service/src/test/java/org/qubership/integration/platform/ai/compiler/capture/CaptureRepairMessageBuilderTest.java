@@ -92,6 +92,52 @@ class CaptureRepairMessageBuilderTest {
   }
 
   @Test
+  void missingEdgeMessageAsksForTheEdgeAndNotForPropertySchemas() {
+    String message =
+        builder.build(
+            new CaptureAttemptFeedback(
+                CaptureFailureKind.VALIDATION,
+                "Structure validation failed:\n"
+                    + "node 'trigger-1' (http-trigger) must have an outgoing edge to the first"
+                    + " executable node"),
+            "captureChainStructure");
+
+    assertTrue(message.contains("edges array"), message);
+    assertTrue(message.contains("fromNodeId"), message);
+    assertFalse(message.contains("describeElementPatchSchema"), message);
+  }
+
+  @Test
+  void siblingEdgeDefectAlsoAsksForTheEdge() {
+    String message =
+        builder.build(
+            new CaptureAttemptFeedback(
+                CaptureFailureKind.VALIDATION,
+                "Structure validation failed:\n"
+                    + "node 'script-1' (script) must have an execution edge to another sibling at"
+                    + " the same containment level"),
+            "captureChainStructure");
+
+    assertTrue(message.contains("edges array"), message);
+    assertFalse(message.contains("describeElementPatchSchema"), message);
+  }
+
+  @Test
+  void containmentDefectIsNotSentToThePropertySchemaTool() {
+    String message =
+        builder.build(
+            new CaptureAttemptFeedback(
+                CaptureFailureKind.VALIDATION,
+                "Structure validation failed:\n"
+                    + "node 'script-1' (script) must have parentNodeId='try-shell' for catalog"
+                    + " containment"),
+            "captureChainStructure");
+
+    assertTrue(message.contains("parentNodeId='try-shell'"), message);
+    assertFalse(message.contains("describeElementPatchSchema"), message);
+  }
+
+  @Test
   void validationMessageTruncatesManyErrors() {
     String summary =
         "Plan validation failed:\n"

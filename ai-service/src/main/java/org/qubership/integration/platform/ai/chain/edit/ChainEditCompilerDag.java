@@ -14,11 +14,11 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifes
 /**
  * The pinned compiler DAG cut at the generation boundary.
  *
- * <p>An edit starts from a chain that exists, so the CREATE nodes that decide what a chain should
- * be (requirement discovery, pattern selection, naming, trigger configuration, whole-chain structure
- * generation) have nothing left to decide. Dropping them is not an optimization: running the
- * structure generator over an imported chain would regenerate the whole graph, and running the
- * naming generator would rename elements nobody asked to rename.
+ * <p>An edit starts from a chain that exists, so CREATE nodes that discover requirements, select a
+ * pattern, name nodes, or configure triggers have nothing left to decide. Property-only and simple
+ * additions skip structure as well. A compound structural addition first runs a separate
+ * structure-only cut against the imported graph, then runs its configuration owners through the
+ * ordinary edit cut.
  *
  * <p>What survives is the owning generators the edit needs, the assembler, and the mandatory
  * validators. Their declared inputs are narrowed the same way: a generator that consumed a
@@ -40,6 +40,20 @@ public final class ChainEditCompilerDag {
    */
   public static ResolvedCompilerDag cut(
       ResolvedCompilerDag full, Set<String> generatorSkillIds, Set<String> seedArtifactTypes) {
+    return cut(full, generatorSkillIds, seedArtifactTypes, true);
+  }
+
+  /** The structure-only prefix used before an edit can derive its configuration owners. */
+  public static ResolvedCompilerDag structureOnly(
+      ResolvedCompilerDag full, Set<String> seedArtifactTypes) {
+    return cut(full, Set.of("cip-structure-generator"), seedArtifactTypes, false);
+  }
+
+  private static ResolvedCompilerDag cut(
+      ResolvedCompilerDag full,
+      Set<String> generatorSkillIds,
+      Set<String> seedArtifactTypes,
+      boolean includeTerminalNodes) {
     Objects.requireNonNull(full, "full");
     Objects.requireNonNull(generatorSkillIds, "generatorSkillIds");
     Set<String> seeded = seedArtifactTypes == null ? Set.of() : seedArtifactTypes;
@@ -47,8 +61,9 @@ public final class ChainEditCompilerDag {
     LinkedHashSet<String> keptIds = new LinkedHashSet<>();
     for (ResolvedCompilerNode node : full.nodes()) {
       if (generatorSkillIds.contains(node.skillId())
-          || ASSEMBLY_SKILL.equals(node.skillId())
-          || VALIDATION_PHASE.equals(node.compilerPhase())) {
+          || (includeTerminalNodes
+              && (ASSEMBLY_SKILL.equals(node.skillId())
+                  || VALIDATION_PHASE.equals(node.compilerPhase())))) {
         keptIds.add(node.skillId());
       }
     }

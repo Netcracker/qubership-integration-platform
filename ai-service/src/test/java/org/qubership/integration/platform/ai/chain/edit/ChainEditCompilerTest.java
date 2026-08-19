@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
@@ -64,8 +65,11 @@ class ChainEditCompilerTest {
   private static final String TARGET = "call-orders";
   private static final String UNRELATED = "call-invoices";
   private static final String GENERATOR = "cip-service-call-generator";
+  private static final String STRUCTURE_GENERATOR = "cip-structure-generator";
+  private static final String ERROR_HANDLING_GENERATOR = "cip-error-handling-generator";
+  private static final String SCRIPT_GENERATOR = "cip-script-generator";
 
-  private String intentReply;
+  private ChainEditCapture intentReply;
   private CatalogRestClient catalogRestClient;
   private CatalogSystemReadTool readTool;
   private ApiHubMcpTools apiHub;
@@ -76,13 +80,11 @@ class ChainEditCompilerTest {
   @BeforeEach
   void setUp() {
     intentReply =
-        """
-        action: REBIND_SERVICE_CALL
-        targets: call-orders
-        change: point it at the order-status operation
-        lookup: order status
-        ambiguous:
-        """;
+        capture(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of(TARGET),
+            "point it at the order-status operation",
+            "order status");
     catalogRestClient = mock(CatalogRestClient.class);
     readTool = mock(CatalogSystemReadTool.class);
     engine = new FakeEngine();
@@ -120,7 +122,8 @@ class ChainEditCompilerTest {
             runPinResolver,
             profileCatalog,
             knowledge,
-            catalogMutationGateway);
+            catalogMutationGateway,
+            new CaptureSession());
   }
 
   @Test
@@ -229,13 +232,15 @@ class ChainEditCompilerTest {
   @Test
   void anAmbiguousTargetAsksAndProposesNoPatch() {
     intentReply =
-        """
-        action: REBIND_SERVICE_CALL
-        targets:
-        change: point a service call somewhere else
-        lookup:
-        ambiguous: call-orders (Call orders); call-invoices (Call invoices)
-        """;
+        capture(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of(),
+            "point a service call somewhere else",
+            null,
+            null,
+            null,
+            ChainEditPlacement.UNSET,
+            List.of("call-orders (Call orders)", "call-invoices (Call invoices)"));
 
     ChainEditOutcome.Clarification clarification =
         assertInstanceOf(ChainEditOutcome.Clarification.class, compiler.compile(request()));
@@ -294,7 +299,8 @@ class ChainEditCompilerTest {
 
   @Test
   void areorderIsMadeDeterministicallyWithoutRunningTheCompiler() {
-    intentReply = intent("REORDER", UNRELATED + ", " + TARGET, "put the invoice call first");
+    intentReply =
+        capture(ChainEditAction.REORDER, List.of(UNRELATED, TARGET), "put the invoice call first");
 
     ChainEditOutcome.Proposal proposal =
         assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
@@ -308,7 +314,7 @@ class ChainEditCompilerTest {
 
   @Test
   void aDeletionCarriesTheCatalogCascadeIntoTheNetPatch() {
-    intentReply = intent("DELETE", TARGET, "remove the order call");
+    intentReply = capture(ChainEditAction.DELETE, List.of(TARGET), "remove the order call");
 
     ChainEditOutcome.Proposal proposal =
         assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
@@ -326,7 +332,7 @@ class ChainEditCompilerTest {
 
   @Test
   void aScriptSkillIsNotOfferedAnElementItCannotOwn() {
-    intentReply = intent("EDIT_SCRIPT", TARGET, "rewrite the script");
+    intentReply = capture(ChainEditAction.EDIT_SCRIPT, List.of(TARGET), "rewrite the script");
 
     assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
   }
@@ -341,7 +347,8 @@ class ChainEditCompilerTest {
 
   @Test
   void aScriptEditRunsThroughTheScriptSkill() {
-    intentReply = intent("EDIT_SCRIPT", "normalize", "return the customer id in the body");
+    intentReply =
+        capture(ChainEditAction.EDIT_SCRIPT, List.of("normalize"), "return the customer id in the body");
 
     assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
     assertEquals(
@@ -352,11 +359,12 @@ class ChainEditCompilerTest {
 
   @Test
   void eachConfigurationFamilyGoesToTheCapabilityThatOwnsIt() {
-    intentReply = intent("EDIT_AUTHENTICATION", TARGET, "use the service account");
+    intentReply =
+        capture(ChainEditAction.EDIT_AUTHENTICATION, List.of(TARGET), "use the service account");
     compiler.compile(request());
     assertEquals(List.of("cip-auth-generator"), engine.lastRequest.get().approvedOwningSkillIds());
 
-    intentReply = intent("EDIT_RETRY", TARGET, "try five times");
+    intentReply = capture(ChainEditAction.EDIT_RETRY, List.of(TARGET), "try five times");
     compiler.compile(request());
     assertEquals(List.of("cip-retry-generator"), engine.lastRequest.get().approvedOwningSkillIds());
   }
@@ -364,7 +372,7 @@ class ChainEditCompilerTest {
   @Test
   void aTargetTheCapabilityCannotOwnIsRefusedBeforeTheCompilerRuns() {
     // The timeout skill owns connectTimeout on http-trigger, and this target is a service call.
-    intentReply = intent("EDIT_TIMEOUT", TARGET, "wait longer");
+    intentReply = capture(ChainEditAction.EDIT_TIMEOUT, List.of(TARGET), "wait longer");
 
     ChainEditOutcome.ResolutionFailure failure =
         assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
@@ -372,16 +380,96 @@ class ChainEditCompilerTest {
   }
 
   @Test
+  void noChangeDoesNotCompileAndDoesNotThrow() {
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.NO_CHANGE,
+            List.of(),
+            "No changes requested.",
+            null,
+            null,
+            null,
+            ChainEditPlacement.UNSET,
+            List.of());
+
+    ChainEditOutcome.ResolutionFailure failure =
+        assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
+    assertTrue(failure.message().contains("No change was requested"), failure.message());
+  }
+
+  @Test
+  void addingAQuartzSchedulerDoesNotAskWhichElementToChange() {
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(),
+            "add a quartz-scheduler that starts every 5 minutes",
+            null,
+            "quartz-scheduler",
+            "0 */5 * * * ?",
+            ChainEditPlacement.ROOT_TRIGGER,
+            List.of());
+
+    ChainEditOutcome outcome =
+        compiler.compile(
+            new ChainEditRequest(
+                "conv-1",
+                "chain-1",
+                "edit-run-1",
+                new ImportedChainPlan(importedGraph(), null, "base-digest"),
+                "schedule this every 5 minutes",
+                null));
+
+    assertFalse(
+        outcome instanceof ChainEditOutcome.Clarification,
+        () ->
+            outcome instanceof ChainEditOutcome.Clarification clarification
+                ? clarification.question() + " " + clarification.choices()
+                : outcome.getClass().getSimpleName());
+    assertEquals(
+        List.of("cip-quartz-scheduler-generator"),
+        engine.lastRequest.get().approvedOwningSkillIds());
+    ChainPlanGraph seed =
+        artifact(
+                engine.lastRequest.get(),
+                SkillArtifactType.CHAIN_PLAN_GRAPH,
+                SkillArtifactPayload.ChainPlanGraphPayload.class)
+            .graph();
+    assertTrue(
+        seed.nodes().stream().anyMatch(node -> "quartz-scheduler".equals(node.type())),
+        "the seed graph must already carry the new quartz-scheduler");
+    assertTrue(
+        scopedTargets(engine.lastRequest.get()).stream()
+            .anyMatch(
+                nodeId ->
+                    seed.nodes().stream()
+                        .anyMatch(
+                            node ->
+                                nodeId.equals(node.nodeId())
+                                    && "quartz-scheduler".equals(node.type()))),
+        "the quartz generator must target the new scheduler, not an existing element");
+    assertEquals(
+        "0 */5 * * * ?",
+        artifact(
+                engine.lastRequest.get(),
+                SkillArtifactType.CHAIN_EDIT_INTENT,
+                SkillArtifactPayload.ChainEditIntentPayload.class)
+            .intent()
+            .cronExpression());
+  }
+
+  @Test
   void anAdditionGoesToWhicheverSkillMayAddThatElementType() {
     intentReply =
-        """
-        action: ADD_ELEMENTS
-        targets: call-orders
-        change: add a script after the order call
-        lookup:
-        elementType: script
-        ambiguous:
-        """;
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of("call-orders"),
+            "add a script after the order call",
+            null,
+            "script",
+            null,
+            ChainEditPlacement.AFTER_TARGET,
+            List.of());
 
     compiler.compile(request());
 
@@ -391,18 +479,89 @@ class ChainEditCompilerTest {
   }
 
   @Test
+  void aCompoundStructuralAdditionRunsStructureBeforeEveryConfigurationOwner() {
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of("normalize"),
+            "wrap the script with error handling and return an error response from catch",
+            null,
+            "try-catch-finally-2",
+            null,
+            ChainEditPlacement.GENERATOR,
+            List.of());
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    assertEquals(2, engine.requests.size());
+    assertEquals(
+        List.of(STRUCTURE_GENERATOR), engine.requests.get(0).approvedOwningSkillIds());
+    assertFalse(
+        engine.requests.get(0).seed().preSatisfiedSkillIds().contains(STRUCTURE_GENERATOR));
+    assertEquals(
+        List.of(STRUCTURE_GENERATOR, ERROR_HANDLING_GENERATOR, SCRIPT_GENERATOR),
+        engine.requests.get(1).approvedOwningSkillIds());
+    assertTrue(
+        engine.requests.get(1).seed().preSatisfiedSkillIds().contains(STRUCTURE_GENERATOR));
+    assertEquals(
+        List.of(
+            STRUCTURE_GENERATOR,
+            ERROR_HANDLING_GENERATOR,
+            SCRIPT_GENERATOR,
+            "cip-chain-assembler"),
+        proposal.executedSkillIds());
+    assertEquals("try-shell", node(proposal.finalGraph(), "normalize").parentNodeId());
+    assertEquals(
+        List.of("catch-shell"),
+        scopedTargets(engine.requests.get(1), ERROR_HANDLING_GENERATOR));
+    assertEquals(
+        List.of("catch-response"),
+        scopedTargets(engine.requests.get(1), SCRIPT_GENERATOR));
+  }
+
+  @Test
   void anAdditionOfATypeNoSkillMayAddFallsBackToTheCaller() {
     intentReply =
-        """
-        action: ADD_ELEMENTS
-        targets: call-orders
-        change: add a mainframe bridge
-        lookup:
-        elementType: mainframe-bridge
-        ambiguous:
-        """;
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of("call-orders"),
+            "add a mainframe bridge",
+            null,
+            "mainframe-bridge",
+            null,
+            ChainEditPlacement.AFTER_TARGET,
+            List.of());
 
     assertInstanceOf(ChainEditOutcome.Unsupported.class, compiler.compile(request()));
+  }
+
+  @Test
+  void aTimeoutCaptureWithoutATargetAsksWhichElementEvenWhenTheUserSaidAdd() {
+    intentReply =
+        capture(
+            ChainEditAction.EDIT_TIMEOUT,
+            List.of(),
+            "wait longer",
+            null,
+            null,
+            null,
+            ChainEditPlacement.UNSET,
+            List.of("http-a", "http-b"));
+
+    ChainEditOutcome.Clarification clarification =
+        assertInstanceOf(
+            ChainEditOutcome.Clarification.class,
+            compiler.compile(
+                new ChainEditRequest(
+                    "conv-1",
+                    "chain-1",
+                    "edit-run-1",
+                    new ImportedChainPlan(twoHttpTriggers(), null, "base-digest"),
+                    "add quartz-scheduler every 5 minutes",
+                    null)));
+
+    assertEquals(List.of("http-a", "http-b"), clarification.choices());
   }
 
   @Test
@@ -507,19 +666,46 @@ class ChainEditCompilerTest {
         List.of());
   }
 
-  private static String intent(String action, String targets, String change) {
-    return "action: " + action + "\ntargets: " + targets + "\nchange: " + change
-        + "\nlookup:\nelementType:\nambiguous:\n";
+  private static ChainEditCapture capture(
+      ChainEditAction action, List<String> targets, String change) {
+    return capture(action, targets, change, null);
+  }
+
+  private static ChainEditCapture capture(
+      ChainEditAction action, List<String> targets, String change, String lookup) {
+    return capture(
+        action, targets, change, lookup, null, null, ChainEditPlacement.UNSET, List.of());
+  }
+
+  private static ChainEditCapture capture(
+      ChainEditAction action,
+      List<String> targets,
+      String change,
+      String lookup,
+      String elementType,
+      String cron,
+      ChainEditPlacement placement,
+      List<String> ambiguities) {
+    return new ChainEditCapture(
+        action, targets, change, lookup, elementType, cron, placement, ambiguities);
   }
 
   private static List<String> scopedTargets(CompilerDagExecutionRequest request) {
+    return scopedTargets(request, request.approvedOwningSkillIds().get(0));
+  }
+
+  private static List<String> scopedTargets(
+      CompilerDagExecutionRequest request, String skillId) {
     return artifact(
             request,
             SkillArtifactType.GENERATOR_PLAN_MANIFEST,
             SkillArtifactPayload.GeneratorPlanManifestPayload.class)
         .manifest()
         .plans()
-        .get(0)
+        .stream()
+        .filter(plan -> skillId.equals(plan.skillId()))
+        .findFirst()
+        .orElseThrow()
         .targetNodeIds();
   }
 
@@ -596,6 +782,16 @@ class ChainEditCompilerTest {
         List.of(new ChainPlanEdge("edge-1", TARGET, UNRELATED, null)));
   }
 
+  private static ChainPlanGraph twoHttpTriggers() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("http-a", "http-trigger", "HTTP A", null, null, List.of()),
+            new ChainPlanNode("http-b", "http-trigger", "HTTP B", null, null, List.of())),
+        List.of());
+  }
+
   /** What the service-call generator writes when it is handed the resolved binding. */
   private static ChainPlanGraph compiledGraph() {
     List<ChainPlanNode> nodes = new ArrayList<>();
@@ -629,10 +825,76 @@ class ChainEditCompilerTest {
         importedGraph().edges());
   }
 
+  private static ChainPlanGraph structuralGraph(boolean configured) {
+    return new ChainPlanGraph(
+        importedGraph().schemaVersion(),
+        importedGraph().chain(),
+        List.of(
+            node(importedGraph(), TARGET),
+            node(importedGraph(), UNRELATED),
+            new ChainPlanNode(
+                "normalize",
+                "script",
+                "Normalize payload",
+                "try-shell",
+                null,
+                List.of(new PlanProperty("script", "return 1"))),
+            new ChainPlanNode(
+                "error-handler",
+                "try-catch-finally-2",
+                "Error handler",
+                null,
+                null,
+                List.of()),
+            new ChainPlanNode(
+                "try-shell", "try-2", "Try", "error-handler", null, List.of()),
+            new ChainPlanNode(
+                "catch-shell",
+                "catch-2",
+                "Catch",
+                "error-handler",
+                null,
+                configured
+                    ? List.of(
+                        new PlanProperty("exception", "java.lang.Exception"),
+                        new PlanProperty("priority", "0"))
+                    : List.of()),
+            new ChainPlanNode(
+                "catch-response",
+                "script",
+                "Return error response",
+                "catch-shell",
+                null,
+                configured
+                    ? List.of(new PlanProperty("script", "return [status: 500]"))
+                    : List.of())),
+        List.of(
+            new ChainPlanEdge("edge-1", TARGET, UNRELATED, null),
+            new ChainPlanEdge("normalize-to-error-handler", "normalize", "error-handler", null)));
+  }
+
   private static CompilerRunPin pin() {
     ResolvedCompilerDag dag =
         new ResolvedCompilerDag(
             List.of(
+                new ResolvedCompilerNode(
+                    STRUCTURE_GENERATOR,
+                    "Planning",
+                    null,
+                    List.of("CHAIN_PLAN_GRAPH"),
+                    List.of("CHAIN_STRUCTURE", "CHAIN_PLAN_GRAPH"),
+                    List.of(),
+                    "captureChainStructure",
+                    List.of(),
+                    List.of(),
+                    true,
+                    List.of(),
+                    0,
+                    0,
+                    true,
+                    CompilerNodeExecutionMode.LLM_SKILL,
+                    null,
+                    null),
                 generator(
                     GENERATOR,
                     new GraphPatchOwnershipPolicy(
@@ -642,9 +904,25 @@ class ChainEditCompilerTest {
                         Set.of(),
                         Map.of("service-call", Set.of("integrationOperationId")))),
                 generator(
-                    "cip-script-generator",
+                    ERROR_HANDLING_GENERATOR,
+                    new GraphPatchOwnershipPolicy(
+                        false,
+                        false,
+                        Set.of(),
+                        Set.of(),
+                        Map.of("catch-2", Set.of("exception", "priority")))),
+                generator(
+                    SCRIPT_GENERATOR,
                     new GraphPatchOwnershipPolicy(
                         true, true, Set.of("script"), Set.of(), Map.of("script", Set.of("script")))),
+                generator(
+                    "cip-quartz-scheduler-generator",
+                    new GraphPatchOwnershipPolicy(
+                        false,
+                        true,
+                        Set.of("quartz-scheduler"),
+                        Set.of(),
+                        Map.of("quartz-scheduler", Set.of("cron", "deleteJob")))),
                 generator(
                     "cip-auth-generator",
                     new GraphPatchOwnershipPolicy(
@@ -723,6 +1001,7 @@ class ChainEditCompilerTest {
   private static final class FakeEngine implements CompilerDagExecutionEngine {
 
     private final AtomicReference<CompilerDagExecutionRequest> lastRequest = new AtomicReference<>();
+    private final List<CompilerDagExecutionRequest> requests = new ArrayList<>();
     private boolean validationValid = true;
     private RuntimeException failure;
 
@@ -730,6 +1009,7 @@ class ChainEditCompilerTest {
     public Uni<CompilerDagExecutionResult> execute(
         CompilerDagExecutionRequest request, java.util.function.BiConsumer<String, String> progress) {
       lastRequest.set(request);
+      requests.add(request);
       if (failure != null) {
         throw failure;
       }
@@ -747,19 +1027,37 @@ class ChainEditCompilerTest {
                           List.of(),
                           null)),
                   "refused");
+      boolean structureOnly =
+          request.approvedOwningSkillIds().equals(List.of(STRUCTURE_GENERATOR));
+      boolean structuralConfiguration =
+          request.approvedOwningSkillIds().contains(ERROR_HANDLING_GENERATOR);
+      List<String> executed =
+          structureOnly
+              ? List.of(STRUCTURE_GENERATOR)
+              : structuralConfiguration
+                  ? List.of(ERROR_HANDLING_GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler")
+                  : List.of(GENERATOR, "cip-chain-assembler");
+      ChainPlanGraph resultGraph =
+          structureOnly
+              ? structuralGraph(false)
+              : structuralConfiguration ? structuralGraph(true) : compiledGraph();
       return Uni.createFrom()
           .item(
               new CompilerDagExecutionResult(
                   StageOutcomeClass.SUCCEEDED,
                   null,
-                  List.of(GENERATOR, "cip-chain-assembler"),
+                  executed,
                   null,
-                  compiledGraph(),
+                  resultGraph,
                   null,
-                  new CompilerValidationBundle(
-                      1,
-                      "digest",
-                      List.of(new CompilerValidationPass("cip-element-validator", validation)))));
+                  structureOnly
+                      ? null
+                      : new CompilerValidationBundle(
+                          1,
+                          "digest",
+                          List.of(
+                              new CompilerValidationPass(
+                                  "cip-element-validator", validation)))));
     }
   }
 }

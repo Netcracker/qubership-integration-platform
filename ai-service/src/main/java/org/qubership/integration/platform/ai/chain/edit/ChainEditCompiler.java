@@ -2,12 +2,17 @@ package org.qubership.integration.platform.ai.chain.edit;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
@@ -42,9 +47,9 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
  *
  * <p>An edit is a compilation whose starting graph is the imported chain. The reader's words are
  * resolved into a typed intent, anything the request names outside the chain is resolved against
- * the catalog, and the owning generator then configures the element through the same skill
- * document, addon and knowledge package CREATE uses. What comes back is diffed against the imported
- * graph, so the reader approves one change rather than a replay of the generators' working.
+ * the catalog, and the same structure and configuration owners CREATE uses compile the desired
+ * graph. What comes back is diffed against the imported graph, so the reader approves one change
+ * rather than a replay of the generators' working.
  *
  * <p>Every branch that is not a proposal says why: an ambiguous target or operation asks, a missing
  * one reports it plainly, and a compiler refusal names the refusal. None of them invent a catalog
@@ -54,6 +59,7 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 public class ChainEditCompiler {
 
   private static final Logger LOG = Logger.getLogger(ChainEditCompiler.class);
+  private static final String STRUCTURE_GENERATOR = "cip-structure-generator";
 
   private final ChainEditIntentResolver intentResolver;
   private final ServiceCallBindingResolver bindingResolver;
@@ -62,6 +68,7 @@ public class ChainEditCompiler {
   private final ProductPipelineProfileCatalog profileCatalog;
   private final KnowledgeContextProvider knowledgeContextProvider;
   private final CatalogMutationGateway catalogMutationGateway;
+  private final CaptureSession captureSession;
 
   @Inject
   @SuppressWarnings("java:S107")
@@ -72,7 +79,8 @@ public class ChainEditCompiler {
       CompilerRunPinResolver runPinResolver,
       ProductPipelineProfileCatalog profileCatalog,
       KnowledgeContextProvider knowledgeContextProvider,
-      CatalogMutationGateway catalogMutationGateway) {
+      CatalogMutationGateway catalogMutationGateway,
+      CaptureSession captureSession) {
     this.intentResolver = Objects.requireNonNull(intentResolver, "intentResolver");
     this.bindingResolver = Objects.requireNonNull(bindingResolver, "bindingResolver");
     this.engine = Objects.requireNonNull(engine, "engine");
@@ -81,6 +89,7 @@ public class ChainEditCompiler {
     this.knowledgeContextProvider =
         Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
     this.catalogMutationGateway = catalogMutationGateway;
+    this.captureSession = Objects.requireNonNull(captureSession, "captureSession");
   }
 
   /**
@@ -126,6 +135,10 @@ public class ChainEditCompiler {
     Objects.requireNonNull(request, "request");
     ImportedChainPlan imported = request.imported();
     ChainEditIntent intent = intentResolver.resolve(imported.graph(), request.userRequest());
+    ChainEditOutcome noChange = noChangeOutcome(intent);
+    if (noChange != null) {
+      return noChange;
+    }
     if (!intent.resolved()) {
       return new ChainEditOutcome.Clarification(
           "I need one more thing before I change anything.", intent.unresolvedAmbiguities());
@@ -155,6 +168,10 @@ public class ChainEditCompiler {
           "The compiler package this edit needs is unavailable: " + e.getMessage());
     }
 
+    if (requiresStructureStage(intent)) {
+      return compileStructuralAddition(request, intent, importedBinding, pin);
+    }
+
     String generatorSkillId =
         ChainEditCapabilitySelection.owningSkillId(pin.resolvedDag(), intent).orElse(null);
     if (generatorSkillId == null) {
@@ -164,18 +181,15 @@ public class ChainEditCompiler {
     List<String> scopedTargets =
         ChainEditCapabilitySelection.scopedTargets(
             pin.resolvedDag(), generatorSkillId, intent, imported.graph());
-    if (scopedTargets.isEmpty()) {
+    ChainEditOutcome incomplete = incompleteAddition(intent, scopedTargets);
+    if (incomplete != null) {
+      return incomplete;
+    }
+    if (scopedTargets.isEmpty() && intent.action() != ChainEditAction.ADD_ELEMENTS) {
       return new ChainEditOutcome.ResolutionFailure(
           "No element in that request is one " + generatorSkillId + " may change.");
     }
-    ChainEditIntent scoped =
-        new ChainEditIntent(
-            intent.action(),
-            scopedTargets,
-            intent.requestedChange(),
-            intent.externalBindingQuery(),
-            intent.requestedElementType(),
-            List.of());
+    ChainEditIntent scoped = intent.withTargets(scopedTargets);
 
     List<ResolvedServiceCallBinding> bindings;
     if (importedBinding != null) {
@@ -210,30 +224,180 @@ public class ChainEditCompiler {
       bindings = List.of();
     }
 
-    ChainPlanGraph seedGraph = imported.graph();
-    if (scoped.action() == ChainEditAction.ADD_ELEMENTS
-        && "repairScriptBodies".equals(captureToolOf(pin, generatorSkillId))) {
-      // cip-script-generator's capture tool only configures a node that already exists -- an
-      // edit's cut DAG has no structure generator to have placed it upstream, so the shell goes in
-      // deterministically here. The final proposal still diffs against the true imported graph, so
-      // the reader sees placement and configuration as one change.
-      ChainEditNodePlacement.Placement placement =
-          ChainEditNodePlacement.insertAfter(
-              imported.graph(),
+    PlacementAndIntent placed = placeAddition(imported.graph(), scoped, pin, generatorSkillId);
+    GeneratorPlan plan = generatorPlan(generatorSkillId, placed.intent());
+    return runCompiler(
+        request,
+        placed.intent(),
+        bindings,
+        List.of(plan),
+        List.of(generatorSkillId),
+        Set.of(),
+        List.of(),
+        pin,
+        placed.graph());
+  }
+
+  private ChainEditOutcome compileStructuralAddition(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      ResolvedServiceCallBinding importedBinding,
+      CompilerRunPin pin) {
+    ImportedChainPlan imported = request.imported();
+    List<ResolvedServiceCallBinding> bindings =
+        importedBinding == null ? List.of() : List.of(importedBinding);
+    CompilerDagExecutionResult structureResult;
+    try {
+      structureResult = runStructureStage(request, intent, bindings, pin);
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "Chain edit structure generation failed runId=%s", request.editRunId());
+      return new ChainEditOutcome.CompilationFailure(describeFailure(e));
+    }
+    if (structureResult.graph() == null) {
+      return new ChainEditOutcome.CompilationFailure("The structure stage produced no graph.");
+    }
+
+    ChainPlanGraph structured;
+    try {
+      structured = ChainEditStructureMerge.merge(imported.graph(), structureResult.graph(), intent);
+    } catch (IllegalArgumentException e) {
+      return new ChainEditOutcome.CompilationFailure(
+          "The captured structure was rejected: " + e.getMessage());
+    }
+    List<GeneratorPlan> plans =
+        ChainEditCapabilitySelection.structuralGeneratorPlans(
+            pin.resolvedDag(), imported.graph(), structured, intent);
+    if (plans.isEmpty() && sameNodeIds(imported.graph(), structured)) {
+      return new ChainEditOutcome.CompilationFailure(
+          "The structure stage did not add the requested elements.");
+    }
+
+    List<String> skillIds = new ArrayList<>();
+    skillIds.add(STRUCTURE_GENERATOR);
+    skillIds.addAll(plans.stream().map(GeneratorPlan::skillId).toList());
+    return runCompiler(
+        request,
+        intent,
+        bindings,
+        plans,
+        List.copyOf(skillIds),
+        Set.of(STRUCTURE_GENERATOR),
+        structureResult.executedSkillIds(),
+        pin,
+        structured);
+  }
+
+  private CompilerDagExecutionResult runStructureStage(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      List<ResolvedServiceCallBinding> bindings,
+      CompilerRunPin pin) {
+    ImportedChainPlan imported = request.imported();
+    CompilerExecutionSeed seed =
+        CompilerExecutionSeed.forEdit(
+            request.editRunId(),
+            request.userRequest(),
+            imported.graph(),
+            imported.materializationMap(),
+            intent,
+            bindings,
+            Set.of());
+    ResolvedCompilerDag dag =
+        ChainEditCompilerDag.structureOnly(pin.resolvedDag(), seed.presentArtifactTypes());
+    RunManifest manifest =
+        ChainEditCompilerDag.pinnedManifest(
+            baseManifest(request, pin), request.editRunId(), dag);
+    // Published so the capture tool validates the merge of this capture onto the imported chain
+    // rather than the capture alone, and can hand a rejected merge back as repairable feedback.
+    CaptureKey structureBaseKey =
+        CaptureKey.conversation(
+            CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, request.conversationId());
+    captureSession.set(structureBaseKey, new ChainEditStructureBase(imported.graph(), intent));
+    try {
+      return engine
+          .execute(
+              new CompilerDagExecutionRequest(
+                  request.editRunId(),
+                  request.conversationId(),
+                  manifest,
+                  null,
+                  null,
+                  dag,
+                  List.of(STRUCTURE_GENERATOR),
+                  List.of(),
+                  List.of(),
+                  seed),
+              (skillId, status) -> {})
+          .await()
+          .indefinitely();
+    } finally {
+      captureSession.clear(structureBaseKey);
+    }
+  }
+
+  private static boolean requiresStructureStage(ChainEditIntent intent) {
+    return intent.action() == ChainEditAction.ADD_ELEMENTS
+        && intent.placement() == ChainEditPlacement.GENERATOR;
+  }
+
+  private static boolean sameNodeIds(ChainPlanGraph left, ChainPlanGraph right) {
+    Set<String> leftIds = new LinkedHashSet<>();
+    Set<String> rightIds = new LinkedHashSet<>();
+    if (left.nodes() != null) {
+      left.nodes().forEach(node -> leftIds.add(node.nodeId()));
+    }
+    if (right.nodes() != null) {
+      right.nodes().forEach(node -> rightIds.add(node.nodeId()));
+    }
+    return leftIds.equals(rightIds);
+  }
+
+  /**
+   * Places simple additions that do not require the shared structure stage before configuration.
+   */
+  private static PlacementAndIntent placeAddition(
+      ChainPlanGraph imported,
+      ChainEditIntent scoped,
+      CompilerRunPin pin,
+      String generatorSkillId) {
+    if (scoped.action() != ChainEditAction.ADD_ELEMENTS) {
+      return new PlacementAndIntent(imported, scoped);
+    }
+    ChainEditNodePlacement.Placement placement;
+    if (scoped.placement() == ChainEditPlacement.ROOT_TRIGGER) {
+      placement =
+          ChainEditNodePlacement.addTrigger(
+              imported,
               scoped.targetNodeIds(),
               scoped.requestedElementType(),
               "New " + scoped.requestedElementType());
-      seedGraph = placement.graph();
-      scoped =
-          new ChainEditIntent(
-              scoped.action(),
-              List.of(placement.newNodeId()),
-              scoped.requestedChange(),
-              scoped.externalBindingQuery(),
+    } else if (scoped.placement() == ChainEditPlacement.AFTER_TARGET
+        && "repairScriptBodies".equals(captureToolOf(pin, generatorSkillId))) {
+      placement =
+          ChainEditNodePlacement.insertAfter(
+              imported,
+              scoped.targetNodeIds(),
               scoped.requestedElementType(),
-              List.of());
+              "New " + scoped.requestedElementType());
+    } else {
+      return new PlacementAndIntent(imported, scoped);
     }
-    return runCompiler(request, scoped, bindings, generatorSkillId, pin, seedGraph);
+    return new PlacementAndIntent(placement.graph(), scoped.withTargets(List.of(placement.newNodeId())));
+  }
+
+  private record PlacementAndIntent(ChainPlanGraph graph, ChainEditIntent intent) {}
+
+  private static ChainEditOutcome incompleteAddition(
+      ChainEditIntent intent, List<String> scopedTargets) {
+    if (intent.action() != ChainEditAction.ADD_ELEMENTS
+        || intent.placement() == ChainEditPlacement.ROOT_TRIGGER
+        || intent.placement() == ChainEditPlacement.GENERATOR
+        || !scopedTargets.isEmpty()) {
+      return null;
+    }
+    return new ChainEditOutcome.Clarification(
+        "I need one more thing before I change anything.",
+        List.of("Say where to place the new element."));
   }
 
   private static String captureToolOf(CompilerRunPin pin, String skillId) {
@@ -242,6 +406,14 @@ public class ChainEditCompiler {
         .map(node -> node.captureTool())
         .findFirst()
         .orElse(null);
+  }
+
+  private static ChainEditOutcome noChangeOutcome(ChainEditIntent intent) {
+    if (intent.action() != ChainEditAction.NO_CHANGE) {
+      return null;
+    }
+    return new ChainEditOutcome.ResolutionFailure(
+        "No change was requested. Say what should be different.");
   }
 
   private static boolean deterministic(ChainEditAction action) {
@@ -294,7 +466,10 @@ public class ChainEditCompiler {
       ChainEditRequest request,
       ChainEditIntent intent,
       List<ResolvedServiceCallBinding> bindings,
-      String generatorSkillId,
+      List<GeneratorPlan> generatorPlans,
+      List<String> approvedSkillIds,
+      Set<String> extraPreSatisfiedSkillIds,
+      List<String> executedPrefix,
       CompilerRunPin pin,
       ChainPlanGraph seedGraph) {
     ImportedChainPlan imported = request.imported();
@@ -307,17 +482,18 @@ public class ChainEditCompiler {
                 imported.materializationMap(),
                 intent,
                 bindings,
-                Set.of())
-            .with(targetScopedPlan(generatorSkillId, intent));
+                extraPreSatisfiedSkillIds)
+            .with(targetScopedPlan(generatorPlans));
 
     ResolvedCompilerDag dag;
     try {
       dag =
           ChainEditCompilerDag.cut(
-              pin.resolvedDag(), Set.of(generatorSkillId), seed.presentArtifactTypes());
+              pin.resolvedDag(), Set.copyOf(approvedSkillIds), seed.presentArtifactTypes());
     } catch (RuntimeException e) {
       return new ChainEditOutcome.CompilationFailure(
-          "The pinned compiler package has no " + generatorSkillId + " to run this edit through.");
+          "The pinned compiler package is missing an owner required for this edit: "
+              + e.getMessage());
     }
     RunManifest manifest =
         ChainEditCompilerDag.pinnedManifest(baseManifest(request, pin), runId, dag);
@@ -334,7 +510,7 @@ public class ChainEditCompiler {
                       null,
                       null,
                       dag,
-                      List.of(generatorSkillId),
+                      approvedSkillIds,
                       List.of(),
                       List.of(),
                       seed),
@@ -359,7 +535,7 @@ public class ChainEditCompiler {
             imported.graph(),
             result.graph(),
             "chain-edit-" + runId,
-            generatorSkillId,
+            String.join("+", approvedSkillIds),
             intent.requestedChange());
     if (CanonicalGraphDiff.isEmpty(netPatch)) {
       return new ChainEditOutcome.ResolutionFailure(
@@ -375,13 +551,19 @@ public class ChainEditCompiler {
           "The compiler package changed while this edit was compiling, so there is nothing to"
               + " approve. Ask for the change again.");
     }
+    List<String> executedSkillIds = new ArrayList<>(executedPrefix);
+    for (String skillId : result.executedSkillIds()) {
+      if (!executedSkillIds.contains(skillId)) {
+        executedSkillIds.add(skillId);
+      }
+    }
     return new ChainEditOutcome.Proposal(
         netPatch,
         imported.graph(),
         result.graph(),
         intent,
         bindings,
-        result.executedSkillIds(),
+        List.copyOf(executedSkillIds),
         manifest);
   }
 
@@ -390,20 +572,22 @@ public class ChainEditCompiler {
    * readiness signal such as "there is a service call here" selects every service call in the
    * chain, and a request about one element rewrites all of them.
    */
-  private static SkillArtifact targetScopedPlan(String generatorSkillId, ChainEditIntent intent) {
+  private static GeneratorPlan generatorPlan(
+      String generatorSkillId, ChainEditIntent intent) {
+    return new GeneratorPlan(
+        generatorSkillId,
+        generatorSkillId,
+        GeneratorPlanStatus.READY,
+        List.of(intent.action().name()),
+        intent.targetNodeIds());
+  }
+
+  private static SkillArtifact targetScopedPlan(List<GeneratorPlan> plans) {
     return SkillArtifact.of(
         SkillArtifactType.GENERATOR_PLAN_MANIFEST,
         "chain-edit-seed",
         new SkillArtifactPayload.GeneratorPlanManifestPayload(
-            new GeneratorPlanManifest(
-                "edit",
-                List.of(
-                    new GeneratorPlan(
-                        generatorSkillId,
-                        generatorSkillId,
-                        GeneratorPlanStatus.READY,
-                        List.of(intent.action().name()),
-                        intent.targetNodeIds())))));
+            new GeneratorPlanManifest("edit", List.copyOf(plans))));
   }
 
   private CompilerRunPin resolvePin(String conversationId) {
