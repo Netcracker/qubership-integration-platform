@@ -119,7 +119,7 @@ public class ChainPatchHarnessService {
 
   private static String describe(ChainEditOutcome outcome) {
     return switch (outcome) {
-      case ChainEditOutcome.Clarification(String question, List<String> choices) ->
+      case ChainEditOutcome.Clarification(String question, List<String> choices, var ignoredHeldIntent) ->
           choices.isEmpty() ? question : question + " " + String.join("; ", choices);
       case ChainEditOutcome.ResolutionFailure(String message) -> message;
       case ChainEditOutcome.CompilationFailure(String message) -> message;

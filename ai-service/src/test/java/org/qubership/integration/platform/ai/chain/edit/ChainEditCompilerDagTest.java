@@ -74,6 +74,17 @@ class ChainEditCompilerDagTest {
   }
 
   @Test
+  void structurePrefixContainsNoAssemblerOrValidator() {
+    ResolvedCompilerDag prefix =
+        ChainEditCompilerDag.structureOnly(fullDag(), EDIT_SEED_ARTIFACTS);
+
+    assertEquals(
+        List.of("cip-structure-generator"),
+        prefix.nodes().stream().map(ResolvedCompilerNode::skillId).toList());
+    assertEquals(List.of(), node(prefix, "cip-structure-generator").consumes());
+  }
+
+  @Test
   void cutIsStableForTheSameSelection() {
     assertEquals(
         ChainEditCompilerDag.cut(fullDag(), Set.of("cip-service-call-generator"), EDIT_SEED_ARTIFACTS),

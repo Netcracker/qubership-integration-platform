@@ -1,24 +1,30 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
 import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import static java.util.stream.Collectors.joining;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditClarificationStore;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditSkillProgress;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainEditProposalAssembler;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSummary;
-import java.util.Optional;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriter;
 import org.qubership.integration.platform.ai.chain.patch.PatchedChain;
@@ -29,6 +35,7 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtr
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
@@ -53,6 +60,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final ChainPlanGraphImporter importer;
   private final ChainEditCompiler editCompiler;
   private final ChainEditEscalationStore escalationStore;
+  private final ChainEditClarificationStore clarificationStore;
   private final ChainEditProposalAssembler assembler;
   private final ChainPatchStore patchStore;
   private final ChainPatchWriter writer;
@@ -65,6 +73,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainPlanGraphImporter importer,
       ChainEditCompiler editCompiler,
       ChainEditEscalationStore escalationStore,
+      ChainEditClarificationStore clarificationStore,
       ChainEditProposalAssembler assembler,
       ChainPatchStore patchStore,
       ChainPatchWriter writer,
@@ -74,6 +83,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.importer = Objects.requireNonNull(importer);
     this.editCompiler = Objects.requireNonNull(editCompiler);
     this.escalationStore = Objects.requireNonNull(escalationStore);
+    this.clarificationStore = Objects.requireNonNull(clarificationStore);
     this.assembler = Objects.requireNonNull(assembler);
     this.patchStore = Objects.requireNonNull(patchStore);
     this.writer = Objects.requireNonNull(writer);
@@ -85,15 +95,40 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
     if (decision != null && ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(decision.getAction())) {
-      return applyAnsweredPatch(conversationId, decision);
+      return streamCompile(progress -> applyAnsweredPatch(conversationId, decision));
     }
     if (decision != null && ChatEvent.IMPORT_ACTION.equals(decision.getAction())) {
-      return resumeAfterImport(conversationId);
+      return streamCompile(progress -> resumeAfterImport(conversationId, progress));
     }
-    return proposePatch(request, conversationId);
+    return streamCompile(progress -> proposePatch(request, conversationId, progress));
   }
 
-  private Multi<ChatEvent> proposePatch(ChatRequest request, String conversationId) {
+  /**
+   * Compiles after the SSE turn has subscribed, so skill/tool {@code event: step} frames reach the
+   * same activity timeline CREATE uses.
+   *
+   * <p>Chat SSE binds the scenario on the Vert.x event loop. Catalog RestClient is blocking, so
+   * the compile (including {@code getChain}) runs on the Mutiny worker pool.
+   */
+  private static Multi<ChatEvent> streamCompile(
+      Function<BiConsumer<String, String>, Multi<ChatEvent>> work) {
+    return Multi.createFrom()
+        .<ChatEvent>emitter(
+            emitter -> {
+              try {
+                work.apply(ChainEditSkillProgress.toChat(emitter::emit))
+                    .subscribe()
+                    .with(emitter::emit, emitter::fail, emitter::complete);
+              } catch (RuntimeException failure) {
+                SkillActivitySupport.clearParents();
+                emitter.fail(failure);
+              }
+            })
+        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+  }
+
+  private Multi<ChatEvent> proposePatch(
+      ChatRequest request, String conversationId, BiConsumer<String, String> skillProgress) {
     String chainId = chainContextExtractor.resolveChainId(request, conversationId).orElse(null);
     if (chainId == null) {
       return message(
@@ -114,18 +149,27 @@ public class ChainPatchScenario implements ScenarioHandler {
     // An unanswered import escalation goes with it: declining it is saying something else next.
     patchStore.clearProposal(conversationId);
     escalationStore.clear(conversationId);
+    // A held clarification is read once, and only for the chain it was asked about: switching to a
+    // different chain without answering is saying something else, the same as an unrelated request.
+    Optional<ChainEditClarificationStore.PendingClarification> heldClarification =
+        clarificationStore.take(conversationId).filter(pending -> chainId.equals(pending.chainId()));
 
     String userMessage = request == null ? "" : request.getEffectiveUserText();
-    return fromCompiler(
-        conversationId,
-        chainId,
-        imported,
-        compileEdit(conversationId, chainId, imported, userMessage));
+    ChainEditOutcome outcome =
+        heldClarification.isPresent()
+            ? resumeClarification(
+                conversationId, chainId, imported, userMessage, heldClarification.get(), skillProgress)
+            : compileEdit(conversationId, chainId, imported, userMessage, skillProgress);
+    return fromCompiler(conversationId, chainId, imported, outcome);
   }
 
   /** Compiles the request through the owning skill, reporting a compiler fault as the turn's answer. */
   private ChainEditOutcome compileEdit(
-      String conversationId, String chainId, ImportedChainPlan imported, String userMessage) {
+      String conversationId,
+      String chainId,
+      ImportedChainPlan imported,
+      String userMessage,
+      BiConsumer<String, String> skillProgress) {
     try {
       return editCompiler.compile(
           new ChainEditRequest(
@@ -134,9 +178,47 @@ public class ChainPatchScenario implements ScenarioHandler {
               conversationId + "-edit-" + UUID.randomUUID(),
               imported,
               userMessage,
-              null));
+              null),
+          skillProgress);
     } catch (RuntimeException e) {
       LOG.errorf(e, "Chain edit compiler failed conversationId=%s chainId=%s", conversationId, chainId);
+      return new ChainEditOutcome.CompilationFailure(
+          "The change could not be compiled: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Continues an edit whose classifier stopped to ask which element or aspect the reader meant.
+   *
+   * <p>The held capture and the question travel with this turn's message, so the classifier can
+   * complete the same request rather than resolving the message with no record of having asked. If
+   * the message turns out to be unrelated, the classifier resolves it as its own new request.
+   */
+  private ChainEditOutcome resumeClarification(
+      String conversationId,
+      String chainId,
+      ImportedChainPlan imported,
+      String userMessage,
+      ChainEditClarificationStore.PendingClarification pending,
+      BiConsumer<String, String> skillProgress) {
+    try {
+      return editCompiler.resumeAfterClarification(
+          new ChainEditRequest(
+              conversationId,
+              chainId,
+              conversationId + "-edit-" + UUID.randomUUID(),
+              imported,
+              userMessage,
+              null),
+          pending.heldIntent(),
+          pending.question(),
+          skillProgress);
+    } catch (RuntimeException e) {
+      LOG.errorf(
+          e,
+          "Chain edit compiler failed resuming a clarification conversationId=%s chainId=%s",
+          conversationId,
+          chainId);
       return new ChainEditOutcome.CompilationFailure(
           "The change could not be compiled: " + e.getMessage());
     }
@@ -147,11 +229,15 @@ public class ChainPatchScenario implements ScenarioHandler {
     return switch (outcome) {
       case ChainEditOutcome.Proposal proposal ->
           offer(conversationId, chainId, imported, proposal.netPatch());
-      case ChainEditOutcome.Clarification(String question, List<String> choices) ->
-          message(
-              choices.isEmpty()
-                  ? question
-                  : question + "\n" + choices.stream().map(c -> "- " + c).collect(joining("\n")));
+      case ChainEditOutcome.Clarification(String question, List<String> choices, ChainEditIntent heldIntent) -> {
+        clarificationStore.put(
+            conversationId,
+            new ChainEditClarificationStore.PendingClarification(chainId, heldIntent, question));
+        yield message(
+            choices.isEmpty()
+                ? question
+                : question + "\n" + choices.stream().map(c -> "- " + c).collect(joining("\n")));
+      }
       case ChainEditOutcome.ResolutionFailure(String text) -> message(text);
       case ChainEditOutcome.CompilationFailure(String text) -> message(text);
       case ChainEditOutcome.Escalation escalation -> escalate(conversationId, chainId, escalation);
@@ -182,7 +268,8 @@ public class ChainPatchScenario implements ScenarioHandler {
   }
 
   /** Continues the held edit once the reader has approved the import. */
-  private Multi<ChatEvent> resumeAfterImport(String conversationId) {
+  private Multi<ChatEvent> resumeAfterImport(
+      String conversationId, BiConsumer<String, String> skillProgress) {
     ChainEditEscalationStore.PendingChainEdit pendingEdit =
         escalationStore.take(conversationId).orElse(null);
     if (pendingEdit == null) {
@@ -206,7 +293,8 @@ public class ChainPatchScenario implements ScenarioHandler {
                 pendingEdit.userRequest(),
                 null),
             pendingEdit.intent(),
-            pendingEdit.refs());
+            pendingEdit.refs(),
+            skillProgress);
     return fromCompiler(conversationId, pendingEdit.chainId(), imported, resumed);
   }
 

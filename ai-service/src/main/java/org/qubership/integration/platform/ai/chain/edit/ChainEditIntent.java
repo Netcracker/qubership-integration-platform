@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.List;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 
 /**
  * What the reader asked for, resolved against the imported chain but not yet compiled.
@@ -9,10 +10,17 @@ import java.util.Objects;
  * <p>An intent names the action and the elements it acts on. It never names a schema property key,
  * a catalog id, or a topology change: structure belongs to the shared structure stage and
  * configuration belongs to the generators selected from pinned ownership metadata.
- * {@code ADD_ELEMENTS} is complete when the capture
- * names the catalog type and a placement; existing element ids are neighbors or wrap targets, not
- * a requirement for a new root trigger. A resolver that cannot decide which existing element an
- * edit means says so through {@code unresolvedAmbiguities} and leaves {@code targetNodeIds} empty.
+ * {@code ADD_ELEMENTS} is complete when the capture names the catalog type. A new root trigger
+ * needs no existing element: a trigger type with disposition other than {@code NEST} or
+ * {@code REMOVE} is placed at chain root. For an insertion, {@code targetNodeIds} is the address:
+ * one or two existing element ids naming the pair the new subgraph sits between, or the sole
+ * element it follows when that element has exactly one successor. A replacement names the element
+ * being swapped in {@code targetNodeIds} and sets {@code disposition} to {@code REMOVE}.
+ * {@code CONFIGURE} is complete when the capture names both a target and at least one property
+ * key; {@code propertyKeys} is empty for every other action. A resolver that cannot decide which
+ * existing element an edit means, or which of an anchor's several successors an insertion sits
+ * before, says so through {@code unresolvedAmbiguities} and leaves {@code targetNodeIds} empty or
+ * partial.
  */
 public record ChainEditIntent(
     ChainEditAction action,
@@ -21,8 +29,9 @@ public record ChainEditIntent(
     String externalBindingQuery,
     String requestedElementType,
     String cronExpression,
-    ChainEditPlacement placement,
-    List<String> unresolvedAmbiguities) {
+    List<String> propertyKeys,
+    List<String> unresolvedAmbiguities,
+    ChainEditDisposition disposition) {
 
   /** An edit of elements the chain already has, without a requested element type. */
   public ChainEditIntent(
@@ -38,11 +47,12 @@ public record ChainEditIntent(
         externalBindingQuery,
         null,
         null,
-        ChainEditPlacement.UNSET,
-        unresolvedAmbiguities);
+        List.of(),
+        unresolvedAmbiguities,
+        ChainEditDisposition.UNSET);
   }
 
-  /** An addition or edit that names a type but not a schedule or placement. */
+  /** An addition or edit that names a type but not a schedule or disposition. */
   public ChainEditIntent(
       ChainEditAction action,
       List<String> targetNodeIds,
@@ -57,8 +67,31 @@ public record ChainEditIntent(
         externalBindingQuery,
         requestedElementType,
         null,
-        ChainEditPlacement.UNSET,
-        unresolvedAmbiguities);
+        List.of(),
+        unresolvedAmbiguities,
+        ChainEditDisposition.UNSET);
+  }
+
+  /** An addition that names type and keys, and infers disposition from the address. */
+  public ChainEditIntent(
+      ChainEditAction action,
+      List<String> targetNodeIds,
+      String requestedChange,
+      String externalBindingQuery,
+      String requestedElementType,
+      String cronExpression,
+      List<String> propertyKeys,
+      List<String> unresolvedAmbiguities) {
+    this(
+        action,
+        targetNodeIds,
+        requestedChange,
+        externalBindingQuery,
+        requestedElementType,
+        cronExpression,
+        propertyKeys,
+        unresolvedAmbiguities,
+        ChainEditDisposition.UNSET);
   }
 
   public ChainEditIntent {
@@ -69,15 +102,17 @@ public record ChainEditIntent(
             : requestedElementType.trim();
     cronExpression =
         cronExpression == null || cronExpression.isBlank() ? null : cronExpression.trim();
-    placement = placement == null ? ChainEditPlacement.UNSET : placement;
     targetNodeIds = targetNodeIds == null ? List.of() : List.copyOf(targetNodeIds);
     requestedChange = requestedChange == null ? "" : requestedChange;
     externalBindingQuery =
         externalBindingQuery == null || externalBindingQuery.isBlank()
             ? null
             : externalBindingQuery.trim();
+    propertyKeys = propertyKeys == null ? List.of() : List.copyOf(propertyKeys);
     unresolvedAmbiguities =
         unresolvedAmbiguities == null ? List.of() : List.copyOf(unresolvedAmbiguities);
+    disposition =
+        resolvedDisposition(action, requestedElementType, targetNodeIds, disposition);
   }
 
   public boolean resolved() {
@@ -88,10 +123,55 @@ public record ChainEditIntent(
       return true;
     }
     if (action == ChainEditAction.ADD_ELEMENTS) {
-      return requestedElementType != null && placement != ChainEditPlacement.UNSET
-          && (placement != ChainEditPlacement.AFTER_TARGET || !targetNodeIds.isEmpty());
+      if (requestedElementType == null) {
+        return false;
+      }
+      return isRootTrigger()
+          || disposition == ChainEditDisposition.NEST
+          || !targetNodeIds.isEmpty();
+    }
+    if (action == ChainEditAction.CONFIGURE) {
+      return !targetNodeIds.isEmpty() && !propertyKeys.isEmpty();
     }
     return !targetNodeIds.isEmpty();
+  }
+
+  /**
+   * Whether this addition needs the shared structure stage to build its shape.
+   *
+   * <p>Keep splices at the address {@code targetNodeIds} names. Nest wraps, moves, or branches an
+   * existing element. Remove puts a new subgraph in a named element's place. All three can add
+   * more than one linked element at once, so they go through the stage that produces a whole
+   * subgraph rather than a single bare node. A root trigger needs no address and no subgraph, so
+   * it is placed directly.
+   */
+  public boolean requiresStructureStage() {
+    return action == ChainEditAction.ADD_ELEMENTS && !isRootTrigger();
+  }
+
+  /**
+   * Whether the named targets are removed and the new subgraph takes their connections.
+   *
+   * <p>Keep and nest leave those elements on the chain. Remove is the same insertion with the
+   * address element deleted, so one approval both adds the subgraph and takes the old element
+   * away.
+   */
+  public boolean replacesAddressElement() {
+    return action == ChainEditAction.ADD_ELEMENTS && disposition == ChainEditDisposition.REMOVE;
+  }
+
+  /**
+   * A new trigger at chain root, fanning into the start existing triggers already share.
+   *
+   * <p>Named {@code targetNodeIds} are that start, when the request named it. Nest and remove
+   * still go through the structure stage even when the new type is a trigger.
+   */
+  public boolean isRootTrigger() {
+    return action == ChainEditAction.ADD_ELEMENTS
+        && requestedElementType != null
+        && ChainPlanGraphValidator.isTriggerElementType(requestedElementType)
+        && disposition != ChainEditDisposition.NEST
+        && disposition != ChainEditDisposition.REMOVE;
   }
 
   ChainEditIntent withTargets(List<String> targets) {
@@ -102,7 +182,29 @@ public record ChainEditIntent(
         externalBindingQuery,
         requestedElementType,
         cronExpression,
-        placement,
-        List.of());
+        propertyKeys,
+        List.of(),
+        disposition);
+  }
+
+  private static ChainEditDisposition resolvedDisposition(
+      ChainEditAction action,
+      String requestedElementType,
+      List<String> targetNodeIds,
+      ChainEditDisposition disposition) {
+    if (disposition != null && disposition != ChainEditDisposition.UNSET) {
+      return disposition;
+    }
+    if (action != ChainEditAction.ADD_ELEMENTS) {
+      return ChainEditDisposition.UNSET;
+    }
+    if (requestedElementType != null
+        && ChainPlanGraphValidator.isTriggerElementType(requestedElementType)) {
+      return ChainEditDisposition.UNSET;
+    }
+    if (targetNodeIds != null && !targetNodeIds.isEmpty()) {
+      return ChainEditDisposition.KEEP;
+    }
+    return ChainEditDisposition.UNSET;
   }
 }

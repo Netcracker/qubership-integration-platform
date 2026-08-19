@@ -124,8 +124,13 @@ public class CompilerSkillContextBuilder {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
 
+    boolean editStructureCapture =
+        captureTool == CaptureTool.CAPTURE_CHAIN_STRUCTURE
+            && snapshot.editContext() != null
+            && !snapshot.editContext().isBlank();
     if (document.phase() == QipKnowledgeCapabilityPhase.GENERATOR
-        || document.phase() == QipKnowledgeCapabilityPhase.VALIDATOR) {
+        || document.phase() == QipKnowledgeCapabilityPhase.VALIDATOR
+        || editStructureCapture) {
       body.append("Current ChainPlanGraph JSON:\n");
       body.append(
               formatGraph(
@@ -139,6 +144,9 @@ public class CompilerSkillContextBuilder {
       if (document.phase() == QipKnowledgeCapabilityPhase.GENERATOR
           && snapshot.editContext() != null
           && !snapshot.editContext().isBlank()) {
+        body.append(snapshot.editContext()).append("\n\n");
+      }
+      if (editStructureCapture) {
         body.append(snapshot.editContext()).append("\n\n");
       }
     }
@@ -374,9 +382,11 @@ public class CompilerSkillContextBuilder {
 
   private static void appendFinalEditConstraint(
       StringBuilder body, CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
+    if (snapshot.editContext() == null || snapshot.editContext().isBlank()) {
+      return;
+    }
     if (document.phase() != QipKnowledgeCapabilityPhase.GENERATOR
-        || snapshot.editContext() == null
-        || snapshot.editContext().isBlank()) {
+        && !"cip-structure-generator".equals(document.capabilityId())) {
       return;
     }
     body.append("\nFinal edit constraint (overrides earlier topology advice):\n");

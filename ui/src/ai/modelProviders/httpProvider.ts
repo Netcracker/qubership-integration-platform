@@ -25,15 +25,31 @@ interface CipChatRequestBody {
   decision?: ChatRequest["decision"];
 }
 
-function resolveScenarioHint(request: ChatRequest): string | undefined {
-  if (request.scenarioHint?.trim()) {
-    return request.scenarioHint.trim();
+const CREATE_OWNED_HINTS = new Set([
+  "IMPLEMENT_CHAIN",
+  "GATHER_REQUIREMENTS",
+  "CREATE_CHAIN_PLAN",
+]);
+
+function openChainId(request: ChatRequest): string | undefined {
+  if (request.context?.type !== "chain") {
+    return undefined;
   }
-  // An open chain is not an instruction. This used to send IMPLEMENT_CHAIN, which the server obeys
-  // ahead of its own classifier, so "delete the audit step" typed on a chain screen started a new
-  // CREATE run instead of changing the chain. The open chain goes in the attachment; what to do
-  // with it is the classifier's to decide.
-  return undefined;
+  return request.context.chainId ?? request.context.compactSchema?.chainId;
+}
+
+function resolveScenarioHint(request: ChatRequest): string | undefined {
+  const hint = request.scenarioHint?.trim();
+  if (!hint) {
+    return undefined;
+  }
+  // A CREATE-owned hint names the page, not the request. Forwarding IMPLEMENT_CHAIN with a chain
+  // open skips the classifier and starts a CREATE interview. Drop those hints; keep ASK_CHAIN,
+  // COMPARE_AND_PATCH, and IMPORT_SPECIFICATION, which name a scenario.
+  if (openChainId(request) && CREATE_OWNED_HINTS.has(hint)) {
+    return undefined;
+  }
+  return hint;
 }
 
 function getApiErrorMessage(data: unknown): string | undefined {
@@ -292,9 +308,8 @@ export class HttpAiModelProvider implements AiModelProvider {
     // it was taken out: open-canvas JSON in effectiveUserText buries CREATE discovery in element
     // dumps. A name and an id are all the server needs to know which chain the reader is looking
     // at, and without them it cannot tell a change request from a new integration being described.
-    const chainId =
-      request.context?.chainId ?? request.context?.compactSchema?.chainId;
-    if (request.context?.type === "chain" && chainId) {
+    const chainId = openChainId(request);
+    if (chainId) {
       const chainName = request.context.compactSchema?.chainName ?? "chain";
       parts.push(`## Current Chain: ${chainName} (ID: ${chainId})`);
     }

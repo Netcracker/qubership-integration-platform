@@ -35,7 +35,7 @@ class ChainPatchSummaryTest {
         String text = ChainPatchSummary.describe(
                 graph(), patch(List.of(removeNode("audit")), List.of(), List.of()));
 
-        assertTrue(text.contains("Removes Legacy audit log (script)"), text);
+        assertTrue(text.contains("**Removes** Legacy audit log (script)"), text);
         assertTrue(
                 text.contains("Removing cannot be undone. To keep a way back, save a snapshot first."),
                 text);
@@ -47,7 +47,7 @@ class ChainPatchSummaryTest {
         String text = ChainPatchSummary.describe(
                 graph(), patch(List.of(), List.of(removeEdge("enrich->audit")), List.of()));
 
-        assertTrue(text.contains("Disconnects Enrich payload (script) from Legacy audit log (script)"), text);
+        assertTrue(text.contains("**Disconnects** Enrich payload (script) from Legacy audit log (script)"), text);
         assertFalse(text.contains("cannot be undone"), text);
     }
 
@@ -61,8 +61,37 @@ class ChainPatchSummaryTest {
                         List.of(),
                         List.of(changeProperty("enrich", "script", "return null;"))));
 
-        assertTrue(text.indexOf("Removes Legacy audit log") < text.indexOf("Adds Map fields"), text);
-        assertTrue(text.indexOf("Removes Legacy audit log") < text.indexOf("Enrich payload (script) — script"), text);
+        assertTrue(text.indexOf("**Removes** Legacy audit log") < text.indexOf("**Adds** Map fields"), text);
+        assertTrue(
+                text.indexOf("**Removes** Legacy audit log") < text.indexOf("Enrich payload (script) — script"),
+                text);
+    }
+
+    @Test
+    void numbersEveryActionInOneSequenceAcrossKinds() {
+        String text = ChainPatchSummary.describe(
+                graph(),
+                patch(
+                        List.of(removeNode("audit"), addNode("mapper", "mapper", "Map fields")),
+                        List.of(),
+                        List.of(changeProperty("enrich", "script", "return null;"))));
+
+        assertTrue(text.contains("1. **Removes** Legacy audit log (script)"), text);
+        assertTrue(text.contains("2. **Adds** Map fields (mapper)"), text);
+        assertTrue(text.contains("3. **Updates** Enrich payload (script) — script"), text);
+    }
+
+    @Test
+    void leadsEveryActionWithABoldVerb() {
+        String text = ChainPatchSummary.describe(
+                graph(),
+                patch(
+                        List.of(removeNode("audit")),
+                        List.of(),
+                        List.of(changeProperty("enrich", "script", "return null;"))));
+
+        assertTrue(text.contains(". **Removes** "), text);
+        assertTrue(text.contains(". **Updates** "), text);
     }
 
     @Test
@@ -89,7 +118,60 @@ class ChainPatchSummaryTest {
         String text = ChainPatchSummary.describe(
                 graph(), patch(List.of(removeNode("ghost")), List.of(), List.of()));
 
-        assertTrue(text.contains("Removes Element ghost"), text);
+        assertTrue(text.contains("**Removes** Element ghost"), text);
+    }
+
+    @Test
+    void aReplacementCardListsTheRemovalFirstAndWarnsItCannotBeUndone() {
+        String text = ChainPatchSummary.describe(
+                graph(),
+                patch(
+                        List.of(removeNode("audit"), addNode("mapper", "mapper", "Map fields")),
+                        List.of(),
+                        List.of()));
+
+        assertTrue(text.indexOf("1. **Removes** Legacy audit log") < text.indexOf("2. **Adds** Map fields"), text);
+        assertTrue(
+                text.contains("Removing cannot be undone. To keep a way back, save a snapshot first."),
+                text);
+    }
+
+    /** A wrap is, at its core, an existing element moving into a new container. */
+    @Test
+    void namesTheMovedElementAndItsNewContainer() {
+        String text = ChainPatchSummary.describe(
+                graph(),
+                patch(
+                        List.of(
+                                addNode("try", "try", "Try"),
+                                moveNode("enrich", "script", "Enrich payload", "try")),
+                        List.of(),
+                        List.of()));
+
+        assertTrue(text.contains("**Moves** Enrich payload (script) into Try (try)"), text);
+    }
+
+    /** The move is what makes a wrap describe the thing it actually does, so it must not be silent. */
+    @Test
+    void aParentTransferAloneIsNotAnEmptyPatch() {
+        String text = ChainPatchSummary.describe(
+                graph(), patch(List.of(moveNode("enrich", "script", "Enrich payload", "audit")), List.of(), List.of()));
+
+        assertFalse(text.contains("The change is empty"), text);
+        assertTrue(text.contains("**Moves** Enrich payload (script) into Legacy audit log (script)"), text);
+    }
+
+    /** An UPDATE that leaves the parent unchanged is an ordinary edit, not a move. */
+    @Test
+    void doesNotRenderAMoveWhenTheParentIsUnchanged() {
+        String text = ChainPatchSummary.describe(
+                graph(),
+                patch(
+                        List.of(moveNode("enrich", "script", "Enrich payload", null)),
+                        List.of(),
+                        List.of(changeProperty("enrich", "script", "return null;"))));
+
+        assertFalse(text.contains("**Moves**"), text);
     }
 
     private static ChainPlanGraph graph() {
@@ -133,6 +215,13 @@ class ChainPatchSummaryTest {
                 GraphPatchOperation.ADD,
                 new ChainPlanNode(nodeId, type, label, null, null, List.of()),
                 null);
+    }
+
+    private static NodePatch moveNode(String nodeId, String type, String label, String newParentNodeId) {
+        return new NodePatch(
+                GraphPatchOperation.UPDATE,
+                new ChainPlanNode(nodeId, type, label, newParentNodeId, null, List.of()),
+                nodeId);
     }
 
     private static EdgePatch removeEdge(String edgeId) {

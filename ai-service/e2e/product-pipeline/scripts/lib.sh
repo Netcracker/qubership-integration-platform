@@ -90,6 +90,89 @@ e2e_json_escape() {
   python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' <<<"$1"
 }
 
+# Print concatenated assistant token text from an SSE file (tolerates a doubled data: prefix).
+e2e_extract_sse_tokens() {
+  local sse_file="${1:?sse file}"
+  python3 - "$sse_file" <<'PY'
+import re
+import sys
+
+text = open(sys.argv[1], errors="replace").read()
+tokens = []
+for block in re.split(r"\n\n+", text):
+    event = ""
+    data_lines = []
+    for raw in block.splitlines():
+        line = raw.rstrip("\r")
+        if line.startswith("event:"):
+            event = line.split(":", 1)[1].strip()
+        elif line.startswith("data:event:"):
+            rest = line[len("data:"):]
+            if rest.startswith("event:"):
+                event = rest.split(":", 1)[1].strip()
+        elif line.startswith("data:"):
+            payload = line[5:]
+            if payload.startswith("data:"):
+                payload = payload[5:]
+            data_lines.append(payload.lstrip())
+    if event == "token":
+        tokens.append("\n".join(data_lines))
+print("".join(tokens))
+PY
+}
+
+# Production UI attachment for an open chain. ChainContextExtractor parses "(ID: uuid)".
+e2e_chain_attachment() {
+  local chain_name="${1:?chain name}"
+  local chain_id="${2:?chain id}"
+  printf '## Current Chain: %s (ID: %s)\n' "${chain_name}" "${chain_id}"
+}
+
+# Print the last apply-chain-patch decision payload from an SSE file, or empty.
+e2e_extract_apply_chain_patch_decision() {
+  local sse_file="${1:?sse file}"
+  python3 - "$sse_file" <<'PY'
+import json
+import re
+import sys
+
+text = open(sys.argv[1], errors="replace").read()
+found = None
+# Frames are blank-line separated. Tolerate a doubled "data:" prefix from some proxies.
+for block in re.split(r"\n\n+", text):
+    event = ""
+    data_lines = []
+    for raw in block.splitlines():
+        line = raw.rstrip("\r")
+        if line.startswith("event:"):
+            event = line.split(":", 1)[1].strip()
+        elif line.startswith("data:event:"):
+            event = line.split(":", 2)[2].strip()
+        elif line.startswith("data:"):
+            payload = line[5:]
+            if payload.startswith("data:"):
+                payload = payload[5:]
+            data_lines.append(payload.lstrip())
+    if event != "decision" or not data_lines:
+        continue
+    try:
+        obj = json.loads("\n".join(data_lines))
+    except json.JSONDecodeError:
+        continue
+    actions = obj.get("actions") or []
+    if "apply-chain-patch" in actions and obj.get("artifactHash"):
+        found = obj
+if found is None:
+    raise SystemExit(1)
+print(json.dumps({
+    "action": "apply-chain-patch",
+    "artifactType": found.get("artifactType") or "CHAIN_PATCH",
+    "artifactHash": found["artifactHash"],
+    "revision": found.get("revision") or 0,
+}))
+PY
+}
+
 e2e_extract_done_conversation_id() {
   local sse_file="$1"
   local conv_id=""

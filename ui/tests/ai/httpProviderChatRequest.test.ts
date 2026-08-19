@@ -148,6 +148,33 @@ describe("HttpAiModelProvider chat() chain context", () => {
     expect(body.scenarioHint).toBeNull();
   });
 
+  it("should drop IMPLEMENT_CHAIN when a chain is open", async () => {
+    mockPost.mockResolvedValue({ data: { messages: [] } });
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.chat({
+      messages: buildMessages(),
+      scenarioHint: "IMPLEMENT_CHAIN",
+      context: { type: "chain", chainId: "chain-42" },
+    });
+
+    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    expect(body.scenarioHint).toBeNull();
+  });
+
+  it("should still send IMPLEMENT_CHAIN when no chain is open", async () => {
+    mockPost.mockResolvedValue({ data: { messages: [] } });
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.chat({
+      messages: buildMessages(),
+      scenarioHint: "IMPLEMENT_CHAIN",
+    });
+
+    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    expect(body.scenarioHint).toBe("IMPLEMENT_CHAIN");
+  });
+
   it("should still send an explicit scenario hint when the caller sets one", async () => {
     mockPost.mockResolvedValue({ data: { messages: [] } });
     const provider = new HttpAiModelProvider("https://ai.example.com");
@@ -190,5 +217,24 @@ describe("HttpAiModelProvider streamChat() request body", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.decision).toEqual({ action: "request-changes", comment: "" });
+  });
+
+  it("should drop IMPLEMENT_CHAIN on the SSE POST when a chain is open", async () => {
+    const fetchMock = mockEmptyStreamResponse();
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.streamChat(
+      {
+        messages: buildMessages(),
+        scenarioHint: "IMPLEMENT_CHAIN",
+        context: { type: "chain", chainId: "chain-42" },
+      },
+      () => {},
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.scenarioHint).toBeNull();
   });
 });

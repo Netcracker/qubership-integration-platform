@@ -10,7 +10,7 @@ import org.qubership.integration.platform.ai.chain.edit.ChainEditCapture;
  * Reads a change request and returns a typed {@link ChainEditCapture}.
  *
  * <p>It holds no tools and writes no patch. Java validates the capture against the imported graph
- * and applies it. It does not infer the action, type, targets, or placement from English in the
+ * and applies it. It does not infer the action, type, targets, or disposition from English in the
  * request.
  */
 @RegisterAiService(

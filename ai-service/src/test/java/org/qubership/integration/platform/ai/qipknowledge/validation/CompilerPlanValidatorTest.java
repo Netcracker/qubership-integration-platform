@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.qipknowledge.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -105,6 +106,30 @@ class CompilerPlanValidatorTest {
 
     assertFalse(result.valid());
     assertEquals("VR-G-001", result.issues().get(0).ruleRefs().get(0).refId());
+  }
+
+  @Test
+  void parentedTryCatchWrapKeepsScriptReachableWithoutInnerEdges() {
+    ValidationResult result =
+        validator.validate(
+            new PlanGraphValidationInput(wrappedHttpGraph("n2", "try-shell")));
+
+    assertTrue(
+        result.issues().stream()
+            .noneMatch(issue -> issue.message().contains("is not reachable from any trigger")),
+        result.issues().toString());
+  }
+
+  @Test
+  void retargetOnlyWrapLeavesScriptUnreachableUntilParented() {
+    ValidationResult result =
+        validator.validate(new PlanGraphValidationInput(wrappedHttpGraph("n2", null)));
+
+    assertTrue(
+        result.issues().stream()
+            .anyMatch(
+                issue -> issue.message().equals("Node 'n2' is not reachable from any trigger")),
+        result.issues().toString());
   }
 
   @Test
@@ -260,5 +285,48 @@ class CompilerPlanValidatorTest {
                 null,
                 List.of(new PlanProperty("script", "return 'ok';")))),
         List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
+  }
+
+  private static ChainPlanGraph wrappedHttpGraph(String scriptId, String scriptParentId) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo-chain", "Demo"),
+        List.of(
+            new ChainPlanNode(
+                "n1",
+                "http-trigger",
+                "Trigger",
+                null,
+                null,
+                List.of(
+                    new PlanProperty("contextPath", "/demo"),
+                    new PlanProperty("httpMethodRestrict", "GET"))),
+            new ChainPlanNode(
+                "eh-wrap", "try-catch-finally-2", "Error handling", null, null, List.of()),
+            new ChainPlanNode("try-shell", "try-2", "Try", "eh-wrap", null, List.of()),
+            new ChainPlanNode(
+                "catch-shell",
+                "catch-2",
+                "Catch",
+                "eh-wrap",
+                null,
+                List.of(
+                    new PlanProperty("exception", "java.lang.Exception"),
+                    new PlanProperty("priority", "0"))),
+            new ChainPlanNode(
+                scriptId,
+                "script",
+                "Script",
+                scriptParentId,
+                null,
+                List.of(new PlanProperty("script", "return 'ok';")))),
+        List.of(new ChainPlanEdge("e1", "n1", "eh-wrap", null)));
+  }
+
+  private static ChainPlanNode findNode(ChainPlanGraph graph, String nodeId) {
+    return graph.nodes().stream()
+        .filter(node -> node.nodeId().equals(nodeId))
+        .findFirst()
+        .orElseThrow();
   }
 }

@@ -477,10 +477,10 @@ rg -q 'discoveryAnswers' "${SCENARIO_SH}" \
 rg -q 'discovery_answer' "${SCENARIO_SH}" \
   || fail "run-product-scenario.sh must send per-scenario discovery answers"
 jq -e '
-  [to_entries[] | select((.value.status // "active") == "active")]
+  [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
   | all(.value | has("discoveryAnswers"))
 ' "${DIR}/scenarios.json" >/dev/null \
-  || fail "active scenarios must declare discoveryAnswers"
+  || fail "active CREATE scenarios must declare discoveryAnswers"
 for phrase in \
   'Capture READY_FOR_PLAN' \
   'Use platform defaults' \
@@ -784,7 +784,7 @@ echo "=== create-chain@2 scenario pins (new CREATE) ==="
 rg -q 'profileId|create-chain' "${GATE_SH}" \
   || fail "gate must read scenario profileId including create-chain"
 jq -e '
-  [to_entries[] | select((.value.status // "active") == "active")]
+  [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
   | length == 7
   and all(
     .value.pipeline == "create-chain-v1"
@@ -807,11 +807,119 @@ echo "=== create-chain@2 design-input GENERATE choice ==="
 rg -q 'design-input|Generate full IDS|designInputChoice' "${DIR}/run-product-scenario.sh" \
   || fail "run-product-scenario.sh must answer design-input WAITING_FOR_INPUT"
 jq -e '
-  [to_entries[] | select((.value.status // "active") == "active")]
+  [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
   | all(.value.designInputChoice == "Generate full IDS")
 ' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "active scenarios must default designInputChoice to Generate full IDS"
+  || fail "active CREATE scenarios must default designInputChoice to Generate full IDS"
 pass "create-chain@2 design-input GENERATE contract"
+
+echo "=== compare-and-patch product scenarios ==="
+PATCH_SH="${DIR}/run-patch-scenario.sh"
+ASSERT_PATCH_SH="${DIR}/assert-patch-run.sh"
+SEED_SH="${DIR}/scripts/seed-catalog-chain.sh"
+[[ -f "${PATCH_SH}" ]] || fail "missing run-patch-scenario.sh"
+[[ -f "${ASSERT_PATCH_SH}" ]] || fail "missing assert-patch-run.sh"
+[[ -f "${SEED_SH}" ]] || fail "missing scripts/seed-catalog-chain.sh"
+bash -n "${PATCH_SH}"
+bash -n "${ASSERT_PATCH_SH}"
+bash -n "${SEED_SH}"
+rg -q 'chat-turn\.sh' "${PATCH_SH}" \
+  || fail "run-patch-scenario.sh must call chat-turn.sh"
+if rg -q '/api/v1/harness' "${PATCH_SH}" "${SEED_SH}"; then
+  fail "patch e2e must not call the thin harness"
+fi
+rg -q 'E2E_CHAT_ATTACHMENT|e2e_chain_attachment' "${PATCH_SH}" \
+  || fail "run-patch-scenario.sh must send the open-chain attachment"
+rg -q 'apply-chain-patch|e2e_extract_apply_chain_patch_decision' "${PATCH_SH}" \
+  || fail "run-patch-scenario.sh must answer the apply-chain-patch decision card"
+rg -q 'E2E_CHAT_ATTACHMENT' "${DIR}/scripts/chat-turn.sh" \
+  || fail "chat-turn.sh must send E2E_CHAT_ATTACHMENT"
+rg -q 'E2E_CHAT_DECISION_JSON' "${DIR}/scripts/chat-turn.sh" \
+  || fail "chat-turn.sh must send E2E_CHAT_DECISION_JSON"
+rg -q 'e2e_extract_apply_chain_patch_decision' "${DIR}/scripts/lib.sh" \
+  || fail "lib.sh must extract apply-chain-patch decision cards"
+rg -q 'compare-and-patch' "${GATE_SH}" \
+  || fail "run-quality-gate.sh must dispatch compare-and-patch scenarios"
+rg -q 'run-patch-scenario.sh' "${GATE_SH}" \
+  || fail "run-quality-gate.sh must invoke run-patch-scenario.sh"
+jq -e '
+  [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "compare-and-patch")]
+  | length == 3
+  and all(
+    .value.terminalState == "CHAIN_PATCHED"
+    and .value.retainCatalogChain == true
+    and ((.value.uniqueChainNamePrefix | type) == "string" and (.value.uniqueChainNamePrefix | length) > 0)
+    and ((.value.prompts | type) == "array" and (.value.prompts | length) > 0)
+    and ((.value.seed.elements | type) == "array" and (.value.seed.elements | length) > 0)
+  )
+' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "exactly three active compare-and-patch CHAIN_PATCHED retain scenarios required"
+jq -e '."product-patch-chain-multi-turn".prompts | length == 2' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "multi-turn patch scenario must send two separate prompts"
+jq -e '."product-patch-chain-try-catch".status == "inactive"' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "try-catch wrap patch remains inactive until the known defect is fixed"
+jq -e '."product-patch-chain-replace-subgraph".status == "inactive"' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "replace-subgraph patch stays inactive beside the wrap scenario until that wrap run is green"
+jq -e '."product-patch-chain-replace-subgraph".catalog.minTypeCounts.script == 2' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "replace-subgraph patch must require two scripts after the swap"
+jq -e '
+  [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "compare-and-patch")]
+  | all(.value.prompts | all((contains("open catalog chain") | not)))
+' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "active patch prompts must look like a UI change request, not an open-chain classifier cue"
+pass "compare-and-patch product scenario contract"
+
+echo "=== apply-chain-patch decision extraction ==="
+# shellcheck source=scripts/lib.sh
+source "${DIR}/scripts/lib.sh"
+sse_fix="${TMP}/patch-decision.sse"
+cat >"${sse_fix}" <<'EOF'
+event: meta
+data: {"conversationId":"conv-patch"}
+
+event: decision
+data: {"id":"chain-patch:abc","kind":"approve","question":"Change Return greeting.","revision":0,"actions":["apply-chain-patch","request-changes"],"artifactType":"CHAIN_PATCH","artifactHash":"sha256:abc"}
+
+event: done
+data: conv-patch
+EOF
+got=""
+if ! got="$(e2e_extract_apply_chain_patch_decision "${sse_fix}")"; then
+  fail "extractor missed apply-chain-patch card"
+fi
+jq -e '.action == "apply-chain-patch" and .artifactHash == "sha256:abc" and .artifactType == "CHAIN_PATCH"' \
+  <<<"${got}" >/dev/null \
+  || fail "extractor must bind apply-chain-patch to the card hash"
+pass "apply-chain-patch decision extraction"
+
+echo "=== chat-turn payload includes attachment and decision ==="
+payload_out="${TMP}/chat-payload.json"
+attachment_text='## Current Chain: Demo (ID: chain-42)'
+decision_text='{"action":"apply-chain-patch","artifactType":"CHAIN_PATCH","artifactHash":"sha256:abc","revision":0}'
+python3 - "-" "change the script" "" "${attachment_text}" "${decision_text}" >"${payload_out}" <<'PY'
+import json
+import sys
+
+conv_id, message, hint, attachment, decision_json = sys.argv[1:6]
+body = {"message": message}
+if conv_id and conv_id != "-":
+    body["conversationId"] = conv_id
+if hint:
+    body["scenarioHint"] = hint
+if attachment:
+    body["attachment"] = attachment
+if decision_json:
+    body["decision"] = json.loads(decision_json)
+print(json.dumps(body))
+PY
+jq -e '
+  .attachment == "## Current Chain: Demo (ID: chain-42)"
+  and .decision.action == "apply-chain-patch"
+  and .decision.artifactHash == "sha256:abc"
+  and (has("scenarioHint") | not)
+' "${payload_out}" >/dev/null \
+  || fail "chat payload must carry attachment and decision without a scenario hint"
+pass "chat-turn attachment and decision payload"
 
 echo "=== create-chain@1 backward-compat remains loadable ==="
 AI_SVC_ROOT="$(cd "${DIR}/../.." && pwd)"

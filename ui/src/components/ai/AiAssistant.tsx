@@ -1054,7 +1054,7 @@ export const AiAssistant: React.FC = () => {
   ]);
 
   // ---------------------------------------------------------------------------
-  // handleBuildChainClick — approve plan, then IMPLEMENT_CHAIN
+  // handleBuildChainClick: approve plan, then build
   // ---------------------------------------------------------------------------
 
   const handleBuildChainClick = useCallback(async () => {
@@ -1098,7 +1098,9 @@ export const AiAssistant: React.FC = () => {
         urls,
         [buildMessage],
         keys,
-        "IMPLEMENT_CHAIN",
+        // IMPLEMENT_CHAIN has no handler and, with a chain open, starts a CREATE interview.
+        // Leave the hint off when the reader already has a chain on screen.
+        chainContext ? undefined : "IMPLEMENT_CHAIN",
       );
     };
 
@@ -1123,6 +1125,7 @@ export const AiAssistant: React.FC = () => {
     sessionStore,
     refreshSessions,
     sendToProvider,
+    chainContext,
   ]);
 
   // ---------------------------------------------------------------------------

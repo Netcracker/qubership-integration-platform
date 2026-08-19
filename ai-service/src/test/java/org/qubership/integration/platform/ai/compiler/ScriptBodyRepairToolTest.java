@@ -27,6 +27,9 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 
 class ScriptBodyRepairToolTest {
 
@@ -36,6 +39,7 @@ class ScriptBodyRepairToolTest {
   private CaptureSession captureSession;
   private ChainPlanStore planStore;
   private CaptureAttemptFeedbackStore feedbackStore;
+  private GraphPatchExecutionContextStore executionContextStore;
   private ScriptBodyRepairTool tool;
 
   @BeforeEach
@@ -43,6 +47,7 @@ class ScriptBodyRepairToolTest {
     captureSession = new CaptureSession();
     planStore = new ChainPlanStore();
     feedbackStore = new CaptureAttemptFeedbackStore();
+    executionContextStore = new GraphPatchExecutionContextStore();
     CaptureRouter captureRouter = mock(CaptureRouter.class);
     when(captureRouter.routeFor(CAPABILITY_ID))
         .thenReturn(new CaptureRoute(CAPABILITY_ID, CaptureTool.REPAIR_SCRIPT_BODIES));
@@ -54,7 +59,7 @@ class ScriptBodyRepairToolTest {
             new GeneratorReadinessEvaluator(),
             new GraphPatchApplier(),
             feedbackStore,
-            new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore());
+            executionContextStore);
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, CAPABILITY_ID);
   }
@@ -144,6 +149,53 @@ class ScriptBodyRepairToolTest {
     assertTrue(
         patch.propertyPatches().stream()
             .allMatch(propertyPatch -> "script".equals(propertyPatch.property().key())));
+  }
+
+  @Test
+  void repairsOnlyScriptsInTheActiveEditPlan() {
+    ChainPlanGraph graph = graphWithMissingScripts();
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(
+        CONVERSATION_ID,
+        CAPABILITY_ID,
+        new GraphPatchExecutionContext(
+            "edit-run",
+            CAPABILITY_ID,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of(),
+            graph,
+            GraphPatchOwnershipPolicy.denyAll(),
+            "attempt-1",
+            List.of("append-found-row")));
+
+    CaptureValidationException terminal =
+        assertThrows(
+            CaptureValidationException.class,
+            () ->
+                tool.repairScriptBodies(
+                    new ScriptBodyRepairCapture(
+                        "script-repair-scoped",
+                        List.of(
+                            new ScriptBodyEntry(
+                                "append-found-row",
+                                "exchange.body.rows.push(exchange.body.item);")),
+                        "Fill the new catch script")));
+
+    assertTrue(terminal.getMessage().contains("Script body repair patch captured"));
+    GraphPatch patch =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertEquals(
+        List.of("append-found-row"),
+        patch.propertyPatches().stream().map(patchItem -> patchItem.targetNodeId()).toList());
   }
 
   @Test

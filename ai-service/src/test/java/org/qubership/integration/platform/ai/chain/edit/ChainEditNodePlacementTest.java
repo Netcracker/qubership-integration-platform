@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -14,79 +13,35 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 class ChainEditNodePlacementTest {
 
   @Test
-  void insertsAfterALeafAnchorWithNoRewiring() {
-    ChainEditNodePlacement.Placement placement =
-        ChainEditNodePlacement.insertAfter(leafGraph(), List.of("a"), "script", "New script");
-
-    ChainPlanGraph graph = placement.graph();
-    assertEquals(2, graph.nodes().size());
-    ChainPlanNode placed = node(graph, placement.newNodeId());
-    assertEquals("script", placed.type());
-    assertEquals("New script", placed.label());
-    assertEquals(List.of(), placed.properties());
-    assertEquals(
-        List.of(new ChainPlanEdge(graph.edges().get(0).edgeId(), "a", placement.newNodeId(), null)),
-        graph.edges());
-  }
-
-  @Test
-  void spliceBetweenAnAnchorAndItsOneSuccessorPreservesTheEdgeIdAndScope() {
+  void aTriggerWithNoAnchorFansIntoTheExistingStart() {
     ChainPlanGraph base =
         new ChainPlanGraph(
             "1.0",
             new ChainSection("c", "C"),
-            List.of(
-                node("a", null),
-                node("b", null)),
-            List.of(new ChainPlanEdge("edge-1", "a", "b", "container-1")));
+            List.of(node("http-trigger", "http-trigger", null), node("script", "script", null)),
+            List.of(new ChainPlanEdge("edge-1", "http-trigger", "script", null)));
 
     ChainEditNodePlacement.Placement placement =
-        ChainEditNodePlacement.insertAfter(base, List.of("a"), "script", "New script");
+        ChainEditNodePlacement.addTrigger(base, List.of(), "quartz-scheduler", "Every 5 minutes");
 
-    assertEquals(
-        List.of(
-            new ChainPlanEdge("edge-1", "a", placement.newNodeId(), "container-1")),
-        placement.graph().edges().stream().filter(e -> "edge-1".equals(e.edgeId())).toList());
+    ChainPlanNode placed = node(placement.graph(), placement.newNodeId());
+    assertEquals("quartz-scheduler", placed.type());
+    assertEquals(null, placed.parentNodeId());
     assertTrue(
         placement.graph().edges().stream()
             .anyMatch(
-                e ->
-                    placement.newNodeId().equals(e.fromNodeId())
-                        && "b".equals(e.toNodeId())
-                        && "container-1".equals(e.scopeNodeId())),
-        "the cut edge's successor is reconnected from the new node, in the same scope");
+                edge ->
+                    placement.newNodeId().equals(edge.fromNodeId()) && "script".equals(edge.toNodeId())),
+        "the new trigger must connect to the same successor the existing trigger already starts");
+    assertTrue(
+        placement.graph().edges().stream()
+            .anyMatch(
+                edge -> "http-trigger".equals(edge.fromNodeId()) && "script".equals(edge.toNodeId())),
+        "the existing trigger-to-script edge stays");
   }
 
-  @Test
-  void thePlacedNodeInheritsTheAnchorsContainer() {
-    ChainPlanGraph base =
-        new ChainPlanGraph(
-            "1.0",
-            new ChainSection("c", "C"),
-            List.of(node("a", "container-1")),
-            List.of());
-
-    ChainEditNodePlacement.Placement placement =
-        ChainEditNodePlacement.insertAfter(base, List.of("a"), "script", "New script");
-
-    assertEquals(
-        "container-1", node(placement.graph(), placement.newNodeId()).parentNodeId());
-  }
-
-  @Test
-  void anUnknownAnchorIsRejected() {
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> ChainEditNodePlacement.insertAfter(leafGraph(), List.of("missing"), "script", "x"));
-  }
-
-  private static ChainPlanGraph leafGraph() {
-    return new ChainPlanGraph(
-        "1.0", new ChainSection("c", "C"), List.of(node("a", null)), List.of());
-  }
-
-  private static ChainPlanNode node(String id, String parentId) {
-    return new ChainPlanNode(id, "script", "Node " + id, parentId, null, List.of());
+  private static ChainPlanNode node(String id, String type, String parentId) {
+    return new ChainPlanNode(id, type, "Node " + id, parentId, null, List.of());
   }
 
   private static ChainPlanNode node(ChainPlanGraph graph, String id) {

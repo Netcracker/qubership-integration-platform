@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Api
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.llm.agent.ChainEditIntentAgent;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -44,6 +46,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagE
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerValidationPipeline;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
@@ -53,8 +56,16 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.MaterializationRequirementsValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
@@ -68,6 +79,10 @@ class ChainEditCompilerTest {
   private static final String STRUCTURE_GENERATOR = "cip-structure-generator";
   private static final String ERROR_HANDLING_GENERATOR = "cip-error-handling-generator";
   private static final String SCRIPT_GENERATOR = "cip-script-generator";
+  private static final String SECURITY_GENERATOR = "cip-security-generator";
+  private static final String HTTP_TRIGGER_ENDPOINT_GENERATOR =
+      "cip-http-trigger-endpoint-generator";
+  private static final String MESSAGING_GENERATOR = "cip-messaging-generator";
 
   private ChainEditCapture intentReply;
   private CatalogRestClient catalogRestClient;
@@ -76,6 +91,7 @@ class ChainEditCompilerTest {
   private CatalogMutationGateway catalogMutationGateway;
   private FakeEngine engine;
   private ChainEditCompiler compiler;
+  private CompilerRunPinResolver runPinResolver;
 
   @BeforeEach
   void setUp() {
@@ -101,7 +117,7 @@ class ChainEditCompilerTest {
                 new CatalogRestClient.OperationDto(
                     "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1")));
 
-    CompilerRunPinResolver runPinResolver = mock(CompilerRunPinResolver.class);
+    runPinResolver = mock(CompilerRunPinResolver.class);
     when(runPinResolver.resolve(any(), any())).thenReturn(pin());
     ProductPipelineProfileCatalog profileCatalog = mock(ProductPipelineProfileCatalog.class);
     when(profileCatalog.require(any(), any())).thenReturn(mock(ProductPipelineProfile.class));
@@ -123,7 +139,29 @@ class ChainEditCompilerTest {
             profileCatalog,
             knowledge,
             catalogMutationGateway,
-            new CaptureSession());
+            new CaptureSession(),
+            DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()),
+            realValidationPipeline());
+  }
+
+  private static CompilerValidationPipeline realValidationPipeline() {
+    ObjectMapper mapper = new ObjectMapper();
+    DeterministicElementSchemaService schemaService =
+        DeterministicElementSchemaService.createForUnitTests(mapper);
+    SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
+    SchemaRefResolver schemaRefResolver =
+        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+    MaterializationRequirementsValidator requirements =
+        mock(MaterializationRequirementsValidator.class);
+    when(requirements.validate(any())).thenReturn(List.of());
+    return new CompilerValidationPipeline(
+        schemaResourceLoader,
+        schemaRefResolver,
+        mapper,
+        new ChainPlanGraphValidator(schemaService),
+        schemaService,
+        new CompilerSecurityValidator(),
+        new CompilerQualityValidator(requirements));
   }
 
   @Test
@@ -163,6 +201,18 @@ class ChainEditCompilerTest {
       values.put(property.key(), property.value());
     }
     return values;
+  }
+
+  @Test
+  void compileReportsIntentAndGeneratorSkillProgress() {
+    List<String> seen = new ArrayList<>();
+
+    compiler.compile(request(), (skillId, status) -> seen.add(skillId + ":" + status));
+
+    assertTrue(seen.contains("chain-edit-intent:running"), seen.toString());
+    assertTrue(seen.contains("chain-edit-intent:completed"), seen.toString());
+    assertTrue(seen.contains(GENERATOR + ":running"), seen.toString());
+    assertTrue(seen.contains(GENERATOR + ":completed"), seen.toString());
   }
 
   @Test
@@ -239,7 +289,6 @@ class ChainEditCompilerTest {
             null,
             null,
             null,
-            ChainEditPlacement.UNSET,
             List.of("call-orders (Call orders)", "call-invoices (Call invoices)"));
 
     ChainEditOutcome.Clarification clarification =
@@ -247,6 +296,62 @@ class ChainEditCompilerTest {
     assertEquals(
         List.of("call-orders (Call orders)", "call-invoices (Call invoices)"),
         clarification.choices());
+    // The unresolved intent travels with the clarification so the next turn can resume this same
+    // edit instead of resolving the reply with no record of having asked.
+    assertEquals(ChainEditAction.REBIND_SERVICE_CALL, clarification.heldIntent().action());
+    assertEquals(List.of(), clarification.heldIntent().targetNodeIds());
+  }
+
+  @Test
+  void resumingAClarificationThatAnswersTheQuestionReachesAProposal() {
+    intentReply =
+        capture(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of(TARGET),
+            "point it at the order-status operation",
+            "order status");
+    ChainEditIntent held =
+        new ChainEditIntent(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of(),
+            "point it at the order-status operation",
+            "order status",
+            List.of("call-orders (Call orders)", "call-invoices (Call invoices)"));
+
+    ChainEditOutcome outcome =
+        compiler.resumeAfterClarification(request(), held, "Which element did you mean?");
+
+    assertInstanceOf(ChainEditOutcome.Proposal.class, outcome);
+  }
+
+  @Test
+  void resumingAClarificationThatIsStillUnresolvedAsksAgainWithTheUpdatedHeldIntent() {
+    intentReply =
+        capture(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of(),
+            "point it at the order-status operation",
+            "order status",
+            null,
+            null,
+            List.of("call-orders (Call orders)", "call-invoices (Call invoices)"));
+    ChainEditIntent held =
+        new ChainEditIntent(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of(),
+            "point it at the order-status operation",
+            "order status",
+            List.of("call-orders (Call orders)", "call-invoices (Call invoices)"));
+
+    ChainEditOutcome.Clarification clarification =
+        assertInstanceOf(
+            ChainEditOutcome.Clarification.class,
+            compiler.resumeAfterClarification(request(), held, "Which element did you mean?"));
+
+    assertEquals(
+        List.of("call-orders (Call orders)", "call-invoices (Call invoices)"),
+        clarification.choices());
+    assertEquals(ChainEditAction.REBIND_SERVICE_CALL, clarification.heldIntent().action());
   }
 
   @Test
@@ -282,8 +387,61 @@ class ChainEditCompilerTest {
   void aCompilerValidationFailureLeavesNothingToApprove() {
     engine.validationValid = false;
 
-    ChainEditOutcome outcome = compiler.compile(request());
-    assertInstanceOf(ChainEditOutcome.CompilationFailure.class, outcome);
+    ChainEditOutcome.CompilationFailure failure =
+        assertInstanceOf(ChainEditOutcome.CompilationFailure.class, compiler.compile(request()));
+    assertTrue(failure.message().contains("element refused"));
+  }
+
+  @Test
+  void aCatalogExternalRouteDoesNotRefuseAnHttpTriggerEndpointEdit() {
+    intentReply =
+        configureCapture(
+            List.of("http-a"),
+            "change the endpoint to /test-test POST",
+            List.of("contextPath", "httpMethodRestrict"));
+    ChainPlanGraph seed = catalogHttpTrigger("test", "GET");
+    ChainPlanGraph compiled = catalogHttpTrigger("/test-test", "POST");
+    engine.scriptedResults.add(
+        new CompilerDagExecutionResult(
+            StageOutcomeClass.SUCCEEDED,
+            null,
+            List.of(HTTP_TRIGGER_ENDPOINT_GENERATOR, "cip-chain-assembler"),
+            null,
+            compiled,
+            null,
+            new CompilerValidationBundle(
+                1,
+                "digest",
+                List.of(
+                    new CompilerValidationPass(
+                        CompilerValidationPipeline.SECURITY,
+                        new ValidationResult(
+                            false,
+                            List.of(
+                                new ValidationIssue(
+                                    "security-1",
+                                    ValidationSeverity.BLOCKER,
+                                    "External route requires accessControlType=RBAC",
+                                    CompilerValidationPipeline.SECURITY,
+                                    List.of("http-a"),
+                                    List.of(),
+                                    "Set accessControlType to RBAC and provide explicit roles")),
+                            "security validation failed with 1 blocker(s)"))))));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.compile(
+                new ChainEditRequest(
+                    "conv-1",
+                    "chain-1",
+                    "edit-run-1",
+                    new ImportedChainPlan(seed, null, "base-digest"),
+                    "change the endpoint to /test-test POST",
+                    null)));
+
+    assertEquals("/test-test", property(proposal.finalGraph(), "http-a", "contextPath"));
+    assertEquals("POST", property(proposal.finalGraph(), "http-a", "httpMethodRestrict"));
   }
 
   @Test
@@ -331,10 +489,15 @@ class ChainEditCompilerTest {
   }
 
   @Test
-  void aScriptSkillIsNotOfferedAnElementItCannotOwn() {
-    intentReply = capture(ChainEditAction.EDIT_SCRIPT, List.of(TARGET), "rewrite the script");
+  void aScriptPropertyIsRefusedOnAnElementThatDoesNotDefineIt() {
+    // "script" belongs to the script element's own schema, and this target is a service call.
+    intentReply = configureCapture(List.of(TARGET), "rewrite the script", List.of("script"));
 
-    assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
+    ChainEditOutcome.ResolutionFailure failure =
+        assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
+    assertTrue(failure.message().contains("script"), failure.message());
+    org.junit.jupiter.api.Assertions.assertNull(
+        engine.lastRequest.get(), "the script capability is never reached");
   }
 
   @Test
@@ -348,7 +511,8 @@ class ChainEditCompilerTest {
   @Test
   void aScriptEditRunsThroughTheScriptSkill() {
     intentReply =
-        capture(ChainEditAction.EDIT_SCRIPT, List.of("normalize"), "return the customer id in the body");
+        configureCapture(
+            List.of("normalize"), "return the customer id in the body", List.of("script"));
 
     assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
     assertEquals(
@@ -360,23 +524,237 @@ class ChainEditCompilerTest {
   @Test
   void eachConfigurationFamilyGoesToTheCapabilityThatOwnsIt() {
     intentReply =
-        capture(ChainEditAction.EDIT_AUTHENTICATION, List.of(TARGET), "use the service account");
+        configureCapture(
+            List.of(TARGET), "use the service account", List.of("authorizationConfiguration"));
     compiler.compile(request());
     assertEquals(List.of("cip-auth-generator"), engine.lastRequest.get().approvedOwningSkillIds());
 
-    intentReply = capture(ChainEditAction.EDIT_RETRY, List.of(TARGET), "try five times");
+    intentReply = configureCapture(List.of(TARGET), "try five times", List.of("retryCount"));
     compiler.compile(request());
     assertEquals(List.of("cip-retry-generator"), engine.lastRequest.get().approvedOwningSkillIds());
   }
 
   @Test
-  void aTargetTheCapabilityCannotOwnIsRefusedBeforeTheCompilerRuns() {
-    // The timeout skill owns connectTimeout on http-trigger, and this target is a service call.
-    intentReply = capture(ChainEditAction.EDIT_TIMEOUT, List.of(TARGET), "wait longer");
+  void aSecurityConfigurationReachesTheSecurityCapability() {
+    intentReply = configureCapture(List.of("http-a"), "require RBAC roles", List.of("accessControlType"));
+
+    compiler.compile(
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(twoHttpTriggers(), null, "base-digest"),
+            "require RBAC roles",
+            null));
+
+    assertEquals(
+        List.of(SECURITY_GENERATOR), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(
+        List.of("http-a"), scopedTargets(engine.lastRequest.get(), SECURITY_GENERATOR));
+  }
+
+  @Test
+  void aTimeoutConfigurationReachesTheTimeoutCapability() {
+    intentReply = configureCapture(List.of("http-a"), "wait longer", List.of("connectTimeout"));
+
+    compiler.compile(
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(twoHttpTriggers(), null, "base-digest"),
+            "wait longer",
+            null));
+
+    assertEquals(
+        List.of("cip-timeout-generator"), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(
+        List.of("http-a"), scopedTargets(engine.lastRequest.get(), "cip-timeout-generator"));
+  }
+
+  @Test
+  void anHttpTriggerEndpointChangeReachesTheHttpTriggerEndpointCapability() {
+    intentReply =
+        configureCapture(
+            List.of("http-a"),
+            "change the endpoint to /test-test POST",
+            List.of("contextPath", "httpMethodRestrict"));
+
+    compiler.compile(
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(twoHttpTriggers(), null, "base-digest"),
+            "change the endpoint to /test-test POST",
+            null));
+
+    assertEquals(
+        List.of(HTTP_TRIGGER_ENDPOINT_GENERATOR),
+        engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(
+        List.of("http-a"),
+        scopedTargets(engine.lastRequest.get(), HTTP_TRIGGER_ENDPOINT_GENERATOR));
+  }
+
+  @Test
+  void aKafkaTriggerIdentityChangeReachesTheMessagingCapability() {
+    intentReply =
+        configureCapture(
+            List.of("kafka-a"),
+            "consume orders from brokers kafka:9092",
+            List.of("brokers", "topics", "groupId"));
+
+    compiler.compile(
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(kafkaTrigger(), null, "base-digest"),
+            "consume orders from brokers kafka:9092",
+            null));
+
+    assertEquals(
+        List.of(MESSAGING_GENERATOR), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(List.of("kafka-a"), scopedTargets(engine.lastRequest.get(), MESSAGING_GENERATOR));
+  }
+
+  @Test
+  void aRabbitMqTriggerIdentityChangeReachesTheMessagingCapability() {
+    intentReply =
+        configureCapture(
+            List.of("rabbit-a"),
+            "listen on orders-queue via orders-exchange",
+            List.of("queues", "exchange", "addresses"));
+
+    compiler.compile(
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(rabbitMqTrigger(), null, "base-digest"),
+            "listen on orders-queue via orders-exchange",
+            null));
+
+    assertEquals(
+        List.of(MESSAGING_GENERATOR), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(List.of("rabbit-a"), scopedTargets(engine.lastRequest.get(), MESSAGING_GENERATOR));
+  }
+
+  @Test
+  void aCatalogBindingOnAnHttpTriggerReachesTheServiceCallCapability() {
+    intentReply =
+        configureCapture(
+            List.of("http-a"),
+            "bind the implemented service",
+            List.of("systemType", "integrationSystemId"));
+
+    compiler.compile(
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(twoHttpTriggers(), null, "base-digest"),
+            "bind the implemented service",
+            null));
+
+    assertEquals(List.of(GENERATOR), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(List.of("http-a"), scopedTargets(engine.lastRequest.get(), GENERATOR));
+  }
+
+  @Test
+  void aCatalogBindingOnAnAsyncApiTriggerReachesTheServiceCallCapability() {
+    intentReply =
+        configureCapture(
+            List.of("async-a"),
+            "bind the kafka service",
+            List.of("integrationSystemId", "integrationOperationId"));
+
+    compiler.compile(
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(asyncApiTrigger(), null, "base-digest"),
+            "bind the kafka service",
+            null));
+
+    assertEquals(List.of(GENERATOR), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(List.of("async-a"), scopedTargets(engine.lastRequest.get(), GENERATOR));
+  }
+
+  @Test
+  void aTimeoutPropertyIsRefusedOnAnElementThatDoesNotDefineIt() {
+    // connectTimeout belongs to http-trigger, and this target is a service call.
+    intentReply = configureCapture(List.of(TARGET), "wait longer", List.of("connectTimeout"));
 
     ChainEditOutcome.ResolutionFailure failure =
         assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
-    assertTrue(failure.message().contains("cip-timeout-generator"), failure.message());
+    assertTrue(failure.message().contains("connectTimeout"), failure.message());
+    assertFalse(failure.message().contains("cip-"), failure.message());
+  }
+
+  @Test
+  void aConfigureRequestNamingAPropertyOneGeneratorOwnsResolvesToThatGenerator() {
+    intentReply = configureCapture(List.of(TARGET), "try five times", List.of("retryCount"));
+
+    compiler.compile(request());
+
+    assertEquals(List.of("cip-retry-generator"), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(List.of(TARGET), scopedTargets(engine.lastRequest.get(), "cip-retry-generator"));
+  }
+
+  @Test
+  void aConfigureRequestNamingPropertiesOwnedByTwoGeneratorsReachesBothEachScopedToItsOwnProperties() {
+    intentReply =
+        configureCapture(
+            List.of(TARGET),
+            "use the service account and try five times",
+            List.of("authorizationConfiguration", "retryCount"));
+
+    compiler.compile(request());
+
+    assertEquals(
+        List.of("cip-auth-generator", "cip-retry-generator"),
+        engine.lastRequest.get().approvedOwningSkillIds());
+    GeneratorPlanManifest plan =
+        artifact(
+                engine.lastRequest.get(),
+                SkillArtifactType.GENERATOR_PLAN_MANIFEST,
+                SkillArtifactPayload.GeneratorPlanManifestPayload.class)
+            .manifest();
+    assertEquals(
+        List.of("authorizationConfiguration"), matchedSignals(plan, "cip-auth-generator"));
+    assertEquals(List.of("retryCount"), matchedSignals(plan, "cip-retry-generator"));
+    assertEquals(List.of(TARGET), scopedTargets(engine.lastRequest.get(), "cip-auth-generator"));
+    assertEquals(List.of(TARGET), scopedTargets(engine.lastRequest.get(), "cip-retry-generator"));
+  }
+
+  @Test
+  void aConfigureRequestNamingAPropertyNoGeneratorOwnsIsRefusedNamingTheElementNeverAGenerator() {
+    // errorThrowing is a real service-call property, but no pinned generator declares it.
+    intentReply = configureCapture(List.of(TARGET), "stop throwing errors", List.of("errorThrowing"));
+
+    ChainEditOutcome.ResolutionFailure failure =
+        assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
+
+    assertTrue(failure.message().contains("errorThrowing"), failure.message());
+    assertTrue(failure.message().contains(TARGET), failure.message());
+    assertFalse(failure.message().contains("cip-"), failure.message());
+    org.junit.jupiter.api.Assertions.assertNull(
+        engine.lastRequest.get(), "an unowned property never reaches the compiler");
+  }
+
+  @Test
+  void aConfigurePropertyTheElementTypeDoesNotDefineIsReportedBeforeAnyGeneratorRuns() {
+    intentReply = configureCapture(List.of(TARGET), "change something odd", List.of("notARealProperty"));
+
+    ChainEditOutcome.ResolutionFailure failure =
+        assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
+
+    assertTrue(failure.message().contains("notARealProperty"), failure.message());
+    org.junit.jupiter.api.Assertions.assertNull(
+        engine.lastRequest.get(), "an undefined property key never reaches the compiler");
   }
 
   @Test
@@ -389,7 +767,7 @@ class ChainEditCompilerTest {
             null,
             null,
             null,
-            ChainEditPlacement.UNSET,
+            List.of(),
             List.of());
 
     ChainEditOutcome.ResolutionFailure failure =
@@ -407,7 +785,7 @@ class ChainEditCompilerTest {
             null,
             "quartz-scheduler",
             "0 */5 * * * ?",
-            ChainEditPlacement.ROOT_TRIGGER,
+            List.of(),
             List.of());
 
     ChainEditOutcome outcome =
@@ -459,23 +837,442 @@ class ChainEditCompilerTest {
   }
 
   @Test
-  void anAdditionGoesToWhicheverSkillMayAddThatElementType() {
+  void addingAnHttpTriggerWithEndpointKeysReachesTheHttpTriggerEndpointCapability() {
     intentReply =
         new ChainEditCapture(
             ChainEditAction.ADD_ELEMENTS,
-            List.of("call-orders"),
+            List.of(),
+            "add an http-trigger at /test-test POST",
+            null,
+            "http-trigger",
+            null,
+            List.of("contextPath", "httpMethodRestrict"),
+            List.of());
+
+    ChainEditOutcome outcome =
+        compiler.compile(
+            new ChainEditRequest(
+                "conv-1",
+                "chain-1",
+                "edit-run-1",
+                new ImportedChainPlan(importedGraph(), null, "base-digest"),
+                "add an http-trigger at /test-test POST",
+                null));
+
+    assertFalse(
+        outcome instanceof ChainEditOutcome.Clarification,
+        () ->
+            outcome instanceof ChainEditOutcome.Clarification clarification
+                ? clarification.question() + " " + clarification.choices()
+                : outcome.getClass().getSimpleName());
+    assertEquals(
+        List.of(HTTP_TRIGGER_ENDPOINT_GENERATOR),
+        engine.lastRequest.get().approvedOwningSkillIds());
+    ChainPlanGraph seed =
+        artifact(
+                engine.lastRequest.get(),
+                SkillArtifactType.CHAIN_PLAN_GRAPH,
+                SkillArtifactPayload.ChainPlanGraphPayload.class)
+            .graph();
+    assertTrue(
+        seed.nodes().stream().anyMatch(node -> "http-trigger".equals(node.type())),
+        "the seed graph must already carry the new http-trigger");
+  }
+
+  @Test
+  void anAdditionAtANamedAddressRunsThroughTheStructureStage() {
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET),
             "add a script after the order call",
             null,
             "script",
             null,
-            ChainEditPlacement.AFTER_TARGET,
+            List.of(),
+            List.of());
+    engine.scriptedResults.add(structureOnlyResult(singleElementSpliceGraph(false)));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"),
+            singleElementSpliceGraph(true)));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    assertEquals(2, engine.requests.size());
+    assertEquals(List.of(STRUCTURE_GENERATOR), engine.requests.get(0).approvedOwningSkillIds());
+    assertEquals(
+        List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR),
+        engine.requests.get(1).approvedOwningSkillIds());
+    assertEquals(List.of("new-script"), scopedTargets(engine.requests.get(1), SCRIPT_GENERATOR));
+    assertEquals(
+        "return 1", properties(node(proposal.finalGraph(), "new-script")).get("script"));
+  }
+
+  @Test
+  void namingBothEndsSplicesTheNewElementBetweenExactlyThoseTwoNamedElements() {
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET, UNRELATED),
+            "add a script between the order call and the invoice call",
+            null,
+            "script",
+            null,
+            List.of(),
+            List.of());
+    engine.scriptedResults.add(structureOnlyResult(singleElementSpliceGraph(false)));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"),
+            singleElementSpliceGraph(true)));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph finalGraph = proposal.finalGraph();
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && "new-script".equals(e.toNodeId())));
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(e -> "new-script".equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())));
+    assertFalse(
+        finalGraph.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())),
+        "the direct edge between the two named elements is replaced by the insertion");
+  }
+
+  @Test
+  void namingOnlyThePrecedingElementInsertsAfterItWhenThatElementHasOneSuccessor() {
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET),
+            "add a script after the order call",
+            null,
+            "script",
+            null,
+            List.of(),
+            List.of());
+    engine.scriptedResults.add(structureOnlyResult(singleElementSpliceGraph(false)));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"),
+            singleElementSpliceGraph(true)));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph finalGraph = proposal.finalGraph();
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && "new-script".equals(e.toNodeId())));
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(e -> "new-script".equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())));
+    assertFalse(
+        finalGraph.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())));
+  }
+
+  @Test
+  void severalConnectedElementsArriveWiredToEachOtherAndSplicedAtTheAddressInOneApproval() {
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET, UNRELATED),
+            "add a script that normalizes the payload, then call the shipping service",
+            null,
+            "script",
+            null,
+            List.of(),
+            List.of());
+    engine.scriptedResults.add(structureOnlyResult(addressSpliceGraph(false)));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"),
+            addressSpliceGraph(true)));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    // One structure pass, then one configuration pass that reaches both new elements' owners
+    // together: the reader approves one card for the whole insertion, not one per generator.
+    assertEquals(2, engine.requests.size());
+    assertEquals(List.of(STRUCTURE_GENERATOR), engine.requests.get(0).approvedOwningSkillIds());
+    assertEquals(
+        List.of(STRUCTURE_GENERATOR, GENERATOR, SCRIPT_GENERATOR),
+        engine.requests.get(1).approvedOwningSkillIds());
+
+    ChainPlanGraph finalGraph = proposal.finalGraph();
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && "transform".equals(e.toNodeId())),
+        "the order call connects into the new script");
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(
+                e -> "transform".equals(e.fromNodeId()) && "call-shipping".equals(e.toNodeId())),
+        "the new elements are wired to each other");
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(e -> "call-shipping".equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())),
+        "the new service call connects into the invoice call that was already there");
+    assertFalse(
+        finalGraph.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())),
+        "the direct connection between the two named elements is replaced by the new subgraph");
+
+    // Each configuration owner is scoped to its own new element, not the whole insertion.
+    assertEquals(List.of("transform"), scopedTargets(engine.requests.get(1), SCRIPT_GENERATOR));
+    assertEquals(List.of("call-shipping"), scopedTargets(engine.requests.get(1), GENERATOR));
+
+    // The element already at the address stays exactly where it was.
+    assertEquals(node(importedGraph(), TARGET), node(finalGraph, TARGET));
+    assertEquals(node(importedGraph(), UNRELATED), node(finalGraph, UNRELATED));
+    assertEquals(node(importedGraph(), "normalize"), node(finalGraph, "normalize"));
+  }
+
+  @Test
+  void namingAPrecedingElementWithSeveralSuccessorsAsksWhichBranchRatherThanPickingOne() {
+    ChainPlanGraph branchingGraph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("orders", "Orders"),
+            List.of(
+                new ChainPlanNode(TARGET, "service-call", "Call orders", null, null, List.of()),
+                new ChainPlanNode("branch-a", "script", "Branch A", null, null, List.of()),
+                new ChainPlanNode("branch-b", "script", "Branch B", null, null, List.of())),
+            List.of(
+                new ChainPlanEdge("edge-a", TARGET, "branch-a", null),
+                new ChainPlanEdge("edge-b", TARGET, "branch-b", null)));
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET),
+            "add a script after the order call",
+            null,
+            "script",
+            null,
+            List.of(),
             List.of());
 
-    compiler.compile(request());
+    ChainEditOutcome outcome =
+        compiler.compile(
+            new ChainEditRequest(
+                "conv-1",
+                "chain-1",
+                "edit-run-1",
+                new ImportedChainPlan(branchingGraph, null, "base-digest"),
+                "add a script after the order call",
+                null));
+
+    ChainEditOutcome.Clarification clarification =
+        assertInstanceOf(ChainEditOutcome.Clarification.class, outcome);
+    assertEquals(List.of("branch-a", "branch-b"), clarification.choices());
+    assertEquals(List.of(TARGET), clarification.heldIntent().targetNodeIds());
+    org.junit.jupiter.api.Assertions.assertNull(
+        engine.lastRequest.get(), "nothing is written while the branch is ambiguous");
+  }
+
+  @Test
+  void anInsertionAddressNamingAnElementTheChainDoesNotHaveIsReportedAsUnresolved() {
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of("call-shipping"),
+            "add a script after the shipping call",
+            null,
+            "script",
+            null,
+            List.of(),
+            List.of());
+
+    ChainEditOutcome.Clarification clarification =
+        assertInstanceOf(ChainEditOutcome.Clarification.class, compiler.compile(request()));
 
     assertEquals(
-        List.of("cip-script-generator"), engine.lastRequest.get().approvedOwningSkillIds());
-    assertEquals(List.of(TARGET), scopedTargets(engine.lastRequest.get()));
+        List.of("The chain has no element 'call-shipping'."), clarification.choices());
+    org.junit.jupiter.api.Assertions.assertNull(engine.lastRequest.get());
+  }
+
+  @Test
+  void aNewElementPlacedInsideAContainerStaysInThatContainerWhenAddedByAddress() {
+    ChainPlanGraph containedGraph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("orders", "Orders"),
+            List.of(
+                new ChainPlanNode(
+                    TARGET, "service-call", "Call orders", "container-1", null, List.of())),
+            List.of());
+    ChainPlanGraph spliced =
+        new ChainPlanGraph(
+            containedGraph.schemaVersion(),
+            containedGraph.chain(),
+            List.of(
+                node(containedGraph, TARGET),
+                new ChainPlanNode(
+                    "new-script",
+                    "script",
+                    "New script",
+                    "container-1",
+                    null,
+                    List.of(new PlanProperty("script", "return 1")))),
+            List.of(new ChainPlanEdge("orders-to-script", TARGET, "new-script", null)));
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET),
+            "add a script after the order call",
+            null,
+            "script",
+            null,
+            List.of(),
+            List.of());
+    engine.scriptedResults.add(structureOnlyResult(spliced));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"), spliced));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.compile(
+                new ChainEditRequest(
+                    "conv-1",
+                    "chain-1",
+                    "edit-run-1",
+                    new ImportedChainPlan(containedGraph, null, "base-digest"),
+                    "add a script after the order call",
+                    null)));
+
+    assertEquals("container-1", node(proposal.finalGraph(), "new-script").parentNodeId());
+    assertEquals("container-1", node(proposal.finalGraph(), TARGET).parentNodeId());
+  }
+
+  @Test
+  void aReplacementYieldsOneProposalThatAddsTheSubgraphAndRemovesTheReplacedElement() {
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET),
+            "replace the order call with a script that normalizes the payload, then call shipping",
+            null,
+            "script",
+            null,
+            List.of(),
+            List.of(),
+            ChainEditDisposition.REMOVE);
+    engine.scriptedResults.add(structureOnlyResult(addressReplaceGraph(false)));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"),
+            addressReplaceGraph(true)));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    assertEquals(2, engine.requests.size());
+    ChainPlanGraph finalGraph = proposal.finalGraph();
+    assertTrue(finalGraph.nodes().stream().noneMatch(node -> TARGET.equals(node.nodeId())));
+    assertTrue(
+        proposal.netPatch().nodePatches().stream()
+            .anyMatch(
+                patch ->
+                    patch.operation() == GraphPatchOperation.REMOVE
+                        && TARGET.equals(patch.targetNodeId())));
+    assertTrue(
+        finalGraph.nodes().stream().anyMatch(node -> "transform".equals(node.nodeId())));
+    assertTrue(
+        finalGraph.nodes().stream().anyMatch(node -> "call-shipping".equals(node.nodeId())));
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(
+                e -> "transform".equals(e.fromNodeId()) && "call-shipping".equals(e.toNodeId())));
+    assertTrue(
+        finalGraph.edges().stream()
+            .anyMatch(e -> "call-shipping".equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())));
+    assertEquals(node(importedGraph(), UNRELATED), node(finalGraph, UNRELATED));
+    assertEquals(node(importedGraph(), "normalize"), node(finalGraph, "normalize"));
+    assertEquals(List.of("transform"), scopedTargets(engine.requests.get(1), SCRIPT_GENERATOR));
+    assertEquals(List.of("call-shipping"), scopedTargets(engine.requests.get(1), GENERATOR));
+  }
+
+  @Test
+  void replacingAnElementInsideAContainerKeepsTheSubgraphInsideThatContainer() {
+    ChainPlanGraph containedGraph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("orders", "Orders"),
+            List.of(
+                new ChainPlanNode("container-1", "try-2", "Try", null, null, List.of()),
+                new ChainPlanNode(
+                    TARGET, "service-call", "Call orders", "container-1", null, List.of()),
+                new ChainPlanNode(
+                    UNRELATED, "script", "After call", "container-1", null, List.of())),
+            List.of(new ChainPlanEdge("edge-1", TARGET, UNRELATED, null)));
+    ChainPlanGraph replaced =
+        new ChainPlanGraph(
+            containedGraph.schemaVersion(),
+            containedGraph.chain(),
+            List.of(
+                node(containedGraph, "container-1"),
+                node(containedGraph, UNRELATED),
+                new ChainPlanNode(
+                    "transform",
+                    "script",
+                    "Transform payload",
+                    "container-1",
+                    null,
+                    List.of(new PlanProperty("script", "return 1"))),
+                new ChainPlanNode(
+                    "call-shipping",
+                    "service-call",
+                    "Call shipping",
+                    "container-1",
+                    null,
+                    List.of())),
+            List.of(new ChainPlanEdge("transform-to-shipping", "transform", "call-shipping", null)));
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET),
+            "replace the order call with a script then a shipping call",
+            null,
+            "script",
+            null,
+            List.of(),
+            List.of(),
+            ChainEditDisposition.REMOVE);
+    engine.scriptedResults.add(structureOnlyResult(replaced));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"),
+            replaced));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.compile(
+                new ChainEditRequest(
+                    "conv-1",
+                    "chain-1",
+                    "edit-run-1",
+                    new ImportedChainPlan(containedGraph, null, "base-digest"),
+                    "replace the order call with a script then a shipping call",
+                    null)));
+
+    assertEquals("container-1", node(proposal.finalGraph(), "transform").parentNodeId());
+    assertEquals("container-1", node(proposal.finalGraph(), "call-shipping").parentNodeId());
+    assertEquals("container-1", node(proposal.finalGraph(), UNRELATED).parentNodeId());
+    assertTrue(
+        proposal.finalGraph().nodes().stream().noneMatch(node -> TARGET.equals(node.nodeId())));
   }
 
   @Test
@@ -488,8 +1285,9 @@ class ChainEditCompilerTest {
             null,
             "try-catch-finally-2",
             null,
-            ChainEditPlacement.GENERATOR,
-            List.of());
+            List.of(),
+            List.of(),
+            ChainEditDisposition.NEST);
 
     ChainEditOutcome.Proposal proposal =
         assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
@@ -530,23 +1328,22 @@ class ChainEditCompilerTest {
             null,
             "mainframe-bridge",
             null,
-            ChainEditPlacement.AFTER_TARGET,
+            List.of(),
             List.of());
 
     assertInstanceOf(ChainEditOutcome.Unsupported.class, compiler.compile(request()));
   }
 
   @Test
-  void aTimeoutCaptureWithoutATargetAsksWhichElementEvenWhenTheUserSaidAdd() {
+  void aConfigureCaptureWithoutATargetAsksWhichElementEvenWhenTheUserSaidAdd() {
     intentReply =
         capture(
-            ChainEditAction.EDIT_TIMEOUT,
+            ChainEditAction.CONFIGURE,
             List.of(),
             "wait longer",
             null,
             null,
             null,
-            ChainEditPlacement.UNSET,
             List.of("http-a", "http-b"));
 
     ChainEditOutcome.Clarification clarification =
@@ -673,8 +1470,7 @@ class ChainEditCompilerTest {
 
   private static ChainEditCapture capture(
       ChainEditAction action, List<String> targets, String change, String lookup) {
-    return capture(
-        action, targets, change, lookup, null, null, ChainEditPlacement.UNSET, List.of());
+    return capture(action, targets, change, lookup, null, null, List.of());
   }
 
   private static ChainEditCapture capture(
@@ -684,14 +1480,46 @@ class ChainEditCompilerTest {
       String lookup,
       String elementType,
       String cron,
-      ChainEditPlacement placement,
+      List<String> ambiguities) {
+    return capture(action, targets, change, lookup, elementType, cron, List.of(), ambiguities);
+  }
+
+  private static ChainEditCapture capture(
+      ChainEditAction action,
+      List<String> targets,
+      String change,
+      String lookup,
+      String elementType,
+      String cron,
+      List<String> propertyKeys,
       List<String> ambiguities) {
     return new ChainEditCapture(
-        action, targets, change, lookup, elementType, cron, placement, ambiguities);
+        action, targets, change, lookup, elementType, cron, propertyKeys, ambiguities);
+  }
+
+  private static ChainEditCapture configureCapture(
+      List<String> targets, String change, List<String> propertyKeys) {
+    return capture(
+        ChainEditAction.CONFIGURE,
+        targets,
+        change,
+        null,
+        null,
+        null,
+        propertyKeys,
+        List.of());
   }
 
   private static List<String> scopedTargets(CompilerDagExecutionRequest request) {
     return scopedTargets(request, request.approvedOwningSkillIds().get(0));
+  }
+
+  private static List<String> matchedSignals(GeneratorPlanManifest manifest, String skillId) {
+    return manifest.plans().stream()
+        .filter(plan -> skillId.equals(plan.skillId()))
+        .findFirst()
+        .orElseThrow()
+        .matchedSignals();
   }
 
   private static List<String> scopedTargets(
@@ -792,6 +1620,62 @@ class ChainEditCompilerTest {
         List.of());
   }
 
+  private static ChainPlanGraph catalogHttpTrigger(String contextPath, String method) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode(
+                "http-a",
+                "http-trigger",
+                "HTTP A",
+                null,
+                null,
+                List.of(
+                    new PlanProperty("accessControlType", "NONE"),
+                    new PlanProperty("httpMethodRestrict", method),
+                    new PlanProperty("contextPath", contextPath),
+                    new PlanProperty("externalRoute", "true")))),
+        List.of());
+  }
+
+  private static String property(ChainPlanGraph graph, String nodeId, String key) {
+    return graph.nodes().stream()
+        .filter(node -> nodeId.equals(node.nodeId()))
+        .flatMap(node -> node.properties().stream())
+        .filter(property -> key.equals(property.key()))
+        .map(PlanProperty::value)
+        .findFirst()
+        .orElse(null);
+  }
+
+  private static ChainPlanGraph asyncApiTrigger() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("async-a", "async-api-trigger", "Async A", null, null, List.of())),
+        List.of());
+  }
+
+  private static ChainPlanGraph kafkaTrigger() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("kafka-a", "kafka-trigger-2", "Kafka A", null, null, List.of())),
+        List.of());
+  }
+
+  private static ChainPlanGraph rabbitMqTrigger() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("rabbit-a", "rabbitmq-trigger-2", "Rabbit A", null, null, List.of())),
+        List.of());
+  }
+
   /** What the service-call generator writes when it is handed the resolved binding. */
   private static ChainPlanGraph compiledGraph() {
     List<ChainPlanNode> nodes = new ArrayList<>();
@@ -873,6 +1757,116 @@ class ChainEditCompilerTest {
             new ChainPlanEdge("normalize-to-error-handler", "normalize", "error-handler", null)));
   }
 
+  /**
+   * The graph the structure stage returns for a two-element address insertion: a new script and a
+   * new service call spliced between {@code TARGET} and {@code UNRELATED}, wired to each other.
+   * {@code edge-1} is reused and retargeted onto the entry of the new pair rather than dropped and
+   * re-added, so the direct connection it used to carry does not survive alongside the new one.
+   */
+  private static ChainPlanGraph addressSpliceGraph(boolean configured) {
+    return new ChainPlanGraph(
+        importedGraph().schemaVersion(),
+        importedGraph().chain(),
+        List.of(
+            node(importedGraph(), TARGET),
+            node(importedGraph(), UNRELATED),
+            node(importedGraph(), "normalize"),
+            new ChainPlanNode(
+                "transform",
+                "script",
+                "Transform payload",
+                null,
+                null,
+                configured ? List.of(new PlanProperty("script", "return 1")) : List.of()),
+            new ChainPlanNode(
+                "call-shipping",
+                "service-call",
+                "Call shipping",
+                null,
+                null,
+                configured
+                    ? List.of(new PlanProperty("integrationOperationId", "op-shipping"))
+                    : List.of())),
+        List.of(new ChainPlanEdge("edge-1", TARGET, "transform", null),
+            new ChainPlanEdge("transform-to-shipping", "transform", "call-shipping", null),
+            new ChainPlanEdge("shipping-to-invoices", "call-shipping", UNRELATED, null)));
+  }
+
+  /**
+   * The graph the structure stage returns when replacing {@code TARGET}: the new script and service
+   * call sit where the order call was, and that order call is omitted.
+   */
+  private static ChainPlanGraph addressReplaceGraph(boolean configured) {
+    return new ChainPlanGraph(
+        importedGraph().schemaVersion(),
+        importedGraph().chain(),
+        List.of(
+            node(importedGraph(), UNRELATED),
+            node(importedGraph(), "normalize"),
+            new ChainPlanNode(
+                "transform",
+                "script",
+                "Transform payload",
+                null,
+                null,
+                configured ? List.of(new PlanProperty("script", "return 1")) : List.of()),
+            new ChainPlanNode(
+                "call-shipping",
+                "service-call",
+                "Call shipping",
+                null,
+                null,
+                configured
+                    ? List.of(new PlanProperty("integrationOperationId", "op-shipping"))
+                    : List.of())),
+        List.of(
+            new ChainPlanEdge("transform-to-shipping", "transform", "call-shipping", null),
+            new ChainPlanEdge("shipping-to-invoices", "call-shipping", UNRELATED, null)));
+  }
+
+  /** The graph the structure stage returns for a single new element spliced at one address. */
+  private static ChainPlanGraph singleElementSpliceGraph(boolean configured) {
+    return new ChainPlanGraph(
+        importedGraph().schemaVersion(),
+        importedGraph().chain(),
+        List.of(
+            node(importedGraph(), TARGET),
+            node(importedGraph(), UNRELATED),
+            node(importedGraph(), "normalize"),
+            new ChainPlanNode(
+                "new-script",
+                "script",
+                "New script",
+                null,
+                null,
+                configured ? List.of(new PlanProperty("script", "return 1")) : List.of())),
+        List.of(
+            new ChainPlanEdge("edge-1", TARGET, "new-script", null),
+            new ChainPlanEdge("new-script-to-invoices", "new-script", UNRELATED, null)));
+  }
+
+  private static CompilerDagExecutionResult structureOnlyResult(ChainPlanGraph graph) {
+    return new CompilerDagExecutionResult(
+        StageOutcomeClass.SUCCEEDED, null, List.of(STRUCTURE_GENERATOR), null, graph, null, null);
+  }
+
+  private static CompilerDagExecutionResult configuredResult(
+      List<String> executed, ChainPlanGraph graph) {
+    return new CompilerDagExecutionResult(
+        StageOutcomeClass.SUCCEEDED,
+        null,
+        executed,
+        null,
+        graph,
+        null,
+        new CompilerValidationBundle(
+            1,
+            "digest",
+            List.of(
+                new CompilerValidationPass(
+                    "cip-element-validator", new ValidationResult(true, List.of(), "ok")))));
+  }
+
   private static CompilerRunPin pin() {
     ResolvedCompilerDag dag =
         new ResolvedCompilerDag(
@@ -896,13 +1890,47 @@ class ChainEditCompilerTest {
                     null,
                     null),
                 generator(
+                    HTTP_TRIGGER_ENDPOINT_GENERATOR,
+                    new GraphPatchOwnershipPolicy(
+                        false,
+                        false,
+                        Set.of(),
+                        Set.of(),
+                        Map.of(
+                            "http-trigger",
+                            Set.of(
+                                "contextPath",
+                                "httpMethodRestrict",
+                                "externalRoute",
+                                "privateRoute")))),
+                generator(
                     GENERATOR,
                     new GraphPatchOwnershipPolicy(
                         true,
                         true,
                         Set.of("service-call", "http-sender"),
                         Set.of(),
-                        Map.of("service-call", Set.of("integrationOperationId")))),
+                        Map.of(
+                            "service-call",
+                            Set.of("integrationOperationId"),
+                            "http-trigger",
+                            Set.of(
+                                "systemType",
+                                "integrationSystemId",
+                                "integrationSpecificationGroupId",
+                                "integrationSpecificationId",
+                                "integrationOperationId",
+                                "integrationOperationPath"),
+                            "async-api-trigger",
+                            Set.of(
+                                "systemType",
+                                "integrationSystemId",
+                                "integrationSpecificationGroupId",
+                                "integrationSpecificationId",
+                                "integrationOperationId",
+                                "integrationOperationPath",
+                                "integrationOperationProtocolType",
+                                "integrationOperationMethod")))),
                 generator(
                     ERROR_HANDLING_GENERATOR,
                     new GraphPatchOwnershipPolicy(
@@ -924,6 +1952,18 @@ class ChainEditCompilerTest {
                         Set.of(),
                         Map.of("quartz-scheduler", Set.of("cron", "deleteJob")))),
                 generator(
+                    MESSAGING_GENERATOR,
+                    new GraphPatchOwnershipPolicy(
+                        false,
+                        false,
+                        Set.of(),
+                        Set.of(),
+                        Map.of(
+                            "kafka-trigger-2",
+                            Set.of("brokers", "topics", "groupId", "connectionSourceType"),
+                            "rabbitmq-trigger-2",
+                            Set.of("queues", "exchange", "addresses", "connectionSourceType")))),
+                generator(
                     "cip-auth-generator",
                     new GraphPatchOwnershipPolicy(
                         false,
@@ -943,6 +1983,14 @@ class ChainEditCompilerTest {
                         Set.of(),
                         Set.of(),
                         Map.of("service-call", Set.of("retryCount", "retryDelay")))),
+                generator(
+                    SECURITY_GENERATOR,
+                    new GraphPatchOwnershipPolicy(
+                        false,
+                        false,
+                        Set.of(),
+                        Set.of(),
+                        Map.of("http-trigger", Set.of("accessControlType")))),
                 node("cip-chain-assembler", "Assembly", CompilerNodeExecutionMode.JAVA_ADAPTER, "graph-assembly"),
                 node(
                     "cip-element-validator",
@@ -956,6 +2004,11 @@ class ChainEditCompilerTest {
   }
 
   private static ResolvedCompilerNode generator(String skillId, GraphPatchOwnershipPolicy ownership) {
+    return generator(skillId, ownership, "captureGraphPatch");
+  }
+
+  private static ResolvedCompilerNode generator(
+      String skillId, GraphPatchOwnershipPolicy ownership, String captureTool) {
     return new ResolvedCompilerNode(
         skillId,
         "Generation",
@@ -963,7 +2016,7 @@ class ChainEditCompilerTest {
         List.of("CHAIN_PLAN_GRAPH"),
         List.of("CHAIN_PLAN_GRAPH"),
         List.of(),
-        "captureGraphPatch",
+        captureTool,
         List.of(),
         List.of(),
         true,
@@ -974,6 +2027,38 @@ class ChainEditCompilerTest {
         CompilerNodeExecutionMode.LLM_SKILL,
         null,
         ownership);
+  }
+
+  /**
+   * Owners that a two-element insertion actually needs: the structure stage plus the script and
+   * service-call configuration generators. The default pin also carries auth and retry owners for
+   * {@code service-call}, which would each get their own plan slice on the new call.
+   */
+  private static CompilerRunPin pinForAddressSplice() {
+    CompilerRunPin base = pin();
+    Set<String> keep =
+        Set.of(
+            STRUCTURE_GENERATOR,
+            GENERATOR,
+            SCRIPT_GENERATOR,
+            "cip-chain-assembler",
+            "cip-element-validator");
+    List<ResolvedCompilerNode> nodes =
+        base.resolvedDag().nodes().stream().filter(node -> keep.contains(node.skillId())).toList();
+    ResolvedCompilerDag dag =
+        new ResolvedCompilerDag(nodes, List.of(), base.resolvedDag().digest());
+    return new CompilerRunPin(
+        base.compilerPackageId(),
+        base.compilerPackageVersion(),
+        base.compilerPackageDigest(),
+        base.pipelineIndexSchemaVersion(),
+        base.pipelineIndexVersion(),
+        base.pipelineIndexDigest(),
+        dag,
+        base.capabilityClosure(),
+        base.skillSha256ById(),
+        base.addonSha256ById(),
+        base.runtimeArtifactSchemas());
   }
 
   private static ResolvedCompilerNode node(
@@ -1002,6 +2087,10 @@ class ChainEditCompilerTest {
 
     private final AtomicReference<CompilerDagExecutionRequest> lastRequest = new AtomicReference<>();
     private final List<CompilerDagExecutionRequest> requests = new ArrayList<>();
+    // Populated by a test that needs a specific structure-stage or configuration-stage result
+    // rather than the default wrap/rebind fixtures below; consumed in call order.
+    private final java.util.Deque<CompilerDagExecutionResult> scriptedResults =
+        new java.util.ArrayDeque<>();
     private boolean validationValid = true;
     private RuntimeException failure;
 
@@ -1012,6 +2101,11 @@ class ChainEditCompilerTest {
       requests.add(request);
       if (failure != null) {
         throw failure;
+      }
+      if (!scriptedResults.isEmpty()) {
+        CompilerDagExecutionResult scripted = scriptedResults.removeFirst();
+        reportProgress(progress, scripted.executedSkillIds());
+        return Uni.createFrom().item(scripted);
       }
       ValidationResult validation =
           validationValid
@@ -1041,6 +2135,7 @@ class ChainEditCompilerTest {
           structureOnly
               ? structuralGraph(false)
               : structuralConfiguration ? structuralGraph(true) : compiledGraph();
+      reportProgress(progress, executed);
       return Uni.createFrom()
           .item(
               new CompilerDagExecutionResult(
@@ -1058,6 +2153,17 @@ class ChainEditCompilerTest {
                           List.of(
                               new CompilerValidationPass(
                                   "cip-element-validator", validation)))));
+    }
+
+    private static void reportProgress(
+        java.util.function.BiConsumer<String, String> progress, List<String> skillIds) {
+      if (progress == null || skillIds == null) {
+        return;
+      }
+      for (String skillId : skillIds) {
+        progress.accept(skillId, "running");
+        progress.accept(skillId, "completed");
+      }
     }
   }
 }

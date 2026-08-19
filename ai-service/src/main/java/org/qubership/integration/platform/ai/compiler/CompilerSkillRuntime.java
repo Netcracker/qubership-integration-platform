@@ -589,7 +589,7 @@ public class CompilerSkillRuntime {
 
     if (isEmptyPatch(patch)) {
       SkillExecutionResult scriptFailure =
-          scriptGeneratorFailureIfBodiesMissing(capabilityId, graph);
+          scriptGeneratorFailureIfBodiesMissing(conversationId, capabilityId, graph);
       if (scriptFailure != null) {
         return scriptFailure;
       }
@@ -662,7 +662,8 @@ public class CompilerSkillRuntime {
     }
 
     SkillExecutionResult scriptFailure =
-        scriptGeneratorFailureIfBodiesMissing(capabilityId, preview.patchedGraph());
+        scriptGeneratorFailureIfBodiesMissing(
+            conversationId, capabilityId, preview.patchedGraph());
     if (scriptFailure != null) {
       return scriptFailure;
     }
@@ -998,7 +999,7 @@ public class CompilerSkillRuntime {
     if (graph == null) {
       return Multi.createFrom().empty();
     }
-    List<String> missingNodeIds = readinessEvaluator.scriptNodesMissingBody(graph);
+    List<String> missingNodeIds = missingScriptNodeIds(conversationId, capabilityId, graph);
     if (missingNodeIds.isEmpty()) {
       // An earlier generator (e.g. cip-auth-generator's M2M before-hook) may have already
       // filled the only script body between plan time and this turn. Nothing to repair is a
@@ -1252,30 +1253,58 @@ public class CompilerSkillRuntime {
   private List<OwnedSchemaRequiredPropertyGate.Gap> findOwnedSchemaGaps(
       String conversationId, String capabilityId, ChainPlanGraph graph) {
     GraphPatchOwnershipPolicy ownership = GraphPatchOwnershipPolicy.denyAll();
+    List<String> targetNodeIds = List.of();
     if (conversationId != null) {
-      ownership =
+      GraphPatchExecutionContext context =
           executionContextStore
               .get(conversationId, capabilityId)
               .or(executionContextStore::current)
-              .map(GraphPatchExecutionContext::ownership)
-              .orElse(GraphPatchOwnershipPolicy.denyAll());
+              .orElse(null);
+      if (context != null) {
+        ownership = context.ownership();
+        targetNodeIds = context.editTargetNodeIds();
+      }
     }
-    return OwnedSchemaRequiredPropertyGate.findGaps(
-        graph, ownership, schemaService::requiredPatchPropertyKeys);
+    List<OwnedSchemaRequiredPropertyGate.Gap> gaps =
+        OwnedSchemaRequiredPropertyGate.findGaps(
+            graph, ownership, schemaService::requiredPatchPropertyKeys);
+    if (targetNodeIds == null || targetNodeIds.isEmpty()) {
+      return gaps;
+    }
+    List<String> scopedTargets = targetNodeIds;
+    return gaps.stream().filter(gap -> scopedTargets.contains(gap.nodeId())).toList();
   }
 
   private SkillExecutionResult scriptGeneratorFailureIfBodiesMissing(
-      String capabilityId, ChainPlanGraph graph) {
+      String conversationId, String capabilityId, ChainPlanGraph graph) {
     if (!ScriptBodyPromptRedaction.SCRIPT_GENERATOR_CAPABILITY.equals(capabilityId)) {
       return null;
     }
-    List<String> missing = readinessEvaluator.scriptNodesMissingBody(graph);
+    List<String> missing = missingScriptNodeIds(conversationId, capabilityId, graph);
     if (missing.isEmpty()) {
       return null;
     }
     return SkillExecutionResult.failed(
         "Script generator completed without script bodies for nodes: "
             + String.join(", ", missing));
+  }
+
+  private List<String> missingScriptNodeIds(
+      String conversationId, String capabilityId, ChainPlanGraph graph) {
+    List<String> missing = readinessEvaluator.scriptNodesMissingBody(graph);
+    if (conversationId == null) {
+      return missing;
+    }
+    List<String> targets =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .map(GraphPatchExecutionContext::editTargetNodeIds)
+            .orElse(List.of());
+    if (targets == null || targets.isEmpty()) {
+      return missing;
+    }
+    return missing.stream().filter(targets::contains).toList();
   }
 
   private static boolean isEmptyPatch(GraphPatch patch) {

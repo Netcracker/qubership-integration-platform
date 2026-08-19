@@ -483,5 +483,306 @@
     "designInputAnswers": [
       "PASS_THROUGH"
     ]
+  },
+  "product-patch-chain-edit-script": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "compare-and-patch",
+    "terminalState": "CHAIN_PATCHED",
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiPatchEditScript",
+    "prompts": [
+      "Put a Groovy body on the Return greeting script so it returns the plain text hello patched. Do not add or remove elements. Do not change the HTTP trigger."
+    ],
+    "seed": {
+      "description": "HTTP GET /patch-echo plus a greeting script with an empty body",
+      "elements": [
+        {
+          "type": "http-trigger",
+          "name": "HTTP GET /patch-echo",
+          "properties": {
+            "contextPath": "/patch-echo",
+            "httpMethodRestrict": "GET",
+            "externalRoute": false,
+            "accessControlType": "NONE"
+          }
+        },
+        {
+          "type": "script",
+          "name": "Return greeting",
+          "properties": {
+            "script": ""
+          }
+        }
+      ],
+      "edges": [
+        {
+          "fromIndex": 0,
+          "toIndex": 1
+        }
+      ]
+    },
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "try-catch-finally-2"
+      ],
+      "minTypeCounts": {
+        "script": 1
+      },
+      "properties": [
+        {
+          "type": "script",
+          "key": "script",
+          "contains": "return"
+        }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    }
+  },
+  "product-patch-chain-add-script": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "compare-and-patch",
+    "terminalState": "CHAIN_PATCHED",
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiPatchAddScript",
+    "prompts": [
+      "Add a new script immediately after Return greeting. The new script returns the plain text patched-ok. Keep the HTTP trigger and Return greeting. No service calls. No error handling."
+    ],
+    "seed": {
+      "description": "HTTP GET /patch-echo plus a greeting script",
+      "elements": [
+        {
+          "type": "http-trigger",
+          "name": "HTTP GET /patch-echo",
+          "properties": {
+            "contextPath": "/patch-echo",
+            "httpMethodRestrict": "GET",
+            "externalRoute": false,
+            "accessControlType": "NONE"
+          }
+        },
+        {
+          "type": "script",
+          "name": "Return greeting",
+          "properties": {
+            "script": "return \"hello\";"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "fromIndex": 0,
+          "toIndex": 1
+        }
+      ]
+    },
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "minTypeCounts": {
+        "script": 2
+      },
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    }
+  },
+  "product-patch-chain-multi-turn": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "compare-and-patch",
+    "terminalState": "CHAIN_PATCHED",
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiPatchMultiTurn",
+    "prompts": [
+      "Add a new script immediately after Return greeting. The new script returns the plain text patched-ok. Keep the HTTP trigger and Return greeting. No service calls.",
+      "Add one more script after the patched-ok script. The new script returns the plain text patched-two. Keep every existing element. No service calls."
+    ],
+    "seed": {
+      "description": "HTTP GET /patch-echo plus a greeting script",
+      "elements": [
+        {
+          "type": "http-trigger",
+          "name": "HTTP GET /patch-echo",
+          "properties": {
+            "contextPath": "/patch-echo",
+            "httpMethodRestrict": "GET",
+            "externalRoute": false,
+            "accessControlType": "NONE"
+          }
+        },
+        {
+          "type": "script",
+          "name": "Return greeting",
+          "properties": {
+            "script": "return \"hello\";"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "fromIndex": 0,
+          "toIndex": 1
+        }
+      ]
+    },
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "minTypeCounts": {
+        "script": 3
+      },
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    }
+  },
+  "product-patch-chain-try-catch": {
+    "tier": "product-pipeline",
+    "status": "inactive",
+    "pipeline": "compare-and-patch",
+    "terminalState": "CHAIN_PATCHED",
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiPatchTryCatch",
+    "prompts": [
+      "On the open catalog chain, wrap the Return greeting script in try-catch-finally-2. Put Return greeting inside try-2. Add a catch-2 script that returns the plain text error. Do not reparent the HTTP trigger. No service calls."
+    ],
+    "seed": {
+      "description": "HTTP GET /patch-echo plus a greeting script",
+      "elements": [
+        {
+          "type": "http-trigger",
+          "name": "HTTP GET /patch-echo",
+          "properties": {
+            "contextPath": "/patch-echo",
+            "httpMethodRestrict": "GET",
+            "externalRoute": false,
+            "accessControlType": "NONE"
+          }
+        },
+        {
+          "type": "script",
+          "name": "Return greeting",
+          "properties": {
+            "script": "return \"hello\";"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "fromIndex": 0,
+          "toIndex": 1
+        }
+      ]
+    },
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "try-catch-finally-2",
+        "try-2",
+        "catch-2",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "try-catch-finally-2",
+          "mustHaveChildTypes": [
+            "try-2",
+            "catch-2"
+          ]
+        },
+        {
+          "containerType": "try-2",
+          "childType": "script",
+          "minChildren": 1
+        },
+        {
+          "containerType": "catch-2",
+          "childType": "script",
+          "minChildren": 1
+        }
+      ],
+      "warnings": [
+        "Inactive: live try-catch wrap on an existing chain is a known COMPARE_AND_PATCH defect.",
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    }
+  },
+  "product-patch-chain-replace-subgraph": {
+    "tier": "product-pipeline",
+    "status": "inactive",
+    "pipeline": "compare-and-patch",
+    "terminalState": "CHAIN_PATCHED",
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiPatchReplaceSubgraph",
+    "prompts": [
+      "On the open catalog chain, replace the Return greeting script with a script that returns the plain text hello mapped, then a second script that returns the plain text hello patched. Do not add a service call."
+    ],
+    "seed": {
+      "description": "HTTP GET /patch-echo plus a greeting script",
+      "elements": [
+        {
+          "type": "http-trigger",
+          "name": "HTTP GET /patch-echo",
+          "properties": {
+            "contextPath": "/patch-echo",
+            "httpMethodRestrict": "GET",
+            "externalRoute": false,
+            "accessControlType": "NONE"
+          }
+        },
+        {
+          "type": "script",
+          "name": "Return greeting",
+          "properties": {
+            "script": "return \"hello\";"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "fromIndex": 0,
+          "toIndex": 1
+        }
+      ]
+    },
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "try-catch-finally-2"
+      ],
+      "minTypeCounts": {
+        "script": 2
+      },
+      "warnings": [
+        "Inactive: live replacement of an element with a subgraph sits beside the wrap scenario and stays off the gate until that wrap run is green.",
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    }
   }
 }

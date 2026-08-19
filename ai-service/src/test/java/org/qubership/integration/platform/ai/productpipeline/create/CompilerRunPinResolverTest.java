@@ -154,6 +154,74 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void productionCreateChainPinIncludesHttpTriggerEndpointInClosure() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    assertTrue(
+        pin.capabilityClosure().contains("cip-http-trigger-endpoint-generator"),
+        "http-trigger Custom URI specialist must be in pin closure via all-generation-skills");
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .anyMatch(node -> "cip-http-trigger-endpoint-generator".equals(node.skillId())));
+    GraphPatchOwnershipPolicy ownership =
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-http-trigger-endpoint-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .ownership();
+    assertEquals(
+        Set.of("contextPath", "httpMethodRestrict", "externalRoute", "privateRoute"),
+        ownership.properties().get("http-trigger"));
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-chain-assembler".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .dependsOn()
+            .contains("cip-http-trigger-endpoint-generator"),
+        "assembler dependsOn must include the HTTP trigger endpoint specialist");
+  }
+
+  @Test
+  void productionCreateChainPinOwnsNativeKafkaAndRabbitTriggerIdentityOnMessaging() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    GraphPatchOwnershipPolicy ownership =
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-messaging-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .ownership();
+    assertEquals(
+        Set.of(
+            "connectionSourceType",
+            "brokers",
+            "topics",
+            "groupId",
+            "topicsClassifierName",
+            "maasClassifierNamespace",
+            "maasClassifierTenantEnabled",
+            "maasClassifierTenantId"),
+        ownership.properties().get("kafka-trigger-2"));
+    assertEquals(
+        Set.of(
+            "connectionSourceType",
+            "addresses",
+            "exchange",
+            "routingKey",
+            "queues",
+            "vhostClassifierName",
+            "maasClassifierNamespace",
+            "username"),
+        ownership.properties().get("rabbitmq-trigger-2"));
+    assertTrue(
+        pin.capabilityClosure().contains("cip-messaging-generator"),
+        "messaging must be in pin closure via all-generation-skills");
+  }
+
+  @Test
   void runPinRetainsEffectiveOwnership() {
     CompilerRunPin pin = resolver.resolve(createChainProfile, fullKnowledgeContext);
     GraphPatchOwnershipPolicy policy =
