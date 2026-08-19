@@ -14,7 +14,7 @@ To make a chain available for usage, its snapshot shall be deployed on the speci
 ### View Deployments Tab
 Under the chain it is possible to navigate on "**Deployments**" tab. The following information about deployments is available:
 - **Snapshot**: Displays the deployed version (e.g., _V1.2_ ).
-- **Domain**: Shows the selected domain for deployment.
+- **Domain**: Shows the domain hosting the deployed snapshot. Domains of **Micro** type (see [Domains](../../03__Admin_Tools/1__Domains/domains.md)) display a **`micro`** tag next to the name.
 - **Status**: IP address indicating deployment success or failure via color-coded labels:
   - ![sync-blue](img/sync-blue.svg) **_Progressing_** - deployment is in progress. There are engines which haven't received finalized status yet.
   - ![check-circle-green](img/check-circle-green.svg) **_Deployed_** - chain data has been successfully deployed on all requested engines.
@@ -28,7 +28,7 @@ Under the chain it is possible to navigate on "**Deployments**" tab. The followi
 
 ### Create Deployment
 Click **"Create deployment"** button marked with ![plus](img/plus.svg). The window for setting deployment parameters will appear. Fill in the following deployment parameters and click **"Deploy"**:
-- **Domains** - choose the engine domain for deployment from list of existing domains.
+- **Domains** - choose one or more engine domains to deploy the snapshot on. Select from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain (tagged with **`micro`**). Availability of each domain type depends on configuration — see [Domains](../../03__Admin_Tools/1__Domains/domains.md). Selecting several domains at once creates a separate deployment entry for each one.
 - **Snapshot** - version of chain you want to deploy.
 
 > ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be changed automatically.** To change snapshot name on deployment, it is required to **redeploy** the chain.
