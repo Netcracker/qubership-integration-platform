@@ -278,6 +278,31 @@ class ChainStructureCaptureToolTest {
   }
 
   @Test
+  void aTargetTheBaseGraphDoesNotHoldEndsTheTurnInsteadOfAskingForARepair() {
+    ChainEditIntent ghostTarget =
+        new ChainEditIntent(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of("ghost-1"),
+            "wrap the script with error handling",
+            null,
+            "try-catch-finally-2",
+            null,
+            List.of(),
+            List.of(),
+            ChainEditDisposition.NEST);
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), ghostTarget));
+
+    CaptureValidationException failure =
+        assertThrows(
+            CaptureValidationException.class,
+            () -> tool.captureChainStructure(validStructure()));
+
+    assertTrue(failure.getMessage().contains("unknown structural target ids"), failure.getMessage());
+  }
+
+  @Test
   void acceptsAReplacementThatOmitsTheReplacedElement() {
     session.set(
         CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),

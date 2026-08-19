@@ -23,14 +23,14 @@ class CaptureFailurePolicyTest {
   }
 
   @Test
-  void correctableAfterSoftBecomesIdenticalSpamWithOuterStillAllowed() {
+  void correctableAfterSoftBecomesIdenticalSpamAndRefusesTheOuterTurn() {
     CaptureFailureDecision decision =
         policy.decide(
             CaptureFailureClass.CORRECTABLE, CaptureAttemptState.forFingerprint(true), "shape");
 
     assertFalse(decision.softToolResult());
     assertTrue(decision.throwCve());
-    assertTrue(decision.outerAllowed());
+    assertFalse(decision.outerAllowed());
     assertEquals(CaptureFailureClass.IDENTICAL_SPAM, decision.failureClass());
   }
 
@@ -57,13 +57,13 @@ class CaptureFailurePolicyTest {
   }
 
   @Test
-  void identicalSpamIsImmediateCveWithOuterAllowed() {
+  void identicalSpamIsImmediateCveAndRefusesTheOuterTurn() {
     CaptureFailureDecision decision =
         policy.decide(
             CaptureFailureClass.IDENTICAL_SPAM, CaptureAttemptState.forFingerprint(true), "spam");
 
     assertTrue(decision.throwCve());
-    assertTrue(decision.outerAllowed());
+    assertFalse(decision.outerAllowed());
   }
 
   @Test

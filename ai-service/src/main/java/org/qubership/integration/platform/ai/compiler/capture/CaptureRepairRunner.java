@@ -267,6 +267,9 @@ public class CaptureRepairRunner {
     if (failure.get().kind() == CaptureFailureKind.TOOL_ARGUMENTS) {
       return Multi.createFrom().empty();
     }
+    if (!outerAllowed(failure.get(), captureToolName)) {
+      return Multi.createFrom().empty();
+    }
     if (!retryValidationFailures) {
       return Multi.createFrom().empty();
     }
@@ -301,6 +304,9 @@ public class CaptureRepairRunner {
     if (failure.isEmpty()) {
       return Multi.createFrom().empty();
     }
+    if (!outerAllowed(failure.get(), captureToolName)) {
+      return Multi.createFrom().empty();
+    }
     String repairMessage =
         repairMessageFactory != null
             ? repairMessageFactory.apply(failure.get())
@@ -322,6 +328,25 @@ public class CaptureRepairRunner {
         retryValidationFailures,
         repairMessageFactory,
         onBeforeRepairRetry);
+  }
+
+  /**
+   * Whether the failure matrix still permits a repair turn (ADR 0003).
+   *
+   * <p>A PERMANENT failure cannot be answered by the same skill, and a repeated identical
+   * rejection has already spent its in-turn credit. Sending either one another "fix and call the
+   * tool again" spends a turn on a request that has already been refused for the same reason.
+   */
+  private static boolean outerAllowed(CaptureAttemptFeedback failure, String captureToolName) {
+    if (failure.outerAllowed()) {
+      return true;
+    }
+    LOG.infof(
+        "Capture repair refused on %s because the last failure forbids an outer turn"
+            + " (failureClass=%s)",
+        captureToolName,
+        failure.failureClass());
+    return false;
   }
 
   private static boolean isCaptureValidationFailure(Throwable error) {

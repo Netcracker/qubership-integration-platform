@@ -15,8 +15,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Canonical fingerprint for capture tool arguments (ADR 0003).
@@ -31,7 +33,51 @@ public final class ToolCallFingerprints {
   private static final JsonFactory JSON_FACTORY = new JsonFactory();
   private static final ObjectMapper FALLBACK_MAPPER = new ObjectMapper();
 
+  private static final Pattern QUOTED_VALUE = Pattern.compile("'[^']*'");
+  private static final Pattern BRACKETED_VALUE = Pattern.compile("\\[[^\\]]*\\]");
+  private static final Pattern UUID_VALUE =
+      Pattern.compile(
+          "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+          Pattern.CASE_INSENSITIVE);
+  private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+
   private ToolCallFingerprints() {}
+
+  /**
+   * Identity of a rejection rather than of the payload that caused it: {@code tool + NUL +
+   * capabilityOrEmpty + NUL + sha256Hex(signature)}.
+   *
+   * <p>A generator answering a merge refusal re-emits the whole graph, so the payload differs by
+   * hundreds of characters between attempts that earn the identical complaint. Keying the soft
+   * budget on the payload therefore hands out a fresh credit for every attempt and never
+   * escalates. Keying it on the normalized complaint spends one credit per distinct defect, which
+   * is what the budget is for.
+   *
+   * <p>Node ids and bracketed id lists are masked, so the same defect reported against two
+   * different nodes collapses to one signature. A generator that fixes node A and then trips the
+   * same rule on node B has not found a new problem to spend a second credit on. Counts are left
+   * alone: two rejections that differ only by a number are usually two different defects.
+   */
+  public static String failureFingerprint(String tool, String capability, String message) {
+    if (tool == null || tool.isBlank()) {
+      throw new IllegalArgumentException("tool is required");
+    }
+    String capabilityOrEmpty = capability == null || capability.isBlank() ? "" : capability;
+    String hash = sha256Hex(signature(message).getBytes(StandardCharsets.UTF_8));
+    return tool + '\u0000' + capabilityOrEmpty + '\u0000' + hash;
+  }
+
+  /** Normalized rejection text: identifiers and counts masked, case and spacing flattened. */
+  static String signature(String message) {
+    if (message == null || message.isBlank()) {
+      return "";
+    }
+    String normalized = message.strip().toLowerCase(Locale.ROOT);
+    normalized = UUID_VALUE.matcher(normalized).replaceAll("<id>");
+    normalized = QUOTED_VALUE.matcher(normalized).replaceAll("<id>");
+    normalized = BRACKETED_VALUE.matcher(normalized).replaceAll("<ids>");
+    return WHITESPACE.matcher(normalized).replaceAll(" ").strip();
+  }
 
   public static String fingerprint(
       ObjectMapper objectMapper, String tool, String capability, Object args) {

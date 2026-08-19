@@ -59,7 +59,7 @@ public final class ChainEditStructureMerge {
     if (!baseNodes.keySet().containsAll(targets)) {
       Set<String> missing = new LinkedHashSet<>(targets);
       missing.removeAll(baseNodes.keySet());
-      throw outOfScope("unknown structural target ids " + missing);
+      throw unsatisfiableScope("unknown structural target ids " + missing);
     }
 
     Set<String> newNodeIds = new LinkedHashSet<>(proposedNodes.keySet());
@@ -451,6 +451,18 @@ public final class ChainEditStructureMerge {
   }
 
   private static IllegalArgumentException outOfScope(String message) {
-    return new IllegalArgumentException("edit structure is outside the approved scope: " + message);
+    return new ChainEditScopeException(scopeMessage(message), false);
+  }
+
+  /**
+   * A refusal the generator cannot answer, because the intent itself names something the base
+   * graph does not hold. Retrying the capture cannot change that.
+   */
+  private static IllegalArgumentException unsatisfiableScope(String message) {
+    return new ChainEditScopeException(scopeMessage(message), true);
+  }
+
+  private static String scopeMessage(String message) {
+    return "edit structure is outside the approved scope: " + message;
   }
 }
