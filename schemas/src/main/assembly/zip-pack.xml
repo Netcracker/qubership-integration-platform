@@ -15,5 +15,14 @@
                 <exclude>**/.gitkeep</exclude>
             </excludes>
         </fileSet>
+        <fileSet>
+          <directory>${project.basedir}/src/main/resources/qip-model-migrations</directory>
+          <outputDirectory>qip-model-migrations</outputDirectory>
+          <useDefaultExcludes>true</useDefaultExcludes>
+          <excludes>
+            <exclude>**/.gitkeep</exclude>
+          </excludes>
+        </fileSet>
     </fileSets>
 </assembly>
+
