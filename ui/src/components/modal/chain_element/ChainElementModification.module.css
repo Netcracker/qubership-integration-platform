@@ -25,9 +25,10 @@
   overflow-y: auto;
 }
 
+/* Custom RJSF field labels; margin mirrors the `verticalLabelPadding` token. */
 .field-label {
   display: inline-block;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
   font-weight: 500;
 }
 
@@ -76,10 +77,6 @@
     )
   ) {
   min-height: 0;
-}
-
-.parameters-form :global(.ant-form-item) {
-  margin-bottom: 12px;
 }
 
 /* The auto-height editor (Mapper / Script) is the last field in its form. The

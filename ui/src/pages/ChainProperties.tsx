@@ -1,5 +1,5 @@
 import { Form, Input, Select } from "antd";
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Chain } from "../api/apiTypes.ts";
 import { ChainContext } from "./ChainPage.tsx";
 import {
@@ -30,7 +30,7 @@ const { useForm } = Form;
 export type FormData = {
   name: string;
   labels: string[];
-  path: string;
+  group?: string;
   description: string;
   businessDescription: string;
   assumptions: string;
@@ -54,26 +54,13 @@ export const ChainProperties: React.FC = () => {
     setDisabled(!hasPermissions(permissions, { chain: ["update"] }));
   }, [permissions]);
 
-  const getPathToFolder = useCallback(
-    async (folderName: string | undefined) => {
-      try {
-        return await api.getPathToFolderByName(String(folderName));
-      } catch (error) {
-        notificationService.requestFailed(
-          "Failed to get path to folder",
-          error,
-        );
-        return [];
-      }
-    },
-    [notificationService],
-  );
-
   const moveChain = async (chainId: string, folder?: string) => {
     try {
       await api.moveChain(chainId, folder);
+      return true;
     } catch (error) {
       notificationService.requestFailed("Failed to move chain", error);
+      return false;
     }
   };
 
@@ -108,15 +95,11 @@ export const ChainProperties: React.FC = () => {
     if (chainContext?.chain) {
       const formData: FormData = {
         name: chainContext.chain.name ?? "",
-        path: isVsCode
+        group: isVsCode
           ? chainContext.chain?.navigationPath
               .map(([, value]) => value)
               .join("/")
-          : Object.entries(chainContext.chain?.navigationPath)
-              .reverse()
-              .slice(0, -1)
-              .map(([, value]) => value)
-              .join("/"),
+          : undefined,
         labels: chainContext.chain.labels?.map((label) => label.name) ?? [],
         description: chainContext.chain.description ?? "",
         businessDescription: chainContext.chain.businessDescription ?? "",
@@ -131,7 +114,7 @@ export const ChainProperties: React.FC = () => {
   const handleFinish = async (values: FormData): Promise<boolean> => {
     if (!chainContext?.chain) return false;
 
-    let changes: Partial<Chain> = {
+    const changes: Partial<Chain> = {
       name: values.name,
       labels: values.labels?.map((name) => ({ name, technical: false })),
       description: values.description,
@@ -140,41 +123,13 @@ export const ChainProperties: React.FC = () => {
       outOfScope: values.outOfScope,
     };
 
-    const uiFoldersPath = parseGroupSegments(values.path ?? "");
-
+    // The group is stored as the chain's location on disk, so it is saved by the move alone.
     if (isVsCode) {
-      await moveChain(String(chainContext.chain.id), uiFoldersPath.join("/"));
-      changes = {
-        ...changes,
-        navigationPath: uiFoldersPath.map((path) => [path, path]),
-      };
-    }
-
-    if (!isVsCode) {
-      const lastSegment = uiFoldersPath.reverse()[0] ?? "";
-      const folders = await getPathToFolder(lastSegment); //get folders hierarchy from backend
-      const dbFoldersPath = folders.map((f) => f.name).join("/");
-
-      //check that folders can move to this path
-      if (dbFoldersPath !== uiFoldersPath.reverse().join("/")) {
-        notificationService.requestFailed("Incorrect folder path", undefined);
+      const group = parseGroupSegments(values.group ?? "").join("/");
+      const moved = await moveChain(String(chainContext.chain.id), group);
+      if (!moved) {
         return false;
       }
-
-      const navigationPath = folders.map(
-        (f) => [f.id, f.name] as [string, string],
-      );
-      const destinationFolderId = folders.reverse()[0]?.id;
-
-      if (chainContext.chain.parentId !== destinationFolderId) {
-        await moveChain(String(chainContext.chain.id), destinationFolderId);
-      }
-
-      changes = {
-        ...changes,
-        parentId: destinationFolderId,
-        navigationPath,
-      };
     }
 
     readChainExtensionPropertiesFromForm(values, changes);
@@ -218,28 +173,30 @@ export const ChainProperties: React.FC = () => {
           <Form.Item label="Name" name="name" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item
-            label="Path"
-            name="path"
-            rules={[
-              {
-                validator: (_, value: string) => {
-                  const invalid = parseGroupSegments(value ?? "").some(
-                    (segment) => !GROUP_SEGMENT_REGEX.test(segment),
-                  );
-                  return invalid
-                    ? Promise.reject(
-                        new Error(
-                          'Path segments must not contain: / : * ? " < > | , ; \\',
-                        ),
-                      )
-                    : Promise.resolve();
+          {isVsCode && (
+            <Form.Item
+              label="Group"
+              name="group"
+              rules={[
+                {
+                  validator: (_, value: string) => {
+                    const invalid = parseGroupSegments(value ?? "").some(
+                      (segment) => !GROUP_SEGMENT_REGEX.test(segment),
+                    );
+                    return invalid
+                      ? Promise.reject(
+                          new Error(
+                            'Group segments must not contain: / : * ? " < > | , ; \\',
+                          ),
+                        )
+                      : Promise.resolve();
+                  },
                 },
-              },
-            ]}
-          >
-            <Input />
-          </Form.Item>
+              ]}
+            >
+              <Input />
+            </Form.Item>
+          )}
           <Form.Item label="Labels" name="labels">
             <Select
               mode="tags"

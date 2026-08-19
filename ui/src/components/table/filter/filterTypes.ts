@@ -1,43 +1,90 @@
+export type FilterConditionFunc = (
+  filterValue: string | undefined,
+  cellValue: string | undefined,
+) => boolean;
+
 export class FilterCondition {
-  public static readonly CONTAINS = new FilterCondition("CONTAINS", "Contains");
+  public static readonly CONTAINS = new FilterCondition(
+    "CONTAINS",
+    "Contains",
+    (f, v) => !f || !!v?.toLowerCase().includes(f.toLowerCase()),
+  );
   public static readonly DOES_NOT_CONTAIN = new FilterCondition(
     "DOES_NOT_CONTAIN",
     "Does not contain",
+    (f, v) => !f || !v?.toLowerCase().includes(f.toLowerCase()),
   );
   public static readonly STARTS_WITH = new FilterCondition(
     "STARTS_WITH",
     "Starts with",
+    (f, v) => !f || !!v?.toLowerCase().startsWith(f.toLowerCase()),
   );
   public static readonly ENDS_WITH = new FilterCondition(
     "ENDS_WITH",
     "Ends with",
+    (f, v) => !f || !!v?.toLowerCase().endsWith(f.toLowerCase()),
   );
-  public static readonly IN = new FilterCondition("IN", "In");
-  public static readonly NOT_IN = new FilterCondition("NOT_IN", "Not in");
-  public static readonly IS = new FilterCondition("IS", "Is");
-  public static readonly IS_NOT = new FilterCondition("IS_NOT", "Is not");
-  public static readonly EMPTY = new FilterCondition("EMPTY", "Empty", false);
+  public static readonly IN = new FilterCondition(
+    "IN",
+    "In",
+    (f, v) =>
+      !f || (!!v && f.toLowerCase().split(",").includes(v.toLowerCase())),
+  );
+  public static readonly NOT_IN = new FilterCondition(
+    "NOT_IN",
+    "Not in",
+    (f, v) => !f || !v || !f.toLowerCase().split(",").includes(v.toLowerCase()),
+  );
+  public static readonly IS = new FilterCondition(
+    "IS",
+    "Is",
+    (f, v) => !f || f.toLowerCase() === v?.toLowerCase(),
+  );
+  public static readonly IS_NOT = new FilterCondition(
+    "IS_NOT",
+    "Is not",
+    (f, v) => !f || f.toLowerCase() !== v?.toLowerCase(),
+  );
+  public static readonly EMPTY = new FilterCondition(
+    "EMPTY",
+    "Empty",
+    (_f, v) => !v?.trim(),
+    false,
+  );
   public static readonly NOT_EMPTY = new FilterCondition(
     "NOT_EMPTY",
     "Not empty",
+    (_f, v) => !!v?.trim(),
     false,
   );
   public static readonly IS_BEFORE = new FilterCondition(
     "IS_BEFORE",
     "Is before",
+    (f, v) => !f || Number(v) < Number(f),
   );
-  public static readonly IS_AFTER = new FilterCondition("IS_AFTER", "Is after");
+  public static readonly IS_AFTER = new FilterCondition(
+    "IS_AFTER",
+    "Is after",
+    (f, v) => !f || Number(v) > Number(f),
+  );
   public static readonly IS_WITHIN = new FilterCondition(
     "IS_WITHIN",
     "Is within",
+    (f, v) => {
+      if (!f) return true;
+      const [from, to] = f.split(",").map(Number);
+      return Number(v) >= from && Number(v) <= to;
+    },
   );
   public static readonly LESS_THAN = new FilterCondition(
     "LESS_THAN",
     "Less than",
+    (f, v) => !f || Number(v) < Number(f),
   );
   public static readonly GREATER_THAN = new FilterCondition(
     "GREATER_THAN",
     "Greater than",
+    (f, v) => !f || Number(v) > Number(f),
   );
 
   private static VALUES: FilterCondition[] = [
@@ -60,11 +107,18 @@ export class FilterCondition {
 
   public readonly id: string;
   public readonly name: string;
+  public readonly func: FilterConditionFunc;
   public readonly valueRequired: boolean = true;
 
-  private constructor(id: string, name: string, valueRequired?: boolean) {
+  private constructor(
+    id: string,
+    name: string,
+    func: FilterConditionFunc,
+    valueRequired?: boolean,
+  ) {
     this.id = id;
     this.name = name;
+    this.func = func;
     if (valueRequired !== undefined) {
       this.valueRequired = valueRequired;
     }
@@ -125,6 +179,15 @@ export const StringFilterConditions: FilterConditions = {
     FilterCondition.DOES_NOT_CONTAIN,
     FilterCondition.STARTS_WITH,
     FilterCondition.ENDS_WITH,
+  ],
+  valueType: FilterValueType.STRING,
+};
+
+export const ContainsAndDoesNotFilterConditions: FilterConditions = {
+  defaultCondition: FilterCondition.CONTAINS,
+  allowedConditions: [
+    FilterCondition.CONTAINS,
+    FilterCondition.DOES_NOT_CONTAIN,
   ],
   valueType: FilterValueType.STRING,
 };

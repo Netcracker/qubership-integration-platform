@@ -5,12 +5,13 @@ import {
   AccessControlUpdateRequest,
   AccessControlBulkDeployRequest,
 } from "../api/apiTypes.ts";
+import { EntityFilterModel } from "../components/table/filter/filterTypes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 
 const PAGE_SIZE = 30;
 
-export const useAccessControl = () => {
+export const useAccessControl = (filters: EntityFilterModel[] = []) => {
   const [isLoading, setIsLoading] = useState(false);
   const [accessControlData, setAccessControlData] =
     useState<AccessControlResponse>();
@@ -25,7 +26,7 @@ export const useAccessControl = () => {
         const searchRequest: AccessControlSearchRequest = {
           offset: currentOffset,
           limit: PAGE_SIZE,
-          filters: [],
+          filters,
         };
         const responseData =
           await api.loadHttpTriggerAccessControl(searchRequest);
@@ -54,7 +55,7 @@ export const useAccessControl = () => {
         setIsLoading(false);
       }
     },
-    [notificationService],
+    [notificationService, filters],
   );
 
   const getAccessControl = useCallback(async () => {
@@ -107,7 +108,7 @@ export const useAccessControl = () => {
 
   useEffect(() => {
     void getAccessControl();
-  }, []);
+  }, [getAccessControl]);
 
   return {
     isLoading,

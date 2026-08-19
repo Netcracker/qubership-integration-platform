@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 
 import java.util.Collection;
@@ -32,12 +32,12 @@ public class CompoundPropertiesBuilder implements ElementPropertiesBuilder {
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return builders.stream().anyMatch(builder -> builder.applicableTo(element));
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         return builders.stream().map(builder -> builder.build(element)).reduce(
                 Collections.emptyMap(),
                 (props1, props2) -> {

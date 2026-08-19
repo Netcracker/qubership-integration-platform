@@ -19,8 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.mapper;
 import io.atlasmap.api.AtlasException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.runtime.catalog.mapper.atlasmap.AtlasMapInterpreter;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
+import org.qubership.integration.platform.mapper.build.atlasmap.AtlasMapInterpreter;
+import org.qubership.integration.platform.mapper.model.mapping.MappingDescription;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class AtlasMapInterpreterTest {
     private static final String DEFAULT_VALUE_CONFIG = "mapper/mapping/config/13_default_value.yml";
 
-    private MappingInterpreter interpreter;
+    private org.qubership.integration.platform.mapper.build.MappingInterpreter interpreter;
 
 
     @BeforeEach

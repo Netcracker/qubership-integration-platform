@@ -140,8 +140,9 @@ class MaasServiceTest {
         assertTrue(result.contains("operationPathTopic=orders-topic"));
         assertTrue(result.contains(
             "org.apache.kafka.common.security.plain.PlainLoginModule required "
-                + "username=\"kafka-user\" password=\"kafka-password\";"
+                + "username=&quot;kafka-user&quot; password=&quot;kafka-password&quot;;"
         ));
+        assertFalse(result.contains("username=\"kafka-user\""));
     }
 
     @Test
@@ -389,12 +390,14 @@ class MaasServiceTest {
     }
 
     @Test
-    void shouldNotChangeContentWhenThereAreNoMaaSClassifiersInRegistry() {
+    void shouldWarnWhenMaasPlaceholdersRemainUnresolved() {
         stubRegistryWith();
 
-        String result = service.resolveMaasParameters("content");
+        String content = "brokers=" + placeholder(KAFKA_ELEMENT_ID, BROKERS);
 
-        assertEquals("content", result);
+        String result = service.resolveMaasParameters(content);
+
+        assertEquals(content, result);
     }
 
     private void stubRegistryWith(MaasClassifierInfo... classifierInfos) {

@@ -162,8 +162,8 @@ jobs:
 
       - name: Build and deploy module
         if: ${{ needs.check-version.outputs.recover != 'true' }}
-        working-directory: ${{ inputs.module }}
         env:
+          MODULE_NAME: ${{ inputs.module }}
           # From .github/maven-settings.xml: github resolves BOMs, central takes
           # the deploy (empty for profile=github).
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
@@ -182,6 +182,7 @@ jobs:
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -pl $MODULE_NAME -am \
             -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \
             -Dchangelist= \

@@ -18,7 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
+import org.qubership.integration.platform.camelk.model.routes.ElementRoute;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

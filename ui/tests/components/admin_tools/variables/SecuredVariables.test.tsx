@@ -20,6 +20,14 @@ jest.mock("antd", () =>
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
 );
 
+// Mock Modals context (used by useFilter via useVariableFilter)
+jest.mock("../../../../src/Modals", () => ({
+  useModalsContext: () => ({
+    showModal: jest.fn(),
+    closeModal: jest.fn(),
+  }),
+}));
+
 import React from "react";
 import "@testing-library/jest-dom";
 import {

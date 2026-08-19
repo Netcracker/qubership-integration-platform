@@ -13,6 +13,7 @@ On the "**Graph**" tab user can view and edit a particular chain by adding, upda
 > - If **only simple (non-container) deprecated elements are detected**, the system displays a warning message stating they may be removed in future releases.
 > - If **deprecated container elements (the presence of deprecated simple elements has no impact) are detected** in the chain, the system recommends migrating them to their latest versions.
 > After confirmation, the system first attempts to save the current chain state as a new snapshot and then updates the chain with the latest versions of container elements. A notification message will indicate the migration process results.
+> - If **unsupported elements are detected** in the chain, they appear on the canvas highlighted in red and labeled **Unknown**. Opening an unsupported element shows an error message, disables the form, and prevents saving. The chain continues to run as expected.
 > - If **overridden chain** is opened, the system displays notification panel explaining that the current chain can't be deployed with a reference to the chain that overrides it.
 
 ### Tool Panel

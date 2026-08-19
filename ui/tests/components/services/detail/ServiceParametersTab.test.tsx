@@ -181,9 +181,15 @@ describe("ServiceParametersTab", () => {
 
   it("shows Type field in VS Code", async () => {
     isVsCodeFlag = true;
+    mockGetService.mockResolvedValue(
+      makeSystem({ type: IntegrationSystemType.IMPLEMENTED }),
+    );
     renderTab();
     await waitFor(() => expect(mockGetService).toHaveBeenCalledWith("sys-1"));
-    expect(screen.getByRole("combobox", { name: /type/i })).toBeInTheDocument();
+    expect(screen.getByText("Implemented")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: /type/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("on web save sends original system.type, not form-only type", async () => {
@@ -424,7 +430,7 @@ describe("ServiceParametersTab", () => {
     );
   });
 
-  it("VS Code save sends form type in payload", async () => {
+  it("VS Code save sends original system type in payload", async () => {
     isVsCodeFlag = true;
     mockGetService.mockResolvedValue(
       makeSystem({ type: IntegrationSystemType.IMPLEMENTED }),
@@ -432,18 +438,16 @@ describe("ServiceParametersTab", () => {
     renderTab();
     await waitFor(() =>
       expect(
-        screen.getByRole("combobox", { name: /type/i }),
+        screen.getByRole("textbox", { name: /name/i }),
       ).toBeInTheDocument(),
     );
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: /type/i }));
-    await waitFor(() => screen.getByText("External"));
-    fireEvent.click(screen.getByText("External"));
+    expect(screen.getByText("Implemented")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
       target: { value: "X" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
     await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
     const payload = mockUpdateService.mock.calls[0][1] as IntegrationSystem;
-    expect(payload.type).toBe(IntegrationSystemType.EXTERNAL);
+    expect(payload.type).toBe(IntegrationSystemType.IMPLEMENTED);
   });
 });

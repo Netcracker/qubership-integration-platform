@@ -25,6 +25,14 @@ jest.mock("../../../src/hooks/useActionLog.tsx", () => ({
   useActionLog: jest.fn(),
 }));
 
+// Mock Modals context (used by useFilter via useActionLogFilter)
+jest.mock("../../../src/Modals.tsx", () => ({
+  useModalsContext: () => ({
+    showModal: jest.fn(),
+    closeModal: jest.fn(),
+  }),
+}));
+
 // Mock useResizeHeight (returns [ref, height])
 jest.mock("../../../src/hooks/useResizeHeigth.tsx", () => ({
   useResizeHeight: () => [jest.fn(), 500],

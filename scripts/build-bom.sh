@@ -20,12 +20,12 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 # Modules tracked by the BOM. Order is preserved in the output.
+# checkstyle is build tooling, not a shipped module, so it stays out.
 MODULES=(
     "engine"
     "micro-engine"
     "runtime-catalog"
     "sessions-management"
-    "checkstyle"
     "schemas"
     "ui"
     "vscode-extension"

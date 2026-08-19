@@ -27,6 +27,7 @@ import mermaid from "mermaid";
 import styles from "./SequenceDiagram.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { ModalWithFullscreenToggle } from "./ModalWithFullscreenToggle.tsx";
+import DOMPurify from 'dompurify';
 
 type SequenceDiagramProps = {
   title?: string;
@@ -90,6 +91,11 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
   );
 
   const [renderedSvg, setRenderedSvg] = useState<string>("");
+  const notificationServiceRef = useRef(notificationService);
+
+  useEffect(() => {
+    notificationServiceRef.current = notificationService;
+  }, [notificationService]);
 
   useEffect(() => {
     if (!activeDiagram) {
@@ -106,8 +112,18 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
       .render(`seq-diagram-${activeTab}`, activeDiagram)
       .then(({ svg }) => {
         if (!cancelled) {
-          svgCacheRef.current[activeTab] = svg;
-          setRenderedSvg(svg);
+          const sanitizedSvg = DOMPurify.sanitize(svg);
+          svgCacheRef.current[activeTab] = sanitizedSvg;
+          setRenderedSvg(sanitizedSvg);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setRenderedSvg("");
+          notificationServiceRef.current.requestFailed(
+            "Failed to render sequence diagram",
+            error,
+          );
         }
       });
     return () => {
@@ -122,6 +138,7 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
         label: "Full",
         children: (
           <div
+            // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{
               __html: activeTab === DiagramMode.FULL ? renderedSvg : "",
             }}
@@ -133,6 +150,7 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
         label: "Simple",
         children: (
           <div
+            // eslint-disable-next-line react/no-danger
             dangerouslySetInnerHTML={{
               __html: activeTab === DiagramMode.SIMPLE ? renderedSvg : "",
             }}

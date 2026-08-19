@@ -24,4 +24,18 @@ public class ResourceContentPreprocessingService {
         }
         return result;
     }
+
+    /**
+     * Runs only the preprocessors that are independent of the presence of beans in Camel registry
+     * Used to resolve placeholders in bean definitions during {@code preParseRoute}.
+     */
+    public String preprocessForPreParse(String content) throws Exception {
+        String result = content;
+        for (ResourceContentPreprocessor preprocessor : preprocessors) {
+            if (preprocessor.runsInPreParse()) {
+                result = preprocessor.apply(result);
+            }
+        }
+        return result;
+    }
 }

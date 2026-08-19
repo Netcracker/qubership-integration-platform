@@ -47,6 +47,15 @@ describe("FolderEdit", () => {
     ).toBeInTheDocument();
   });
 
+  it.each(["create", "update"] as const)(
+    "should not render a description field when mode is %s",
+    (mode) => {
+      render(<FolderEdit onSubmit={jest.fn()} mode={mode} />);
+      expect(screen.queryByText("Description")).not.toBeInTheDocument();
+      expect(screen.getAllByRole("textbox")).toHaveLength(1);
+    },
+  );
+
   it("should submit name from initial values and fields", async () => {
     const onSubmit = jest.fn();
     render(<FolderEdit onSubmit={onSubmit} mode="update" name="N0" />);

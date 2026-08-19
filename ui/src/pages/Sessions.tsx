@@ -12,7 +12,6 @@ import {
   Checkpoint,
   CheckpointSession,
   DomainType,
-  ExecutionStatus,
   Session,
   SessionFilterAndSearchRequest,
   SessionFilterCondition,
@@ -22,33 +21,15 @@ import {
 import {
   capitalize,
   formatDuration,
-  formatSnakeCased,
   formatUTCSessionDate,
 } from "../misc/format-utils.ts";
-import {
-  FilterDropdownProps,
-  TableRowSelection,
-} from "antd/lib/table/interface";
+import { TableRowSelection } from "antd/lib/table/interface";
 import { api } from "../api/api.ts";
 import { SessionStatus } from "../components/sessions/SessionStatus.tsx";
 import { useModalsContext } from "../Modals.tsx";
 import { downloadFile } from "../misc/download-utils.ts";
 import { ImportSessions } from "../components/modal/ImportSessions.tsx";
-import {
-  isTimestampFilter,
-  TimestampColumnFilterDropdown,
-  TimestampFilter,
-  TimestampFilterCondition,
-} from "../components/table/TimestampColumnFilterDropdown.tsx";
-import type { FilterValue } from "antd/es/table/interface";
-import {
-  isTextFilter,
-  TextColumnFilterDropdown,
-  TextFilter,
-  TextFilterCondition,
-} from "../components/table/TextColumnFilterDropdown.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
-import { parseJson } from "../misc/json-helper.ts";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
@@ -64,6 +45,7 @@ import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../components/admin_tools/AdminToolsHeader.tsx";
+import { useSessionsFilter } from "../hooks/filter/useSessionsFilter.ts";
 
 type SessionWithCheckpoints = Session & {
   checkpoints?: Checkpoint[];
@@ -80,52 +62,6 @@ function sortByStartTime(items?: SessionTableItem[]) {
 
 function isCorrelationItem(item: SessionTableItem) {
   return item.correlationId === item.id;
-}
-
-function convertTimestampFilterCondition(
-  condition: TimestampFilterCondition,
-): SessionFilterCondition {
-  switch (condition) {
-    case "is-before":
-      return SessionFilterCondition.IS_BEFORE;
-    case "is-after":
-      return SessionFilterCondition.IS_AFTER;
-    case "is-within":
-      return SessionFilterCondition.IS_WITHIN;
-  }
-}
-
-function convertTextFilterCondition(
-  condition: TextFilterCondition,
-): SessionFilterCondition {
-  switch (condition) {
-    case "contains":
-      return SessionFilterCondition.CONTAINS;
-    case "not-contains":
-      return SessionFilterCondition.DOES_NOT_CONTAIN;
-    case "starts-with":
-      return SessionFilterCondition.STARTS_WITH;
-    case "ends-with":
-      return SessionFilterCondition.ENDS_WITH;
-    default:
-      return SessionFilterCondition.CONTAINS;
-  }
-}
-
-function convertTimestampFilter(
-  feature: SessionFilterFeature,
-  filterStr: string,
-): SessionFilterRequest {
-  const timestampFilter = parseJson<TimestampFilter>(
-    filterStr,
-    isTimestampFilter,
-  );
-  const condition = convertTimestampFilterCondition(timestampFilter.condition);
-  return {
-    feature,
-    condition,
-    value: timestampFilter.value?.[0].toString() ?? "",
-  };
 }
 
 function compareTimestamps(s1: string, s2: string): number {
@@ -166,10 +102,8 @@ export const Sessions: React.FC<SessionsProps> = ({
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [offset, setOffset] = useState(0);
   const [allSessionsLoaded, setAllSessionsLoaded] = useState(false);
-  const [filters, setFilters] = useState<SessionFilterAndSearchRequest>({
-    filterRequestList: [],
-    searchString: "",
-  });
+  const [searchString, setSearchString] = useState("");
+  const { filters, filterButton } = useSessionsFilter(chainId);
   const notificationService = useNotificationService();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -235,57 +169,20 @@ export const Sessions: React.FC<SessionsProps> = ({
     return items;
   }, [sessions]);
 
-  const setTableFilters = (
-    tableFilters: Record<string, FilterValue | null>,
-  ) => {
-    const filterRequestList: SessionFilterRequest[] = [];
-    if (tableFilters.chainName) {
-      const textFilter = parseJson<TextFilter>(
-        tableFilters.chainName[0].toString(),
-        isTextFilter,
-      );
-      filterRequestList.push({
-        feature: SessionFilterFeature.CHAIN_NAME,
-        condition: convertTextFilterCondition(textFilter.condition),
-        value: textFilter.value,
-      });
-    }
-    if (tableFilters.engineAddress) {
-      const textFilter = parseJson<TextFilter>(
-        tableFilters.engineAddress[0].toString(),
-        isTextFilter,
-      );
-      filterRequestList.push({
-        feature: SessionFilterFeature.ENGINE,
-        condition: convertTextFilterCondition(textFilter.condition),
-        value: textFilter.value,
-      });
-    }
-    if (tableFilters.started) {
-      filterRequestList.push(
-        convertTimestampFilter(
-          SessionFilterFeature.START_TIME,
-          tableFilters.started[0].toString(),
-        ),
-      );
-    }
-    if (tableFilters.finished) {
-      filterRequestList.push(
-        convertTimestampFilter(
-          SessionFilterFeature.FINISH_TIME,
-          tableFilters.finished[0].toString(),
-        ),
-      );
-    }
-    if (tableFilters.executionStatus) {
-      filterRequestList.push({
-        feature: SessionFilterFeature.STATUS,
-        condition: SessionFilterCondition.IN,
-        value: tableFilters.executionStatus.join(","),
-      });
-    }
-    setFilters((prevFilters) => ({ ...prevFilters, filterRequestList }));
-  };
+  const filterRequestList = useMemo<SessionFilterRequest[]>(
+    () =>
+      filters.map((filter) => ({
+        feature: filter.column as SessionFilterFeature,
+        condition: filter.condition as SessionFilterCondition,
+        value: filter.value ?? "",
+      })),
+    [filters],
+  );
+
+  const filterAndSearchRequest = useMemo<SessionFilterAndSearchRequest>(
+    () => ({ filterRequestList, searchString }),
+    [filterRequestList, searchString],
+  );
 
   const fetchSessions = useCallback(
     async (initialOffset: number) => {
@@ -297,7 +194,7 @@ export const Sessions: React.FC<SessionsProps> = ({
         let currentOffset = initialOffset;
         let reachedEnd = false;
         for (let i = 0; i < pagesToFetch; i++) {
-          const response = await api.getSessions(chainId, filters, {
+          const response = await api.getSessions(chainId, filterAndSearchRequest, {
             offset: currentOffset,
           });
           fetched.push(...response.sessions);
@@ -342,7 +239,7 @@ export const Sessions: React.FC<SessionsProps> = ({
         setIsLoading(false);
       }
     },
-    [chainId, filters, notificationService],
+    [chainId, filterAndSearchRequest, notificationService],
   );
 
   const retryFromLastCheckpoint = useCallback(
@@ -424,9 +321,6 @@ export const Sessions: React.FC<SessionsProps> = ({
               title: "Chain",
               dataIndex: "chainName",
               key: "chainName",
-              filterDropdown: (props: FilterDropdownProps) => (
-                <TextColumnFilterDropdown {...props} enableExact={false} />
-              ),
               render: (_: unknown, item: SessionTableItem) => (
                 <a onClick={() => void navigate(`/chains/${item.chainId}`)}>
                   {item.chainName}
@@ -438,10 +332,6 @@ export const Sessions: React.FC<SessionsProps> = ({
         title: "Status",
         dataIndex: "executionStatus",
         key: "executionStatus",
-        filters: Object.values(ExecutionStatus).map((value) => ({
-          value,
-          text: formatSnakeCased(value),
-        })),
         render: (_, item) =>
           isCorrelationItem(item) ? (
             <>{`${item.children?.length} session${item.children?.length === 1 ? "" : "s"}`}</>
@@ -453,7 +343,6 @@ export const Sessions: React.FC<SessionsProps> = ({
         title: "Start time",
         dataIndex: "started",
         key: "started",
-        filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
         render: (_, session) => (
           <>{formatUTCSessionDate(session.started, true)}</>
         ),
@@ -462,7 +351,6 @@ export const Sessions: React.FC<SessionsProps> = ({
         title: "Finish time",
         dataIndex: "finished",
         key: "finished",
-        filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
         render: (_, session) => (
           <>{formatUTCSessionDate(session.finished, true)}</>
         ),
@@ -489,9 +377,6 @@ export const Sessions: React.FC<SessionsProps> = ({
         title: "Engine",
         dataIndex: "engineAddress",
         key: "engineAddress",
-        filterDropdown: (props) => (
-          <TextColumnFilterDropdown {...props} enableExact={false} />
-        ),
         render: (_, item) =>
           isCorrelationItem(item) ? (
             <></>
@@ -688,19 +573,20 @@ export const Sessions: React.FC<SessionsProps> = ({
       <TableToolbar
         variant={variant === "admin-page" ? "admin" : "chain-tab"}
         search={{
-          value: filters.searchString,
-          onChange: (value) =>
-            setFilters((prev) => ({ ...prev, searchString: value })),
+          value: searchString,
+          onChange: setSearchString,
           placeholder: "Search sessions...",
           allowClear: true,
         }}
+        filterButton={filterButton}
         columnSettingsButton={columnSettingsButton}
         actions={sessionsToolbarActions}
       />
     ),
     [
       variant,
-      filters.searchString,
+      searchString,
+      filterButton,
       columnSettingsButton,
       sessionsToolbarActions,
     ],
@@ -708,13 +594,7 @@ export const Sessions: React.FC<SessionsProps> = ({
 
   useRegisterChainHeaderActions(
     variant === "chain-tab" ? sessionsToolbar : undefined,
-    [
-      filters.searchString,
-      chainId,
-      selectedRowKeys,
-      onRefreshSessions,
-      variant,
-    ],
+    [searchString, chainId, selectedRowKeys, onRefreshSessions, variant],
   );
 
   const sessionsTable = (
@@ -742,7 +622,6 @@ export const Sessions: React.FC<SessionsProps> = ({
           locale={{ emptyText: tableEmpty("No sessions recorded") }}
           scroll={tableScroll(scrollX, tableData.length)}
           components={components}
-          onChange={(_, tableFilters) => setTableFilters(tableFilters)}
         />
       </div>
     </TablePageLayout>

@@ -25,7 +25,7 @@ Please refer to the syntax sample below for design time variables:
 ```
 
 ### Runtime Variables
-There is possibility to configure **runtime variables**, so the chain will always pick up actual variable's value during the processing. It won't require to re-deploy the chain when variable is configured in the chain following syntaxis, described below:
+It is possible to configure **runtime variables**, so the chain will always pick up the actual variable value during processing. Redeploying the chain is not required when the variable is configured using the syntax described below:
 
 - For **QIP fields** (where Apache Simple language is being utilized):
 
@@ -62,11 +62,14 @@ and [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HT
 
 ---
 ### View Common Variables
-After navigation to "Variables" tab, the table with common variables will be initially showed, where next information and control elements are presented:
+After navigation to "Variables" tab, the table with common variables will be initially shown, where next information and control elements are presented:
 
 - **Key** - non-editable name of the variable.
 - **Value** - editable variable's value. When column is clicked, the same options are available.
-- **Control panel** - panel, placed on the right top. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search variables** - search box, provides ability to find respective data in the table.
   - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
   - ![cloud-download](img/cloud-download.svg) - exports variables, selected via checkbox. If no specific variables were selected before clicking, then system will export all of them at once.
@@ -85,8 +88,10 @@ Click "**Secured**" sub-tab in the menu on the right to open secured variables t
   - ![plus](img/plus.svg) - allows to create a new secret.
 
 Under each secret the following actions can be applied:
-* ![cloud-download](img/cloud-download.svg) - Export secret as Helm Chart.
-* ![plus](img/plus.svg) - Add variable.
+* ![cloud-download](img/cloud-download.svg) - export secret as Helm Chart.
+* ![plus](img/plus.svg) - add variable.
+
+> ⚠️ **Warning:** This icon is disabled for the **default secret**, since adding new variables to it is no longer allowed.
 
 ### Create Secret
 To create a secret, which represents a **secured storage object in Kubernetes**, click "**Add Secret**" button marked with ![plus](img/plus.svg), specify the name and confirm operation with "**Create**" button.

@@ -20,7 +20,9 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.time.DurationFormatUtils;
-import org.qubership.integration.platform.runtime.catalog.builder.XmlBuilder;
+import org.qubership.integration.platform.io.factories.SnapshotWriterFactory;
+import org.qubership.integration.platform.io.model.DataFormat;
+import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
@@ -48,6 +50,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.Period;
@@ -68,7 +71,6 @@ public class SnapshotService {
     private final ElementRepository elementRepository;
     private final ChainRepository chainRepository;
     private final ElementService elementService;
-    private final XmlBuilder xmlBuilder;
     private final ChainFinderService chainFinderService;
     private final DependencyRepository dependencyRepository;
     private final DeploymentService deploymentService;
@@ -77,13 +79,13 @@ public class SnapshotService {
     private final MaskedFieldsService maskedFieldsService;
     private final TransactionHandler transactionHandler;
     private final SnapshotService self;
+    private final SnapshotWriterFactory snapshotWriterFactory;
 
     @Autowired
     public SnapshotService(SnapshotRepository snapshotRepository,
                            ElementRepository elementRepository,
                            ChainRepository chainRepository,
                            ElementService elementService,
-                           XmlBuilder xmlBuilder,
                            ChainFinderService chainFinderService,
                            DependencyRepository dependencyRepository,
                            @Lazy DeploymentService deploymentService,
@@ -91,12 +93,12 @@ public class SnapshotService {
                            ActionsLogService actionLogger,
                            ElementPropertiesVerificationService elementPropertiesVerificationService,
                            MaskedFieldsService maskedFieldsService,
-                           TransactionHandler transactionHandler) {
+                           TransactionHandler transactionHandler,
+                           SnapshotWriterFactory snapshotWriterFactory) {
         this.snapshotRepository = snapshotRepository;
         this.elementRepository = elementRepository;
         this.chainRepository = chainRepository;
         this.elementService = elementService;
-        this.xmlBuilder = xmlBuilder;
         this.chainFinderService = chainFinderService;
         this.dependencyRepository = dependencyRepository;
         this.deploymentService = deploymentService;
@@ -105,17 +107,18 @@ public class SnapshotService {
         this.maskedFieldsService = maskedFieldsService;
         this.transactionHandler = transactionHandler;
         this.self = self;
+        this.snapshotWriterFactory = snapshotWriterFactory;
     }
 
     public Snapshot findById(String snapshotId) {
         return snapshotRepository.findById(snapshotId)
-                .orElseThrow(() -> new EntityNotFoundException(CONFIGURATION_WITH_ID_NOT_FOUND_MESSAGE + snapshotId));
+            .orElseThrow(() -> new EntityNotFoundException(CONFIGURATION_WITH_ID_NOT_FOUND_MESSAGE + snapshotId));
     }
 
     // Map<chainId, snapshot>
     public Map<String, Snapshot> findLastCreatedOrBuild(Collection<String> chainIds, BiConsumer<String, String> errorHandler) {
         Map<String, Snapshot> snapshots = snapshotRepository.findAllLastCreated(chainIds).stream()
-                .collect(Collectors.toMap(snapshot -> snapshot.getChain().getId(), Function.identity()));
+            .collect(Collectors.toMap(snapshot -> snapshot.getChain().getId(), Function.identity()));
         final Set<String> chainsWithoutSnapshot = new HashSet<>(chainIds);
         chainsWithoutSnapshot.removeAll(snapshots.keySet());
 
@@ -160,9 +163,9 @@ public class SnapshotService {
         String name = snapshotRepository.getNextAvailableName(chainId);
 
         Snapshot snapshot = Snapshot.builder()
-                        .name(name)
-                        .chain(chain)
-                        .build();
+            .name(name)
+            .chain(chain)
+            .build();
         if (CollectionUtils.isNotEmpty(technicalLabels)) {
             snapshot.addLabels(getSnapshotTechnicalLabels(technicalLabels, snapshot));
         }
@@ -174,20 +177,34 @@ public class SnapshotService {
         List<ChainElement> snapshotElements = snapshot.getElements();
         fillServiceEnvironments(snapshotElements);
 
-        try {
-            snapshot.setXmlDefinition(xmlBuilder.build(snapshotElements));
-        } catch (Exception e) {
-            log.error("Failed to build xml configuration: {}", e.getMessage());
-            throw (e instanceof RuntimeException)
-                    ? (RuntimeException) e
-                    : new RuntimeException("Failed to build xml configuration", e);
-        }
+        String xml = buildConfigurationXml(snapshot);
+        snapshot.setXmlDefinition(xml);
+
         chainRepository.updateCurrentSnapshot(chainId, snapshot);
         chainRepository.updateUnsavedChanges(chainId, false);
 
         logSnapshotAction(snapshot, chain, LogOperation.CREATE);
 
         return snapshot;
+    }
+
+    private String buildConfigurationXml(Snapshot snapshot) {
+        try {
+            var writer = snapshotWriterFactory.getWriter(DataFormat.CAMEL_XML).orElseThrow(() -> {
+                String message = String.format("Failed to get writer for %s format.", DataFormat.CAMEL_XML);
+                return new RuntimeException(message);
+            });
+            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+                writer.write(outputStream, new SnapshotAdapter(snapshot));
+                outputStream.flush();
+                return outputStream.toString(); // TODO specify charset
+            }
+        } catch (Exception exception) {
+            log.error("Failed to build xml configuration: {}", exception.getMessage());
+            throw (exception instanceof RuntimeException e)
+                ? e
+                : new RuntimeException("Failed to build xml configuration", exception);
+        }
     }
 
     private Collection<SnapshotLabel> getSnapshotTechnicalLabels(Set<String> technicalLabels, Snapshot snapshot) {
@@ -205,11 +222,11 @@ public class SnapshotService {
 
     private void verifyElementProperties(Chain chain) {
         Map<ChainElement, Collection<VerificationError>> errorMap =
-                elementPropertiesVerificationService.verifyElementProperties(chain);
+            elementPropertiesVerificationService.verifyElementProperties(chain);
         if (!errorMap.isEmpty()) {
             errorMap.forEach((element, errors) -> errors.forEach(
-                    error -> log.error("Chain '{}' ({}), element '{}' ({}) properties verification error: {}",
-                            chain.getName(), chain.getId(), element.getName(), element.getId(), error.message()))
+                error -> log.error("Chain '{}' ({}), element '{}' ({}) properties verification error: {}",
+                    chain.getName(), chain.getId(), element.getName(), element.getId(), error.message()))
             );
             Map.Entry<ChainElement, Collection<VerificationError>> entry = errorMap.entrySet().iterator().next();
             ChainElement element = entry.getKey();
@@ -329,8 +346,8 @@ public class SnapshotService {
             for (Dependency dependency : element.getInputDependencies()) {
                 if (!dependencyReplacements.containsKey(dependency.getId())) {
                     dependencyReplacements.put(dependency.getId(), createDependency(
-                            replacements.get(dependency.getElementFrom()),
-                            replacements.get(dependency.getElementTo())
+                        replacements.get(dependency.getElementFrom()),
+                        replacements.get(dependency.getElementTo())
                     ));
                 }
                 newElement.addInputDependency(dependencyReplacements.get(dependency.getId()));
@@ -338,8 +355,8 @@ public class SnapshotService {
             for (Dependency dependency : element.getOutputDependencies()) {
                 if (!dependencyReplacements.containsKey(dependency.getId())) {
                     dependencyReplacements.put(dependency.getId(), createDependency(
-                            replacements.get(dependency.getElementFrom()),
-                            replacements.get(dependency.getElementTo())
+                        replacements.get(dependency.getElementFrom()),
+                        replacements.get(dependency.getElementTo())
                     ));
                 }
                 newElement.addOutputDependency(dependencyReplacements.get(dependency.getId()));
@@ -352,7 +369,7 @@ public class SnapshotService {
     }
 
     public void deleteAllByChainId(String chainId) {
-        List<Snapshot>  snapshots = findByChainIdLight(chainId);
+        List<Snapshot> snapshots = findByChainIdLight(chainId);
         deploymentService.deleteAllByChainId(chainId);
         chainRepository.updateCurrentSnapshot(chainId, null);
         chainRepository.updateUnsavedChanges(chainId, true);
@@ -411,21 +428,21 @@ public class SnapshotService {
 
     private void logSnapshotAction(String snapshotId, String snapshotName, String chainId, String chainName, LogOperation operation) {
         actionLogger.logAction(ActionLog.builder()
-                .entityType(EntityType.SNAPSHOT)
-                .entityId(snapshotId)
-                .entityName(snapshotName)
-                .parentType(chainId == null ? null : EntityType.CHAIN)
-                .parentId(chainId)
-                .parentName(chainName)
-                .operation(operation)
-                .build());
+            .entityType(EntityType.SNAPSHOT)
+            .entityId(snapshotId)
+            .entityName(snapshotName)
+            .parentType(chainId == null ? null : EntityType.CHAIN)
+            .parentId(chainId)
+            .parentName(chainName)
+            .operation(operation)
+            .build());
     }
 
     public void pruneSnapshotsAsync(int olderThanDays, int chunk) {
         actionLogger.logAction(ActionLog.builder()
-                .entityType(EntityType.SNAPSHOT_CLEANUP)
-                .operation(LogOperation.EXECUTE)
-                .build());
+            .entityType(EntityType.SNAPSHOT_CLEANUP)
+            .operation(LogOperation.EXECUTE)
+            .build());
 
         String requestId = RequestIdContext.get();
         CompletableFuture.runAsync(() -> {
@@ -450,9 +467,9 @@ public class SnapshotService {
             deletedCurrent = transactionHandler.supplyInNewTransaction(() -> {
                 List<Map<String, String>> result = snapshotRepository.pruneByCreatedWhen(deletionDate, chunk);
                 result.forEach(s -> logSnapshotAction(
-                        s.get(AbstractEntity.Fields.id), s.get(AbstractEntity.Fields.name), s.get(Snapshot.Fields.chain),
-                        chainFinderService.tryFindById(s.get(Snapshot.Fields.chain)).map(Chain::getName).orElse(null), // XXX Potential performance improvement
-                        LogOperation.DELETE));
+                    s.get(AbstractEntity.Fields.id), s.get(AbstractEntity.Fields.name), s.get(Snapshot.Fields.chain),
+                    chainFinderService.tryFindById(s.get(Snapshot.Fields.chain)).map(Chain::getName).orElse(null), // XXX Potential performance improvement
+                    LogOperation.DELETE));
                 return result.size();
             });
             deletedTotal += deletedCurrent;
@@ -463,7 +480,7 @@ public class SnapshotService {
         } while (deletedCurrent > 0);
 
         String durationStr = DurationFormatUtils.formatDurationWords(
-                System.currentTimeMillis() - startTime, true, false);
+            System.currentTimeMillis() - startTime, true, false);
         log.info("Snapshots removed successfully: {}. Time elapsed: {}", deletedTotal, durationStr);
     }
 }
