@@ -17,9 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.mapper;
 
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.*;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.Attribute;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.ObjectSchema;
+import org.qubership.integration.platform.mapper.model.mapping.definition.Attribute;
+import org.qubership.integration.platform.mapper.model.mapping.definition.ObjectSchema;
 
 import java.util.Collections;
 import java.util.List;
@@ -30,30 +29,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ElementMapBuilderTest {
     @Test
     void testBuildAttributeMap() {
-        ElementMapBuilder elementMapBuilder = new ElementMapBuilder();
-        Attribute a1 = new Attribute("a1", "a1", new StringType(null), null, null, null);
-        Attribute a2 = new Attribute("a2", "a2", new StringType(null), null, null, null);
-        ObjectType objectType = new ObjectType(new ObjectSchema("o1", List.of(a1, a2), null), null, null);
-        TypeDefinition typeDefinition = new TypeDefinition("foo", "foo", objectType);
-        ArrayType arrayType = new ArrayType(
-                new ReferenceType("foo", null, null),
+        org.qubership.integration.platform.mapper.build.ElementMapBuilder elementMapBuilder = new org.qubership.integration.platform.mapper.build.ElementMapBuilder();
+        Attribute a1 = new Attribute("a1", "a1", new org.qubership.integration.platform.mapper.model.datatypes.StringType(null), null, null, null);
+        Attribute a2 = new Attribute("a2", "a2", new org.qubership.integration.platform.mapper.model.datatypes.StringType(null), null, null, null);
+        org.qubership.integration.platform.mapper.model.datatypes.ObjectType objectType = new org.qubership.integration.platform.mapper.model.datatypes.ObjectType(new ObjectSchema("o1", List.of(a1, a2), null), null, null);
+        org.qubership.integration.platform.mapper.model.datatypes.TypeDefinition typeDefinition = new org.qubership.integration.platform.mapper.model.datatypes.TypeDefinition("foo", "foo", objectType);
+        org.qubership.integration.platform.mapper.model.datatypes.ArrayType arrayType = new org.qubership.integration.platform.mapper.model.datatypes.ArrayType(
+                new org.qubership.integration.platform.mapper.model.datatypes.ReferenceType("foo", null, null),
                 List.of(typeDefinition),
                 null
         );
         Attribute a3 = new Attribute("a3", "a3", arrayType, null, null, null);
         var result = elementMapBuilder.buildElementMap(
-                new ObjectType(new ObjectSchema("o2", List.of(a3), null), null, null)
+                new org.qubership.integration.platform.mapper.model.datatypes.ObjectType(new ObjectSchema("o2", List.of(a3), null), null, null)
         );
         assertEquals(
                 Map.of(
-                        "a1", new ElementMapBuilder.ElementWithContext(
-                                a1, new ElementMapBuilder.ElementContext(
+                        "a1", new org.qubership.integration.platform.mapper.build.ElementMapBuilder.ElementWithContext(
+                                a1, new org.qubership.integration.platform.mapper.build.ElementMapBuilder.ElementContext(
                                         Collections.singletonMap("foo", typeDefinition))),
-                        "a2", new ElementMapBuilder.ElementWithContext(
-                                a2, new ElementMapBuilder.ElementContext(
+                        "a2", new org.qubership.integration.platform.mapper.build.ElementMapBuilder.ElementWithContext(
+                                a2, new org.qubership.integration.platform.mapper.build.ElementMapBuilder.ElementContext(
                                         Collections.singletonMap("foo", typeDefinition))),
-                        "a3", new ElementMapBuilder.ElementWithContext(
-                                a3, new ElementMapBuilder.ElementContext(Collections.emptyMap()))
+                        "a3", new org.qubership.integration.platform.mapper.build.ElementMapBuilder.ElementWithContext(
+                                a3, new org.qubership.integration.platform.mapper.build.ElementMapBuilder.ElementContext(Collections.emptyMap()))
                 ),
                 result
         );

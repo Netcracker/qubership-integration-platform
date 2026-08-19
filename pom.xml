@@ -15,12 +15,13 @@
     </properties>
 
     <modules>
-        <module>parent</module>
-        <module>checkstyle</module>
-        <module>engine</module>
-        <module>micro-engine</module>
-        <module>runtime-catalog</module>
-        <module>sessions-management</module>
+      <module>parent</module>
+      <module>checkstyle</module>
+      <module>integration-build-pipeline</module>
+      <module>engine</module>
+      <module>micro-engine</module>
+      <module>runtime-catalog</module>
+      <module>sessions-management</module>
     </modules>
 
     <licenses>

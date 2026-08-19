@@ -18,7 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.verification.
 
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
-import org.qubership.integration.platform.runtime.catalog.util.MaasConnectionSourceUtils;
+import org.qubership.integration.platform.util.MaasConnectionSourceUtils;
 
 import java.util.Collection;
 import java.util.Collections;

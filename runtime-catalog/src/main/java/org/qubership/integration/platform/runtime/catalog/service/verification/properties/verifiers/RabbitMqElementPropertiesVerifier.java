@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
@@ -27,7 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
+import static org.qubership.integration.platform.library.constants.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
 
 @Component
 public class RabbitMqElementPropertiesVerifier implements ElementPropertiesVerifier {

@@ -1,8 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.springframework.stereotype.Component;
 
@@ -10,11 +10,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.qubership.integration.platform.util.ElementUtils.getPropertyAsString;
+
 @Component
 public class PubSubElementPropertiesBuilder implements ElementPropertiesBuilder {
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return Set.of(
                 CamelNames.PUBSUB_TRIGGER_COMPONENT,
                 CamelNames.PUBSUB_SENDER_COMPONENT
@@ -22,10 +24,11 @@ public class PubSubElementPropertiesBuilder implements ElementPropertiesBuilder 
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
-        return buildPubSubConnectionProperties(element.getPropertyAsString(CamelOptions.PROJECT_ID),
-                element.getPropertyAsString(CamelOptions.DESTINATION_NAME),
-                element.getPropertyAsString(CamelOptions.SERVICE_ACCOUNT_KEY));
+    public Map<String, String> build(Element element) {
+        return buildPubSubConnectionProperties(
+                getPropertyAsString(element, CamelOptions.PROJECT_ID),
+                getPropertyAsString(element, CamelOptions.DESTINATION_NAME),
+                getPropertyAsString(element, CamelOptions.SERVICE_ACCOUNT_KEY));
     }
 
     public static Map<String, String> buildPubSubConnectionProperties(String projectId, String destinationName, String serviceAccountKey) {

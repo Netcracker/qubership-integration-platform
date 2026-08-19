@@ -8,11 +8,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.ACTIVATE;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.ELSE;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.END;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.LINE_WITH_ARROW_SOLID_RIGHT;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.START_ALT;
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.ACTIVATE;
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.ELSE;
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.END;
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.LINE_WITH_ARROW_SOLID_RIGHT;
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.START_ALT;
 
 class SequenceDiagramBuilderTest {
 

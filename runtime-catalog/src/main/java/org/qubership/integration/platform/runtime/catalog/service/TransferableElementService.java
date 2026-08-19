@@ -16,12 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementTransferException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
@@ -29,8 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.CreateElementRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.TransferElementRequest;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
@@ -56,12 +56,13 @@ public class TransferableElementService extends ElementService {
             ActionsLogService actionLogger,
             AuditingHandler jpaAuditingHandler,
             OrderedElementService orderedElementService,
-            ElementUtils elementUtils,
             OldContainerUtils oldContainerUtils,
             DependencyService dependencyService,
             SystemEnvironmentsGenerator systemEnvironmentsGenerator,
             SystemBaseService systemBaseService,
-            SystemModelBaseService systemModelBaseService
+            SystemModelBaseService systemModelBaseService,
+            MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper,
+            PropertyPlaceholderService propertyPlaceholderService
     ) {
         super(
                 elementRepository,
@@ -71,10 +72,11 @@ public class TransferableElementService extends ElementService {
                 swimlaneService,
                 actionLogger,
                 orderedElementService,
-                elementUtils,
                 systemEnvironmentsGenerator,
                 systemBaseService,
-                systemModelBaseService
+                systemModelBaseService,
+                mandatoryPropertyVerificationHelper,
+                propertyPlaceholderService
         );
         this.oldContainerUtils = oldContainerUtils;
         this.dependencyService = dependencyService;
@@ -210,7 +212,7 @@ public class TransferableElementService extends ElementService {
     }
 
     private boolean isParentContainerRestricted(ChainElement parentElement, List<String> elementTypes) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(parentElement))
+        return libraryService.lookupElementDescriptor(parentElement.getType())
                 .filter(ElementDescriptor::isContainer)
                 .map(ElementDescriptor::getAllowedChildren)
                 .map(allowedChildren ->
@@ -242,10 +244,8 @@ public class TransferableElementService extends ElementService {
     }
 
     private void validateIfInputEnabled(ChainElement element) {
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(element.getType());
-        if (descriptor == null) {
-            throw new ElementTransferException("The " + element.getType() + " with id " + element.getId() + " not found");
-        }
+        ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType())
+            .orElseThrow(() -> new ElementTransferException("The " + element.getType() + " with id " + element.getId() + " not found"));
         if (!descriptor.isInputEnabled()) {
             throw new ElementTransferException("The " + element.getType() + " input disabled");
         }

@@ -2004,17 +2004,17 @@ components:
           description: "Whether direction is to chain or from it"
           type: "boolean"
         externalParticipantId:
+          description: "Id of a participant of sequence diagram"
           type: "string"
-          writeOnly: true
         externalParticipantName:
+          description: "Name of a participant of sequence diagram"
           type: "string"
-          writeOnly: true
         hasResponse:
           description: "Whether build default \"Response\" line or not"
           type: "boolean"
         requestLineTitle:
+          description: "Text over sequence lines. Placeholders supported"
           type: "string"
-          writeOnly: true
         responseAfterRequest:
           description: "Whether response immediately after request or after recursive\
             \ returning"

@@ -18,7 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.model.deployment.upda
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
+import org.qubership.integration.platform.camelk.model.routes.RouteType;
 
 import javax.annotation.Nullable;
 
@@ -43,4 +43,3 @@ public class DeploymentRouteUpdate {
     @Schema(description = "Connection timeout")
     private Long connectTimeout = 120000L;
 }
-
