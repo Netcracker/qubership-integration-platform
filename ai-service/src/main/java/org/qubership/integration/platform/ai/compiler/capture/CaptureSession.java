@@ -59,6 +59,20 @@ public class CaptureSession {
     return successMessage;
   }
 
+  /**
+   * Stores server-owned run context, replacing any previous value.
+   *
+   * <p>Unlike {@link #accept}, this is not a capture the model competes to fill: the compiler
+   * publishes it around a stage and clears it afterwards, so a second run of the same stage in one
+   * conversation must overwrite rather than be refused as a duplicate.
+   */
+  public <T> void set(CaptureKey key, T value) {
+    Objects.requireNonNull(key, "key");
+    Objects.requireNonNull(value, "value");
+    requireAssignable(key.slot(), value);
+    values.put(key, value);
+  }
+
   public <T> Optional<T> get(CaptureKey key, Class<T> valueType) {
     Objects.requireNonNull(key, "key");
     Objects.requireNonNull(valueType, "valueType");

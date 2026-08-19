@@ -2,9 +2,9 @@ package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -29,6 +29,34 @@ final class ChainEditNodePlacement {
 
   record Placement(String newNodeId, ChainPlanGraph graph) {}
 
+  /**
+   * Adds a trigger at chain root and fans it into the same start the existing triggers already
+   * share. Named {@code connectToNodeIds} are used as those start nodes when the request named them;
+   * otherwise the method infers them from the current roots.
+   */
+  static Placement addTrigger(
+      ChainPlanGraph base, List<String> connectToNodeIds, String elementType, String label) {
+    Objects.requireNonNull(base, "base");
+    List<String> starts = connectTo(base, connectToNodeIds);
+    String newNodeId = newNodeId(elementType);
+    ChainPlanNode placed = new ChainPlanNode(newNodeId, elementType, label, null, null, List.of());
+
+    List<ChainPlanEdge> nextEdges =
+        base.edges() == null ? new ArrayList<>() : new ArrayList<>(base.edges());
+    for (String startId : starts) {
+      nextEdges.add(new ChainPlanEdge(newEdgeId(), newNodeId, startId, null));
+    }
+
+    List<ChainPlanNode> nextNodes =
+        base.nodes() == null ? new ArrayList<>() : new ArrayList<>(base.nodes());
+    nextNodes.add(placed);
+
+    ChainPlanGraph augmented =
+        new ChainPlanGraph(
+            base.schemaVersion(), base.chain(), List.copyOf(nextNodes), List.copyOf(nextEdges));
+    return new Placement(newNodeId, augmented);
+  }
+
   static Placement insertAfter(
       ChainPlanGraph base, List<String> anchorNodeIds, String elementType, String label) {
     Objects.requireNonNull(base, "base");
@@ -41,7 +69,7 @@ final class ChainEditNodePlacement {
       throw new IllegalArgumentException("the chain has no element '" + anchorId + "'");
     }
 
-    String newNodeId = elementType + "-" + UUID.randomUUID().toString().substring(0, 8);
+    String newNodeId = newNodeId(elementType);
     ChainPlanNode placed =
         new ChainPlanNode(newNodeId, elementType, label, anchor.parentNodeId(), null, List.of());
 
@@ -68,6 +96,85 @@ final class ChainEditNodePlacement {
     ChainPlanGraph augmented =
         new ChainPlanGraph(base.schemaVersion(), base.chain(), List.copyOf(nextNodes), List.copyOf(nextEdges));
     return new Placement(newNodeId, augmented);
+  }
+
+  private static List<String> connectTo(ChainPlanGraph base, List<String> connectToNodeIds) {
+    if (connectToNodeIds != null && !connectToNodeIds.isEmpty()) {
+      return requireExisting(base, connectToNodeIds);
+    }
+    List<String> roots = rootNodeIds(base);
+    if (roots.isEmpty() || !allTriggers(base, roots)) {
+      return roots;
+    }
+    return successorsOf(base, roots);
+  }
+
+  private static List<String> requireExisting(ChainPlanGraph base, List<String> nodeIds) {
+    List<String> named = new ArrayList<>();
+    for (String nodeId : nodeIds) {
+      if (node(base, nodeId) == null) {
+        throw new IllegalArgumentException("the chain has no element '" + nodeId + "'");
+      }
+      named.add(nodeId);
+    }
+    return named;
+  }
+
+  private static List<String> rootNodeIds(ChainPlanGraph base) {
+    List<ChainPlanEdge> edges = base.edges() == null ? List.of() : base.edges();
+    List<String> roots = new ArrayList<>();
+    if (base.nodes() == null) {
+      return roots;
+    }
+    for (ChainPlanNode candidate : base.nodes()) {
+      if (isRoot(candidate, edges)) {
+        roots.add(candidate.nodeId());
+      }
+    }
+    return roots;
+  }
+
+  private static boolean isRoot(ChainPlanNode candidate, List<ChainPlanEdge> edges) {
+    return candidate != null
+        && candidate.nodeId() != null
+        && candidate.parentNodeId() == null
+        && !hasIncoming(edges, candidate.nodeId());
+  }
+
+  private static boolean allTriggers(ChainPlanGraph base, List<String> nodeIds) {
+    for (String nodeId : nodeIds) {
+      ChainPlanNode root = node(base, nodeId);
+      if (root == null || !ChainPlanGraphValidator.isTriggerElementType(root.type())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static List<String> successorsOf(ChainPlanGraph base, List<String> fromNodeIds) {
+    List<ChainPlanEdge> edges = base.edges() == null ? List.of() : base.edges();
+    List<String> successors = new ArrayList<>();
+    for (String fromNodeId : fromNodeIds) {
+      for (ChainPlanEdge edge : outgoingFrom(edges, fromNodeId)) {
+        if (edge.toNodeId() != null && !successors.contains(edge.toNodeId())) {
+          successors.add(edge.toNodeId());
+        }
+      }
+    }
+    return successors;
+  }
+
+  private static boolean hasIncoming(List<ChainPlanEdge> edges, String nodeId) {
+    for (ChainPlanEdge edge : edges) {
+      if (edge != null && nodeId.equals(edge.toNodeId())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String newNodeId(String elementType) {
+    return elementType + "-" + UUID.randomUUID().toString().substring(0, 8);
   }
 
   private static List<ChainPlanEdge> outgoingFrom(List<ChainPlanEdge> edges, String nodeId) {

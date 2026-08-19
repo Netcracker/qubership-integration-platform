@@ -6,6 +6,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureMerge;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -109,7 +111,24 @@ public class ChainStructureCaptureTool {
       }
       ChainStructure normalized =
           mergeConfiguredTriggerProperties(conversationId, sanitized.structure());
-      List<String> errors = graphValidator.validate(normalized.graph());
+      ChainPlanGraph graphUnderTest;
+      try {
+        graphUnderTest = asMergedOntoEditedChain(conversationId, normalized.graph());
+      } catch (IllegalArgumentException e) {
+        return finish(
+            conversationId,
+            startMs,
+            outcomeGateway.onFailure(
+                CaptureFeedbackChannel.PLAN,
+                conversationId,
+                null,
+                CaptureFailureKind.VALIDATION,
+                CaptureFailureClass.CORRECTABLE,
+                "captureChainStructure",
+                capture,
+                "Structure validation failed:\n" + e.getMessage()));
+      }
+      List<String> errors = graphValidator.validate(graphUnderTest);
       if (!errors.isEmpty()) {
         String message = "Structure validation failed:\n" + String.join("\n", errors);
         return finish(
@@ -143,6 +162,27 @@ public class ChainStructureCaptureTool {
           LOG, "captureChainStructure", conversationId, System.currentTimeMillis() - startMs, e);
       return "Error capturing chain structure: " + e.getMessage();
     }
+  }
+
+  /**
+   * Returns the graph this capture actually produces, so validation judges that and not a draft.
+   *
+   * <p>An edit captures a chain that already exists, and the compiler merges the capture onto that
+   * chain before anything is built: the merge restores connections the capture dropped and pins
+   * fields it echoed differently. Validating the raw capture therefore reports defects the merge
+   * repairs, and misses none it does not. A CREATE run publishes no base, and its capture is the
+   * whole graph already.
+   *
+   * <p>A merge the compiler would refuse is raised as an {@link IllegalArgumentException} here, one
+   * turn earlier than before, so the generator is asked to correct it while it still can.
+   */
+  private ChainPlanGraph asMergedOntoEditedChain(String conversationId, ChainPlanGraph captured) {
+    return captureSession
+        .get(
+            CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, conversationId),
+            ChainEditStructureBase.class)
+        .map(base -> ChainEditStructureMerge.merge(base.baseGraph(), captured, base.intent()))
+        .orElse(captured);
   }
 
   /**

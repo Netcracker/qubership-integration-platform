@@ -1,9 +1,13 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
@@ -38,15 +42,23 @@ public final class ChainEditCapabilitySelection {
   /**
    * The skill that owns this edit, or empty when the pinned package has none.
    *
-   * <p>An addition is answered by ownership rather than by a table: whichever generator may add the
-   * requested element type is the one that also configures it, so placement and configuration stay
-   * with one owner instead of being split across a structure pass and a domain pass.
+   * <p>A simple addition prefers the generator that already configures that element type. Java
+   * places its shell before this owner fills it. Compound additions use
+   * {@link #structuralGeneratorPlans} after the shared structure stage instead.
    */
   public static Optional<String> owningSkillId(ResolvedCompilerDag dag, ChainEditIntent intent) {
     if (intent.action() == ChainEditAction.ADD_ELEMENTS) {
       String type = intent.requestedElementType();
       if (type == null) {
         return Optional.empty();
+      }
+      Optional<String> propertyOwner =
+          dag.nodes().stream()
+              .filter(node -> node.ownership() != null && node.ownership().properties().containsKey(type))
+              .map(ResolvedCompilerNode::skillId)
+              .findFirst();
+      if (propertyOwner.isPresent()) {
+        return propertyOwner;
       }
       return dag.nodes().stream()
           .filter(node -> node.ownership() != null && node.ownership().mayAddNodes())
@@ -91,6 +103,61 @@ public final class ChainEditCapabilitySelection {
       }
     }
     return List.copyOf(scoped);
+  }
+
+  /**
+   * Configuration owners for nodes introduced by a structure capture.
+   *
+   * <p>Structure owns node placement. A downstream generator is selected only when its pinned
+   * ownership metadata declares properties for one of the new node types, and it receives only
+   * those new node ids.
+   */
+  public static List<GeneratorPlan> structuralGeneratorPlans(
+      ResolvedCompilerDag dag,
+      ChainPlanGraph base,
+      ChainPlanGraph structured,
+      ChainEditIntent intent) {
+    Set<String> baseNodeIds = new LinkedHashSet<>();
+    if (base.nodes() != null) {
+      for (ChainPlanNode node : base.nodes()) {
+        if (node != null && node.nodeId() != null) {
+          baseNodeIds.add(node.nodeId());
+        }
+      }
+    }
+    List<ChainPlanNode> addedNodes =
+        structured.nodes() == null
+            ? List.of()
+            : structured.nodes().stream()
+                .filter(node -> node != null && !baseNodeIds.contains(node.nodeId()))
+                .toList();
+    List<GeneratorPlan> plans = new ArrayList<>();
+    for (ResolvedCompilerNode node : dag.nodes()) {
+      GraphPatchOwnershipPolicy ownership = node.ownership();
+      if (ownership == null || ownership.properties().isEmpty()) {
+        continue;
+      }
+      List<String> targetNodeIds =
+          addedNodes.stream()
+              .filter(candidate -> ownership.properties().containsKey(candidate.type()))
+              .map(ChainPlanNode::nodeId)
+              .toList();
+      if (targetNodeIds.isEmpty()) {
+        continue;
+      }
+      String generatorId =
+          node.generatorId() == null || node.generatorId().isBlank()
+              ? node.skillId()
+              : node.generatorId();
+      plans.add(
+          new GeneratorPlan(
+              generatorId,
+              node.skillId(),
+              GeneratorPlanStatus.READY,
+              List.of(intent.action().name()),
+              targetNodeIds));
+    }
+    return List.copyOf(plans);
   }
 
   private static GraphPatchOwnershipPolicy ownershipOf(ResolvedCompilerDag dag, String skillId) {

@@ -15,6 +15,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.ChildlessOptionalContainerPruner;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflight;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
@@ -52,18 +53,19 @@ public class ChainPlanSkeletonMaterializer {
         Objects.requireNonNull(generatedChildRemover, "generatedChildRemover");
   }
 
-  public MaterializationMap materializeElements(ChainPlanGraph graph, String chainId) {
-    Objects.requireNonNull(graph, "graph");
+  public MaterializationMap materializeElements(ChainPlanGraph rawGraph, String chainId) {
+    Objects.requireNonNull(rawGraph, "graph");
     if (chainId == null || chainId.isBlank()) {
       throw new IllegalArgumentException("chainId is required");
     }
-    if (graph.nodes() == null || graph.nodes().isEmpty()) {
+    if (rawGraph.nodes() == null || rawGraph.nodes().isEmpty()) {
       throw new IllegalArgumentException("graph must contain at least one node");
     }
 
     CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
-    new DesiredGraphDescriptorPreflight()
-        .validate(graph, emptyCurrentGraph(graph), cache);
+    ChainPlanGraph emptyCurrent = emptyCurrentGraph(rawGraph);
+    ChainPlanGraph graph = ChildlessOptionalContainerPruner.prune(rawGraph, emptyCurrent, cache);
+    new DesiredGraphDescriptorPreflight().validate(graph, emptyCurrent, cache);
 
     try {
       Map<String, String> nodeIdToElementId = new LinkedHashMap<>();

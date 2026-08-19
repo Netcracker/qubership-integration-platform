@@ -5,7 +5,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditPlacement;
 import org.qubership.integration.platform.ai.chain.edit.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -40,7 +42,7 @@ public record CompilerExecutionSeed(
   /** The skill CREATE marks satisfied before the compiler DAG starts. */
   public static final String REQUIREMENT_ANALYZER_SKILL = "cip-requirement-analyzer";
 
-  /** Upstream CREATE skills an edit never runs: the imported chain already answers them. */
+  /** Upstream CREATE skills that a property-only edit never runs. */
   public static final Set<String> EDIT_PRE_SATISFIED_SKILLS =
       Set.of(
           REQUIREMENT_ANALYZER_SKILL,
@@ -132,10 +134,18 @@ public record CompilerExecutionSeed(
             new SkillArtifactPayload.ServiceCallBindingsPayload(
                 bindings == null ? List.of() : bindings)));
     LinkedHashSet<String> preSatisfied = new LinkedHashSet<>(EDIT_PRE_SATISFIED_SKILLS);
+    if (requiresStructureStage(intent)) {
+      preSatisfied.remove("cip-structure-generator");
+    }
     if (extraPreSatisfiedSkillIds != null) {
       preSatisfied.addAll(extraPreSatisfiedSkillIds);
     }
     return new CompilerExecutionSeed(workspaceId, true, text, artifacts, preSatisfied);
+  }
+
+  private static boolean requiresStructureStage(ChainEditIntent intent) {
+    return intent.action() == ChainEditAction.ADD_ELEMENTS
+        && intent.placement() == ChainEditPlacement.GENERATOR;
   }
 
   /** The same seed with one more artifact, for callers that scope a run after building it. */

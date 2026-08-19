@@ -13,6 +13,10 @@ import java.util.Set;
 import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditPlacement;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -235,6 +239,67 @@ class ChainStructureCaptureToolTest {
                     "dup"));
 
     assertTrue(thrown.getMessage().contains("does not match slot"));
+  }
+
+  @Test
+  void acceptsAWrapWhoseTriggerEdgeOnlyTheMergeRestores() {
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), wrapIntent()));
+
+    CaptureValidationException accepted =
+        assertThrows(
+            CaptureValidationException.class,
+            () -> tool.captureChainStructure(new ChainStructure(wrapCapture(), List.of(), List.of())));
+
+    assertTrue(accepted.getMessage().contains("Chain structure captured"));
+  }
+
+  @Test
+  void reportsAMergeTheCompilerWouldRefuseAsRepairableFeedback() {
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), wrapIntent()));
+    ChainPlanGraph reparentsTheTrigger =
+        new ChainPlanGraph(
+            "1.0",
+            validGraph().chain(),
+            List.of(
+                new ChainPlanNode("http-trigger-1", "http-trigger", "HTTP Trigger", "try-1", 1, List.of()),
+                new ChainPlanNode("script-1", "script", "Script", "try-1", 2, List.of()),
+                new ChainPlanNode("wrap-1", "try-catch-finally-2", "Wrap", null, null, List.of()),
+                new ChainPlanNode("try-1", "try-2", "Try", "wrap-1", null, List.of())),
+            List.of());
+
+    String result =
+        tool.captureChainStructure(new ChainStructure(reparentsTheTrigger, List.of(), List.of()));
+
+    assertTrue(result.contains("reparented non-target node"), result);
+  }
+
+  /** A wrap whose capture lists no edges at all; the merge has to bring the trigger's over. */
+  private static ChainPlanGraph wrapCapture() {
+    return new ChainPlanGraph(
+        "1.0",
+        validGraph().chain(),
+        List.of(
+            new ChainPlanNode("http-trigger-1", "http-trigger", "HTTP Trigger", null, 1, List.of()),
+            new ChainPlanNode("script-1", "script", "Script", "try-1", 2, List.of()),
+            new ChainPlanNode("wrap-1", "try-catch-finally-2", "Wrap", null, null, List.of()),
+            new ChainPlanNode("try-1", "try-2", "Try", "wrap-1", null, List.of())),
+        List.of());
+  }
+
+  private static ChainEditIntent wrapIntent() {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of("script-1"),
+        "wrap the script with error handling",
+        null,
+        "try-catch-finally-2",
+        null,
+        ChainEditPlacement.GENERATOR,
+        List.of());
   }
 
   private static ChainStructure validStructure() {

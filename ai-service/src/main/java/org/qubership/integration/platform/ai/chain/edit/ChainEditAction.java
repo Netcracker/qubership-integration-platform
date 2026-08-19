@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import java.util.Locale;
+
 /**
  * What an edit request asks the compiler to do to an imported chain.
  *
@@ -9,6 +12,8 @@ package org.qubership.integration.platform.ai.chain.edit;
  * reaching the skill that may rewrite credentials.
  */
 public enum ChainEditAction {
+  /** The capture names no change. Emit this value; never an empty string. */
+  NO_CHANGE,
   /** Point an existing service-call at another catalog operation. */
   REBIND_SERVICE_CALL,
   /** Rewrite the body of an existing script element. */
@@ -30,5 +35,24 @@ public enum ChainEditAction {
   /** Change the priority order of container branches. */
   REORDER,
   /** The request did not resolve to one action. */
-  UNRESOLVED
+  UNRESOLVED;
+
+  /**
+   * Maps a capture value onto this enum. Blank or unknown names become {@link #NO_CHANGE} so the
+   * parser does not throw when the model omits a real action.
+   */
+  @JsonCreator
+  public static ChainEditAction fromCaptureValue(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return NO_CHANGE;
+    }
+    String normalized =
+        raw.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+    for (ChainEditAction value : values()) {
+      if (value.name().equals(normalized)) {
+        return value;
+      }
+    }
+    return NO_CHANGE;
+  }
 }

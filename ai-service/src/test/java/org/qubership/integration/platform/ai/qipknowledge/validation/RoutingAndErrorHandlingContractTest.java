@@ -36,14 +36,26 @@ class RoutingAndErrorHandlingContractTest {
   }
 
   @Test
-  void errorHandlingAddonBindsWrapToEditTargetsAndNeverReparentsATrigger() throws Exception {
+  void errorHandlingAddonOwnsPropertiesButNotTopology() throws Exception {
     String addon =
         Files.readString(
             QipKnowledgePackFixturePaths.addonRoot()
                 .resolve("skills/cip-error-handling-generator.addon.md"));
 
-    assertTrue(addon.contains("edit target"));
-    assertTrue(addon.contains("Never reparent a trigger"));
-    assertFalse(addon.contains("reparent existing flow nodes under"));
+    assertTrue(addon.contains("`cip-structure-generator` owns wrapper nodes"));
+    assertTrue(addon.contains("Never emit `nodePatches` or"));
+    assertTrue(addon.contains("`edgePatches`"));
+    assertTrue(addon.contains("`catch-2` | `exception`, `priority`"));
+    assertTrue(addon.contains("mayAddNodes: false"));
+    assertTrue(addon.contains("mayAddEdges: false"));
+  }
+
+  @Test
+  void errorHandlingAddonShipsNoTopologyPatchExample() {
+    Path example =
+        QipKnowledgePackFixturePaths.addonRoot()
+            .resolve("examples/cip-error-handling-generator/add-try-catch-wrapper-atomic.json");
+
+    assertFalse(Files.exists(example));
   }
 }

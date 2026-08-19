@@ -229,7 +229,7 @@ class GeneratorPlanManifestBuilderTest {
   }
 
   @Test
-  void fortuneWithCompleteTryCatchMarksRoutingReadyAndEhReadyForUnwantedNodes() {
+  void completeTryCatchDoesNotRouteTopologyRemovalToTheConfigurationOwner() {
     InMemorySkillWorkspace workspace =
         workspaceWithGraph(fortuneWithCompleteTryCatchGraph(), fortunePrompt(), fortunePrompt());
 
@@ -241,10 +241,7 @@ class GeneratorPlanManifestBuilderTest {
     assertEquals(GeneratorPlanStatus.READY, statusFor(manifest, "cip-routing-generator"));
     assertTrue(
         matchedSignals(manifest, "cip-routing-generator").contains("routing_nodes"));
-    assertEquals(GeneratorPlanStatus.READY, statusFor(manifest, "cip-error-handling-generator"));
-    assertTrue(
-        matchedSignals(manifest, "cip-error-handling-generator")
-            .contains("unwanted_error_handling_nodes"));
+    assertEquals(GeneratorPlanStatus.SKIPPED, statusFor(manifest, "cip-error-handling-generator"));
   }
 
   @Test

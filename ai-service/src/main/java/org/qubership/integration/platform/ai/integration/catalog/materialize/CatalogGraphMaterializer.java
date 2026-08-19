@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.ChildlessOptionalContainerPruner;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflight;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ProjectionAction;
@@ -73,12 +74,21 @@ public class CatalogGraphMaterializer {
   public CatalogGraphMaterializeResult apply(
       String chainId,
       ChainPlanGraph currentGraph,
-      ChainPlanGraph desiredGraph,
+      ChainPlanGraph rawDesiredGraph,
       MaterializationMap materializationMap) {
     Objects.requireNonNull(chainId, "chainId");
     Objects.requireNonNull(currentGraph, "currentGraph");
-    Objects.requireNonNull(desiredGraph, "desiredGraph");
+    Objects.requireNonNull(rawDesiredGraph, "desiredGraph");
     Objects.requireNonNull(materializationMap, "materializationMap");
+
+    // Pruning precedes the diff so a dropped container never reaches addedNodeIds.
+    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
+    ChainPlanGraph desiredGraph;
+    try {
+      desiredGraph = ChildlessOptionalContainerPruner.prune(rawDesiredGraph, currentGraph, cache);
+    } catch (CatalogElementDescriptorException e) {
+      return failedPreflight(chainId, materializationMap, e.getMessage());
+    }
 
     GraphPatch patch =
         CanonicalGraphDiff.between(
@@ -98,7 +108,6 @@ public class CatalogGraphMaterializer {
     List<EdgeReplacement> replacements = edgeReplacements(patch, currentGraph);
     List<ParentTransfer> parentTransfers = parentTransfers(patch, currentGraph);
 
-    CatalogElementDescriptorCache cache = new CatalogElementDescriptorCache(descriptorLoader);
     try {
       new DesiredGraphDescriptorPreflight().validate(desiredGraph, currentGraph, cache);
     } catch (DesiredGraphDescriptorPreflightException e) {
