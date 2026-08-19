@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -152,10 +153,14 @@ public class SystemService extends SystemBaseService {
     }
 
     protected Long getConnectTimeout(Environment activeEnvironment) {
-        return activeEnvironment != null && activeEnvironment.getProperties().get(CONNECT_TIMEOUT) != null
-                ? activeEnvironment.getProperties().get(CONNECT_TIMEOUT).asLong(120000L)
-                : 120000L;
-
+        long timeout = 120000L;
+        JsonNode environmentProperties = activeEnvironment != null
+            ? activeEnvironment.getProperties()
+            : null;
+        timeout = environmentProperties != null
+            ? environmentProperties.get(CONNECT_TIMEOUT).asLong(120000L)
+            : timeout;
+        return timeout;
     }
 
     @Transactional
