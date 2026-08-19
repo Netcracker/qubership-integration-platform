@@ -221,7 +221,9 @@ public class ChainEditIntentResolver {
             : List.of();
       }
       if (disposition == ChainEditDisposition.NEST) {
-        return List.of();
+        return resolvedTargets.isEmpty()
+            ? List.of("Say which element the new one should wrap.")
+            : List.of();
       }
       if (resolvedTargets.isEmpty()) {
         return List.of("Say where to place the new element.");
