@@ -25,11 +25,11 @@ import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainF
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -64,8 +64,12 @@ class DesignGeneratorServiceBlockFilteringTest {
         dependencyService = mock(DependencyService.class);
 
         LibraryElementsService libraryService = mock(LibraryElementsService.class);
-        when(libraryService.getElementDescriptor(any(ChainElement.class)))
-                .thenAnswer(invocation -> descriptors.get(((ChainElement) invocation.getArgument(0)).getType()));
+        when(libraryService.lookupElementDescriptor(anyString()))
+                .thenAnswer(invocation ->
+                        Optional.ofNullable(descriptors.get(invocation.getArgument(0, String.class))));
+        when(libraryService.getElementDescriptorOrDefault(anyString()))
+                .thenAnswer(invocation ->
+                        descriptors.getOrDefault(invocation.getArgument(0, String.class), new ElementDescriptor()));
 
         ChainFinderService chainFinderService = mock(ChainFinderService.class);
         when(chainFinderService.findById(anyString()))
