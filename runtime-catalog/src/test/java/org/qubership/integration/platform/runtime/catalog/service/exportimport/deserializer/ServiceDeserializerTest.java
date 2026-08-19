@@ -168,13 +168,12 @@ class ServiceDeserializerTest {
     /**
      * Locks in the legacy inline layout, where the specification groups live inside the system YAML
      * rather than in separate files. The reader maps each embedded group and stamps its parent id
-     * with the owning system, but it does not descend into the groups: the embedded system models
-     * and specification sources are not carried into the entity graph. This test is a regression
-     * oracle for that exact behavior, so the refactor that moves the read into the library must
-     * reproduce it unchanged.
+     * with the owning system. It reads the inline system models a group keeps beside its
+     * {@code content}, but not the ones nested inside {@code content}, which this archive uses, so
+     * the group here keeps an empty model list.
      */
     @Test
-    void deserializeSystemMapsLegacyInlineGroupsWithoutDescendingIntoModels(@TempDir Path archiveDir) throws Exception {
+    void deserializeSystemMapsLegacyInlineGroupsNestedUnderContentWithoutModels(@TempDir Path archiveDir) throws Exception {
         String legacyServiceYaml = """
                 $schema: http://qubership.org/schemas/product/qip/service
                 id: system-legacy

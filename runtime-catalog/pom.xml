@@ -240,7 +240,7 @@
         <artifactId>swagger-core-jakarta</artifactId>
         <version>${swagger-core.version}</version>
       </dependency>
-      <!-- Mapper dependencies -->      <!-- GRPC -->
+      <!-- GRPC -->
       <dependency>
         <groupId>io.grpc</groupId>
         <artifactId>grpc-protobuf</artifactId>

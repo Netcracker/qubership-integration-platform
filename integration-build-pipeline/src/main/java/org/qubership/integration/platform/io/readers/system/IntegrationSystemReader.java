@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.chain.impl.ImportSpecificationGroupImpl;
 import org.qubership.integration.platform.chain.impl.ImportSpecificationSourceImpl;
 import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
 import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
@@ -32,6 +31,7 @@ import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.chain.model.ImportSystemModel;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
@@ -72,10 +72,9 @@ import static org.qubership.integration.platform.io.model.exportimport.ExportImp
  *
  * <p>A modern export keeps each specification group and system model in its own file that shares the
  * archive directory with the system YAML; the reader walks that directory to collect them. A legacy
- * export instead embeds the groups in the system YAML, with their system models, operations, and
- * specification sources nested inside them and their fields sitting next to the identity rather than
- * under a {@code content} block. The reader descends into those groups as well, lifting each nested
- * model into the current shape before mapping it.
+ * export instead embeds the groups in the system YAML. The reader maps each embedded group, stamps
+ * it with its parent system, and descends into the system models the group carries inline, so a
+ * legacy archive imports the same graph a modern one does.
  */
 @Slf4j
 @Component
@@ -108,9 +107,9 @@ public class IntegrationSystemReader {
      * Reads the integration system rooted at {@code systemFile}.
      *
      * <p>The archive directory is the file's parent. For a modern export the reader collects the
-     * specification groups and system models from the sibling files there; for a legacy export it
-     * reads the groups and their nested models embedded in the system YAML. Either way it loads each
-     * specification source's text from the archive.
+     * specification groups and system models from the sibling files there and loads each
+     * specification source's text; for a legacy export it maps the groups embedded in the system
+     * YAML.
      *
      * @param systemFile the exported integration-system YAML file
      * @throws IllegalArgumentException if the file cannot be read or migrated
@@ -125,9 +124,9 @@ public class IntegrationSystemReader {
             ImportSystemImpl model = (ImportSystemImpl) toModel(dto);
 
             if (hasEmbeddedGroups(dto)) {
-                JsonNode migratedSystemNode = yamlMapper.readTree(migratedYaml);
+                ObjectNode migratedSystemNode = (ObjectNode) yamlMapper.readTree(migratedYaml);
                 model.setSpecificationGroups(readLegacyGroups(
-                        model, migratedSystemNode, new Versions(originalSystemNode), archiveDirectory));
+                        model, dto, migratedSystemNode, new Versions(originalSystemNode), archiveDirectory));
             } else {
                 model.setSpecificationGroups(
                         readSeparateGroupsAndModels(archiveDirectory, model.getId(), originalSystemNode));
@@ -158,48 +157,50 @@ public class IntegrationSystemReader {
     }
 
     /**
-     * Walks the groups embedded in the system YAML, stamping each with the owning system id and
-     * retaining only the ones that point at it.
+     * Reads the specification groups a legacy export embeds in the system YAML.
      *
-     * <p>The base mapping already produced a group per entry, but a legacy entry keeps
-     * {@code synchronization} and {@code systemModels} beside the identity instead of under
-     * {@code content}, so neither survives that mapping. Both are read here from the migrated YAML
-     * node the entry came from. A group whose node cannot be located is dropped rather than imported
-     * half-populated.
+     * <p>Each group is stamped with the owning system id and kept only when it points at that
+     * system, matching the separate-file path. The raw YAML node of the group carries the inline
+     * system models, which the mapped DTO drops, so the models are read from that node.
      */
     private List<ImportSpecificationGroup> readLegacyGroups(
             ImportSystem model,
-            JsonNode migratedSystemNode,
+            IntegrationSystemDto dto,
+            ObjectNode migratedSystemNode,
             Versions versions,
             File archiveDirectory
     ) {
-        JsonNode groupsArray = migratedSystemNode.path(CONTENT).path(SPECIFICATION_GROUPS_FIELD);
         List<ImportSpecificationGroup> groups = new ArrayList<>();
-        for (ImportSpecificationGroup group : model.getSpecificationGroups()) {
-            ImportSpecificationGroupImpl groupModel = (ImportSpecificationGroupImpl) group;
-            if (model.getId() != null) {
-                groupModel.setParentId(model.getId());
-            }
-            if (!Objects.equals(groupModel.getParentId(), model.getId())) {
-                continue;
-            }
-            JsonNode groupNode = findGroupNode(groupsArray, groupModel.getId());
+        List<SpecificationGroupDto> groupDtos = dto.getContent().getSpecificationGroups();
+        JsonNode groupsArray = migratedSystemNode.path(CONTENT).path(SPECIFICATION_GROUPS_FIELD);
+        for (SpecificationGroupDto groupDto : groupDtos) {
+            JsonNode groupNode = findSpecificationGroup(groupsArray, groupDto.getId());
             if (groupNode.isMissingNode() || groupNode.isNull()) {
                 continue;
             }
-            applyLegacySynchronization(groupModel, groupNode);
-            groupModel.setSystemModels(
-                    readLegacyModels(groupNode, groupModel.getId(), versions, archiveDirectory));
-            groups.add(groupModel);
+            setGroupParentId(groupDto, model.getId());
+            applySynchronization(groupDto, groupNode);
+
+            ImportSpecificationGroup group = buildGroup((ObjectNode) yamlMapper.valueToTree(groupDto), versions);
+            if (!Objects.equals(group.getParentId(), model.getId())) {
+                continue;
+            }
+            groups.add(group);
+
+            JsonNode systemModelsArray = groupNode.path(SYSTEM_MODELS_FIELD);
+            if (systemModelsArray.isMissingNode() || systemModelsArray.isNull()) {
+                continue;
+            }
+            readLegacySystemModels(systemModelsArray, groupDto.getId(), versions, archiveDirectory, groups);
         }
         return groups;
     }
 
     /**
-     * Finds the YAML node an embedded group was mapped from. A single-group export writes the entry
-     * as an object rather than a one-element array, so a non-array node is the group itself.
+     * Finds the raw node of one embedded group by id. A single embedded group may be written as a
+     * lone object rather than a one-element array, which is returned as-is.
      */
-    private static JsonNode findGroupNode(JsonNode groupsArray, String groupId) {
+    private static JsonNode findSpecificationGroup(JsonNode groupsArray, String groupId) {
         if (!groupsArray.isArray()) {
             return groupsArray;
         }
@@ -211,56 +212,67 @@ public class IntegrationSystemReader {
         return MissingNode.getInstance();
     }
 
-    private static void applyLegacySynchronization(ImportSpecificationGroupImpl group, JsonNode groupNode) {
+    private static void setGroupParentId(SpecificationGroupDto group, String systemId) {
+        if (group.getContent() == null) {
+            group.setContent(SpecificationGroupContentDto.builder().build());
+        }
+        if (systemId != null) {
+            group.getContent().setParentId(systemId);
+        }
+    }
+
+    /**
+     * Carries the synchronization flag over from the raw node, which holds it either under
+     * {@code content} or, in the oldest layout, directly on the group.
+     */
+    private static void applySynchronization(SpecificationGroupDto group, JsonNode groupNode) {
         JsonNode synchronization = groupNode.path(CONTENT).path(SYNCHRONIZATION_FIELD);
         if (synchronization.isMissingNode() || synchronization.isNull()) {
             synchronization = groupNode.path(SYNCHRONIZATION_FIELD);
         }
         if (!synchronization.isMissingNode() && !synchronization.isNull()) {
-            group.setSynchronization(synchronization.asBoolean());
+            group.getContent().setSynchronization(synchronization.asBoolean());
         }
     }
 
-    private List<ImportSystemModel> readLegacyModels(
-            JsonNode groupNode,
+    private void readLegacySystemModels(
+            JsonNode systemModelsArray,
             String groupId,
             Versions versions,
-            File archiveDirectory
+            File archiveDirectory,
+            List<ImportSpecificationGroup> groups
     ) {
-        List<ImportSystemModel> systemModels = new ArrayList<>();
-        JsonNode systemModelsArray = groupNode.path(SYSTEM_MODELS_FIELD);
-        if (systemModelsArray.isMissingNode() || systemModelsArray.isNull()) {
-            return systemModels;
-        }
         if (!systemModelsArray.isArray()) {
-            addLegacyModel(systemModels, systemModelsArray, groupId, versions, archiveDirectory);
-            return systemModels;
+            readLegacySystemModel(systemModelsArray, groupId, versions, archiveDirectory, groups);
+            return;
         }
         for (JsonNode systemModelNode : systemModelsArray) {
-            addLegacyModel(systemModels, systemModelNode, groupId, versions, archiveDirectory);
+            readLegacySystemModel(systemModelNode, groupId, versions, archiveDirectory, groups);
         }
-        return systemModels;
     }
 
-    private void addLegacyModel(
-            List<ImportSystemModel> systemModels,
+    private void readLegacySystemModel(
             JsonNode systemModelNode,
             String groupId,
             Versions versions,
-            File archiveDirectory
+            File archiveDirectory,
+            List<ImportSpecificationGroup> groups
     ) {
         if (systemModelNode.isMissingNode() || systemModelNode.isNull() || !systemModelNode.isObject()) {
             return;
         }
-        systemModels.add(buildModel(
-                prepareSystemModelNode(systemModelNode, groupId), versions, archiveDirectory));
+        ImportSystemModel systemModel =
+                buildModel(prepareSystemModelNode(systemModelNode, groupId), versions, archiveDirectory);
+        groups.stream()
+                .filter(group -> Objects.equals(group.getId(), systemModel.getParentId()))
+                .findFirst()
+                .ifPresent(group -> group.getSystemModels().add(systemModel));
     }
 
     /**
-     * Lifts a legacy system-model node into the current shape: its fields move under {@code content},
-     * the owning group is stamped as the parent, and the nested operations and specification sources
-     * are carried across. Older exports keep those two lists beside the identity even when the rest
-     * of the node already uses {@code content}, so they are merged in separately.
+     * Normalizes one inline system model to the shape {@link #buildModel} expects: fields under
+     * {@code content}, a parent id pointing at the owning group, and the operations and
+     * specification sources the oldest layout keeps beside {@code content} rather than inside it.
      */
     private ObjectNode prepareSystemModelNode(JsonNode systemModelNode, String groupId) {
         ObjectNode result = systemModelNode.has(CONTENT)
@@ -277,8 +289,7 @@ public class IntegrationSystemReader {
         if (!legacyField.isArray() || legacyField.isEmpty()) {
             return;
         }
-        JsonNode content = model.path(CONTENT);
-        if (content instanceof ObjectNode contentObject
+        if (model.path(CONTENT) instanceof ObjectNode contentObject
                 && (!contentObject.has(fieldName) || contentObject.get(fieldName).isEmpty())) {
             contentObject.set(fieldName, legacyField);
         }
@@ -365,14 +376,14 @@ public class IntegrationSystemReader {
 
     /**
      * Reads a specification source's text from the archive directory, or returns {@code null} when
-     * the file is missing.
+     * the file is missing. Falls back to the resources subfolder when the recorded file name does
+     * not resolve directly, matching how the sources are laid out on export.
      *
-     * <p>Older exports leave the file name blank, so the source name and then its id stand in for
-     * it. When the resolved name does not match a file directly, the lookup retries under the
-     * resources subfolder, matching how the sources are laid out on export.
+     * <p>Older archives omit the file name, so the lookup falls back to the source's name and then
+     * its id.
      */
     private String readSpecificationSource(ImportSpecificationSource source, File archiveDirectory) {
-        String fileName = StringUtils.firstNonBlank(source.getFileName(), source.getName(), source.getId());
+        String fileName = extractSpecSourceFileName(source);
         Path sourcePath = archiveDirectory.toPath().resolve(fileName);
         if (!Files.exists(sourcePath) && !fileName.contains(RESOURCES_FOLDER_PREFIX)) {
             sourcePath = archiveDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + fileName);
@@ -386,6 +397,10 @@ public class IntegrationSystemReader {
         } catch (IOException e) {
             throw new RuntimeException("Failed to read specification source", e);
         }
+    }
+
+    private static String extractSpecSourceFileName(ImportSpecificationSource source) {
+        return StringUtils.firstNonBlank(source.getFileName(), source.getName(), source.getId());
     }
 
     private static Collection<File> listFiles(File archiveDirectory) {
