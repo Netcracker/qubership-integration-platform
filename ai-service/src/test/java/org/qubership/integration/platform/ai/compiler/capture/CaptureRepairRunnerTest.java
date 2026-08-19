@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +30,37 @@ class CaptureRepairRunnerTest {
     CaptureRepairMessageBuilder messageBuilder =
         new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class));
     runner = new CaptureRepairRunner(messageBuilder, feedbackStore, 1);
+  }
+
+  @Test
+  void aFailureThatForbidsTheOuterTurnIsNotRetried() {
+    AtomicInteger calls = new AtomicInteger();
+
+    List<String> tokens =
+        runner
+            .runWithRepair(
+                message -> {
+                  calls.incrementAndGet();
+                  feedbackStore.recordClassifiedPlanFailure(
+                      "conv-1",
+                      CaptureFailureKind.VALIDATION,
+                      CaptureFailureClass.IDENTICAL_SPAM,
+                      false,
+                      "Structure validation failed:\nremoved existing node '<id>'");
+                  return Multi.createFrom().empty();
+                },
+                () -> false,
+                () -> feedbackStore.lastPlanFailure("conv-1"),
+                () -> {},
+                "captureChainStructure",
+                "initial")
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(0, tokens.size());
+    assertEquals(1, calls.get());
   }
 
   @Test

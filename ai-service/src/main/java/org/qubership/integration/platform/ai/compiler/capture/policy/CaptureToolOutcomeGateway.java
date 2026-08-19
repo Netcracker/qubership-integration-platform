@@ -11,9 +11,13 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 /**
  * Sole adapter exit for capture validation failures (ADR 0003).
  *
- * <p>Adapters classify into {@link CaptureFailureClass} and supply fingerprint args; this gateway
- * owns soft budgets, IDENTICAL_SPAM escalation, feedback recording, and CVE. Callers must not also
- * write to {@link CaptureAttemptFeedbackStore} for the same failure (no double-record).
+ * <p>Adapters classify into {@link CaptureFailureClass}; this gateway owns soft budgets,
+ * IDENTICAL_SPAM escalation, feedback recording, and CVE. Callers must not also write to {@link
+ * CaptureAttemptFeedbackStore} for the same failure (no double-record).
+ *
+ * <p>The soft budget is keyed by the normalized rejection text, not by the payload that caused it.
+ * A generator answering a rejection re-emits its whole capture, so payload identity handed out a
+ * fresh credit on every attempt and never escalated to IDENTICAL_SPAM.
  */
 @ApplicationScoped
 public class CaptureToolOutcomeGateway {
@@ -99,7 +103,9 @@ public class CaptureToolOutcomeGateway {
     CaptureFailureKind safeKind = kind == null ? CaptureFailureKind.VALIDATION : kind;
     CaptureFailureClass classified =
         failureClass == null ? CaptureFailureClass.CORRECTABLE : failureClass;
-    String fingerprint = fingerprintStore.fingerprint(toolName, capabilityId, fingerprintArgs);
+    // ponytail: fingerprintArgs no longer keys the budget. Dropping the parameter touches 18 call
+    // sites, so it goes in its own mechanical change rather than this behavior fix.
+    String fingerprint = fingerprintStore.failureFingerprint(toolName, capabilityId, message);
     boolean softUsed = fingerprintStore.softCreditUsed(conversationId, fingerprint);
     CaptureFailureDecision decision =
         policy.decide(classified, CaptureAttemptState.forFingerprint(softUsed), message);

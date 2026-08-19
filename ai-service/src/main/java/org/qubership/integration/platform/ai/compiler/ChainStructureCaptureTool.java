@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditScopeException;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureMerge;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -123,7 +124,7 @@ public class ChainStructureCaptureTool {
                 conversationId,
                 null,
                 CaptureFailureKind.VALIDATION,
-                CaptureFailureClass.CORRECTABLE,
+                mergeFailureClass(e),
                 "captureChainStructure",
                 capture,
                 "Structure validation failed:\n" + e.getMessage()));
@@ -206,6 +207,18 @@ public class ChainStructureCaptureTool {
         conversationId);
     return new ChainStructure(
         merged, capture.sourceRequirementFactIds(), capture.knowledgeCitations());
+  }
+
+  /**
+   * Classifies a merge refusal. A scope refusal the intent itself causes is PERMANENT: the
+   * generator is being asked for a capture that cannot exist, so a soft retry would spend the
+   * turn restating an impossible request. Everything else is a capture the generator can correct.
+   */
+  private static CaptureFailureClass mergeFailureClass(IllegalArgumentException failure) {
+    if (failure instanceof ChainEditScopeException scope && scope.unsatisfiable()) {
+      return CaptureFailureClass.PERMANENT;
+    }
+    return CaptureFailureClass.CORRECTABLE;
   }
 
   private String previewCapture(ChainStructure capture) {

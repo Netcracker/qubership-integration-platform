@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.compiler.capture.policy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -87,7 +88,7 @@ class CaptureToolOutcomeGatewayTest {
     CaptureAttemptFeedback second =
         feedbackStore.lastPatchFailure("conv-1", "cap-1").orElseThrow();
     assertEquals(CaptureFailureClass.IDENTICAL_SPAM, second.failureClass());
-    assertTrue(second.outerAllowed());
+    assertFalse(second.outerAllowed());
   }
 
   @Test
@@ -141,6 +142,41 @@ class CaptureToolOutcomeGatewayTest {
     assertEquals(CaptureFailureClass.PERMANENT, feedback.failureClass());
     assertEquals(false, feedback.outerAllowed());
     assertEquals(0, fingerprintStore.softCreditsUsed("conv-1"));
+  }
+
+  @Test
+  void aReworkedPayloadEarningTheSameRejectionDoesNotBuyASecondSoftCredit() {
+    String soft =
+        gateway.onFailure(
+            CaptureFeedbackChannel.PLAN,
+            "conv-1",
+            null,
+            CaptureFailureKind.VALIDATION,
+            CaptureFailureClass.CORRECTABLE,
+            "captureChainStructure",
+            Map.of("graph", Map.of("nodes", java.util.List.of("a", "b", "c"))),
+            "structure capture removed existing node 'cc0b0f34'");
+
+    assertEquals("structure capture removed existing node 'cc0b0f34'", soft);
+
+    CaptureValidationException cve =
+        assertThrows(
+            CaptureValidationException.class,
+            () ->
+                gateway.onFailure(
+                    CaptureFeedbackChannel.PLAN,
+                    "conv-1",
+                    null,
+                    CaptureFailureKind.VALIDATION,
+                    CaptureFailureClass.CORRECTABLE,
+                    "captureChainStructure",
+                    Map.of("graph", Map.of("nodes", java.util.List.of("a", "b", "c", "d", "e"))),
+                    "structure capture removed existing node 'b978e8ff'"));
+
+    assertTrue(cve.getMessage().contains("Repeated capture validation failure"));
+    assertEquals(
+        CaptureFailureClass.IDENTICAL_SPAM,
+        feedbackStore.lastPlanFailure("conv-1").orElseThrow().failureClass());
   }
 
   @Test

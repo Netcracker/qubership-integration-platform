@@ -8,8 +8,9 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFail
  * repair (ADR 0003).
  *
  * <p>{@link #kind()} remains the wording channel for {@link CaptureRepairMessageBuilder}. {@link
- * #failureClass()} and {@link #outerAllowed()} own outer budgets: PERMANENT / TOOL_ARGUMENTS → no
- * outer; CORRECTABLE and IDENTICAL_SPAM escalated from CORRECTABLE → outer ≤ 1. {@link
+ * #failureClass()} and {@link #outerAllowed()} own outer budgets: PERMANENT, TOOL_ARGUMENTS, and
+ * IDENTICAL_SPAM → no outer; CORRECTABLE → outer ≤ 1. A repeated rejection gets no outer turn
+ * because the generator has already failed to answer that same complaint twice. {@link
  * #fieldHints()} carry actionable nested→top copy guidance when present.
  */
 public record CaptureAttemptFeedback(

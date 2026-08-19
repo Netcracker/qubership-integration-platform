@@ -29,6 +29,11 @@ public class ToolCallFingerprintStore {
     return ToolCallFingerprints.fingerprint(objectMapper, tool, capability, args);
   }
 
+  /** Soft-budget key for a rejection, so a reworded payload does not buy a fresh credit. */
+  public String failureFingerprint(String tool, String capability, String message) {
+    return ToolCallFingerprints.failureFingerprint(tool, capability, message);
+  }
+
   public boolean softCreditUsed(String conversationId, String fingerprint) {
     if (conversationId == null || conversationId.isBlank() || fingerprint == null) {
       return false;

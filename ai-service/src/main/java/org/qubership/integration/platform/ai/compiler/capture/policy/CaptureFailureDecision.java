@@ -17,9 +17,14 @@ public record CaptureFailureDecision(
         true, false, true, CaptureFailureClass.CORRECTABLE, message);
   }
 
+  /**
+   * The same rejection twice. The in-turn credit is spent and the outer turn is refused too: it
+   * would send "fix it and call the tool again" for a complaint the generator has already failed
+   * to answer twice.
+   */
   public static CaptureFailureDecision identicalSpamCve(String message) {
     return new CaptureFailureDecision(
-        false, true, true, CaptureFailureClass.IDENTICAL_SPAM, message);
+        false, true, false, CaptureFailureClass.IDENTICAL_SPAM, message);
   }
 
   public static CaptureFailureDecision permanentCve(String message) {
