@@ -441,6 +441,47 @@ class ChainEditIntentResolverTest {
     assertTrue(intent.resolved());
   }
 
+  @Test
+  void aNestWithNoTargetAsksWhichElementItWraps() {
+    ChainEditIntent intent =
+        resolve(
+            "add error handling to the service call",
+            new ChainEditCapture(
+                ChainEditAction.ADD_ELEMENTS,
+                List.of(),
+                "wrap the service call in try-catch",
+                null,
+                "try-catch-finally-2",
+                null,
+                List.of(),
+                List.of(),
+                ChainEditDisposition.NEST));
+
+    assertFalse(intent.resolved());
+    assertEquals(
+        List.of("Say which element the new one should wrap."), intent.unresolvedAmbiguities());
+  }
+
+  @Test
+  void aNestNamingTheElementItWrapsIsResolved() {
+    ChainEditIntent intent =
+        resolve(
+            "add error handling to the service call",
+            new ChainEditCapture(
+                ChainEditAction.ADD_ELEMENTS,
+                List.of("call-orders"),
+                "wrap the service call in try-catch",
+                null,
+                "try-catch-finally-2",
+                null,
+                List.of(),
+                List.of(),
+                ChainEditDisposition.NEST));
+
+    assertTrue(intent.resolved(), intent.unresolvedAmbiguities().toString());
+    assertEquals(List.of("call-orders"), intent.targetNodeIds());
+  }
+
   private static ChainEditIntent resolve(ChainEditCapture capture) {
     return resolve("change something", capture);
   }
