@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -198,6 +200,141 @@ class GraphPatchApplierTest {
     assertEquals(2, result.graph().nodes().size());
     assertEquals(1, result.graph().edges().size());
     assertEquals("script", result.graph().edges().getFirst().toNodeId());
+  }
+
+  @Test
+  void retargetsExistingWrapEdgeWhenEdgeIdMatchesTargetEdgeId() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode("main-step", "script", "Script", null, null, List.of())),
+            List.of(new ChainPlanEdge("trigger->main-step", "trigger", "main-step", null)));
+    GraphPatch patch =
+        new GraphPatch(
+            "add-try-catch-wrapper-atomic",
+            "cip-error-handling-generator",
+            List.of(
+                new NodePatch(
+                    GraphPatchOperation.ADD,
+                    new ChainPlanNode(
+                        "eh-wrap", "try-catch-finally-2", "Error handling", null, null, List.of()),
+                    null),
+                new NodePatch(
+                    GraphPatchOperation.ADD,
+                    new ChainPlanNode("try-shell", "try-2", "Try", "eh-wrap", null, List.of()),
+                    null),
+                new NodePatch(
+                    GraphPatchOperation.UPDATE,
+                    new ChainPlanNode(
+                        "main-step", "script", "Script", "try-shell", null, List.of()),
+                    "main-step")),
+            List.of(
+                new EdgePatch(
+                    GraphPatchOperation.UPDATE,
+                    new ChainPlanEdge("trigger->main-step", "trigger", "eh-wrap", null),
+                    "trigger->main-step")),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Wrap script; keep catalog edge id");
+
+    GraphPatchApplyResult result = applier.apply(graph, patch);
+
+    assertTrue(result.applied());
+    assertEquals(1, result.graph().edges().size());
+    assertEquals("trigger->main-step", result.graph().edges().getFirst().edgeId());
+    assertEquals("eh-wrap", result.graph().edges().getFirst().toNodeId());
+    assertEquals("try-shell", findNode(result.graph(), "main-step").parentNodeId());
+  }
+
+  @Test
+  void wrapKeepsEveryNodeReachableFromTheTrigger() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of()),
+                new ChainPlanNode("main-step", "script", "Script", null, null, List.of())),
+            List.of(new ChainPlanEdge("trigger->main-step", "trigger", "main-step", null)));
+    GraphPatch patch =
+        new GraphPatch(
+            "add-try-catch-wrapper-atomic",
+            "cip-error-handling-generator",
+            List.of(
+                new NodePatch(
+                    GraphPatchOperation.ADD,
+                    new ChainPlanNode(
+                        "eh-wrap", "try-catch-finally-2", "Error handling", null, null, List.of()),
+                    null),
+                new NodePatch(
+                    GraphPatchOperation.ADD,
+                    new ChainPlanNode("try-shell", "try-2", "Try", "eh-wrap", null, List.of()),
+                    null),
+                new NodePatch(
+                    GraphPatchOperation.ADD,
+                    new ChainPlanNode(
+                        "catch-shell", "catch-2", "Catch", "eh-wrap", null, List.of()),
+                    null),
+                new NodePatch(
+                    GraphPatchOperation.UPDATE,
+                    new ChainPlanNode(
+                        "main-step", "script", "Script", "try-shell", null, List.of()),
+                    "main-step")),
+            List.of(
+                new EdgePatch(
+                    GraphPatchOperation.UPDATE,
+                    new ChainPlanEdge("trigger->main-step", "trigger", "eh-wrap", null),
+                    "trigger->main-step")),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Wrap script; keep catalog edge id");
+
+    GraphPatchApplyResult result = applier.apply(graph, patch);
+
+    assertTrue(result.applied());
+    Set<String> reachable = reachableFromTriggers(result.graph());
+    assertTrue(reachable.contains("eh-wrap"), reachable.toString());
+    assertTrue(reachable.contains("try-shell"), reachable.toString());
+    assertTrue(reachable.contains("catch-shell"), reachable.toString());
+    assertTrue(reachable.contains("main-step"), reachable.toString());
+  }
+
+  @Test
+  void rejectsEdgeUpdateWhenEdgeIdDoesNotMatchTargetEdgeId() {
+    GraphPatch patch =
+        new GraphPatch(
+            "add-try-catch-wrapper-atomic",
+            "cip-error-handling-generator",
+            List.of(
+                new NodePatch(
+                    GraphPatchOperation.ADD,
+                    new ChainPlanNode(
+                        "eh-wrap", "try-catch-finally-2", "Error handling", null, null, List.of()),
+                    null)),
+            List.of(
+                new EdgePatch(
+                    GraphPatchOperation.UPDATE,
+                    new ChainPlanEdge("n1->eh-wrap", "n1", "eh-wrap", null),
+                    "e1")),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Rename edge id while wrapping");
+
+    GraphPatchApplyResult result = applier.apply(baseGraph, patch);
+
+    assertFalse(result.applied());
+    assertTrue(result.validationResult().hasBlockingIssues());
+    assertEquals(
+        "UPDATE edge patch edgeId 'n1->eh-wrap' does not match targetEdgeId 'e1'",
+        result.validationResult().issues().get(0).message());
+    assertEquals("e1", baseGraph.edges().getFirst().edgeId());
+    assertEquals("n2", baseGraph.edges().getFirst().toNodeId());
   }
 
   @Test
@@ -456,6 +593,34 @@ class GraphPatchApplierTest {
     assertEquals("Demo.Internal.Process", result.graph().chain().name());
     assertEquals("Demo chain with corporate naming", result.graph().chain().description());
     assertEquals("demo-chain", baseGraph.chain().name());
+  }
+
+  private static Set<String> reachableFromTriggers(ChainPlanGraph graph) {
+    Set<String> reachable = new HashSet<>();
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node.type() != null && node.type().contains("trigger")) {
+        reachable.add(node.nodeId());
+      }
+    }
+    boolean changed = true;
+    while (changed) {
+      changed = false;
+      for (ChainPlanNode node : graph.nodes()) {
+        if (node.parentNodeId() != null
+            && reachable.contains(node.parentNodeId())
+            && reachable.add(node.nodeId())) {
+          changed = true;
+        }
+      }
+      if (graph.edges() != null) {
+        for (ChainPlanEdge edge : graph.edges()) {
+          if (reachable.contains(edge.fromNodeId()) && reachable.add(edge.toNodeId())) {
+            changed = true;
+          }
+        }
+      }
+    }
+    return reachable;
   }
 
   private static ChainPlanNode findNode(ChainPlanGraph graph, String nodeId) {

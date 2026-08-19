@@ -37,6 +37,7 @@ if jq -e --arg s "$SCENARIO" '(.[$s].catalog.requiredTypes // []) | length == 0'
   && jq -e --arg s "$SCENARIO" '(.[$s].catalog.forbiddenTypes // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '(.[$s].catalog.properties // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '(.[$s].catalog.nestedContainers // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
+  && jq -e --arg s "$SCENARIO" '(.[$s].catalog.minTypeCounts // {} | keys) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '.[$s].catalog.skeleton == null' "$SCENARIOS_FILE" >/dev/null; then
   while IFS= read -r line; do
     [[ -n "$line" ]] && e2e_warn "catalog note: ${line}"
@@ -58,6 +59,17 @@ while IFS= read -r required_type; do
   e2e_pass "catalog has element type ${required_type}"
 done < <(jq -r --arg s "$SCENARIO" '.[$s].catalog.requiredTypes[]? // empty' "$SCENARIOS_FILE")
 
+while IFS= read -r row; do
+  [[ -n "$row" ]] || continue
+  elem_type="$(jq -r '.key' <<<"$row")"
+  min_count="$(jq -r '.value' <<<"$row")"
+  actual="$(jq -r --arg t "$elem_type" '[.[] | .. | objects | select(.type? == $t)] | length' "$elements_json")"
+  if ((actual < min_count)); then
+    e2e_fail "catalog type ${elem_type}: expected >= ${min_count} elements, got ${actual}"
+  fi
+  e2e_pass "catalog type ${elem_type} count=${actual} (min ${min_count})"
+done < <(jq -c --arg s "$SCENARIO" '.[$s].catalog.minTypeCounts // {} | to_entries[]' "$SCENARIOS_FILE")
+
 while IFS= read -r forbidden_type; do
   [[ -n "$forbidden_type" ]] || continue
   if jq -e --arg t "$forbidden_type" '[.[] | .. | objects | select(.type? == $t)] | length > 0' \
@@ -71,17 +83,28 @@ while IFS= read -r row; do
   [[ -n "$row" ]] || continue
   elem_type="$(jq -r '.type' <<<"$row")"
   prop_key="$(jq -r '.key' <<<"$row")"
-  expected="$(jq -r '.equals' <<<"$row")"
-  actual="$(jq -r --arg t "$elem_type" --arg k "$prop_key" '
-    [.. | objects | select(.type? == $t) | .properties[$k] // empty] | first // empty
+  expected="$(jq -r '.equals // empty' <<<"$row")"
+  contains="$(jq -r '.contains // empty' <<<"$row")"
+  actuals_json="$(jq -c --arg t "$elem_type" --arg k "$prop_key" '
+    [.. | objects | select(.type? == $t) | .properties[$k] // empty | tostring]
   ' "$elements_json")"
-  if [[ "$expected" == "false" && -z "$actual" ]]; then
-    actual="false"
+  if [[ -n "$expected" ]]; then
+    if ! jq -e --arg expected "$expected" '
+      index($expected) != null or ($expected == "false" and length == 0)
+    ' <<<"$actuals_json" >/dev/null; then
+      e2e_fail "catalog property ${elem_type}.${prop_key}: expected '${expected}', got ${actuals_json}"
+    fi
+    e2e_pass "catalog property ${elem_type}.${prop_key}=${expected}"
   fi
-  if [[ "$actual" != "$expected" ]]; then
-    e2e_fail "catalog property ${elem_type}.${prop_key}: expected '${expected}', got '${actual}'"
+  if [[ -n "$contains" ]]; then
+    if ! jq -e --arg needle "$contains" 'any(.[]; index($needle) != null)' <<<"$actuals_json" >/dev/null; then
+      e2e_fail "catalog property ${elem_type}.${prop_key}: expected to contain '${contains}', got ${actuals_json}"
+    fi
+    e2e_pass "catalog property ${elem_type}.${prop_key} contains '${contains}'"
   fi
-  e2e_pass "catalog property ${elem_type}.${prop_key}=${expected}"
+  if [[ -z "$expected" && -z "$contains" ]]; then
+    e2e_fail "catalog property ${elem_type}.${prop_key}: set equals or contains"
+  fi
 done < <(jq -c --arg s "$SCENARIO" '.[$s].catalog.properties[]? // empty' "$SCENARIOS_FILE")
 
 while IFS= read -r row; do

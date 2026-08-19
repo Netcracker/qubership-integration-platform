@@ -122,7 +122,19 @@ class ChainPatchHarnessServiceTest {
   @Test
   void reportsAClarificationRatherThanGuessing() {
     when(editCompiler.compile(any()))
-        .thenReturn(new ChainEditOutcome.Clarification("Which element?", List.of("a", "b")));
+        .thenReturn(
+            new ChainEditOutcome.Clarification(
+                "Which element?",
+                List.of("a", "b"),
+                new ChainEditIntent(
+                    ChainEditAction.CONFIGURE,
+                    List.of(),
+                    "fix the script",
+                    null,
+                    null,
+                    null,
+                    List.of("script"),
+                    List.of("a", "b"))));
 
     ChainPatchHarnessResponse response = service.run(request("fix the script"));
 
@@ -222,10 +234,13 @@ class ChainPatchHarnessServiceTest {
                   base,
                   base,
                   new ChainEditIntent(
-                      ChainEditAction.EDIT_SCRIPT,
+                      ChainEditAction.CONFIGURE,
                       List.of("element-script"),
                       "rewrite the script",
                       null,
+                      null,
+                      null,
+                      List.of("script"),
                       List.of()),
                   List.of(),
                   List.of("cip-script-generator"),

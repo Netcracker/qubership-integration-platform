@@ -30,6 +30,13 @@ jq -e --argjson expected "$((active * 3))" \
   '.totalRuns == $expected and .verdict == "PASS"' \
   "${report_dir}/summary.json" >/dev/null
 find "${report_dir}/runs" -name report.json -print0 \
-  | xargs -0 jq -e '.knowledgePackage.certificationStatus == "CERTIFIED" and (.knowledgePackage | has("tier") | not)'
+  | xargs -0 jq -e '
+      if .pipeline == "compare-and-patch" then
+        .terminalState == "CHAIN_PATCHED" and .stub == true
+      else
+        .knowledgePackage.certificationStatus == "CERTIFIED"
+        and (.knowledgePackage | has("tier") | not)
+      end
+    '
 
 echo "PASS: offline quality gate covered every active scenario with one package contract"

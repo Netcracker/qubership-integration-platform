@@ -154,7 +154,23 @@ public class ScenarioRouter {
       return Multi.createFrom().item(ChatEvent.token(outcome.terminalMessage()));
     }
 
-    ScenarioType type = outcome.scenarioType();
+    ScenarioType classified = outcome.scenarioType();
+    final ScenarioType type;
+    if (createRunSelectionService != null
+        && productPipelineChatAdapter != null
+        && isMisleadingCreateHint(classified)
+        && chainContextExtractor.hasChainContext(request, conversationId)) {
+      // The classifier does not receive the open-chain attachment, so a change request on a catalog
+      // chain is often labeled GATHER_REQUIREMENTS / CREATE_CHAIN_PLAN. Starting CREATE here would
+      // interview the reader about a new integration. An unfinished CREATE run still keeps the
+      // turn above, before this branch, when the classifier did not pick an open-chain scenario.
+      LOG.infof(
+          "Routing conversationId=%s away from CREATE (%s): a chain is in context, using COMPARE_AND_PATCH",
+          conversationId, classified);
+      type = ScenarioType.COMPARE_AND_PATCH;
+    } else {
+      type = classified;
+    }
     if (createRunSelectionService != null
         && productPipelineChatAdapter != null
         && isCreateOwnedScenario(type)) {
@@ -231,22 +247,20 @@ public class ScenarioRouter {
 
     boolean hasChainContext = chainContextExtractor.hasChainContext(request, conversationId);
     ScenarioType hint = request.getScenarioHint();
-    // The UI hints the page it is on, not what the reader asked for: the chain screen sends
-    // IMPLEMENT_CHAIN with every message. Obeying that with a chain open turns every change request
-    // into a new CREATE run, so a CREATE-owned hint yields to the classifier once a chain is in
-    // context. Hints outside CREATE still decide -- they name a scenario, not a screen.
-    boolean hintDecides = hint != null && !(hasChainContext && isCreateOwnedScenario(hint));
-
+    // The UI hints the page it is on, not what the reader asked for. IMPLEMENT_CHAIN has no
+    // handler, so obeying it with a chain open falls through to CREATE_CHAIN_PLAN and a new
+    // CREATE interview. Coerce that hint to COMPARE_AND_PATCH before the classifier is skipped
+    // and before the CREATE fallback. Hints outside CREATE still decide: they name a scenario.
     ScenarioType resolved;
-    if (hintDecides) {
+    if (hasChainContext && isMisleadingCreateHint(hint)) {
+      LOG.infof(
+          "Routing coerces CREATE-owned scenarioHint=%s to COMPARE_AND_PATCH: a chain is in context",
+          hint);
+      resolved = ScenarioType.COMPARE_AND_PATCH;
+    } else if (hint != null) {
       LOG.infof("Routing uses explicit scenarioHint=%s (classifier skipped)", hint);
       resolved = hint;
     } else {
-      if (hint != null) {
-        LOG.infof(
-            "Routing ignores CREATE-owned scenarioHint=%s: a chain is in context, classifying instead",
-            hint);
-      }
       try {
         resolved = classify(request, conversationId, phase, hasChainContext);
       } catch (Exception e) {
@@ -377,10 +391,19 @@ public class ScenarioRouter {
   }
 
   private static boolean isCreateOwnedScenario(ScenarioType type) {
+    return isMisleadingCreateHint(type) || type == ScenarioType.IMPORT_SPECIFICATION;
+  }
+
+  /**
+   * CREATE-owned scenarios that, with a chain already open, must not start a new CREATE run.
+   *
+   * <p>{@link ScenarioType#IMPORT_SPECIFICATION} stays out: import is a catalog action, not a
+   * screen label, and still has work to do when a chain is in context.
+   */
+  private static boolean isMisleadingCreateHint(ScenarioType type) {
     return type == ScenarioType.GATHER_REQUIREMENTS
         || type == ScenarioType.CREATE_CHAIN_PLAN
-        || type == ScenarioType.IMPLEMENT_CHAIN
-        || type == ScenarioType.IMPORT_SPECIFICATION;
+        || type == ScenarioType.IMPLEMENT_CHAIN;
   }
 
   private static void logRoutingDecision(

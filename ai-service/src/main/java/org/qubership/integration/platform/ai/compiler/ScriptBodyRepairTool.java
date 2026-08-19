@@ -135,7 +135,8 @@ public class ScriptBodyRepairTool {
     if (base == null) {
       return recordFailure(conversationId, capabilityId, "CHAIN_PLAN_GRAPH is required");
     }
-    List<String> missingNodeIds = readinessEvaluator.scriptNodesMissingBody(base);
+    List<String> missingNodeIds =
+        missingScriptNodeIds(conversationId, capabilityId, base);
     if (missingNodeIds.isEmpty()) {
       return "No script nodes need repair.";
     }
@@ -172,7 +173,8 @@ public class ScriptBodyRepairTool {
       return recordFailure(
           conversationId, capabilityId, "Script repair patch failed: " + applied.validationResult().summary());
     }
-    List<String> stillMissing = readinessEvaluator.scriptNodesMissingBody(applied.graph());
+    List<String> stillMissing =
+        missingScriptNodeIds(conversationId, capabilityId, applied.graph());
     if (!stillMissing.isEmpty()) {
       return recordFailure(
           conversationId,
@@ -206,6 +208,21 @@ public class ScriptBodyRepairTool {
       return executionContext.get().inputGraph();
     }
     return planStore.get(conversationId).orElse(null);
+  }
+
+  private List<String> missingScriptNodeIds(
+      String conversationId, String capabilityId, ChainPlanGraph graph) {
+    List<String> missing = readinessEvaluator.scriptNodesMissingBody(graph);
+    List<String> targets =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .map(GraphPatchExecutionContext::editTargetNodeIds)
+            .orElse(List.of());
+    if (targets == null || targets.isEmpty()) {
+      return missing;
+    }
+    return missing.stream().filter(targets::contains).toList();
   }
 
   private static String validateCapture(ScriptBodyRepairCapture capture, List<String> missingNodeIds) {

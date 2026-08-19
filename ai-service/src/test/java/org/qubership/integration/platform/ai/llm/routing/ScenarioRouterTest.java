@@ -224,13 +224,14 @@ class ScenarioRouterTest {
   }
 
   /**
-   * The chain screen sends IMPLEMENT_CHAIN with every message, whatever the reader typed. Obeying
-   * that hint is what turned "delete the audit step" into a fresh CREATE run.
+   * The chain screen still sends IMPLEMENT_CHAIN with some messages. Obeying that hint skipped the
+   * classifier and, with no IMPLEMENT_CHAIN handler, fell through to a new CREATE run. With a chain
+   * open the hint is a screen label, not an instruction: patch the chain that is already there.
    */
   @Test
-  void createOwnedHintYieldsToTheClassifierWhenAChainIsOpen() {
+  void createOwnedHintWithOpenChainBecomesCompareAndPatch() {
     when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
-    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.COMPARE_AND_PATCH);
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.GATHER_REQUIREMENTS);
     ChatRequest request = new ChatRequest();
     request.setScenarioHint(ScenarioType.IMPLEMENT_CHAIN);
     request.setResolvedEffectiveUserText("delete the audit step");
@@ -238,6 +239,104 @@ class ScenarioRouterTest {
     ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
 
     assertEquals(ScenarioType.COMPARE_AND_PATCH, outcome.scenarioType());
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
+  }
+
+  /**
+   * The classifier never sees the open-chain attachment, so "add a script" on a catalog chain often
+   * comes back as GATHER_REQUIREMENTS. Starting CREATE would interview the reader about a new
+   * integration instead of patching the chain on screen.
+   */
+  @Test
+  void openChainDoesNotStartCreateWhenClassifierPicksGather() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("add a script after Return greeting");
+    request.setAttachment("## Current Chain: Demo (ID: 11111111-1111-1111-1111-111111111111)");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(selection, org.mockito.Mockito.never())
+        .selectOrCreate(CONVERSATION_ID);
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
+  }
+
+  /**
+   * Live log: scenarioHint=IMPLEMENT_CHAIN skipped the classifier, then "no handler" fell back to
+   * CREATE_CHAIN_PLAN and opened a new CREATE interview. An open-chain attachment must force
+   * COMPARE_AND_PATCH instead, even when the UI still sends that hint.
+   */
+  @Test
+  void implementHintWithOpenChainDoesNotStartCreate() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.IMPLEMENT_CHAIN);
+    request.setResolvedEffectiveUserText(
+        "add quartz-scheduler to the chain. it has to start every 5 minutes");
+    request.setAttachment("## Current Chain: Demo (ID: 11111111-1111-1111-1111-111111111111)");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(selection, org.mockito.Mockito.never())
+        .selectOrCreate(CONVERSATION_ID);
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
   }
 
   /** A hint outside CREATE names a scenario rather than a screen, so it still decides. */

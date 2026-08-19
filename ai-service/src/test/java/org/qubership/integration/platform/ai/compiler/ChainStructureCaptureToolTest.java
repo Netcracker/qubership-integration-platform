@@ -14,8 +14,8 @@ import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditDisposition;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
-import org.qubership.integration.platform.ai.chain.edit.ChainEditPlacement;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -277,6 +277,22 @@ class ChainStructureCaptureToolTest {
     assertTrue(result.contains("reparented non-target node"), result);
   }
 
+  @Test
+  void acceptsAReplacementThatOmitsTheReplacedElement() {
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), replaceIntent()));
+
+    CaptureValidationException accepted =
+        assertThrows(
+            CaptureValidationException.class,
+            () ->
+                tool.captureChainStructure(
+                    new ChainStructure(replacementCapture(), List.of(), List.of())));
+
+    assertTrue(accepted.getMessage().contains("Chain structure captured"));
+  }
+
   /** A wrap whose capture lists no edges at all; the merge has to bring the trigger's over. */
   private static ChainPlanGraph wrapCapture() {
     return new ChainPlanGraph(
@@ -290,6 +306,30 @@ class ChainStructureCaptureToolTest {
         List.of());
   }
 
+  private static ChainPlanGraph replacementCapture() {
+    return new ChainPlanGraph(
+        "1.0",
+        validGraph().chain(),
+        List.of(
+            new ChainPlanNode("http-trigger-1", "http-trigger", "HTTP Trigger", null, 1, List.of()),
+            new ChainPlanNode("map-1", "script", "Map", null, null, List.of()),
+            new ChainPlanNode("call-1", "service-call", "Call", null, null, List.of())),
+        List.of(new ChainPlanEdge("map-to-call", "map-1", "call-1", null)));
+  }
+
+  private static ChainEditIntent replaceIntent() {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of("script-1"),
+        "replace the script with a mapper and a service call",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.REMOVE);
+  }
+
   private static ChainEditIntent wrapIntent() {
     return new ChainEditIntent(
         ChainEditAction.ADD_ELEMENTS,
@@ -298,8 +338,9 @@ class ChainStructureCaptureToolTest {
         null,
         "try-catch-finally-2",
         null,
-        ChainEditPlacement.GENERATOR,
-        List.of());
+        List.of(),
+        List.of(),
+        ChainEditDisposition.NEST);
   }
 
   private static ChainStructure validStructure() {

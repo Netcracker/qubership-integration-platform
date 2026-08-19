@@ -5,9 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
-import org.qubership.integration.platform.ai.chain.edit.ChainEditPlacement;
 import org.qubership.integration.platform.ai.chain.edit.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -134,18 +132,13 @@ public record CompilerExecutionSeed(
             new SkillArtifactPayload.ServiceCallBindingsPayload(
                 bindings == null ? List.of() : bindings)));
     LinkedHashSet<String> preSatisfied = new LinkedHashSet<>(EDIT_PRE_SATISFIED_SKILLS);
-    if (requiresStructureStage(intent)) {
+    if (intent.requiresStructureStage()) {
       preSatisfied.remove("cip-structure-generator");
     }
     if (extraPreSatisfiedSkillIds != null) {
       preSatisfied.addAll(extraPreSatisfiedSkillIds);
     }
     return new CompilerExecutionSeed(workspaceId, true, text, artifacts, preSatisfied);
-  }
-
-  private static boolean requiresStructureStage(ChainEditIntent intent) {
-    return intent.action() == ChainEditAction.ADD_ELEMENTS
-        && intent.placement() == ChainEditPlacement.GENERATOR;
   }
 
   /** The same seed with one more artifact, for callers that scope a run after building it. */

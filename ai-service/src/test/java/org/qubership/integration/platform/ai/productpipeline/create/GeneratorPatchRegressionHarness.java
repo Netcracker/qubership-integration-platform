@@ -496,29 +496,50 @@ final class GeneratorPatchRegressionHarness {
                 "mapper-2",
                 "header-modification"),
             Set.of(),
-            Map.of(
-                "service-call",
-                Set.of(
-                    "systemType",
-                    "integrationSystemId",
-                    "integrationSpecificationGroupId",
-                    "integrationSpecificationId",
-                    "integrationOperationId",
-                    "integrationOperationProtocolType",
-                    "integrationOperationMethod",
-                    "integrationOperationPath",
-                    "propagateContext",
-                    "errorThrowing",
-                    "before",
-                    "after"),
-                "http-sender", Set.of("path", "method"),
-                "kafka-sender-2", Set.of("topic"),
-                "graphql-sender", Set.of("operationName"),
-                "rabbitmq-sender-2", Set.of("exchange", "routingKey"),
-                "scs-sender", Set.of("bindingName"),
-                "dbaas", Set.of("query"),
-                "mapper-2", Set.of("mapping"),
-                "header-modification", Set.of("headers"))));
+            Map.ofEntries(
+                entry(
+                    "service-call",
+                    Set.of(
+                        "systemType",
+                        "integrationSystemId",
+                        "integrationSpecificationGroupId",
+                        "integrationSpecificationId",
+                        "integrationOperationId",
+                        "integrationOperationProtocolType",
+                        "integrationOperationMethod",
+                        "integrationOperationPath",
+                        "propagateContext",
+                        "errorThrowing",
+                        "before",
+                        "after")),
+                entry(
+                    "http-trigger",
+                    Set.of(
+                        "systemType",
+                        "integrationSystemId",
+                        "integrationSpecificationGroupId",
+                        "integrationSpecificationId",
+                        "integrationOperationId",
+                        "integrationOperationPath")),
+                entry(
+                    "async-api-trigger",
+                    Set.of(
+                        "systemType",
+                        "integrationSystemId",
+                        "integrationSpecificationGroupId",
+                        "integrationSpecificationId",
+                        "integrationOperationId",
+                        "integrationOperationPath",
+                        "integrationOperationProtocolType",
+                        "integrationOperationMethod")),
+                entry("http-sender", Set.of("path", "method")),
+                entry("kafka-sender-2", Set.of("topic")),
+                entry("graphql-sender", Set.of("operationName")),
+                entry("rabbitmq-sender-2", Set.of("exchange", "routingKey")),
+                entry("scs-sender", Set.of("bindingName")),
+                entry("dbaas", Set.of("query")),
+                entry("mapper-2", Set.of("mapping")),
+                entry("header-modification", Set.of("headers")))));
     ownership.put(
         "cip-timeout-generator",
         new GraphPatchOwnershipPolicy(
@@ -529,6 +550,80 @@ final class GeneratorPatchRegressionHarness {
             Map.of(
                 "http-trigger", Set.of("connectTimeout"),
                 "chain-call-2", Set.of("timeout"))));
+    ownership.put(
+        "cip-http-trigger-endpoint-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of(),
+            Set.of(),
+            Map.of(
+                "http-trigger",
+                Set.of("contextPath", "httpMethodRestrict", "externalRoute", "privateRoute"))));
+    ownership.put(
+        "cip-messaging-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of(
+                "jms-trigger",
+                "jms-sender",
+                "pubsub-trigger",
+                "pubsub-sender",
+                "kafka-trigger-2",
+                "rabbitmq-trigger-2"),
+            Set.of(),
+            Map.ofEntries(
+                entry(
+                    "jms-trigger",
+                    Set.of(
+                        "initialContextFactory",
+                        "providerUrl",
+                        "connectionFactoryName",
+                        "destinationName",
+                        "destinationType",
+                        "acknowledgmentMode")),
+                entry(
+                    "jms-sender",
+                    Set.of(
+                        "initialContextFactory",
+                        "providerUrl",
+                        "connectionFactoryName",
+                        "destinationName",
+                        "destinationType",
+                        "jmsMessageType")),
+                entry(
+                    "pubsub-trigger",
+                    Set.of("projectId", "destinationName", "serviceAccountKey", "ackMode")),
+                entry(
+                    "pubsub-sender",
+                    Set.of(
+                        "projectId",
+                        "destinationName",
+                        "serviceAccountKey",
+                        "messageOrderingEnabled")),
+                entry(
+                    "kafka-trigger-2",
+                    Set.of(
+                        "connectionSourceType",
+                        "brokers",
+                        "topics",
+                        "groupId",
+                        "topicsClassifierName",
+                        "maasClassifierNamespace",
+                        "maasClassifierTenantEnabled",
+                        "maasClassifierTenantId")),
+                entry(
+                    "rabbitmq-trigger-2",
+                    Set.of(
+                        "connectionSourceType",
+                        "addresses",
+                        "exchange",
+                        "routingKey",
+                        "queues",
+                        "username",
+                        "vhostClassifierName",
+                        "maasClassifierNamespace")))));
     return Map.copyOf(ownership);
   }
 }

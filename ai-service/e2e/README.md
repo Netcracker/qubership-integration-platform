@@ -1,6 +1,6 @@
 # ai-service E2E
 
-CREATE acceptance tests live under `product-pipeline/`.
+CREATE and COMPARE_AND_PATCH acceptance tests live under `product-pipeline/`.
 
 ## Offline
 

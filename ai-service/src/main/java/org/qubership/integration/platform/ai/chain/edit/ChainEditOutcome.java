@@ -34,8 +34,15 @@ public sealed interface ChainEditOutcome {
     }
   }
 
-  /** The request fits more than one reading. The reader answers; nothing is written meanwhile. */
-  record Clarification(String question, List<String> choices) implements ChainEditOutcome {
+  /**
+   * The request fits more than one reading. The reader answers; nothing is written meanwhile.
+   *
+   * <p>{@code heldIntent} travels with the clarification so that answering it continues this same
+   * edit: the next turn feeds this intent and {@code question} back to the classifier alongside the
+   * reply, instead of resolving the reply as a request with no history behind it.
+   */
+  record Clarification(String question, List<String> choices, ChainEditIntent heldIntent)
+      implements ChainEditOutcome {
     public Clarification {
       choices = choices == null ? List.of() : List.copyOf(choices);
     }

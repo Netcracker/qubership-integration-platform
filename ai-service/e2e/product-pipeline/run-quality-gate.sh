@@ -101,37 +101,73 @@ fi
 
 command -v jq >/dev/null
 bash -n "${DIR}/run-product-scenario.sh"
+bash -n "${DIR}/run-patch-scenario.sh"
 bash -n "${DIR}/assert-product-run.sh"
+bash -n "${DIR}/assert-patch-run.sh"
+bash -n "${DIR}/scripts/seed-catalog-chain.sh"
 python3 -m py_compile \
   "${DIR}/semantic-score.py" \
   "${DIR}/evaluate-plan.py" \
   "${DIR}/build-report-from-evidence.py"
 
-SCENARIO_IDS=()
+active_entries() {
+  local pipeline="$1"
+  jq -r --arg p "${pipeline}" \
+    'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == $p) | .key' \
+    "${SCENARIOS_FILE}" | sort
+}
+
+CREATE_SCENARIO_IDS=()
 while IFS= read -r scenario; do
   [[ -n "${scenario}" ]] || continue
-  SCENARIO_IDS+=("${scenario}")
-done < <(
-  jq -r 'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active") | .key' \
-    "${SCENARIOS_FILE}" | sort
-)
+  CREATE_SCENARIO_IDS+=("${scenario}")
+done < <(active_entries "create-chain-v1")
+
+PATCH_SCENARIO_IDS=()
+while IFS= read -r scenario; do
+  [[ -n "${scenario}" ]] || continue
+  PATCH_SCENARIO_IDS+=("${scenario}")
+done < <(active_entries "compare-and-patch")
+
+SCENARIO_IDS=("${CREATE_SCENARIO_IDS[@]}" "${PATCH_SCENARIO_IDS[@]}")
 [[ "${#SCENARIO_IDS[@]}" -gt 0 ]] || {
   echo "FAIL: no active product-pipeline scenarios selected" >&2
   exit 1
 }
 
-for scenario in "${SCENARIO_IDS[@]}"; do
-  jq -e --arg s "${scenario}" '
-    .[$s].pipeline == "create-chain-v1"
-    and .[$s].profileId == "create-chain"
-    and .[$s].profileVersion == "2"
-    and .[$s].terminalState == "CHAIN_MATERIALIZED"
-    and .[$s].retainCatalogChain == true
-  ' "${SCENARIOS_FILE}" >/dev/null || {
-    echo "FAIL: active scenario ${scenario} must pin create-chain@2 CHAIN_MATERIALIZED retain=true" >&2
-    exit 1
-  }
-done
+if [[ "${#CREATE_SCENARIO_IDS[@]}" -gt 0 ]]; then
+  for scenario in "${CREATE_SCENARIO_IDS[@]}"; do
+    jq -e --arg s "${scenario}" '
+      .[$s].pipeline == "create-chain-v1"
+      and .[$s].profileId == "create-chain"
+      and .[$s].profileVersion == "2"
+      and .[$s].terminalState == "CHAIN_MATERIALIZED"
+      and .[$s].retainCatalogChain == true
+    ' "${SCENARIOS_FILE}" >/dev/null || {
+      echo "FAIL: active scenario ${scenario} must pin create-chain@2 CHAIN_MATERIALIZED retain=true" >&2
+      exit 1
+    }
+  done
+fi
+
+if [[ "${#PATCH_SCENARIO_IDS[@]}" -gt 0 ]]; then
+  for scenario in "${PATCH_SCENARIO_IDS[@]}"; do
+    jq -e --arg s "${scenario}" '
+      .[$s].pipeline == "compare-and-patch"
+      and .[$s].terminalState == "CHAIN_PATCHED"
+      and .[$s].retainCatalogChain == true
+      and ((.[$s].uniqueChainNamePrefix | type) == "string" and (.[$s].uniqueChainNamePrefix | length) > 0)
+      and (
+        ((.[$s].prompts | type) == "array" and (.[$s].prompts | length) > 0)
+        or ((.[$s].prompt | type) == "string" and (.[$s].prompt | length) > 0)
+      )
+      and ((.[$s].seed.elements | type) == "array" and (.[$s].seed.elements | length) > 0)
+    ' "${SCENARIOS_FILE}" >/dev/null || {
+      echo "FAIL: active scenario ${scenario} must pin compare-and-patch CHAIN_PATCHED retain=true with seed and prompts" >&2
+      exit 1
+    }
+  done
+fi
 
 EXPECTED_TOTAL=$(( ${#SCENARIO_IDS[@]} * RUNS ))
 mkdir -p "${REPORT_DIR}/runs"
@@ -231,13 +267,23 @@ for scenario in "${SCENARIO_IDS[@]}"; do
     run_dir="${REPORT_DIR}/runs/${scenario}/rep-${rep}"
     mkdir -p "${run_dir}"
     report_path="${run_dir}/report.json"
+    pipeline="$(jq -r --arg s "${scenario}" '.[$s].pipeline' "${SCENARIOS_FILE}")"
     set +e
-    bash "${DIR}/run-product-scenario.sh" \
-      --scenario "${scenario}" \
-      --rep "${rep}" \
-      --base-url "${BASE_URL}" \
-      --evaluator-url "${EVALUATOR_URL}" \
-      --report "${report_path}"
+    if [[ "${pipeline}" == "compare-and-patch" ]]; then
+      bash "${DIR}/run-patch-scenario.sh" \
+        --scenario "${scenario}" \
+        --rep "${rep}" \
+        --base-url "${BASE_URL}" \
+        --evaluator-url "${EVALUATOR_URL}" \
+        --report "${report_path}"
+    else
+      bash "${DIR}/run-product-scenario.sh" \
+        --scenario "${scenario}" \
+        --rep "${rep}" \
+        --base-url "${BASE_URL}" \
+        --evaluator-url "${EVALUATOR_URL}" \
+        --report "${report_path}"
+    fi
     rc=$?
     set -e
     if [[ "${rc}" -ne 0 ]]; then

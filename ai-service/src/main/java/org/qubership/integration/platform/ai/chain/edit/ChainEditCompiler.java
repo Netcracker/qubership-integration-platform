@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
@@ -30,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagE
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerExecutionSeed;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerValidationPipeline;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
@@ -38,6 +40,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
@@ -69,6 +72,8 @@ public class ChainEditCompiler {
   private final KnowledgeContextProvider knowledgeContextProvider;
   private final CatalogMutationGateway catalogMutationGateway;
   private final CaptureSession captureSession;
+  private final DeterministicElementSchemaService schemaService;
+  private final CompilerValidationPipeline validationPipeline;
 
   @Inject
   @SuppressWarnings("java:S107")
@@ -80,7 +85,9 @@ public class ChainEditCompiler {
       ProductPipelineProfileCatalog profileCatalog,
       KnowledgeContextProvider knowledgeContextProvider,
       CatalogMutationGateway catalogMutationGateway,
-      CaptureSession captureSession) {
+      CaptureSession captureSession,
+      DeterministicElementSchemaService schemaService,
+      CompilerValidationPipeline validationPipeline) {
     this.intentResolver = Objects.requireNonNull(intentResolver, "intentResolver");
     this.bindingResolver = Objects.requireNonNull(bindingResolver, "bindingResolver");
     this.engine = Objects.requireNonNull(engine, "engine");
@@ -90,6 +97,8 @@ public class ChainEditCompiler {
         Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
     this.catalogMutationGateway = catalogMutationGateway;
     this.captureSession = Objects.requireNonNull(captureSession, "captureSession");
+    this.schemaService = Objects.requireNonNull(schemaService, "schemaService");
+    this.validationPipeline = Objects.requireNonNull(validationPipeline, "validationPipeline");
   }
 
   /**
@@ -101,6 +110,15 @@ public class ChainEditCompiler {
    */
   public ChainEditOutcome resumeAfterImport(
       ChainEditRequest request, ChainEditIntent intent, ApiHubRequirementRefs refs) {
+    return resumeAfterImport(request, intent, refs, null);
+  }
+
+  public ChainEditOutcome resumeAfterImport(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      ApiHubRequirementRefs refs,
+      BiConsumer<String, String> skillProgress) {
+    BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
     if (catalogMutationGateway == null) {
       return new ChainEditOutcome.ResolutionFailure(
           "Importing a specification is not available here, so nothing was changed.");
@@ -123,7 +141,7 @@ public class ChainEditCompiler {
             imported,
             DesignPlanningCapability.toApiRelease(request.languageVersion()));
     if (bound instanceof ServiceCallBindingOutcome.Resolved(ResolvedServiceCallBinding binding)) {
-      return compile(request, intent, binding);
+      return compile(request, intent, binding, progress);
     }
     return new ChainEditOutcome.ResolutionFailure(
         bound instanceof ServiceCallBindingOutcome.NotFound(String message)
@@ -132,18 +150,62 @@ public class ChainEditCompiler {
   }
 
   public ChainEditOutcome compile(ChainEditRequest request) {
+    return compile(request, null);
+  }
+
+  public ChainEditOutcome compile(
+      ChainEditRequest request, BiConsumer<String, String> skillProgress) {
     Objects.requireNonNull(request, "request");
-    ImportedChainPlan imported = request.imported();
-    ChainEditIntent intent = intentResolver.resolve(imported.graph(), request.userRequest());
+    BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
+    ChainEditIntent intent =
+        ChainEditSkillProgress.call(
+            progress,
+            ChainEditSkillProgress.INTENT_SKILL_ID,
+            () -> intentResolver.resolve(request.imported().graph(), request.userRequest()));
+    return fromResolvedIntent(request, intent, progress);
+  }
+
+  /**
+   * Continues an edit whose classifier stopped to ask which element or aspect the reader meant.
+   *
+   * <p>The held capture and the question travel with the reply as structured input, the way an
+   * approved import carries its intent forward: the classifier completes what it already
+   * established rather than resolving the reply with no record of having asked. A reply that turns
+   * out to be unrelated is classified on its own, and this method compiles that fresh intent
+   * instead of the held one.
+   */
+  public ChainEditOutcome resumeAfterClarification(
+      ChainEditRequest request, ChainEditIntent heldIntent, String question) {
+    return resumeAfterClarification(request, heldIntent, question, null);
+  }
+
+  public ChainEditOutcome resumeAfterClarification(
+      ChainEditRequest request,
+      ChainEditIntent heldIntent,
+      String question,
+      BiConsumer<String, String> skillProgress) {
+    BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
+    ChainEditIntent intent =
+        ChainEditSkillProgress.call(
+            progress,
+            ChainEditSkillProgress.INTENT_SKILL_ID,
+            () ->
+                intentResolver.resume(
+                    request.imported().graph(), heldIntent, question, request.userRequest()));
+    return fromResolvedIntent(request, intent, progress);
+  }
+
+  private ChainEditOutcome fromResolvedIntent(
+      ChainEditRequest request, ChainEditIntent intent, BiConsumer<String, String> progress) {
     ChainEditOutcome noChange = noChangeOutcome(intent);
     if (noChange != null) {
       return noChange;
     }
     if (!intent.resolved()) {
       return new ChainEditOutcome.Clarification(
-          "I need one more thing before I change anything.", intent.unresolvedAmbiguities());
+          "I need one more thing before I change anything.", intent.unresolvedAmbiguities(), intent);
     }
-    return compile(request, intent, null);
+    return compile(request, intent, null, progress);
   }
 
   /**
@@ -155,6 +217,15 @@ public class ChainEditCompiler {
    */
   public ChainEditOutcome compile(
       ChainEditRequest request, ChainEditIntent intent, ResolvedServiceCallBinding importedBinding) {
+    return compile(request, intent, importedBinding, null);
+  }
+
+  public ChainEditOutcome compile(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      ResolvedServiceCallBinding importedBinding,
+      BiConsumer<String, String> skillProgress) {
+    BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
     ImportedChainPlan imported = request.imported();
     if (deterministic(intent.action())) {
       return transform(request, intent);
@@ -168,8 +239,16 @@ public class ChainEditCompiler {
           "The compiler package this edit needs is unavailable: " + e.getMessage());
     }
 
-    if (requiresStructureStage(intent)) {
-      return compileStructuralAddition(request, intent, importedBinding, pin);
+    if (intent.action() == ChainEditAction.CONFIGURE) {
+      return compileConfigure(request, intent, pin, progress);
+    }
+
+      if (intent.requiresStructureStage()) {
+      if (intent.disposition() != ChainEditDisposition.NEST
+          && ChainEditCapabilitySelection.owningSkillId(pin.resolvedDag(), intent).isEmpty()) {
+        return new ChainEditOutcome.Unsupported(intent.action());
+      }
+      return compileStructuralAddition(request, intent, importedBinding, pin, progress);
     }
 
     String generatorSkillId =
@@ -181,10 +260,6 @@ public class ChainEditCompiler {
     List<String> scopedTargets =
         ChainEditCapabilitySelection.scopedTargets(
             pin.resolvedDag(), generatorSkillId, intent, imported.graph());
-    ChainEditOutcome incomplete = incompleteAddition(intent, scopedTargets);
-    if (incomplete != null) {
-      return incomplete;
-    }
     if (scopedTargets.isEmpty() && intent.action() != ChainEditAction.ADD_ELEMENTS) {
       return new ChainEditOutcome.ResolutionFailure(
           "No element in that request is one " + generatorSkillId + " may change.");
@@ -211,7 +286,7 @@ public class ChainEditCompiler {
         case ServiceCallBindingOutcome.Resolved(ResolvedServiceCallBinding binding) ->
             bindings = List.of(binding);
         case ServiceCallBindingOutcome.Ambiguous(String question, List<String> candidates) -> {
-          return new ChainEditOutcome.Clarification(question, candidates);
+          return new ChainEditOutcome.Clarification(question, candidates, asHeld(scoped, candidates));
         }
         case ServiceCallBindingOutcome.NotFound(String message) -> {
           return new ChainEditOutcome.ResolutionFailure(message);
@@ -224,7 +299,7 @@ public class ChainEditCompiler {
       bindings = List.of();
     }
 
-    PlacementAndIntent placed = placeAddition(imported.graph(), scoped, pin, generatorSkillId);
+    PlacementAndIntent placed = placeAddition(imported.graph(), scoped);
     GeneratorPlan plan = generatorPlan(generatorSkillId, placed.intent());
     return runCompiler(
         request,
@@ -235,20 +310,109 @@ public class ChainEditCompiler {
         Set.of(),
         List.of(),
         pin,
-        placed.graph());
+        placed.graph(),
+        progress);
   }
 
+  /**
+   * Routes a {@code CONFIGURE} edit by ownership metadata rather than a hand-maintained action map.
+   *
+   * <p>The requested property keys are checked against the target elements' schema first, so a key
+   * the element type does not define is reported before any generator sees it. What is left is
+   * matched against the pinned compiler package's ownership declarations the same way an addition
+   * is: an unmatched key means no generator owns it, and the refusal names the element and the
+   * property, never a generator the reader never mentioned.
+   */
+  private ChainEditOutcome compileConfigure(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      CompilerRunPin pin,
+      BiConsumer<String, String> progress) {
+    ChainPlanGraph graph = request.imported().graph();
+    ChainEditOutcome schemaFailure = rejectUndefinedPropertyKeys(graph, intent);
+    if (schemaFailure != null) {
+      return schemaFailure;
+    }
+    List<GeneratorPlan> plans =
+        ChainEditCapabilitySelection.configureGeneratorPlans(pin.resolvedDag(), graph, intent);
+    Set<String> ownedKeys = new LinkedHashSet<>();
+    plans.forEach(plan -> ownedKeys.addAll(plan.matchedSignals()));
+    List<String> unownedKeys =
+        intent.propertyKeys().stream().filter(key -> !ownedKeys.contains(key)).toList();
+    if (!unownedKeys.isEmpty()) {
+      return new ChainEditOutcome.ResolutionFailure(
+          "No generator owns " + describeProperties(unownedKeys) + " of "
+              + describeTargets(graph, intent.targetNodeIds()) + ".");
+    }
+    List<String> skillIds = plans.stream().map(GeneratorPlan::skillId).toList();
+    return runCompiler(
+        request, intent, List.of(), plans, skillIds, Set.of(), List.of(), pin, graph, progress);
+  }
+
+  /** Refuses a property key before routing, when the target element's schema does not define it. */
+  private ChainEditOutcome rejectUndefinedPropertyKeys(ChainPlanGraph graph, ChainEditIntent intent) {
+    List<String> undefined = new ArrayList<>();
+    for (String nodeId : intent.targetNodeIds()) {
+      ChainPlanNode target = node(graph, nodeId);
+      if (target == null || target.type() == null) {
+        continue;
+      }
+      Set<String> allowed = schemaService.allowedPatchPropertyKeys(target.type());
+      for (String key : intent.propertyKeys()) {
+        if (!allowed.contains(key) && !undefined.contains(key)) {
+          undefined.add(key);
+        }
+      }
+    }
+    if (undefined.isEmpty()) {
+      return null;
+    }
+    return new ChainEditOutcome.ResolutionFailure(
+        describeTargets(graph, intent.targetNodeIds()) + " does not define "
+            + describeProperties(undefined) + ".");
+  }
+
+  private static String describeProperties(List<String> propertyKeys) {
+    return propertyKeys.size() == 1
+        ? "'" + propertyKeys.get(0) + "'"
+        : propertyKeys.stream().map(key -> "'" + key + "'").reduce((a, b) -> a + ", " + b).orElse("");
+  }
+
+  private static String describeTargets(ChainPlanGraph graph, List<String> targetNodeIds) {
+    return targetNodeIds.stream()
+        .map(nodeId -> describeTarget(graph, nodeId))
+        .reduce((a, b) -> a + ", " + b)
+        .orElse("the requested element");
+  }
+
+  private static String describeTarget(ChainPlanGraph graph, String nodeId) {
+    ChainPlanNode target = node(graph, nodeId);
+    if (target == null) {
+      return nodeId;
+    }
+    return target.label() == null || target.label().isBlank()
+        ? nodeId
+        : target.label() + " (" + nodeId + ")";
+  }
+
+  /**
+   * Runs the shared structure stage for every addition it can produce more than a single bare
+   * element: a wrap, a branch, or a subgraph spliced at an address. The stage sees the whole
+   * imported graph, so a wrap's boundary and an address's pair of elements are both just nodes it
+   * reads off {@code intent}, not a distinction this method has to make.
+   */
   private ChainEditOutcome compileStructuralAddition(
       ChainEditRequest request,
       ChainEditIntent intent,
       ResolvedServiceCallBinding importedBinding,
-      CompilerRunPin pin) {
+      CompilerRunPin pin,
+      BiConsumer<String, String> progress) {
     ImportedChainPlan imported = request.imported();
     List<ResolvedServiceCallBinding> bindings =
         importedBinding == null ? List.of() : List.of(importedBinding);
     CompilerDagExecutionResult structureResult;
     try {
-      structureResult = runStructureStage(request, intent, bindings, pin);
+      structureResult = runStructureStage(request, intent, bindings, pin, progress);
     } catch (RuntimeException e) {
       LOG.errorf(e, "Chain edit structure generation failed runId=%s", request.editRunId());
       return new ChainEditOutcome.CompilationFailure(describeFailure(e));
@@ -284,14 +448,16 @@ public class ChainEditCompiler {
         Set.of(STRUCTURE_GENERATOR),
         structureResult.executedSkillIds(),
         pin,
-        structured);
+        structured,
+        progress);
   }
 
   private CompilerDagExecutionResult runStructureStage(
       ChainEditRequest request,
       ChainEditIntent intent,
       List<ResolvedServiceCallBinding> bindings,
-      CompilerRunPin pin) {
+      CompilerRunPin pin,
+      BiConsumer<String, String> progress) {
     ImportedChainPlan imported = request.imported();
     CompilerExecutionSeed seed =
         CompilerExecutionSeed.forEdit(
@@ -327,17 +493,12 @@ public class ChainEditCompiler {
                   List.of(),
                   List.of(),
                   seed),
-              (skillId, status) -> {})
+              progress)
           .await()
           .indefinitely();
     } finally {
       captureSession.clear(structureBaseKey);
     }
-  }
-
-  private static boolean requiresStructureStage(ChainEditIntent intent) {
-    return intent.action() == ChainEditAction.ADD_ELEMENTS
-        && intent.placement() == ChainEditPlacement.GENERATOR;
   }
 
   private static boolean sameNodeIds(ChainPlanGraph left, ChainPlanGraph right) {
@@ -353,59 +514,38 @@ public class ChainEditCompiler {
   }
 
   /**
-   * Places simple additions that do not require the shared structure stage before configuration.
+   * Places a root trigger, the one addition that needs neither an address nor the structure stage.
+   *
+   * <p>Every other addition -- a wrap, a branch, or an insertion at an address -- goes through
+   * {@link #compileStructuralAddition}, which always runs the shared structure stage first.
    */
-  private static PlacementAndIntent placeAddition(
-      ChainPlanGraph imported,
-      ChainEditIntent scoped,
-      CompilerRunPin pin,
-      String generatorSkillId) {
-    if (scoped.action() != ChainEditAction.ADD_ELEMENTS) {
+  private static PlacementAndIntent placeAddition(ChainPlanGraph imported, ChainEditIntent scoped) {
+    if (scoped.action() != ChainEditAction.ADD_ELEMENTS || !scoped.isRootTrigger()) {
       return new PlacementAndIntent(imported, scoped);
     }
-    ChainEditNodePlacement.Placement placement;
-    if (scoped.placement() == ChainEditPlacement.ROOT_TRIGGER) {
-      placement =
-          ChainEditNodePlacement.addTrigger(
-              imported,
-              scoped.targetNodeIds(),
-              scoped.requestedElementType(),
-              "New " + scoped.requestedElementType());
-    } else if (scoped.placement() == ChainEditPlacement.AFTER_TARGET
-        && "repairScriptBodies".equals(captureToolOf(pin, generatorSkillId))) {
-      placement =
-          ChainEditNodePlacement.insertAfter(
-              imported,
-              scoped.targetNodeIds(),
-              scoped.requestedElementType(),
-              "New " + scoped.requestedElementType());
-    } else {
-      return new PlacementAndIntent(imported, scoped);
-    }
+    ChainEditNodePlacement.Placement placement =
+        ChainEditNodePlacement.addTrigger(
+            imported,
+            scoped.targetNodeIds(),
+            scoped.requestedElementType(),
+            "New " + scoped.requestedElementType());
     return new PlacementAndIntent(placement.graph(), scoped.withTargets(List.of(placement.newNodeId())));
   }
 
   private record PlacementAndIntent(ChainPlanGraph graph, ChainEditIntent intent) {}
 
-  private static ChainEditOutcome incompleteAddition(
-      ChainEditIntent intent, List<String> scopedTargets) {
-    if (intent.action() != ChainEditAction.ADD_ELEMENTS
-        || intent.placement() == ChainEditPlacement.ROOT_TRIGGER
-        || intent.placement() == ChainEditPlacement.GENERATOR
-        || !scopedTargets.isEmpty()) {
-      return null;
-    }
-    return new ChainEditOutcome.Clarification(
-        "I need one more thing before I change anything.",
-        List.of("Say where to place the new element."));
-  }
-
-  private static String captureToolOf(CompilerRunPin pin, String skillId) {
-    return pin.resolvedDag().nodes().stream()
-        .filter(node -> skillId.equals(node.skillId()))
-        .map(node -> node.captureTool())
-        .findFirst()
-        .orElse(null);
+  /** A copy of {@code intent} held for the next turn, carrying the question's own ambiguities. */
+  private static ChainEditIntent asHeld(ChainEditIntent intent, List<String> ambiguities) {
+    return new ChainEditIntent(
+        intent.action(),
+        intent.targetNodeIds(),
+        intent.requestedChange(),
+        intent.externalBindingQuery(),
+        intent.requestedElementType(),
+        intent.cronExpression(),
+        intent.propertyKeys(),
+        ambiguities,
+        intent.disposition());
   }
 
   private static ChainEditOutcome noChangeOutcome(ChainEditIntent intent) {
@@ -471,7 +611,8 @@ public class ChainEditCompiler {
       Set<String> extraPreSatisfiedSkillIds,
       List<String> executedPrefix,
       CompilerRunPin pin,
-      ChainPlanGraph seedGraph) {
+      ChainPlanGraph seedGraph,
+      BiConsumer<String, String> progress) {
     ImportedChainPlan imported = request.imported();
     String runId = request.editRunId();
     CompilerExecutionSeed seed =
@@ -514,7 +655,7 @@ public class ChainEditCompiler {
                       List.of(),
                       List.of(),
                       seed),
-                  (skillId, status) -> {})
+                  progress)
               .await()
               .indefinitely();
     } catch (RuntimeException e) {
@@ -525,9 +666,11 @@ public class ChainEditCompiler {
     if (result.graph() == null) {
       return new ChainEditOutcome.CompilationFailure("The compiler produced no graph.");
     }
-    if (result.validationBundle() == null || !result.validationBundle().approvalEligible()) {
+    if (!ChainEditValidationEligibility.approvalEligible(
+        imported.graph(), result.validationBundle(), validationPipeline)) {
       return new ChainEditOutcome.CompilationFailure(
-          "The compiled chain did not pass validation, so there is nothing to approve.");
+          ChainEditValidationEligibility.failureMessage(
+              imported.graph(), result.validationBundle(), validationPipeline));
     }
 
     GraphPatch netPatch =

@@ -6,26 +6,23 @@ import java.util.Locale;
 /**
  * What an edit request asks the compiler to do to an imported chain.
  *
- * <p>Configuration is split by owner rather than kept as one "change a setting" action, because the
- * compiler package gives authentication, timeouts, retries and security to different skills, each
- * with its own ownership contract. Naming the owner here is what keeps a timeout request from
- * reaching the skill that may rewrite credentials.
+ * <p>Every configuration change -- a script body, authentication, a timeout, a retry, a security
+ * setting, or any other property family -- travels as {@code CONFIGURE}. The reader names the
+ * property keys, and the owner is whichever generator the pinned compiler package declares them
+ * for. No action value here names a generator: routing comes from the pinned package's ownership
+ * metadata, read once in {@link ChainEditCapabilitySelection}, rather than from a family enumerated
+ * in this enum.
  */
 public enum ChainEditAction {
   /** The capture names no change. Emit this value; never an empty string. */
   NO_CHANGE,
   /** Point an existing service-call at another catalog operation. */
   REBIND_SERVICE_CALL,
-  /** Rewrite the body of an existing script element. */
-  EDIT_SCRIPT,
-  /** Change how an element authenticates. */
-  EDIT_AUTHENTICATION,
-  /** Change how long an element waits. */
-  EDIT_TIMEOUT,
-  /** Change how an element retries. */
-  EDIT_RETRY,
-  /** Change an element's security settings. */
-  EDIT_SECURITY,
+  /**
+   * Change a property the pinned compiler package declares an owner for, named by property key
+   * rather than by a family enumerated in this enum.
+   */
+  CONFIGURE,
   /** Place new elements relative to the imported graph. */
   ADD_ELEMENTS,
   /** Remove elements and everything the catalog cascades with them. */

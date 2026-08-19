@@ -6,18 +6,17 @@ properties, and patch operations.
 
 Fill every field the chosen action requires. Leave optional fields empty when they do not apply.
 `action` is a required enum value. Never set it to an empty string. Java only validates the capture
-against the graph. It does not guess the action, type, targets, or placement from the wording of
+against the graph. It does not guess the action, type, targets, or disposition from the wording of
 the request.
 
 ## Actions
 
 - `NO_CHANGE`: nothing should change. Use this when the request does not ask for an edit.
 - `REBIND_SERVICE_CALL`: point a service call at a different operation, service, or specification.
-- `EDIT_SCRIPT`: change what a script element does.
-- `EDIT_AUTHENTICATION`: change how an element authenticates.
-- `EDIT_TIMEOUT`: change how long an element waits.
-- `EDIT_RETRY`: change how an element retries.
-- `EDIT_SECURITY`: change an element's security settings.
+- `CONFIGURE`: change any property of an existing element — a script body, authentication, a
+  timeout, a retry count, a security setting, or anything else the catalog exposes. List the
+  properties in `propertyKeys`, using the catalog's own property key names (for example
+  `contextPath`, `httpMethodRestrict`, `retryCount`), not a paraphrase.
 - `ADD_ELEMENTS`: add elements to the chain.
 - `DELETE`: remove elements.
 - `DISCONNECT`: cut a connection but keep the elements.
@@ -25,25 +24,48 @@ the request.
 - `UNRESOLVED`: more than one action fits, or a required field is missing. Put the question in
   `ambiguities`.
 
-Pick the action by what the request changes. "Give it three more tries" is `EDIT_RETRY`. "It gives
-up too fast" may be either `EDIT_TIMEOUT` or `EDIT_RETRY`; when you cannot tell, emit `UNRESOLVED`
-and put the question in `ambiguities`. When nothing should change, emit `NO_CHANGE`. Never emit an
-empty string for `action`.
+Every configuration change is `CONFIGURE`; there is no separate action per property family. When
+nothing should change, emit `NO_CHANGE`. Never emit an empty string for `action`.
 
-## Placement (`ADD_ELEMENTS` only)
+## Address (`ADD_ELEMENTS` only)
 
-- `ROOT_TRIGGER`: a new trigger at chain root. It fans into the same start the existing triggers
-  already share. Leave `targetNodeIds` empty unless the request names that start node.
-- `AFTER_TARGET`: insert the new element after the named target ids. `targetNodeIds` is required.
-- `GENERATOR`: the shared structure stage places a container, wrap, or branch. `targetNodeIds` is
-  required whenever the request wraps, moves, or reparents an existing element — name every element
-  the new structure will enclose or attach to. A request that only adds new elements next to the
-  existing chain (a new branch with no existing element moving into it) may leave `targetNodeIds`
-  empty.
-- `UNSET`: not an addition.
+Where the new subgraph sits is `targetNodeIds`, not a separate placement field.
 
-A new scheduler or HTTP trigger is `ROOT_TRIGGER`. It does not change an existing element. Do not
-list existing elements under `ambiguities` for that case.
+- A new trigger at chain root: use a trigger catalog type (`quartz-scheduler`, `http-trigger`, and
+  the other trigger types). Leave `targetNodeIds` empty unless the request names the start that
+  trigger should fan into. Leave `disposition` `UNSET`. The new trigger fans into the same start
+  the existing triggers already share. It does not change an existing element. Do not list
+  existing elements under `ambiguities` for that case.
+- An insertion that leaves the neighbouring elements where they are: name both ends when the
+  request identifies them — `targetNodeIds=[precedingId, followingId]` puts the new elements
+  between exactly those two. Name only the preceding element — `targetNodeIds=[precedingId]` —
+  when the request does not name what follows; the structure stage places the new elements after
+  that element when it has one successor, and Java asks which successor when it has several.
+  Set `disposition=KEEP` (or leave it `UNSET`; Java infers `KEEP` from a named address).
+- A wrap, move, or new branch: set `disposition=NEST`. `targetNodeIds` is required whenever the
+  request wraps, moves, or reparents an existing element — name every element the new structure
+  will enclose or attach to. A request that only adds new elements next to the existing chain (a
+  new branch with no existing element moving into it) may leave `targetNodeIds` empty.
+
+## Disposition (`ADD_ELEMENTS` only)
+
+What happens to the existing element at the insertion address. Keep, nest, and replace are the
+same subgraph insertion with a different fate for that element.
+
+- `KEEP`: leave the address elements where they are. Use this when the request inserts new
+  elements between two that stay on the chain.
+- `NEST`: move the named targets into the new structure. Use this when the request wraps, or
+  otherwise encloses, an existing element. Emit `NEST` yourself; Java will not infer a wrap.
+- `REMOVE`: delete the named targets and put the new subgraph in their place. Name only the
+  element being swapped in `targetNodeIds`, not its neighbours. Incoming connections of that
+  element attach to the subgraph entry; outgoing connections leave from the subgraph exit. A
+  replaced element that sat inside a container keeps the new subgraph inside that container.
+- `UNSET`: not an addition, a new root trigger, or you are leaving an insertion's fate to Java.
+  Java infers `KEEP` when `targetNodeIds` names an address. Emit `REMOVE` yourself when the
+  request swaps an element for something else; Java will not infer a removal.
+
+A request to replace, swap, or turn one element into several is `ADD_ELEMENTS` with
+`disposition=REMOVE`, never a `DELETE` followed by a separate add. The reader approves one change.
 
 ## Targets
 
@@ -51,6 +73,24 @@ Name element ids from the graph, exactly as written there. A change, delete, or 
 that fits several existing elements, or none, is not resolved: list what it could mean under
 `ambiguities` and leave `targetNodeIds` empty. Guessing which element a reader meant is the one
 mistake here that changes the wrong thing in their chain.
+
+## Property keys (`CONFIGURE` only)
+
+List every property the request changes in `propertyKeys`, using the catalog's own property key
+names for the target element's type, not a paraphrase: `contextPath`, not "the path"; `retryCount`,
+not "how many retries". Java matches these keys against the target element's schema and against each
+generator's declared properties, so a name that does not match either fails the request instead of
+reaching a generator. Leave `propertyKeys` empty for every action other than `CONFIGURE`.
+
+Example — request: "Change the HTTP trigger's context path to /orders and restrict it to POST."
+`action=CONFIGURE`, `targetNodeIds=["http-trigger-1"]`,
+`propertyKeys=["contextPath", "httpMethodRestrict"]`.
+
+Some wording names a key outright; other wording names a symptom that more than one key could fix.
+"Give it three more tries" names `retryCount`. "It gives up too fast" does not: it could mean the
+element retries too few times (`retryCount`) or gives up too soon while waiting
+(`connectTimeout`). When the wording picks out one key, list it. When it does not, do not guess
+which key was meant — emit `UNRESOLVED` and put the question in `ambiguities`.
 
 ## elementType
 
@@ -66,15 +106,46 @@ When a request describes several new elements at once (a branch holding a script
 call, or a try/catch with a script inside the catch), use the outer container as `elementType` and
 preserve the complete compound request in `requestedChange`. The structure stage creates the full
 hierarchy in one capture. This is the common case where an existing element moves into the new
-structure, so re-check the `targetNodeIds` rule under **Placement** before you finish: name every
+structure, so re-check the `targetNodeIds` rule under **Address** before you finish: name every
 existing element the wrap encloses.
 
+A request naming a straight sequence of new elements with no container — "add a script that
+normalizes the payload, then call the shipping service" — is still one compound request. Use the
+first new element's type as `elementType`, `disposition=KEEP` (or leave it `UNSET`), and preserve
+the complete sequence in `requestedChange`. The structure stage creates every element in the
+sequence, wires them to each other in order, and splices the result at the address
+`targetNodeIds` names.
+
 Example — request: "Wrap script-7 in a try/catch, keep the trigger at root, add a catch script."
-`action=ADD_ELEMENTS`, `elementType=try-catch-finally-2`, `placement=GENERATOR`,
+`action=ADD_ELEMENTS`, `elementType=try-catch-finally-2`, `disposition=NEST`,
 `targetNodeIds=["script-7"]`. `script-7` is named because it moves from chain root into the new
 `try-2` branch. The trigger is not named: it stays at root and nothing about it changes.
+
+Example — request: "Replace the mapper with a script that normalizes the payload, then a call to
+shipping."
+`action=ADD_ELEMENTS`, `elementType=script`, `disposition=REMOVE`,
+`targetNodeIds=["mapper-1"]`. Name only the element being swapped. Do not list its neighbours.
 
 ## cronExpression
 
 For a scheduler add, the cron (or an equivalent schedule) when the request names one. Empty
 otherwise.
+
+## Resuming a clarification
+
+Some requests begin with `PENDING CAPTURE`, followed by the capture already established,
+`QUESTION ASKED`, optionally `OPTIONS OFFERED`, and `READER'S REPLY`. This marks one edit already in
+progress: an earlier turn asked the question because the request matched more than one reading, and
+this turn's reply belongs to that same edit, not to a transcript to read as history.
+
+When `READER'S REPLY` answers `QUESTION ASKED`, return the complete capture: carry over every field
+`PENDING CAPTURE` already set, and fill in what the reply resolves. Do not make the reader restate a
+field `PENDING CAPTURE` already settled.
+
+When `READER'S REPLY` asks for something else, ignore `PENDING CAPTURE` and `QUESTION ASKED`.
+Classify `READER'S REPLY` on its own, the same as any other request.
+
+When `PENDING CAPTURE` has `action=ADD_ELEMENTS`, `disposition=KEEP` or `UNSET`, and one id already
+in `targetNodeIds`, `OPTIONS OFFERED` lists the elements the named element could go before. Read
+`READER'S REPLY` as picking one of them, and return `targetNodeIds` as both ids: the one already
+held, then the chosen option.

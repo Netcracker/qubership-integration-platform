@@ -190,12 +190,12 @@ class CompilerSkillContextBuilderAddonTest {
   }
 
   @Test
-  void errorHandlingGeneratorRestatesWrapConstraintAfterSkillDocument() {
+  void errorHandlingGeneratorRestatesConfigurationScopeAfterSkillDocument() {
     CompilerSkillDocument document =
         documentService.loadByCapabilityId("cip-error-handling-generator");
-    String wrapConstraint =
-        "When wrapping, UPDATE parentNodeId only for those target element ids. Never reparent a"
-            + " trigger.";
+    String editConstraint =
+        "The structure stage owns new nodes, containment, and edge rewrites. A configuration"
+            + " generator may change only the node ids in its Active generator plan slice.";
     CompilerSkillInputSnapshot snapshot =
         new CompilerSkillInputSnapshot(
             "Wrap the script in try-catch",
@@ -203,7 +203,7 @@ class CompilerSkillContextBuilderAddonTest {
             null,
             null,
             null,
-            wrapConstraint);
+            editConstraint);
 
     String message = contextBuilder.buildUserMessage(document, snapshot);
 
@@ -212,7 +212,47 @@ class CompilerSkillContextBuilderAddonTest {
     assertTrue(skillDocIndex >= 0);
     assertTrue(finalConstraintIndex >= 0);
     assertTrue(skillDocIndex < finalConstraintIndex);
-    assertTrue(message.substring(finalConstraintIndex).contains("Never reparent a trigger"));
+    String finalConstraint = message.substring(finalConstraintIndex);
+    assertTrue(finalConstraint.contains("The structure stage owns new nodes"));
+    assertTrue(finalConstraint.contains("Active generator plan slice"));
+    assertFalse(finalConstraint.contains("When wrapping"));
+  }
+
+  @Test
+  void editStructurePromptIncludesTheImportedGraphAndStructuralBoundary() {
+    CompilerSkillDocument document =
+        documentService.loadByCapabilityId("cip-structure-generator");
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", "Demo"),
+            java.util.List.of(
+                new ChainPlanNode("script", "script", "Script", null, null, java.util.List.of())),
+            java.util.List.of());
+    CompilerSkillInputSnapshot snapshot =
+        new CompilerSkillInputSnapshot(
+            "Wrap the script",
+            "",
+            null,
+            graph,
+            null,
+            "The listed intent targets are the approved structural boundary: script.");
+
+    String message =
+        contextBuilder.buildUserMessage(
+            null, document, snapshot, null, CaptureTool.CAPTURE_CHAIN_STRUCTURE);
+
+    assertTrue(message.contains("Current ChainPlanGraph JSON:"));
+    assertTrue(message.contains("\"nodeId\""));
+    assertTrue(message.contains("\"script\""));
+    assertTrue(message.contains("approved structural boundary: script"));
+    int skillDocIndex = message.indexOf("Compiler skill document");
+    int finalConstraintIndex = message.indexOf("Final edit constraint");
+    assertTrue(skillDocIndex >= 0, message);
+    assertTrue(finalConstraintIndex >= 0, message);
+    assertTrue(skillDocIndex < finalConstraintIndex, message);
+    assertTrue(
+        message.substring(finalConstraintIndex).contains("approved structural boundary: script"));
   }
 
   @Test

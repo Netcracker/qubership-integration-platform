@@ -18,6 +18,9 @@ echo "=== product CREATE offline entry ==="
 [[ -f "${PRODUCT_DIR}/scenarios.json" ]] || fail "missing product-pipeline/scenarios.json"
 [[ -f "${PRODUCT_DIR}/run-product-scenario.sh" ]] || fail "missing run-product-scenario.sh"
 [[ -f "${PRODUCT_DIR}/run-quality-gate.sh" ]] || fail "missing run-quality-gate.sh"
+[[ -f "${PRODUCT_DIR}/run-patch-scenario.sh" ]] || fail "missing run-patch-scenario.sh"
+[[ -f "${PRODUCT_DIR}/assert-patch-run.sh" ]] || fail "missing assert-patch-run.sh"
+[[ -f "${PRODUCT_DIR}/scripts/seed-catalog-chain.sh" ]] || fail "missing seed-catalog-chain.sh"
 [[ -f "${PRODUCT_DIR}/scripts/chat-turn.sh" ]] || fail "missing product-pipeline/scripts/chat-turn.sh"
 [[ -f "${PRODUCT_DIR}/scripts/assert-catalog.sh" ]] || fail "missing product-pipeline/scripts/assert-catalog.sh"
 [[ -f "${PRODUCT_DIR}/scripts/lib.sh" ]] || fail "missing product-pipeline/scripts/lib.sh"
@@ -28,22 +31,30 @@ echo "=== product CREATE offline entry ==="
 pass "legacy CREATE harness absent; product helpers present"
 
 bash -n "${PRODUCT_DIR}/run-product-scenario.sh"
+bash -n "${PRODUCT_DIR}/run-patch-scenario.sh"
+bash -n "${PRODUCT_DIR}/assert-patch-run.sh"
 bash -n "${PRODUCT_DIR}/run-quality-gate.sh"
 bash -n "${PRODUCT_DIR}/test-live-runner-contracts.sh"
 bash -n "${PRODUCT_DIR}/test-quality-gate-offline.sh"
 bash -n "${PRODUCT_DIR}/scripts/chat-turn.sh"
 bash -n "${PRODUCT_DIR}/scripts/assert-catalog.sh"
+bash -n "${PRODUCT_DIR}/scripts/seed-catalog-chain.sh"
 bash -n "${PRODUCT_DIR}/scripts/lib.sh"
 pass "product shell syntax"
 
 echo "=== product scenarios pin create-chain@2 (new CREATE) ==="
-ACTIVE_COUNT="$(
-  jq -r 'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active") | .key' \
+CREATE_ACTIVE="$(
+  jq -r 'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == "create-chain-v1") | .key' \
     "${PRODUCT_DIR}/scenarios.json" | wc -l | tr -d ' '
 )"
-[[ "${ACTIVE_COUNT}" == "7" ]] || fail "expected 7 active product scenarios, got ${ACTIVE_COUNT}"
+[[ "${CREATE_ACTIVE}" == "7" ]] || fail "expected 7 active CREATE scenarios, got ${CREATE_ACTIVE}"
+PATCH_ACTIVE="$(
+  jq -r 'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == "compare-and-patch") | .key' \
+    "${PRODUCT_DIR}/scenarios.json" | wc -l | tr -d ' '
+)"
+[[ "${PATCH_ACTIVE}" == "3" ]] || fail "expected 3 active compare-and-patch scenarios, got ${PATCH_ACTIVE}"
 jq -e '
-  [to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active")]
+  [to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
   | length == 7
   and all(
     .value.pipeline == "create-chain-v1"
@@ -53,7 +64,7 @@ jq -e '
     and .value.retainCatalogChain == true
   )
 ' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
-  || fail "every active scenario must pin create-chain@2 CHAIN_MATERIALIZED retain=true"
+  || fail "every active CREATE scenario must pin create-chain@2 CHAIN_MATERIALIZED retain=true"
 jq -e '
   ([to_entries[].value.pipeline] | index("create-plan-v1") == null)
   and ([to_entries[].value.pipeline] | index("design-first") == null)
@@ -62,7 +73,7 @@ jq -e '
   and ([to_entries[].value.tier] | index("structure-e2e") == null)
 ' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
   || fail "product scenarios must not include create-plan/design-first/structure-e2e"
-pass "seven create-chain@2 scenarios"
+pass "seven create-chain@2 scenarios and three compare-and-patch scenarios"
 
 echo "=== create-chain@1 backward-compat path remains ==="
 AI_ROOT="$(cd "${PRODUCT_DIR}/../.." && pwd)"

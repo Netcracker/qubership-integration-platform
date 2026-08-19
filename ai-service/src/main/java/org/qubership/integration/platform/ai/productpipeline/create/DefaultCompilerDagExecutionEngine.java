@@ -658,7 +658,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             inputGraph,
             node.ownership(),
             request.attemptId(),
-            ChainEditSkillContext.targetNodeIds(workspace));
+            ChainEditSkillContext.targetNodeIds(workspace, node.skillId()));
     var applied = validatedGraphPatchApplier.apply(context, patch);
     if (!applied.validationResult().valid()) {
       throw new IllegalStateException("contract failure: " + applied.validationResult().summary());
@@ -935,7 +935,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         inputGraph,
         ownershipFor(node),
         request.attemptId(),
-        ChainEditSkillContext.targetNodeIds(workspace));
+        ChainEditSkillContext.targetNodeIds(workspace, node.skillId()));
   }
 
   private static GraphPatchOwnershipPolicy ownershipFor(ResolvedCompilerNode node) {

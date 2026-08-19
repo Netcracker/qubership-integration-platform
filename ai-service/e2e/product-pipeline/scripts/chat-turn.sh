@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # POST one chat turn and capture the SSE stream.
 # Usage: chat-turn.sh <base_url> <conversation_id|-> <message> <out_sse> [scenario_hint] [decision_json]
+#
+# Optional env (production chat fields the UI also sends):
+#   E2E_CHAT_ATTACHMENT     open-chain context, e.g. "## Current Chain: Name (ID: uuid)"
+#   E2E_CHAT_DECISION_JSON  typed answer to a decision card (apply-chain-patch, approve, ...)
+# Message may be empty when a decision JSON value is set.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,28 +14,35 @@ source "${SCRIPT_DIR}/lib.sh"
 
 BASE_URL="${1:?base url}"
 CONV_ID="${2:?conversation id or -}"
-MESSAGE="${3:?message}"
+MESSAGE="${3-}"
 OUT_SSE="${4:?output sse file}"
 SCENARIO_HINT="${5:-}"
-DECISION_JSON="${6:-}"
+ATTACHMENT="${E2E_CHAT_ATTACHMENT:-}"
+DECISION_JSON="${6:-${E2E_CHAT_DECISION_JSON:-}}"
 
 e2e_require_cmds curl python3
+
+if [[ -z "${MESSAGE}" && -z "${DECISION_JSON}" ]]; then
+  e2e_fail "chat turn needs a message or E2E_CHAT_DECISION_JSON"
+fi
 
 payload_file="$(mktemp)"
 trap 'rm -f "$payload_file"' EXIT
 
-python3 - "$CONV_ID" "$MESSAGE" "$SCENARIO_HINT" "$DECISION_JSON" >"$payload_file" <<'PY'
+python3 - "$CONV_ID" "$MESSAGE" "$SCENARIO_HINT" "$ATTACHMENT" "$DECISION_JSON" >"$payload_file" <<'PY'
 import json
 import sys
 
-conv_id, message, hint, decision_raw = sys.argv[1:5]
+conv_id, message, hint, attachment, decision_json = sys.argv[1:6]
 body = {"message": message}
 if conv_id and conv_id != "-":
     body["conversationId"] = conv_id
 if hint:
     body["scenarioHint"] = hint
-if decision_raw:
-    body["decision"] = json.loads(decision_raw)
+if attachment:
+    body["attachment"] = attachment
+if decision_json:
+    body["decision"] = json.loads(decision_json)
 print(json.dumps(body))
 PY
 
