@@ -331,6 +331,34 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureRequiresBindingForEveryServiceCallEvenBeforeCatalogToolsWereUsed() {
+    RequirementDraftTool tool = new RequirementDraftTool(store);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Call Petstore Ext getInventory",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.SERVICE_CALL,
+                        "Petstore Ext",
+                        "GET /store/inventory"))));
+
+    assertTrue(result.contains("catalogBinding was missing"), result);
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertEquals(List.of(RequirementDraftTool.BINDING_REQUIRED_OPEN_QUESTION), draft.openQuestions());
+  }
+
+  @Test
   void captureStoresVerifiedCatalogBindingAndClearsApiHubCandidate() {
     ConversationCatalogCache cache = new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
     RequirementDraftTool tool = RequirementDraftTool.withCache(store, cache);

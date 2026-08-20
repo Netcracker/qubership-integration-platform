@@ -8,6 +8,7 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools;
+import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 
 class GatherRequirementsAgentTest {
@@ -19,7 +20,8 @@ class GatherRequirementsAgentTest {
 
     assertTrue(Arrays.asList(tools).contains(RequirementDraftTool.class));
     assertTrue(Arrays.asList(tools).contains(CatalogSystemTools.class));
-    assertTrue(Arrays.asList(tools).contains(ApiHubMcpTools.class));
+    assertTrue(Arrays.asList(tools).contains(CatalogFirstApiHubDiscoveryTool.class));
+    assertFalse(Arrays.asList(tools).contains(ApiHubMcpTools.class));
     assertFalse(
         Arrays.stream(tools)
             .anyMatch(tool -> tool.getSimpleName().equals("QipKnowledgeTools")));

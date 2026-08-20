@@ -407,14 +407,18 @@ public class DesignInputCapability implements StageCapability {
     if (mappingWait != null) {
       return mappingWait;
     }
-    // Same author as the GENERATE path. The two differ in what the caller sees, not in how the
-    // document is written: DERIVE is not shown and not approved, so it advances the run instead of
-    // producing an approval candidate.
     try {
-      AuthoredDesign authored = authorDesign(brief);
-      String markdown = authored.markdown();
-      NormalizedDesignFlow flow = authored.flow();
+      BriefFlowExtractor.ExtractionResult extracted = briefFlowExtractor.extract(brief);
+      if (extracted instanceof BriefFlowExtractor.ExtractionResult.NeedsInput needsInput) {
+        return StageOutcome.of(
+            StageOutcomeClass.NEEDS_INPUT,
+            "Cannot derive the design flow because required facts are missing: "
+                + String.join(", ", needsInput.missingFacts()));
+      }
+      NormalizedDesignFlow flow =
+          ((BriefFlowExtractor.ExtractionResult.Complete) extracted).flow();
       flowValidator.validate(flow);
+      String markdown = minimalIdsRenderer.render(flow);
       IdsDocument document =
           finalizedIdsDocument(
               markdown,
@@ -422,7 +426,7 @@ public class DesignInputCapability implements StageCapability {
               "requirement-brief",
               DesignContentHashes.sha256(RequirementBriefText.format(brief)),
               flow,
-              "cip-design-generator@1");
+              MinimalIdsRenderer.RENDERER_VERSION);
       return succeededDesign(DesignMode.DERIVE, document, flow, "IDS ready");
     } catch (IllegalArgumentException ex) {
       // Ask for what the design is missing rather than failing the stage. A VALIDATION_FAILURE
@@ -619,7 +623,9 @@ public class DesignInputCapability implements StageCapability {
       prompt.append(
           "\nThe brief lists SERVICE_CALL facts. The sequence diagram must include each outbound"
               + " call as CIP -> that external participant. Do not collapse those calls into a"
-              + " script-only Client -> CIP diagram.");
+              + " script-only Client -> CIP diagram. Their catalog/API resolution already happened"
+              + " before this stage: do not search API Hub, import an API, or replace an existing"
+              + " service binding.");
     } else {
       prompt
           .append(" A chain that answers from its own logic talks to no external system: its")

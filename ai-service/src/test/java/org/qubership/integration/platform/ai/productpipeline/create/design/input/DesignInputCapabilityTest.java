@@ -10,6 +10,7 @@ import io.smallrye.mutiny.Multi;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -600,7 +601,7 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void skipIdsWaitsInPlainLanguageWhenAuthoredIdsOmitsRequiredServiceCall() {
+  void skipIdsDerivesRequiredServiceCallFromTheBrief() {
     DesignInputCapability capability = capabilityWithFixedGenerate(SCRIPT_ONLY_HEALTHPROXY_IDS);
     StageOutcome prepared =
         outcome(
@@ -615,10 +616,15 @@ class DesignInputCapabilityTest {
                     "requirementBrief",
                     briefWithUnboundLeftoverMappings())));
 
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
-    assertTrue(
-        prepared.message().contains("missing required outbound service-call"),
-        prepared.message());
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(DesignMode.DERIVE, modePayload(prepared));
+    assertEquals(
+        1,
+        flowPayload(prepared)
+            .steps()
+            .stream()
+            .filter(step -> "service-call".equals(step.kind()))
+            .count());
     assertFalse(containsIntentRefDump(prepared.message()), prepared.message());
   }
 
@@ -770,15 +776,20 @@ class DesignInputCapabilityTest {
         prepared.message().contains("LLM IDS path choice"), prepared.message());
   }
 
-  /**
-   * Declining the document changes who sees it, not who writes it.
-   *
-   * <p>Both answers author through the generator. DERIVE differs only in outcome: it advances the
-   * run instead of producing an approval candidate, so nothing is printed and nothing is approved.
-   */
   @Test
-  void deriveAuthorsThroughTheGeneratorAndAdvances() {
-    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+  void deriveRendersTheApprovedBriefWithoutInvokingTheGenerator() {
+    AtomicInteger generatorCalls = new AtomicInteger();
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            new IdsDocumentParser(),
+            new NormalizedDesignFlowValidator(),
+            new MinimalIdsRenderer(),
+            new BriefFlowExtractor(),
+            new DesignRequirementBriefCoverageValidator(),
+            (brief, repairNote) -> {
+              generatorCalls.incrementAndGet();
+              return VALID_IDS;
+            });
     StageOutcome prepared =
         outcome(
             capability,
@@ -795,7 +806,9 @@ class DesignInputCapabilityTest {
     assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
     assertEquals(DesignMode.DERIVE, modePayload(prepared));
     assertEquals(IdsDocument.Mode.DERIVED, idsPayload(prepared).mode());
-    assertEquals("cip-design-generator@1", idsPayload(prepared).rendererVersion());
+    assertEquals(MinimalIdsRenderer.RENDERER_VERSION, idsPayload(prepared).rendererVersion());
+    assertEquals(0, generatorCalls.get());
+    assertTrue(idsPayload(prepared).markdown().contains("create order"));
   }
 
   /**

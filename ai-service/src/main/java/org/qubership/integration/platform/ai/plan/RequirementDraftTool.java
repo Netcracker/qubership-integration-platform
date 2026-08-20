@@ -47,17 +47,18 @@ public class RequirementDraftTool {
           + " Reply to the user only after a successful capture, in the user's language.";
 
   static final String BINDING_REQUIRED_OPEN_QUESTION =
-      "Which catalog operation should this chain call? Set catalogBinding from listCatalogOperations.";
+      "Which catalog operation should this chain call? Resolve it in the local catalog before "
+          + "searching API Hub.";
 
   static final String BINDING_SOFT_DOWNGRADE_PREFIX =
-      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): catalogBinding was missing"
-          + " after catalog operations were loaded. ";
+      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): catalogBinding was missing "
+          + "for a required service call. ";
 
   static final String BINDING_SOFT_DOWNGRADE_HINT =
       "In this same turn, call captureRequirementDraft again with decision=READY_FOR_PLAN and"
-          + " catalogBinding (systemId, specificationId, specificationGroupId,"
-          + " integrationOperationId) taken from searchCatalogSystems / getApiSpecifications /"
-          + " listCatalogOperations tool results. Do not invent UUIDs.";
+      + " catalogBinding (systemId, specificationId, specificationGroupId,"
+          + " integrationOperationId) taken from resolveApiOperation or catalog tool results."
+          + " Do not invent UUIDs.";
 
   static final String ALREADY_READY_STOP_HINT =
       "Requirement draft is already READY_FOR_PLAN for this turn. Do not call"
@@ -134,6 +135,8 @@ public class RequirementDraftTool {
       same turn with facts, or keep NEEDS_INPUT with one open question.
       Optional fact fields: kind (GOAL, ENDPOINT, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY,
       VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId.
+      For every SERVICE_CALL fact, call resolveApiOperation before READY_FOR_PLAN. It checks the
+      local catalog first and searches API Hub only after a confirmed catalog miss.
       When catalog tools return a single clear system/spec/operation match, set catalogBinding
       with systemId, specificationId, specificationGroupId, and integrationOperationId from those
       tool results (never invent UUIDs). catalogBinding allows READY_FOR_PLAN.
@@ -279,8 +282,7 @@ public class RequirementDraftTool {
 
       if (decision == DraftDecision.READY_FOR_PLAN
           && binding == null
-          && catalogCache != null
-          && catalogCache.hasRememberedOperations(conversationId)) {
+          && requiresResolvedCatalogBinding(facts, catalogCache, conversationId)) {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
@@ -288,7 +290,7 @@ public class RequirementDraftTool {
         }
         LOG.warnf(
             "captureRequirementDraft: soft-downgraded READY_FOR_PLAN without catalogBinding"
-                + " after catalog operations were loaded conversationId=%s",
+                + " for required service call conversationId=%s",
             conversationId);
       }
 
@@ -421,6 +423,22 @@ public class RequirementDraftTool {
           + " use NEEDS_INPUT until the user imports the specification";
     }
     return null;
+  }
+
+  private static boolean requiresResolvedCatalogBinding(
+      List<RequirementFact> facts, ConversationCatalogCache catalogCache, String conversationId) {
+    if (catalogCache != null && catalogCache.hasRememberedOperations(conversationId)) {
+      return true;
+    }
+    if (facts == null) {
+      return false;
+    }
+    return facts.stream()
+        .anyMatch(
+            fact ->
+                fact != null
+                    && fact.polarity() == RequirementFactPolarity.POSITIVE
+                    && fact.kind() == RequirementFactKind.SERVICE_CALL);
   }
 
   private static String validateUniqueFacts(List<RequirementFact> facts) {
