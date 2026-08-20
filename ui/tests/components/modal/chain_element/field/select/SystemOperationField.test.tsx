@@ -136,6 +136,17 @@ function makeProps(
   } as unknown as Props;
 }
 
+/** Same props with the form context patched, as the parent re-renders the field. */
+function withContext(props: Props, patch: Record<string, unknown>): Props {
+  return {
+    ...props,
+    registry: {
+      ...props.registry,
+      formContext: { ...props.registry.formContext, ...patch },
+    },
+  };
+}
+
 function flushPromises(): Promise<void> {
   return act(async () => {
     await Promise.resolve();
@@ -208,18 +219,34 @@ describe("SystemOperationField (handleChange publishes operation identifiers)", 
   });
 
   /**
-   * ServiceField writes the service protocol into the context and nothing between
-   * there and here clears it, so selecting an operation must not re-fetch the
-   * service just to recompute a value it already has.
+   * ServiceField publishes the protocol of the service the user just picked, read
+   * from a list useServices had loaded moments earlier. That value needs no lookup:
+   * the modal opened on another service (none, here), so the current one was picked
+   * in this session.
    */
-  it("should not fetch the service when the context already carries the protocol", async () => {
+  it("should not fetch the service when the protocol was published in this session", async () => {
     const props = makeProps({
       formData: undefined,
-      formContext: { integrationOperationProtocolType: "amqp" },
+      formContext: {
+        integrationSystemId: undefined,
+        integrationSpecificationId: undefined,
+        integrationOperationProtocolType: undefined,
+      },
     });
     const updateContext = props.registry.formContext.updateContext as jest.Mock;
 
-    const { getByTestId } = render(<SystemOperationField {...props} />);
+    const { getByTestId, rerender } = render(
+      <SystemOperationField {...props} />,
+    );
+    await flushPromises();
+
+    // ServiceField picks a service: system id and protocol arrive together.
+    const afterServicePick = withContext(props, {
+      integrationSystemId: "sys-1",
+      integrationSpecificationId: "spec-1",
+      integrationOperationProtocolType: "amqp",
+    });
+    rerender(<SystemOperationField {...afterServicePick} />);
     await flushPromises();
 
     act(() => {
@@ -234,6 +261,93 @@ describe("SystemOperationField (handleChange publishes operation identifiers)", 
       expect(call?.integrationOperationProtocolType).toBe("amqp");
     });
     expect(mockGetService).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A specification import rewrites the service protocol, so the protocol stored in
+   * the element's properties can name a transport the service no longer speaks. The
+   * modal opens on the stored value, so it has to be re-read from the service.
+   */
+  it("should publish the service protocol when the stored one is stale", async () => {
+    mockGetService.mockResolvedValue({ id: "sys-1", protocol: "amqp" });
+
+    const props = makeProps({
+      formData: "op-1",
+      formContext: { integrationOperationProtocolType: "http" },
+    });
+    const updateContext = props.registry.formContext.updateContext as jest.Mock;
+
+    render(<SystemOperationField {...props} />);
+    await flushPromises();
+    await flushPromises();
+
+    await waitFor(() => {
+      expect(updateContext).toHaveBeenCalledWith({
+        integrationOperationProtocolType: "amqp",
+      });
+    });
+    expect(mockGetService).toHaveBeenCalledWith("sys-1");
+  });
+
+  it("should reuse the refreshed protocol when an operation is picked afterwards", async () => {
+    mockGetService.mockResolvedValue({ id: "sys-1", protocol: "amqp" });
+
+    const props = makeProps({
+      formData: "op-1",
+      formContext: { integrationOperationProtocolType: "http" },
+    });
+    const updateContext = props.registry.formContext.updateContext as jest.Mock;
+
+    const { getByTestId } = render(<SystemOperationField {...props} />);
+    await flushPromises();
+    await flushPromises();
+
+    act(() => {
+      getByTestId("fake-select").click();
+    });
+    await flushPromises();
+
+    await waitFor(() => {
+      const call = updateContext.mock.calls
+        .map((c: unknown[]) => c[0] as Record<string, unknown>)
+        .find((c) => c.integrationOperationId === "op-2");
+      expect(call?.integrationOperationProtocolType).toBe("amqp");
+    });
+    // The refresh on open already answered this: one lookup per service.
+    expect(mockGetService).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The refreshed protocol has to reach the rendered field, not just the context:
+   * the gRPC "Synchronous call" switch is the visible part of it.
+   */
+  it("should render the gRPC switch when the service protocol turns out to be grpc", async () => {
+    mockGetService.mockResolvedValue({ id: "sys-1", protocol: "grpc" });
+
+    const props = makeProps({
+      formData: "op-1",
+      formContext: { integrationOperationProtocolType: "http" },
+    });
+    const updateContext = props.registry.formContext.updateContext as jest.Mock;
+
+    const { queryByText, rerender } = render(
+      <SystemOperationField {...props} />,
+    );
+    await flushPromises();
+    expect(queryByText("Synchronous call")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(updateContext).toHaveBeenCalled();
+    });
+
+    // The parent feeds the updated context back in, as ChainElementModification does.
+    const published = updateContext.mock.calls.at(-1)?.[0] as Record<
+      string,
+      unknown
+    >;
+    rerender(<SystemOperationField {...withContext(props, published)} />);
+
+    expect(queryByText("Synchronous call")).toBeInTheDocument();
   });
 
   /**

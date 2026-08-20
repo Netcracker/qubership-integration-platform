@@ -12,6 +12,7 @@ import * as vscode from "vscode";
 import { fileApi } from "./fileApiProvider";
 import { getExtensionsForUri } from "./fileExtensions";
 import {
+  carriedEntityExtension,
   refuseUnreadableSibling,
   ScannedEntities,
   resolveScannedEntities,
@@ -63,7 +64,11 @@ async function resolveFolderEntities(
     (fileUri) => fileApi.parseFile(fileUri),
     {
       idOf: (parsed: any) => parsed?.id,
-      prefers: (fileUri) => fileUri.path.endsWith(currentExtension),
+      // The longest matching extension, not a bare `endsWith`: under an overlapping config
+      // (`api: ".a.yaml"` beside `specification: ".spec.a.yaml"`) the legacy name ends with the
+      // current extension too.
+      prefers: (fileUri) =>
+        carriedEntityExtension(fileUri, extensions) === currentExtension,
       onUnreadable: (entityId, resolved, unreadable) =>
         refuseUnreadableSibling(entityId, resolved, unreadable, extensions),
     },

@@ -42,6 +42,7 @@ import type {
   SystemOperation,
   ContextSystem,
 } from "../../api/apiTypes";
+import { parseJsonOrDefault } from "../../misc/json-helper";
 import { InlineEdit } from "../InlineEdit";
 import { LabelsEdit } from "../table/LabelsEdit";
 import { ChainColumn } from "./ui/ChainColumn";
@@ -590,6 +591,78 @@ export function getActionsColumn<T extends ServiceEntity = ServiceEntity>(
 export type { ActionConfig } from "./serviceRowActions";
 export { getServiceActions } from "./serviceRowActions";
 
+/** Reads a persisted column key list; returns null when it is absent or not an array of keys. */
+function readStoredColumnKeys(storageItemKey: string): string[] | null {
+  const stored = localStorage.getItem(storageItemKey);
+  if (stored === null) {
+    return null;
+  }
+  const parsed = parseJsonOrDefault<unknown>(stored, null);
+  if (!Array.isArray(parsed)) {
+    return null;
+  }
+  const keys: unknown[] = parsed;
+  return keys.every((key) => typeof key === "string") ? keys : null;
+}
+
+/**
+ * Keeps the user's saved order, drops keys that no longer exist, and appends columns added since the
+ * order was persisted, so a stale stored order never hides new columns from the table or its picker.
+ */
+function reconcileColumnsOrder(
+  storedOrder: string[] | null,
+  allColumnKeys: string[],
+): string[] {
+  if (!storedOrder) {
+    return allColumnKeys;
+  }
+  const known = storedOrder.filter((key) => allColumnKeys.includes(key));
+  const added = allColumnKeys.filter((key) => !known.includes(key));
+  return [...known, ...added];
+}
+
+/**
+ * The stored order doubles as the record of which columns existed when the settings were saved, so a
+ * column missing from it was added later and follows the current defaults instead of the saved list.
+ * Anything the user explicitly unchecked is in the stored order and stays hidden.
+ */
+function reconcileVisibleColumns(
+  storedVisible: string[] | null,
+  storedOrder: string[] | null,
+  allColumnKeys: string[],
+  defaultVisibleKeys: string[],
+): string[] {
+  if (!storedVisible) {
+    return defaultVisibleKeys;
+  }
+  const kept = storedVisible.filter((key) => allColumnKeys.includes(key));
+  if (!storedOrder) {
+    return kept;
+  }
+  const added = defaultVisibleKeys.filter(
+    (key) =>
+      allColumnKeys.includes(key) &&
+      !storedOrder.includes(key) &&
+      !kept.includes(key),
+  );
+  return added.length > 0 ? [...kept, ...added] : kept;
+}
+
+/** Rewrites an already persisted key list; never creates one, so untouched settings stay unset. */
+function persistReconciledColumnKeys(
+  storageItemKey: string,
+  keys: string[],
+): void {
+  const stored = localStorage.getItem(storageItemKey);
+  if (stored === null) {
+    return;
+  }
+  const next = JSON.stringify(keys);
+  if (next !== stored) {
+    localStorage.setItem(storageItemKey, next);
+  }
+}
+
 export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   dataSource,
   rowKey,
@@ -623,26 +696,33 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
       : allColumnKeys;
   }, [defaultVisibleKeys, allColumnKeys]);
 
-  const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
-    const storedOrder = localStorage.getItem(getColumnsOrderKey(storageKey));
-    if (!storedOrder) {
-      return allColumnKeys;
+  const [columnsOrder, setColumnsOrder] = useState<string[]>(() =>
+    reconcileColumnsOrder(
+      readStoredColumnKeys(getColumnsOrderKey(storageKey)),
+      allColumnKeys,
+    ),
+  );
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() =>
+    reconcileVisibleColumns(
+      readStoredColumnKeys(getColumnsVisibleKey(storageKey)),
+      readStoredColumnKeys(getColumnsOrderKey(storageKey)),
+      allColumnKeys,
+      initialKeys,
+    ),
+  );
+
+  // The picker re-reads localStorage when it opens, so write the reconciled lists back; otherwise it
+  // would re-apply the stale ones and hide the new columns again.
+  useEffect(() => {
+    if (!storageKey) {
+      return;
     }
-    const parsed = JSON.parse(storedOrder) as string[];
-    // Keep the user's saved order, drop keys that no longer exist, and append columns added since the
-    // order was persisted, so a stale stored order never hides new columns from the table or its picker.
-    const known = parsed.filter((key) => allColumnKeys.includes(key));
-    const added = allColumnKeys.filter((key) => !known.includes(key));
-    return [...known, ...added];
-  });
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
-    const storedVisible = localStorage.getItem(
+    persistReconciledColumnKeys(getColumnsOrderKey(storageKey), columnsOrder);
+    persistReconciledColumnKeys(
       getColumnsVisibleKey(storageKey),
+      visibleColumns,
     );
-    return storedVisible
-      ? (JSON.parse(storedVisible) as string[])
-      : initialKeys;
-  });
+  }, [storageKey, columnsOrder, visibleColumns]);
   const [internalSelectedRowKeys, setInternalSelectedRowKeys] = useState<
     React.Key[]
   >([]);

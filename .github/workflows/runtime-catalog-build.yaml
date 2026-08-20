@@ -1,3 +1,7 @@
+# `schemas/**` is here because this module's tests read four things out of that module through
+# <testResource> entries, with no Maven dependency to make the link visible: the service schemas
+# (ServiceTypeFilesTest), the conformance corpus, the naming corpus, and the export/import golden
+# archives. Editing any of them can fail `mvn test` here, so it has to fire this build.
 name: Runtime Catalog Build
 
 on:
@@ -6,6 +10,7 @@ on:
     paths:
       - 'runtime-catalog/**'
       - 'parent/**'
+      - 'schemas/**'
       - 'pom.xml'
 
 permissions: {}

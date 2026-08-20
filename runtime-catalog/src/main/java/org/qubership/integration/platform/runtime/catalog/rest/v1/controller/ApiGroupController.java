@@ -19,12 +19,14 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.ApiGroupCreationRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.ApiGroupDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.ApiGroupRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ApiGroupMapper;
+import org.qubership.integration.platform.runtime.catalog.service.AbstractApiGroupService;
 import org.qubership.integration.platform.runtime.catalog.service.ApiGroupService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -64,18 +66,21 @@ public class ApiGroupController {
     }
 
     @PatchMapping(value = "/{specificationGroupId}", produces = "application/json")
-    @Operation(description = "Update synchronization toggle on an API group")
+    @Operation(description = "Update synchronization toggle on an API group."
+            + " Answers 404 if the id is unknown.")
     public ResponseEntity<ApiGroupDTO> updateSyncStatus(
             @PathVariable @Parameter(description = "API group id") String specificationGroupId,
             @RequestBody @Parameter(description = "API group modification object") ApiGroupRequestDTO apiGroupDTO) {
         ApiGroup apiGroup = apiGroupService.getById(specificationGroupId);
-        if (apiGroup != null) {
-            apiGroupMapper.mergeWithoutLabels(apiGroupDTO, apiGroup);
-            apiGroup = apiGroupService.update(apiGroup, apiGroupMapper.asLabelRequests(apiGroupDTO.getLabels()));
-            return ResponseEntity.ok(apiGroupMapper.toApiGroupDTO(apiGroup));
-        } else {
-            return ResponseEntity.badRequest().build();
+        // An unknown id answered 400, which reads as a malformed request. The service and environment doors
+        // report the same case as 404.
+        if (apiGroup == null) {
+            throw new EntityNotFoundException(AbstractApiGroupService.API_GROUP_WITH_ID_NOT_FOUND_MESSAGE
+                    + specificationGroupId + ". Nothing was updated.");
         }
+        apiGroupMapper.mergeWithoutLabels(apiGroupDTO, apiGroup);
+        apiGroup = apiGroupService.update(apiGroup, apiGroupMapper.asLabelRequests(apiGroupDTO.getLabels()));
+        return ResponseEntity.ok(apiGroupMapper.toApiGroupDTO(apiGroup));
     }
 
     @PostMapping

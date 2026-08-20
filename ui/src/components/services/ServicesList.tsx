@@ -308,22 +308,28 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     onUpdateLabels: async (record, labels) => {
       const newLabels = labels.map((name) => ({ name, technical: false }));
       if (isIntegrationSystem(record)) {
-        // The type is immutable, so the payload drops it instead of echoing it back.
-        const { type: _type, ...withoutType } = record;
+        // PUT /systems/{id} merges without ignoring nulls, so name, description and
+        // activeEnvironmentId have to travel along or they are wiped. They plus labels
+        // are the whole writable surface of the request DTO; the type is immutable.
         await api.updateService(record.id, {
-          ...withoutType,
+          name: record.name,
+          description: record.description,
+          activeEnvironmentId: record.activeEnvironmentId,
           labels: newLabels,
         });
         await loadServices();
       } else if (isApiGroup(record)) {
+        // synchronization is a primitive on the request DTO, so an absent one reads
+        // as false and silently turns the toggle off.
         const res = await api.updateApiSpecificationGroup(record.id, {
-          ...record,
+          synchronization: record.synchronization,
           labels: newLabels,
         });
         setApiGroupsByService((prev) => updateLabelsInMap(prev, res));
       } else if (isApi(record)) {
+        // The handler resolves the model by the id in the body, not by the path variable.
         const res = await api.updateSpecificationModel(record.id, {
-          ...record,
+          id: record.id,
           labels: newLabels,
         });
         setSpecsByGroup((prev) => updateLabelsInMap(prev, res));

@@ -24,13 +24,20 @@ globalThis.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
-import { render, fireEvent, waitFor, screen } from "@testing-library/react";
+import {
+  act,
+  render,
+  fireEvent,
+  waitFor,
+  screen,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { IntegrationSystemType } from "../../src/api/apiTypes";
-import type { IntegrationSystem } from "../../src/api/apiTypes";
+import type { Api, ApiGroup, IntegrationSystem } from "../../src/api/apiTypes";
 import type { EntityFilterModel } from "../../src/components/table/filter/filterTypes";
 
 const mockGetServices = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
+const mockGetApiSpecifications = jest.fn<Promise<ApiGroup[]>, unknown[]>();
 const mockFilterSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockSearchSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockShowModal = jest.fn();
@@ -44,7 +51,8 @@ jest.mock("../../src/api/api", () => ({
     getServices: (...args: unknown[]) => mockGetServices(...args),
     filterServices: (...args: unknown[]) => mockFilterSystems(...args),
     searchServices: (...args: unknown[]) => mockSearchSystems(...args),
-    getApiSpecifications: jest.fn().mockResolvedValue([]),
+    getApiSpecifications: (...args: unknown[]) =>
+      mockGetApiSpecifications(...args),
     exportServices: jest.fn().mockResolvedValue(new File([], "test")),
     exportContextServices: jest.fn().mockResolvedValue(new File([], "test")),
     updateService: jest.fn(),
@@ -105,8 +113,10 @@ jest.mock("../../src/components/services/ServicesTreeTable", () => ({
   allServicesTreeTableColumns: [{ key: "name" }, { key: "protocol" }],
   getActionsColumn: () => ({ key: "actions" }),
   getServiceActions: () => [],
-  isApi: () => false,
-  isApiGroup: () => false,
+  // Shape-based, like the real guards, so a test can drive any of the three branches.
+  isApi: (r: object) =>
+    "specificationGroupId" in r && "version" in r && "source" in r,
+  isApiGroup: (r: object) => "systemId" in r && "synchronization" in r,
   isIntegrationSystem: (r: unknown) =>
     !!(r as { type?: string })?.type &&
     (r as { type: string }).type !== "CONTEXT",
@@ -178,6 +188,51 @@ const makeService = (
     labels: [],
   }) as unknown as IntegrationSystem;
 
+// The tree row a table callback receives carries the loaded children and the whole
+// server-side entity, none of which belongs in an update payload.
+const makeApi = (id = "m1"): Api =>
+  ({
+    id,
+    name: "1.0.0",
+    specificationGroupId: "g1",
+    version: "1.0.0",
+    source: "MANUAL",
+    systemId: "1",
+    labels: [],
+    chains: [{ id: "c1", name: "Chain 1" }],
+    operations: [{ id: "o1", name: "getThings" }],
+  }) as unknown as Api;
+
+const makeApiGroup = (id = "g1"): ApiGroup =>
+  ({
+    id,
+    name: "Group A",
+    systemId: "1",
+    synchronization: true,
+    labels: [],
+    specifications: [makeApi()],
+    chains: [{ id: "c1", name: "Chain 1" }],
+    children: [makeApi()],
+  }) as unknown as ApiGroup;
+
+const makeTreeService = (): IntegrationSystem =>
+  ({
+    id: "1",
+    name: "Service A",
+    type: IntegrationSystemType.EXTERNAL,
+    description: "billing gateway",
+    activeEnvironmentId: "env-1",
+    protocol: "http",
+    internalServiceName: "svc-a",
+    labels: [],
+    children: [makeApiGroup()],
+  }) as unknown as IntegrationSystem;
+
+type LabelUpdater = (record: unknown, labels: string[]) => Promise<void> | void;
+
+const captureOnUpdateLabels = (): LabelUpdater =>
+  mockTableOptions.at(-1)?.onUpdateLabels as LabelUpdater;
+
 describe("ServicesListPage", () => {
   let messageInfoSpy: jest.SpyInstance;
 
@@ -194,6 +249,7 @@ describe("ServicesListPage", () => {
     ]);
     mockFilterSystems.mockResolvedValue([]);
     mockSearchSystems.mockResolvedValue([]);
+    mockGetApiSpecifications.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -337,5 +393,130 @@ describe("ServicesListPage", () => {
     expect(id).toBe("1");
     expect(payload).not.toHaveProperty("type");
     expect(payload.labels).toEqual([{ name: "billing", technical: false }]);
+  });
+
+  it("should send only the request DTO fields when service labels are edited", async () => {
+    jest.useRealTimers();
+    render(<ServicesList tab="external" />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+
+    await captureOnUpdateLabels()(makeTreeService(), ["billing"]);
+
+    expect(api.updateService).toHaveBeenCalledTimes(1);
+    const [id, payload] = jest.mocked(api.updateService).mock.calls[0];
+    expect(id).toBe("1");
+    // PUT overwrites what the body omits, so these four are exactly what may be sent.
+    expect(Object.keys(payload).sort()).toEqual([
+      "activeEnvironmentId",
+      "description",
+      "labels",
+      "name",
+    ]);
+    expect(payload).toEqual({
+      name: "Service A",
+      description: "billing gateway",
+      activeEnvironmentId: "env-1",
+      labels: [{ name: "billing", technical: false }],
+    });
+    expect(payload).not.toHaveProperty("children");
+    expect(payload).not.toHaveProperty("specifications");
+    expect(payload).not.toHaveProperty("chains");
+  });
+
+  it("should send synchronization and labels only when API group labels are edited", async () => {
+    jest.useRealTimers();
+    const group = makeApiGroup();
+    jest
+      .mocked(api.updateApiSpecificationGroup)
+      .mockResolvedValue({ ...group, labels: [] });
+    render(<ServicesList tab="external" />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+
+    await captureOnUpdateLabels()(group, ["billing"]);
+
+    expect(api.updateApiSpecificationGroup).toHaveBeenCalledTimes(1);
+    const [id, payload] = jest.mocked(api.updateApiSpecificationGroup).mock
+      .calls[0];
+    expect(id).toBe("g1");
+    // An absent synchronization reads as false on the request DTO, so it has to travel.
+    expect(Object.keys(payload).sort()).toEqual(["labels", "synchronization"]);
+    expect(payload.synchronization).toBe(true);
+    expect(payload.labels).toEqual([{ name: "billing", technical: false }]);
+    expect(payload).not.toHaveProperty("children");
+    expect(payload).not.toHaveProperty("specifications");
+    expect(payload).not.toHaveProperty("chains");
+  });
+
+  it("should send the model id and labels only when API labels are edited", async () => {
+    jest.useRealTimers();
+    const model = makeApi();
+    jest
+      .mocked(api.updateSpecificationModel)
+      .mockResolvedValue({ ...model, labels: [] });
+    render(<ServicesList tab="external" />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+
+    await captureOnUpdateLabels()(model, ["billing"]);
+
+    expect(api.updateSpecificationModel).toHaveBeenCalledTimes(1);
+    const [id, payload] = jest.mocked(api.updateSpecificationModel).mock
+      .calls[0];
+    expect(id).toBe("m1");
+    // The handler looks the model up by the id in the body, not by the path variable.
+    expect(Object.keys(payload).sort()).toEqual(["id", "labels"]);
+    expect(payload.id).toBe("m1");
+    expect(payload.labels).toEqual([{ name: "billing", technical: false }]);
+    expect(payload).not.toHaveProperty("children");
+    expect(payload).not.toHaveProperty("chains");
+    expect(payload).not.toHaveProperty("operations");
+  });
+
+  it("should reload the services when service labels are edited", async () => {
+    jest.useRealTimers();
+    render(<ServicesList tab="external" />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalledTimes(1));
+
+    await captureOnUpdateLabels()(makeTreeService(), ["billing"]);
+
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalledTimes(2));
+  });
+
+  it("should show the returned labels in the table when API group labels are edited", async () => {
+    jest.useRealTimers();
+    const group = makeApiGroup();
+    mockGetApiSpecifications.mockResolvedValue([group]);
+    jest.mocked(api.updateApiSpecificationGroup).mockResolvedValue({
+      ...group,
+      labels: [{ name: "billing", technical: false }],
+    });
+    render(<ServicesList tab="external" />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+
+    const expandable = mockTableOptions.at(-1)?.expandable as {
+      onExpand: (expanded: boolean, record: unknown) => void;
+    };
+    await act(async () => {
+      expandable.onExpand(
+        true,
+        makeService("1", "Service A", IntegrationSystemType.EXTERNAL),
+      );
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(mockGetApiSpecifications).toHaveBeenCalledWith("1"),
+    );
+
+    await act(async () => {
+      await captureOnUpdateLabels()(group, ["billing"]);
+    });
+
+    await waitFor(() => {
+      const dataSource = mockTableOptions.at(-1)?.dataSource as {
+        children: { labels: unknown }[];
+      }[];
+      expect(dataSource[0].children[0].labels).toEqual([
+        { name: "billing", technical: false },
+      ]);
+    });
   });
 });

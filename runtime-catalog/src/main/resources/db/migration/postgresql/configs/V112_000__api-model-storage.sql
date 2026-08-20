@@ -265,10 +265,44 @@ SET source = 'MANUAL'
 WHERE source = 'CUSTOMER_MANUAL';
 
 -- Uniqueness was an app-level invariant only (ParserUtils count-then-save race), so duplicate rows may exist.
--- If they do, this constraint fails and, because FlywayInitializer.migrate() runs in @PostConstruct, blocks
--- app startup for the whole rollout. Run the pre-flight audit in the plan's Post-Completion before shipping:
+-- If they do, the constraint below fails and, because FlywayInitializer.migrate() runs in @PostConstruct, blocks
+-- app startup for the whole rollout. PostgreSQL reports only "could not create unique index" and one sample key,
+-- which leaves the operator to hunt for the rest by hand while every pod crash-loops, so this block names them
+-- first: same rollback, same stopped startup, but the message carries the pairs to de-dup. The list is capped at
+-- 20 pairs plus a total, because a log line holding thousands is no more usable than none.
+--
+-- The audit query behind the cap, for the pre-flight run in the plan's Post-Completion:
 --   SELECT api_group_id, version, count(*) FROM catalog.models GROUP BY 1,2 HAVING count(*) > 1;
 -- De-dup is a destructive human decision and is intentionally not automated here.
+DO
+$$
+    DECLARE
+        duplicate_total  bigint;
+        duplicate_sample text;
+    BEGIN
+        -- Both columns are nullable and UNIQUE treats nulls as distinct, so a null in either one never
+        -- conflicts. Skipping those rows keeps the check from stopping startup over a pair the constraint
+        -- would have accepted.
+        SELECT count(*), string_agg(pair, ', ' ORDER BY pair_rank) FILTER (WHERE pair_rank <= 20)
+        INTO duplicate_total, duplicate_sample
+        FROM (SELECT format('(%s, %s)', api_group_id, version)          AS pair,
+                     row_number() OVER (ORDER BY api_group_id, version) AS pair_rank
+              FROM models
+              WHERE api_group_id IS NOT NULL
+                AND version IS NOT NULL
+              GROUP BY api_group_id, version
+              HAVING count(*) > 1) duplicates;
+
+        IF duplicate_total > 0 THEN
+            RAISE EXCEPTION 'Table models holds % duplicate (api_group_id, version) pair(s), so constraint '
+                'uk_models_on_api_group_id_version cannot be added. First %: %',
+                duplicate_total, least(duplicate_total, 20), duplicate_sample
+                USING HINT = 'Keep one model per pair, delete the rest, then restart. '
+                             'Nothing in this migration was applied.';
+        END IF;
+    END
+$$;
+
 ALTER TABLE models
     ADD CONSTRAINT uk_models_on_api_group_id_version
         UNIQUE (api_group_id, version);

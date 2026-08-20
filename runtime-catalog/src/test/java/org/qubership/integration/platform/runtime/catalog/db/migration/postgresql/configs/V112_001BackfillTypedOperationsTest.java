@@ -19,6 +19,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -240,6 +242,47 @@ class V112_001BackfillTypedOperationsTest {
         verify(modelUpdate, never()).setString(anyInt(), any());
         verify(modelUpdate, never()).addBatch();
         verify(modelUpdate, never()).executeBatch();
+    }
+
+    @Test
+    void readsThroughACursorAndFlushesEveryBatchInsteadOfHoldingEveryRow() throws Exception {
+        // Materializing every unfilled operation row, each with its specification jsonb, spiked the startup heap.
+        // The read runs on a cursor and the batch is flushed every BATCH_SIZE updates, so one row past the batch
+        // costs two flushes rather than one list of everything.
+        int rowCount = V112_001__BackfillTypedOperations.BATCH_SIZE + 1;
+        AtomicInteger remaining = new AtomicInteger(rowCount);
+
+        Statement operationSelect = mock(Statement.class);
+        ResultSet operationRows = mock(ResultSet.class);
+        when(operationRows.next()).thenAnswer(invocation -> remaining.getAndDecrement() > 0);
+        when(operationRows.getString("id")).thenReturn("op-1");
+        when(operationRows.getString("path")).thenReturn("/orders");
+        when(operationRows.getString("method")).thenReturn("POST");
+        when(operationRows.getString("specification")).thenReturn("{}");
+        when(operationRows.getString("protocol")).thenReturn("HTTP");
+        when(operationSelect.executeQuery(V112_001__BackfillTypedOperations.SELECT_OPERATIONS)).thenReturn(operationRows);
+
+        Statement modelSelect = mock(Statement.class);
+        ResultSet modelRows = mock(ResultSet.class);
+        when(modelRows.next()).thenReturn(false);
+        when(modelSelect.executeQuery(V112_001__BackfillTypedOperations.SELECT_MODELS)).thenReturn(modelRows);
+
+        Connection connection = mock(Connection.class);
+        when(connection.createStatement()).thenReturn(operationSelect, modelSelect);
+        PreparedStatement operationUpdate = mock(PreparedStatement.class);
+        when(connection.prepareStatement(V112_001__BackfillTypedOperations.UPDATE_OPERATION_TYPED))
+                .thenReturn(operationUpdate);
+        when(connection.prepareStatement(V112_001__BackfillTypedOperations.UPDATE_MODEL_SPECIFICATION_TYPE))
+                .thenReturn(mock(PreparedStatement.class));
+
+        Context context = mock(Context.class);
+        when(context.getConnection()).thenReturn(connection);
+
+        new V112_001__BackfillTypedOperations().migrate(context);
+
+        verify(operationSelect).setFetchSize(V112_001__BackfillTypedOperations.BATCH_SIZE);
+        verify(operationUpdate, times(rowCount)).addBatch();
+        verify(operationUpdate, times(2)).executeBatch();
     }
 
     private static TypedOperation roundTrip(String json) throws Exception {

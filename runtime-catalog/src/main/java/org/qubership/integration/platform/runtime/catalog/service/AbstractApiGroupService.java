@@ -29,6 +29,7 @@ public abstract class AbstractApiGroupService {
 
     public static final String SPECIFICATION_GROUP_NAME_ERROR_MESSAGE = "Specification group name is not unique";
     public static final String SYSTEM_NOT_FOUND_ERROR_MESSAGE = "Can't find system with given id";
+    public static final String API_GROUP_WITH_ID_NOT_FOUND_MESSAGE = "Can't find API group with id: ";
 
     public static final String SPECIFICATION_GROUP_ID_SEPARATOR = "-";
 

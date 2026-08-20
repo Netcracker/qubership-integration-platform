@@ -23,8 +23,8 @@
 //
 // The pair-shaped sets get a stronger type than the service one: `PairedNames` has exactly one
 // current and one legacy name, and they are two different names, so `currentExtension` and
-// `legacyExtension` answer for an API and a group and fail to compile for a service, which has five
-// current names and picks between them by type (`serviceFileType.ts:serviceExtensionForType`).
+// `legacyExtension` answer for an API and a group and fail to compile for a service, which has three
+// current names and picks between them by kind (`serviceFileType.ts:serviceExtensionForType`).
 
 import { FileExtensionsConfig } from "./fileExtensions";
 import { IntegrationSystemType } from "../../api-services/servicesTypes";
@@ -108,26 +108,36 @@ function declareNames<const T extends NameSet<ExtensionKey>>(
   return names as T & { readonly [declaredHere]: never };
 }
 
-const TYPED_SERVICE_KEYS: readonly TypedServiceExtensionKey[] = Object.values(
-  EXTENSION_KEY_BY_TYPE,
-);
+// The three names the #553 versions wrote. Read, never written: the type moved into `$schema` and
+// the three plain kinds went back to sharing `.service.`. A file still wearing one is typed by its
+// `$schema` like any other, so these are a name generation and not a type source.
+const PER_TYPE_SERVICE_KEYS: readonly TypedServiceExtensionKey[] =
+  PLAIN_SERVICE_TYPES.map((type) => EXTENSION_KEY_BY_TYPE[type]);
 
-const LEGACY_SERVICE_KEYS: readonly ServiceExtensionKey[] = ["service"];
+// The two kinds that are their own kind of document, named that way from the start — derived as the
+// complement of the plain ones, so a sixth kind lands in exactly one of the two lists by
+// construction rather than by someone remembering to add it here.
+const TYPELESS_KIND_KEYS: readonly TypedServiceExtensionKey[] = Object.values(
+  EXTENSION_KEY_BY_TYPE,
+).filter((key) => !PER_TYPE_SERVICE_KEYS.includes(key));
 
 /** Every name set in the extension, one entry per pair of name generations. */
 export const NAME_SETS = {
-  /** Every kind of service file: the five typed names, and the legacy type-less one. */
+  /** Every kind of service file: the plain name, the two typeless kinds, and the per-type names. */
   service: declareNames({
-    current: TYPED_SERVICE_KEYS,
-    legacy: LEGACY_SERVICE_KEYS,
+    current: [
+      "service",
+      ...TYPELESS_KIND_KEYS,
+    ] as readonly ServiceExtensionKey[],
+    legacy: PER_TYPE_SERVICE_KEYS,
   }),
   /**
    * The plain kinds alone. Context and MCP are separate kinds of document, so a scan for a plain
-   * service must not answer with one — same legacy name, a narrower set of current ones.
+   * service must not answer with one.
    */
   plainService: declareNames({
-    current: PLAIN_SERVICE_TYPES.map((type) => EXTENSION_KEY_BY_TYPE[type]),
-    legacy: LEGACY_SERVICE_KEYS,
+    current: ["service"] as readonly ServiceExtensionKey[],
+    legacy: PER_TYPE_SERVICE_KEYS,
   }),
   /** The model level, renamed from `specification` to `api`. */
   api: declareNames({

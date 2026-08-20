@@ -74,9 +74,9 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
     }
 
     /**
-     * Builds the export document. The type states itself in the {@code $schema} and in the file name
-     * {@code ExportableObjectWriterVisitor} derives from it, so a service without one cannot be exported at all:
-     * {@code IntegrationSystemContentDto.integrationSystemType} is write-only and no longer carries it.
+     * Builds the export document. The {@code $schema} is the only place the type states itself: the file name states a
+     * kind, never a type, and {@code IntegrationSystemContentDto.integrationSystemType} is write-only and no longer
+     * carries it. A service without a type therefore cannot be exported at all.
      */
     @Override
     public IntegrationSystemDto toExternalEntity(IntegrationSystem integrationSystem) {
@@ -104,9 +104,9 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
         IntegrationSystemType type = system.getIntegrationSystemType();
         if (type == null) {
             throw new ServiceExportException(
-                    ("Service %s has no type, and an exported service states its type in the file name and the $schema."
-                            + " Set the type of the service, then export again. This service is left out of the"
-                            + " archive; the rest of it is produced.").formatted(system.getId()));
+                    ("Service %s has no type, and an exported service states its type in its $schema. Set the type of"
+                            + " the service, then export again. This service is left out of the archive; the rest of it"
+                            + " is produced.").formatted(system.getId()));
         }
         return type;
     }

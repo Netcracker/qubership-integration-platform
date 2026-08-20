@@ -9,7 +9,8 @@ metaInfo:
   application: Qubership Integration Platform
   labels:
     - QIP
-  fileExtension: external-service.qip
+  # All three plain service types share one file name; the type is stated by $schema.
+  fileExtension: service.qip
 properties:
   content:
     type: object

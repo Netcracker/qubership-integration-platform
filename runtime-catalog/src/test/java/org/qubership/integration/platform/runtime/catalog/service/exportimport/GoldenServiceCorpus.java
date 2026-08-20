@@ -44,6 +44,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.MCPSystemSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.ExtractorTestParsers;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
@@ -61,7 +62,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -73,9 +74,15 @@ import static org.qubership.integration.platform.runtime.catalog.service.extract
 
 /**
  * The service export/import golden corpus: one fixed set of services, exported by the real serializer chain into
- * {@code src/test/resources/exportimport/golden/<set>}.
+ * {@code schemas/src/test/resources/exportimport-golden/<set>}.
  *
- * <p>Three sets, each a full archive tree:
+ * <p>The sets live in the {@code schemas} module because two consumers read them: this module, through a
+ * {@code <testResource>} that copies them onto the test classpath as {@code /exportimport-golden}, and the VS Code
+ * extension, whose {@code pretest:integration} copies two of them into its integration workspace. Only this module can
+ * produce them, so a capture writes across the module boundary — the same arrangement the conformance corpus next to
+ * them already uses.
+ *
+ * <p>Four sets, each a full archive tree:
  * <ul>
  *   <li>{@value #PRE553_CURRENT} — the current format as it was before issue #553: {@code .service.} file names, the
  *       plain service {@code $schema}, and {@code content.integrationSystemType} in the document. Its
@@ -85,6 +92,8 @@ import static org.qubership.integration.platform.runtime.catalog.service.extract
  *   <li>{@value #LEGACY_FLAT} — {@code QIP_EXPORT_LEGACY_FORMAT=true}. #553 must not change a byte of meaning here,
  *       which is the whole point of capturing it before the exporter changed.</li>
  *   <li>{@value #POST553} — the current format after #553: per-type file names and {@code $schema}, no type field.</li>
+ *   <li>{@value #POST553_DOTTED} — the same format over an api group and an api whose ids carry dots, the shape every
+ *       real export produces and neither of the other current-format sets has.</li>
  * </ul>
  *
  * <p>{@link GoldenCorpusCapture} regenerates the sets. The fixtures are deterministic — no timestamps, no users, fixed
@@ -95,6 +104,7 @@ public final class GoldenServiceCorpus {
     public static final String PRE553_CURRENT = "pre553-current";
     public static final String LEGACY_FLAT = "legacy-flat";
     public static final String POST553 = "post553";
+    public static final String POST553_DOTTED = "post553-dotted";
 
     public static final String APP_NAME = "qip";
 
@@ -107,21 +117,39 @@ public final class GoldenServiceCorpus {
     public static final String API_GROUP_ID = "grp-orders";
     public static final String API_ID = "api-orders";
 
-    private static final ApplicationJsonSchemaProperties SCHEMAS = new ApplicationJsonSchemaProperties();
-    private static final String GOLDEN_RESOURCE_PATH = "exportimport/golden";
+    public static final String DOTTED_SERVICE_ID = "svc-observe";
+    public static final String DOTTED_API_GROUP_ID = "grp-helix-observe-3.2";
+    public static final String DOTTED_API_ID = "api-helix-observe-3.2-1.0.0";
+
+    static final ApplicationJsonSchemaProperties SCHEMAS = new ApplicationJsonSchemaProperties();
+
+    /**
+     * Shared because it is 2.3 ms of every 2.9 ms serializer or deserializer built here — four protocol parsers and
+     * several Mockito mocks — and nothing in these tests stubs or verifies it per case. A test that wants to observe
+     * the parser calls {@code ExtractorTestParsers.extractor(recordingSwaggerParser())} and is unaffected.
+     */
+    private static final OperationSchemaExtractor EXTRACTOR = ExtractorTestParsers.extractor();
+
+    /**
+     * The fixture set is deterministic, so the archive of each format is built once. Callers hand the bytes to
+     * {@code unzipInto} and never mutate them; a copy goes out all the same.
+     */
+    private static final Map<Boolean, byte[]> ARCHIVES = new ConcurrentHashMap<>();
+    private static final String GOLDEN_RESOURCE_PATH = "exportimport-golden";
 
     private static final List<String> SERVICE_DOCUMENT_PREFIXES = List.of(
             ExportImportConstants.SERVICE_YAML_NAME_PREFIX,
             ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_PREFIX,
             ExportImportConstants.MCP_SERVICE_YAML_NAME_PREFIX);
 
-    private static final List<String> SERVICE_DOCUMENT_POSTFIXES = Stream.concat(
-                    Stream.of(
-                            ExportImportConstants.SERVICE_YAML_NAME_POSTFIX,
-                            ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX,
-                            ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX),
-                    ServiceTypeFiles.postfixes().stream())
-            .toList();
+    // The three per-type postfixes are here because a captured set holds names this version no longer writes.
+    private static final List<String> SERVICE_DOCUMENT_POSTFIXES = List.of(
+            ExportImportConstants.SERVICE_YAML_NAME_POSTFIX,
+            ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX,
+            ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX,
+            ExportImportConstants.EXTERNAL_SERVICE_YAML_NAME_POSTFIX,
+            ExportImportConstants.INTERNAL_SERVICE_YAML_NAME_POSTFIX,
+            ExportImportConstants.IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX);
 
     private GoldenServiceCorpus() {
     }
@@ -134,7 +162,23 @@ public final class GoldenServiceCorpus {
         system.addEnvironment(environment("env-orders-dev", "Dev", "http://orders.dev"));
         system.addEnvironment(environment("env-orders-prod", "Prod", "http://orders.prod"));
         system.setActiveEnvironmentId("env-orders-dev");
-        system.addApiGroup(ordersApiGroup());
+        system.addApiGroup(ordersApiGroup(API_GROUP_ID, API_ID));
+        return system;
+    }
+
+    /**
+     * The same service under an api group and an api whose ids carry dots, which a real export does routinely: only
+     * the <b>service</b> id has to be one dot-free segment, and no name generator refuses a dotted group or api id.
+     *
+     * <p>Its own set, {@value #POST553_DOTTED}, rather than a fourth service in {@value #POST553}: that set is
+     * compared file for file against a fresh export in both formats, and {@value #PRE553_CURRENT} and
+     * {@value #LEGACY_FLAT} can no longer be regenerated to match.
+     */
+    public static IntegrationSystem dottedApiService() {
+        IntegrationSystem system = service(DOTTED_SERVICE_ID, "Observability service", IntegrationSystemType.EXTERNAL);
+        system.addEnvironment(environment("env-observe", "Default", "http://observe"));
+        system.setActiveEnvironmentId("env-observe");
+        system.addApiGroup(ordersApiGroup(DOTTED_API_GROUP_ID, DOTTED_API_ID));
         return system;
     }
 
@@ -199,7 +243,7 @@ public final class GoldenServiceCorpus {
     }
 
     /** The corpus {@code openapi30-orders} case, so the exported api carries real operations and a real source. */
-    private static ApiGroup ordersApiGroup() {
+    private static ApiGroup ordersApiGroup(String groupId, String apiId) {
         SpecificationSource source = SpecificationSource.builder()
                 .id("src-orders")
                 .name("orders.yaml")
@@ -207,7 +251,7 @@ public final class GoldenServiceCorpus {
                 .source(readInput(corpusRoot().resolve("openapi30-orders")))
                 .build();
         SystemModel model = SystemModel.builder()
-                .id(API_ID)
+                .id(apiId)
                 .name("Orders API")
                 .version("v1")
                 .specificationType("openapi")
@@ -221,7 +265,7 @@ public final class GoldenServiceCorpus {
         source.setSystemModel(model);
 
         ApiGroup group = ApiGroup.builder()
-                .id(API_GROUP_ID)
+                .id(groupId)
                 .name("Orders")
                 .synchronization(false)
                 .systemModels(new ArrayList<>())
@@ -241,13 +285,8 @@ public final class GoldenServiceCorpus {
 
     /** The five fixture systems, serialized the way {@code SystemExportImportService} serializes them. */
     private static List<ExportableObject> exportAll(boolean legacy) {
-        FileMigrationService migrations = migrationService(legacy);
         ContextServiceSerializer contextSerializer = contextServiceSerializer(legacy);
-        MCPSystemSerializer mcpSerializer = new MCPSystemSerializer(
-                mapper(),
-                new MCPServiceDtoMapper(
-                        URI.create(SCHEMAS.getMcpService()), List.of(new V100MCPServiceImportFileMigration())),
-                migrations);
+        MCPSystemSerializer mcpSerializer = mcpSystemSerializer(legacy);
         List<ExportableObject> exported = new ArrayList<>(
                 exportServices(List.of(externalService(), internalService(), implementedService()), legacy));
         try {
@@ -257,6 +296,19 @@ public final class GoldenServiceCorpus {
             throw new UncheckedIOException(exception);
         }
         return List.copyOf(exported);
+    }
+
+    /**
+     * The MCP half of the same chain. {@link #exportAll} builds this inline, which left MCP as the one kind a test
+     * could not export on its own — the plain and context factories were already public. Widening {@code exportAll}
+     * instead would let a caller re-export the whole fixture set by accident.
+     */
+    public static MCPSystemSerializer mcpSystemSerializer(boolean legacy) {
+        return new MCPSystemSerializer(
+                mapper(),
+                new MCPServiceDtoMapper(
+                        URI.create(SCHEMAS.getMcpService()), List.of(new V100MCPServiceImportFileMigration())),
+                migrationService(legacy));
     }
 
     /** The context-service half of the same chain, for a round trip that exports one context service of its own. */
@@ -274,7 +326,7 @@ public final class GoldenServiceCorpus {
                 new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
                 new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
                 migrationService(legacy),
-                ExtractorTestParsers.extractor());
+                EXTRACTOR);
     }
 
     /** Any set of services, serialized in either format: the export half of a cross-format round trip. */
@@ -285,7 +337,7 @@ public final class GoldenServiceCorpus {
 
     /** The archive bytes {@code exportSystemsRequest} would return for the fixture set. */
     public static byte[] archive(boolean legacy) {
-        return archive(exportAll(legacy), legacy);
+        return ARCHIVES.computeIfAbsent(legacy, flag -> archive(exportAll(flag), flag)).clone();
     }
 
     /** The same archive writer over an arbitrary exported set. */
@@ -319,7 +371,8 @@ public final class GoldenServiceCorpus {
                 new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
                 forwardMigrationService(),
                 migrations,
-                ExtractorTestParsers.extractor());
+                EXTRACTOR,
+                serviceTypeFiles());
         ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
         return deserializer;
     }
@@ -394,9 +447,13 @@ public final class GoldenServiceCorpus {
         }
     }
 
-    /** Where {@link GoldenCorpusCapture} writes a set. Surefire runs with the module directory as its working dir. */
+    /**
+     * Where {@link GoldenCorpusCapture} writes a set. The sets live in the {@code schemas} module, which both this
+     * module and the VS Code extension read, so a capture writes across the module boundary. Surefire runs with this
+     * module directory as its working dir.
+     */
     public static Path sourceSet(String name) {
-        Path resources = Paths.get("src", "test", "resources");
+        Path resources = Paths.get("..", "schemas", "src", "test", "resources");
         assertTrue(Files.isDirectory(resources),
                 () -> "Expected the module directory as the working directory, got " + Paths.get("").toAbsolutePath());
         return resources.resolve(GOLDEN_RESOURCE_PATH).resolve(name);
@@ -466,6 +523,23 @@ public final class GoldenServiceCorpus {
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
+    }
+
+    /**
+     * Asserts two archive trees are the same: the file names, then every document. Byte equality is unattainable —
+     * {@code ObjectNode} is insertion-ordered and a revert migration appends restored keys last — so the comparison is
+     * per document and order-insensitive. One statement of the rule, because loosening it in one caller and not the
+     * others is how a fixed point stops being one.
+     */
+    public static void assertSameTree(Path expected, Path actual, String namesMessage) {
+        assertEquals(relativeFileNames(expected), relativeFileNames(actual), namesMessage);
+        Map<String, ObjectNode> after = documentsOf(actual);
+        documentsOf(expected).forEach((name, document) -> assertEquals(document, after.get(name), name + " changed"));
+    }
+
+    /** The same, against a recorded set. */
+    public static void assertMatchesRecordedSet(String setName, Path actual, String namesMessage) {
+        assertSameTree(set(setName), actual, namesMessage);
     }
 
     /** Every document of a directory tree, keyed by its path relative to the root. */

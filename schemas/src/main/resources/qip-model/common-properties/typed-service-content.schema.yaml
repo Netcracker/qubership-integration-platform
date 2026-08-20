@@ -2,11 +2,16 @@
 $id: http://qubership.org/schemas/product/qip/common-properties/typed-service-content.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
+# Content shared by the three live per-type service schemas:
+#   external-service.schema.yaml, internal-service.schema.yaml, implemented-service.schema.yaml
+# Each of those adds only what differs by type: its own Protocol enum, maxItems on environments, and
+# internalServiceName in internal-service alone.
+# The pre-#553 form of the same document is service.schema.yaml, where the type is a body field instead
+# of part of the file name.
 allOf:
   - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/common-properties/service-content.schema.yaml"
 title: Typed service content properties
 metaInfo:
   application: Qubership Integration Platform
@@ -18,8 +23,11 @@ not:
   required:
     - integrationSystemType
 properties:
+  activeEnvironmentId:
+    type: string
+    title: Active environment ID
   environments:
     type: array
     title: Environments
     items:
-      $ref: "http://qubership.org/schemas/product/qip/common-properties/service-content.schema.yaml#/definitions/Environment"
+      $ref: "http://qubership.org/schemas/product/qip/common-properties/environment.schema.yaml"

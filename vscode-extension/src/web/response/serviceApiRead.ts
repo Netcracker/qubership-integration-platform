@@ -124,7 +124,7 @@ async function readServiceIdentity(
 
 /**
  * The service file a read works from. The uri a caller holds is a hint: the id resolves through the
- * typed-wins lookup, so a uri handed out before a conversion reads neither the document that lost
+ * current-name-wins lookup, so a uri handed out before a conversion reads neither the document that lost
  * the precedence race nor a path the conversion deleted. An id nothing resolves falls back to the
  * uri, which is how a read that starts from a file of another kind still lands in the folder it came
  * from. The fallback holds only while that uri still points at something: handing back a path that
@@ -833,10 +833,11 @@ export async function getServices(
     ];
   }
 
-  // A converted service keeps its legacy sibling until the delete lands, so list each id once,
+  // A converted service keeps its per-type sibling until the delete lands, so list each id once,
   // from the file findServiceFileById would resolve — the rule ApiGroupService.resolveGroupFile
-  // applies to a group. findServiceFiles yields the typed names first, so first seen wins, and the
-  // document in hand is already the winning one: resolving each id again would rescan per service.
+  // applies to a group. findServiceFiles yields the current `.service.` name first, so first seen
+  // wins, and the document in hand is already the winning one: resolving each id again would
+  // rescan per service.
   // A file the listing cannot read takes its possible siblings with it rather than letting one of
   // them be listed in its place, and is named to the user; see `readListedServices`.
   const listed = await readListedServices(await findServiceFiles(ext), ext);

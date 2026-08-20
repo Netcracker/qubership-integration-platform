@@ -1,0 +1,45 @@
+---
+$id: http://qubership.org/schemas/product/qip/common-properties/environment.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+# One environment of a service. Shared by the live per-type schemas through
+# typed-service-content.schema.yaml and by the pre-#553 service.schema.yaml, so the two formats cannot
+# drift apart on what an environment is.
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+  - if:
+      properties:
+        sourceType:
+          const: MANUAL
+    then:
+      required:
+        - address
+title: Environment
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
+properties:
+  id:
+    type: string
+    title: Identifier
+  name:
+    type: string
+    title: Name
+  address:
+    type: string
+  sourceType:
+    $ref: "http://qubership.org/schemas/product/qip/common-properties/environment.schema.yaml#/definitions/SourceType"
+  properties:
+    type: object
+additionalProperties: true
+required:
+  - id
+  - name
+  - sourceType
+definitions:
+  SourceType:
+    enum:
+      - MANUAL
+      - MAAS_BY_CLASSIFIER

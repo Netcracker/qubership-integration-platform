@@ -45,7 +45,12 @@ describe("toTypedApiOperation - per-protocol backend shape", () => {
 
   test("asyncapi carries channel and method, not a flat path", () => {
     const written = toTypedApiOperation(
-      { id: "op-a", name: "onOrder", method: "publish", path: "orders/created" },
+      {
+        id: "op-a",
+        name: "onOrder",
+        method: "publish",
+        path: "orders/created",
+      },
       "asyncapi",
     );
 
@@ -157,7 +162,7 @@ describe("parsers attach the fields the api writer needs", () => {
 
   test("proto parser output writes a lossless protobuf operation", async () => {
     const proto = [
-      "syntax = \"proto3\";",
+      'syntax = "proto3";',
       "package acme.payments.v1;",
       'option java_package = "com.acme.payments.grpc";',
       "message PayRequest { string id = 1; }",

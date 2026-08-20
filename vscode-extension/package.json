@@ -229,6 +229,7 @@
   },
   "scripts": {
     "test": "npm run test:unit",
+    "pretest:integration": "node scripts/copy-backend-fixtures.mjs",
     "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js tests/fixtures/service-projects",
     "test:integration:headless": "xvfb-run -a npm run test:integration",
     "test:unit": "jest -c jest.config.cjs",

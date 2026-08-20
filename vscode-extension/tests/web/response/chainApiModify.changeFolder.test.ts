@@ -98,12 +98,19 @@ describe("changeFolder", () => {
   });
 
   it("should merge the group into existing metaInfo fields", async () => {
-    const chain = { id: chainId, content: {}, metaInfo: { application: "QIP" } };
+    const chain = {
+      id: chainId,
+      content: {},
+      metaInfo: { application: "QIP" },
+    };
     getMainChainMock.mockResolvedValue(chain);
 
     await changeFolder(fileUri, chainId, "x/y");
 
-    expect((chain as any).metaInfo).toEqual({ application: "QIP", group: "x/y" });
+    expect((chain as any).metaInfo).toEqual({
+      application: "QIP",
+      group: "x/y",
+    });
   });
 
   it("should sanitize every forbidden character in a segment", async () => {

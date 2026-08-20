@@ -190,18 +190,17 @@ class ServiceTypeRoundTripTest {
     // --- across the two formats ---------------------------------------------------------------------------------------
 
     /**
-     * A legacy archive read by this QIP and written back out in the current format. The file name and the
-     * {@code $schema} now have to state the type the flat document stated in its body, and the result has to import
-     * again.
+     * A legacy archive read by this QIP and written back out in the current format. The {@code $schema} now has to
+     * state the type the flat document stated in its body, and the result has to import again.
      */
     @DisplayName("a legacy archive re-exports and re-imports in the current format")
     @ParameterizedTest(name = "{0}")
     @CsvSource({
-            "EXTERNAL, svc-external, .external-service.",
-            "INTERNAL, svc-internal, .internal-service.",
-            "IMPLEMENTED, svc-implemented, .implemented-service."})
+            "EXTERNAL, svc-external",
+            "INTERNAL, svc-internal",
+            "IMPLEMENTED, svc-implemented"})
     void legacyArchiveReExportsInTheCurrentFormat(
-            IntegrationSystemType type, String serviceId, String postfix, @TempDir Path reExported)
+            IntegrationSystemType type, String serviceId, @TempDir Path reExported)
             throws IOException {
         runTransactionsInline();
         importingIntoAnEmptyCatalog();
@@ -213,11 +212,12 @@ class ServiceTypeRoundTripTest {
                 reExported);
 
         Path serviceFile = GoldenServiceCorpus.serviceFileIn(reExported, serviceId);
-        assertEquals(serviceId + postfix + APP_NAME + ".yaml", serviceFile.getFileName().toString());
+        assertEquals(serviceId + ExportImportConstants.SERVICE_YAML_NAME_POSTFIX + APP_NAME + ".yaml",
+                serviceFile.getFileName().toString());
         ObjectNode document = GoldenServiceCorpus.read(serviceFile);
         assertEquals(GoldenServiceCorpus.serviceTypeFiles().schemaUri(type), document.path("$schema").asText());
         assertFalse(document.path("content").has("integrationSystemType"),
-                "the current format states the type in the name and the $schema, not in the document");
+                "the current format states the type in the $schema, not in the name or the document");
         assertEquals(type,
                 typeOf(GoldenServiceCorpus.deserializer().deserializeSystem(serviceFile.toFile())));
     }
@@ -278,7 +278,7 @@ class ServiceTypeRoundTripTest {
                 GoldenServiceCorpus.exportServices(List.of(plainService(DISCOVERED_SERVICE_ID, type)), false), false);
         GoldenServiceCorpus.unzipInto(archive, unpacked);
 
-        assertEquals(DISCOVERED_SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml",
+        assertEquals(DISCOVERED_SERVICE_ID + ExportImportConstants.SERVICE_YAML_NAME_POSTFIX + APP_NAME + ".yaml",
                 GoldenServiceCorpus.serviceFileIn(unpacked, DISCOVERED_SERVICE_ID).getFileName().toString());
 
         List<ImportSystemResult> results = systemImport().importSystemRequest(

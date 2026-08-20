@@ -1,15 +1,11 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import java.util.Optional;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
@@ -23,9 +19,11 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
  * <p>The two scopes differ on purpose. {@code supportsDocument} is <b>broad</b>: every document stamped from the
  * service migration list, context and MCP services included, because {@code ContextServiceDtoMapper} stamps them from
  * that same list and a kept 105 claim makes their legacy export unimportable by an older QIP. The write is
- * <b>narrow</b>: only a document whose {@code $schema} is one of the three per-type URIs gets a type field, or a
- * context service ends up carrying a service type it never had. Gating the whole migration narrowly instead is
- * circular, because {@code revert()} never runs on a document {@code supportsDocument} rejected.
+ * <b>narrow</b>: only a document whose {@code $schema} states one of the three service types gets a type field, or a
+ * context service ends up carrying a service type it never had. {@link ServiceTypeFiles#typeFromSchemaUri} is what
+ * decides that, so a foreign URI whose schema file name spells a type is written back as well. Gating the whole
+ * migration narrowly instead is circular, because {@code revert()} never runs on a document
+ * {@code supportsDocument} rejected.
  *
  * <p>The restored {@code $schema} is what V104 and V103 then see: {@code FileMigrationService} sorts reverts by
  * version descending and re-evaluates {@code supportsDocument} on each intermediate result. It never reaches the
@@ -71,18 +69,11 @@ public class V105RevertMigration implements RevertMigration {
         }
         ObjectNode result = node.deepCopy();
         ObjectNode content = (ObjectNode) result.get(CONTENT);
-        typeFromSchema(result).ifPresent(type -> {
+        serviceTypeFiles.typeFromDocumentSchema(result).ifPresent(type -> {
             content.put(INTEGRATION_SYSTEM_TYPE, type.name());
             result.set(SCHEMA, TextNode.valueOf(serviceSchemaUri));
         });
         removeMigrationVersion(content, String.valueOf(getVersion()));
         return result;
-    }
-
-    private Optional<IntegrationSystemType> typeFromSchema(ObjectNode node) {
-        JsonNode schema = node.get(SCHEMA);
-        return schema != null && schema.isTextual()
-                ? serviceTypeFiles.typeFromSchemaUri(schema.asText())
-                : Optional.empty();
     }
 }

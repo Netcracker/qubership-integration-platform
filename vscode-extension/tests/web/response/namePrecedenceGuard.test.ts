@@ -194,13 +194,16 @@ describe("the precedence declarations", () => {
     expect(legacyExtension(API_GROUP_NAMES, ext)).toBe(ext.specificationGroup);
   });
 
-  it("declares every extension a typed service write emits as current", () => {
+  it("declares every extension a service write emits as current", () => {
     const current = SERVICE_NAMES.current.map((key) => ext[key]);
 
     for (const type of Object.values(IntegrationSystemType)) {
       expect(current).toContain(serviceExtensionForType(type, ext));
     }
-    expect(current).not.toContain(ext.service);
+    // The three per-type names are the ones nothing writes any more.
+    expect(current).not.toContain(ext.externalService);
+    expect(current).not.toContain(ext.internalService);
+    expect(current).not.toContain(ext.implementedService);
   });
 });
 

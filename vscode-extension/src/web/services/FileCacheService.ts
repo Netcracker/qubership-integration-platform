@@ -48,7 +48,7 @@ function isPlainServiceExtension(
   const { service, externalService, internalService, implementedService } =
     config.extensions;
   return matchesAny(
-    [externalService, internalService, implementedService, service],
+    [service, externalService, internalService, implementedService],
     value,
     mode,
   );

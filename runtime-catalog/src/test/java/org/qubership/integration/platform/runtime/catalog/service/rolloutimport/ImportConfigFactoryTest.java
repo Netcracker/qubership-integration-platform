@@ -156,6 +156,50 @@ class ImportConfigFactoryTest {
         assertThat(result.getServices()).doesNotContainKey(CONTEXT_SERVICE_CONFIG_ID);
     }
 
+    /**
+     * A package produced by an installation with rehosted schema URIs: the configured layer misses and the schema
+     * file stem routes — for every kind, not only the plain services. Before this, such a package imported its
+     * plain services and dropped everything else into a skip log.
+     */
+    @Test
+    @DisplayName("a rehosted package routes every kind of item through the schema file stem")
+    void rehostedSchemasRouteThroughTheStem() {
+        String host = "https://schemas.acme.internal/qip/";
+        List<RolloutImportConfigurationItem> items = List.of(
+                configItem("chain-1", host + "chain.schema.yaml"),
+                configItem("svc-1", host + "service.schema.yaml"),
+                configItem("sg-1", host + "api-group.schema.yaml"),
+                configItem("api-1", host + "api.schema.yaml"),
+                configItem("ctx-1", host + "context-service.schema.yaml"),
+                // The truncated legacy form, which stops at the schema file stem itself.
+                configItem("ctx-2", host + "context-service"));
+
+        ImportConfig result = factory.fromConfigurationsAndResources(items, null);
+
+        assertThat(result.getChains()).containsKey("chain-1");
+        assertThat(result.getServices()).containsKey("svc-1");
+        assertThat(result.getSpecificationGroups()).containsKey("sg-1");
+        assertThat(result.getSpecifications()).containsKey("api-1");
+        assertThat(result.getContextServices()).containsOnlyKeys("ctx-1", "ctx-2");
+    }
+
+    /** No bucket by design, so the item lands in no map — under the default and a rehosted URI alike. */
+    @Test
+    @DisplayName("an MCP item is skipped under either spelling of its schema")
+    void mcpItemIsSkippedByDesign() {
+        List<RolloutImportConfigurationItem> items = List.of(
+                configItem("mcp-1", "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml"),
+                configItem("mcp-2", "https://schemas.acme.internal/qip/mcp-service.schema.yaml"));
+
+        ImportConfig result = factory.fromConfigurationsAndResources(items, null);
+
+        assertThat(result.getChains()).isEmpty();
+        assertThat(result.getServices()).isEmpty();
+        assertThat(result.getSpecificationGroups()).isEmpty();
+        assertThat(result.getSpecifications()).isEmpty();
+        assertThat(result.getContextServices()).isEmpty();
+    }
+
     @Test
     @DisplayName("Configuration with unknown schema is not added to any map")
     void unknownSchemaNotAddedToAnyMap() {

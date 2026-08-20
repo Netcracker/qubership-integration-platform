@@ -434,8 +434,7 @@ describe("extension.ts", () => {
       const event = {
         affectsConfiguration: (section: string) => section === affectedSetting,
       };
-      for (const call of vscode.workspace.onDidChangeConfiguration.mock
-        .calls) {
+      for (const call of vscode.workspace.onDidChangeConfiguration.mock.calls) {
         call[0](event);
       }
     }

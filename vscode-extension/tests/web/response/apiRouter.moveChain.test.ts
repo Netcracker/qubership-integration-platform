@@ -54,6 +54,10 @@ describe("apiRouter moveChain handler", () => {
       documentUri,
     );
 
-    expect(mockChangeFolder).toHaveBeenCalledWith(documentUri, "chain-1", "a/b");
+    expect(mockChangeFolder).toHaveBeenCalledWith(
+      documentUri,
+      "chain-1",
+      "a/b",
+    );
   });
 });

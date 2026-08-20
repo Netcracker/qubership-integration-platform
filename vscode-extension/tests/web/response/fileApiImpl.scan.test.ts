@@ -128,6 +128,9 @@ describe("VSCodeFileApi.getSpecificationGroupFiles - real directory scan", () =>
 
     const files = await api.getSpecificationGroupFiles(SERVICE_FILE_URI);
 
-    expect(files.sort()).toEqual(["g1.api-group.qip.yaml", "g2.api-group.qip.yaml"]);
+    expect(files.sort()).toEqual([
+      "g1.api-group.qip.yaml",
+      "g2.api-group.qip.yaml",
+    ]);
   });
 });

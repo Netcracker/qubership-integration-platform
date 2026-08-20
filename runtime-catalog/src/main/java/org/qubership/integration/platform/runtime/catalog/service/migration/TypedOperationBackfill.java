@@ -67,6 +67,8 @@ public class TypedOperationBackfill {
                     operation.getPath(),
                     lower(operation.getMethod()),
                     bool(specification, DEPRECATED_FIELD));
+            // No summary to read: the async resolvers write only the AsyncConstants keys (topic, queue,
+            // exchangeName, username, maasClassifierName) into specification, in this version and every earlier one.
             case KAFKA, AMQP -> new AsyncapiOperation(null, operation.getPath(), operation.getMethod());
             case GRAPHQL -> new GraphqlOperation(operation.getMethod(), text(specification, GRAPHQL_OPERATION_FIELD));
             case GRPC -> backfillProtobuf(operation, specification);

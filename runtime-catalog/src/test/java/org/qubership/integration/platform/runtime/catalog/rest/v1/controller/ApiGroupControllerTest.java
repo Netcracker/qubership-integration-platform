@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -72,12 +75,16 @@ class ApiGroupControllerTest {
     }
 
     @Test
-    void shouldRejectSyncUpdateForUnknownGroup() {
+    void shouldReportUnknownGroupAsNotFound() {
+        // GlobalExceptionHandler turns EntityNotFoundException into 404, the same answer PUT/PATCH
+        // /v1/systems/{id} and POST /v1/systems/{id}/environments give for an unknown id.
         when(apiGroupService.getById("missing")).thenReturn(null);
 
-        ResponseEntity<ApiGroupDTO> response = controller.updateSyncStatus("missing", new ApiGroupRequestDTO());
+        EntityNotFoundException thrown = assertThrows(EntityNotFoundException.class,
+                () -> controller.updateSyncStatus("missing", new ApiGroupRequestDTO()));
 
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(thrown.getMessage().contains("missing"));
+        assertTrue(thrown.getMessage().contains("Nothing was updated"));
         verify(apiGroupService, never()).update(any(), any());
     }
 

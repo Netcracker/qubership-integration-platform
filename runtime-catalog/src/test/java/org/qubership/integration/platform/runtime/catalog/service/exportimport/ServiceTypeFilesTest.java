@@ -41,109 +41,7 @@ class ServiceTypeFilesTest {
     private final ApplicationJsonSchemaProperties schemas = new ApplicationJsonSchemaProperties();
     private final ServiceTypeFiles serviceTypeFiles = new ServiceTypeFiles(schemas);
 
-    // --- file name -> type -----------------------------------------------------------------------------------------
-
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
-    @DisplayName("each type resolves from the file name it exports to")
-    void typeFromExportedFileName(IntegrationSystemType type) {
-        String fileName = SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml";
-
-        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName));
-    }
-
-    /** The older names state no type, which is why {@code content.integrationSystemType} stays a fallback. */
-    @ParameterizedTest
-    @ValueSource(strings = {"system-1.service.qip.yaml", "service-system-1.yaml"})
-    @DisplayName("a name that states no type resolves to none")
-    void typeFromNameStatingNone(String fileName) {
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "context-1.context-service.qip.yaml",
-            "context-service-context-1.yaml",
-            "mcp-1.mcp-service.qip.yaml",
-            "mcp-service-mcp-1.yaml"})
-    @DisplayName("a context or MCP service name is never taken for a plain one")
-    void typeFromContextOrMcpName(String fileName) {
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
-    }
-
-    @Test
-    @DisplayName("a missing file name resolves to no type")
-    void typeFromNullFileName() {
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(null));
-    }
-
-    /**
-     * The app prefix lands between the postfix and the extension, so a prefix carrying another postfix used to make
-     * the name state two types, and a two-type name resolved to none. That turned a legitimate export into a file no
-     * import could type.
-     */
-    @Test
-    @DisplayName("a postfix in the app prefix does not change the type the name states")
-    void typeFromNameWithAPostfixInTheAppPrefix() {
-        assertEquals(Optional.of(IntegrationSystemType.EXTERNAL),
-                ServiceTypeFiles.typeFromFileName("system-1.external-service.internal-service.qip.yaml"));
-    }
-
-    /**
-     * The one position read is the segment right after the id, so a dotted id shifts the postfix out of it. Such a
-     * name is never written: {@code ExportImportUtils.generateMainSystemFileExportName} refuses the id instead.
-     */
-    @Test
-    @DisplayName("a postfix anywhere but right after the id states no type")
-    void typeFromNameWithAPostfixOutOfPosition() {
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName("system.1.external-service.qip.yaml"));
-    }
-
-    /**
-     * The legacy flat name states the id whole, dots and all, and states no type. It is told apart from a
-     * current-format name by the postfix, so the id it holds must not spell one — which is why the export refuses such
-     * an id in the flat format.
-     */
-    @ParameterizedTest
-    @ValueSource(strings = {"service-system-1.yaml", "service-system.1.yaml"})
-    @DisplayName("a legacy flat name states no type")
-    void typeFromLegacyFlatName(String fileName) {
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
-    }
-
-    /**
-     * Autodiscovery mints a service id from the Kubernetes service name, so an id wearing the flat prefix is ordinary.
-     * The postfix is what tells the two name formats apart, so such a name states its type like any other.
-     */
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
-    @DisplayName("a name whose id wears the legacy flat prefix states its type")
-    void typeFromNameWhoseIdWearsTheLegacyFlatPrefix(IntegrationSystemType type) {
-        String fileName = "service-orders" + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml";
-
-        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName));
-    }
-
-    // --- type -> postfix and URI -----------------------------------------------------------------------------------
-
-    @Test
-    @DisplayName("each type is spelled in the file name the way the schemas spell it")
-    void postfixPerType() {
-        assertEquals(".external-service.", ServiceTypeFiles.postfix(IntegrationSystemType.EXTERNAL));
-        assertEquals(".internal-service.", ServiceTypeFiles.postfix(IntegrationSystemType.INTERNAL));
-        assertEquals(".implemented-service.", ServiceTypeFiles.postfix(IntegrationSystemType.IMPLEMENTED));
-    }
-
-    /** A postfix must not match {@code .service.}, or import discovery cannot tell the two formats apart. */
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
-    @DisplayName("every postfix stays distinct from the plain service one")
-    void postfixIsDistinctFromPlainService(IntegrationSystemType type) {
-        assertTrue(ServiceTypeFiles.postfix(type).endsWith("-service."),
-                "the -service suffix is what keeps the name out of the plain service scan");
-        assertEquals(3, ServiceTypeFiles.postfixes().size());
-        assertTrue(ServiceTypeFiles.postfixes().contains(ServiceTypeFiles.postfix(type)));
-    }
+    // --- $schema -> type -------------------------------------------------------------------------------------------
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
@@ -152,27 +50,122 @@ class ServiceTypeFilesTest {
         assertEquals(Optional.of(type), serviceTypeFiles.typeFromSchemaUri(serviceTypeFiles.schemaUri(type)));
     }
 
+    /**
+     * The second layer, which is what carries a document between two installations. Every one of these is a URI this
+     * installation is configured with nowhere, and the schema's own file name is all that is left to read.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "https://schemas.acme.internal/qip/external-service.schema.yaml",
+            "http://qubership.org/schemas/product/qip/external-service",
+            "http://qubership.org/schemas/product/qip/external-service.schema.json",
+            "external-service.schema.yaml"})
+    @DisplayName("a foreign URI stating the schema's own file name reads back as its type")
+    void typeFromForeignSchemaUri(String schemaUri) {
+        assertEquals(Optional.of(IntegrationSystemType.EXTERNAL), serviceTypeFiles.typeFromSchemaUri(schemaUri));
+    }
+
+    /**
+     * The two layers agree by default, and this is the only thing that says so: the file-name layer is spelled out in
+     * {@code ServiceTypeFiles} and the URIs come from configuration, so a schema renamed on one side and not the other
+     * would leave every cross-installation document untyped, in silence.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("the file-name layer reads back the default URI of every type")
+    void theFileNameLayerReadsBackTheDefaultUris(IntegrationSystemType type) {
+        String defaultUri = serviceTypeFiles.schemaUri(type);
+        ApplicationJsonSchemaProperties elsewhere = new ApplicationJsonSchemaProperties();
+        elsewhere.setExternalService("http://example.org/one.yaml");
+        elsewhere.setInternalService("http://example.org/two.yaml");
+        elsewhere.setImplementedService("http://example.org/three.yaml");
+
+        // Configured away from every default, so only the file-name layer can answer.
+        assertEquals(Optional.of(type), new ServiceTypeFiles(elsewhere).typeFromSchemaUri(defaultUri));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "http://qubership.org/schemas/product/qip/service.schema.yaml",
             "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
             "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
+            "http://qubership.org/schemas/product/qip/svc-ext.schema.yaml",
             "http://qubership.org/schemas/product/acme/service"})
     @DisplayName("a schema URI that states no type reads back as none")
     void typeFromSchemaUriStatingNone(String schemaUri) {
         assertEquals(Optional.empty(), serviceTypeFiles.typeFromSchemaUri(schemaUri));
     }
 
+    /**
+     * The stem is read off the path alone. A fragment is the one shape that could mistype rather than miss a type: it
+     * carries slashes of its own, so its last word passed for the schema's file name.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://qubership.org/schemas/product/qip/service.schema.yaml#/defs/external-service",
+            "http://qubership.org/schemas/product/qip/service.schema.yaml?ref=external-service"})
+    @DisplayName("a type spelled in a fragment or a query is not the schema's file name")
+    void typeSpelledOutsideTheSchemaFileName(String schemaUri) {
+        assertEquals(Optional.empty(), serviceTypeFiles.typeFromSchemaUri(schemaUri));
+    }
+
+    /** The same cut the other way round: a fragment or a query behind the file name leaves the type readable. */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "https://schemas.acme.internal/qip/external-service.schema.yaml?v=1.2",
+            "https://schemas.acme.internal/qip/external-service#frag",
+            "https://schemas.acme.internal/qip/external-service.schema.yaml#/definitions/Service"})
+    @DisplayName("a fragment or a query behind the schema's file name reads back as its type")
+    void typeFromSchemaUriCarryingAFragmentOrQuery(String schemaUri) {
+        assertEquals(Optional.of(IntegrationSystemType.EXTERNAL), serviceTypeFiles.typeFromSchemaUri(schemaUri));
+    }
+
+    /**
+     * The configured layer answers first, and this is the only thing that says so — swap the two and every other case
+     * here still passes. An installation configured with a URI whose file name spells another type reads its own
+     * documents by its own configuration, not by the name it happened to host them under.
+     */
     @Test
-    @DisplayName("a missing schema URI reads back as no type")
-    void typeFromNullSchemaUri() {
+    @DisplayName("the configured URI wins over the file name it spells")
+    void theConfiguredLayerWinsOverTheFileNameLayer() {
+        String crossedUri = "https://schemas.acme.internal/qip/external-service.schema.yaml";
+        ApplicationJsonSchemaProperties crossed = new ApplicationJsonSchemaProperties();
+        crossed.setInternalService(crossedUri);
+
+        assertEquals(Optional.of(IntegrationSystemType.INTERNAL),
+                new ServiceTypeFiles(crossed).typeFromSchemaUri(crossedUri));
+    }
+
+    @Test
+    @DisplayName("a missing or empty schema URI reads back as no type")
+    void typeFromNullOrEmptySchemaUri() {
         assertEquals(Optional.empty(), serviceTypeFiles.typeFromSchemaUri(null));
+        assertEquals(Optional.empty(), serviceTypeFiles.typeFromSchemaUri(""));
+    }
+
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("a document is typed by the $schema it states")
+    void typeFromDocumentSchema(IntegrationSystemType type) {
+        assertEquals(Optional.of(type),
+                serviceTypeFiles.typeFromDocumentSchema(documentStating(serviceTypeFiles.schemaUri(type))));
+    }
+
+    /** No {@code $schema}, or one that is not a string, leaves the caller to its fallback rather than throwing. */
+    @Test
+    @DisplayName("a document stating no $schema states no type")
+    void typeFromDocumentStatingNoSchema() {
+        ObjectNode nonTextual = new YAMLMapper().createObjectNode();
+        nonTextual.putArray("$schema");
+
+        assertEquals(Optional.empty(), serviceTypeFiles.typeFromDocumentSchema(documentStating(null)));
+        assertEquals(Optional.empty(), serviceTypeFiles.typeFromDocumentSchema(nonTextual));
+        assertEquals(Optional.empty(), serviceTypeFiles.typeFromDocumentSchema(null));
     }
 
     @Test
     @DisplayName("a missing type is refused")
     void nullTypeIsRefused() {
-        assertThrows(NullPointerException.class, () -> ServiceTypeFiles.postfix(null));
         assertThrows(NullPointerException.class, () -> serviceTypeFiles.schemaUri(null));
     }
 
@@ -187,6 +180,13 @@ class ServiceTypeFilesTest {
         assertEquals("http://example.org/external.yaml", configured.schemaUri(IntegrationSystemType.EXTERNAL));
         assertEquals(Optional.of(IntegrationSystemType.EXTERNAL),
                 configured.typeFromSchemaUri("http://example.org/external.yaml"));
+    }
+
+    @Test
+    @DisplayName("every plain service schema URI is offered as the remedy")
+    void plainServiceSchemaUrisAreTheConfiguredThree() {
+        assertEquals(Set.of(schemas.getExternalService(), schemas.getInternalService(), schemas.getImplementedService()),
+                Set.copyOf(serviceTypeFiles.plainServiceSchemaUris()));
     }
 
     // --- which kind of service a file holds ------------------------------------------------------------------------
@@ -350,9 +350,10 @@ class ServiceTypeFilesTest {
         return document;
     }
 
-    /** The file-name postfix and the schema file spell the type the same way, so one names the other. */
-    private static String schemaFileName(IntegrationSystemType type) {
-        return ServiceTypeFiles.postfix(type).replace(".", "") + ".schema.yaml";
+    /** The schema each type is configured with, named by its own file, which is what the URI ends in. */
+    private String schemaFileName(IntegrationSystemType type) {
+        String uri = serviceTypeFiles.schemaUri(type);
+        return uri.substring(uri.lastIndexOf('/') + 1);
     }
 
     private static String declaredId(String schemaFileName) throws IOException {

@@ -1,4 +1,14 @@
 ---
+# The pre-#553 service document, where the type sits in the body rather than in the file name.
+#
+# Superseded by the per-type schemas, one per value of the integrationSystemType enum below:
+#   EXTERNAL     -> external-service.schema.yaml
+#   INTERNAL     -> internal-service.schema.yaml
+#   IMPLEMENTED  -> implemented-service.schema.yaml
+# Their shared content is common-properties/typed-service-content.schema.yaml.
+#
+# Frozen, not dead: every archive older than #553 uses this format, and V105RevertMigration restores it under
+# qip.export.legacy-format.
 $id: http://qubership.org/schemas/product/qip/service.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
@@ -17,8 +27,10 @@ properties:
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/service-content.schema.yaml"
     properties:
+      activeEnvironmentId:
+        type: string
+        title: Active environment ID
       integrationSystemType:
         title: Integration system type
         $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
@@ -29,7 +41,7 @@ properties:
         type: array
         title: Environments
         items:
-          $ref: "http://qubership.org/schemas/product/qip/common-properties/service-content.schema.yaml#/definitions/Environment"
+          $ref: "http://qubership.org/schemas/product/qip/common-properties/environment.schema.yaml"
     required:
       - integrationSystemType
 required:

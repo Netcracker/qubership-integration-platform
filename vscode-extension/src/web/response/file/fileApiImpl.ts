@@ -90,8 +90,8 @@ export class VSCodeFileApi implements FileApi {
   async findFileByNavigationPath(path: string): Promise<Uri> {
     const extensions = this.getExtensionsForContext();
     // A service route names no type, so every plain-service name is a candidate; the other
-    // routes resolve to exactly one. Typed names come first, so a converted service that still
-    // has its legacy sibling resolves to the file the next write lands on.
+    // routes resolve to exactly one. The current `.service.` name is scanned first, so a converted
+    // service that still has its per-type sibling resolves to the file the next write lands on.
     let candidates: CandidateOrder | undefined = undefined;
 
     for (const regexp of SERVICE_ROUTES) {
@@ -298,7 +298,7 @@ export class VSCodeFileApi implements FileApi {
 
     const extensions = getExtensionsForFile();
     // Every kind of file, one declared order after another. Each set keeps its own order, so the
-    // legacy `.service.` name still sits behind all five typed ones.
+    // current `.service.` name still sits ahead of the three per-type ones it superseded.
     const typesToTry = combineCandidates(
       allServiceExtensions(extensions),
       candidateExtensions(NAME_SETS.chain, extensions),
@@ -922,7 +922,7 @@ export class VSCodeFileApi implements FileApi {
             },
           };
         }
-        // The name states the type, so the content does not.
+        // The $schema states the type, so the content does not.
         return {
           $schema: serviceSchemaUrlForType(
             serviceType.value,

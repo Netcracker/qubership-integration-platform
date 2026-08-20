@@ -32,19 +32,9 @@ jest.mock("../../src/web/response/serviceApiRead", () => {
     getContextService: jest.fn(),
   };
 });
-jest.mock("../../src/web/response/file/fileExtensions", () => {
-  const { QIP_FILE_EXTENSIONS } = jest.requireActual("../helpers/mocks");
-  return {
-    getExtensionsForFile: jest.fn().mockReturnValue(QIP_FILE_EXTENSIONS),
-    getExtensionsForUri: jest.fn().mockReturnValue(QIP_FILE_EXTENSIONS),
-    extractFilename: jest.fn(
-      (fileRef: any) =>
-        (typeof fileRef === "string" ? fileRef : fileRef.path)
-          .split("/")
-          .pop() ?? "",
-    ),
-  };
-});
+jest.mock("../../src/web/response/file/fileExtensions", () =>
+  jest.requireActual("../helpers/mocks").fileExtensionsMock(),
+);
 jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
 jest.mock("../../src/web/services/ProjectConfigService", () =>
@@ -93,24 +83,27 @@ import { ContentParser } from "../../src/web/api-services/parsers/ContentParser"
 // ran only on the type branch, which left a protocol change unchecked.
 describe("updateService – validateAllowedSystemProtocol integration", () => {
   const serviceId = "svc-1";
-  const legacyFileUri = {
+  const fileUri = {
     path: `/svc-1/${serviceId}.service.qip.yaml`,
   } as any;
-  const implementedFileUri = {
-    path: `/svc-1/${serviceId}.implemented-service.qip.yaml`,
-  } as any;
+
+  /** The current format: the type is stated by `$schema` and nowhere else. */
+  function implementedRecord() {
+    return {
+      ...buildServiceRecord(serviceId, { protocol: ApiSpecificationType.HTTP }),
+      $schema: "urn:implemented",
+    };
+  }
 
   beforeEach(() => jest.clearAllMocks());
 
-  test("calls validateAllowedSystemProtocol with the name's type and the new protocol", async () => {
-    (getMainService as jest.Mock).mockResolvedValue(
-      buildServiceRecord(serviceId, { protocol: ApiSpecificationType.HTTP }),
-    );
+  test("calls validateAllowedSystemProtocol with the $schema's type and the new protocol", async () => {
+    (getMainService as jest.Mock).mockResolvedValue(implementedRecord());
     (getService as jest.Mock).mockResolvedValue({
       id: serviceId,
     } as IntegrationSystem);
 
-    await updateService(implementedFileUri, serviceId, {
+    await updateService(fileUri, serviceId, {
       protocol: "graphql",
     } as Partial<IntegrationSystem>);
 
@@ -120,13 +113,11 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
     );
   });
 
-  test("throws when the new protocol is not allowed for the type the name states", async () => {
-    (getMainService as jest.Mock).mockResolvedValue(
-      buildServiceRecord(serviceId, { protocol: ApiSpecificationType.HTTP }),
-    );
+  test("throws when the new protocol is not allowed for the type the $schema states", async () => {
+    (getMainService as jest.Mock).mockResolvedValue(implementedRecord());
 
     await expect(
-      updateService(implementedFileUri, serviceId, {
+      updateService(fileUri, serviceId, {
         protocol: ApiSpecificationType.GRPC,
       } as Partial<IntegrationSystem>),
     ).rejects.toThrow(
@@ -135,7 +126,7 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
     expect(fileApi.writeMainService).not.toHaveBeenCalled();
   });
 
-  test("takes the type from the content when the legacy name states none", async () => {
+  test("takes the type from the content when $schema states none", async () => {
     (getMainService as jest.Mock).mockResolvedValue(
       buildServiceRecord(serviceId, {
         protocol: ApiSpecificationType.HTTP,
@@ -144,7 +135,7 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
     );
 
     await expect(
-      updateService(legacyFileUri, serviceId, {
+      updateService(fileUri, serviceId, {
         protocol: ApiSpecificationType.GRPC,
       } as Partial<IntegrationSystem>),
     ).rejects.toThrow(
@@ -160,7 +151,7 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
       id: serviceId,
     } as IntegrationSystem);
 
-    await updateService(legacyFileUri, serviceId, {
+    await updateService(fileUri, serviceId, {
       name: "Updated Name",
     } as Partial<IntegrationSystem>);
 

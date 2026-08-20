@@ -19,12 +19,9 @@ package org.qubership.integration.platform.runtime.catalog.util;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,8 +30,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -51,8 +46,9 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 
 class ExportImportUtilsTest {
 
-    private static final List<String> SERVICE_POSTFIXES = Stream.concat(
-            Stream.of(SERVICE_YAML_NAME_POSTFIX), ServiceTypeFiles.postfixes().stream()).toList();
+    // What discovery itself scans with, not a copy of it: a hand-written list could drop a read-only name and this
+    // suite would still pass while an archive from the #553 window stopped importing.
+    private static final List<String> SERVICE_POSTFIXES = ExportImportUtils.plainServicePostfixes();
 
     /**
      * The write side of the export-import filename contract. `ServiceDeserializer` matches the group file by name
@@ -303,18 +299,15 @@ class ExportImportUtilsTest {
     }
 
     /**
-     * The id and the type are read from one split of the name, so the pair that built it comes back whole. The app
-     * prefix here carries a postfix of its own, the case that used to leave the file typeless and unimportable.
+     * The id reads back off the name whatever the app prefix spells. A prefix carrying a service postfix of its own is
+     * the shape that used to shift the name's one readable position; the id is still read at the first dot.
      */
     @Test
-    void testExportedNameReadsBackAsTheIdAndTypeItWasBuiltFrom() {
-        for (IntegrationSystemType type : IntegrationSystemType.values()) {
-            String fileName = ExportImportUtils.generateMainSystemFileExportName(
-                    "svc-a", "app.internal-service.qip", false, type);
+    void testExportedNameReadsBackAsTheIdItWasBuiltFrom() {
+        String fileName = ExportImportUtils.generateMainSystemFileExportName("svc-a", "app.internal-service.qip", false);
 
-            assertEquals("svc-a", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)), fileName);
-            assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName), fileName);
-        }
+        assertEquals("svc-a.service.app.internal-service.qip.yaml", fileName);
+        assertEquals("svc-a", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)), fileName);
     }
 
     /**
@@ -325,12 +318,10 @@ class ExportImportUtilsTest {
     void testLegacyNameReadsBackADottedId() {
         String serviceId = "svc-a.v2";
 
-        String fileName = ExportImportUtils.generateMainSystemFileExportName(
-                serviceId, "qip", true, IntegrationSystemType.EXTERNAL);
+        String fileName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", true);
 
         assertEquals("service-" + serviceId + ".yaml", fileName);
         assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
     /**
@@ -343,8 +334,7 @@ class ExportImportUtilsTest {
         String serviceId = "svc-a.external-service.v2";
 
         ServiceExportException refusal = assertThrows(ServiceExportException.class, () ->
-                ExportImportUtils.generateMainSystemFileExportName(
-                        serviceId, "qip", true, IntegrationSystemType.EXTERNAL));
+                ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", true));
 
         assertTrue(refusal.getMessage().contains(serviceId),
                 "the message names the id to fix: " + refusal.getMessage());
@@ -355,20 +345,17 @@ class ExportImportUtilsTest {
      * rather than hand-authored. Both names state it: the current one because the postfix, not the prefix, tells the
      * two formats apart, and the flat one because it reads the id back whole.
      */
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
-    void testBothNamesStateAnIdWearingTheLegacyFlatPrefix(IntegrationSystemType type) {
+    @Test
+    void testBothNamesStateAnIdWearingTheLegacyFlatPrefix() {
         String serviceId = "service-orders";
 
-        String currentName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", false, type);
-        String flatName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", true, type);
+        String currentName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", false);
+        String flatName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", true);
 
-        assertEquals(serviceId + ServiceTypeFiles.postfix(type) + "qip.yaml", currentName);
+        assertEquals(serviceId + SERVICE_YAML_NAME_POSTFIX + "qip.yaml", currentName);
         assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(currentName)));
-        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(currentName));
         assertEquals("service-" + serviceId + ".yaml", flatName);
         assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(flatName)));
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(flatName));
     }
 
     /**
@@ -419,6 +406,25 @@ class ExportImportUtilsTest {
     }
 
     /**
+     * Extraction has to read back the id discovery anchored on. Cutting at the first dot alone read
+     * {@code a.b} as {@code a}: the collision grouping then piled it onto service {@code a}, an ignore
+     * instruction for {@code a} wrongly claimed it, and every status row named an id nobody wrote.
+     */
+    @Test
+    void testADottedIdReadsBackFromTheDirectoryItWasDiscoveredIn() {
+        File dottedPlain = new File("services/a.b", "a.b" + SERVICE_YAML_NAME_POSTFIX + "qip.yaml");
+        File dottedPerType = new File("services/a.b", "a.b.external-service.qip.yaml");
+        File plainSharingTheFirstSegment = new File("services/a", "a" + SERVICE_YAML_NAME_POSTFIX + "qip.yaml");
+        // A file outside its service directory has only the first-dot rule, same as before.
+        File strayDotted = new File("services/other", "a.b" + SERVICE_YAML_NAME_POSTFIX + "qip.yaml");
+
+        assertEquals("a.b", ExportImportUtils.extractSystemIdFromFileName(dottedPlain));
+        assertEquals("a.b", ExportImportUtils.extractSystemIdFromFileName(dottedPerType));
+        assertEquals("a", ExportImportUtils.extractSystemIdFromFileName(plainSharingTheFirstSegment));
+        assertEquals("a", ExportImportUtils.extractSystemIdFromFileName(strayDotted));
+    }
+
+    /**
      * The directory reads a dotted id back, but it does not reopen the name to every file of the archive: an api group
      * whose app prefix spells a service postfix is named after the group, not after the service, so the service
      * directory leaves it out.
@@ -463,14 +469,12 @@ class ExportImportUtilsTest {
     void testTheLegacyFlatNameStatesAnIdSpellingAnotherKindsPostfix(String postfix, @TempDir Path tempDir)
             throws IOException {
         String serviceId = "orders" + postfix + "qip";
-        String fileName = ExportImportUtils.generateMainSystemFileExportName(
-                serviceId, "qip", true, IntegrationSystemType.EXTERNAL);
+        String fileName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", true);
         writeServiceFile(tempDir, serviceId, fileName);
         String directory = tempDir.toAbsolutePath().toString();
 
         assertEquals("service-" + serviceId + ".yaml", fileName);
         assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
         assertEquals(List.of(fileName), fileNames(
                 ExportImportUtils.extractSystemsFromImportDirectory(directory, SERVICE_POSTFIXES)));
         assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(

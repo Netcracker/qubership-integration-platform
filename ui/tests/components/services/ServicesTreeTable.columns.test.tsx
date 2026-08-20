@@ -31,6 +31,10 @@ import {
   isSystemOperation,
   ServiceEntity,
 } from "../../../src/components/services/ServicesTreeTable";
+import {
+  getColumnsOrderKey,
+  getColumnsVisibleKey,
+} from "../../../src/components/table/ColumnsFilter";
 
 const mockGetOperationInfo = jest.fn<Promise<OperationInfo>, [string]>();
 const mockNavigate = jest.fn();
@@ -99,17 +103,19 @@ function Harness({
   dataSource,
   columns,
   storageKey,
+  defaultVisibleKeys,
 }: {
   dataSource: ServiceEntity[];
   columns: string[];
   storageKey: string;
+  defaultVisibleKeys?: string[];
 }) {
   const { tableElement } = useServicesTreeTable<ServiceEntity>({
     dataSource,
     rowKey: "id",
     columns,
     allColumns: columns,
-    defaultVisibleKeys: columns,
+    defaultVisibleKeys: defaultVisibleKeys ?? columns,
     storageKey,
   });
   return tableElement;
@@ -119,6 +125,7 @@ function renderHarness(
   dataSource: ServiceEntity[],
   columns: string[],
   storageKey: string,
+  defaultVisibleKeys?: string[],
 ) {
   return render(
     <MemoryRouter initialEntries={["/test"]}>
@@ -130,6 +137,7 @@ function renderHarness(
               dataSource={dataSource}
               columns={columns}
               storageKey={storageKey}
+              defaultVisibleKeys={defaultVisibleKeys}
             />
           }
         />
@@ -162,6 +170,124 @@ describe("API row: specificationType / specificationVersion columns", () => {
 
     expect(screen.getByText(spec.name)).toBeInTheDocument();
     expect(screen.queryByText("undefined")).not.toBeInTheDocument();
+  });
+});
+
+describe("column settings: columns added after the settings were saved", () => {
+  // The API level gained these two columns after users had already saved column settings.
+  const allColumns = [
+    "name",
+    "protocol",
+    "status",
+    "specificationType",
+    "specificationVersion",
+  ];
+  const columnsBeforeApiFormat = ["name", "protocol", "status"];
+  const STORAGE_KEY = "servicesTreeReconcile";
+  const orderKey = getColumnsOrderKey(STORAGE_KEY);
+  const visibleKey = getColumnsVisibleKey(STORAGE_KEY);
+
+  function storeSettings(order: string[], visible: string[]) {
+    localStorage.setItem(orderKey, JSON.stringify(order));
+    localStorage.setItem(visibleKey, JSON.stringify(visible));
+  }
+
+  function headerTitles(): string[] {
+    return screen
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent?.trim() ?? "");
+  }
+
+  function readStored(key: string): string[] {
+    return JSON.parse(localStorage.getItem(key)!) as string[];
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("shows the new columns when the stored visibility list predates them", () => {
+    storeSettings(columnsBeforeApiFormat, ["name", "protocol", "status"]);
+    renderHarness([makeSpec()], allColumns, STORAGE_KEY);
+
+    const titles = headerTitles();
+    expect(titles).toContain("API Format");
+    expect(titles).toContain("API Format Version");
+    expect(titles).toContain("Protocol");
+    expect(titles).toContain("Status");
+  });
+
+  it("keeps a column the user hid while showing the new ones", () => {
+    storeSettings(columnsBeforeApiFormat, ["name", "protocol"]);
+    renderHarness([makeSpec()], allColumns, STORAGE_KEY);
+
+    const titles = headerTitles();
+    expect(titles).not.toContain("Status");
+    expect(titles).toContain("API Format");
+    expect(titles).toContain("API Format Version");
+  });
+
+  it("keeps a hidden column hidden when the table is mounted again", () => {
+    storeSettings(columnsBeforeApiFormat, ["name", "protocol"]);
+    const { unmount } = renderHarness([makeSpec()], allColumns, STORAGE_KEY);
+    unmount();
+    renderHarness([makeSpec()], allColumns, STORAGE_KEY);
+
+    expect(headerTitles()).not.toContain("Status");
+    expect(readStored(visibleKey)).not.toContain("status");
+  });
+
+  it("does not show a new column that the defaults hide", () => {
+    storeSettings(columnsBeforeApiFormat, ["name", "protocol", "status"]);
+    renderHarness([makeSpec()], allColumns, STORAGE_KEY, [
+      "name",
+      "protocol",
+      "status",
+      "specificationType",
+    ]);
+
+    const titles = headerTitles();
+    expect(titles).toContain("API Format");
+    expect(titles).not.toContain("API Format Version");
+  });
+
+  // The picker reads localStorage when it opens, so the reconciliation has to be written back.
+  it("writes the reconciled order and visibility back to storage", () => {
+    storeSettings(columnsBeforeApiFormat, ["name", "protocol"]);
+    renderHarness([makeSpec()], allColumns, STORAGE_KEY);
+
+    expect(readStored(orderKey)).toEqual(allColumns);
+    expect(readStored(visibleKey)).toEqual([
+      "name",
+      "protocol",
+      "specificationType",
+      "specificationVersion",
+    ]);
+  });
+
+  it("uses the default visible columns and stores nothing when no settings are saved", () => {
+    renderHarness([makeSpec()], allColumns, STORAGE_KEY, [
+      "name",
+      "protocol",
+      "specificationType",
+    ]);
+
+    const titles = headerTitles();
+    expect(titles).toEqual(["Name", "Protocol", "API Format"]);
+    expect(localStorage.getItem(orderKey)).toBeNull();
+    expect(localStorage.getItem(visibleKey)).toBeNull();
+  });
+
+  it("falls back to the defaults when the stored settings are unreadable", () => {
+    localStorage.setItem(orderKey, "{not json");
+    localStorage.setItem(visibleKey, "{not json");
+    renderHarness([makeSpec()], allColumns, STORAGE_KEY, [
+      "name",
+      "protocol",
+      "specificationType",
+    ]);
+
+    expect(headerTitles()).toEqual(["Name", "Protocol", "API Format"]);
   });
 });
 

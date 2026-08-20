@@ -21,12 +21,10 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -66,13 +64,21 @@ public class ExportImportUtils {
     private static final String EXPORT_IN_THE_LEGACY_FORMAT =
             "Export with QIP_EXPORT_LEGACY_FORMAT=true, whose flat name states the id whole and carries no type.";
 
-    // Every postfix a plain-service export writes: the three per-type ones and the older `.service.`. They are also
-    // the only postfixes that can outrank the deprecated flat name, which is the plain service's own second format.
-    private static final List<String> PLAIN_SERVICE_POSTFIXES = List.of(
-            SERVICE_YAML_NAME_POSTFIX,
+    // The one postfix a plain-service export writes. The name generator reads it from here, so "written" is a fact
+    // of the code rather than of a comment.
+    private static final String CURRENT_PLAIN_SERVICE_POSTFIX = SERVICE_YAML_NAME_POSTFIX;
+
+    // The names the versions that shipped #553 wrote. Read, never written: an archive from that window still has to
+    // import, and its type comes from the `$schema` those files carry.
+    private static final List<String> PER_TYPE_READ_ONLY_POSTFIXES = List.of(
             EXTERNAL_SERVICE_YAML_NAME_POSTFIX,
             INTERNAL_SERVICE_YAML_NAME_POSTFIX,
             IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX);
+
+    // Every postfix a plain-service file can carry, in either generation. These are also the only postfixes that can
+    // outrank the deprecated flat name, which is the plain service's own second format.
+    private static final List<String> PLAIN_SERVICE_POSTFIXES = Stream.concat(
+            Stream.of(CURRENT_PLAIN_SERVICE_POSTFIX), PER_TYPE_READ_ONLY_POSTFIXES.stream()).toList();
 
     public static String generateArchiveExportName() {
         DateFormat dateFormat = new SimpleDateFormat(DATE_TIME_FORMAT_PATTERN);
@@ -236,15 +242,14 @@ public class ExportImportUtils {
     }
 
     /**
-     * The service file name. The current format states the type in the name, so the type is required there; the legacy
-     * flat name carries none and states it in {@code content.integrationSystemType} instead.
+     * The service file name, which states no type in either format. The current format states it in {@code $schema},
+     * the legacy flat one in {@code content.integrationSystemType}.
      */
-    public static String generateMainSystemFileExportName(
-            String id, String appName, boolean isLegacyExport, IntegrationSystemType type) {
+    public static String generateMainSystemFileExportName(String id, String appName, boolean isLegacyExport) {
         requireExportableServiceId(id, isLegacyExport);
         return isLegacyExport
                 ? SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
+                : id + CURRENT_PLAIN_SERVICE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     /**
@@ -256,7 +261,7 @@ public class ExportImportUtils {
             requireLegacyFlatId(id);
             return;
         }
-        requireCurrentFormatId(id, "<id>.<type>-service.<app>.yaml",
+        requireCurrentFormatId(id, "<id>" + CURRENT_PLAIN_SERVICE_POSTFIX + "<app>.yaml",
                 fitsLegacyFlatFileName(id) ? EXPORT_IN_THE_LEGACY_FORMAT : RE_CREATE_UNDER_A_FLAT_ID);
     }
 
@@ -463,12 +468,23 @@ public class ExportImportUtils {
         return isLegacyFlatServiceName(SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION);
     }
 
-    /** The id a plain-service file name states, in either format. */
+    /**
+     * The id a plain-service file name states, in either format. The directory anchor mirrors
+     * {@link #statesPostfix(File, String)}: a dotted id spans segments, so the first-dot cut reads
+     * {@code services/a.b/a.b.service.qip.yaml} back as {@code a} — and discovery then hands the
+     * collision grouping, the ignore instructions and the status rows an id nobody wrote.
+     */
     public static String extractSystemIdFromFileName(File systemFile) {
         String fileName = systemFile.getName();
-        return isLegacyFlatServiceName(fileName)
-                ? fileName.substring(SERVICE_YAML_NAME_PREFIX.length(), fileName.lastIndexOf("."))
-                : fileName.substring(0, fileName.indexOf("."));
+        if (isLegacyFlatServiceName(fileName)) {
+            return fileName.substring(SERVICE_YAML_NAME_PREFIX.length(), fileName.lastIndexOf("."));
+        }
+        File directory = systemFile.getParentFile();
+        if (directory != null && PLAIN_SERVICE_POSTFIXES.stream()
+                .anyMatch(postfix -> fileName.startsWith(directory.getName() + postfix))) {
+            return directory.getName();
+        }
+        return fileName.substring(0, fileName.indexOf("."));
     }
 
     /**

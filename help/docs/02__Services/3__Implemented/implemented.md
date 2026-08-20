@@ -181,7 +181,7 @@ To create any service using VS Code Extension, follow the steps outlined below:
 3. Near the "Services" folder click on appearing button "QIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
-Each service is stored in a file whose name states its type: `<id>.external-service.qip.yaml`, `<id>.internal-service.qip.yaml`, `<id>.implemented-service.qip.yaml`, `<id>.context-service.qip.yaml`, or `<id>.mcp-service.qip.yaml`. A project created by an earlier version of the extension uses the older name `<id>.service.qip.yaml`, which keeps the type inside the document. Such a file is renamed to the typed name the first time you edit the service, and git records the change as a rename. The editor tab keeps showing the old file name afterwards. That is cosmetic: the service stays editable, and the tab picks up the new name the next time you open it.
+Each service is stored in one file. The three plain types — external, inner cloud, and implemented — share the name `<id>.service.qip.yaml` and state their type in the document's `$schema`. A context service is stored as `<id>.context-service.qip.yaml` and an MCP service as `<id>.mcp-service.qip.yaml` — separate kinds of document, named that way from the start. Files named `<id>.external-service.qip.yaml`, `<id>.internal-service.qip.yaml`, or `<id>.implemented-service.qip.yaml` were written by earlier versions of the extension; they open and edit normally, and the first edit renames the file back to `<id>.service.qip.yaml` — git records the change as a rename. A file older than all of these keeps its type inside the document (`content.integrationSystemType`); the first edit moves the type into `$schema` without renaming the file. The editor tab keeps showing the old file name after a rename. That is cosmetic: the service stays editable, and the tab picks up the new name the next time you open it.
 
 ### Add API Group
 To add an API group to the Implemented service:
@@ -310,13 +310,14 @@ When import is completed, system displays import result table with the following
 
 System allows to export service with all its API specifications, environments and sources. From **"Implemented Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 
-A service is exported as `<id>.implemented-service.<app>.yaml`. The file name states the service type, and the
+A service is exported as `<id>.service.<app>.yaml`; the type is stated by the document's `$schema`, and the
 document carries no `integrationSystemType` field.
 
-> ⚠️ **Warning:** A Runtime Catalog older than 1.0.4 cannot import such an archive. Older versions discover
-> only `service-<id>.yaml` and `<id>.service.<app>.yaml`, so the services are **silently missing** from the
-> import result, with no **Error** row for them. To produce an archive an older version can import, set
-> `QIP_EXPORT_LEGACY_FORMAT=true` on the exporting instance.
+> ⚠️ **Warning:** A Runtime Catalog older than 1.0.4 discovers such a file but reports the service with the
+> **Error** status: the document is stamped with format version 105, which older versions do not know, and its
+> type is stated nowhere an older version reads. To produce an archive an older version imports, set
+> `QIP_EXPORT_LEGACY_FORMAT=true` on the exporting instance — the flat `service-<id>.yaml` it writes keeps the
+> type inside the document and claims only format versions the older import knows.
 
 ### Constraints
 

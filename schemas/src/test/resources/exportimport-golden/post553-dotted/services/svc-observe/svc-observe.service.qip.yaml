@@ -1,0 +1,15 @@
+id: "svc-observe"
+$schema: "http://qubership.org/schemas/product/qip/external-service.schema.yaml"
+name: "Observability service"
+content:
+  description: "Golden corpus fixture for external services"
+  activeEnvironmentId: "env-observe"
+  protocol: "HTTP"
+  environments:
+  - id: "env-observe"
+    name: "Default"
+    address: "http://observe"
+    sourceType: "MANUAL"
+  labels:
+  - "golden"
+  migrations: "[100, 101, 102, 103, 104, 105]"

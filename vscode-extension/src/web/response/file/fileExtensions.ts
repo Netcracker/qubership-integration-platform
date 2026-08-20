@@ -1,4 +1,8 @@
-import { ProjectConfigService } from "../../services/ProjectConfigService";
+import {
+  DEFAULT_SCHEMA_URLS,
+  ProjectConfig,
+  ProjectConfigService,
+} from "../../services/ProjectConfigService";
 import { Uri } from "vscode";
 import * as vscode from "vscode";
 
@@ -21,7 +25,8 @@ export function buildDefaultExtensions(appName: string): FileExtensionsConfig {
   return {
     appName,
     chain: `.chain.${appName}.yaml`,
-    // The type-less `.service.` name is legacy: read, never written. The three below state the type.
+    // The name every plain-service write emits. The three below are the #553 per-type names: read,
+    // never written.
     service: `.service.${appName}.yaml`,
     externalService: `.external-service.${appName}.yaml`,
     internalService: `.internal-service.${appName}.yaml`,
@@ -98,29 +103,61 @@ export function extractAppNameFromExtension(filename: string): string {
   return match ? match[2] : defaultAppName;
 }
 
+/**
+ * The loaded project config of the app a file belongs to, or `undefined` when no workspace config
+ * answers for it. The one lookup: `extensions` and `schemaUrls` are two members of one config, and
+ * resolving them separately let the two answers come from different apps.
+ */
+function configForApp(appName: string): ProjectConfig | undefined {
+  try {
+    const configService = ProjectConfigService.getInstance?.();
+    if (configService?.isConfigLoaded()) {
+      return configService.getConfigByAppName(appName);
+    }
+  } catch (error) {
+    console.error(`Failed to read the config of app ${appName}:`, error);
+  }
+  return undefined;
+}
+
 export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
   const contextFile = filename || currentFileContext;
   if (contextFile) {
     const appName = extractAppNameFromExtension(contextFile);
-
-    try {
-      const configService = ProjectConfigService.getInstance();
-
-      if (configService.isConfigLoaded()) {
-        const allConfigs = configService.getAllConfigs();
-
-        const foundConfig = allConfigs.find((cfg) => cfg.appName === appName);
-        if (foundConfig) {
-          // Spread rather than key by key: `ProjectConfig["extensions"]` is this type minus
-          // `appName`, so a new extension key cannot be forgotten in one of the three mappings.
-          return { appName: foundConfig.appName, ...foundConfig.extensions };
-        }
-      }
-    } catch (error) {}
-
-    return buildDefaultExtensions(appName);
+    const config = configForApp(appName);
+    // Spread rather than key by key: `ProjectConfig["extensions"]` is this type minus `appName`,
+    // so a new extension key cannot be forgotten in one of the three mappings.
+    return config
+      ? { appName: config.appName, ...config.extensions }
+      : buildDefaultExtensions(appName);
   }
   return getDefaultExtensions();
+}
+
+/**
+ * The `schemaUrls` of the app a file belongs to, resolved exactly as its extensions are — a
+ * document has to be stamped with the schema of its own project, not of whichever app was opened
+ * last.
+ */
+export function getSchemaUrlsForFile(
+  filename?: string,
+): ProjectConfig["schemaUrls"] {
+  const contextFile = filename || currentFileContext;
+  return getSchemaUrlsForApp(
+    contextFile ? extractAppNameFromExtension(contextFile) : defaultAppName,
+  );
+}
+
+/**
+ * The same, for a caller that already resolved the app name. An app no loaded config answers for
+ * falls back to the shipped defaults, the way `buildDefaultExtensions` does: the current app's
+ * config carries another project's rehosted urls, and stamping one of those is how a file of one
+ * installation ends up pointing at another.
+ */
+export function getSchemaUrlsForApp(
+  appName: string,
+): ProjectConfig["schemaUrls"] {
+  return configForApp(appName)?.schemaUrls ?? DEFAULT_SCHEMA_URLS;
 }
 
 export function extractFilename(fileUri: { path: string } | string): string {

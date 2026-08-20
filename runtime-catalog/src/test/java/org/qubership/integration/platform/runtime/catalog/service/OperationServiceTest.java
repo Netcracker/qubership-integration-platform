@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
@@ -17,8 +18,10 @@ import org.qubership.integration.platform.runtime.catalog.service.helpers.Elemen
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -26,7 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.runtime.catalog.service.extractor.CorpusTestSupport.assertNodeEquals;
@@ -99,6 +105,50 @@ class OperationServiceTest {
         service.getOperationsByModel("model-1", 0, 20, "", List.of("name", " path"));
 
         verify(repository).getOperations("model-1", List.of("name", "path"), 0, 20);
+    }
+
+    /**
+     * The listing used to call {@code findBySystemAndOperationId} once per row — one query per operation, per
+     * table render. The page must cost a single lookup whatever its size.
+     */
+    @Test
+    void listLooksChainsUpOncePerPageNotOncePerOperation() {
+        ElementHelperService elementHelperService = mock(ElementHelperService.class);
+        OperationService service = serviceWithPage(elementHelperService,
+                operationWithId("op-1"), operationWithId("op-2"), operationWithId("op-3"));
+
+        service.getOperationsByModel("model-1", 0, 20, "", List.of());
+
+        verify(elementHelperService).findChainsGroupedByOperationId(Set.of("op-1", "op-2", "op-3"));
+        verify(elementHelperService, never()).findBySystemAndOperationId(any(), any());
+    }
+
+    @Test
+    void listAssignsEachOperationTheChainsOfItsOwnId() {
+        Chain first = Chain.builder().id("chain-1").build();
+        Chain second = Chain.builder().id("chain-2").build();
+        ElementHelperService elementHelperService = mock(ElementHelperService.class);
+        when(elementHelperService.findChainsGroupedByOperationId(anySet()))
+                .thenReturn(Map.of("op-1", List.of(first), "op-2", List.of(first, second)));
+        OperationService service = serviceWithPage(elementHelperService,
+                operationWithId("op-1"), operationWithId("op-2"), operationWithId("op-3"));
+
+        List<Operation> result = service.getOperationsByModel("model-1", 0, 20, "", List.of());
+
+        assertEquals(List.of("chain-1"), chainIds(result.get(0)));
+        assertEquals(List.of("chain-1", "chain-2"), chainIds(result.get(1)));
+        assertTrue(result.get(2).getChains().isEmpty(), "an unused operation must carry no chains");
+    }
+
+    @Test
+    void emptyPageStillIssuesNoPerOperationLookup() {
+        ElementHelperService elementHelperService = mock(ElementHelperService.class);
+        OperationService service = serviceWithPage(elementHelperService);
+
+        service.getOperationsByModel("model-1", 0, 20, "", List.of());
+
+        verify(elementHelperService).findChainsGroupedByOperationId(Set.of());
+        verify(elementHelperService, never()).findBySystemAndOperationId(any(), any());
     }
 
     @Test
@@ -310,6 +360,20 @@ class OperationServiceTest {
         OperationRepository repository = mock(OperationRepository.class);
         when(repository.findById(operation.getId())).thenReturn(Optional.of(operation));
         return serviceWith(repository);
+    }
+
+    private OperationService serviceWithPage(ElementHelperService elementHelperService, Operation... page) {
+        OperationRepository repository = mock(OperationRepository.class);
+        when(repository.getOperations("model-1", List.of(), 0, 20)).thenReturn(new ArrayList<>(List.of(page)));
+        return new OperationService(repository, JSON, elementHelperService, extractor);
+    }
+
+    private static Operation operationWithId(String id) {
+        return Operation.builder().id(id).build();
+    }
+
+    private static List<String> chainIds(Operation operation) {
+        return operation.getChains().stream().map(Chain::getId).sorted().toList();
     }
 
     private OperationService serviceWith(OperationRepository repository) {

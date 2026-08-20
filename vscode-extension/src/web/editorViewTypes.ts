@@ -31,7 +31,8 @@ export function getEditorViewTypeForUri(uri: Uri): string {
   if (filePath.endsWith(fileExtensions.chain)) {
     return editorViewTypes.chain;
   }
-  // The typed names come first: a project may configure a plain extension the typed ones end with.
+  // The per-type branches answer for files a #553 version wrote, which no write emits any more. A
+  // project may also configure a plain extension the per-type ones end with, so they stay first.
   if (filePath.endsWith(fileExtensions.externalService)) {
     return editorViewTypes.externalService;
   }
@@ -47,6 +48,7 @@ export function getEditorViewTypeForUri(uri: Uri): string {
   if (filePath.endsWith(fileExtensions.mcpService)) {
     return editorViewTypes.mcpService;
   }
+  // Every plain service written from now on lands here, whatever its type.
   if (filePath.endsWith(fileExtensions.service)) {
     return editorViewTypes.service;
   }

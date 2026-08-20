@@ -3,7 +3,7 @@
 // one either — Environment.system is @JsonBackReference — so writing it made
 // extension files differ from exported ones for no gain.
 
-import { QIP_FILE_EXTENSIONS as ext } from "../helpers/mocks";
+import { QIP_FILE_EXTENSIONS as ext, URN_SCHEMA_URLS } from "../helpers/mocks";
 
 jest.mock(
   "vscode",
@@ -24,14 +24,7 @@ jest.mock("../../src/web/services/ProjectConfigService", () => {
     ProjectConfigService: {
       getConfig: () => ({
         extensions: QIP_FILE_EXTENSIONS,
-        schemaUrls: {
-          service: "urn:service",
-          externalService: "urn:external",
-          internalService: "urn:internal",
-          implementedService: "urn:implemented",
-          contextService: "urn:context",
-          mcpService: "urn:mcp",
-        },
+        schemaUrls: URN_SCHEMA_URLS,
       }),
       getInstance: jest.fn(),
     },
@@ -56,13 +49,12 @@ jest.mock("../../src/web/response/file/fileApiProvider", () => ({
   },
 }));
 
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: () => ext,
-  getExtensionsForUri: () => ext,
-  extractFilename: (fileRef: string | { path: string }) =>
-    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
-    "",
-}));
+jest.mock("../../src/web/response/file/fileExtensions", () =>
+  jest.requireActual("../helpers/mocks").fileExtensionsMock(
+    () => ext,
+    () => undefined,
+  ),
+);
 
 import { EnvironmentService } from "../../src/web/api-services/EnvironmentService";
 import { UnreadableServiceFileError } from "../../src/web/response/file/serviceFileLookup";
@@ -100,9 +92,9 @@ describe("EnvironmentService.createEnvironment", () => {
     ).rejects.toThrow(/System id is required/);
   });
 
-  // Environments live inside the service file, so a service stored under a typed name that the
+  // Environments live inside the service file, so a service stored under a per-type name that the
   // write path cannot find leaves the environments tab empty and every save failing.
-  it("writes back to a service stored under a typed name", async () => {
+  it("writes back to a service stored under a per-type name", async () => {
     findFileById.mockImplementation((_id: string, extension: string) =>
       extension === ext.implementedService
         ? Promise.resolve({ path: `/sys-1/sys-1${ext.implementedService}` })
@@ -119,9 +111,9 @@ describe("EnvironmentService.createEnvironment", () => {
     expect(fileUri.path).toBe(`/sys-1/sys-1${ext.implementedService}`);
   });
 
-  // Adding an environment is a write like any other, so it converts a legacy file too. Leaving
-  // this one path on the old name is how a project ends up half migrated.
-  it("converts a legacy file when it writes an environment back", async () => {
+  // Adding an environment is a write like any other, so it converts a pre-#553 file too. Leaving
+  // this one path on the old carrier is how a project ends up half migrated.
+  it("converts a pre-#553 file when it writes an environment back", async () => {
     getRawServiceById.mockResolvedValue({
       id: "sys-1",
       content: {
@@ -137,11 +129,11 @@ describe("EnvironmentService.createEnvironment", () => {
       address: "https://example.test",
     } as any);
 
-    const [fileUri] = writeMainService.mock.calls[0];
-    expect(fileUri.path).toBe(`/sys-1/sys-1${ext.externalService}`);
-    expect(deleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: `/sys-1/sys-1${ext.service}` }),
-    );
+    // The name does not move — the conversion is the carrier, `content` to `$schema`.
+    const [fileUri, service] = writeMainService.mock.calls[0];
+    expect(fileUri.path).toBe(`/sys-1/sys-1${ext.service}`);
+    expect(service.content).not.toHaveProperty("integrationSystemType");
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 });
 

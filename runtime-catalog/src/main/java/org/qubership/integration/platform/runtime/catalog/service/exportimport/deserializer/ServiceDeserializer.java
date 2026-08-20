@@ -68,6 +68,7 @@ public class ServiceDeserializer {
     private final FileMigrationService fileMigrationService;
     private final Collection<ServiceImportFileMigration> importFileMigrations;
     private final OperationSchemaExtractor operationSchemaExtractor;
+    private final ServiceTypeFiles serviceTypeFiles;
 
     @Value("${app.prefix}")
     private String appName;
@@ -81,7 +82,8 @@ public class ServiceDeserializer {
             SystemModelDtoMapper systemModelDtoMapper,
             FileMigrationService fileMigrationService,
             Collection<ServiceImportFileMigration> importFileMigrations,
-            OperationSchemaExtractor operationSchemaExtractor
+            OperationSchemaExtractor operationSchemaExtractor,
+            ServiceTypeFiles serviceTypeFiles
     ) {
         this.yamlMapper = yamlExportImportMapper;
         this.versionsGetterService = versionsGetterService;
@@ -91,6 +93,7 @@ public class ServiceDeserializer {
         this.fileMigrationService = fileMigrationService;
         this.importFileMigrations = importFileMigrations;
         this.operationSchemaExtractor = operationSchemaExtractor;
+        this.serviceTypeFiles = serviceTypeFiles;
     }
 
     public IntegrationSystem deserializeSystem(File serviceFile) {
@@ -105,7 +108,7 @@ public class ServiceDeserializer {
             ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
             IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
             IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
-            resolveServiceType(integrationSystem, serviceFile);
+            resolveServiceType(integrationSystem, serviceFile, serviceNode);
 
             Collection<File> files = listFiles(serviceDirectory);
 
@@ -143,39 +146,43 @@ public class ServiceDeserializer {
     }
 
     /**
-     * Resolves the service type from the file name, falling back to {@code content.integrationSystemType}. The import
-     * preview calls it as well, so a document the commit path will refuse becomes an error row before the user commits.
+     * Resolves the service type from {@code $schema}, falling back to {@code content.integrationSystemType}. The
+     * import preview calls it as well, so a document the commit path will refuse becomes an error row before the user
+     * commits.
      *
-     * <p>The name is the primary source because it is the only one a current-format file carries. The field stays as a
-     * fallback for the legacy flat {@code service-<id>.yaml} name, for every older archive, and for the rollout
-     * converter, none of which put a type in the name. {@code $schema} is deliberately not consulted: the VS Code
-     * extension stamps whatever a project's {@code .config.qip.yaml} configures, so it identifies nothing.
+     * <p>{@code $schema} is the primary source because it is the only one a current-format file carries. The field
+     * stays as a fallback for the legacy flat {@code service-<id>.yaml} name and for every archive written before the
+     * per-type schemas existed. The <b>file name</b> is not consulted at all: a name has stated a type only between
+     * #553 and this version, and such a file states the same type in its {@code $schema} anyway.
+     *
+     * <p>The document is the one read off disk, before any migration runs. No forward migration rewrites
+     * {@code $schema}, and reading it here keeps the answer the same on both call sites.
      *
      * <p>A type missing from both sources fails the import instead of persisting a null. The column is nullable, and a
      * null surfaces much later as an NPE in {@code EntityType.getSystemType}.
      */
-    public void resolveServiceType(IntegrationSystem system, File serviceFile) {
+    public void resolveServiceType(IntegrationSystem system, File serviceFile, JsonNode document) {
         String fileName = serviceFile.getName();
-        IntegrationSystemType fromFileName = ServiceTypeFiles.typeFromFileName(fileName).orElse(null);
-        IntegrationSystemType fromDocument = system.getIntegrationSystemType();
+        IntegrationSystemType fromSchema = serviceTypeFiles.typeFromDocumentSchema(document).orElse(null);
+        // Both sources read off the one document. Taking the field from the entity instead left half the rule
+        // outside this method, and the preview path had to prime the entity by hand to reassemble it.
+        IntegrationSystemType fromDocument = ServiceTypeFiles.typeFromDocument(document).orElse(null);
 
-        if (fromFileName == null && fromDocument == null) {
+        if (fromSchema == null && fromDocument == null) {
             throw new ServiceImportException(system.getId(), system.getName(),
-                    ("Service file %s states no service type: its name carries no type postfix and"
-                            + " content.integrationSystemType is absent. Rename the file with one of %s, or set"
+                    ("Service file %s states no service type: $schema is absent or states none of the service schemas,"
+                            + " and content.integrationSystemType is absent. Set $schema to one of %s, or set"
                             + " content.integrationSystemType, then re-import. The service is not imported.%s")
-                            .formatted(fileName, String.join(", ", ServiceTypeFiles.postfixes()),
+                            .formatted(fileName, String.join(", ", serviceTypeFiles.plainServiceSchemaUris()),
                                     otherKindHint(fileName)));
         }
-        if (fromFileName != null && fromDocument != null && fromFileName != fromDocument) {
+        if (fromSchema != null && fromDocument != null && fromSchema != fromDocument) {
             throw new ServiceImportException(system.getId(), system.getName(),
-                    ("Service file %s states type %s in its name and %s in content.integrationSystemType. Correct one"
-                            + " of the two so they agree, then re-import. The service is not imported.")
-                            .formatted(fileName, fromFileName, fromDocument));
+                    ("Service file %s states type %s in its $schema and %s in content.integrationSystemType. Correct"
+                            + " one of the two so they agree, then re-import. The service is not imported.")
+                            .formatted(fileName, fromSchema, fromDocument));
         }
-        if (fromFileName != null) {
-            system.setIntegrationSystemType(fromFileName);
-        }
+        system.setIntegrationSystemType(fromSchema != null ? fromSchema : fromDocument);
     }
 
     /**

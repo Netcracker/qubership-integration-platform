@@ -1,10 +1,13 @@
 import * as vscode from "vscode";
-import { getExtensionsForFile } from "./response/file/fileExtensions";
+import {
+  getExtensionsForFile,
+  getSchemaUrlsForFile,
+} from "./response/file/fileExtensions";
 import {
   allServiceExtensions,
   isServiceFileOfAnyKind,
   resolveServiceType,
-  serviceTypeFromUri,
+  isCurrentFormatServiceName,
 } from "./response/file/serviceFileType";
 import { blockingSibling } from "./response/file/lookupOutcome";
 import { readDirectory } from "./response/file/fileApiImpl";
@@ -109,7 +112,9 @@ function dropUnreadableSiblings({
 
 let globalQipExplorerProvider: QipExplorerProvider | null = null;
 
-export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerItem> {
+export class QipExplorerProvider
+  implements vscode.TreeDataProvider<QipExplorerItem>
+{
   private _onDidChangeTreeData: vscode.EventEmitter<
     QipExplorerItem | undefined | null | void
   > = new vscode.EventEmitter<QipExplorerItem | undefined | null | void>();
@@ -341,9 +346,14 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
     try {
       const entries = await readDirectory(folderUri);
 
-      const ext = getExtensionsForFile();
       for (const [name, type] of entries) {
-        if (type === vscode.FileType.File && isServiceFileOfAnyKind(name, ext)) {
+        // Both maps come from the file's own name, not from whichever app is current: in a
+        // multi-app workspace the current app's config types another app's files into Unknown.
+        const ext = getExtensionsForFile(name);
+        if (
+          type === vscode.FileType.File &&
+          isServiceFileOfAnyKind(name, ext)
+        ) {
           try {
             const fileUri = vscode.Uri.joinPath(folderUri, name);
             console.log(`QIP Explorer: Found service file: ${name}`);
@@ -354,9 +364,14 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               // Format: ${name}-${protocol}-${uuid}
               const displayName = serviceData.name || serviceData.id;
               const protocol = serviceData.content?.protocol || "Unknown";
-              // A file that states a type in neither its name nor its body stays visible under Unknown.
+              // A file that states a type in neither its $schema nor its body stays visible under
+              // Unknown.
               const serviceType = serviceGroupType(
-                resolveServiceType(name, serviceData, ext),
+                resolveServiceType(
+                  name,
+                  serviceData,
+                  getSchemaUrlsForFile(name),
+                ),
               );
               const label = `${displayName}${
                 serviceType === IntegrationSystemType.CONTEXT ||
@@ -375,9 +390,9 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                 type: "service",
                 fileUri: fileUri,
               };
-              // A half-converted service has both files on disk. List it once, from the typed
+              // A half-converted service has both files on disk. List it once, from the current
               // name, the same precedence `plainServiceExtensions` and `getServices` apply.
-              const statesType = serviceTypeFromUri(name, ext) !== undefined;
+              const statesType = isCurrentFormatServiceName(name, ext);
               const known = discovered.servicesById.get(serviceData.id);
               if (!known || (statesType && !known.statesType)) {
                 discovered.servicesById.set(serviceData.id, {

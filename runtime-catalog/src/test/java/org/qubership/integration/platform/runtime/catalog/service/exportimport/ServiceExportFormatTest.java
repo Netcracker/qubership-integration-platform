@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,11 +38,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.APP_NAME;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.LEGACY_FLAT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.POST553;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.POST553_DOTTED;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.PRE553_CURRENT;
 
 /**
- * What a service export writes: the file name and the {@code $schema} state the type, the document does not, and the
- * legacy format is untouched. Every assertion runs against the golden corpus in {@link GoldenServiceCorpus}, so a
+ * What a service export writes: the {@code $schema} states the type, neither the file name nor the document does, and
+ * the legacy format is untouched. Every assertion runs against the golden corpus in {@link GoldenServiceCorpus}, so a
  * change to the exported format shows up as a diff rather than as a green suite.
  */
 class ServiceExportFormatTest {
@@ -54,13 +54,13 @@ class ServiceExportFormatTest {
 
     @ParameterizedTest(name = "{0}")
     @CsvSource({
-            "EXTERNAL, svc-external, svc-external.external-service.qip.yaml, external-service.schema.yaml",
-            "INTERNAL, svc-internal, svc-internal.internal-service.qip.yaml, internal-service.schema.yaml",
-            "IMPLEMENTED, svc-implemented, svc-implemented.implemented-service.qip.yaml, implemented-service.schema.yaml"})
-    @DisplayName("each type exports under its own file name and $schema")
-    void perTypeNameAndSchema(
-            IntegrationSystemType type, String serviceId, String fileName, String schemaFile) {
-        assertEquals(fileName, ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
+            "svc-external, external-service.schema.yaml",
+            "svc-internal, internal-service.schema.yaml",
+            "svc-implemented, implemented-service.schema.yaml"})
+    @DisplayName("each type exports under its own $schema and the one type-less file name")
+    void perTypeSchemaUnderOneName(String serviceId, String schemaFile) {
+        String fileName = serviceId + ".service." + APP_NAME + ".yaml";
+        assertEquals(fileName, ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false));
 
         Path exported = GoldenServiceCorpus.serviceFile(POST553, serviceId);
         assertEquals(fileName, exported.getFileName().toString());
@@ -68,7 +68,7 @@ class ServiceExportFormatTest {
         ObjectNode document = GoldenServiceCorpus.read(exported);
         assertEquals("http://qubership.org/schemas/product/qip/" + schemaFile, document.path("$schema").asText());
         assertFalse(document.path("content").has("integrationSystemType"),
-                "the type is stated by the name and the $schema, not by the document");
+                "the type is stated by the $schema, not by the document");
     }
 
     /** The type must be gone from the whole document, not only from the place the type used to sit. */
@@ -82,18 +82,11 @@ class ServiceExportFormatTest {
                 assertFalse(containsKey(document, "integrationSystemType"), name + " still carries the type field"));
     }
 
+    /** The whole file-name change of #553 was undone, so the two sets are named identically, file for file. */
     @Test
-    @DisplayName("only the service file names changed; the archive layout around them is unaffected")
-    void onlyServiceFileNamesChanged() {
-        assertEquals(
-                GoldenServiceCorpus.fileNames(PRE553_CURRENT).stream()
-                        .map(name -> name
-                                .replace("svc-external.service.", "svc-external.external-service.")
-                                .replace("svc-internal.service.", "svc-internal.internal-service.")
-                                .replace("svc-implemented.service.", "svc-implemented.implemented-service."))
-                        .sorted()
-                        .toList(),
-                GoldenServiceCorpus.fileNames(POST553));
+    @DisplayName("no service file name changed since before #553")
+    void noServiceFileNameChanged() {
+        assertEquals(GoldenServiceCorpus.fileNames(PRE553_CURRENT), GoldenServiceCorpus.fileNames(POST553));
     }
 
     /**
@@ -108,8 +101,8 @@ class ServiceExportFormatTest {
     @DisplayName("an older archive still imports with its type field")
     void olderArchiveKeepsItsTypeField(String serviceId, IntegrationSystemType type) {
         Path serviceFile = GoldenServiceCorpus.serviceFile(PRE553_CURRENT, serviceId);
-        assertTrue(serviceFile.getFileName().toString().contains(ExportImportConstants.SERVICE_YAML_NAME_POSTFIX),
-                "the pre-#553 set must keep the old name, or this proves nothing");
+        assertEquals(SCHEMAS.getService(), GoldenServiceCorpus.read(serviceFile).path("$schema").asText(),
+                "the pre-#553 set must keep the plain service schema, or this proves nothing");
 
         IntegrationSystem imported = GoldenServiceCorpus.deserializer().deserializeSystem(serviceFile.toFile());
 
@@ -128,11 +121,8 @@ class ServiceExportFormatTest {
     void legacyExportIsUnchanged(@TempDir Path directory) throws IOException {
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(true), directory);
 
-        assertEquals(GoldenServiceCorpus.fileNames(LEGACY_FLAT), GoldenServiceCorpus.relativeFileNames(directory),
+        GoldenServiceCorpus.assertMatchesRecordedSet(LEGACY_FLAT, directory,
                 "the legacy format keeps the flat file names the change never touched");
-        Map<String, ObjectNode> golden = GoldenServiceCorpus.documentsOf(GoldenServiceCorpus.set(LEGACY_FLAT));
-        Map<String, ObjectNode> actual = GoldenServiceCorpus.documentsOf(directory);
-        golden.forEach((name, document) -> assertEquals(document, actual.get(name), name + " changed"));
     }
 
     /**
@@ -145,11 +135,26 @@ class ServiceExportFormatTest {
     void currentExportMatchesTheRecordedFormat(@TempDir Path directory) throws IOException {
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(false), directory);
 
-        assertEquals(GoldenServiceCorpus.fileNames(POST553), GoldenServiceCorpus.relativeFileNames(directory),
+        GoldenServiceCorpus.assertMatchesRecordedSet(POST553, directory,
                 "the exporter writes different file names than the recorded post-#553 set");
-        Map<String, ObjectNode> golden = GoldenServiceCorpus.documentsOf(GoldenServiceCorpus.set(POST553));
-        Map<String, ObjectNode> actual = GoldenServiceCorpus.documentsOf(directory);
-        golden.forEach((name, document) -> assertEquals(document, actual.get(name), name + " changed"));
+    }
+
+    /**
+     * The same pin over {@value GoldenServiceCorpus#POST553_DOTTED}. That set exists because the VS Code extension
+     * opens it: only the service id has to be one dot-free segment, so a real export names its api group and api files
+     * after ids carrying dots, and the extension strips the whole extension end-anchored to read the id back.
+     */
+    @Test
+    @DisplayName("the dotted-id export still matches the recorded format")
+    void dottedExportMatchesTheRecordedFormat(@TempDir Path directory) throws IOException {
+        GoldenServiceCorpus.unzipInto(
+                GoldenServiceCorpus.archive(
+                        GoldenServiceCorpus.exportServices(List.of(GoldenServiceCorpus.dottedApiService()), false),
+                        false),
+                directory);
+
+        GoldenServiceCorpus.assertMatchesRecordedSet(POST553_DOTTED, directory,
+                "the exporter writes different file names than the recorded dotted-id set");
     }
 
     /**
@@ -235,57 +240,51 @@ class ServiceExportFormatTest {
     }
 
     @Test
-    @DisplayName("the file name of a typeless service is refused rather than guessed")
-    void typelessServiceFileNameIsRefused() {
-        // Any refusal will do; the point is that no name is invented for a service that states no type.
-        assertThrows(RuntimeException.class,
-                () -> ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, false, null));
+    @DisplayName("a typeless service still gets a file name, because the name states no type")
+    void typelessServiceStillGetsAFileName() {
+        // The refusal moved: it is the DTO mapper that needs the type, to stamp the right $schema.
+        assertEquals("svc-typeless.service." + APP_NAME + ".yaml",
+                ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, false));
         assertEquals("service-svc-typeless.yaml",
-                ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, true, null),
-                "the legacy name carries no type, so it needs none");
+                ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, true));
     }
 
     // --- the written name reads back --------------------------------------------------------------------------------
 
     /**
-     * The app prefix is configuration, and it lands in the name behind the postfix. A prefix carrying a postfix of its
-     * own used to make the name state two types, and a two-type name resolved to none, so an archive this exporter had
-     * just written came back typeless and failed its own import.
+     * The app prefix is configuration, and it lands in the name behind the postfix. A prefix carrying a service
+     * postfix of its own is what used to shift the one readable position; the id is still read at the first dot.
      */
     @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
-    @DisplayName("an app prefix carrying a postfix exports a name that reads back as the exported type")
-    void appPrefixCarryingAPostfixReadsBack(IntegrationSystemType type) {
-        for (IntegrationSystemType carried : IntegrationSystemType.values()) {
-            String appPrefix = "app" + ServiceTypeFiles.postfix(carried) + APP_NAME;
+    @ValueSource(strings = {".service.", ".external-service.", ".internal-service.", ".implemented-service."})
+    @DisplayName("an app prefix carrying a postfix exports a name whose id reads back")
+    void appPrefixCarryingAPostfixReadsBack(String carried) {
+        String appPrefix = "app" + carried + APP_NAME;
 
-            String fileName = ExportImportUtils.generateMainSystemFileExportName("svc-1", appPrefix, false, type);
+        String fileName = ExportImportUtils.generateMainSystemFileExportName("svc-1", appPrefix, false);
 
-            assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName), fileName);
-        }
+        assertEquals("svc-1", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)), fileName);
     }
 
     /**
-     * A dot in the id shifts the type out of the segment import reads it from, and the document no longer carries one
-     * to fall back on. The export refuses instead of writing a name that reads back as another type or as none. The
-     * flat name states such an id whole, so it stays the way out.
+     * A dot in the id shifts the id out of the segment import reads it from. The export refuses instead of writing a
+     * name that reads back as another id. The flat name states such an id whole, so it stays the way out.
      */
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
+    @Test
     @DisplayName("a dotted service id is refused rather than exported unreadable")
-    void dottedServiceIdIsRefused(IntegrationSystemType type) {
+    void dottedServiceIdIsRefused() {
         String serviceId = "svc.1";
 
         ServiceExportException exception = assertThrows(ServiceExportException.class,
-                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
+                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false));
 
         assertTrue(exception.getMessage().contains(serviceId),
                 "the message names the id to fix: " + exception.getMessage());
         assertTrue(exception.getMessage().contains("QIP_EXPORT_LEGACY_FORMAT"),
                 "the flat name states this id, so the refusal points at it: " + exception.getMessage());
         assertEquals("service-" + serviceId + ".yaml",
-                ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true, type),
-                "the legacy name states no type, so a dotted id stays exportable");
+                ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true),
+                "the legacy name states such an id whole, so a dotted id stays exportable");
     }
 
     /**
@@ -293,15 +292,15 @@ class ServiceExportFormatTest {
      * current format wins that tie. Both refusals name the id, and neither offers the other format as a way out.
      */
     @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
+    @ValueSource(strings = {".service.", ".external-service.", ".internal-service.", ".implemented-service."})
     @DisplayName("a service id whose second segment spells a postfix is refused in both formats")
-    void serviceIdCarryingAPostfixIsRefusedInBothFormats(IntegrationSystemType type) {
-        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
+    void serviceIdCarryingAPostfixIsRefusedInBothFormats(String postfix) {
+        String serviceId = "svc" + postfix + "1";
 
         ServiceExportException current = assertThrows(ServiceExportException.class,
-                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
+                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false));
         ServiceExportException legacy = assertThrows(ServiceExportException.class,
-                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true, type));
+                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true));
 
         assertTrue(current.getMessage().contains(serviceId) && legacy.getMessage().contains(serviceId),
                 "both messages name the id to fix: " + current.getMessage() + " / " + legacy.getMessage());
@@ -314,16 +313,14 @@ class ServiceExportFormatTest {
      * is ordinary rather than hand-authored. Refusing it made a discovered service unexportable and aborted the whole
      * archive, because the postfix, not the prefix, is what tells the two name formats apart.
      */
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
+    @Test
     @DisplayName("a service id wearing the legacy flat prefix exports in the current format")
-    void serviceIdWearingTheLegacyFlatPrefixExports(IntegrationSystemType type) {
+    void serviceIdWearingTheLegacyFlatPrefixExports() {
         String serviceId = "service-orders";
 
-        String fileName = ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type);
+        String fileName = ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false);
 
-        assertEquals(serviceId + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", fileName);
-        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName));
+        assertEquals(serviceId + ".service." + APP_NAME + ".yaml", fileName);
         assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
     }
 

@@ -195,7 +195,7 @@ describe("VSCodeFileApi.findFileByNavigationPath", () => {
     expect(fileUri.path).toBe(`/root/${SERVICE_ID}/${SERVICE_ID}${extension}`);
   });
 
-  it("tries the typed names before the legacy one", async () => {
+  it("tries the current name before the per-type ones", async () => {
     const findFileById = onlyOnDisk(api, ext.implementedService);
 
     await api.findFileByNavigationPath(
@@ -203,6 +203,7 @@ describe("VSCodeFileApi.findFileByNavigationPath", () => {
     );
 
     expect(findFileById.mock.calls.map((call) => call[1])).toEqual([
+      ext.service,
       ext.externalService,
       ext.internalService,
       ext.implementedService,
@@ -264,9 +265,9 @@ describe("VSCodeFileApi.createEmptyService", () => {
   });
 
   it.each([
-    ["EXTERNAL", ext.externalService, SCHEMA_URLS.externalService],
-    ["INTERNAL", ext.internalService, SCHEMA_URLS.internalService],
-    ["IMPLEMENTED", ext.implementedService, SCHEMA_URLS.implementedService],
+    ["EXTERNAL", ext.service, SCHEMA_URLS.externalService],
+    ["INTERNAL", ext.service, SCHEMA_URLS.internalService],
+    ["IMPLEMENTED", ext.service, SCHEMA_URLS.implementedService],
     ["CONTEXT", ext.contextService, SCHEMA_URLS.contextService],
   ])("writes a %s service as <id>%s", async (type, extension, schemaUrl) => {
     showQuickPick.mockResolvedValue({ label: type, value: type });

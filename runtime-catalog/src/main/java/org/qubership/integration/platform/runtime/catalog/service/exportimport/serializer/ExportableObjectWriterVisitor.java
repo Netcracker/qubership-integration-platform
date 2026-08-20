@@ -49,7 +49,7 @@ public class ExportableObjectWriterVisitor {
     public void visit(ExportedIntegrationSystem exportedIntegrationSystem, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath + ExportImportUtils.generateMainSystemFileExportName(
-                        exportedIntegrationSystem.getId(), appName, isLegacyExport, exportedIntegrationSystem.getType()),
+                        exportedIntegrationSystem.getId(), appName, isLegacyExport),
                 yamlMapper.writeValueAsString(exportedIntegrationSystem.getObjectNode()));
     }
 

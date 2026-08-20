@@ -1,88 +1,19 @@
 // Both names of one entity on disk, both readable. Every lookup has to answer with the current
-// name — `.api.` over `.specification.`, `.api-group.` over `.specification-group.`, a typed
-// service name over the legacy `.service.` one — because that is the file the next write lands on.
-// A lookup that answers with the legacy file shows a superseded document as the current one.
+// name — `.api.` over `.specification.`, `.api-group.` over `.specification-group.`, the plain
+// `.service.` name over a per-type one — because that is the file the next write lands on.
+// A lookup that answers with the superseded file shows a superseded document as the current one.
 // These cases run the real `VSCodeFileApi` and the real lookups against an in-memory disk.
 
-import { joinUriPath, QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
+import {
+  QIP_FILE_EXTENSIONS as ext,
+  URN_SCHEMA_URLS,
+} from "../../helpers/mocks";
+import { disk, fileRef } from "../../helpers/serviceDisk";
 
-/** The workspace: path → file text. Directories are the prefixes of these paths. */
-const disk = new Map<string, string>();
-
-/** What the code under test gets handed instead of a real `vscode.Uri`. */
-function fileRef(path: string): any {
-  return {
-    path,
-    fsPath: path,
-    with: (change: { path?: string }) => fileRef(change.path ?? path),
-  };
-}
-
-const stat = jest.fn(async (fileUri: any) => {
-  if (disk.has(fileUri.path)) {
-    return { type: 1, ctime: 0 };
-  }
-  for (const filePath of disk.keys()) {
-    if (filePath.startsWith(`${fileUri.path}/`)) {
-      return { type: 2, ctime: 0 };
-    }
-  }
-  throw new Error(`EntryNotFound: ${fileUri.path}`);
+// The in-memory workspace shared with three sibling suites; see tests/helpers/serviceDisk.ts.
+jest.mock("vscode", () => require("../../helpers/serviceDisk").vscodeApi(), {
+  virtual: true,
 });
-
-const readDirectory = jest.fn(async (folderUri: any) => {
-  const prefix = `${folderUri.path}/`;
-  const entries = new Map<string, number>();
-  for (const filePath of disk.keys()) {
-    if (!filePath.startsWith(prefix)) {
-      continue;
-    }
-    const rest = filePath.slice(prefix.length);
-    const slash = rest.indexOf("/");
-    entries.set(slash < 0 ? rest : rest.slice(0, slash), slash < 0 ? 1 : 2);
-  }
-  if (entries.size === 0) {
-    throw new Error(`EntryNotFound: ${folderUri.path}`);
-  }
-  return [...entries.entries()];
-});
-
-jest.mock(
-  "vscode",
-  () => {
-    const api = {
-      FileType: { File: 1, Directory: 2 },
-      Uri: {
-        joinPath: jest.fn((base: any, ...segments: string[]) =>
-          fileRef(joinUriPath(base, ...segments).path),
-        ),
-      },
-      workspace: {
-        workspaceFolders: [{ uri: { path: "/root" } }],
-        fs: {
-          stat: (...args: any[]) => stat(args[0]),
-          readDirectory: (...args: any[]) => readDirectory(args[0]),
-          readFile: async (fileUri: any) =>
-            new TextEncoder().encode(disk.get(fileUri.path) ?? ""),
-          writeFile: jest.fn(async (fileUri: any, bytes: Uint8Array) => {
-            disk.set(fileUri.path, new TextDecoder().decode(bytes));
-          }),
-          delete: jest.fn(async (fileUri: any) => {
-            disk.delete(fileUri.path);
-          }),
-          createDirectory: jest.fn(),
-        },
-      },
-      window: {
-        showInformationMessage: jest.fn(),
-        showWarningMessage: jest.fn(),
-        showErrorMessage: jest.fn(),
-      },
-    };
-    return { __esModule: true, default: api, ...api };
-  },
-  { virtual: true },
-);
 
 jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 jest.mock("@netcracker/qip-schemas", () => ({}), { virtual: true });
@@ -91,17 +22,19 @@ jest.mock("yaml", () => ({
   parse: (text: string) => JSON.parse(text),
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest.fn(() => ext),
-  getExtensionsForUri: jest.fn(() => ext),
-  extractFilename: (fileRef: any) =>
-    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
-    "",
-}));
+jest.mock("../../../src/web/response/file/fileExtensions", () =>
+  jest.requireActual("../../helpers/mocks").fileExtensionsMock(
+    () => ext,
+    () => undefined,
+  ),
+);
 
 jest.mock("../../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
-    getConfig: () => ({ extensions: ext, schemaUrls: {} }),
+    getConfig: () => ({
+      extensions: ext,
+      schemaUrls: URN_SCHEMA_URLS,
+    }),
     getInstance: () => undefined,
   },
 }));
@@ -148,8 +81,10 @@ const GROUP_ID = "55555555-5555-4555-8555-555555555555";
 const uri = fileRef;
 const folder = `/root/${SERVICE_ID}`;
 
-const typedServiceUri = uri(`${folder}/${SERVICE_ID}${ext.externalService}`);
-const legacyServiceUri = uri(`${folder}/${SERVICE_ID}${ext.service}`);
+const currentServiceUri = uri(`${folder}/${SERVICE_ID}${ext.service}`);
+const supersededServiceUri = uri(
+  `${folder}/${SERVICE_ID}${ext.internalService}`,
+);
 const apiUri = uri(`${folder}/${MODEL_ID}${ext.api}`);
 const legacyApiUri = uri(`${folder}/${MODEL_ID}${ext.specification}`);
 const apiGroupUri = uri(`${folder}/${GROUP_ID}${ext.apiGroup}`);
@@ -185,7 +120,7 @@ beforeEach(() => {
   setFileApi(api);
 
   disk.set(
-    typedServiceUri.path,
+    currentServiceUri.path,
     JSON.stringify({
       id: SERVICE_ID,
       name: "Orders",
@@ -193,7 +128,7 @@ beforeEach(() => {
     }),
   );
   disk.set(
-    legacyServiceUri.path,
+    supersededServiceUri.path,
     JSON.stringify({
       id: SERVICE_ID,
       name: "Orders (superseded)",
@@ -212,19 +147,19 @@ beforeEach(() => {
   disk.set(legacyGroupUri.path, groupText("Orders group (superseded)"));
 });
 
-describe("a service stored under both its typed and its legacy name", () => {
-  it("resolves the id to the typed file", async () => {
+describe("a service stored under both the current and a per-type name", () => {
+  it("resolves the id to the current file", async () => {
     const fileUri = await findServiceFileById(SERVICE_ID, ext);
 
-    expect(fileUri.path).toBe(typedServiceUri.path);
+    expect(fileUri.path).toBe(currentServiceUri.path);
   });
 
-  it("navigates to the typed file", async () => {
+  it("navigates to the current file", async () => {
     const fileUri = await api.findFileByNavigationPath(
       `/services/systems/${SERVICE_ID}/parameters`,
     );
 
-    expect(fileUri.path).toBe(typedServiceUri.path);
+    expect(fileUri.path).toBe(currentServiceUri.path);
   });
 });
 
@@ -245,7 +180,7 @@ describe("an api model stored under both `.specification.` and `.api.`", () => {
   });
 
   it("scans the folder to the `.api.` file, the sibling a duplicate", async () => {
-    const scanned = await resolveApiFiles(typedServiceUri);
+    const scanned = await resolveApiFiles(currentServiceUri);
 
     expect(scanned.byId.get(MODEL_ID)?.fileUri.path).toBe(apiUri.path);
     expect(
@@ -256,7 +191,7 @@ describe("an api model stored under both `.specification.` and `.api.`", () => {
 
 describe("a group stored under both `.specification-group.` and `.api-group.`", () => {
   it("resolves the id to the `.api-group.` file", async () => {
-    const group = await new ApiGroupService(typedServiceUri).getApiGroupById(
+    const group = await new ApiGroupService(currentServiceUri).getApiGroupById(
       GROUP_ID,
       SERVICE_ID,
     );
@@ -271,7 +206,7 @@ describe("a group stored under both `.specification-group.` and `.api-group.`", 
   });
 
   it("scans the folder to the `.api-group.` file, the sibling a duplicate", async () => {
-    const scanned = await resolveGroupFiles(typedServiceUri);
+    const scanned = await resolveGroupFiles(currentServiceUri);
 
     expect(scanned.byId.get(GROUP_ID)?.fileUri.path).toBe(apiGroupUri.path);
     expect(

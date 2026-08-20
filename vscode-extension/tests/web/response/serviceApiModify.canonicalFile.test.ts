@@ -1,10 +1,14 @@
-// A write handed the uri of a superseded legacy sibling. Reads resolve a service by id, so the
-// document the editor shows comes from the typed file; a write that trusted the uri instead read the
-// stale legacy body, applied the edit to it and wrote that over the typed file, dropping everything
+// A write handed the uri of a superseded per-type sibling. Reads resolve a service by id, so the
+// document the editor shows comes from the current file; a write that trusted the uri instead read
+// the stale body, applied the edit to it and wrote that over the current file, dropping everything
 // saved since the conversion. These cases run the real `serviceApiRead` and `serviceFileWrite`
 // against an in-memory disk — the sibling suites stub `readServiceFile`, so they cannot see it.
 
-import { joinUriPath, QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
+import {
+  joinUriPath,
+  QIP_FILE_EXTENSIONS as ext,
+  URN_SCHEMA_URLS,
+} from "../../helpers/mocks";
 
 jest.mock(
   "vscode",
@@ -65,17 +69,19 @@ jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
   },
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: () => ext,
-  getExtensionsForUri: () => ext,
-  extractFilename: (fileRef: any) =>
-    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
-    "",
-}));
+jest.mock("../../../src/web/response/file/fileExtensions", () =>
+  jest.requireActual("../../helpers/mocks").fileExtensionsMock(
+    () => ext,
+    () => undefined,
+  ),
+);
 
 jest.mock("../../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
-    getConfig: () => ({ extensions: ext, schemaUrls: {} }),
+    getConfig: () => ({
+      extensions: ext,
+      schemaUrls: URN_SCHEMA_URLS,
+    }),
     getInstance: () => undefined,
   },
 }));
@@ -105,8 +111,8 @@ function serviceFile(extension: string): any {
   return uri(`/root/${SERVICE_ID}/${SERVICE_ID}${extension}`);
 }
 
-const legacyUri = serviceFile(ext.service);
-const typedUri = serviceFile(ext.externalService);
+const supersededUri = serviceFile(ext.internalService);
+const currentUri = serviceFile(ext.service);
 
 function serviceDocument(content: Record<string, unknown>): any {
   return {
@@ -121,11 +127,14 @@ beforeEach(() => {
   disk.clear();
 });
 
-describe("updating a service whose legacy sibling is still on disk", () => {
+describe("updating a service whose per-type sibling is still on disk", () => {
   beforeEach(() => {
-    disk.set(typedUri.path, serviceDocument({ description: "current" }));
+    disk.set(currentUri.path, {
+      ...serviceDocument({ description: "current" }),
+      $schema: "urn:external",
+    });
     disk.set(
-      legacyUri.path,
+      supersededUri.path,
       serviceDocument({
         description: "superseded",
         integrationSystemType: "EXTERNAL",
@@ -133,24 +142,24 @@ describe("updating a service whose legacy sibling is still on disk", () => {
     );
   });
 
-  it("writes the typed file when handed the legacy uri", async () => {
-    await updateService(legacyUri, SERVICE_ID, { name: "Renamed" });
+  it("writes the current file when handed the superseded uri", async () => {
+    await updateService(supersededUri, SERVICE_ID, { name: "Renamed" });
 
     expect(writeMainService).toHaveBeenCalledTimes(1);
-    expect(writeMainService.mock.calls[0][0].path).toBe(typedUri.path);
+    expect(writeMainService.mock.calls[0][0].path).toBe(currentUri.path);
   });
 
-  it("keeps what the typed file holds rather than the superseded body", async () => {
-    await updateService(legacyUri, SERVICE_ID, { name: "Renamed" });
+  it("keeps what the current file holds rather than the superseded body", async () => {
+    await updateService(supersededUri, SERVICE_ID, { name: "Renamed" });
 
-    expect(disk.get(typedUri.path)).toMatchObject({
+    expect(disk.get(currentUri.path)).toMatchObject({
       name: "Renamed",
       content: { description: "current" },
     });
   });
 
   it("answers with the document it just wrote", async () => {
-    const updated = await updateService(legacyUri, SERVICE_ID, {
+    const updated = await updateService(supersededUri, SERVICE_ID, {
       name: "Renamed",
     });
 
@@ -160,21 +169,21 @@ describe("updating a service whose legacy sibling is still on disk", () => {
   });
 
   it("leaves the superseded file alone rather than writing through it", async () => {
-    await updateService(legacyUri, SERVICE_ID, { name: "Renamed" });
+    await updateService(supersededUri, SERVICE_ID, { name: "Renamed" });
 
-    expect(disk.get(legacyUri.path)).toMatchObject({
+    expect(disk.get(supersededUri.path)).toMatchObject({
       name: "Orders",
       content: { description: "superseded" },
     });
   });
 });
 
-// The conversion itself has to keep working: a service that has only the legacy file is written to
-// the typed name, and the old file goes.
-describe("updating a service that has only the legacy file", () => {
+// The conversion itself has to keep working: a service that has only the per-type file is written
+// to the current name, and the old file goes.
+describe("updating a service that has only the per-type file", () => {
   beforeEach(() => {
     disk.set(
-      legacyUri.path,
+      supersededUri.path,
       serviceDocument({
         description: "only",
         integrationSystemType: "EXTERNAL",
@@ -182,13 +191,13 @@ describe("updating a service that has only the legacy file", () => {
     );
   });
 
-  it("converts it and deletes the legacy file", async () => {
-    const updated = await updateService(legacyUri, SERVICE_ID, {
+  it("converts it and deletes the per-type file", async () => {
+    const updated = await updateService(supersededUri, SERVICE_ID, {
       name: "Renamed",
     });
 
-    expect(disk.has(legacyUri.path)).toBe(false);
-    expect(disk.get(typedUri.path)).toMatchObject({
+    expect(disk.has(supersededUri.path)).toBe(false);
+    expect(disk.get(currentUri.path)).toMatchObject({
       name: "Renamed",
       content: { description: "only" },
     });

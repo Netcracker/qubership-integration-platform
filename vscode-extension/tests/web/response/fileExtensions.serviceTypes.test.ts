@@ -1,6 +1,6 @@
-// The three plain service types get their own file extensions, so a file name states the type.
-// The risk this suite guards is a regex or config surface that quietly stops matching a type:
-// such a file falls back to the default app name and its services go missing, with no error.
+// The per-type file extensions #553 wrote, still read though no write emits them. The risk this
+// suite guards is a regex or config surface that quietly stops matching one: such a file falls back
+// to the default app name and its services go missing, with no error.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -26,6 +26,7 @@ jest.mock(
 const mockConfigService = {
   isConfigLoaded: jest.fn(),
   getAllConfigs: jest.fn(),
+  getConfigByAppName: jest.fn(),
 };
 
 jest.mock("../../../src/web/services/ProjectConfigService", () => ({
@@ -50,17 +51,25 @@ function loadedConfig(appName: string) {
   };
 }
 
+/** Keeps the by-name lookup answering from the same configs `getAllConfigs` lists. */
+function loadConfigs(configs: { appName: string }[]) {
+  mockConfigService.isConfigLoaded.mockReturnValue(configs.length > 0);
+  mockConfigService.getAllConfigs.mockReturnValue(configs);
+  mockConfigService.getConfigByAppName.mockImplementation((appName: string) =>
+    configs.find((config) => config.appName === appName),
+  );
+}
+
 beforeEach(() => {
   setDefaultAppName("qip");
   mockWorkspaceFolders = [
     { uri: { path: "/workspace", fsPath: "/workspace" } },
   ];
-  mockConfigService.isConfigLoaded.mockReturnValue(false);
-  mockConfigService.getAllConfigs.mockReturnValue([]);
+  loadConfigs([]);
 });
 
 describe("buildDefaultExtensions - plain service types", () => {
-  it("carries an extension per plain service type alongside the legacy one", () => {
+  it("carries a per-type extension alongside the current plain one", () => {
     const extensions = buildDefaultExtensions("qip");
 
     expect(extensions.service).toBe(".service.qip.yaml");
@@ -91,8 +100,9 @@ describe("buildDefaultExtensions - plain service types", () => {
     );
   });
 
-  // A typed extension must not end-match the legacy one, or every typed file would read as legacy.
-  it("keeps a typed extension from end-matching the legacy .service. one", () => {
+  // A per-type extension must not end-match the current one, or every such file would read as a
+  // plain `.service.` one.
+  it("keeps a per-type extension from end-matching the current .service. one", () => {
     const ext = buildDefaultExtensions("qip");
 
     expect(`svc-1${ext.externalService}`.endsWith(ext.service)).toBe(false);
@@ -153,24 +163,22 @@ describe("extractAppNameFromExtension - plain service types", () => {
   });
 
   // Autodiscovery mints ids from Kubernetes service names, so `service-orders` is a real id.
-  it("extracts the app name from a typed file whose id starts with service-", () => {
+  it("extracts the app name from a per-type file whose id starts with service-", () => {
     expect(
       extractAppNameFromExtension("service-orders.external-service.acme.yaml"),
     ).toBe("acme");
   });
 
   it("resolves an mcp service through a loaded config, as it always has", () => {
-    mockConfigService.isConfigLoaded.mockReturnValue(true);
-    mockConfigService.getAllConfigs.mockReturnValue([loadedConfig("acme")]);
+    loadConfigs([loadedConfig("acme")]);
 
     expect(extractAppNameFromExtension("mcp-1.mcp-service.acme.yaml")).toBe(
       "acme",
     );
   });
 
-  it("resolves a typed service through a loaded config", () => {
-    mockConfigService.isConfigLoaded.mockReturnValue(true);
-    mockConfigService.getAllConfigs.mockReturnValue([loadedConfig("acme")]);
+  it("resolves a per-type service name through a loaded config", () => {
+    loadConfigs([loadedConfig("acme")]);
 
     expect(
       extractAppNameFromExtension("svc-1.implemented-service.acme.yaml"),
@@ -180,8 +188,7 @@ describe("extractAppNameFromExtension - plain service types", () => {
 
 describe("getExtensionsForFile - plain service types", () => {
   it("propagates the new extensions from a loaded project config", () => {
-    mockConfigService.isConfigLoaded.mockReturnValue(true);
-    mockConfigService.getAllConfigs.mockReturnValue([loadedConfig("acme")]);
+    loadConfigs([loadedConfig("acme")]);
 
     const extensions = getExtensionsForFile("svc-1.external-service.acme.yaml");
 

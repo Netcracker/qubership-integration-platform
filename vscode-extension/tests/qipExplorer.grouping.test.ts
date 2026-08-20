@@ -2,11 +2,16 @@
 // discovery loop does not recognize, or a type no group claims, drops the service from the tree
 // without an error anywhere. Every case below asserts on the tree the provider actually returns.
 //
-// The "service type precedence" suite covers the rule the tree groups by: the file name wins,
-// `content.integrationSystemType` is the fallback for the legacy type-less name, and a file that
-// states a type in neither stays visible under Unknown.
+// The "service type precedence" suite covers the rule the tree groups by: `$schema` wins,
+// `content.integrationSystemType` is the fallback for a pre-#553 document, and a file that states a
+// type in neither stays visible under Unknown.
 
-import { joinUriPath } from "./helpers/mocks";
+import {
+  joinUriPath,
+  QIP_FILE_EXTENSIONS,
+  URN_SCHEMA_URLS,
+} from "./helpers/mocks";
+import { EXTENSION_KEY_BY_TYPE } from "../src/web/response/file/namePrecedence";
 
 let directories: Record<string, [string, number][]> = {};
 let fileContents: Record<string, unknown> = {};
@@ -46,12 +51,26 @@ jest.mock(
   { virtual: true },
 );
 
+const SCHEMA_URLS = URN_SCHEMA_URLS;
+
+// A rehosted `urn:` map only ever reaches a file through the config of its own app, so the workspace
+// has one loaded rather than a current-context fallback.
+const LOADED_CONFIG = {
+  appName: "qip",
+  extensions: QIP_FILE_EXTENSIONS,
+  schemaUrls: URN_SCHEMA_URLS,
+};
+
 jest.mock("../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
     getInstance: jest.fn(() => ({
-      isConfigLoaded: jest.fn(() => false),
-      getAllConfigs: jest.fn(() => []),
+      isConfigLoaded: jest.fn(() => true),
+      getAllConfigs: jest.fn(() => [LOADED_CONFIG]),
+      getConfigByAppName: jest.fn((appName: string) =>
+        appName === LOADED_CONFIG.appName ? LOADED_CONFIG : undefined,
+      ),
     })),
+    getConfig: jest.fn(() => ({ schemaUrls: SCHEMA_URLS })),
   },
 }));
 
@@ -80,10 +99,20 @@ import * as vscode from "vscode";
 const { File: FILE, Directory: DIRECTORY } = vscode.FileType;
 
 type ServiceContent = {
+  $schema?: string;
   id: string;
   name: string;
   content: { protocol: string; integrationSystemType?: string };
 };
+
+// Derived, not restated: a drift between the two maps would stamp a `$schema` the resolver does not
+// match, and the fixture would then land under Unknown for the wrong reason.
+const SCHEMA_BY_TYPE: Record<string, string> = Object.fromEntries(
+  Object.entries(EXTENSION_KEY_BY_TYPE).map(([type, key]) => [
+    type,
+    SCHEMA_URLS[key],
+  ]),
+);
 
 /** Lays out a workspace from full file paths, keeping the listed order as the discovery order. */
 function buildWorkspace(files: { path: string; data?: unknown }[]): void {
@@ -106,8 +135,20 @@ function buildWorkspace(files: { path: string; data?: unknown }[]): void {
   }
 }
 
+/** A current-format document: the type is stated by `$schema` and nowhere else. */
 function service(id: string, type?: string, name = id): ServiceContent {
   return {
+    ...(type && SCHEMA_BY_TYPE[type] ? { $schema: SCHEMA_BY_TYPE[type] } : {}),
+    id,
+    name,
+    content: { protocol: "HTTP" },
+  };
+}
+
+/** A pre-#553 document: the plain service schema, and the type in the body. */
+function pre553Service(id: string, type?: string, name = id): ServiceContent {
+  return {
+    $schema: "urn:service",
     id,
     name,
     content: {
@@ -193,18 +234,24 @@ describe("service discovery", () => {
 describe("service grouping", () => {
   test("puts every kind in its own group, in a fixed order", async () => {
     buildWorkspace([
-      { path: "/workspace/mcp.mcp-service.qip.yaml", data: service("mcp") },
       {
-        path: "/workspace/int.internal-service.qip.yaml",
+        path: "/workspace/mcp.mcp-service.qip.yaml",
+        data: service("mcp", "MCP"),
+      },
+      {
+        path: "/workspace/int.service.qip.yaml",
         data: service("int", "INTERNAL"),
       },
       {
-        path: "/workspace/ext.external-service.qip.yaml",
+        path: "/workspace/ext.service.qip.yaml",
         data: service("ext", "EXTERNAL"),
       },
-      { path: "/workspace/ctx.context-service.qip.yaml", data: service("ctx") },
       {
-        path: "/workspace/impl.implemented-service.qip.yaml",
+        path: "/workspace/ctx.context-service.qip.yaml",
+        data: service("ctx", "CONTEXT"),
+      },
+      {
+        path: "/workspace/impl.service.qip.yaml",
         data: service("impl", "IMPLEMENTED"),
       },
     ]);
@@ -227,7 +274,7 @@ describe("service grouping", () => {
   test("omits a group that holds no service", async () => {
     buildWorkspace([
       {
-        path: "/workspace/ext.external-service.qip.yaml",
+        path: "/workspace/ext.service.qip.yaml",
         data: service("ext", "EXTERNAL"),
       },
     ]);
@@ -287,41 +334,41 @@ describe("service grouping", () => {
 
 describe("service type precedence", () => {
   test.each([
-    ["external-service", "EXTERNAL", "External"],
-    ["internal-service", "INTERNAL", "Internal"],
-    ["implemented-service", "IMPLEMENTED", "Implemented"],
-    ["context-service", "CONTEXT", "Context"],
-    ["mcp-service", "MCP", "MCP"],
-  ])(
-    "groups a .%s. file from its name when the body states no type",
-    async (postfix, type, label) => {
-      buildWorkspace([
-        {
-          path: `/workspace/svc.${postfix}.qip.yaml`,
-          data: service("svc"),
-        },
-      ]);
+    ["EXTERNAL", "External"],
+    ["INTERNAL", "Internal"],
+    ["IMPLEMENTED", "Implemented"],
+    ["CONTEXT", "Context"],
+    ["MCP", "MCP"],
+  ])("groups a %s document from its $schema", async (type, label) => {
+    buildWorkspace([
+      {
+        path: "/workspace/svc.service.qip.yaml",
+        data: service("svc", type),
+      },
+    ]);
 
-      const groups = await listGroups();
+    const groups = await listGroups();
 
-      expect(groups.map((group) => group.label)).toEqual([label]);
-      expect(groups[0].children?.[0].description).toBe(`${type} service`);
-    },
-  );
+    expect(groups.map((group) => group.label)).toEqual([label]);
+    expect(groups[0].children?.[0].description).toBe(`${type} service`);
+  });
 
   test.each([
-    ["external-service", "INTERNAL", "EXTERNAL", "External"],
-    ["internal-service", "IMPLEMENTED", "INTERNAL", "Internal"],
-    ["implemented-service", "EXTERNAL", "IMPLEMENTED", "Implemented"],
-    ["context-service", "EXTERNAL", "CONTEXT", "Context"],
-    ["mcp-service", "INTERNAL", "MCP", "MCP"],
+    ["EXTERNAL", "INTERNAL", "External"],
+    ["INTERNAL", "IMPLEMENTED", "Internal"],
+    ["IMPLEMENTED", "EXTERNAL", "Implemented"],
+    ["CONTEXT", "EXTERNAL", "Context"],
+    ["MCP", "INTERNAL", "MCP"],
   ])(
-    "groups a .%s. file by its name when the body claims another type",
-    async (postfix, bodyType, type, label) => {
+    "groups a %s document by its $schema when the body claims another type",
+    async (type, bodyType, label) => {
       buildWorkspace([
         {
-          path: `/workspace/svc.${postfix}.qip.yaml`,
-          data: service("svc", bodyType),
+          path: "/workspace/svc.service.qip.yaml",
+          data: {
+            ...service("svc", type),
+            content: { protocol: "HTTP", integrationSystemType: bodyType },
+          },
         },
       ]);
 
@@ -332,11 +379,28 @@ describe("service type precedence", () => {
     },
   );
 
-  test("labels a context file from its name, not from the type its body claims", async () => {
+  // A per-type name is a leftover of #553 and states nothing. The document decides, as everywhere.
+  test("groups a per-type file by its $schema, not by its name", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/svc.external-service.qip.yaml",
+        data: service("svc", "INTERNAL"),
+      },
+    ]);
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual(["Internal"]);
+  });
+
+  test("labels a context file from its $schema, not from the type its body claims", async () => {
     buildWorkspace([
       {
         path: "/workspace/ctx.context-service.qip.yaml",
-        data: service("ctx", "EXTERNAL"),
+        data: {
+          ...service("ctx", "CONTEXT"),
+          content: { protocol: "HTTP", integrationSystemType: "EXTERNAL" },
+        },
       },
     ]);
 
@@ -346,11 +410,11 @@ describe("service type precedence", () => {
     expect(context.children?.[0].label).toBe("ctx-ctx");
   });
 
-  test("groups a legacy service file from its integrationSystemType field", async () => {
+  test("groups a pre-#553 service file from its integrationSystemType field", async () => {
     buildWorkspace([
       {
         path: "/workspace/legacy.service.qip.yaml",
-        data: service("legacy", "INTERNAL"),
+        data: pre553Service("legacy", "INTERNAL"),
       },
     ]);
 
@@ -365,7 +429,7 @@ describe("service type precedence", () => {
       { path: "/workspace/bare.service.qip.yaml", data: service("bare") },
       {
         path: "/workspace/odd.service.qip.yaml",
-        data: service("odd", "NONSENSE"),
+        data: pre553Service("odd", "NONSENSE"),
       },
     ]);
 
@@ -428,18 +492,18 @@ describe("group nodes", () => {
 // A conversion writes the typed file before the legacy one is gone, and a failed delete leaves both
 // for good. Without a dedup the same service is listed twice, under two different groups, because
 // the legacy sibling still states its type in the body.
-describe("a service with both a typed and a legacy file", () => {
-  const typedPath = "/workspace/svc/svc.internal-service.qip.yaml";
-  const legacyPath = "/workspace/svc/svc.service.qip.yaml";
+describe("a service with both a current and a per-type file", () => {
+  const perTypePath = "/workspace/svc/svc.internal-service.qip.yaml";
+  const currentPath = "/workspace/svc/svc.service.qip.yaml";
 
   test.each([
-    ["typed first", [typedPath, legacyPath]],
-    ["legacy first", [legacyPath, typedPath]],
-  ])("is listed once, from the typed file (%s)", async (_, order) => {
+    ["per-type first", [perTypePath, currentPath]],
+    ["current first", [currentPath, perTypePath]],
+  ])("is listed once, from the current file (%s)", async (_, order) => {
     buildWorkspace(
       order.map((path) => ({
         path,
-        data: service("svc", path === legacyPath ? "EXTERNAL" : undefined),
+        data: service("svc", path === currentPath ? "INTERNAL" : "EXTERNAL"),
       })),
     );
 
@@ -447,14 +511,14 @@ describe("a service with both a typed and a legacy file", () => {
 
     expect(groups.map((group) => group.label)).toEqual(["Internal"]);
     expect(groups[0].children).toHaveLength(1);
-    expect(groups[0].children![0].fileUri?.path).toBe(typedPath);
+    expect(groups[0].children![0].fileUri?.path).toBe(currentPath);
   });
 
   test("keeps two different services apart", async () => {
     buildWorkspace([
       {
         path: "/workspace/one/one.internal-service.qip.yaml",
-        data: service("one"),
+        data: service("one", "INTERNAL"),
       },
       {
         path: "/workspace/two/two.service.qip.yaml",
@@ -471,14 +535,14 @@ describe("a service with both a typed and a legacy file", () => {
 
 // A file the walk cannot read is neither a service nor an absence. Listing its sibling in its place
 // puts the superseded document in the tree as the current one — the shape every lookup refuses.
-describe("a service whose typed file cannot be read", () => {
-  const typedPath = "/workspace/svc/svc.internal-service.qip.yaml";
-  const legacyPath = "/workspace/svc/svc.service.qip.yaml";
+describe("a service whose current file cannot be read", () => {
+  const perTypePath = "/workspace/svc/svc.internal-service.qip.yaml";
+  const currentPath = "/workspace/svc/svc.service.qip.yaml";
 
-  test("is not listed from the legacy sibling", async () => {
+  test("is not listed from the per-type sibling", async () => {
     buildWorkspace([
-      { path: typedPath, data: "__unreadable__" },
-      { path: legacyPath, data: service("svc", "EXTERNAL") },
+      { path: currentPath, data: "__unreadable__" },
+      { path: perTypePath, data: service("svc", "EXTERNAL") },
     ]);
 
     expect(await listGroups()).toEqual([]);
@@ -490,23 +554,23 @@ describe("a service whose typed file cannot be read", () => {
         path: "/workspace/other/other.external-service.qip.yaml",
         data: "__unreadable__",
       },
-      { path: legacyPath, data: service("svc", "EXTERNAL") },
+      { path: currentPath, data: service("svc", "EXTERNAL") },
     ]);
 
     expect((await listServices()).map((item) => item.id)).toEqual(["svc"]);
   });
 
-  // The other way round is the state a failed conversion delete leaves: the typed file is the one
-  // the tree shows and every write lands on, so a broken legacy sibling takes nothing off the tree.
-  test("still lists it from the typed file when the legacy sibling is the broken one", async () => {
+  // The other way round is the state a failed conversion delete leaves: the current file is the one
+  // the tree shows and every write lands on, so a broken per-type sibling takes nothing off the tree.
+  test("still lists it from the current file when the per-type sibling is the broken one", async () => {
     buildWorkspace([
-      { path: typedPath, data: service("svc") },
-      { path: legacyPath, data: "__unreadable__" },
+      { path: currentPath, data: service("svc", "INTERNAL") },
+      { path: perTypePath, data: "__unreadable__" },
     ]);
 
     const groups = await listGroups();
 
     expect(groups.map((group) => group.label)).toEqual(["Internal"]);
-    expect(groups[0].children![0].fileUri?.path).toBe(typedPath);
+    expect(groups[0].children![0].fileUri?.path).toBe(currentPath);
   });
 });

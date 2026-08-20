@@ -70,12 +70,13 @@ jest.mock("../../src/web/response/serviceApiRead", () => ({
   getMcpService: jest.fn(),
 }));
 
+// Only the app-name resolution is stubbed. `getSchemaUrlsForApp` stays real, because this suite
+// measures that a conversion reads the config of the app the *file* belongs to rather than the
+// current one — a mock of it would answer that question for the code under test.
 jest.mock("../../src/web/response/file/fileExtensions", () => ({
+  ...jest.requireActual("../../src/web/response/file/fileExtensions"),
   getExtensionsForFile: () => extensions,
   getExtensionsForUri: () => extensions,
-  extractFilename: (fileRef: any) =>
-    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
-    "",
 }));
 
 jest.mock("../../src/web/services/ProjectConfigService", () => ({
@@ -84,7 +85,14 @@ jest.mock("../../src/web/services/ProjectConfigService", () => ({
     getInstance: () => ({
       isConfigLoaded: () => loadedConfigs.length > 0,
       getAllConfigs: () => loadedConfigs,
+      getConfigByAppName: (appName: string) =>
+        loadedConfigs.find((config) => config.appName === appName),
     }),
+  },
+  // The shipped urls, which `QIP_SCHEMA_URLS` spells out: what an app no loaded config answers for
+  // falls back to.
+  get DEFAULT_SCHEMA_URLS() {
+    return QIP_SCHEMA_URLS;
   },
 }));
 
@@ -150,11 +158,11 @@ beforeEach(() => {
   deleteFile.mockResolvedValue(undefined);
 });
 
-describe("createService writes the name that states the type", () => {
+describe("createService writes the plain name and the type's own $schema", () => {
   it.each([
-    [IntegrationSystemType.EXTERNAL, ".external-service.qip.yaml"],
-    [IntegrationSystemType.INTERNAL, ".internal-service.qip.yaml"],
-    [IntegrationSystemType.IMPLEMENTED, ".implemented-service.qip.yaml"],
+    [IntegrationSystemType.EXTERNAL, ".service.qip.yaml"],
+    [IntegrationSystemType.INTERNAL, ".service.qip.yaml"],
+    [IntegrationSystemType.IMPLEMENTED, ".service.qip.yaml"],
   ])("writes a %s service as <id>%s", async (type, extension) => {
     const service = await createService({} as any, uri("/workspace"), {
       name: "Orders",
@@ -196,7 +204,7 @@ describe("createService writes the name that states the type", () => {
 
     const [fileUri, document] = writeServiceFile.mock.calls[0];
     expect(fileUri.path).toBe(
-      `/workspace/${service.id}/${service.id}.external-service.qip.yaml`,
+      `/workspace/${service.id}/${service.id}.service.qip.yaml`,
     );
     expect(document.$schema).toBe(QIP_SCHEMA_URLS.externalService);
     expect(service.integrationSystemType).toBe(IntegrationSystemType.EXTERNAL);
@@ -248,14 +256,16 @@ describe("createService writes the name that states the type", () => {
 
     const [fileUri, document] = writeServiceFile.mock.calls[0];
     expect(fileUri.path).toBe(
-      `/workspace/${service.id}/${service.id}.external-service.acme.yaml`,
+      `/workspace/${service.id}/${service.id}.service.acme.yaml`,
     );
     expect(document.$schema).toBe("http://acme.test/service");
   });
 });
 
-describe("updateService converts a legacy file on its first write", () => {
-  it("writes the typed file, removes the legacy one and keeps every field", async () => {
+describe("updateService converts a pre-#553 file on its first write", () => {
+  // The name does not move — it has been `<id>.service.<app>.yaml` all along. What converts is the
+  // carrier: the plain `$schema` becomes the type's own, and the body field goes.
+  it("stamps the typed schema, drops the field and keeps every other field", async () => {
     getMainService.mockResolvedValue(legacyService());
 
     await updateService(
@@ -267,7 +277,7 @@ describe("updateService converts a legacy file on its first write", () => {
     );
 
     const { path, service } = written();
-    expect(path).toBe(`/svc/${SERVICE_ID}.internal-service.qip.yaml`);
+    expect(path).toBe(`/svc/${SERVICE_ID}.service.qip.yaml`);
     expect(service.name).toBe("Renamed");
     expect(service.$schema).toBe(QIP_SCHEMA_URLS.internalService);
     expect(service.content).not.toHaveProperty("integrationSystemType");
@@ -280,18 +290,44 @@ describe("updateService converts a legacy file on its first write", () => {
         { id: "env-1", name: "Production", address: "https://orders.test" },
       ],
     });
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  // The one rename left: a per-type name a #553 version wrote goes back to the plain one.
+  it("renames a per-type file back to the plain name and removes the old one", async () => {
+    getMainService.mockResolvedValue({
+      $schema: QIP_SCHEMA_URLS.internalService,
+      id: SERVICE_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
+
+    await updateService(
+      uri(`/svc/${SERVICE_ID}.internal-service.qip.yaml`),
+      SERVICE_ID,
+      { name: "Renamed" },
+    );
+
+    const { path, service } = written();
+    expect(path).toBe(`/svc/${SERVICE_ID}.service.qip.yaml`);
+    expect(service.$schema).toBe(QIP_SCHEMA_URLS.internalService);
     expect(deleteFile).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: `/svc/${SERVICE_ID}.service.qip.yaml`,
+        path: `/svc/${SERVICE_ID}.internal-service.qip.yaml`,
       }),
     );
   });
 
   it("re-reads the service from the file the conversion produced", async () => {
-    getMainService.mockResolvedValue(legacyService());
+    getMainService.mockResolvedValue({
+      $schema: QIP_SCHEMA_URLS.internalService,
+      id: SERVICE_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
 
     await updateService(
-      uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
+      uri(`/svc/${SERVICE_ID}.internal-service.qip.yaml`),
       SERVICE_ID,
       {
         name: "Renamed",
@@ -300,17 +336,16 @@ describe("updateService converts a legacy file on its first write", () => {
 
     expect(getService).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: `/svc/${SERVICE_ID}.internal-service.qip.yaml`,
+        path: `/svc/${SERVICE_ID}.service.qip.yaml`,
       }),
       SERVICE_ID,
     );
   });
 
-  // A dotted id predates #553, and no current-format name can state it: the backend reads the id up
-  // to the first dot, so `a.b.internal-service.qip.yaml` states the id `a` and resolves no type
-  // (`ExportImportUtils.fitsCurrentFormatFileName`). Converting such a service turns a file that
-  // imported fine into one the backend refuses, in the preview and on commit alike.
-  it("leaves a dotted-id service in the legacy format, type and all", async () => {
+  // A dotted id predates #553, and no name can state it: the backend reads the id up to the first
+  // dot. The name therefore stays exactly as it is; the type still converts into `$schema`, which
+  // no longer depends on the name, so such a file imports the same way every other one does.
+  it("leaves the name of a dotted-id service alone and still converts the carrier", async () => {
     getMainService.mockResolvedValue({
       ...legacyService(),
       id: "a.b",
@@ -321,11 +356,14 @@ describe("updateService converts a legacy file on its first write", () => {
     });
 
     expect(written().path).toBe("/services/a.b/a.b.service.qip.yaml");
-    expect(written().service.content.integrationSystemType).toBe("INTERNAL");
+    expect(written().service.$schema).toBe(QIP_SCHEMA_URLS.internalService);
+    expect(written().service.content).not.toHaveProperty(
+      "integrationSystemType",
+    );
     expect(deleteFile).not.toHaveBeenCalled();
   });
 
-  it("writes in place when the name already states the type", async () => {
+  it("writes in place when the file is already in the current format", async () => {
     getMainService.mockResolvedValue({
       $schema: QIP_SCHEMA_URLS.externalService,
       id: SERVICE_ID,
@@ -334,33 +372,34 @@ describe("updateService converts a legacy file on its first write", () => {
     });
 
     await updateService(
-      uri(`/svc/${SERVICE_ID}.external-service.qip.yaml`),
+      uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
       SERVICE_ID,
       { name: "Renamed" },
     );
 
-    expect(written().path).toBe(`/svc/${SERVICE_ID}.external-service.qip.yaml`);
+    expect(written().path).toBe(`/svc/${SERVICE_ID}.service.qip.yaml`);
     expect(deleteFile).not.toHaveBeenCalled();
   });
 
-  // A write that does not rename leaves `$schema` alone. Stamping the current config's URL on every
-  // typed write would hand a file of one app the URL of whichever app was opened last.
-  it("leaves $schema untouched when it writes in place", async () => {
+  // A `$schema` that already states the type is left alone, however it is hosted. Stamping the
+  // configured URL over it would hand a file written elsewhere this project's own URL, and the
+  // second matching layer exists precisely so such a file needs no rewriting.
+  it("leaves a foreign-hosted $schema untouched", async () => {
     getMainService.mockResolvedValue({
-      $schema: "http://another.example/external-service",
+      $schema: "https://schemas.acme.internal/qip/external-service.schema.yaml",
       id: SERVICE_ID,
       name: "Orders",
       content: { protocol: "HTTP" },
     });
 
     await updateService(
-      uri(`/svc/${SERVICE_ID}.external-service.qip.yaml`),
+      uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
       SERVICE_ID,
       { name: "Renamed" },
     );
 
     expect(written().service.$schema).toBe(
-      "http://another.example/external-service",
+      "https://schemas.acme.internal/qip/external-service.schema.yaml",
     );
   });
 
@@ -375,7 +414,7 @@ describe("updateService converts a legacy file on its first write", () => {
     });
 
     await updateService(
-      uri(`/svc/${SERVICE_ID}.external-service.qip.yaml`),
+      uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
       SERVICE_ID,
       { integrationSystemType: IntegrationSystemType.EXTERNAL },
     );
@@ -385,9 +424,9 @@ describe("updateService converts a legacy file on its first write", () => {
     );
   });
 
-  // Tolerant editor, strict backend: a legacy file stating no type keeps its legacy name here
-  // rather than being renamed on a guess, and the backend refuses it on import.
-  it("keeps the legacy name when neither the name nor the content states a type", async () => {
+  // Tolerant editor, strict backend: a file stating no type is left exactly as it is rather than
+  // stamped with a schema on a guess, and the backend refuses it on import.
+  it("stamps nothing when neither $schema nor the content states a type", async () => {
     getMainService.mockResolvedValue({
       id: SERVICE_ID,
       name: "Orders",
@@ -403,6 +442,7 @@ describe("updateService converts a legacy file on its first write", () => {
     );
 
     expect(written().path).toBe(`/svc/${SERVICE_ID}.service.qip.yaml`);
+    expect(written().service.$schema).toBeUndefined();
     expect(deleteFile).not.toHaveBeenCalled();
   });
 
@@ -422,7 +462,7 @@ describe("updateService converts a legacy file on its first write", () => {
     );
 
     const { path, service } = written();
-    expect(path).toBe(`/svc/${SERVICE_ID}.internal-service.qip.yaml`);
+    expect(path).toBe(`/svc/${SERVICE_ID}.service.qip.yaml`);
     expect(service.$schema).toBe(QIP_SCHEMA_URLS.internalService);
     expect(service.content).not.toHaveProperty("integrationSystemType");
   });
@@ -441,20 +481,30 @@ describe("updateService converts a legacy file on its first write", () => {
       { type: IntegrationSystemType.INTERNAL },
     );
 
-    expect(written().path).toBe(`/svc/${SERVICE_ID}.external-service.qip.yaml`);
-    expect(deleteFile).not.toHaveBeenCalled();
+    expect(written().path).toBe(`/svc/${SERVICE_ID}.service.qip.yaml`);
+    expect(deleteFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: `/svc/${SERVICE_ID}.external-service.qip.yaml`,
+      }),
+    );
   });
 
   it("converts under a non-default appName and stamps the configured schema url", async () => {
     extensions = {
       ...extensions,
+      appName: "acme",
       service: ".service.acme.yaml",
       internalService: ".internal-service.acme.yaml",
     };
-    schemaUrls = {
-      ...schemaUrls,
-      internalService: "http://acme.test/internal",
-    };
+    loadedConfigs = [
+      {
+        appName: "acme",
+        schemaUrls: {
+          ...schemaUrls,
+          internalService: "http://acme.test/internal",
+        },
+      },
+    ];
     getMainService.mockResolvedValue(legacyService());
 
     await updateService(
@@ -466,7 +516,7 @@ describe("updateService converts a legacy file on its first write", () => {
     );
 
     const { path, service } = written();
-    expect(path).toBe(`/svc/${SERVICE_ID}.internal-service.acme.yaml`);
+    expect(path).toBe(`/svc/${SERVICE_ID}.service.acme.yaml`);
     expect(service.$schema).toBe("http://acme.test/internal");
   });
 
@@ -523,18 +573,23 @@ describe("updateService converts a legacy file on its first write", () => {
   );
 
   // The save already reported success, and the leftover file is a duplicate id on the next import.
-  it("warns when the legacy file survives the conversion", async () => {
+  it("warns when the per-type file survives the conversion", async () => {
     deleteFile.mockRejectedValue(new Error("EPERM"));
-    getMainService.mockResolvedValue(legacyService());
+    getMainService.mockResolvedValue({
+      $schema: QIP_SCHEMA_URLS.internalService,
+      id: SERVICE_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
 
     await updateService(
-      uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
+      uri(`/svc/${SERVICE_ID}.internal-service.qip.yaml`),
       SERVICE_ID,
       { name: "Renamed" },
     );
 
     expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
-      expect.stringContaining(`${SERVICE_ID}.service.qip.yaml`),
+      expect.stringContaining(`${SERVICE_ID}.internal-service.qip.yaml`),
     );
   });
 
@@ -545,11 +600,16 @@ describe("updateService converts a legacy file on its first write", () => {
     const subscription = onServiceFileMoved((from, to) =>
       moves.push({ from: from.path, to: to.path }),
     );
-    getMainService.mockResolvedValue(legacyService());
+    getMainService.mockResolvedValue({
+      $schema: QIP_SCHEMA_URLS.internalService,
+      id: SERVICE_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
 
     try {
       await updateService(
-        uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
+        uri(`/svc/${SERVICE_ID}.internal-service.qip.yaml`),
         SERVICE_ID,
         { name: "Renamed" },
       );
@@ -559,8 +619,8 @@ describe("updateService converts a legacy file on its first write", () => {
 
     expect(moves).toEqual([
       {
-        from: `/svc/${SERVICE_ID}.service.qip.yaml`,
-        to: `/svc/${SERVICE_ID}.internal-service.qip.yaml`,
+        from: `/svc/${SERVICE_ID}.internal-service.qip.yaml`,
+        to: `/svc/${SERVICE_ID}.service.qip.yaml`,
       },
     ]);
   });
@@ -577,7 +637,7 @@ describe("updateService converts a legacy file on its first write", () => {
 
     try {
       await updateService(
-        uri(`/svc/${SERVICE_ID}.external-service.qip.yaml`),
+        uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
         SERVICE_ID,
         { name: "Renamed" },
       );

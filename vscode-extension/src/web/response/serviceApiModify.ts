@@ -168,7 +168,7 @@ export async function createService(
 
     // A new service has neither environments nor an active one, so the file
     // carries only what the request supplied. `writeServiceFile` drops the
-    // fields that stayed empty. The type is in the name, not in the content.
+    // fields that stayed empty. The type is in the $schema, not in the content.
     const content = {
       description: serviceRequest.description,
       protocol: serviceRequest.protocol?.toUpperCase(),

@@ -1,93 +1,25 @@
-// A typed service file that cannot be parsed, with its legacy sibling still on disk. The scan
-// skips what it cannot read, so the lookup used to answer with the legacy file; the read then
+// The current service file cannot be parsed, with its per-type sibling still on disk. The scan
+// skips what it cannot read, so the lookup used to answer with the superseded file; the read then
 // served the superseded body, and the write — which recomputes the name from the type — put that
-// body over the unreadable typed file and deleted the legacy one. Everything saved since the
+// body over the unreadable current file and deleted the superseded one. Everything saved since the
 // conversion went with it. These cases run the real `VSCodeFileApi`, the real lookup and the real
 // read and write paths against an in-memory disk.
 
-import { joinUriPath, QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
+import {
+  QIP_FILE_EXTENSIONS as ext,
+  URN_SCHEMA_URLS,
+} from "../../helpers/mocks";
+import {
+  disk,
+  deleteFile,
+  fileRef,
+  writeFile,
+} from "../../helpers/serviceDisk";
 
-/** The workspace: path → file text. Directories are the prefixes of these paths. */
-const disk = new Map<string, string>();
-
-/** What the code under test gets handed instead of a real `vscode.Uri`. */
-function fileRef(path: string): any {
-  return {
-    path,
-    fsPath: path,
-    with: (change: { path?: string }) => fileRef(change.path ?? path),
-  };
-}
-
-const stat = jest.fn(async (fileUri: any) => {
-  if (disk.has(fileUri.path)) {
-    return { type: 1, ctime: 0 };
-  }
-  for (const filePath of disk.keys()) {
-    if (filePath.startsWith(`${fileUri.path}/`)) {
-      return { type: 2, ctime: 0 };
-    }
-  }
-  throw new Error(`EntryNotFound: ${fileUri.path}`);
+// The in-memory workspace shared with three sibling suites; see tests/helpers/serviceDisk.ts.
+jest.mock("vscode", () => require("../../helpers/serviceDisk").vscodeApi(), {
+  virtual: true,
 });
-
-const readDirectory = jest.fn(async (folderUri: any) => {
-  const prefix = `${folderUri.path}/`;
-  const entries = new Map<string, number>();
-  for (const filePath of disk.keys()) {
-    if (!filePath.startsWith(prefix)) {
-      continue;
-    }
-    const rest = filePath.slice(prefix.length);
-    const slash = rest.indexOf("/");
-    entries.set(slash < 0 ? rest : rest.slice(0, slash), slash < 0 ? 1 : 2);
-  }
-  if (entries.size === 0) {
-    throw new Error(`EntryNotFound: ${folderUri.path}`);
-  }
-  return [...entries.entries()];
-});
-
-const writeFile = jest.fn(async (fileUri: any, bytes: Uint8Array) => {
-  disk.set(fileUri.path, new TextDecoder().decode(bytes));
-});
-
-const deleteFile = jest.fn(async (fileUri: any) => {
-  disk.delete(fileUri.path);
-});
-
-jest.mock(
-  "vscode",
-  () => {
-    const api = {
-      FileType: { File: 1, Directory: 2 },
-      Uri: {
-        joinPath: jest.fn((base: any, ...segments: string[]) =>
-          fileRef(joinUriPath(base, ...segments).path),
-        ),
-      },
-      workspace: {
-        workspaceFolders: [{ uri: { path: "/root" } }],
-        fs: {
-          stat: (...args: any[]) => stat(args[0]),
-          readDirectory: (...args: any[]) => readDirectory(args[0]),
-          readFile: async (fileUri: any) =>
-            new TextEncoder().encode(disk.get(fileUri.path) ?? ""),
-          writeFile: (...args: any[]) => writeFile(args[0], args[1]),
-          delete: (...args: any[]) => deleteFile(args[0]),
-          createDirectory: jest.fn(),
-        },
-      },
-      window: {
-        showInformationMessage: jest.fn(),
-        showWarningMessage: jest.fn(),
-        showErrorMessage: jest.fn(),
-      },
-    };
-    return { __esModule: true, default: api, ...api };
-  },
-  { virtual: true },
-);
 
 jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 jest.mock("@netcracker/qip-schemas", () => ({}), { virtual: true });
@@ -96,17 +28,19 @@ jest.mock("yaml", () => ({
   parse: (text: string) => JSON.parse(text),
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest.fn(() => ext),
-  getExtensionsForUri: jest.fn(() => ext),
-  extractFilename: (fileRef: any) =>
-    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
-    "",
-}));
+jest.mock("../../../src/web/response/file/fileExtensions", () =>
+  jest.requireActual("../../helpers/mocks").fileExtensionsMock(
+    () => ext,
+    () => undefined,
+  ),
+);
 
 jest.mock("../../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
-    getConfig: () => ({ extensions: ext, schemaUrls: {} }),
+    getConfig: () => ({
+      extensions: ext,
+      schemaUrls: URN_SCHEMA_URLS,
+    }),
     getInstance: () => undefined,
   },
 }));
@@ -164,12 +98,14 @@ let api: VSCodeFileApi;
 
 const uri = fileRef;
 
-const typedUri = uri(`/root/${SERVICE_ID}/${SERVICE_ID}${ext.externalService}`);
-const legacyUri = uri(`/root/${SERVICE_ID}/${SERVICE_ID}${ext.service}`);
-const otherTypedUri = uri(
-  `/root/${OTHER_ID}/${OTHER_ID}${ext.externalService}`,
+const currentUri = uri(`/root/${SERVICE_ID}/${SERVICE_ID}${ext.service}`);
+const supersededUri = uri(
+  `/root/${SERVICE_ID}/${SERVICE_ID}${ext.internalService}`,
 );
-const otherLegacyUri = uri(`/root/${OTHER_ID}/${OTHER_ID}${ext.service}`);
+const otherCurrentUri = uri(`/root/${OTHER_ID}/${OTHER_ID}${ext.service}`);
+const otherSupersededUri = uri(
+  `/root/${OTHER_ID}/${OTHER_ID}${ext.internalService}`,
+);
 
 const UNREADABLE_TEXT = "id: broken\n  name: [broken";
 
@@ -189,11 +125,11 @@ beforeEach(() => {
   setFileApi(api);
 });
 
-describe("a service whose typed file cannot be read, with the legacy sibling still there", () => {
+describe("a service whose current file cannot be read, with the per-type sibling still there", () => {
   beforeEach(() => {
-    disk.set(typedUri.path, UNREADABLE_TEXT);
+    disk.set(currentUri.path, UNREADABLE_TEXT);
     disk.set(
-      legacyUri.path,
+      supersededUri.path,
       serviceText(SERVICE_ID, {
         description: "superseded",
         integrationSystemType: "EXTERNAL",
@@ -203,23 +139,23 @@ describe("a service whose typed file cannot be read, with the legacy sibling sti
 
   it("refuses to resolve the id rather than answering with the sibling", async () => {
     await expect(findServiceFileById(SERVICE_ID, ext)).rejects.toThrow(
-      typedUri.path,
+      currentUri.path,
     );
   });
 
   it("fails the read rather than serving the superseded body", async () => {
-    await expect(getService(legacyUri, SERVICE_ID)).rejects.toThrow(
-      typedUri.path,
+    await expect(getService(supersededUri, SERVICE_ID)).rejects.toThrow(
+      currentUri.path,
     );
   });
 
   it("fails the write and leaves both files exactly as they were", async () => {
     await expect(
-      updateService(legacyUri, SERVICE_ID, { name: "Renamed" }),
-    ).rejects.toThrow(typedUri.path);
+      updateService(supersededUri, SERVICE_ID, { name: "Renamed" }),
+    ).rejects.toThrow(currentUri.path);
 
-    expect(disk.get(typedUri.path)).toBe(UNREADABLE_TEXT);
-    expect(disk.get(legacyUri.path)).toBe(
+    expect(disk.get(currentUri.path)).toBe(UNREADABLE_TEXT);
+    expect(disk.get(supersededUri.path)).toBe(
       serviceText(SERVICE_ID, {
         description: "superseded",
         integrationSystemType: "EXTERNAL",
@@ -230,24 +166,24 @@ describe("a service whose typed file cannot be read, with the legacy sibling sti
   });
 
   // Navigation opens an editor on whatever it resolves, so it obeys the same rule: falling through
-  // to the legacy name puts the superseded document in front of the user as the current one.
+  // to the per-type name puts the superseded document in front of the user as the current one.
   it("refuses to navigate to the sibling", async () => {
     await expect(
       api.findFileByNavigationPath(
         `/services/systems/${SERVICE_ID}/parameters`,
       ),
-    ).rejects.toThrow(typedUri.path);
+    ).rejects.toThrow(currentUri.path);
   });
 
   it("refuses the extension-less lookup for the same reason", async () => {
-    await expect(api.findFileById(SERVICE_ID)).rejects.toThrow(typedUri.path);
+    await expect(api.findFileById(SERVICE_ID)).rejects.toThrow(currentUri.path);
   });
 
   // A listing that merely skipped the file it cannot read would show the sibling it outranks in its
   // place, and every id the list hands out would point at the superseded document. So the sibling
   // goes too — and the service disappears from the list rather than appearing as the wrong body.
   it("lists neither the unreadable file nor the sibling it outranks", async () => {
-    disk.set(otherTypedUri.path, serviceText(OTHER_ID, {}));
+    disk.set(otherCurrentUri.path, serviceText(OTHER_ID, {}));
 
     const services = await getServices(uri("/root"));
 
@@ -262,38 +198,35 @@ describe("a service whose typed file cannot be read, with the legacy sibling sti
     expect(
       jest.requireMock("vscode").window.showWarningMessage,
     ).toHaveBeenCalledWith(
-      expect.stringContaining(`${SERVICE_ID}${ext.externalService}`),
+      expect.stringContaining(`${SERVICE_ID}${ext.service}`),
     );
   });
 
   it("names the file in a filtered listing rather than dropping it", async () => {
     await expect(
-      api.findFiles(
-        ext.externalService,
-        (content: any) => content?.id === SERVICE_ID,
-      ),
-    ).rejects.toThrow(typedUri.path);
+      api.findFiles(ext.service, (content: any) => content?.id === SERVICE_ID),
+    ).rejects.toThrow(currentUri.path);
   });
 });
 
-// The other way round: the converted file is fine and the legacy one it superseded is the broken
+// The other way round: the converted file is fine and the per-type one it superseded is the broken
 // one — the state a failed `deleteLegacySibling` leaves, and the state whose warning tells the user
 // to delete that file by hand. Nothing reads it and no write lands on it, so the service stays on
 // every screen it is reachable from; hiding it would take a healthy service off the list while the
 // lookup still resolves it and every write still lands on it.
-describe("a converted service whose legacy sibling cannot be read", () => {
+describe("a converted service whose per-type sibling cannot be read", () => {
   beforeEach(() => {
     disk.set(
-      typedUri.path,
+      currentUri.path,
       serviceText(SERVICE_ID, { description: "current" }),
     );
-    disk.set(legacyUri.path, UNREADABLE_TEXT);
+    disk.set(supersededUri.path, UNREADABLE_TEXT);
   });
 
-  it("resolves the id to the typed file", async () => {
+  it("resolves the id to the current file", async () => {
     const fileUri = await findServiceFileById(SERVICE_ID, ext);
 
-    expect(fileUri.path).toBe(typedUri.path);
+    expect(fileUri.path).toBe(currentUri.path);
   });
 
   it("lists the service", async () => {
@@ -302,17 +235,17 @@ describe("a converted service whose legacy sibling cannot be read", () => {
     expect(services.map((service) => service.id)).toEqual([SERVICE_ID]);
   });
 
-  it("reads it through the stale legacy uri", async () => {
-    const service = await getService(legacyUri, SERVICE_ID);
+  it("reads it through the stale per-type uri", async () => {
+    const service = await getService(supersededUri, SERVICE_ID);
 
     expect(service.description).toBe("current");
   });
 
-  it("writes an edit to the typed file and leaves the broken one alone", async () => {
-    await updateService(typedUri, SERVICE_ID, { name: "Renamed" });
+  it("writes an edit to the current file and leaves the broken one alone", async () => {
+    await updateService(currentUri, SERVICE_ID, { name: "Renamed" });
 
-    expect(JSON.parse(disk.get(typedUri.path) ?? "{}").name).toBe("Renamed");
-    expect(disk.get(legacyUri.path)).toBe(UNREADABLE_TEXT);
+    expect(JSON.parse(disk.get(currentUri.path) ?? "{}").name).toBe("Renamed");
+    expect(disk.get(supersededUri.path)).toBe(UNREADABLE_TEXT);
   });
 
   it("still names the file it could not read", async () => {
@@ -321,7 +254,7 @@ describe("a converted service whose legacy sibling cannot be read", () => {
     expect(
       jest.requireMock("vscode").window.showWarningMessage,
     ).toHaveBeenCalledWith(
-      expect.stringContaining(`${SERVICE_ID}${ext.service}`),
+      expect.stringContaining(`${SERVICE_ID}${ext.internalService}`),
     );
   });
 });
@@ -335,16 +268,19 @@ describe("a held uri the conversion deleted, with nothing carrying the id", () =
   it("reports the lookup failure rather than reading on from the deleted path", async () => {
     // The aggregate names every extension it tried; the raw `EntryNotFound` the fallback produces
     // instead names one deleted path and nothing about the lookup.
-    await expect(getService(legacyUri, SERVICE_ID)).rejects.toThrow(
+    await expect(getService(supersededUri, SERVICE_ID)).rejects.toThrow(
       `No service file carries id ${SERVICE_ID}`,
     );
   });
 
   it("still reads on from a uri that is there", async () => {
-    disk.set(legacyUri.path, serviceText(SERVICE_ID, { description: "held" }));
+    disk.set(
+      supersededUri.path,
+      serviceText(SERVICE_ID, { description: "held" }),
+    );
 
     // Nothing carries the *other* id, so the lookup misses and the held uri is what is left.
-    await expect(getService(legacyUri, OTHER_ID)).rejects.toThrow(
+    await expect(getService(supersededUri, OTHER_ID)).rejects.toThrow(
       "ServiceId mismatch",
     );
   });
@@ -448,64 +384,67 @@ describe("a context or MCP file that cannot be read", () => {
 // cannot reach that file either.
 describe("a file the scan cannot read in another service's folder", () => {
   beforeEach(() => {
-    disk.set(otherTypedUri.path, UNREADABLE_TEXT);
+    disk.set(otherCurrentUri.path, UNREADABLE_TEXT);
   });
 
-  it("still resolves a service stored under the typed name", async () => {
-    disk.set(typedUri.path, serviceText(SERVICE_ID, { description: "typed" }));
+  it("still resolves a service stored under the current name", async () => {
+    disk.set(
+      currentUri.path,
+      serviceText(SERVICE_ID, { description: "current" }),
+    );
 
     const fileUri = await findServiceFileById(SERVICE_ID, ext);
 
-    expect(fileUri.path).toBe(typedUri.path);
+    expect(fileUri.path).toBe(currentUri.path);
   });
 
-  it("still resolves a service stored under the legacy name alone", async () => {
+  it("still resolves a service stored under a per-type name alone", async () => {
     disk.set(
-      legacyUri.path,
+      supersededUri.path,
       serviceText(SERVICE_ID, { integrationSystemType: "EXTERNAL" }),
     );
 
     const fileUri = await findServiceFileById(SERVICE_ID, ext);
 
-    expect(fileUri.path).toBe(legacyUri.path);
+    expect(fileUri.path).toBe(supersededUri.path);
   });
 
   it("still converts that service on its next write", async () => {
     disk.set(
-      legacyUri.path,
+      supersededUri.path,
       serviceText(SERVICE_ID, {
         description: "only",
         integrationSystemType: "EXTERNAL",
       }),
     );
 
-    const updated = await updateService(legacyUri, SERVICE_ID, {
+    const updated = await updateService(supersededUri, SERVICE_ID, {
       name: "Renamed",
     });
 
     expect(updated.name).toBe("Renamed");
-    expect(disk.has(legacyUri.path)).toBe(false);
-    expect(JSON.parse(disk.get(typedUri.path) ?? "{}")).toMatchObject({
+    expect(disk.has(supersededUri.path)).toBe(false);
+    expect(JSON.parse(disk.get(currentUri.path) ?? "{}")).toMatchObject({
       name: "Renamed",
       content: { description: "only" },
     });
-    expect(disk.get(otherTypedUri.path)).toBe(UNREADABLE_TEXT);
+    expect(disk.get(otherCurrentUri.path)).toBe(UNREADABLE_TEXT);
   });
 
   it("still refuses the id whose own sibling that broken file may be", async () => {
     disk.set(
-      otherLegacyUri.path,
+      otherSupersededUri.path,
       serviceText(OTHER_ID, { integrationSystemType: "EXTERNAL" }),
     );
 
     await expect(findServiceFileById(OTHER_ID, ext)).rejects.toThrow(
-      otherTypedUri.path,
+      otherCurrentUri.path,
     );
   });
 
-  it("still navigates to a service stored under the legacy name alone", async () => {
+  it("still navigates to a service stored under a per-type name alone", async () => {
     disk.set(
-      legacyUri.path,
+      supersededUri.path,
       serviceText(SERVICE_ID, { integrationSystemType: "EXTERNAL" }),
     );
 
@@ -513,16 +452,16 @@ describe("a file the scan cannot read in another service's folder", () => {
       `/services/systems/${SERVICE_ID}/parameters`,
     );
 
-    expect(fileUri.path).toBe(legacyUri.path);
+    expect(fileUri.path).toBe(supersededUri.path);
   });
 
   it("still answers the extension-less lookup for such a service", async () => {
     disk.set(
-      legacyUri.path,
+      supersededUri.path,
       serviceText(SERVICE_ID, { integrationSystemType: "EXTERNAL" }),
     );
 
-    expect((await api.findFileById(SERVICE_ID)).path).toBe(legacyUri.path);
+    expect((await api.findFileById(SERVICE_ID)).path).toBe(supersededUri.path);
   });
 });
 
@@ -531,11 +470,11 @@ describe("a file the scan cannot read in another service's folder", () => {
 // be that file's sibling — a sibling shares the folder and the name, so under one extension it is
 // the same file — which is what makes answering from elsewhere safe here.
 describe("an unreadable file at the convention path", () => {
-  const elsewhereUri = uri(`/root/aaa/aaa${ext.externalService}`);
+  const elsewhereUri = uri(`/root/aaa/aaa${ext.service}`);
 
   beforeEach(() => {
     disk.set(elsewhereUri.path, serviceText(SERVICE_ID, {}));
-    disk.set(typedUri.path, UNREADABLE_TEXT);
+    disk.set(currentUri.path, UNREADABLE_TEXT);
   });
 
   it("answers from the file of the same extension that does carry the id", async () => {

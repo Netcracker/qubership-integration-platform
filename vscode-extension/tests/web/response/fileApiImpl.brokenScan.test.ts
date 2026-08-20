@@ -1,6 +1,7 @@
 // What a malformed file does to a workspace scan. It used to abort the scan it turned up in, so a
-// broken typed file anywhere in the workspace made the typed pass fail and handed the lookup to the
-// legacy sibling — the precedence every service read depends on, decided by an unrelated document.
+// broken `.service.` file anywhere in the workspace made that pass fail and handed the lookup to
+// the per-type sibling — the precedence every service read depends on, decided by an unrelated
+// document.
 // The real `VSCodeFileApi` runs here against a mocked directory tree.
 
 import { joinUriPath, QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
@@ -62,7 +63,7 @@ import { VSCodeFileApi } from "../../../src/web/response/file/fileApiImpl";
 import { setFileApi } from "../../../src/web/response/file/fileApiProvider";
 import { findServiceFileById } from "../../../src/web/response/file/serviceFileLookup";
 
-const BROKEN_FILE = "/root/broken/broken.external-service.qip.yaml";
+const BROKEN_FILE = "/root/broken/broken.service.qip.yaml";
 const SERVICE_ID = "svc-1";
 const LEGACY_ONLY_ID = "svc-2";
 
@@ -73,19 +74,19 @@ const tree: Record<string, [string, number][]> = {
     ["orders", 2],
     ["notes", 2],
   ],
-  "/root/broken": [["broken.external-service.qip.yaml", 1]],
+  "/root/broken": [["broken.service.qip.yaml", 1]],
   // Both files of one service, the state a conversion whose delete failed leaves behind.
   "/root/orders": [
     ["orders.external-service.qip.yaml", 1],
     ["orders.service.qip.yaml", 1],
   ],
-  "/root/notes": [["notes.service.qip.yaml", 1]],
+  "/root/notes": [["notes.internal-service.qip.yaml", 1]],
 };
 
 const idByFile: Record<string, string> = {
   "/root/orders/orders.external-service.qip.yaml": SERVICE_ID,
   "/root/orders/orders.service.qip.yaml": SERVICE_ID,
-  "/root/notes/notes.service.qip.yaml": LEGACY_ONLY_ID,
+  "/root/notes/notes.internal-service.qip.yaml": LEGACY_ONLY_ID,
 };
 
 beforeEach(() => {
@@ -109,15 +110,15 @@ beforeEach(() => {
 });
 
 describe("a malformed file in the scanned tree", () => {
-  it("does not hand the typed name's turn to the legacy sibling", async () => {
+  it("does not hand the current name's turn to the per-type sibling", async () => {
     const fileUri = await findServiceFileById(SERVICE_ID, ext);
 
-    expect(fileUri.path).toBe("/root/orders/orders.external-service.qip.yaml");
+    expect(fileUri.path).toBe("/root/orders/orders.service.qip.yaml");
   });
 
-  it("still resolves a service that has only the legacy file", async () => {
+  it("still resolves a service that has only the per-type file", async () => {
     const fileUri = await findServiceFileById(LEGACY_ONLY_ID, ext);
 
-    expect(fileUri.path).toBe("/root/notes/notes.service.qip.yaml");
+    expect(fileUri.path).toBe("/root/notes/notes.internal-service.qip.yaml");
   });
 });

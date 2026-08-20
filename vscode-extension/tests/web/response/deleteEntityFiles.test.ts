@@ -4,96 +4,13 @@
 // These cases run the real file api, the real scans and the real delete paths against an in-memory
 // disk.
 
-import { joinUriPath, QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
+import { QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
+import { disk, fileRef } from "../../helpers/serviceDisk";
 
-/** The workspace: path → file text. Directories are the prefixes of these paths. */
-const disk = new Map<string, string>();
-
-function fileRef(path: string): any {
-  return {
-    path,
-    fsPath: path,
-    with: (change: { path?: string }) => fileRef(change.path ?? path),
-  };
-}
-
-const stat = jest.fn(async (fileUri: any) => {
-  if (disk.has(fileUri.path)) {
-    return { type: 1, ctime: 0 };
-  }
-  for (const filePath of disk.keys()) {
-    if (filePath.startsWith(`${fileUri.path}/`)) {
-      return { type: 2, ctime: 0 };
-    }
-  }
-  throw new Error(`EntryNotFound: ${fileUri.path}`);
+// The in-memory workspace shared with three sibling suites; see tests/helpers/serviceDisk.ts.
+jest.mock("vscode", () => require("../../helpers/serviceDisk").vscodeApi(), {
+  virtual: true,
 });
-
-const readDirectory = jest.fn(async (folderUri: any) => {
-  const prefix = `${folderUri.path}/`;
-  const entries = new Map<string, number>();
-  for (const filePath of disk.keys()) {
-    if (!filePath.startsWith(prefix)) {
-      continue;
-    }
-    const rest = filePath.slice(prefix.length);
-    const slash = rest.indexOf("/");
-    entries.set(slash < 0 ? rest : rest.slice(0, slash), slash < 0 ? 1 : 2);
-  }
-  if (entries.size === 0) {
-    throw new Error(`EntryNotFound: ${folderUri.path}`);
-  }
-  return [...entries.entries()];
-});
-
-const writeFile = jest.fn(async (fileUri: any, bytes: Uint8Array) => {
-  disk.set(fileUri.path, new TextDecoder().decode(bytes));
-});
-
-const deleteFile = jest.fn(async (fileUri: any) => {
-  if (!disk.has(fileUri.path)) {
-    for (const filePath of disk.keys()) {
-      if (filePath.startsWith(`${fileUri.path}/`)) {
-        throw new Error(`Directory not empty: ${fileUri.path}`);
-      }
-    }
-    throw new Error(`EntryNotFound: ${fileUri.path}`);
-  }
-  disk.delete(fileUri.path);
-});
-
-jest.mock(
-  "vscode",
-  () => {
-    const api = {
-      FileType: { File: 1, Directory: 2 },
-      Uri: {
-        joinPath: jest.fn((base: any, ...segments: string[]) =>
-          fileRef(joinUriPath(base, ...segments).path),
-        ),
-      },
-      workspace: {
-        workspaceFolders: [{ uri: { path: "/root" } }],
-        fs: {
-          stat: (...args: any[]) => stat(args[0]),
-          readDirectory: (...args: any[]) => readDirectory(args[0]),
-          readFile: async (fileUri: any) =>
-            new TextEncoder().encode(disk.get(fileUri.path) ?? ""),
-          writeFile: (...args: any[]) => writeFile(args[0], args[1]),
-          delete: (...args: any[]) => deleteFile(args[0]),
-          createDirectory: jest.fn(),
-        },
-      },
-      window: {
-        showInformationMessage: jest.fn(),
-        showWarningMessage: jest.fn(),
-        showErrorMessage: jest.fn(),
-      },
-    };
-    return { __esModule: true, default: api, ...api };
-  },
-  { virtual: true },
-);
 
 jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 jest.mock("@netcracker/qip-schemas", () => ({}), { virtual: true });

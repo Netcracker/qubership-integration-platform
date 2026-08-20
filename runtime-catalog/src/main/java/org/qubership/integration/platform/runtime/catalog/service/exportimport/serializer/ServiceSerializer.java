@@ -92,8 +92,7 @@ public class ServiceSerializer {
                 .map(this::serialize)
                 .toList();
 
-        return new ExportedIntegrationSystem(
-                system.getId(), systemNode, exportedApiGroups, system.getIntegrationSystemType());
+        return new ExportedIntegrationSystem(system.getId(), systemNode, exportedApiGroups);
     }
 
     public ExportedApiGroup serialize(ApiGroup apiGroup) {

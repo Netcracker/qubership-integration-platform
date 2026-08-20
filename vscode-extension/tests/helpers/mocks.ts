@@ -222,6 +222,51 @@ export const QIP_SCHEMA_URLS = {
     "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
 };
 
+/**
+ * Schema URLs that are deliberately **not** the shipped ones, for the suites that have to tell the
+ * two matching layers apart: a `urn:` value matches only through a project's configured map, never
+ * through the schema-file-name fallback.
+ */
+export const URN_SCHEMA_URLS = {
+  service: "urn:service",
+  externalService: "urn:external",
+  internalService: "urn:internal",
+  implementedService: "urn:implemented",
+  contextService: "urn:context",
+  mcpService: "urn:mcp",
+};
+
+/**
+ * The `fileExtensions` module as a suite that stubs it wants it: every export a production caller
+ * reaches for, answering from one config. Spelling the module out per suite meant a new export
+ * broke every one of them with `is not a function`, which is what happened when
+ * `getSchemaUrlsForApp` was added.
+ *
+ * Call it from inside the `jest.mock` factory, which is hoisted above the imports:
+ *
+ *   jest.mock("../../src/web/response/file/fileExtensions", () =>
+ *     jest.requireActual("../helpers/mocks").fileExtensionsMock());
+ */
+export function fileExtensionsMock(
+  extensions: () => Record<string, string> | undefined = () =>
+    QIP_FILE_EXTENSIONS,
+  schemaUrls: () => Record<string, string> | undefined = () => URN_SCHEMA_URLS,
+) {
+  // Read through a thunk on every call, not captured once: several suites reassign their extension
+  // map in `beforeEach`, and a value snapshotted here would hand them the previous test's config.
+  const ext = () => extensions() ?? QIP_FILE_EXTENSIONS;
+  const urls = () => schemaUrls() ?? URN_SCHEMA_URLS;
+  return {
+    getExtensionsForFile: jest.fn(ext),
+    getExtensionsForUri: jest.fn(ext),
+    getSchemaUrlsForFile: jest.fn(urls),
+    getSchemaUrlsForApp: jest.fn(urls),
+    extractFilename: (fileRef: string | { path: string }) =>
+      (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
+      "",
+  };
+}
+
 /** The default `qip` file extensions, as `getExtensionsForUri` returns them. */
 export const QIP_FILE_EXTENSIONS = {
   appName: "qip",

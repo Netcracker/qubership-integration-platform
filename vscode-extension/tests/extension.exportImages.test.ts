@@ -191,7 +191,9 @@ describe("extension export image commands", () => {
   });
 
   test("qip.exportImages shows error when outputDir is missing", async () => {
-    await getExportImagesCommand()("file:///workspace/chains/chain-1.chain.qip.yaml");
+    await getExportImagesCommand()(
+      "file:///workspace/chains/chain-1.chain.qip.yaml",
+    );
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith("outputDir is required");
     expect(mockCreateWebviewPanel).not.toHaveBeenCalled();
@@ -200,7 +202,9 @@ describe("extension export image commands", () => {
   test("qip.exportImages shows error when no chain files are provided", async () => {
     await getExportImagesCommand()(undefined, { outputDir: "/tmp/export" });
 
-    expect(mockShowErrorMessage).toHaveBeenCalledWith("No chain files to export");
+    expect(mockShowErrorMessage).toHaveBeenCalledWith(
+      "No chain files to export",
+    );
     expect(mockCreateWebviewPanel).not.toHaveBeenCalled();
   });
 

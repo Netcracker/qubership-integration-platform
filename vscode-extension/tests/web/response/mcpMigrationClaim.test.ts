@@ -70,13 +70,12 @@ jest.mock("yaml", () => ({
   parse: (text: string) => JSON.parse(text),
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest.fn(() => ext),
-  getExtensionsForUri: jest.fn(() => ext),
-  extractFilename: (fileRef: any) =>
-    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
-    "",
-}));
+jest.mock("../../../src/web/response/file/fileExtensions", () =>
+  jest.requireActual("../../helpers/mocks").fileExtensionsMock(
+    () => ext,
+    () => undefined,
+  ),
+);
 
 jest.mock("../../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {

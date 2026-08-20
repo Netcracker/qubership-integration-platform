@@ -6,7 +6,9 @@
 const getConfig = jest.fn();
 
 jest.mock("../../src/web/services/ProjectConfigService", () => ({
-  ProjectConfigService: { getConfig: (...args: unknown[]) => getConfig(...args) },
+  ProjectConfigService: {
+    getConfig: (...args: unknown[]) => getConfig(...args),
+  },
 }));
 
 import { FileCacheService } from "../../src/web/services/FileCacheService";
@@ -93,7 +95,11 @@ describe("FileCacheService api arm", () => {
 
   test("clearApiCache empties only the api cache", () => {
     cache.setApiUri("api-4", uri("/svc/model-4.api.qip.yaml"));
-    cache.setFileUri("spec-4", SPEC_EXT, uri("/svc/model-4.specification.qip.yaml"));
+    cache.setFileUri(
+      "spec-4",
+      SPEC_EXT,
+      uri("/svc/model-4.specification.qip.yaml"),
+    );
 
     cache.clearApiCache();
 
@@ -131,8 +137,16 @@ describe("FileCacheService apiGroup shares the specificationGroup cache", () => 
   });
 
   test("clearSpecificationGroupCache empties entries cached under either extension", () => {
-    cache.setFileUri("group-4", SPEC_GROUP_EXT, uri("/svc/group-4.specification-group.qip.yaml"));
-    cache.setFileUri("group-5", API_GROUP_EXT, uri("/svc/group-5.api-group.qip.yaml"));
+    cache.setFileUri(
+      "group-4",
+      SPEC_GROUP_EXT,
+      uri("/svc/group-4.specification-group.qip.yaml"),
+    );
+    cache.setFileUri(
+      "group-5",
+      API_GROUP_EXT,
+      uri("/svc/group-5.api-group.qip.yaml"),
+    );
 
     cache.clearSpecificationGroupCache();
 
@@ -162,21 +176,28 @@ describe("FileCacheService plain-service extensions share one cache", () => {
     },
   );
 
-  test.each(TYPED)("invalidateByUri drops the entry for a %s file", (extension) => {
-    const serviceUri = uri(`/svc/svc-1${extension}`);
-    cache.setFileUri("svc-1", extension, serviceUri);
-    expect(cache.getServiceUri("svc-1")).toBe(serviceUri);
+  test.each(TYPED)(
+    "invalidateByUri drops the entry for a %s file",
+    (extension) => {
+      const serviceUri = uri(`/svc/svc-1${extension}`);
+      cache.setFileUri("svc-1", extension, serviceUri);
+      expect(cache.getServiceUri("svc-1")).toBe(serviceUri);
 
-    cache.invalidateByUri(serviceUri);
+      cache.invalidateByUri(serviceUri);
 
-    expect(cache.getServiceUri("svc-1")).toBeNull();
-    expect(cache.getFileUri("svc-1", extension)).toBeNull();
-  });
+      expect(cache.getServiceUri("svc-1")).toBeNull();
+      expect(cache.getFileUri("svc-1", extension)).toBeNull();
+    },
+  );
 
   test("a typed service uri is not mistaken for a context service", () => {
     const serviceUri = uri(`/svc/svc-1${EXTENSIONS.externalService}`);
     cache.setFileUri("svc-1", EXTENSIONS.externalService, serviceUri);
-    cache.setFileUri("ctx-1", EXTENSIONS.contextService, uri(`/ctx/ctx-1${EXTENSIONS.contextService}`));
+    cache.setFileUri(
+      "ctx-1",
+      EXTENSIONS.contextService,
+      uri(`/ctx/ctx-1${EXTENSIONS.contextService}`),
+    );
 
     cache.invalidateByUri(serviceUri);
 
@@ -185,8 +206,16 @@ describe("FileCacheService plain-service extensions share one cache", () => {
   });
 
   test("clearServiceCache empties entries cached under any plain-service extension", () => {
-    cache.setFileUri("svc-1", EXTENSIONS.externalService, uri("/a/svc-1.external-service.qip.yaml"));
-    cache.setFileUri("svc-2", EXTENSIONS.service, uri("/b/svc-2.service.qip.yaml"));
+    cache.setFileUri(
+      "svc-1",
+      EXTENSIONS.externalService,
+      uri("/a/svc-1.external-service.qip.yaml"),
+    );
+    cache.setFileUri(
+      "svc-2",
+      EXTENSIONS.service,
+      uri("/b/svc-2.service.qip.yaml"),
+    );
 
     cache.clearServiceCache();
 
@@ -197,7 +226,12 @@ describe("FileCacheService plain-service extensions share one cache", () => {
   // A project config from before the three keys existed still has to work.
   test("tolerates a config that carries only the legacy service extension", () => {
     getConfig.mockReturnValue({
-      extensions: { ...EXTENSIONS, externalService: undefined, internalService: undefined, implementedService: undefined },
+      extensions: {
+        ...EXTENSIONS,
+        externalService: undefined,
+        internalService: undefined,
+        implementedService: undefined,
+      },
     });
     const serviceUri = uri("/svc/svc-1.service.qip.yaml");
 

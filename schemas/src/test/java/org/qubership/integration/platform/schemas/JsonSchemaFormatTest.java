@@ -13,16 +13,46 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class JsonSchemaFormatTest {
+
+    /**
+     * The file extension a document of each schema is written under, read from the naming corpus in this module's own
+     * test resources rather than restated here. Most schemas follow the convention "the schema's own name plus
+     * {@code .qip}"; the three per-type service schemas deliberately do not, because a plain service file is named
+     * {@code <id>.service.<app>.yaml} whatever its type. Reading the corpus keeps that exception a consequence of the
+     * declared rule instead of a carve-out list nothing links back to it.
+     */
+    private static Map<String, String> extensionBySchemaName;
+
     private static List<Resource> schemaResources;
 
     @BeforeAll
     public static void setUp() throws IOException {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         schemaResources = Arrays.asList(resolver.getResources("classpath:**/*.schema.yaml"));
+        extensionBySchemaName = readDeclaredExtensions();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> readDeclaredExtensions() throws IOException {
+        Resource corpus = new PathMatchingResourcePatternResolver()
+                .getResource("classpath:naming/service-file-names.yaml");
+        assertTrue(corpus.exists(), "the naming corpus is missing from src/test/resources/naming");
+        var declaration = new ObjectMapper(new YAMLFactory())
+                .readValue(corpus.getContentAsString(Charset.defaultCharset()), LinkedHashMap.class);
+        var postfixByKind = (Map<String, String>) ((Map<String, Object>)
+                ((Map<String, Object>) declaration.get("rule")).get("current")).get("postfixes");
+        var stemByKind = (Map<String, String>) ((Map<String, Object>) declaration.get("types")).get("schemaFileStems");
+
+        // Keyed by the schema's own file name, which is what this test holds: `external-service` is written under
+        // whatever the corpus says an EXTERNAL service is named.
+        Map<String, String> byName = new LinkedHashMap<>();
+        stemByKind.forEach((kind, stem) -> byName.put(stem, postfixByKind.get(kind).replace(".", "") + ".qip"));
+        return byName;
     }
 
     @ParameterizedTest
@@ -127,7 +157,7 @@ public class JsonSchemaFormatTest {
         boolean isTopLevelEntity = topLevelAllOfRef.equals("http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml");
         if (isTopLevelEntity) {
             String schemaName = resource.getFilename().replace(".schema.yaml", "");
-            String expectedFileExt = schemaName + ".qip";
+            String expectedFileExt = extensionBySchemaName.getOrDefault(schemaName, schemaName + ".qip");
             assertEquals(expectedFileExt, metaInfo.get("fileExtension"), resource.getFilename() + ": 'fileExtension' field must match!");
         }
     }

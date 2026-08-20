@@ -1,7 +1,8 @@
-// The single resolver every service-file site routes through. What it must never do is let one
-// postfix shadow another: a misread name silently drops the service from a list or files it under
-// the wrong type, with no error anywhere. The real `fileExtensions` module is used throughout, so
-// the app-name resolution behind an unqualified call is under test as well.
+// The single resolver every service-file site routes through. Two things it must never do: let one
+// extension shadow another, which silently drops a service from a list or attributes a file to the
+// wrong service; and read a type off anything but `$schema`, which is the only place the current
+// format states one. The real `fileExtensions` module is used throughout, so the app-name
+// resolution behind an unqualified call is under test as well.
 
 let mockWorkspaceFolders:
   | { uri: { path: string; fsPath: string } }[]
@@ -33,20 +34,22 @@ jest.mock("../../../src/web/services/ProjectConfigService", () => ({
 
 import {
   allServiceExtensions,
-  fileNameStatesType,
   isAnyServiceFile,
+  isCurrentFormatServiceName,
   isPlainServiceType,
+  isServiceFileOfAnyKind,
   plainServiceExtensions,
   resolveServiceType,
   serviceExtensionForType,
   serviceFileNameForType,
   serviceIdFromFileName,
   serviceSchemaUrlForType,
-  serviceTypeFromUri,
+  serviceTypeFromSchema,
   ServiceExtensions,
   ServiceSchemaUrls,
 } from "../../../src/web/response/file/serviceFileType";
 import { IntegrationSystemType } from "../../../src/web/api-services/servicesTypes";
+import { URN_SCHEMA_URLS } from "../../helpers/mocks";
 import {
   buildDefaultExtensions,
   setDefaultAppName,
@@ -64,78 +67,108 @@ beforeEach(() => {
   mockConfigService.getAllConfigs.mockReturnValue([]);
 });
 
-describe("serviceTypeFromUri", () => {
+describe("serviceTypeFromSchema", () => {
+  const configured: ServiceSchemaUrls = URN_SCHEMA_URLS;
+
   it.each([
-    ["svc-1.external-service.qip.yaml", IntegrationSystemType.EXTERNAL],
-    ["svc-1.internal-service.qip.yaml", IntegrationSystemType.INTERNAL],
-    ["svc-1.implemented-service.qip.yaml", IntegrationSystemType.IMPLEMENTED],
-    ["ctx-1.context-service.qip.yaml", IntegrationSystemType.CONTEXT],
-    ["mcp-1.mcp-service.qip.yaml", IntegrationSystemType.MCP],
-  ])("reads the type %s states", (name, type) => {
-    expect(serviceTypeFromUri(name)).toBe(type);
+    ["urn:external", IntegrationSystemType.EXTERNAL],
+    ["urn:internal", IntegrationSystemType.INTERNAL],
+    ["urn:implemented", IntegrationSystemType.IMPLEMENTED],
+    ["urn:context", IntegrationSystemType.CONTEXT],
+    ["urn:mcp", IntegrationSystemType.MCP],
+  ])("reads the type the configured url %s states", (url, type) => {
+    expect(serviceTypeFromSchema(url, configured)).toBe(type);
   });
 
-  it("reads the type from a full uri path, not only from a bare name", () => {
+  // The second layer: a document written by an installation whose schemaUrls differ from this
+  // project's still types, because the schema's own file name is the same everywhere.
+  it.each([
+    [
+      "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+      IntegrationSystemType.EXTERNAL,
+    ],
+    [
+      "https://schemas.acme.internal/qip/internal-service.schema.yaml",
+      IntegrationSystemType.INTERNAL,
+    ],
+    [
+      "http://qubership.org/schemas/product/qip/implemented-service",
+      IntegrationSystemType.IMPLEMENTED,
+    ],
+    ["context-service.schema.json", IntegrationSystemType.CONTEXT],
+  ])("reads %s by the schema file name alone", (url, type) => {
+    expect(serviceTypeFromSchema(url, configured)).toBe(type);
+  });
+
+  it("prefers the configured url over the file-name layer", () => {
+    const swapped: ServiceSchemaUrls = {
+      ...configured,
+      internalService:
+        "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+    };
+
     expect(
-      serviceTypeFromUri({
-        path: "/workspace/svc-1/svc-1.internal-service.qip.yaml",
-      }),
+      serviceTypeFromSchema(
+        "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+        swapped,
+      ),
     ).toBe(IntegrationSystemType.INTERNAL);
   });
 
-  it("states no type for the legacy type-less name", () => {
-    expect(serviceTypeFromUri("svc-1.service.qip.yaml")).toBeUndefined();
-  });
-
   it.each([
-    "svc-1.chain.qip.yaml",
-    "svc-1.api.qip.yaml",
-    "svc-1.api-group.qip.yaml",
-    "svc-1.specification.qip.yaml",
-    "openapi-import.yaml",
-    "notes.md",
-  ])("states no type for %s", (name) => {
-    expect(serviceTypeFromUri(name)).toBeUndefined();
+    undefined,
+    "",
+    "urn:service",
+    "http://qubership.org/schemas/product/qip/service.schema.yaml",
+    "http://qubership.org/schemas/product/qip/chain.schema.yaml",
+    "https://schemas.acme.internal/qip/svc-ext.schema.yaml",
+  ])("states no type for %p", (url) => {
+    expect(serviceTypeFromSchema(url, configured)).toBeUndefined();
   });
 
-  it("resolves a non-default app name from the file name", () => {
-    expect(serviceTypeFromUri("svc-1.implemented-service.acme.yaml")).toBe(
-      IntegrationSystemType.IMPLEMENTED,
-    );
-  });
-
-  it("resolves the type against a loaded project config", () => {
-    mockConfigService.isConfigLoaded.mockReturnValue(true);
-    mockConfigService.getAllConfigs.mockReturnValue([
-      { appName: "acme", extensions: buildDefaultExtensions("acme") },
-    ]);
-
-    expect(serviceTypeFromUri("svc-1.external-service.acme.yaml")).toBe(
-      IntegrationSystemType.EXTERNAL,
-    );
-  });
-
-  it("uses the extensions it is handed instead of resolving them", () => {
-    expect(serviceTypeFromUri("svc-1.external-service.acme.yaml", qip)).toBe(
+  // A fragment or query is not part of the schema's file name: a JSON pointer must not read as a
+  // stem, and a versioned url must still match its own.
+  it.each([
+    [
+      "http://qubership.org/schemas/service.schema.yaml#/defs/external-service",
       undefined,
-    );
-    expect(serviceTypeFromUri("svc-1.external-service.acme.yaml", acme)).toBe(
+    ],
+    [
+      "http://qubership.org/schemas/external-service.schema.yaml?v=1.2",
       IntegrationSystemType.EXTERNAL,
-    );
+    ],
+    [
+      "http://qubership.org/schemas/external-service#legacy",
+      IntegrationSystemType.EXTERNAL,
+    ],
+  ])("reads %s past its fragment and query", (url, type) => {
+    expect(serviceTypeFromSchema(url, configured)).toBe(type);
   });
+
+  // YAML hands whatever the document holds; a broken `$schema` reads as untyped, never a throw.
+  it.each([[{ nested: "map" }], [42], [null]])(
+    "reads the non-string $schema %p as untyped",
+    (value) => {
+      expect(
+        serviceTypeFromSchema(value as unknown as string, configured),
+      ).toBeUndefined();
+    },
+  );
 });
 
-// Comparing the whole extension is what keeps these apart. A prefix scan over the bare postfixes
-// would let the shorter one win, which is the shadowing plan 1 spent five review rounds closing.
-describe("serviceTypeFromUri - one postfix must not shadow another", () => {
+// Comparing the whole extension is what keeps the names apart. A prefix scan over the bare
+// postfixes would let the shorter one win, which is the shadowing plan 1 spent five review rounds
+// closing. The names no longer state a type, but which *kind* of document a file holds still
+// decides which scan claims it and which id a read recovers.
+describe("one extension must not shadow another", () => {
   it("never reads a context service as a plain service", () => {
     const name = "ctx-1.context-service.qip.yaml";
 
-    expect(serviceTypeFromUri(name)).toBe(IntegrationSystemType.CONTEXT);
     expect(isAnyServiceFile(name)).toBe(false);
+    expect(isServiceFileOfAnyKind(name)).toBe(true);
   });
 
-  it("never reads a typed service as the legacy type-less one", () => {
+  it("never reads a per-type name as the plain one", () => {
     for (const name of [
       "svc-1.external-service.qip.yaml",
       "svc-1.internal-service.qip.yaml",
@@ -144,41 +177,39 @@ describe("serviceTypeFromUri - one postfix must not shadow another", () => {
       "ctx-1.context-service.qip.yaml",
     ]) {
       expect(name.endsWith(qip.service)).toBe(false);
-      expect(serviceTypeFromUri(name)).toBeDefined();
+      expect(isServiceFileOfAnyKind(name)).toBe(true);
+      expect(isCurrentFormatServiceName(name)).toBe(
+        name.includes("context-service") || name.includes("mcp-service"),
+      );
     }
   });
 
   // Autodiscovery mints service ids from Kubernetes service names, so `service-orders` is real.
-  it("reads the type of a service whose id carries a postfix of its own", () => {
-    expect(serviceTypeFromUri("service-orders.external-service.qip.yaml")).toBe(
-      IntegrationSystemType.EXTERNAL,
+  it("reads the id of a service whose id carries a postfix of its own", () => {
+    expect(serviceIdFromFileName("service-orders.service.qip.yaml")).toBe(
+      "service-orders",
     );
     expect(
-      serviceTypeFromUri("context-service-orders.internal-service.qip.yaml"),
-    ).toBe(IntegrationSystemType.INTERNAL);
-    expect(serviceTypeFromUri("mcp-service.mcp-service.qip.yaml")).toBe(
-      IntegrationSystemType.MCP,
+      serviceIdFromFileName("context-service-orders.context-service.qip.yaml"),
+    ).toBe("context-service-orders");
+    expect(serviceIdFromFileName("mcp-service.mcp-service.qip.yaml")).toBe(
+      "mcp-service",
     );
-    expect(
-      serviceTypeFromUri("external-service.service.qip.yaml"),
-    ).toBeUndefined();
   });
 
-  it("reads the type when the app name itself carries a postfix", () => {
+  it("matches when the app name itself carries a postfix", () => {
     const extensions = buildDefaultExtensions("mcp-service");
 
+    expect(isAnyServiceFile("svc-1.service.mcp-service.yaml", extensions)).toBe(
+      true,
+    );
     expect(
-      serviceTypeFromUri("svc-1.external-service.mcp-service.yaml", extensions),
-    ).toBe(IntegrationSystemType.EXTERNAL);
-    expect(
-      serviceTypeFromUri("svc-1.mcp-service.mcp-service.yaml", extensions),
-    ).toBe(IntegrationSystemType.MCP);
+      isServiceFileOfAnyKind("svc-1.mcp-service.mcp-service.yaml", extensions),
+    ).toBe(true);
   });
 
   it("does not read a service of another app as one of this app", () => {
-    expect(
-      serviceTypeFromUri("svc-1.external-service.acme.yaml", qip),
-    ).toBeUndefined();
+    expect(isAnyServiceFile("svc-1.service.acme.yaml", qip)).toBe(false);
     expect(isAnyServiceFile("svc-1.external-service.acme.yaml", qip)).toBe(
       false,
     );
@@ -191,8 +222,8 @@ describe("serviceTypeFromUri - one postfix must not shadow another", () => {
     "svc-1.service.qip.yaml.bak",
     "svc-1.external-service.qip.yaml.rej",
   ])("ignores %s, which only carries an extension in the middle", (name) => {
-    expect(serviceTypeFromUri(name, qip)).toBeUndefined();
     expect(isAnyServiceFile(name, qip)).toBe(false);
+    expect(isServiceFileOfAnyKind(name, qip)).toBe(false);
   });
 });
 
@@ -228,9 +259,9 @@ describe("isAnyServiceFile", () => {
 
 describe("serviceExtensionForType", () => {
   it.each([
-    [IntegrationSystemType.EXTERNAL, ".external-service.qip.yaml"],
-    [IntegrationSystemType.INTERNAL, ".internal-service.qip.yaml"],
-    [IntegrationSystemType.IMPLEMENTED, ".implemented-service.qip.yaml"],
+    [IntegrationSystemType.EXTERNAL, ".service.qip.yaml"],
+    [IntegrationSystemType.INTERNAL, ".service.qip.yaml"],
+    [IntegrationSystemType.IMPLEMENTED, ".service.qip.yaml"],
     [IntegrationSystemType.CONTEXT, ".context-service.qip.yaml"],
     [IntegrationSystemType.MCP, ".mcp-service.qip.yaml"],
   ])("writes a %s service under %s", (type, extension) => {
@@ -239,7 +270,7 @@ describe("serviceExtensionForType", () => {
 
   it("substitutes the app name of the extensions it is handed", () => {
     expect(serviceExtensionForType(IntegrationSystemType.INTERNAL, acme)).toBe(
-      ".internal-service.acme.yaml",
+      ".service.acme.yaml",
     );
   });
 
@@ -259,67 +290,125 @@ describe("serviceExtensionForType", () => {
     expect(serviceExtensionForType(type, qip)).toBe(".service.qip.yaml");
   });
 
-  it("round-trips every type through the name it writes", () => {
+  // The name a write emits states the kind of document, not the type. Every one of them has to be
+  // a current name, or the next read lists the file as a leftover of a format nobody writes.
+  it("writes every type under a current name", () => {
     for (const type of Object.values(IntegrationSystemType)) {
       const name = `svc-1${serviceExtensionForType(type, qip)}`;
 
-      expect(serviceTypeFromUri(name, qip)).toBe(type);
+      expect(isCurrentFormatServiceName(name, qip)).toBe(true);
+      expect(isServiceFileOfAnyKind(name, qip)).toBe(true);
     }
   });
 });
 
-// One precedence rule for every read site: the name wins, the body is the legacy fallback. Inverting
-// it would file a converted service under whatever type its stale body still claims.
+// One precedence rule for every read site: `$schema` wins, the body is the pre-#553 fallback.
+// Inverting it would file a converted service under whatever type its stale body still claims.
 describe("resolveServiceType", () => {
-  it("takes the type from the name when the name states one", () => {
+  const defaults: ServiceSchemaUrls = URN_SCHEMA_URLS;
+
+  it("takes the type from $schema when the document states one", () => {
     expect(
-      resolveServiceType("svc-1.internal-service.qip.yaml", {
-        content: { integrationSystemType: "EXTERNAL" },
-      }),
+      resolveServiceType(
+        "svc-1.service.qip.yaml",
+        {
+          $schema: "urn:internal",
+          content: { integrationSystemType: "EXTERNAL" },
+        },
+        defaults,
+      ),
     ).toBe(IntegrationSystemType.INTERNAL);
   });
 
-  it("falls back to the body for the legacy type-less name", () => {
+  it("falls back to the body for a pre-#553 document", () => {
     expect(
-      resolveServiceType("svc-1.service.qip.yaml", {
-        content: { integrationSystemType: "IMPLEMENTED" },
-      }),
+      resolveServiceType(
+        "svc-1.service.qip.yaml",
+        {
+          $schema: "urn:service",
+          content: { integrationSystemType: "IMPLEMENTED" },
+        },
+        defaults,
+      ),
     ).toBe(IntegrationSystemType.IMPLEMENTED);
   });
 
-  it.each([
-    ["svc-1.service.qip.yaml", { content: {} }],
-    ["svc-1.service.qip.yaml", {}],
-    ["svc-1.service.qip.yaml", undefined],
-  ])("reads %s with no type in either place as untyped", (name, service) => {
-    expect(resolveServiceType(name, service as any)).toBeUndefined();
+  // A rehosted-and-renamed schema states nothing through either layer, so the body still decides —
+  // hardening an unknown `$schema` into a refusal would break importing exactly that document.
+  it("falls back to the body when $schema matches nothing", () => {
+    expect(
+      resolveServiceType(
+        "svc-1.service.qip.yaml",
+        {
+          $schema: "https://x/renamed.schema.yaml",
+          content: { integrationSystemType: "EXTERNAL" },
+        },
+        defaults,
+      ),
+    ).toBe(IntegrationSystemType.EXTERNAL);
   });
 
-  it("reads a body type it does not recognize as untyped", () => {
+  // The name is not a source. A file still wearing a per-type name states its type in `$schema`
+  // like any other, and one that does not states none.
+  it("reads no type off a per-type file name", () => {
     expect(
-      resolveServiceType("svc-1.service.qip.yaml", {
-        content: { integrationSystemType: "NONSENSE" },
-      }),
+      resolveServiceType(
+        "svc-1.internal-service.qip.yaml",
+        { content: {} },
+        defaults,
+      ),
     ).toBeUndefined();
   });
 
-  it("uses the extensions it is handed instead of resolving them", () => {
+  it.each([[{ content: {} }], [{}], [undefined]])(
+    "reads a document with no type in either place as untyped",
+    (service) => {
+      expect(
+        resolveServiceType("svc-1.service.qip.yaml", service as any, defaults),
+      ).toBeUndefined();
+    },
+  );
+
+  it("reads a body type it does not recognize as untyped", () => {
     expect(
-      resolveServiceType("svc-1.external-service.acme.yaml", {}, acme),
+      resolveServiceType(
+        "svc-1.service.qip.yaml",
+        { content: { integrationSystemType: "NONSENSE" } },
+        defaults,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("uses the schema urls it is handed instead of resolving them", () => {
+    const elsewhere: ServiceSchemaUrls = {
+      ...defaults,
+      externalService: "urn:x",
+    };
+
+    expect(
+      resolveServiceType(
+        "svc-1.service.qip.yaml",
+        { $schema: "urn:x" },
+        elsewhere,
+      ),
     ).toBe(IntegrationSystemType.EXTERNAL);
     expect(
-      resolveServiceType("svc-1.external-service.acme.yaml", {}, qip),
+      resolveServiceType(
+        "svc-1.service.qip.yaml",
+        { $schema: "urn:x" },
+        defaults,
+      ),
     ).toBeUndefined();
   });
 });
 
 describe("plainServiceExtensions", () => {
-  it("lists the typed extensions ahead of the legacy one", () => {
+  it("lists the current extension ahead of the per-type ones", () => {
     expect(plainServiceExtensions(qip)).toEqual([
+      ".service.qip.yaml",
       ".external-service.qip.yaml",
       ".internal-service.qip.yaml",
       ".implemented-service.qip.yaml",
-      ".service.qip.yaml",
     ]);
   });
 
@@ -333,14 +422,14 @@ describe("plainServiceExtensions", () => {
 });
 
 describe("allServiceExtensions", () => {
-  it("lists every service extension, typed names ahead of the legacy one", () => {
+  it("lists every service extension, current names ahead of the per-type ones", () => {
     expect(allServiceExtensions(qip)).toEqual([
+      ".service.qip.yaml",
+      ".context-service.qip.yaml",
+      ".mcp-service.qip.yaml",
       ".external-service.qip.yaml",
       ".internal-service.qip.yaml",
       ".implemented-service.qip.yaml",
-      ".context-service.qip.yaml",
-      ".mcp-service.qip.yaml",
-      ".service.qip.yaml",
     ]);
   });
 });
@@ -350,53 +439,74 @@ describe("allServiceExtensions", () => {
 // folder alone.
 describe("serviceFileNameForType", () => {
   it.each([
-    [IntegrationSystemType.EXTERNAL, "svc-1.external-service.qip.yaml"],
-    [IntegrationSystemType.INTERNAL, "svc-1.internal-service.qip.yaml"],
-    [IntegrationSystemType.IMPLEMENTED, "svc-1.implemented-service.qip.yaml"],
-  ])("renames a legacy file to the %s name", (type, expected) => {
-    expect(serviceFileNameForType("svc-1.service.qip.yaml", type, qip)).toBe(
-      expected,
-    );
+    IntegrationSystemType.EXTERNAL,
+    IntegrationSystemType.INTERNAL,
+    IntegrationSystemType.IMPLEMENTED,
+  ])("converts a per-type file of type %s back to the plain name", (type) => {
+    expect(
+      serviceFileNameForType("svc-1.internal-service.qip.yaml", type, qip),
+    ).toBe("svc-1.service.qip.yaml");
   });
 
-  // The backend reads the id up to the first dot and the postfix in the segment right after it
-  // (`ExportImportUtils.statesPostfix`), so `a.b.external-service.qip.yaml` states the id `a` and no
-  // type at all — a document `ServiceDeserializer.resolveServiceType` refuses. Such a service keeps
-  // the legacy name, where the type is in the body, which is the shape that still imports.
-  it("keeps the legacy name for a dotted id", () => {
+  // The backend claims a context or MCP document by exact URI plus its own name, so a promoted
+  // file is one it refuses — and the plain-service read paths would stop finding the id.
+  it.each([IntegrationSystemType.CONTEXT, IntegrationSystemType.MCP])(
+    "never renames a plain file into the %s family",
+    (type) => {
+      expect(serviceFileNameForType("svc-1.service.qip.yaml", type, qip)).toBe(
+        "svc-1.service.qip.yaml",
+      );
+    },
+  );
+
+  it.each([
+    [IntegrationSystemType.CONTEXT, "svc-1.context-service.qip.yaml"],
+    [IntegrationSystemType.MCP, "svc-1.mcp-service.qip.yaml"],
+  ])("writes a %s document back where it is", (type, name) => {
+    expect(serviceFileNameForType(name, type, qip)).toBe(name);
+  });
+
+  it("never renames a per-type file across families", () => {
     expect(
       serviceFileNameForType(
-        "/services/a.b/a.b.service.qip.yaml",
-        IntegrationSystemType.EXTERNAL,
+        "svc-1.external-service.qip.yaml",
+        IntegrationSystemType.CONTEXT,
         qip,
       ),
-    ).toBe("a.b.service.qip.yaml");
+    ).toBe("svc-1.external-service.qip.yaml");
   });
 
-  it("leaves a typed name built from a dotted id where it is", () => {
+  // The backend reads the id up to the first dot, so `a.b.service.qip.yaml` states the id `a`.
+  // Renaming such a file states a different id again, so it is left exactly where it is.
+  it.each([
+    "/services/a.b/a.b.service.qip.yaml",
+    "a.b.internal-service.qip.yaml",
+  ])("leaves the dotted-id name %s where it is", (name) => {
     expect(
-      serviceFileNameForType(
-        "a.b.internal-service.qip.yaml",
-        IntegrationSystemType.EXTERNAL,
-        qip,
-      ),
-    ).toBe("a.b.internal-service.qip.yaml");
+      serviceFileNameForType(name, IntegrationSystemType.EXTERNAL, qip),
+    ).toBe(name.split("/").pop());
   });
 
-  it("returns the same name when the file already states the type", () => {
+  it("returns the same name when the file is already the current one", () => {
     expect(
       serviceFileNameForType(
-        "svc-1.internal-service.qip.yaml",
+        "svc-1.service.qip.yaml",
         IntegrationSystemType.INTERNAL,
         qip,
       ),
-    ).toBe("svc-1.internal-service.qip.yaml");
+    ).toBe("svc-1.service.qip.yaml");
   });
 
-  it("keeps the legacy name for a service that states no type", () => {
-    expect(serviceFileNameForType("svc-1.service.qip.yaml", "", qip)).toBe(
-      "svc-1.service.qip.yaml",
-    );
+  // A file that resolves no type is left exactly where it is. Renaming it would rest on a guess,
+  // and for a context or MCP document carrying no `$schema` the guess deletes the only file the
+  // backend reads as that kind.
+  it.each([
+    "svc-1.service.qip.yaml",
+    "svc-1.external-service.qip.yaml",
+    "svc-1.context-service.qip.yaml",
+  ])("leaves %s alone when no type is stated", (name) => {
+    expect(serviceFileNameForType(name, "", qip)).toBe(name);
+    expect(serviceFileNameForType(name, undefined, qip)).toBe(name);
   });
 
   it("leaves a file that is not a service file alone", () => {
@@ -408,23 +518,16 @@ describe("serviceFileNameForType", () => {
   it("uses the extensions it is handed rather than the default app name", () => {
     expect(
       serviceFileNameForType(
-        "svc-1.service.acme.yaml",
+        "svc-1.external-service.acme.yaml",
         IntegrationSystemType.EXTERNAL,
         acme,
       ),
-    ).toBe("svc-1.external-service.acme.yaml");
+    ).toBe("svc-1.service.acme.yaml");
   });
 });
 
 describe("serviceSchemaUrlForType", () => {
-  const schemaUrls: ServiceSchemaUrls = {
-    service: "urn:service",
-    externalService: "urn:external",
-    internalService: "urn:internal",
-    implementedService: "urn:implemented",
-    contextService: "urn:context",
-    mcpService: "urn:mcp",
-  };
+  const schemaUrls: ServiceSchemaUrls = URN_SCHEMA_URLS;
 
   it.each([
     [IntegrationSystemType.EXTERNAL, "urn:external"],
@@ -452,27 +555,27 @@ describe("serviceSchemaUrlForType", () => {
   );
 });
 
-// The backend reads the id up to the first dot and the postfix in the segment right after it
-// (`ExportImportUtils.statesPostfix`), so only a dot-free id leaves the postfix where it looks.
-describe("fileNameStatesType", () => {
+// Which of two files a half-converted service is listed from. A per-type name is a leftover of
+// #553, so the plain one wins even though both are discovered.
+describe("isCurrentFormatServiceName", () => {
+  it.each([
+    "svc-1.service.qip.yaml",
+    "a.b.service.qip.yaml",
+    "svc-1.context-service.qip.yaml",
+    "svc-1.mcp-service.qip.yaml",
+    "service-orders.service.qip.yaml",
+  ])("accepts the current name %s", (name) => {
+    expect(isCurrentFormatServiceName(name, qip)).toBe(true);
+  });
+
   it.each([
     "svc-1.external-service.qip.yaml",
     "svc-1.internal-service.qip.yaml",
     "svc-1.implemented-service.qip.yaml",
-    "svc-1.context-service.qip.yaml",
-    "svc-1.mcp-service.qip.yaml",
-    "service-orders.external-service.qip.yaml",
-  ])("reads the type off %s", (name) => {
-    expect(fileNameStatesType(name, qip)).toBe(true);
-  });
-
-  it.each([
-    "svc-1.service.qip.yaml",
-    "a.b.external-service.qip.yaml",
     "svc-1.chain.qip.yaml",
     "notes.md",
-  ])("reads no type off %s", (name) => {
-    expect(fileNameStatesType(name, qip)).toBe(false);
+  ])("refuses %s", (name) => {
+    expect(isCurrentFormatServiceName(name, qip)).toBe(false);
   });
 });
 
@@ -541,13 +644,11 @@ describe("nested configured extensions", () => {
     implementedService: ".impl.svc.yaml",
   };
 
-  it("reads the longest matching extension, not the first declared", () => {
-    expect(serviceTypeFromUri("svc-1.internal.ext.svc.yaml", nested)).toBe(
-      IntegrationSystemType.INTERNAL,
+  it("reads the id off the longest matching extension, not the first declared", () => {
+    expect(serviceIdFromFileName("svc-1.internal.ext.svc.yaml", nested)).toBe(
+      "svc-1",
     );
-    expect(serviceTypeFromUri("svc-1.ext.svc.yaml", nested)).toBe(
-      IntegrationSystemType.EXTERNAL,
-    );
+    expect(serviceIdFromFileName("svc-1.ext.svc.yaml", nested)).toBe("svc-1");
   });
 
   it("strips the longest matching extension when it renames a file", () => {
@@ -557,6 +658,16 @@ describe("nested configured extensions", () => {
         IntegrationSystemType.IMPLEMENTED,
         nested,
       ),
-    ).toBe("svc-1.impl.svc.yaml");
+    ).toBe("svc-1.svc.yaml");
+  });
+
+  // A per-type name that happens to end with the current extension is still the per-type name.
+  // Reading it as current would let directory order, not precedence, pick a half-converted
+  // service's file.
+  it("classifies a nested per-type name by its longest match, not the current suffix", () => {
+    expect(isCurrentFormatServiceName("svc-1.ext.svc.yaml", nested)).toBe(
+      false,
+    );
+    expect(isCurrentFormatServiceName("svc-1.svc.yaml", nested)).toBe(true);
   });
 });

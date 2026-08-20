@@ -126,9 +126,8 @@ public class OperationService {
                     : operationRepository.getOperations(modelId, sortColumns);
         }
 
-        return operations.stream()
-                .peek(this::enrichOperationWithChains)
-                .collect(Collectors.toList());
+        enrichOperationsWithChains(operations);
+        return operations;
     }
 
     public Operation getOperation(String operationId) {
@@ -236,8 +235,15 @@ public class OperationService {
         return group.getSystem().getProtocol();
     }
 
-    private void enrichOperationWithChains(Operation operation) {
-        List<Chain> chains = elementHelperService.findBySystemAndOperationId(null, operation.getId());
-        operation.setChains(chains);
+    // One lookup for the whole page instead of one per row.
+    private void enrichOperationsWithChains(List<Operation> operations) {
+        Set<String> operationIds = operations.stream()
+                .map(Operation::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, List<Chain>> chainsByOperationId =
+                elementHelperService.findChainsGroupedByOperationId(operationIds);
+        operations.forEach(operation ->
+                operation.setChains(chainsByOperationId.getOrDefault(operation.getId(), List.of())));
     }
 }

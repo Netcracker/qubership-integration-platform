@@ -50,6 +50,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -68,8 +69,8 @@ class ServiceDeserializerTest {
     private static final String SYSTEM_ID = "system-1";
     private static final String GROUP_ID = "group-1";
     private static final String SPEC_ID = "spec-1";
-    private static final ServiceTypeFiles SERVICE_TYPE_FILES =
-            new ServiceTypeFiles(new ApplicationJsonSchemaProperties());
+    private static final ApplicationJsonSchemaProperties SCHEMA_PROPERTIES = new ApplicationJsonSchemaProperties();
+    private static final ServiceTypeFiles SERVICE_TYPE_FILES = new ServiceTypeFiles(SCHEMA_PROPERTIES);
 
     @TempDir
     private Path serviceDirectory;
@@ -107,7 +108,8 @@ class ServiceDeserializerTest {
                         new ApiOperationDtoMapper()),
                 fileMigrationService,
                 migrations,
-                extractor
+                extractor,
+                SERVICE_TYPE_FILES
         );
         ReflectionTestUtils.setField(built, "appName", APP_NAME);
         return built;
@@ -1046,8 +1048,7 @@ class ServiceDeserializerTest {
                 """.formatted(GROUP_ID, SYSTEM_ID)));
 
         Map<Path, byte[]> files = new ServiceConfigurationsToFilesConverter(
-                objectMapper, APP_NAME, TestServiceMigrations.all(),
-                new ServiceTypeFiles(new ApplicationJsonSchemaProperties()))
+                objectMapper, APP_NAME, TestServiceMigrations.all())
                 .convert(Map.of(SYSTEM_ID, item), Map.of(), Map.of(), Map.of(), Map.of());
 
         File serviceFile = null;
@@ -1105,9 +1106,8 @@ class ServiceDeserializerTest {
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void resolvesTheTypeFromTheFileNameWhenTheDocumentStatesNone(IntegrationSystemType type) throws IOException {
-        File serviceFile = writeFile(
-                SYSTEM_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", typelessServiceYaml());
+    void resolvesTheTypeFromTheSchemaWhenTheDocumentStatesNone(IntegrationSystemType type) throws IOException {
+        File serviceFile = writeService(schemaStatingYaml(SERVICE_TYPE_FILES.schemaUri(type)));
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
@@ -1116,19 +1116,28 @@ class ServiceDeserializerTest {
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void keepsTheTypeWhenTheFileNameAndTheDocumentAgree(IntegrationSystemType type) throws IOException {
-        File serviceFile = writeFile(
-                SYSTEM_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", typedServiceYaml(type.name()));
+    void keepsTheTypeWhenTheSchemaAndTheDocumentAgree(IntegrationSystemType type) throws IOException {
+        File serviceFile = writeService(typedServiceYaml(type.name(), SERVICE_TYPE_FILES.schemaUri(type)));
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
         assertEquals(type, system.getIntegrationSystemType());
     }
 
-    /** The legacy flat name carries no type, which is what keeps the document field a resolution source. */
+    /** A pre-#553 archive states the type only in the document and carries the plain service schema. */
+    @Test
+    void resolvesTheTypeFromTheDocumentForAPre553File() throws IOException {
+        File serviceFile = writeService(typedServiceYaml("INTERNAL", SCHEMA_PROPERTIES.getService()));
+
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+
+        assertEquals(IntegrationSystemType.INTERNAL, system.getIntegrationSystemType());
+    }
+
+    /** The legacy flat name carries no schema of its own either, which is what keeps the document field a source. */
     @Test
     void resolvesTheTypeFromTheDocumentForALegacyFlatFileName() throws IOException {
-        File serviceFile = writeFile("service-" + SYSTEM_ID + ".yaml", typedServiceYaml("IMPLEMENTED"));
+        File serviceFile = writeFile("service-" + SYSTEM_ID + ".yaml", typedServiceYaml("IMPLEMENTED", null));
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
@@ -1136,36 +1145,62 @@ class ServiceDeserializerTest {
     }
 
     /**
-     * Autodiscovery mints a service id from the Kubernetes service name, so an id wearing the legacy flat prefix is
-     * ordinary rather than hand-authored. The postfix right after the id is what tells the two name formats apart, so
-     * such a file is read as a current-format one and states its own type.
+     * The per-type file names are a format this version reads and no longer writes, and they are not a type source:
+     * an archive exported under one still types from the {@code $schema} it carries alongside.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void resolvesTheTypeFromTheNameWhenTheIdWearsTheLegacyFlatPrefix(IntegrationSystemType type) throws IOException {
-        File serviceFile = writeFile(
-                "service-" + SYSTEM_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", typelessServiceYaml());
+    void resolvesTheTypeOfAFileStillWearingItsPerTypeName(IntegrationSystemType type) throws IOException {
+        File serviceFile = writeFile(SYSTEM_ID + "." + typeSlug(type) + "-service." + APP_NAME + ".yaml",
+                schemaStatingYaml(SERVICE_TYPE_FILES.schemaUri(type)));
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
         assertEquals(type, system.getIntegrationSystemType());
     }
 
-    /** A pre-#553 archive states the type only in the document, and its name has no postfix to read. */
+    /** A per-type name over a document that states nothing states nothing: the name is not read. */
     @Test
-    void resolvesTheTypeFromTheDocumentForAPre553FileName() throws IOException {
-        File serviceFile = writePre553Service(typedServiceYaml("INTERNAL"));
+    void refusesAPerTypeNameOverADocumentStatingNoType() throws IOException {
+        File serviceFile = writeFile(SYSTEM_ID + ".external-service." + APP_NAME + ".yaml", typelessServiceYaml());
+
+        ServiceImportException exception =
+                assertThrows(ServiceImportException.class, () -> deserializer.deserializeSystem(serviceFile));
+        assertEquals(SYSTEM_ID, exception.getServiceId());
+    }
+
+    /**
+     * The {@code $schema} of an installation configured differently, which the schema's own file name still types.
+     * Nothing else in this suite reads that second layer through the deserializer.
+     */
+    @Test
+    void resolvesTheTypeFromAForeignlyHostedSchema() throws IOException {
+        File serviceFile = writeService(
+                schemaStatingYaml("https://schemas.acme.internal/qip/implemented-service.schema.yaml"));
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
-        assertEquals(IntegrationSystemType.INTERNAL, system.getIntegrationSystemType());
+        assertEquals(IntegrationSystemType.IMPLEMENTED, system.getIntegrationSystemType());
+    }
+
+    /**
+     * A renamed schema file resolves through neither layer, so the {@code $schema} states nothing and there is nothing
+     * for the document to disagree with: the field answers alone, exactly as it does for a file carrying no schema.
+     */
+    @Test
+    void resolvesTheTypeFromTheDocumentWhenTheSchemaStatesNoType() throws IOException {
+        File serviceFile = writeService(
+                typedServiceYaml("EXTERNAL", "https://schemas.acme.internal/qip/renamed.schema.yaml"));
+
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+
+        assertEquals(IntegrationSystemType.EXTERNAL, system.getIntegrationSystemType());
     }
 
     @Test
-    void failsWhenTheFileNameAndTheDocumentStateDifferentTypes() throws IOException {
-        File serviceFile = writeFile(
-                SYSTEM_ID + ServiceTypeFiles.postfix(IntegrationSystemType.INTERNAL) + APP_NAME + ".yaml",
-                typedServiceYaml("EXTERNAL"));
+    void failsWhenTheSchemaAndTheDocumentStateDifferentTypes() throws IOException {
+        File serviceFile = writeService(
+                typedServiceYaml("EXTERNAL", SERVICE_TYPE_FILES.schemaUri(IntegrationSystemType.INTERNAL)));
 
         ServiceImportException exception =
                 assertThrows(ServiceImportException.class, () -> deserializer.deserializeSystem(serviceFile));
@@ -1176,16 +1211,16 @@ class ServiceDeserializerTest {
     }
 
     @Test
-    void failsWhenNeitherTheFileNameNorTheDocumentStatesAType() throws IOException {
-        File serviceFile = writePre553Service(typelessServiceYaml());
+    void failsWhenNeitherTheSchemaNorTheDocumentStatesAType() throws IOException {
+        File serviceFile = writeService(typelessServiceYaml());
 
         ServiceImportException exception =
                 assertThrows(ServiceImportException.class, () -> deserializer.deserializeSystem(serviceFile));
         assertEquals(SYSTEM_ID, exception.getServiceId());
         assertTrue(exception.getMessage().contains("integrationSystemType"),
                 "unexpected message: " + exception.getMessage());
-        assertTrue(exception.getMessage().contains(".external-service."),
-                "the message has to name the postfixes the reader can rename to: " + exception.getMessage());
+        assertTrue(exception.getMessage().contains("external-service.schema.yaml"),
+                "the message has to name the schemas the reader can set: " + exception.getMessage());
     }
 
     /**
@@ -1206,18 +1241,18 @@ class ServiceDeserializerTest {
 
     // --- helpers ---------------------------------------------------------------------------------------------------
 
-    /** The current format: since #553 an exported plain service is named after its type. */
+    /** The current format, whose name states no type: an exported plain service is {@code <id>.service.<app>.yaml}. */
     private File writeService(String yaml) throws IOException {
-        return writeService(ServiceTypeFiles.postfix(IntegrationSystemType.EXTERNAL), yaml);
+        return writeService(SERVICE_YAML_NAME_POSTFIX, yaml);
     }
 
     private File writeService(String namePostfix, String yaml) throws IOException {
         return writeFile(SYSTEM_ID + namePostfix + APP_NAME + ".yaml", yaml);
     }
 
-    /** The pre-#553 name, for the cases that need a file stating no type of its own. */
-    private File writePre553Service(String yaml) throws IOException {
-        return writeService(SERVICE_YAML_NAME_POSTFIX, yaml);
+    /** The type as its schema file spells it, which is how the two sides agree without sharing a constant. */
+    private static String typeSlug(IntegrationSystemType type) {
+        return type.name().toLowerCase(Locale.ROOT);
     }
 
     private File writeFile(String relativePath, String content) throws IOException {
@@ -1247,7 +1282,7 @@ class ServiceDeserializerTest {
                 """.formatted(SYSTEM_ID, protocol, migrations);
     }
 
-    /** A current-format service document: the type lives in the file name, not in the content. */
+    /** A service document that states its type nowhere: no {@code $schema}, and no field under {@code content}. */
     private static String typelessServiceYaml() {
         return """
                 ---
@@ -1259,16 +1294,32 @@ class ServiceDeserializerTest {
                 """.formatted(SYSTEM_ID);
     }
 
-    private static String typedServiceYaml(String integrationSystemType) {
+    private static String typedServiceYaml(String integrationSystemType, String schemaUri) {
         return """
                 ---
                 id: "%s"
-                name: "Test service"
+                %sname: "Test service"
                 content:
                   integrationSystemType: "%s"
                   protocol: "HTTP"
                   migrations: "[100, 101, 102]"
-                """.formatted(SYSTEM_ID, integrationSystemType);
+                """.formatted(SYSTEM_ID, schemaLine(schemaUri), integrationSystemType);
+    }
+
+    /** A service document that states its type only through {@code $schema}, the current format. */
+    private static String schemaStatingYaml(String schemaUri) {
+        return """
+                ---
+                id: "%s"
+                %sname: "Test service"
+                content:
+                  protocol: "HTTP"
+                  migrations: "[100, 101, 102]"
+                """.formatted(SYSTEM_ID, schemaLine(schemaUri));
+    }
+
+    private static String schemaLine(String schemaUri) {
+        return schemaUri == null ? "" : "$schema: \"" + schemaUri + "\"\n";
     }
 
     /** An api-format model file with one source resource and the operations given verbatim. */

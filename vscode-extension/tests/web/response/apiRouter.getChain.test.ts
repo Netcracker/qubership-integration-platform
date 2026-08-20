@@ -3,7 +3,9 @@ import { getApiResponse } from "../../../src/web/response/apiRouter";
 import * as chainApiRead from "../../../src/web/response/chainApiRead";
 
 const mockGetChain = jest.spyOn(chainApiRead, "getChain");
-const mockWorkspaceFolders = [{ uri: { path: "/workspace", fsPath: "/workspace" } }];
+const mockWorkspaceFolders = [
+  { uri: { path: "/workspace", fsPath: "/workspace" } },
+];
 
 jest.mock("vscode", () => {
   const uriModule = jest.requireActual("../../__mocks__/vscode");
@@ -74,6 +76,10 @@ describe("apiRouter getChain handler", () => {
       workspaceUri,
     );
 
-    expect(mockGetChain).toHaveBeenCalledWith(workspaceUri, "chain-1", workspaceUri);
+    expect(mockGetChain).toHaveBeenCalledWith(
+      workspaceUri,
+      "chain-1",
+      workspaceUri,
+    );
   });
 });

@@ -19,7 +19,6 @@ package org.qubership.integration.platform.runtime.catalog.model.system.exportim
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.Getter;
 import lombok.Setter;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
 
 import java.io.IOException;
@@ -31,14 +30,9 @@ import java.util.zip.ZipOutputStream;
 public class ExportedIntegrationSystem extends ExportedSystemObject {
     private List<ExportedApiGroup> apiGroups;
 
-    /** The exported node carries no type: the file name states it, and the writer visitor builds that name from here. */
-    private IntegrationSystemType type;
-
-    public ExportedIntegrationSystem(
-            String id, ObjectNode objectNode, List<ExportedApiGroup> apiGroups, IntegrationSystemType type) {
+    public ExportedIntegrationSystem(String id, ObjectNode objectNode, List<ExportedApiGroup> apiGroups) {
         super(id, objectNode);
         this.apiGroups = apiGroups;
-        this.type = type;
     }
 
     @Override

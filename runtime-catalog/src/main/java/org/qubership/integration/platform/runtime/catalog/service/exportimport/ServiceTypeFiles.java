@@ -16,27 +16,33 @@ import java.util.Optional;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.EXTERNAL_SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTERNAL_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX;
 
 /**
- * The one place that knows how a service type is spelled: in a file name, in a {@code $schema}, and in a document.
- * Import discovery, type resolution, the exporter, and the V105 pair all read it from here, so the spellings cannot
- * drift apart. It also recognizes the two kinds whose name states no type at all, the context and the MCP service,
- * because the plain-service import has to tell their files from its own.
+ * The one place that knows how a service type is spelled: in a {@code $schema} and in a document. Type resolution,
+ * the exporter, the rollout converter, and the V105 pair all read it from here, so the spellings cannot drift apart.
+ * It also recognizes the two kinds that are their own kind of document, the context and the MCP service, because the
+ * plain-service import has to tell their files from its own.
+ *
+ * <p>A file name states no service type. It used to — {@code <id>.external-service.<app>.yaml} was the whole of
+ * #553 — and the three postfixes still exist because discovery reads archives written that way. Nothing resolves a
+ * type from them.
  */
 @Component
 public class ServiceTypeFiles {
 
     private static final String SCHEMA = "$schema";
 
-    private static final Map<IntegrationSystemType, String> POSTFIXES_BY_TYPE = new EnumMap<>(Map.of(
-            IntegrationSystemType.EXTERNAL, EXTERNAL_SERVICE_YAML_NAME_POSTFIX,
-            IntegrationSystemType.INTERNAL, INTERNAL_SERVICE_YAML_NAME_POSTFIX,
-            IntegrationSystemType.IMPLEMENTED, IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX));
+    /**
+     * The schema's own file name per type, without an extension. This is the format talking, not the deployment: it
+     * is what survives a rehost of the schema registry and the older truncated URI form, and it is what types a
+     * document exported by an instance whose {@code qip.json.schemas.*} differ from this one's.
+     */
+    private static final Map<IntegrationSystemType, String> SCHEMA_FILE_STEMS = new EnumMap<>(Map.of(
+            IntegrationSystemType.EXTERNAL, "external-service",
+            IntegrationSystemType.INTERNAL, "internal-service",
+            IntegrationSystemType.IMPLEMENTED, "implemented-service"));
 
     /** The postfixes of the two kinds whose name states no type: the context and the MCP service. */
     private static final List<String> TYPELESS_POSTFIXES =
@@ -56,40 +62,23 @@ public class ServiceTypeFiles {
                 MCP_SERVICE_YAML_NAME_POSTFIX, schemas.getMcpService());
     }
 
-    /** The name postfix an export writes for {@code type}, and the one import resolves the type back from. */
-    public static String postfix(IntegrationSystemType type) {
-        return POSTFIXES_BY_TYPE.get(Objects.requireNonNull(type, "service type"));
-    }
-
-    /** Every per-type postfix, for the import-side directory scan. */
-    public static Collection<String> postfixes() {
-        return List.copyOf(POSTFIXES_BY_TYPE.values());
-    }
-
     /** The {@code $schema} an export stamps on a service of {@code type}. */
     public String schemaUri(IntegrationSystemType type) {
         return schemaUrisByType.get(Objects.requireNonNull(type, "service type"));
     }
 
-    /**
-     * The type a service file name states, or empty when it states none. The legacy {@code service-<id>.yaml} name and
-     * the plain {@code .service.} postfix both carry the type in the document instead, and a context or MCP name
-     * carries no per-type postfix at all.
-     *
-     * <p>A current-format name is read only where an export writes the type, right after the id, so an id or an app
-     * prefix that merely contains a postfix states nothing. No two postfixes can start there, which is why the enum
-     * order never decides the answer. A name stating a postfix there is current-format even when its id wears the
-     * legacy flat prefix, which autodiscovery mints routinely; only a name stating none of them is the flat one, and
-     * that one states no type.
-     */
-    public static Optional<IntegrationSystemType> typeFromFileName(String fileName) {
-        if (fileName == null || ExportImportUtils.isLegacyFlatServiceName(fileName)) {
+    /** Every {@code $schema} a plain service can be typed by, for an error message that names the remedy. */
+    public Collection<String> plainServiceSchemaUris() {
+        return List.copyOf(schemaUrisByType.values());
+    }
+
+    /** The type a document's {@code $schema} states, for a caller holding the document rather than the URI. */
+    public Optional<IntegrationSystemType> typeFromDocumentSchema(JsonNode document) {
+        if (document == null) {
             return Optional.empty();
         }
-        return POSTFIXES_BY_TYPE.entrySet().stream()
-                .filter(entry -> ExportImportUtils.statesPostfix(fileName, entry.getValue()))
-                .map(Map.Entry::getKey)
-                .findFirst();
+        JsonNode schema = document.path(SCHEMA);
+        return schema.isTextual() ? typeFromSchemaUri(schema.asText()) : Optional.empty();
     }
 
     /**
@@ -140,9 +129,10 @@ public class ServiceTypeFiles {
      * really take. A {@code $schema} they do not recognize leaves the file to the plain-service import, which is where
      * an unclaimed file belongs.
      *
-     * <p>This does not walk back the rule that {@code $schema} never states a service type on import. The question
-     * here is which kind of document this is, not which of the three plain types it is, and it is asked only about a
-     * name a typeless kind's export writes.
+     * <p>The question here is which kind of document this is, not which of the three plain types it is, and it is
+     * asked only about a name a typeless kind's export writes. The exact-URI comparison is deliberate and is not the
+     * two-layer match {@link #typeFromSchemaUri} runs: a file this answers true for is handed to another import
+     * entirely, so a loose match here loses a service rather than mistyping one.
      */
     public boolean isContextOrMCPServiceFile(String fileName, JsonNode document) {
         if (!statesContextOrMCPPostfix(fileName) || document == null) {
@@ -155,18 +145,39 @@ public class ServiceTypeFiles {
     }
 
     /**
-     * The type a per-type {@code $schema} states, for the revert migration, which works on a document with no file
-     * name to read. Do not use this on the import path: the VS Code extension stamps whatever a project's
-     * {@code .config.qip.yaml} configures (see {@code vscode-extension/.config.qip.yaml.example}), so an incoming
-     * {@code $schema} is an arbitrary string and identifies nothing. The file name is the import-side source.
+     * The type a per-type {@code $schema} states. This is what every path types a current-format service by: the
+     * archive import, the rollout import, and the V105 revert migration, which works on a document with no file name
+     * to read at all.
+     *
+     * <p>Matched in two layers, because the URI is configurable on both sides — {@code qip.json.schemas.*} here, a
+     * project's {@code .config.qip.yaml} in the VS Code extension. The configured value is tried first, so an
+     * installation that rehosts its schemas types its own files. Failing that, the schema's own file name decides,
+     * which is what carries a document between two installations configured differently and what reads the older URI
+     * form that stops at {@code .../external-service}. A project that renames the schema file itself resolves no
+     * type, and the import says so rather than guessing.
      */
     public Optional<IntegrationSystemType> typeFromSchemaUri(String schemaUri) {
         if (schemaUri == null) {
             return Optional.empty();
         }
-        return schemaUrisByType.entrySet().stream()
-                .filter(entry -> entry.getValue().equals(schemaUri))
+        return firstTypeSpelled(schemaUrisByType, schemaUri)
+                .or(() -> firstTypeSpelled(SCHEMA_FILE_STEMS, schemaFileStem(schemaUri)));
+    }
+
+    private static Optional<IntegrationSystemType> firstTypeSpelled(
+            Map<IntegrationSystemType, String> spellings, String value) {
+        return spellings.entrySet().stream()
+                .filter(entry -> entry.getValue().equals(value))
                 .map(Map.Entry::getKey)
                 .findFirst();
+    }
+
+    /** The schema's own file name with every extension off — the part a rehost or a truncation leaves alone. */
+    public static String schemaFileStem(String schemaUri) {
+        // A fragment or a query carries slashes of its own, so the path ends at the first of them, not at the last '/'.
+        String path = schemaUri.split("[#?]", 2)[0];
+        String lastSegment = path.substring(path.lastIndexOf('/') + 1);
+        int extension = lastSegment.indexOf('.');
+        return extension < 0 ? lastSegment : lastSegment.substring(0, extension);
     }
 }

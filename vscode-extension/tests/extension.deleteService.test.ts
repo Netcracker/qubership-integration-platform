@@ -151,13 +151,28 @@ function deletedNames(): string[] {
   return mockDelete.mock.calls.map(([uri]) => fileName(uri));
 }
 
-/** Serves parsed content by file name and keeps readDirectory in step with what the sweep deleted. */
+/**
+ * A file on disk that the parser cannot read. Modelling it as a rejection from `parseFile` is
+ * faithful rather than convenient: the real `VSCodeFileApi.parseFile` logs and rethrows whatever
+ * `ContentParser` raised (`fileApiImpl.ts:518-525`). That is the distinction from the stubbed
+ * `getFileType` two earlier suites got wrong — that one catches everything and answers `UNKNOWN`,
+ * so a test built on it asserted behaviour the real implementation cannot produce.
+ */
+const UNREADABLE = Symbol("unreadable file");
+
+/**
+ * Serves parsed content by file name and keeps readDirectory in step with what the sweep deleted.
+ * Returns the names still on disk, so a test can assert what a delete left behind.
+ */
 function setUpFolder(
   entries: [string, number][],
   parsedByFileName: Record<string, any>,
-) {
+): () => string[] {
   mockParseFile.mockImplementation(async (uri: { path: string }) => {
     const parsed = parsedByFileName[fileName(uri)];
+    if (parsed === UNREADABLE) {
+      throw new Error(`Unable to parse file: ${uri.path}`);
+    }
     if (!parsed) {
       throw new Error(`Unexpected file ${uri.path}`);
     }
@@ -185,6 +200,11 @@ function setUpFolder(
   mockReadDirectory.mockImplementation(() =>
     Promise.resolve(entries.filter(([name]) => !deletedNames().includes(name))),
   );
+  return () =>
+    entries
+      .filter(([name]) => !deletedNames().includes(name))
+      .map(([name]) => name)
+      .sort();
 }
 
 function group(id: string, serviceId: string) {
@@ -351,4 +371,109 @@ it("keeps resources when the sibling left behind carries a typed service name", 
   expect(deletedNames()).toEqual(["svc-a.service.qip.yaml"]);
   expect(deletedNames()).not.toContain("resources");
   expect(deletedNames()).not.toContain("..");
+});
+
+// --- a file the id owns that cannot be parsed ---------------------------------------------------
+//
+// `parseFileOrUndefined` swallows the failure and answers `undefined`, so ownership is decided
+// without that file. What that costs depends on which file it is, and the three cases below differ
+// sharply. None of them raises an error: the user is told the delete succeeded in all three.
+
+// The unreadable file is a plain-service sibling. It cannot be claimed, so it stays — which is the
+// documented behaviour, not a defect: the user was already told to delete it by hand.
+it("leaves an unreadable service sibling in place and keeps the folder", async () => {
+  const remaining = setUpFolder(
+    [
+      ["svc.external-service.qip.yaml", FILE],
+      ["svc.service.qip.yaml", FILE],
+      ["group-1.api-group.qip.yaml", FILE],
+    ],
+    {
+      "svc.external-service.qip.yaml": { id: "svc-1", name: "svc" },
+      "svc.service.qip.yaml": UNREADABLE,
+      "group-1.api-group.qip.yaml": group("group-1", "svc-1"),
+    },
+  );
+
+  const command = registeredCommands.get("qip.deleteService")!;
+  await command({
+    fileUri: { path: "/workspace/svc/svc.external-service.qip.yaml" },
+    label: "svc",
+  });
+
+  expect([...deletedNames()].sort()).toEqual([
+    "group-1.api-group.qip.yaml",
+    "svc.external-service.qip.yaml",
+  ]);
+  // The folder still holds the unreadable file, so it is not removed. Deleting it would take a
+  // file the service never claimed.
+  expect(deletedNames()).not.toContain("..");
+  expect(remaining()).toEqual(["svc.service.qip.yaml"]);
+});
+
+// The unreadable file is the service's own. `collectServiceOwnedFiles` reads the id from it, so
+// with no id there is no ownership to compute and it returns that one uri. The group and the API
+// below it survive the delete with nothing left pointing at them.
+it("deletes only the service file when the service file itself cannot be parsed", async () => {
+  const remaining = setUpFolder(
+    [
+      ["svc.external-service.qip.yaml", FILE],
+      ["group-1.api-group.qip.yaml", FILE],
+      ["model-1.api.qip.yaml", FILE],
+    ],
+    {
+      "svc.external-service.qip.yaml": UNREADABLE,
+      "group-1.api-group.qip.yaml": group("group-1", "svc-1"),
+      "model-1.api.qip.yaml": api("model-1", "group-1"),
+    },
+  );
+
+  const command = registeredCommands.get("qip.deleteService")!;
+  await command({
+    fileUri: { path: "/workspace/svc/svc.external-service.qip.yaml" },
+    label: "svc",
+  });
+
+  expect(deletedNames()).toEqual(["svc.external-service.qip.yaml"]);
+  expect(remaining()).toEqual([
+    "group-1.api-group.qip.yaml",
+    "model-1.api.qip.yaml",
+  ]);
+  expect(mockShowInformationMessage).toHaveBeenCalled();
+});
+
+// The worst of the three, and the reason this case is here: the unreadable file is a group. Its id
+// never reaches `groupIds`, so the API scan below it never runs and every API under that group is
+// orphaned — the service is gone, the API files are not, and nothing says so.
+it("orphans the APIs of a group file it cannot parse, and reports success", async () => {
+  const remaining = setUpFolder(
+    [
+      ["svc.external-service.qip.yaml", FILE],
+      ["group-1.api-group.qip.yaml", FILE],
+      ["model-1.api.qip.yaml", FILE],
+      ["model-2.api.qip.yaml", FILE],
+    ],
+    {
+      "svc.external-service.qip.yaml": { id: "svc-1", name: "svc" },
+      "group-1.api-group.qip.yaml": UNREADABLE,
+      "model-1.api.qip.yaml": api("model-1", "group-1"),
+      "model-2.api.qip.yaml": api("model-2", "group-1"),
+    },
+  );
+
+  const command = registeredCommands.get("qip.deleteService")!;
+  await command({
+    fileUri: { path: "/workspace/svc/svc.external-service.qip.yaml" },
+    label: "svc",
+  });
+
+  expect(deletedNames()).toEqual(["svc.external-service.qip.yaml"]);
+  expect(remaining()).toEqual([
+    "group-1.api-group.qip.yaml",
+    "model-1.api.qip.yaml",
+    "model-2.api.qip.yaml",
+  ]);
+  // Silent: no warning, and the success message is shown all the same.
+  expect(mockShowWarningMessage).toHaveBeenCalledTimes(1); // the confirmation prompt, nothing more
+  expect(mockShowInformationMessage).toHaveBeenCalled();
 });

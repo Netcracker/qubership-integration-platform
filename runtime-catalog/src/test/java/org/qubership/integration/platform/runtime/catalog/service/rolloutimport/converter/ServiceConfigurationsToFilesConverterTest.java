@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -58,8 +59,7 @@ class ServiceConfigurationsToFilesConverterTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         serviceTypeFiles = new ServiceTypeFiles(new ApplicationJsonSchemaProperties());
-        converter = new ServiceConfigurationsToFilesConverter(
-                objectMapper, APP_PREFIX, Collections.emptyList(), serviceTypeFiles);
+        converter = new ServiceConfigurationsToFilesConverter(objectMapper, APP_PREFIX, Collections.emptyList());
     }
 
     @Test
@@ -88,63 +88,23 @@ class ServiceConfigurationsToFilesConverterTest {
     }
 
     /**
-     * A package built after #553 carries no {@code content.integrationSystemType}, so a plain {@code .service.} name
-     * would leave the importer with no type to resolve. The file name has to state it instead.
+     * The name states no type in either direction, so a package stating one in {@code content} and a package stating
+     * one in {@code $schema} produce the same file. What travels is the document, which carries both.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    @DisplayName("A service stating its type is written under the per-type file name")
-    void serviceStatingItsTypeIsWrittenUnderThePerTypeFileName(IntegrationSystemType type)
+    @DisplayName("A service stating its type is still written under the type-less name")
+    void serviceStatingItsTypeIsWrittenUnderTheTypelessName(IntegrationSystemType type)
             throws JsonProcessingException {
         ObjectNode content = objectMapper.createObjectNode().put("integrationSystemType", type.name());
-        Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, content));
-        Path expected = Path.of(SERVICE_ID)
-                .resolve(SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_PREFIX + ".yaml");
+        RolloutImportConfigurationItem stated = item(SERVICE_ID, objectMapper.createObjectNode());
+        stated.setSchema(serviceTypeFiles.schemaUri(type));
+        Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".service." + APP_PREFIX + ".yaml");
 
-        Map<Path, byte[]> result = converter.convert(
-                services, emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
-
-        assertThat(result).containsKey(expected);
-    }
-
-    /**
-     * The shape a conformant post-#553 package actually has: the per-type schemas carry
-     * {@code not: {required: [integrationSystemType]}}, so the type is stated in {@code $schema} and nowhere else.
-     */
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
-    @DisplayName("A service stating its type only in $schema is written under the per-type file name")
-    void serviceStatingItsTypeOnlyInTheSchemaIsWrittenUnderThePerTypeFileName(IntegrationSystemType type)
-            throws JsonProcessingException {
-        RolloutImportConfigurationItem item = item(SERVICE_ID, objectMapper.createObjectNode());
-        item.setSchema(serviceTypeFiles.schemaUri(type));
-        Path expected = Path.of(SERVICE_ID)
-                .resolve(SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_PREFIX + ".yaml");
-
-        Map<Path, byte[]> result = converter.convert(
-                Map.of(SERVICE_ID, item), emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
-
-        assertThat(result).containsKey(expected);
-    }
-
-    /**
-     * Import reads the file name before the field and refuses a document where the two disagree, so the name has to
-     * follow the field whenever the package states one.
-     */
-    @Test
-    @DisplayName("The content field wins over a disagreeing $schema, so the written name cannot contradict it")
-    void contentFieldWinsOverADisagreeingSchema() throws JsonProcessingException {
-        ObjectNode content = objectMapper.createObjectNode()
-                .put("integrationSystemType", IntegrationSystemType.INTERNAL.name());
-        RolloutImportConfigurationItem item = item(SERVICE_ID, content);
-        item.setSchema(serviceTypeFiles.schemaUri(IntegrationSystemType.EXTERNAL));
-        Path expected = Path.of(SERVICE_ID).resolve(
-                SERVICE_ID + ServiceTypeFiles.postfix(IntegrationSystemType.INTERNAL) + APP_PREFIX + ".yaml");
-
-        Map<Path, byte[]> result = converter.convert(
-                Map.of(SERVICE_ID, item), emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
-
-        assertThat(result).containsKey(expected);
+        assertThat(converter.convert(Map.of(SERVICE_ID, item(SERVICE_ID, content)),
+                emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap())).containsKey(expected);
+        assertThat(converter.convert(Map.of(SERVICE_ID, stated),
+                emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap())).containsKey(expected);
     }
 
     /**
@@ -163,7 +123,7 @@ class ServiceConfigurationsToFilesConverterTest {
         assertThat(config.getServices()).containsKey(SERVICE_ID);
 
         Map<Path, byte[]> files = new ServiceConfigurationsToFilesConverter(
-                objectMapper, APP_PREFIX, TestServiceMigrations.all(), serviceTypeFiles)
+                objectMapper, APP_PREFIX, TestServiceMigrations.all())
                 .convert(config.getServices(), emptyConfigMap(), emptyConfigMap(), emptyConfigMap(),
                         emptyResourceMap());
 
@@ -174,8 +134,8 @@ class ServiceConfigurationsToFilesConverterTest {
 
     /**
      * The converter builds its names on its own path, so the export-side refusal of an id the current format cannot
-     * state does not reach it. It writes the legacy flat name instead, which states the id whole and carries the type
-     * in the document. A current-format name would come back as another id, another type, or not be discovered at all.
+     * state does not reach it. It writes the legacy flat name instead, which states the id whole. The type rides the
+     * document either way; a current-format name would come back as another id, or not be discovered at all.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
@@ -186,7 +146,7 @@ class ServiceConfigurationsToFilesConverterTest {
         item.setSchema(serviceTypeFiles.schemaUri(type));
 
         Map<Path, byte[]> files = new ServiceConfigurationsToFilesConverter(
-                objectMapper, APP_PREFIX, TestServiceMigrations.all(), serviceTypeFiles)
+                objectMapper, APP_PREFIX, TestServiceMigrations.all())
                 .convert(Map.of(serviceId, item), emptyConfigMap(), emptyConfigMap(), emptyConfigMap(),
                         emptyResourceMap());
 
@@ -219,10 +179,10 @@ class ServiceConfigurationsToFilesConverterTest {
      * either would hand the import another id and another type, so the converter skips the service and says so.
      */
     @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
+    @ValueSource(strings = {".service.", ".external-service.", ".internal-service.", ".implemented-service."})
     @DisplayName("A plain service id neither name can state is skipped, not written unreadable")
-    void plainServiceIdNeitherNameCanStateIsSkipped(IntegrationSystemType type) throws Exception {
-        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
+    void plainServiceIdNeitherNameCanStateIsSkipped(String postfix) throws Exception {
+        String serviceId = "svc" + postfix + "1";
         Map<String, RolloutImportConfigurationItem> services =
                 Map.of(serviceId, item(serviceId, objectMapper.createObjectNode()));
 
@@ -417,8 +377,7 @@ class ServiceConfigurationsToFilesConverterTest {
         ServiceConfigurationsToFilesConverter stampingConverter = new ServiceConfigurationsToFilesConverter(
                 objectMapper, APP_PREFIX,
                 List.of(new V103ServiceImportFileMigration(new ApiOperationDtoMapper()),
-                        new V104ServiceImportFileMigration()),
-                serviceTypeFiles);
+                        new V104ServiceImportFileMigration()));
         Map<String, RolloutImportConfigurationItem> services =
                 Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
 

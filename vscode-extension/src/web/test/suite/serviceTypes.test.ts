@@ -17,6 +17,7 @@ import {
   getEnvironments,
   getService,
   getServices,
+  getSpecificationModel,
 } from "../../response/serviceApiRead";
 import {
   createEnvironment,
@@ -29,7 +30,7 @@ import {
 import {
   resolveServiceType,
   serviceSchemaUrlForType,
-  serviceTypeFromUri,
+  serviceTypeFromSchema,
 } from "../../response/file/serviceFileType";
 import { ProjectConfigService } from "../../services/ProjectConfigService";
 import { QipExplorerItem, QipExplorerProvider } from "../../qipExplorer";
@@ -48,6 +49,20 @@ const MIXED_TYPED_ID = "99999999-9999-4999-8999-999999999999";
 const ACME_EXTERNAL_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ACME_INTERNAL_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
+// The `from-backend` project is runtime-catalog's golden post-#553 export tree, copied in by
+// `pretest:integration`. These ids are its, so they change only when the backend's capture does.
+const BACKEND_EXTERNAL_ID = "svc-external";
+const BACKEND_INTERNAL_ID = "svc-internal";
+const BACKEND_IMPLEMENTED_ID = "svc-implemented";
+const BACKEND_CONTEXT_ID = "ctx-golden";
+const BACKEND_MCP_ID = "mcp-golden";
+
+// `from-backend-dotted` is the golden `post553-dotted` set: the same exporter over an api group and
+// an api whose ids carry dots, which every real export produces and no other set has.
+const BACKEND_DOTTED_SERVICE_ID = "svc-observe";
+const BACKEND_DOTTED_GROUP_ID = "grp-helix-observe-3.2";
+const BACKEND_DOTTED_API_ID = "api-helix-observe-3.2-1.0.0";
+
 let root: vscode.Uri;
 let networkCalls: string[] = [];
 let realFetch: typeof globalThis.fetch;
@@ -58,6 +73,14 @@ function fixture(...segments: string[]): vscode.Uri {
 
 function serviceFile(project: string, id: string, extension: string) {
   return fixture(project, id, `${id}${extension}`);
+}
+
+/**
+ * The same, for the backend tree: an archive nests its services under `services/`, and its ids are
+ * not the UUIDs the hand-written projects use, so `serviceFile`'s two-level layout does not reach it.
+ */
+function backendServiceFile(project: string, id: string, extension: string) {
+  return fixture(project, "services", id, `${id}${extension}`);
 }
 
 async function exists(uri: vscode.Uri): Promise<boolean> {
@@ -209,22 +232,21 @@ suite("Service types in the web host", () => {
   test("each service file kind opens in its own custom editor", async function (this: Mocha.Context) {
     this.timeout(120000);
 
+    // The three plain types share one name and therefore one editor; the two typeless kinds keep
+    // their own. The per-type entry is the leftover a #553 version wrote, still registered so an
+    // unconverted file opens.
     const cases: [vscode.Uri, string][] = [
       [
-        serviceFile("new-format", EXTERNAL_ID, ".external-service.qip.yaml"),
-        "qip.externalServiceFile.editor",
+        serviceFile("new-format", EXTERNAL_ID, ".service.qip.yaml"),
+        "qip.serviceFile.editor",
       ],
       [
-        serviceFile("new-format", INTERNAL_ID, ".internal-service.qip.yaml"),
-        "qip.internalServiceFile.editor",
+        serviceFile("new-format", INTERNAL_ID, ".service.qip.yaml"),
+        "qip.serviceFile.editor",
       ],
       [
-        serviceFile(
-          "new-format",
-          IMPLEMENTED_ID,
-          ".implemented-service.qip.yaml",
-        ),
-        "qip.implementedServiceFile.editor",
+        serviceFile("new-format", IMPLEMENTED_ID, ".service.qip.yaml"),
+        "qip.serviceFile.editor",
       ],
       [
         serviceFile("new-format", CONTEXT_ID, ".context-service.qip.yaml"),
@@ -233,6 +255,10 @@ suite("Service types in the web host", () => {
       [
         serviceFile("new-format", MCP_ID, ".mcp-service.qip.yaml"),
         "qip.mcpServiceFile.editor",
+      ],
+      [
+        serviceFile("mixed", MIXED_TYPED_ID, ".external-service.qip.yaml"),
+        "qip.externalServiceFile.editor",
       ],
       [
         serviceFile("old-format", LEGACY_EXTERNAL_ID, ".service.qip.yaml"),
@@ -252,8 +278,8 @@ suite("Service types in the web host", () => {
 
     assert.strictEqual(
       new Set(cases.map(([, viewType]) => viewType)).size,
-      cases.length,
-      "two file kinds share an editor",
+      4,
+      "the plain, context, MCP and per-type editors are four distinct view types",
     );
   });
 
@@ -275,7 +301,7 @@ suite("Service types in the web host", () => {
     assert.strictEqual(byId.get(LEGACY_EXTERNAL_ID)?.environments?.length, 1);
     assert.strictEqual(byId.get(LEGACY_EXTERNAL_ID)?.protocol, "http");
 
-    // And these from the name alone.
+    // And these from `$schema` alone.
     assert.strictEqual(
       byId.get(EXTERNAL_ID)?.integrationSystemType,
       IntegrationSystemType.EXTERNAL,
@@ -308,55 +334,67 @@ suite("Service types in the web host", () => {
       ["External", "Internal", "Implemented", "Context", "MCP"],
       "an empty group is rendered, or the group order moved",
     );
-    assert.deepStrictEqual(groups.get("External")?.sort(), [
-      EXTERNAL_ID,
-      LEGACY_EXTERNAL_ID,
-      MIXED_TYPED_ID,
-    ]);
-    assert.deepStrictEqual(groups.get("Internal")?.sort(), [
-      INTERNAL_ID,
-      LEGACY_INTERNAL_ID,
-    ]);
+    // The acme services group by their own app's names, whatever file is current: the walk
+    // resolves both maps per file, and the truncated acme uri types through the schema file name.
+    assert.deepStrictEqual(
+      groups.get("External")?.sort(),
+      [
+        EXTERNAL_ID,
+        MIXED_TYPED_ID,
+        BACKEND_DOTTED_SERVICE_ID,
+        ACME_EXTERNAL_ID,
+        LEGACY_EXTERNAL_ID,
+        BACKEND_EXTERNAL_ID,
+      ].sort(),
+    );
+    assert.deepStrictEqual(
+      groups.get("Internal")?.sort(),
+      [
+        INTERNAL_ID,
+        LEGACY_INTERNAL_ID,
+        BACKEND_INTERNAL_ID,
+        ACME_INTERNAL_ID,
+      ].sort(),
+    );
     assert.deepStrictEqual(groups.get("Implemented")?.sort(), [
       IMPLEMENTED_ID,
       MIXED_LEGACY_ID,
+      BACKEND_IMPLEMENTED_ID,
     ]);
-    assert.deepStrictEqual(groups.get("Context"), [CONTEXT_ID]);
-    assert.deepStrictEqual(groups.get("MCP"), [MCP_ID]);
+    // The backend tree's two special kinds land in their own groups rather than in `Unknown`, which
+    // the group-keys assertion above would have shown as a sixth key.
+    assert.deepStrictEqual(groups.get("Context")?.sort(), [
+      CONTEXT_ID,
+      BACKEND_CONTEXT_ID,
+    ]);
+    assert.deepStrictEqual(groups.get("MCP")?.sort(), [MCP_ID, BACKEND_MCP_ID]);
   });
 
-  test("editing an old-format service converts it and keeps every field", async function (this: Mocha.Context) {
+  // A pre-#553 document: the plain `$schema` and the type in the body. The name has been the
+  // current one all along, so what converts is the carrier alone — nothing moves on disk.
+  test("editing a pre-#553 service converts its carrier in place", async function (this: Mocha.Context) {
     this.timeout(120000);
 
-    const legacyUri = serviceFile(
+    const fileUri = serviceFile(
       "old-format",
       LEGACY_EXTERNAL_ID,
       ".service.qip.yaml",
     );
-    const typedUri = serviceFile(
-      "old-format",
-      LEGACY_EXTERNAL_ID,
-      ".external-service.qip.yaml",
-    );
-    const before = await readYaml(legacyUri);
+    const before = await readYaml(fileUri);
 
-    // Open the document the way a user edits it, so the panel state after the conversion is
-    // observable rather than assumed.
-    const viewType = await openAndReadViewType(legacyUri);
+    const viewType = await openAndReadViewType(fileUri);
     assert.strictEqual(viewType, "qip.serviceFile.editor");
 
-    const updated = await updateService(legacyUri, LEGACY_EXTERNAL_ID, {
+    const updated = await updateService(fileUri, LEGACY_EXTERNAL_ID, {
       description: "Converted in the web host",
     });
 
-    assert.ok(await exists(typedUri), "the typed file was not written");
-    assert.ok(!(await exists(legacyUri)), "the legacy sibling was not deleted");
     assert.strictEqual(
       updated.integrationSystemType,
       IntegrationSystemType.EXTERNAL,
     );
 
-    const after = await readYaml(typedUri);
+    const after = await readYaml(fileUri);
     assert.strictEqual(after.id, before.id);
     assert.strictEqual(after.name, before.name);
     assert.strictEqual(after.content.description, "Converted in the web host");
@@ -367,7 +405,7 @@ suite("Service types in the web host", () => {
     assert.strictEqual(
       after.content.integrationSystemType,
       undefined,
-      "a typed name must not restate the type in the body",
+      "a typed $schema must not restate the type in the body",
     );
     assert.strictEqual(after.content.protocol, before.content.protocol);
     assert.strictEqual(
@@ -381,32 +419,105 @@ suite("Service types in the web host", () => {
     // An older claim survives, so the backend still migrates the document through 105.
     assert.strictEqual(after.content.migrations, "[100, 101, 102, 103, 104]");
 
-    // The backend finds a converted dotted-id service through the folder name alone, so the folder
-    // must keep the id even though the file name changed.
+    // Nothing moved, so the folder holds exactly the one file it held before and the editor tab
+    // still points at a file that exists.
     const folderEntries = await vscode.workspace.fs.readDirectory(
       fixture("old-format", LEGACY_EXTERNAL_ID),
     );
     assert.deepStrictEqual(
       folderEntries.map(([name]) => name),
-      [`${LEGACY_EXTERNAL_ID}.external-service.qip.yaml`],
+      [`${LEGACY_EXTERNAL_ID}.service.qip.yaml`],
+    );
+    assert.ok(
+      openTabPaths().includes(fileUri.path),
+      "the editor tab no longer points at the file it was opened on",
+    );
+
+    const environment = await createEnvironment(fileUri, LEGACY_EXTERNAL_ID, {
+      name: "staging",
+      address: "https://staging.test",
+    });
+    const withEnvironment = await readYaml(fileUri);
+    assert.strictEqual(withEnvironment.content.environments.length, 2);
+    assert.ok(
+      withEnvironment.content.environments.some(
+        (candidate: { id: string }) => candidate.id === environment.id,
+      ),
+      "the environment added after the conversion is missing from the file",
+    );
+    assert.deepStrictEqual(
+      (await getEnvironments(fileUri, LEGACY_EXTERNAL_ID)).map(
+        (candidate) => candidate.name,
+      ),
+      ["Production", "staging"],
+    );
+
+    await closeAllEditors();
+  });
+
+  // The one rename left: a per-type name a #553 version wrote goes back to the plain one. Every
+  // stale-uri path hangs off this, because the panel keeps the uri it was opened on.
+  test("editing a per-type service renames it back and keeps working through the stale uri", async function (this: Mocha.Context) {
+    this.timeout(120000);
+
+    const perTypeUri = serviceFile(
+      "mixed",
+      MIXED_TYPED_ID,
+      ".external-service.qip.yaml",
+    );
+    const currentUri = serviceFile(
+      "mixed",
+      MIXED_TYPED_ID,
+      ".service.qip.yaml",
+    );
+    const before = await readYaml(perTypeUri);
+
+    const viewType = await openAndReadViewType(perTypeUri);
+    assert.strictEqual(viewType, "qip.externalServiceFile.editor");
+
+    const updated = await updateService(perTypeUri, MIXED_TYPED_ID, {
+      description: "Renamed back in the web host",
+    });
+
+    assert.ok(await exists(currentUri), "the current file was not written");
+    assert.ok(!(await exists(perTypeUri)), "the per-type file was not deleted");
+    assert.strictEqual(
+      updated.integrationSystemType,
+      IntegrationSystemType.EXTERNAL,
+    );
+
+    const after = await readYaml(currentUri);
+    assert.strictEqual(after.id, before.id);
+    assert.strictEqual(after.name, before.name);
+    assert.strictEqual(after.$schema, before.$schema);
+    assert.strictEqual(
+      after.content.description,
+      "Renamed back in the web host",
+    );
+
+    // The backend finds a dotted-id service through the folder name alone, so the folder keeps the
+    // id even though the file name changed.
+    const folderEntries = await vscode.workspace.fs.readDirectory(
+      fixture("mixed", MIXED_TYPED_ID),
+    );
+    assert.deepStrictEqual(
+      folderEntries.map(([name]) => name),
+      [`${MIXED_TYPED_ID}.service.qip.yaml`],
     );
 
     // The panel the edit came from still points at the file the conversion deleted, because VS Code
     // does not follow the rename. That is cosmetic; what matters is that the next request from that
-    // panel still works, which is what the second operation below exercises.
+    // panel still works, which is what the operations below exercise.
     assert.ok(
-      openTabPaths().includes(legacyUri.path),
-      "the editor tab no longer points at the deleted legacy file",
+      openTabPaths().includes(perTypeUri.path),
+      "the editor tab no longer points at the deleted per-type file",
     );
     assert.ok(
-      !openTabPaths().includes(typedUri.path),
+      !openTabPaths().includes(currentUri.path),
       "the editor tab followed the conversion after all",
     );
 
-    // A second operation issued with the uri the panel still holds — a second save, or adding an
-    // environment — used to fail on the deleted path, which left the service editor broken after
-    // the first save on any old-format service.
-    const secondSave = await updateService(legacyUri, LEGACY_EXTERNAL_ID, {
+    const secondSave = await updateService(perTypeUri, MIXED_TYPED_ID, {
       description: "Saved again through the stale uri",
     });
     assert.strictEqual(
@@ -414,51 +525,32 @@ suite("Service types in the web host", () => {
       "Saved again through the stale uri",
     );
     assert.strictEqual(
-      (await readYaml(typedUri)).content.description,
+      (await readYaml(currentUri)).content.description,
       "Saved again through the stale uri",
     );
     assert.ok(
-      !(await exists(legacyUri)),
-      "the second save recreated the legacy file",
-    );
-
-    const environment = await createEnvironment(legacyUri, LEGACY_EXTERNAL_ID, {
-      name: "staging",
-      address: "https://staging.test",
-    });
-    const withEnvironment = await readYaml(typedUri);
-    assert.strictEqual(withEnvironment.content.environments.length, 2);
-    assert.ok(
-      withEnvironment.content.environments.some(
-        (candidate: { id: string }) => candidate.id === environment.id,
-      ),
-      "the environment added through the stale uri is missing from the file",
-    );
-    assert.deepStrictEqual(
-      (await getEnvironments(legacyUri, LEGACY_EXTERNAL_ID)).map(
-        (candidate) => candidate.name,
-      ),
-      ["Production", "staging"],
+      !(await exists(perTypeUri)),
+      "the second save recreated the per-type file",
     );
 
     // The api level is read through the same stale uri, and used to fail on the deleted path rather
     // than report the service having no api groups.
     assert.deepStrictEqual(
-      await getApiSpecifications(legacyUri, LEGACY_EXTERNAL_ID),
+      await getApiSpecifications(perTypeUri, MIXED_TYPED_ID),
       [],
     );
 
     // A delete that fails leaves both files on disk for good, which the delete path swallows on
-    // purpose. The list and the tree show the typed one, so a read handed the legacy uri has to
+    // purpose. The list and the tree show the current one, so a read handed the per-type uri has to
     // land there too rather than on the document that lost the precedence race.
     await vscode.workspace.fs.writeFile(
-      legacyUri,
+      perTypeUri,
       new TextEncoder().encode(
         [
-          `id: ${LEGACY_EXTERNAL_ID}`,
-          "name: Legacy shipping",
+          `id: ${MIXED_TYPED_ID}`,
+          "$schema: http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
+          "name: Mixed typed partners",
           "content:",
-          "  integrationSystemType: INTERNAL",
           "  description: superseded",
           "  protocol: HTTP",
           "",
@@ -466,11 +558,11 @@ suite("Service types in the web host", () => {
       ),
     );
     try {
-      const bothOnDisk = await getService(legacyUri, LEGACY_EXTERNAL_ID);
+      const bothOnDisk = await getService(perTypeUri, MIXED_TYPED_ID);
       assert.strictEqual(
         bothOnDisk.integrationSystemType,
         IntegrationSystemType.EXTERNAL,
-        "the read landed on the legacy sibling",
+        "the read landed on the per-type sibling",
       );
       assert.strictEqual(
         bothOnDisk.description,
@@ -478,31 +570,34 @@ suite("Service types in the web host", () => {
       );
 
       // A write through that same uri has to land on the same file the read did. Following the uri
-      // instead applied the edit to the superseded body and wrote that over the typed file, which
-      // reverted every save since the conversion, environments included.
-      const savedThroughLegacy = await updateService(
-        legacyUri,
-        LEGACY_EXTERNAL_ID,
-        { name: "Legacy shipping, renamed" },
+      // instead applied the edit to the superseded body and wrote that over the current file, which
+      // reverted every save since the conversion.
+      const savedThroughPerType = await updateService(
+        perTypeUri,
+        MIXED_TYPED_ID,
+        { name: "Mixed typed partners, renamed" },
       );
       assert.strictEqual(
-        savedThroughLegacy.integrationSystemType,
+        savedThroughPerType.integrationSystemType,
         IntegrationSystemType.EXTERNAL,
       );
-      const typedAfterWrite = await readYaml(typedUri);
-      assert.strictEqual(typedAfterWrite.name, "Legacy shipping, renamed");
+      const currentAfterWrite = await readYaml(currentUri);
       assert.strictEqual(
-        typedAfterWrite.content.description,
-        "Saved again through the stale uri",
-        "the write carried the superseded body over the typed file",
+        currentAfterWrite.name,
+        "Mixed typed partners, renamed",
       );
       assert.strictEqual(
-        (await readYaml(legacyUri)).content.description,
+        currentAfterWrite.content.description,
+        "Saved again through the stale uri",
+        "the write carried the superseded body over the current file",
+      );
+      assert.strictEqual(
+        (await readYaml(perTypeUri)).content.description,
         "superseded",
         "the write went through the superseded file",
       );
     } finally {
-      await vscode.workspace.fs.delete(legacyUri);
+      await vscode.workspace.fs.delete(perTypeUri);
     }
 
     await closeAllEditors();
@@ -524,10 +619,14 @@ suite("Service types in the web host", () => {
         LEGACY_INTERNAL_ID,
         MIXED_LEGACY_ID,
         MIXED_TYPED_ID,
+        BACKEND_EXTERNAL_ID,
+        BACKEND_INTERNAL_ID,
+        BACKEND_IMPLEMENTED_ID,
+        BACKEND_DOTTED_SERVICE_ID,
       ].sort(),
     );
 
-    // The converted service now states its type in the name and no longer in the body.
+    // The converted service now states its type in `$schema` and no longer in the body.
     const converted = services.find(
       (service) => service.id === LEGACY_EXTERNAL_ID,
     );
@@ -535,20 +634,31 @@ suite("Service types in the web host", () => {
       converted?.integrationSystemType,
       IntegrationSystemType.EXTERNAL,
     );
-    // One from the fixture plus the one the previous test added through the stale uri: the
-    // conversion carried the environments over and the second write landed on the typed file.
+    // One from the fixture plus the one the conversion test added: the carrier changed and the
+    // environments came through untouched.
     assert.strictEqual(converted?.environments?.length, 2);
 
     const groups = serviceGroups(await readServiceGroups());
-    assert.deepStrictEqual(groups.get("External")?.sort(), [
-      EXTERNAL_ID,
-      LEGACY_EXTERNAL_ID,
-      MIXED_TYPED_ID,
-    ]);
-    assert.deepStrictEqual(groups.get("Internal")?.sort(), [
-      INTERNAL_ID,
-      LEGACY_INTERNAL_ID,
-    ]);
+    assert.deepStrictEqual(
+      groups.get("External")?.sort(),
+      [
+        EXTERNAL_ID,
+        LEGACY_EXTERNAL_ID,
+        MIXED_TYPED_ID,
+        BACKEND_EXTERNAL_ID,
+        BACKEND_DOTTED_SERVICE_ID,
+        ACME_EXTERNAL_ID,
+      ].sort(),
+    );
+    assert.deepStrictEqual(
+      groups.get("Internal")?.sort(),
+      [
+        INTERNAL_ID,
+        LEGACY_INTERNAL_ID,
+        BACKEND_INTERNAL_ID,
+        ACME_INTERNAL_ID,
+      ].sort(),
+    );
   });
 
   test("a project config with its own appName still resolves the type", async function (this: Mocha.Context) {
@@ -557,17 +667,25 @@ suite("Service types in the web host", () => {
     const externalUri = serviceFile(
       "custom-config",
       ACME_EXTERNAL_ID,
-      ".external-service.acme.yaml",
+      ".service.acme.yaml",
     );
     const internalUri = serviceFile(
       "custom-config",
       ACME_INTERNAL_ID,
-      ".internal-service.acme.yaml",
+      ".service.acme.yaml",
     );
 
-    // The name carries the type before any config is loaded: the app name is read off the name.
+    // The document carries the type before any config is loaded: the acme schema url is one this
+    // installation configures nowhere, so only the schema file name can answer.
     assert.strictEqual(
-      serviceTypeFromUri(externalUri),
+      serviceTypeFromSchema((await readYaml(externalUri)).$schema, {
+        service: "urn:none",
+        externalService: "urn:none",
+        internalService: "urn:none",
+        implementedService: "urn:none",
+        contextService: "urn:none",
+        mcpService: "urn:none",
+      }),
       IntegrationSystemType.EXTERNAL,
     );
     assert.strictEqual(
@@ -587,15 +705,12 @@ suite("Service types in the web host", () => {
 
       const extensions = getExtensionsForUri(externalUri);
       assert.strictEqual(extensions.appName, "acme");
-      assert.strictEqual(
-        extensions.externalService,
-        ".external-service.acme.yaml",
-      );
+      assert.strictEqual(extensions.service, ".service.acme.yaml");
       assert.strictEqual(
         resolveServiceType(
           externalUri,
           await readYaml(externalUri),
-          extensions,
+          configService.getCurrentConfig().schemaUrls,
         ),
         IntegrationSystemType.EXTERNAL,
       );
@@ -614,5 +729,153 @@ suite("Service types in the web host", () => {
 
     // The default app is unaffected once the custom config is dropped again.
     assert.strictEqual(getExtensionsForFile().appName, "qip");
+  });
+
+  // --- the backend-produced projects ---------------------------------------------------------
+  //
+  // Everything below reads `from-backend` and `from-backend-dotted`, which `pretest:integration`
+  // copies out of runtime-catalog's golden corpus. The assertions above already cover the two
+  // writers agreeing on the *rule*; these cover them agreeing on the *artifact*, which is the only
+  // thing a released pair of versions has in common.
+
+  test("every backend-written service file opens in its own custom editor", async function (this: Mocha.Context) {
+    this.timeout(120000);
+
+    const cases: [vscode.Uri, string][] = [
+      [
+        backendServiceFile(
+          "from-backend",
+          BACKEND_EXTERNAL_ID,
+          ".service.qip.yaml",
+        ),
+        "qip.serviceFile.editor",
+      ],
+      [
+        backendServiceFile(
+          "from-backend",
+          BACKEND_INTERNAL_ID,
+          ".service.qip.yaml",
+        ),
+        "qip.serviceFile.editor",
+      ],
+      [
+        backendServiceFile(
+          "from-backend",
+          BACKEND_IMPLEMENTED_ID,
+          ".service.qip.yaml",
+        ),
+        "qip.serviceFile.editor",
+      ],
+      [
+        backendServiceFile(
+          "from-backend",
+          BACKEND_CONTEXT_ID,
+          ".context-service.qip.yaml",
+        ),
+        "qip.contextServiceFile.editor",
+      ],
+      [
+        backendServiceFile(
+          "from-backend",
+          BACKEND_MCP_ID,
+          ".mcp-service.qip.yaml",
+        ),
+        "qip.mcpServiceFile.editor",
+      ],
+      [
+        backendServiceFile(
+          "from-backend-dotted",
+          BACKEND_DOTTED_SERVICE_ID,
+          ".service.qip.yaml",
+        ),
+        "qip.serviceFile.editor",
+      ],
+    ];
+
+    for (const [uri, expected] of cases) {
+      assert.ok(
+        await exists(uri),
+        `${uri.path} is missing from the copied tree`,
+      );
+      const viewType = await openAndReadViewType(uri);
+      assert.strictEqual(
+        viewType,
+        expected,
+        `${uri.path.split("/").pop()} opened in ${viewType}`,
+      );
+      await closeAllEditors();
+    }
+  });
+
+  test("a backend-written api group and api read back under their dotted ids", async function (this: Mocha.Context) {
+    this.timeout(60000);
+
+    const serviceUri = backendServiceFile(
+      "from-backend-dotted",
+      BACKEND_DOTTED_SERVICE_ID,
+      ".service.qip.yaml",
+    );
+
+    // The file names are `<id>.api-group.qip.yaml` and `<id>.api.qip.yaml` over ids carrying dots.
+    // Reading the id back means stripping the whole extension end-anchored; anchoring on the first
+    // dot the way the backend does for a *service* name would answer `grp-helix-observe` here.
+    const groups = await getApiSpecifications(
+      serviceUri,
+      BACKEND_DOTTED_SERVICE_ID,
+    );
+    assert.deepStrictEqual(
+      groups.map((group) => group.id),
+      [BACKEND_DOTTED_GROUP_ID],
+    );
+
+    const apis = await getSpecificationModel(
+      serviceUri,
+      BACKEND_DOTTED_SERVICE_ID,
+      BACKEND_DOTTED_GROUP_ID,
+    );
+    assert.deepStrictEqual(
+      apis.map((api) => api.id),
+      [BACKEND_DOTTED_API_ID],
+    );
+  });
+
+  test("re-saving a backend service leaves its file name unchanged", async function (this: Mocha.Context) {
+    this.timeout(60000);
+
+    const folder = fixture("from-backend", "services", BACKEND_EXTERNAL_ID);
+    const serviceUri = backendServiceFile(
+      "from-backend",
+      BACKEND_EXTERNAL_ID,
+      ".service.qip.yaml",
+    );
+    const before = (await vscode.workspace.fs.readDirectory(folder))
+      .map(([name]) => name)
+      .sort();
+
+    await updateService(serviceUri, BACKEND_EXTERNAL_ID, {
+      description: "Saved by the extension over a backend-written file",
+    });
+
+    // `serviceFileWrite.writeServiceInCurrentFormat` returns early when the name it computes equals
+    // the current one. A rename here means the two writers disagree about what "current" is, which
+    // is the whole coupling this project exists to catch — and it fails silently in production,
+    // because the extension renames and the backend then discovers nothing.
+    assert.deepStrictEqual(
+      (await vscode.workspace.fs.readDirectory(folder))
+        .map(([name]) => name)
+        .sort(),
+      before,
+      "the extension renamed a file the backend had just written",
+    );
+    assert.strictEqual(
+      (await readYaml(serviceUri)).content.description,
+      "Saved by the extension over a backend-written file",
+    );
+    // The `$schema` states the type, so the write must not put the field back in the body.
+    assert.strictEqual(
+      (await readYaml(serviceUri)).content.integrationSystemType,
+      undefined,
+      "a typed $schema must not restate the type in the body",
+    );
   });
 });

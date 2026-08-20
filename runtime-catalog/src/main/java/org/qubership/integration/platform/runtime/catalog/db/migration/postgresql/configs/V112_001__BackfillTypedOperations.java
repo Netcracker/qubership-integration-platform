@@ -14,10 +14,7 @@ import org.springframework.stereotype.Component;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * First concrete configs Java migration. It must be a {@code @Component}, or it never runs. Flyway runs only
@@ -61,6 +58,9 @@ public class V112_001__BackfillTypedOperations extends ConfigsJavaMigration {
 
     static final String UPDATE_MODEL_SPECIFICATION_TYPE = "update models set specification_type = ? where id = ?";
 
+    // Cursor page and batch flush share one size: neither side of the stream holds more rows than this.
+    static final int BATCH_SIZE = 500;
+
     // JsonBinaryType reads the column with an equivalent mapper, so serialize the payload the same way.
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
     // Column-derived path only; the reparse collaborators are unused, hence null (see the 3-arg overload).
@@ -76,52 +76,52 @@ public class V112_001__BackfillTypedOperations extends ConfigsJavaMigration {
     }
 
     private int backfillOperations(Connection connection) throws Exception {
-        List<IdValue> rows = new ArrayList<>();
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery(SELECT_OPERATIONS)) {
-            while (resultSet.next()) {
-                String typedJson = typedJson(
-                        resultSet.getString("path"),
-                        resultSet.getString("method"),
-                        readTree(resultSet.getString("specification")),
-                        protocolOf(resultSet.getString("protocol")));
-                if (typedJson != null) {
-                    rows.add(new IdValue(resultSet.getString("id"), typedJson));
-                }
-            }
-        }
-        return writeBatch(connection, UPDATE_OPERATION_TYPED, rows);
+        return streamAndWrite(connection, SELECT_OPERATIONS, UPDATE_OPERATION_TYPED, row -> typedJson(
+                row.getString("path"),
+                row.getString("method"),
+                readTree(row.getString("specification")),
+                protocolOf(row.getString("protocol"))));
     }
 
     private int backfillModelSpecificationType(Connection connection) throws Exception {
-        List<IdValue> rows = new ArrayList<>();
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery(SELECT_MODELS)) {
-            while (resultSet.next()) {
-                String specificationType = BACKFILL.backfillSpecificationType(
-                        protocolOf(resultSet.getString("protocol")));
-                if (specificationType != null) {
-                    rows.add(new IdValue(resultSet.getString("id"), specificationType));
-                }
-            }
-        }
-        return writeBatch(connection, UPDATE_MODEL_SPECIFICATION_TYPE, rows);
+        return streamAndWrite(connection, SELECT_MODELS, UPDATE_MODEL_SPECIFICATION_TYPE,
+                row -> BACKFILL.backfillSpecificationType(protocolOf(row.getString("protocol"))));
     }
 
-    // No rows means no statement is prepared, so a re-run that selects nothing writes nothing.
-    private int writeBatch(Connection connection, String sql, List<IdValue> rows) throws SQLException {
-        if (rows.isEmpty()) {
-            return 0;
-        }
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            for (IdValue row : rows) {
-                statement.setString(1, row.value());
-                statement.setString(2, row.id());
-                statement.addBatch();
+    // Reads through a cursor and flushes every BATCH_SIZE updates, so neither the result set nor the pending
+    // batch grows with the table: holding every unfilled operation row, each with its specification jsonb,
+    // spiked the startup heap, and an OOM inside @PostConstruct crash-loops the pod. setFetchSize takes effect
+    // only with autoCommit off, which is what Flyway's per-migration transaction provides. A run that selects
+    // nothing prepares the statement and executes no batch, so a second run stays a no-op.
+    private int streamAndWrite(Connection connection, String selectSql, String updateSql, RowValue rowValue)
+            throws Exception {
+        int written = 0;
+        int pending = 0;
+        try (Statement select = connection.createStatement();
+             PreparedStatement update = connection.prepareStatement(updateSql)) {
+            select.setFetchSize(BATCH_SIZE);
+            try (ResultSet rows = select.executeQuery(selectSql)) {
+                while (rows.next()) {
+                    String value = rowValue.of(rows);
+                    if (value == null) {
+                        continue;
+                    }
+                    update.setString(1, value);
+                    update.setString(2, rows.getString("id"));
+                    update.addBatch();
+                    written++;
+                    pending++;
+                    if (pending == BATCH_SIZE) {
+                        update.executeBatch();
+                        pending = 0;
+                    }
+                }
             }
-            statement.executeBatch();
+            if (pending > 0) {
+                update.executeBatch();
+            }
         }
-        return rows.size();
+        return written;
     }
 
     // Pure and database-free: rebuilds the typed payload from a row's columns and serializes it as the
@@ -162,7 +162,10 @@ public class V112_001__BackfillTypedOperations extends ConfigsJavaMigration {
         return json == null ? null : MAPPER.readTree(json);
     }
 
-    // Carries an id plus the column value to write: typed jsonb for operations, specification_type for models.
-    private record IdValue(String id, String value) {
+    // Derives the column value to write from the current row: typed jsonb for operations, specification_type
+    // for models. A null skips the row.
+    @FunctionalInterface
+    private interface RowValue {
+        String of(ResultSet row) throws Exception;
     }
 }

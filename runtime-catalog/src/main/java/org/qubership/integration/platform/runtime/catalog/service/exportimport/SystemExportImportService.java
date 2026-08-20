@@ -92,10 +92,11 @@ public class SystemExportImportService {
     private static final String SPECIFICATION_EXISTS_ERROR_MESSAGE_END = "' was not imported. ";
     protected static final String CONFIG_DEPLOY_LABELS = "deployLabels";
 
-    // Every name a plain service file can carry: the three per-type postfixes, plus the older `.service.`.
-    // `ExportImportUtils` ORs the deprecated flat `service-` prefix in on its own, and recognizes this scan as the
-    // plain-service one by these postfixes, so the list has to come from there. A context or MCP service matches none
-    // of them, because `.context-service.` does not contain `.service.`, and is imported elsewhere.
+    // Every name a plain service file can carry: the current `.service.`, plus the three read-only per-type
+    // postfixes from #553. `ExportImportUtils` ORs the deprecated flat `service-` prefix in on its own, and
+    // recognizes this scan as the plain-service one by these postfixes, so the list has to come from there. A
+    // context or MCP service matches none of them, because `.context-service.` does not contain `.service.`,
+    // and is imported elsewhere.
     private static final Collection<String> SERVICE_FILE_POSTFIXES = ExportImportUtils.plainServicePostfixes();
 
     private final TransactionTemplate transactionTemplate;
@@ -427,10 +428,9 @@ public class SystemExportImportService {
             IntegrationSystem baseSystem = deserializationResult.getSystem();
             systemId = baseSystem.getId();
             systemName = baseSystem.getName();
-            // The same rule the commit path runs, so a file stating no type, or a name and a field that disagree,
+            // The same rule the commit path runs, so a file stating no type, or a $schema and a field that disagree,
             // shows up as an error row here instead of only after the user commits.
-            ServiceTypeFiles.typeFromDocument(serviceNode).ifPresent(baseSystem::setIntegrationSystemType);
-            serviceDeserializer.resolveServiceType(baseSystem, mainSystemFile);
+            serviceDeserializer.resolveServiceType(baseSystem, mainSystemFile, serviceNode);
             Long systemModifiedWhen = baseSystem.getModifiedWhen() != null ? baseSystem.getModifiedWhen().getTime() : 0;
             ImportInstructionAction instructionAction = instructionsConfig.getIgnore().contains(systemId)
                     ? ImportInstructionAction.IGNORE

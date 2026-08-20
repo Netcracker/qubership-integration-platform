@@ -658,12 +658,20 @@
       <testResource>
         <directory>${pom.basedir}/src/main/resources</directory>
       </testResource>
-      <!-- Shared conformance corpus (parity oracle) lives in the schemas module,
-           which is not part of this reactor. targetPath is required: the resources
-           above copy to the classpath root, so the corpus must be namespaced. -->
+      <!-- Three corpora shared with other modules, living in schemas, which is not part of this
+           reactor. Copying the parent directory keeps each one namespaced by its own folder name
+           (/conformance, /exportimport-golden, /naming) with no targetPath to keep in step, and the
+           include list is what stops the rest of schemas' test resources landing on the classpath.
+             conformance        parity oracle for operation schema extraction (also read by the UI)
+             exportimport-golden  archive trees this module produces, opened by the VS Code extension
+             naming             the service file naming rule, declared once for both implementations -->
       <testResource>
-        <directory>${project.basedir}/../schemas/src/test/resources/conformance</directory>
-        <targetPath>conformance</targetPath>
+        <directory>${project.basedir}/../schemas/src/test/resources</directory>
+        <includes>
+          <include>conformance/**</include>
+          <include>exportimport-golden/**</include>
+          <include>naming/**</include>
+        </includes>
       </testResource>
       <!-- Service schemas from the same module, so a test can check the configured
            $schema URIs against the $id the schema actually declares. Nothing else

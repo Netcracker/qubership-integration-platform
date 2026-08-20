@@ -79,7 +79,7 @@ export interface ProjectConfigFile {
 // backend exporter writes. These are the values stamped on files this extension
 // creates; a file carrying the older truncated URL is read by its file
 // extension, not by its `$schema`.
-const DEFAULT_SCHEMA_URLS = {
+export const DEFAULT_SCHEMA_URLS: ProjectConfig["schemaUrls"] = {
   contextService:
     "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
   mcpService:

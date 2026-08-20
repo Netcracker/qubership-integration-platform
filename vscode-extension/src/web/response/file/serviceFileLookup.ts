@@ -3,6 +3,7 @@ import { fileApi } from "./fileApiProvider";
 import { getExtensionsForFile } from "./fileExtensions";
 import {
   allServiceExtensions,
+  carriedServiceExtension,
   plainServiceExtensions,
   ServiceExtensions,
 } from "./serviceFileType";
@@ -53,9 +54,10 @@ export class UnreadableServiceFileError extends UnreadableSiblingError {
 }
 
 /**
- * Resolves a plain service file by id across every name it can carry. A typed name wins over
- * the legacy sibling, the same precedence `ApiGroupService.resolveGroupFile` applies to a group
- * stored under two extensions, so a converted service resolves to the file the next write lands on.
+ * Resolves a plain service file by id across every name it can carry. The current `.service.` name
+ * wins over a per-type sibling, the same precedence `ApiGroupService.resolveGroupFile` applies to a
+ * group stored under two extensions, so a converted service resolves to the file the next write
+ * lands on.
  *
  * A miss and a broken scan both come back as one `ServiceFileNotFoundError` naming every failure,
  * because reporting the last failure alone hid the broken file that made every later name fail too.
@@ -89,16 +91,25 @@ export async function findServiceFileById(
   );
 }
 
-/** Every plain service file in the workspace, typed names ahead of legacy ones. */
+/** Every plain service file in the workspace, the current name ahead of the per-type ones. */
 export async function findServiceFiles(
   extensions?: ServiceExtensions,
 ): Promise<Uri[]> {
+  const scanned = extensions ?? getExtensionsForFile();
+  const order = extensionsToScan(scanned);
   const perExtension = await Promise.all(
-    extensionsToScan(extensions).map((extension) =>
-      fileApi.findFiles(extension),
-    ),
+    order.map((extension) => fileApi.findFiles(extension)),
   );
-  return perExtension.flat();
+  // `findFiles` matches by bare `endsWith`, so under an overlapping config a per-type name lands
+  // in the current-name batch too — ahead of the current file. A file counts only in the batch of
+  // the extension it carries, the longest match.
+  return perExtension
+    .map((files, rank) =>
+      files.filter(
+        (fileUri) => carriedServiceExtension(fileUri, scanned) === order[rank],
+      ),
+    )
+    .flat();
 }
 
 /** The services a listing can show, and the files it could not read. */

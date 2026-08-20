@@ -216,7 +216,7 @@ function directoryOf(filePath: string): string {
  * `service: ".svc.yaml"` beside `externalService: ".external.svc.yaml"` must not read every
  * external name as the legacy one.
  */
-function extensionOf(
+export function carriedEntityExtension(
   fileUri: Uri,
   extensions: readonly string[],
 ): string | undefined {
@@ -231,7 +231,7 @@ function baseOf(
   fileUri: Uri,
   extensions: readonly string[],
 ): string | undefined {
-  const extension = extensionOf(fileUri, extensions);
+  const extension = carriedEntityExtension(fileUri, extensions);
   const name = extractFilename(fileUri);
   return extension ? name.slice(0, -extension.length) || undefined : undefined;
 }
@@ -241,7 +241,7 @@ function baseOf(
  * name the list does not hold ranks below every name it does.
  */
 function precedenceOf(fileUri: Uri, extensions: readonly string[]): number {
-  const extension = extensionOf(fileUri, extensions);
+  const extension = carriedEntityExtension(fileUri, extensions);
   const rank = extension ? extensions.indexOf(extension) : -1;
   return rank < 0 ? Number.MAX_SAFE_INTEGER : rank;
 }

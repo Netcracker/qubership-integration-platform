@@ -34,10 +34,10 @@ public class ExportImportConstants {
     public static final String CHAIN_YAML_NAME_POSTFIX = ".chain.";
     @Deprecated
     public static final String SERVICE_YAML_NAME_PREFIX = "service-";
-    // Export writes a per-type postfix; import still reads this one, for every archive written before them.
+    // Export writes this postfix for every plain service; the type is stated in the $schema, not in the name.
     public static final String SERVICE_YAML_NAME_POSTFIX = ".service.";
-    // Per-type postfixes: the file name is where a service states its type. The "-service" suffix keeps them from
-    // matching ".service." under endsWith and contains, the same way ".context-service." does today.
+    // Per-type postfixes: read-only legacy from #553, still discovered because archives exported then carry them. The
+    // "-service" suffix keeps them from matching ".service." under endsWith and contains, as ".context-service." does.
     public static final String EXTERNAL_SERVICE_YAML_NAME_POSTFIX = ".external-service.";
     public static final String INTERNAL_SERVICE_YAML_NAME_POSTFIX = ".internal-service.";
     public static final String IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX = ".implemented-service.";
