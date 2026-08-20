@@ -33,8 +33,11 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
+import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore;
@@ -59,6 +62,7 @@ class CompilerGraphPatchToolTest {
   private CaptureAttemptFeedbackStore feedbackStore;
   private GraphPatchExecutionContextStore executionContextStore;
   private CaptureRouter captureRouter;
+  private KnowledgeCitationResolver citationResolver;
   private CompilerGraphPatchTool tool;
   private ObjectMapper objectMapper;
 
@@ -76,6 +80,10 @@ class CompilerGraphPatchToolTest {
     feedbackStore = new CaptureAttemptFeedbackStore();
     executionContextStore = new GraphPatchExecutionContextStore();
     captureRouter = mock(CaptureRouter.class);
+    citationResolver = mock(KnowledgeCitationResolver.class);
+    when(citationResolver.resolve(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyList()))
+        .thenReturn(List.of());
     when(captureRouter.routeFor(org.mockito.ArgumentMatchers.anyString()))
         .thenAnswer(
             invocation ->
@@ -94,7 +102,8 @@ class CompilerGraphPatchToolTest {
             new GraphPatchApplier(),
             new CaptureRepairMessageBuilder(schemaService),
             executionContextStore,
-            captureRouter);
+            captureRouter,
+            citationResolver);
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, CAPABILITY_ID);
   }
@@ -161,6 +170,40 @@ class CompilerGraphPatchToolTest {
     GraphPatch stored = captureSession.get(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
     assertEquals("eh-test", stored.patchId());
     assertEquals(CAPABILITY_ID, stored.ownerCapabilityId());
+  }
+
+  @Test
+  void storesResolvedKnowledgeCitationFromReferenceId() {
+    QipKnowledgeCitation citation =
+        new QipKnowledgeCitation(
+            "CIP:LEL-000142",
+            QipKnowledgeRefType.KNOWLEDGE_OBJECT,
+            "language/element-relationships.md#pattern-trigger-try-catch-finally-2",
+            new QipKnowledgePackVersion("1.0.0", "1.0.0"),
+            "Pattern: Trigger to Try-Catch-Finally-2");
+    when(citationResolver.resolve(CONVERSATION_ID, List.of("CIP:LEL-000142")))
+        .thenReturn(List.of(citation));
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "eh-cited",
+            CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of("CIP:LEL-000142"),
+            "No changes required");
+
+    assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    GraphPatch stored =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertEquals(citation, stored.usedKnowledgeRefs().getFirst());
   }
 
   @Test

@@ -74,6 +74,7 @@ public class CompilerGraphPatchTool {
   private final CaptureRepairMessageBuilder repairMessageBuilder;
   private final GraphPatchExecutionContextStore executionContextStore;
   private final CaptureRouter captureRouter;
+  private final KnowledgeCitationResolver citationResolver;
   private final ValidatedGraphPatchApplier validatedPatchApplier;
   private final GraphPatchPreviewValidator previewValidator;
 
@@ -89,7 +90,8 @@ public class CompilerGraphPatchTool {
       GraphPatchApplier patchApplier,
       CaptureRepairMessageBuilder repairMessageBuilder,
       GraphPatchExecutionContextStore executionContextStore,
-      CaptureRouter captureRouter) {
+      CaptureRouter captureRouter,
+      KnowledgeCitationResolver citationResolver) {
     this.captureSession = captureSession;
     this.planStore = planStore;
     this.schemaService = schemaService;
@@ -101,6 +103,7 @@ public class CompilerGraphPatchTool {
     this.repairMessageBuilder = repairMessageBuilder;
     this.executionContextStore = executionContextStore;
     this.captureRouter = captureRouter;
+    this.citationResolver = citationResolver;
     this.validatedPatchApplier =
         new ValidatedGraphPatchApplier(new GraphPatchOwnershipValidator(), patchApplier);
     this.previewValidator =
@@ -134,7 +137,7 @@ public class CompilerGraphPatchTool {
            "value": ["qip-viewer"]}
         ],
         "chainPatches": [],
-        "usedKnowledgeRefs": [],
+        "usedKnowledgeRefs": ["exact-refId-from-runtime-context"],
         "rationale": "why this patch was or was not generated"
       }
       Node and edge patches use ADD, UPDATE, or REMOVE operations with ChainPlanNode/ChainPlanEdge bodies.
@@ -442,7 +445,7 @@ public class CompilerGraphPatchTool {
         patch.edgePatches(),
         toPropertyPatches(conversationId, patch, patch.propertyPatches()),
         toChainPatches(patch.chainPatches()),
-        patch.usedKnowledgeRefs(),
+        citationResolver.resolve(conversationId, patch.usedKnowledgeRefs()),
         patch.rationale());
   }
 

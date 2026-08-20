@@ -3,7 +3,6 @@ package org.qubership.integration.platform.ai.compiler;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch;
 
@@ -19,7 +18,8 @@ record GraphPatchCapture(
         List<PropertyPatchCapture> propertyPatches,
     @Description("Chain-level field patches; use key plus structured value")
         List<ChainPatchCapture> chainPatches,
-    List<QipKnowledgeCitation> usedKnowledgeRefs,
+    @Description("Exact refId strings from the provided runtime knowledge context")
+        List<String> usedKnowledgeRefs,
     @Description("Why the patch was or was not generated") String rationale,
     @Description(
             "Set true when this skill has nothing to change (NOT_APPLICABLE). Requires empty"
@@ -35,7 +35,7 @@ record GraphPatchCapture(
       List<EdgePatch> edgePatches,
       List<PropertyPatchCapture> propertyPatches,
       List<ChainPatchCapture> chainPatches,
-      List<QipKnowledgeCitation> usedKnowledgeRefs,
+      List<String> usedKnowledgeRefs,
       String rationale) {
     this(
         patchId,
