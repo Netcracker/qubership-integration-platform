@@ -9,6 +9,17 @@ Fill every field the chosen action requires. Leave optional fields empty when th
 against the graph. It does not guess the action, type, targets, or disposition from the wording of
 the request.
 
+## The chain listing
+
+Each element of the open chain is one line, `id | type | label`, followed by the property keys that
+element answers to:
+
+- `set:` — keys that already carry a value, with the value. Long values are cut short with `…`.
+- `other keys:` — the remaining keys the element's schema accepts.
+
+Take every id and every property key from these lines. A key that appears under neither `set:` nor
+`other keys:` for the target element is not a key that element has.
+
 ## Actions
 
 - `NO_CHANGE`: nothing should change. Use this when the request does not ask for an edit.
@@ -78,9 +89,11 @@ mistake here that changes the wrong thing in their chain.
 
 List every property the request changes in `propertyKeys`, using the catalog's own property key
 names for the target element's type, not a paraphrase: `contextPath`, not "the path"; `retryCount`,
-not "how many retries". Java matches these keys against the target element's schema and against each
-generator's declared properties, so a name that does not match either fails the request instead of
-reaching a generator. Leave `propertyKeys` empty for every action other than `CONFIGURE`.
+not "how many retries". The listing gives you those names under `set:` and `other keys:` for the
+element you are targeting; read them from there rather than recalling them. Java matches these keys
+against the target element's schema and against each generator's declared properties, so a name that
+does not match either fails the request instead of reaching a generator. Leave `propertyKeys` empty
+for every action other than `CONFIGURE`.
 
 Example — request: "Change the HTTP trigger's context path to /orders and restrict it to POST."
 `action=CONFIGURE`, `targetNodeIds=["http-trigger-1"]`,

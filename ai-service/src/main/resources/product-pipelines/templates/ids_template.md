@@ -1,5 +1,9 @@
 # Integration Design Specification (IDS)
 
+> **Authoring constraint:** Treat the approved requirement brief and supplied evidence as the only sources of facts.
+> Do not invent endpoints, service calls, parameters, mappings, response codes, assumptions, identifiers, or
+> configuration values. Omit unsupported rows or sections instead of completing them with plausible examples.
+
 **Document ID:** <generate_document_id>
 **Version:** <current_version>
 **Document Date:** <current_date>
@@ -78,15 +82,13 @@ This document is intended for nominated business, 3rd party vendors and IT repre
 
 | # | Description | Status |
 |---|-------------|--------|
-| 1 | As part of this solution, NC will use either <3rdPartySystemName> ID or CivilRegistry no. as an identifier to read the customer consent from <3rdPartySystemName> if present. | Proposed |
+| <assumption_id> | <requirement-backed assumption> | <status> |
 
 ### Out of Scope
 
 | # | Description |
 |---|-------------|
-| 1 | Interface contract and integration scenarios between Netcracker and <project_name>. Same as described in IA, refer at [1]. |
-| 2 | Physical structure and payload of the messages between the Netcracker and <project_name>. Same as described in IA, refer at [1]. |
-| 3 | Error codes and scenarios. Same is described in IA, refer at [1]. |
+| <out_of_scope_id> | <requirement-backed exclusion> |
 
 ---
 
@@ -115,14 +117,20 @@ Process flow is demonstrated in the form of interaction diagram as follows:
 ```mermaid
 sequenceDiagram
     autonumber
+    participant Caller as Calling System
     participant CIP as CIP Chain
     participant EXT as <External System Name>
 
-    CIP->>EXT: <interaction — replace with user-requested calls only>
-    EXT-->>CIP: <response>
+    Caller->>CIP: <ENDPOINT trigger — use the requested method and path>
+    CIP->>EXT: <SERVICE_CALL — use the requested operation only>
+    EXT-->>CIP: <service response>
+    CIP-->>Caller: <chain response>
 ```
 
-> **Diagram rule:** Use **only** `sequenceDiagram` blocks (as many as needed). Do not use flowchart, graph, dot/digraph, stateDiagram, or other Mermaid types.
+> **Diagram rules:** Use **only** `sequenceDiagram` blocks (as many as needed). Represent every `ENDPOINT` as an
+> inbound `Caller ->> CIP` message and every `SERVICE_CALL` as an outbound `CIP ->> external participant` message.
+> Do not represent an endpoint as an outbound service call. Include only interactions stated in the requirements. Do
+> not use flowchart, graph, dot/digraph, stateDiagram, or other Mermaid types.
 
 #### Process Steps
 
@@ -164,8 +172,7 @@ This covers the mapping of Operation Name interface exposed by <System Name> for
 
 | Response Parameter | Description | Type | Mandatory | Provided By |
 |--------------------|-------------|------|-----------|-------------|
-| errorCode | The attribute contains fault code coming from <3rdPartySystemName> | String | M | CIP |
-| errorMessage | The attribute contains internal error message. | String | M | CIP |
+| <field> | <field_description> | <field_type> | <field_mandatoriness> | <provider> |
 
 <error_response_sample>
 
@@ -173,7 +180,8 @@ This covers the mapping of Operation Name interface exposed by <System Name> for
 
 ## Error Handling
 
-Error handling will be done in two ways by Integration Adapter. Based on the error type, retry the failed request (based on pre-defined config) or direct forwarding of error to the caller module which will in turn manage or resolve the error.
+Error handling supports retrying failed requests based on the predefined configuration or forwarding errors to the
+caller for resolution.
 
 ### Error Codes - <3rdPartySystemName> (<Operation Name>)
 
@@ -196,7 +204,7 @@ This section describes the logging considerations to be taken care for various o
 
 ## Integration Configuration
 
-Following parameters will be part of <3rdPartySystemName> Integration configuration:
+List only configuration parameters stated in the approved brief or supplied evidence.
 
 | Sl.Num. | Parameter Name | Default Value | Notes |
 |---------|----------------|---------------|-------|

@@ -49,6 +49,11 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+    ChatRequest requestWithDefaults =
+        chatRequest
+            .toBuilder()
+            .parameters(delegate.defaultRequestParameters().overrideWith(chatRequest.parameters()))
+            .build();
     boolean enabled = appConfig.llm().rateLimit().enabled();
     int maxAttempts = appConfig.llm().rateLimit().maxAttempts();
     AtomicBoolean backoffInCall = new AtomicBoolean(false);
@@ -58,7 +63,7 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
         new RateLimitAwareStreamingChatModel(
             delegate, classifier, policy, sleeper, enabled, maxAttempts, onBackoff);
     rateLimited.chat(
-        chatRequest, RateLimitSinkSupport.completionAwareHandler(handler, backoffInCall));
+        requestWithDefaults, RateLimitSinkSupport.completionAwareHandler(handler, backoffInCall));
   }
 
   @Override

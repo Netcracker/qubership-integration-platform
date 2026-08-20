@@ -310,7 +310,7 @@ export class HttpAiModelProvider implements AiModelProvider {
     // at, and without them it cannot tell a change request from a new integration being described.
     const chainId = openChainId(request);
     if (chainId) {
-      const chainName = request.context.compactSchema?.chainName ?? "chain";
+      const chainName = request.context?.compactSchema?.chainName ?? "chain";
       parts.push(`## Current Chain: ${chainName} (ID: ${chainId})`);
     }
 

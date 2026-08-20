@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 
-const mockPost = jest.fn<
-  (url: string, body: unknown, config?: unknown) => Promise<{ data: unknown }>
->();
+const mockPost =
+  jest.fn<
+    (url: string, body: unknown, config?: unknown) => Promise<{ data: unknown }>
+  >();
 
 jest.mock("axios", () => ({
   __esModule: true,
@@ -58,7 +66,10 @@ describe("HttpAiModelProvider chat() request body", () => {
     });
 
     expect(mockPost).toHaveBeenCalledTimes(1);
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(body.decision).toEqual({
       action: "approve",
       artifactType: "implementation-plan",
@@ -74,7 +85,10 @@ describe("HttpAiModelProvider chat() request body", () => {
 
     await provider.chat({ messages: buildMessages() });
 
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     // The property may exist with value `undefined`; JSON.stringify is what the
     // wire actually sees, and it drops `undefined` values.
     expect(JSON.stringify(body)).not.toContain("decision");
@@ -104,7 +118,10 @@ describe("HttpAiModelProvider chat() chain context", () => {
       },
     });
 
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(body.attachment).toContain(
       "## Current Chain: Order sync (ID: chain-42)",
     );
@@ -130,7 +147,10 @@ describe("HttpAiModelProvider chat() chain context", () => {
       },
     });
 
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(body.attachment).not.toContain("Normalize payload");
   });
 
@@ -143,7 +163,10 @@ describe("HttpAiModelProvider chat() chain context", () => {
       context: { type: "chain", chainId: "chain-42" },
     });
 
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     // An open chain is a place, not an instruction: the server classifies what was asked.
     expect(body.scenarioHint).toBeNull();
   });
@@ -158,7 +181,10 @@ describe("HttpAiModelProvider chat() chain context", () => {
       context: { type: "chain", chainId: "chain-42" },
     });
 
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(body.scenarioHint).toBeNull();
   });
 
@@ -171,7 +197,10 @@ describe("HttpAiModelProvider chat() chain context", () => {
       scenarioHint: "IMPLEMENT_CHAIN",
     });
 
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(body.scenarioHint).toBe("IMPLEMENT_CHAIN");
   });
 
@@ -185,7 +214,10 @@ describe("HttpAiModelProvider chat() chain context", () => {
       context: { type: "chain", chainId: "chain-42" },
     });
 
-    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    const [, body] = mockPost.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(body.scenarioHint).toBe("COMPARE_AND_PATCH");
   });
 });

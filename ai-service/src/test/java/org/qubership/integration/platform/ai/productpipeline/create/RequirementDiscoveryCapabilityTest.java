@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
+import org.qubership.integration.platform.ai.plan.ConversationCatalogBindings;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
@@ -39,6 +40,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -640,6 +642,203 @@ class RequirementDiscoveryCapabilityTest {
 
     assertEquals("conv-tool-session", observedConversationId.get());
     assertNull(ToolSession.resolveConversationId());
+  }
+
+  /**
+   * The approved binding reaches the hint even when no rule can read the fact that carries it.
+   *
+   * <p>Fact text and ids are the ones from the run that sent {@code GET /store/inventory.} — the
+   * trailing period included — to APIHub and got a gateway timeout back.
+   */
+  @Test
+  void discoveryEmitsApprovedDraftBindingWithoutReadingTheCatalog() {
+    CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
+
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementFact serviceCall =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Petstore Ext",
+            "Call Petstore Ext catalog operation getInventory: GET /store/inventory.");
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Call the Petstore Ext getInventory operation.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            new ResolvedCatalogBinding(
+                "bbf14771-de8d-48e8-a2ed-2e691f7f6eff",
+                "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-swagger-1.0.7",
+                "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-sg",
+                "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-swagger-1.0.7-getInventory",
+                "EXTERNAL"),
+            false,
+            List.of(
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.GOAL,
+                    "chain",
+                    "Create a chain named Pet Inventory Check"),
+                serviceCall));
+    RequirementDiscoveryCapability capability =
+        discoveryWithMatcher(store, approved, new CatalogBindingMatcher(catalogReadTool));
+
+    ProductPipelineProfile withHint =
+        discoveryProfile(
+            List.of(new ArtifactTypeRef("requirement-draft", 2)),
+            List.of(new ArtifactTypeRef("catalog-binding-hint", 1)));
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-approved-binding",
+            "conv-approved-binding",
+            "requirement-discovery",
+            "exec-approved-binding",
+            "attempt-approved-binding",
+            withHint,
+            null,
+            List.of(),
+            Map.of("userText", "Call the Petstore Ext getInventory operation."));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability
+        .execute(context)
+        .subscribe()
+        .with(
+            signal -> {
+              if (signal instanceof CapabilitySignal.Completed c) {
+                completed.set(c);
+              }
+            });
+
+    List<ArtifactCandidate> candidates = completed.get().outcome().candidates();
+    assertEquals(2, candidates.size());
+    assertEquals(CompilationArtifacts.Kind.CATALOG_BINDING_HINT, candidates.get(1).kind());
+    CatalogBindingHint hint = (CatalogBindingHint) candidates.get(1).payload();
+    assertEquals("bbf14771-de8d-48e8-a2ed-2e691f7f6eff", hint.systemId());
+    assertEquals(
+        "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-swagger-1.0.7-getInventory",
+        hint.integrationOperationId());
+    // The step the hint binds to is found by fact id, so the wording of the fact never decides.
+    assertEquals(serviceCall.sourceFactId(), hint.serviceCallSourceFactId());
+    verifyNoInteractions(catalogReadTool);
+  }
+
+  /**
+   * Each outbound call keeps the binding gathering resolved for it, with no catalog read left.
+   *
+   * <p>Two services share one draft binding, so the draft alone cannot say which call it belongs
+   * to. The resolutions recorded during gathering can.
+   */
+  @Test
+  void discoveryPairsEveryServiceCallWithItsOwnResolvedBinding() {
+    CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
+    ConversationCatalogBindings bindings = new ConversationCatalogBindings();
+    bindings.remember(
+        "conv-two-services",
+        new CatalogBindingMatcher.CatalogMatch(
+            "sys-pet", "sg-pet", "spec-pet", "op-inventory", "Petstore Ext", "http", "GET",
+            "/store/inventory", "getInventory", "catalog-read:pet"));
+    bindings.remember(
+        "conv-two-services",
+        new CatalogBindingMatcher.CatalogMatch(
+            "sys-bill", "sg-bill", "spec-bill", "op-invoice", "Billing", "http", "POST",
+            "/invoices", "createInvoice", "catalog-read:bill"));
+
+    RequirementFact inventoryCall =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Petstore Ext",
+            "Call Petstore Ext catalog operation getInventory: GET /store/inventory.");
+    RequirementFact invoiceCall =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Billing",
+            "Then post the invoice through Billing using POST /invoices.");
+
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Check inventory, then raise an invoice.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            new ResolvedCatalogBinding("sys-pet", "spec-pet", "sg-pet", "op-inventory", "EXTERNAL"),
+            false,
+            List.of(
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.GOAL,
+                    "chain",
+                    "Create an inventory-to-invoice chain"),
+                inventoryCall,
+                invoiceCall));
+
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            null,
+            (conversationId, userText) -> {
+              store.beginTurn(conversationId);
+              store.put(conversationId, approved);
+              store.markCaptured(conversationId);
+              ProductCapabilityCaptureContext.offerDraft(approved);
+              return Multi.createFrom().empty();
+            },
+            new CatalogBindingMatcher(catalogReadTool),
+            bindings);
+
+    ProductPipelineProfile withHint =
+        discoveryProfile(
+            List.of(new ArtifactTypeRef("requirement-draft", 2)),
+            List.of(new ArtifactTypeRef("catalog-binding-hint", 1)));
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-two-services",
+            "conv-two-services",
+            "requirement-discovery",
+            "exec-two-services",
+            "attempt-two-services",
+            withHint,
+            null,
+            List.of(),
+            Map.of("userText", "Check inventory, then raise an invoice."));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability
+        .execute(context)
+        .subscribe()
+        .with(
+            signal -> {
+              if (signal instanceof CapabilitySignal.Completed c) {
+                completed.set(c);
+              }
+            });
+
+    List<ArtifactCandidate> candidates = completed.get().outcome().candidates();
+    assertEquals(3, candidates.size());
+    CatalogBindingHint first = (CatalogBindingHint) candidates.get(1).payload();
+    CatalogBindingHint second = (CatalogBindingHint) candidates.get(2).payload();
+    assertEquals(inventoryCall.sourceFactId(), first.serviceCallSourceFactId());
+    assertEquals("op-inventory", first.integrationOperationId());
+    assertEquals("sys-pet", first.systemId());
+    assertEquals(invoiceCall.sourceFactId(), second.serviceCallSourceFactId());
+    assertEquals("op-invoice", second.integrationOperationId());
+    assertEquals("sys-bill", second.systemId());
+    verifyNoInteractions(catalogReadTool);
   }
 
   private static RequirementDraft petstoreServiceCallDraft() {

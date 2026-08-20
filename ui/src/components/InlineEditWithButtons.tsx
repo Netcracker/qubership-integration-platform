@@ -41,7 +41,7 @@ function InlineEditActionButtons<Values>({
 }) {
   const form = Form.useFormInstance<Values>();
   const ctx = useContext(InlineEditContext);
-  const values = Form.useWatch(undefined, form) as Values | undefined;
+  const values = Form.useWatch([], form) as Values | undefined;
 
   const applyEnabled =
     showApply &&

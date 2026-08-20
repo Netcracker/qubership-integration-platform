@@ -130,8 +130,15 @@ public class CatalogBindingMatcher {
 
   /**
    * Re-reads the catalog for a previously observed hint. Returns exact only when the hierarchy is
-   * still complete and agrees with every service / release / protocol / operation / method / path
-   * value present in the flow.
+   * still live: the system answers to its id, the specification still belongs to it under the same
+   * group, and the operation is still one the specification offers.
+   *
+   * <p>The hint holds ids the reader already approved, so identity is settled before this call.
+   * What can still change is the catalog, and only a re-read answers that. Comparing the ids back
+   * against the flow's participant name or operation query would re-derive identity from prose the
+   * model wrote, which fails on wording no rule anticipated — a period at the end of a path is
+   * enough. A caller who changes the requirement changes the fact text, and the hint no longer
+   * matches the step, so an outdated hint cannot survive that way either.
    */
   public Optional<CatalogMatch> revalidateHint(
       NormalizedDesignFlow flow,
@@ -162,9 +169,6 @@ public class CatalogBindingMatcher {
     if (system == null) {
       return Optional.empty();
     }
-    if (!serviceAgrees(serviceName, system.name()) || !protocolAgrees(flow, system.protocol())) {
-      return Optional.empty();
-    }
     CatalogRestClient.SpecificationDto spec =
         catalogReadTool.getApiSpecifications(systemId).stream()
             .filter(
@@ -173,17 +177,15 @@ public class CatalogBindingMatcher {
                         && specificationGroupId.equals(s.specificationGroupId()))
             .findFirst()
             .orElse(null);
-    if (spec == null || !releaseAgrees(flowRelease(flow), spec.name())) {
+    if (spec == null) {
       return Optional.empty();
     }
-    String operationQuery = serviceCallStep.operationQuery();
-    ParsedQuery parsed = parseQuery(operationQuery);
     CatalogRestClient.OperationDto op =
         catalogReadTool.listCatalogOperations(specificationId, systemId, null).stream()
             .filter(candidate -> integrationOperationId.equals(candidate.id()))
             .findFirst()
             .orElse(null);
-    if (op == null || !operationAgrees(parsed, operationQuery, op)) {
+    if (op == null) {
       return Optional.empty();
     }
     return Optional.of(

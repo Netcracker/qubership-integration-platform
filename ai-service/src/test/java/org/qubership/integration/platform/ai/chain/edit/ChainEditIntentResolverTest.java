@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.llm.agent.ChainEditIntentAgent;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 
 class ChainEditIntentResolverTest {
@@ -372,12 +373,73 @@ class ChainEditIntentResolverTest {
 
   @Test
   void elementsAreRenderedAsIdTypeAndLabel() {
-    assertEquals(
-        """
-        call-orders | service-call | Call orders
-        call-invoices | service-call | Call invoices
-        """,
-        ChainEditIntentResolver.renderElements(graph()));
+    String rendered = renderer().renderElements(graph());
+
+    assertTrue(rendered.startsWith("call-orders | service-call | Call orders\n"));
+    assertTrue(rendered.contains("call-invoices | service-call | Call invoices\n"));
+  }
+
+  /**
+   * A {@code CONFIGURE} capture has to name the catalog's own property key. The listing is the only
+   * place the classifier can read one, so both the keys already set and the rest of the schema's
+   * keys have to reach it.
+   */
+  @Test
+  void elementsAreRenderedWithTheirSetAndAvailablePropertyKeys() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("inventory", "Pet Inventory Check"),
+            List.of(
+                new ChainPlanNode(
+                    "available-if",
+                    "if",
+                    "Available Pets Found",
+                    null,
+                    null,
+                    List.of(new PlanProperty("condition", "${header.available} > 0"))),
+                new ChainPlanNode(
+                    "inventory-catch", "catch-2", "Catch Inventory Exception", null, null, List.of())),
+            List.of());
+
+    String rendered = renderer().renderElements(graph);
+
+    assertTrue(rendered.contains("available-if | if | Available Pets Found\n"));
+    assertTrue(rendered.contains("    set: condition=${header.available} > 0\n"));
+    // priority is the key the request needs and the element does not carry yet.
+    assertTrue(rendered.contains("    other keys: priority\n"));
+    assertTrue(rendered.contains("    other keys: exception, priority\n"));
+  }
+
+  @Test
+  void renderedPropertyValuesAreCutShortSoScriptBodiesDoNotBuryTheListing() {
+    String body = "def x = 1\n".repeat(80);
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("inventory", "Pet Inventory Check"),
+            List.of(
+                new ChainPlanNode(
+                    "bad-gateway-response",
+                    "script",
+                    "Return Inventory Failure Response",
+                    null,
+                    null,
+                    List.of(new PlanProperty("script", body)))),
+            List.of());
+
+    String rendered = renderer().renderElements(graph);
+
+    assertTrue(rendered.contains("…"));
+    assertFalse(rendered.contains(body));
+    for (String line : rendered.split("\n")) {
+      assertTrue(line.length() < 200, "listing line is too long: " + line);
+    }
+  }
+
+  private static ChainEditIntentResolver renderer() {
+    return new ChainEditIntentResolver(
+        (elements, request) -> capture(ChainEditAction.NO_CHANGE, List.of(), ""));
   }
 
   @Test
