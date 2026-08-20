@@ -67,7 +67,8 @@ public final class ChainEditSubgraphAssembly {
 
   /**
    * The graph this edit proposes: the imported chain, plus the captured container and its
-   * branches, or the captured insertion body.
+   * branches, the captured insertion body, or the captured replacement body with its targets
+   * removed.
    *
    * @throws ChainEditScopeException when the capture describes something the intent did not
    *     approve, or something the container's catalog descriptor does not allow
