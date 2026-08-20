@@ -9,6 +9,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditScopeException;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureMerge;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditSubgraphAssembly;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -67,7 +68,10 @@ public class ChainStructureCaptureTool {
       Do not pass conversationId — the server binds this capture to the current chat session.
       graph must be present and pass deterministic graph validation.
       Always copy configured http-trigger endpoint properties from ConfiguredTriggerSet
-      (contextPath, httpMethodRestrict, externalRoute). Never emit properties:null on triggers.""")
+      (contextPath, httpMethodRestrict, externalRoute). Never emit properties:null on triggers.
+      An edit that nests existing elements captures subgraph instead of graph: the container type,
+      its branches, the elements each branch creates, and the ids of the existing elements that
+      move into a branch. Never both.""")
   public String captureChainStructure(ChainStructure capture) {
     String conversationId = CompilerGraphPatchTool.resolveConversationId();
     long startMs = System.currentTimeMillis();
@@ -83,23 +87,29 @@ public class ChainStructureCaptureTool {
       if (capture == null) {
         return finish(conversationId, startMs, "capture is required");
       }
-      if (capture.graph() == null) {
-        String message = "graph is required";
+      ChainEditStructureBase editBase = editBase(conversationId);
+      ChainStructure shaped;
+      try {
+        shaped = withGraphAssembledFromSubgraph(capture, editBase);
+      } catch (IllegalArgumentException e) {
         return finish(
             conversationId,
             startMs,
-            outcomeGateway.onFailure(
-                CaptureFeedbackChannel.PLAN,
+            repairable(
                 conversationId,
-                null,
-                CaptureFailureKind.VALIDATION,
-                CaptureFailureClass.CORRECTABLE,
-                "captureChainStructure",
                 capture,
-                message));
+                captureFailureClass(e),
+                "Structure validation failed:\n" + e.getMessage()));
+      }
+      if (shaped.graph() == null) {
+        return finish(
+            conversationId,
+            startMs,
+            repairable(
+                conversationId, capture, CaptureFailureClass.CORRECTABLE, "graph is required"));
       }
       ChainStructurePropertySanitizer.SanitizationResult sanitized =
-          propertySanitizer.sanitize(capture);
+          propertySanitizer.sanitize(shaped);
       for (ChainStructurePropertySanitizer.RemovedProperty removed :
           sanitized.removedProperties()) {
         LOG.warnf(
@@ -114,36 +124,27 @@ public class ChainStructureCaptureTool {
           mergeConfiguredTriggerProperties(conversationId, sanitized.structure());
       ChainPlanGraph graphUnderTest;
       try {
-        graphUnderTest = asMergedOntoEditedChain(conversationId, normalized.graph());
+        graphUnderTest = asMergedOntoEditedChain(editBase, normalized.graph());
       } catch (IllegalArgumentException e) {
         return finish(
             conversationId,
             startMs,
-            outcomeGateway.onFailure(
-                CaptureFeedbackChannel.PLAN,
+            repairable(
                 conversationId,
-                null,
-                CaptureFailureKind.VALIDATION,
-                mergeFailureClass(e),
-                "captureChainStructure",
                 capture,
+                captureFailureClass(e),
                 "Structure validation failed:\n" + e.getMessage()));
       }
       List<String> errors = graphValidator.validate(graphUnderTest);
       if (!errors.isEmpty()) {
-        String message = "Structure validation failed:\n" + String.join("\n", errors);
         return finish(
             conversationId,
             startMs,
-            outcomeGateway.onFailure(
-                CaptureFeedbackChannel.PLAN,
+            repairable(
                 conversationId,
-                null,
-                CaptureFailureKind.VALIDATION,
-                CaptureFailureClass.CORRECTABLE,
-                "captureChainStructure",
                 capture,
-                message));
+                CaptureFailureClass.CORRECTABLE,
+                "Structure validation failed:\n" + String.join("\n", errors)));
       }
 
       String accepted =
@@ -166,24 +167,83 @@ public class ChainStructureCaptureTool {
   }
 
   /**
-   * Returns the graph this capture actually produces, so validation judges that and not a draft.
-   *
-   * <p>An edit captures a chain that already exists, and the compiler merges the capture onto that
-   * chain before anything is built: the merge restores connections the capture dropped and pins
-   * fields it echoed differently. Validating the raw capture therefore reports defects the merge
-   * repairs, and misses none it does not. A CREATE run publishes no base, and its capture is the
-   * whole graph already.
-   *
-   * <p>A merge the compiler would refuse is raised as an {@link IllegalArgumentException} here, one
-   * turn earlier than before, so the generator is asked to correct it while it still can.
+   * The chain this capture is editing, or {@code null} for a CREATE run that plans a new one.
    */
-  private ChainPlanGraph asMergedOntoEditedChain(String conversationId, ChainPlanGraph captured) {
+  private ChainEditStructureBase editBase(String conversationId) {
     return captureSession
         .get(
             CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, conversationId),
             ChainEditStructureBase.class)
-        .map(base -> ChainEditStructureMerge.merge(base.baseGraph(), captured, base.intent()))
-        .orElse(captured);
+        .orElse(null);
+  }
+
+  /**
+   * Assembles the graph a nesting edit proposes, so the rest of this method sees a graph either way.
+   *
+   * <p>A nesting edit captures what it adds and nothing else, which is what keeps it from enclosing
+   * an element the reader never named. The whole-graph shape is refused for such an edit rather than
+   * merged, because accepting both would leave the defect this contract removes reachable through
+   * the older field.
+   */
+  private static ChainStructure withGraphAssembledFromSubgraph(
+      ChainStructure capture, ChainEditStructureBase editBase) {
+    boolean nesting = editBase != null && editBase.intent().capturesSubgraph();
+    if (!nesting) {
+      if (capture.subgraph() != null) {
+        throw new IllegalArgumentException(
+            "subgraph describes what a nesting edit adds, and this run is not one."
+                + " Capture the graph instead.");
+      }
+      return capture;
+    }
+    if (capture.subgraph() == null) {
+      throw new IllegalArgumentException(
+          "This edit nests existing elements, so capture subgraph rather than graph: the container"
+              + " type, its branches, the elements each branch creates, and in moveExisting the ids"
+              + " of the existing elements that move into a branch.");
+    }
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            editBase.baseGraph(), capture.subgraph(), editBase.intent());
+    return new ChainStructure(
+        assembled, capture.sourceRequirementFactIds(), capture.knowledgeCitations());
+  }
+
+  /**
+   * Returns the graph this capture actually produces, so validation judges that and not a draft.
+   *
+   * <p>An edit that captures a whole chain has it merged onto the imported one before anything is
+   * built: the merge restores connections the capture dropped and pins fields it echoed differently.
+   * Validating the raw capture therefore reports defects the merge repairs, and misses none it does
+   * not. A CREATE run publishes no base, and its capture is the whole graph already.
+   *
+   * <p>A nesting edit was assembled from its subgraph, which leaves the merge nothing to decide.
+   *
+   * <p>A merge the compiler would refuse is raised as an {@link IllegalArgumentException} here, one
+   * turn earlier than before, so the generator is asked to correct it while it still can.
+   */
+  private static ChainPlanGraph asMergedOntoEditedChain(
+      ChainEditStructureBase editBase, ChainPlanGraph captured) {
+    if (editBase == null || editBase.intent().capturesSubgraph()) {
+      return captured;
+    }
+    return ChainEditStructureMerge.merge(editBase.baseGraph(), captured, editBase.intent());
+  }
+
+  private String repairable(
+      String conversationId,
+      ChainStructure capture,
+      CaptureFailureClass failureClass,
+      String message) {
+    return outcomeGateway.onFailure(
+        CaptureFeedbackChannel.PLAN,
+        conversationId,
+        null,
+        CaptureFailureKind.VALIDATION,
+        failureClass,
+        "captureChainStructure",
+        capture,
+        message);
   }
 
   /**
@@ -210,11 +270,11 @@ public class ChainStructureCaptureTool {
   }
 
   /**
-   * Classifies a merge refusal. A scope refusal the intent itself causes is PERMANENT: the
+   * Classifies a refused capture. A scope refusal the intent itself causes is PERMANENT: the
    * generator is being asked for a capture that cannot exist, so a soft retry would spend the
    * turn restating an impossible request. Everything else is a capture the generator can correct.
    */
-  private static CaptureFailureClass mergeFailureClass(IllegalArgumentException failure) {
+  private static CaptureFailureClass captureFailureClass(IllegalArgumentException failure) {
     if (failure instanceof ChainEditScopeException scope && scope.unsatisfiable()) {
       return CaptureFailureClass.PERMANENT;
     }
