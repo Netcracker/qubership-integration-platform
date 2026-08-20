@@ -1335,11 +1335,79 @@ class ChainEditCompilerTest {
         proposed.edges().toString());
   }
 
-  /** The wrap the reader asks for: error handling around one named element. */
-  private static ChainEditCapture wrapCapture(String targetNodeId) {
+  @Test
+  void wrappingAnAdjacentGroupMovesEveryNamedElementAndKeepsTheirConnection() {
+    intentReply = wrapCapture(TARGET, UNRELATED);
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedGraph(),
+            errorHandlingSubgraph(TARGET, UNRELATED),
+            wrapIntent(TARGET, UNRELATED),
+            permissiveCache());
+    engine.scriptedResults.add(structureOnlyResult(assembled));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, ERROR_HANDLING_GENERATOR, "cip-chain-assembler"),
+            assembled));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph proposed = proposal.finalGraph();
+    String tryBranch = nodeOfType(proposed, "try-2").nodeId();
+    assertEquals(tryBranch, node(proposed, TARGET).parentNodeId());
+    assertEquals(tryBranch, node(proposed, UNRELATED).parentNodeId());
+    assertNull(node(proposed, "normalize").parentNodeId());
+    assertTrue(
+        proposed.edges().stream()
+            .anyMatch(
+                edge ->
+                    TARGET.equals(edge.fromNodeId()) && UNRELATED.equals(edge.toNodeId())),
+        proposed.edges().toString());
+  }
+
+  @Test
+  void aWrapThatSkipsAnElementBetweenItsTargetsAsksAboutThatElement() {
+    intentReply = wrapCapture(TARGET, UNRELATED);
+
+    ChainEditOutcome.Clarification clarification =
+        assertInstanceOf(
+            ChainEditOutcome.Clarification.class,
+            compiler.compile(
+                new ChainEditRequest(
+                    "conv-1",
+                    "chain-1",
+                    "edit-run-1",
+                    new ImportedChainPlan(chainWithAScriptBetweenTheCalls(), null, "base-digest"),
+                    "add error handling around the two calls",
+                    null)));
+
+    assertEquals(
+        List.of(
+            "Normalize payload (normalize) sits between the elements you asked me to wrap."
+                + " Say whether to wrap it too, or which elements to wrap instead."),
+        clarification.choices());
+    assertEquals(List.of(TARGET, UNRELATED), clarification.heldIntent().targetNodeIds());
+    assertTrue(engine.requests.isEmpty(), "no generator runs before the reader answers");
+  }
+
+  /** The two calls with a script between them, so a wrap of both leaves the script out. */
+  private static ChainPlanGraph chainWithAScriptBetweenTheCalls() {
+    ChainPlanGraph chain = importedGraph();
+    return new ChainPlanGraph(
+        chain.schemaVersion(),
+        chain.chain(),
+        chain.nodes(),
+        List.of(
+            new ChainPlanEdge("call-to-normalize", TARGET, "normalize", null),
+            new ChainPlanEdge("normalize-to-invoices", "normalize", UNRELATED, null)));
+  }
+
+  /** The wrap the reader asks for: error handling around the elements they named. */
+  private static ChainEditCapture wrapCapture(String... targetNodeIds) {
     return new ChainEditCapture(
         ChainEditAction.ADD_ELEMENTS,
-        List.of(targetNodeId),
+        List.of(targetNodeIds),
         "add error handling to the order call",
         null,
         "try-catch-finally-2",
@@ -1349,10 +1417,10 @@ class ChainEditCompilerTest {
         ChainEditDisposition.NEST);
   }
 
-  private static ChainEditIntent wrapIntent(String targetNodeId) {
+  private static ChainEditIntent wrapIntent(String... targetNodeIds) {
     return new ChainEditIntent(
         ChainEditAction.ADD_ELEMENTS,
-        List.of(targetNodeId),
+        List.of(targetNodeIds),
         "add error handling to the order call",
         null,
         "try-catch-finally-2",
@@ -1362,14 +1430,14 @@ class ChainEditCompilerTest {
         ChainEditDisposition.NEST);
   }
 
-  /** What the structure stage captures for that wrap: the container, its branches, and one id. */
-  private static ChainEditSubgraph errorHandlingSubgraph(String movedNodeId) {
+  /** What the structure stage captures for that wrap: the container, its branches, and the ids. */
+  private static ChainEditSubgraph errorHandlingSubgraph(String... movedNodeIds) {
     return new ChainEditSubgraph(
         "try-catch-finally-2",
         "Error handler",
         List.of(
             new ChainEditSubgraphBranch(
-                "try-2", "Try", List.of(), null, List.of(movedNodeId), null),
+                "try-2", "Try", List.of(), null, List.of(movedNodeIds), null),
             new ChainEditSubgraphBranch(
                 "catch-2",
                 "Catch",
