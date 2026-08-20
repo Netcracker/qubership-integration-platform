@@ -3,14 +3,26 @@ package org.qubership.integration.platform.ai.chain.patch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chain.edit.CanonicalGraphDiff;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditDisposition;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditSubgraphAssembly;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBody;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphElement;
 import org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
@@ -134,6 +146,66 @@ class ChainPatchSummaryTest {
         assertTrue(
                 text.contains("Removing cannot be undone. To keep a way back, save a snapshot first."),
                 text);
+    }
+
+    /**
+     * The acceptance guard for the REMOVE migration: a replacement assembled from a captured
+     * subgraph, not a hand-built patch, still gives the reader the same removal-first warning.
+     */
+    @Test
+    void anAssembledReplacementListsTheRemovalFirstAndWarnsItCannotBeUndone() {
+        ChainPlanGraph before = replacementBase();
+        ChainPlanGraph assembled =
+                ChainEditSubgraphAssembly.assemble(
+                        before, replacementSubgraph(), replaceIntent(), permissiveCache());
+        GraphPatch patch =
+                CanonicalGraphDiff.between(before, assembled, "patch-1", "cip-structure-generator", null);
+
+        String text = ChainPatchSummary.describe(before, patch);
+
+        assertTrue(text.indexOf("**Removes** Call orders") < text.indexOf("**Adds**"), text);
+        assertTrue(
+                text.contains("Removing cannot be undone. To keep a way back, save a snapshot first."),
+                text);
+    }
+
+    private static ChainPlanGraph replacementBase() {
+        return new ChainPlanGraph(
+                "1.0",
+                new ChainSection("demo-chain", null),
+                List.of(
+                        new ChainPlanNode("trigger", "http-trigger", "Entry", null, null, List.of()),
+                        new ChainPlanNode("call", "service-call", "Call orders", null, null, List.of())),
+                List.of(new ChainPlanEdge("trigger->call", "trigger", "call", null)));
+    }
+
+    private static ChainEditSubgraph replacementSubgraph() {
+        return new ChainEditSubgraph(
+                null,
+                null,
+                List.of(),
+                new ChainEditSubgraphBody(
+                        List.of(new ChainEditSubgraphElement("mapper", "mapper", "Map fields")), List.of()));
+    }
+
+    private static ChainEditIntent replaceIntent() {
+        return new ChainEditIntent(
+                ChainEditAction.ADD_ELEMENTS,
+                List.of("call"),
+                "replace the call with a mapper",
+                null,
+                "mapper",
+                null,
+                List.of(),
+                List.of(),
+                ChainEditDisposition.REMOVE);
+    }
+
+    /** Every type is a permissive container, so descriptor validation never fires. */
+    private static CatalogElementDescriptorCache permissiveCache() {
+        CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+        CatalogElementDescriptorTestSupport.stubPermissive(loader);
+        return new CatalogElementDescriptorCache(loader);
     }
 
     /** A wrap is, at its core, an existing element moving into a new container. */

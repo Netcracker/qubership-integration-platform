@@ -1450,6 +1450,72 @@ class ChainEditCompilerTest {
     assertEquals(node(importedGraph(), UNRELATED), node(proposed, UNRELATED));
   }
 
+  @Test
+  void aReplacementAssembledFromASubgraphCaptureRemovesTheTargetAndReconnectsItsNeighbour() {
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply = replaceCapture(TARGET);
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedGraph(),
+            insertionSubgraph("transform", "call-shipping"),
+            replaceIntent(TARGET),
+            permissiveCache());
+    engine.scriptedResults.add(structureOnlyResult(assembled));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR, GENERATOR, "cip-chain-assembler"),
+            assembled));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph proposed = proposal.finalGraph();
+    assertTrue(
+        proposed.nodes().stream().noneMatch(node -> TARGET.equals(node.nodeId())),
+        "the replaced element is gone");
+    assertTrue(
+        proposed.edges().stream()
+            .anyMatch(e -> "transform".equals(e.fromNodeId()) && "call-shipping".equals(e.toNodeId())),
+        "the new elements are wired to each other");
+    assertTrue(
+        proposed.edges().stream()
+            .anyMatch(e -> "call-shipping".equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())),
+        "the replaced element's outgoing connection follows to the new subgraph's exit");
+    assertTrue(
+        proposal.netPatch().nodePatches().stream()
+            .anyMatch(
+                patch ->
+                    patch.operation() == GraphPatchOperation.REMOVE
+                        && TARGET.equals(patch.targetNodeId())));
+  }
+
+  /** The replacement the reader asks for: the named element swapped for a new subgraph. */
+  private static ChainEditCapture replaceCapture(String... targetNodeIds) {
+    return new ChainEditCapture(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "replace the order call with a transform script and a shipping call",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.REMOVE);
+  }
+
+  private static ChainEditIntent replaceIntent(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "replace the order call with a transform script and a shipping call",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.REMOVE);
+  }
+
   /** The insertion the reader asks for: new elements spliced at the address they name. */
   private static ChainEditCapture insertCapture(String... targetNodeIds) {
     return new ChainEditCapture(
