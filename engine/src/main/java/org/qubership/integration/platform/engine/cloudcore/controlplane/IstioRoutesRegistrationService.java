@@ -31,14 +31,15 @@ import org.qubership.integration.platform.engine.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Component("controlPlaneService")
+@Service("controlPlaneService")
 @ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
 public class IstioRoutesRegistrationService implements ControlPlaneService {
@@ -381,13 +382,13 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
      * that's treated as an empty list, not an error.
      */
     private List<JsonNode> mergedEntries(
-            JsonNode existingList, Function<JsonNode, Integer> keyExtractor, JsonNode newEntry
+        JsonNode existingList, ToIntFunction<JsonNode> keyExtractor, JsonNode newEntry
     ) {
-        int newKey = keyExtractor.apply(newEntry);
+        int newKey = keyExtractor.applyAsInt(newEntry);
         List<JsonNode> merged = new ArrayList<>();
         if (existingList.isArray()) {
             for (JsonNode entry : existingList) {
-                if (!keyExtractor.apply(entry).equals(newKey)) {
+                if (keyExtractor.applyAsInt(entry) != newKey) {
                     merged.add(entry);
                 }
             }
@@ -426,7 +427,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
 
             Optional<KubeCustomObject> existing = kubeOperator.getCustomObject(request);
             JsonNode existingSpec = existing
-                    .map(obj -> (JsonNode) objectMapper.valueToTree(obj.getSpec()))
+                    .<JsonNode>map(obj -> objectMapper.valueToTree(obj.getSpec()))
                     .orElseGet(objectMapper::createObjectNode);
 
             ObjectNode mergedSpec = specMerger.apply(existingSpec);

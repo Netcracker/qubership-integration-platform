@@ -76,8 +76,8 @@ class RegisterRoutesInControlPlaneActionTest {
 
         action.execute(null, deploymentInfo(), configuration);
 
-        verify(controlPlaneService).postPublicEngineRoutes(eq(List.of(publicRoute)), eq(DEPLOYMENT_NAME));
-        verify(controlPlaneService).postPrivateEngineRoutes(eq(List.of(privateRoute)), eq(DEPLOYMENT_NAME));
+        verify(controlPlaneService).postPublicEngineRoutes(List.of(publicRoute), DEPLOYMENT_NAME);
+        verify(controlPlaneService).postPrivateEngineRoutes(List.of(privateRoute), DEPLOYMENT_NAME);
     }
 
     @Test
@@ -88,7 +88,7 @@ class RegisterRoutesInControlPlaneActionTest {
 
         action.execute(null, deploymentInfo(), configuration);
 
-        verify(controlPlaneService).postEgressGatewayRoutes(eq(List.of(senderRoute, serviceRoute)), eq(DEPLOYMENT_NAME));
+        verify(controlPlaneService).postEgressGatewayRoutes(List.of(senderRoute, serviceRoute), DEPLOYMENT_NAME);
     }
 
     private DeploymentInfo deploymentInfo() {
