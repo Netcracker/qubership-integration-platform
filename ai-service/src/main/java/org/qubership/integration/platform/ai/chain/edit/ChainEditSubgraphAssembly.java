@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -12,11 +13,13 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.ChildlessOptionalContainerPruner;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflight;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphConnection;
@@ -86,7 +89,9 @@ public final class ChainEditSubgraphAssembly {
     if (capture.branches().isEmpty()) {
       throw correctable("capture names container '" + containerType + "' without a branch");
     }
-    validateBranches(containerType, capture.branches(), descriptors);
+    CatalogElementDescriptor container = containerDescriptor(containerType, descriptors);
+    validateBranches(containerType, container, capture.branches());
+    List<ChainEditSubgraphBranch> orderedBranches = orderBranches(container, capture.branches());
 
     Map<String, ChainEditSubgraphBranch> branchOfMovedId =
         movedElements(capture, baseById, targets);
@@ -94,7 +99,7 @@ public final class ChainEditSubgraphAssembly {
     Map<String, ChainEditSubgraphElement> newElements = newElements(capture, reserved);
     String containerNodeId = reserveId(containerType, reserved);
     Map<ChainEditSubgraphBranch, String> branchNodeIds = new LinkedHashMap<>();
-    for (ChainEditSubgraphBranch branch : capture.branches()) {
+    for (ChainEditSubgraphBranch branch : orderedBranches) {
       String childType = required(branch.childType(), "capture names a branch without a type");
       branchNodeIds.put(branch, reserveId(childType, reserved));
     }
@@ -112,7 +117,7 @@ public final class ChainEditSubgraphAssembly {
             commonParent(branchOfMovedId.keySet(), baseById),
             null,
             List.of()));
-    for (ChainEditSubgraphBranch branch : capture.branches()) {
+    for (ChainEditSubgraphBranch branch : orderedBranches) {
       String branchNodeId = branchNodeIds.get(branch);
       nodes.add(
           new ChainPlanNode(
@@ -121,7 +126,7 @@ public final class ChainEditSubgraphAssembly {
               branch.label(),
               containerNodeId,
               branch.order(),
-              List.copyOf(branch.properties())));
+              branchProperties(branch, container)));
       for (ChainEditSubgraphElement element : branch.body().elements()) {
         nodes.add(
             new ChainPlanNode(
@@ -215,9 +220,8 @@ public final class ChainEditSubgraphAssembly {
    */
   private static void validateBranches(
       String containerType,
-      List<ChainEditSubgraphBranch> branches,
-      CatalogElementDescriptorCache descriptors) {
-    CatalogElementDescriptor container = containerDescriptor(containerType, descriptors);
+      CatalogElementDescriptor container,
+      List<ChainEditSubgraphBranch> branches) {
     Map<String, List<ChainEditSubgraphBranch>> byChildType = new LinkedHashMap<>();
     for (ChainEditSubgraphBranch branch : branches) {
       byChildType.computeIfAbsent(branch.childType(), key -> new ArrayList<>()).add(branch);
@@ -248,6 +252,53 @@ public final class ChainEditSubgraphAssembly {
         requireOrdered(containerType, repeated.getKey(), repeated.getValue());
       }
     }
+  }
+
+  /**
+   * Branches in priority order rather than in the order the capture listed them.
+   *
+   * <p>Which role comes before which — try before catch before finally — is the container's shape,
+   * not something {@link CatalogElementDescriptor#ordered()} governs, so branches keep the order
+   * their child type first appears in. Only siblings of one repeated role are reordered, by {@link
+   * ChainEditSubgraphBranch#order()}, because that is the one place a generator could otherwise pick
+   * an order the descriptor did not ask for. A container the descriptor does not order is left
+   * exactly as captured: nothing here requires an order to be set on it.
+   */
+  private static List<ChainEditSubgraphBranch> orderBranches(
+      CatalogElementDescriptor container, List<ChainEditSubgraphBranch> branches) {
+    if (!container.ordered()) {
+      return branches;
+    }
+    Map<String, Integer> roleAppearanceOrder = new LinkedHashMap<>();
+    for (ChainEditSubgraphBranch branch : branches) {
+      roleAppearanceOrder.putIfAbsent(branch.childType(), roleAppearanceOrder.size());
+    }
+    List<ChainEditSubgraphBranch> ordered = new ArrayList<>(branches);
+    ordered.sort(
+        Comparator.<ChainEditSubgraphBranch>comparingInt(
+                branch -> roleAppearanceOrder.get(branch.childType()))
+            .thenComparingInt(branch -> branch.order() == null ? 0 : branch.order()));
+    return ordered;
+  }
+
+  /**
+   * The branch's distinguishing property, plus the priority the catalog orders siblings by.
+   *
+   * <p>{@link ChainPlanNode#order()} is Java's own bookkeeping and never reaches the catalog; the
+   * property named by {@link CatalogElementDescriptor#priorityProperty()} is what the catalog's
+   * ordering service renumbers siblings from, so the capture's order is translated into that
+   * property here rather than left for a materializer that does not read {@code order()}.
+   */
+  private static List<PlanProperty> branchProperties(
+      ChainEditSubgraphBranch branch, CatalogElementDescriptor container) {
+    if (branch.order() == null) {
+      return branch.properties();
+    }
+    String priorityProperty = container.priorityProperty();
+    List<PlanProperty> properties = new ArrayList<>(branch.properties());
+    properties.removeIf(property -> priorityProperty.equals(property.key()));
+    properties.add(new PlanProperty(priorityProperty, String.valueOf(branch.order())));
+    return List.copyOf(properties);
   }
 
   private static CatalogElementDescriptor containerDescriptor(
@@ -327,11 +378,17 @@ public final class ChainEditSubgraphAssembly {
    * Runs the assembled graph through the same descriptor check a catalog write would fail on, so a
    * defect branch validation does not reach — a nested container still missing its mandatory
    * content, for one — is reported in this turn instead of after the reader approves a card.
+   *
+   * <p>{@link ChildlessOptionalContainerPruner} runs first, exactly as it would before the eventual
+   * catalog write, so a branch the capture left with neither a moved nor a new element is dropped
+   * before the check rather than failed by it. Only a branch this edit would create is ever eligible:
+   * pruning is scoped to nodes absent from {@code base}, so an existing empty container is untouched.
    */
   private static void runDescriptorPreflight(
       ChainPlanGraph assembled, ChainPlanGraph base, CatalogElementDescriptorCache descriptors) {
     try {
-      new DesiredGraphDescriptorPreflight().validate(assembled, base, descriptors);
+      ChainPlanGraph pruned = ChildlessOptionalContainerPruner.prune(assembled, base, descriptors);
+      new DesiredGraphDescriptorPreflight().validate(pruned, base, descriptors);
     } catch (DesiredGraphDescriptorPreflightException e) {
       throw correctable(e.getMessage());
     }
