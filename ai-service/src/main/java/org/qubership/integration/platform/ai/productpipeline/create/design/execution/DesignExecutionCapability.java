@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -71,8 +72,13 @@ public class DesignExecutionCapability implements StageCapability {
                           emitter.emit(SkillActivitySupport.running(skillId));
                           SkillActivitySupport.bindWorker(skillId, turnEmit);
                           BiConsumer<String, String> dagProgress =
-                              (id, status) ->
-                                  emitter.emit(new CapabilitySignal.SkillProgress(id, status));
+                              (id, status) -> {
+                                CapabilitySignal.SkillProgress progress =
+                                    new CapabilitySignal.SkillProgress(id, status);
+                                emitter.emit(progress);
+                                turnEmit.ifPresent(
+                                    emit -> emit.accept(ChatEvent.skillStep(id, status)));
+                              };
                           try {
                             CapabilitySignal.Completed completed =
                                 executeBlocking(context, dagProgress);
