@@ -26,6 +26,7 @@ public class CatalogFirstApiHubDiscoveryTool {
   private final CatalogSystemReadTool catalogReadTool;
   private final ConversationCatalogCache catalogCache;
   private final ApiHubMcpTools apiHubMcpTools;
+  private final ConversationCatalogBindings conversationBindings;
   private final ObjectMapper objectMapper;
 
   @Inject
@@ -34,11 +35,13 @@ public class CatalogFirstApiHubDiscoveryTool {
       CatalogSystemReadTool catalogReadTool,
       ConversationCatalogCache catalogCache,
       ApiHubMcpTools apiHubMcpTools,
+      ConversationCatalogBindings conversationBindings,
       ObjectMapper objectMapper) {
     this.catalogBindingMatcher = catalogBindingMatcher;
     this.catalogReadTool = catalogReadTool;
     this.catalogCache = catalogCache;
     this.apiHubMcpTools = apiHubMcpTools;
+    this.conversationBindings = conversationBindings;
     this.objectMapper = objectMapper;
   }
 
@@ -65,7 +68,9 @@ public class CatalogFirstApiHubDiscoveryTool {
     NormalizedDesignFlow.Step step = flow.steps().getFirst();
     CatalogBindingMatcher.MatchResult result = catalogBindingMatcher.match(flow, step);
     if (result instanceof CatalogBindingMatcher.MatchResult.Exact exact) {
-      rememberCatalogEvidence(ChainPlanTool.resolveConversationId(), service, exact.match());
+      String conversationId = ChainPlanTool.resolveConversationId();
+      rememberCatalogEvidence(conversationId, service, exact.match());
+      conversationBindings.remember(conversationId, exact.match());
       return catalogBound(exact.match());
     }
     if (result instanceof CatalogBindingMatcher.MatchResult.Ambiguous ambiguous) {

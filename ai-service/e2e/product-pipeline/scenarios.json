@@ -657,13 +657,13 @@
   },
   "product-patch-chain-try-catch": {
     "tier": "product-pipeline",
-    "status": "inactive",
+    "status": "active",
     "pipeline": "compare-and-patch",
     "terminalState": "CHAIN_PATCHED",
     "retainCatalogChain": true,
     "uniqueChainNamePrefix": "AiPatchTryCatch",
     "prompts": [
-      "On the open catalog chain, wrap the Return greeting script in try-catch-finally-2. Put Return greeting inside try-2. Add a catch-2 script that returns the plain text error. Do not reparent the HTTP trigger. No service calls."
+      "Wrap the Return greeting script in try-catch-finally-2. Put Return greeting inside try-2. Add a catch-2 script that returns the plain text error. Do not reparent the HTTP trigger. No service calls."
     ],
     "seed": {
       "description": "HTTP GET /patch-echo plus a greeting script",
@@ -724,7 +724,6 @@
         }
       ],
       "warnings": [
-        "Inactive: live try-catch wrap on an existing chain is a known COMPARE_AND_PATCH defect.",
         "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
       ]
     }

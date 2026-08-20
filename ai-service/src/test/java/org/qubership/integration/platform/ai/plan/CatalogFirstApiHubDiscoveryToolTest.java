@@ -69,6 +69,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
         catalogRead,
         mock(ConversationCatalogCache.class),
         apiHub,
+        new ConversationCatalogBindings(),
         new ObjectMapper());
   }
 }

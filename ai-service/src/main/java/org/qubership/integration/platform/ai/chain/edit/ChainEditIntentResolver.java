@@ -15,6 +15,8 @@ import org.qubership.integration.platform.ai.llm.agent.ChainEditIntentAgent;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.schema.ChainElementPropertyKeys;
 
 /**
  * Turns a change request into a typed {@link ChainEditIntent} against the imported chain.
@@ -38,11 +40,22 @@ public class ChainEditIntentResolver {
 
   private static final Logger LOG = Logger.getLogger(ChainEditIntentResolver.class);
 
+  /** Longest property value the listing shows before it is cut short. */
+  static final int MAX_VALUE_CHARS = 80;
+
   private final ChainEditIntentAgent agent;
+  private final ChainElementPropertyKeys propertyKeys;
 
   @Inject
-  public ChainEditIntentResolver(ChainEditIntentAgent agent) {
+  public ChainEditIntentResolver(
+      ChainEditIntentAgent agent, ChainElementPropertyKeys propertyKeys) {
     this.agent = Objects.requireNonNull(agent, "agent");
+    this.propertyKeys = Objects.requireNonNull(propertyKeys, "propertyKeys");
+  }
+
+  /** Test helper that reads property keys from the packaged schemas. */
+  ChainEditIntentResolver(ChainEditIntentAgent agent) {
+    this(agent, new ChainElementPropertyKeys());
   }
 
   public ChainEditIntent resolve(ChainPlanGraph graph, String userRequest) {
@@ -116,7 +129,20 @@ public class ChainEditIntentResolver {
     return text.toString();
   }
 
-  static String renderElements(ChainPlanGraph graph) {
+  /**
+   * The chain as the classifier sees it: one element per line, with the property keys that element
+   * answers to.
+   *
+   * <p>A {@code CONFIGURE} capture must name the catalog's own key, and the classifier is told not
+   * to guess one. Listing id, type, and label alone left it nothing to name, so a request to change
+   * a timeout or a priority came back unresolved however plainly it was written. The keys already
+   * carrying a value come first, with the value, because a request usually changes something the
+   * element already has; the rest of the schema's keys follow as names the element also accepts.
+   *
+   * <p>Values are cut at {@link #MAX_VALUE_CHARS}. A script body is a property like any other, and
+   * whole bodies would bury the chain in the listing meant to describe it.
+   */
+  String renderElements(ChainPlanGraph graph) {
     StringBuilder text = new StringBuilder();
     for (ChainPlanNode node : graph.nodes() == null ? List.<ChainPlanNode>of() : graph.nodes()) {
       if (node == null || node.nodeId() == null) {
@@ -128,8 +154,44 @@ public class ChainEditIntentResolver {
           .append(" | ")
           .append(node.label() == null ? "" : node.label())
           .append('\n');
+      appendProperties(text, node);
     }
     return text.toString();
+  }
+
+  private void appendProperties(StringBuilder text, ChainPlanNode node) {
+    Set<String> shown = new LinkedHashSet<>();
+    List<String> set = new ArrayList<>();
+    for (PlanProperty property : node.properties() == null ? List.<PlanProperty>of() : node.properties()) {
+      if (property == null || property.key() == null || property.key().isBlank()) {
+        continue;
+      }
+      if (shown.add(property.key())) {
+        set.add(property.key() + "=" + shortened(property.value()));
+      }
+    }
+    if (!set.isEmpty()) {
+      text.append("    set: ").append(String.join(", ", set)).append('\n');
+    }
+    List<String> unset = new ArrayList<>();
+    for (String key : propertyKeys.forType(node.type())) {
+      if (!shown.contains(key)) {
+        unset.add(key);
+      }
+    }
+    if (!unset.isEmpty()) {
+      text.append("    other keys: ").append(String.join(", ", unset)).append('\n');
+    }
+  }
+
+  private static String shortened(String value) {
+    if (value == null) {
+      return "";
+    }
+    String oneLine = value.replace('\n', ' ').replace('\r', ' ').trim();
+    return oneLine.length() <= MAX_VALUE_CHARS
+        ? oneLine
+        : oneLine.substring(0, MAX_VALUE_CHARS) + "…";
   }
 
   static ChainEditIntent fromCapture(ChainEditCapture capture, ChainPlanGraph graph) {

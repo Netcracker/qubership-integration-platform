@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.llm.ratelimit;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -8,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import io.quarkiverse.langchain4j.ModelName;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -76,6 +78,11 @@ class RateLimitChatModelWiringIT {
     assertFalse(
         upstreamStreamingChatModel instanceof RateLimitStreamingChatModel,
         "Named upstream StreamingChatModel must stay unwrapped");
+    assertEquals(
+        "none",
+        ((OpenAiChatRequestParameters) upstreamStreamingChatModel.defaultRequestParameters())
+            .reasoningEffort(),
+        "Named upstream StreamingChatModel must preserve the configured reasoning effort");
     assertTrue(
         rateLimited.delegate() == upstreamChatModel
             || rateLimited.delegate().getClass().equals(upstreamChatModel.getClass()),

@@ -844,7 +844,7 @@ rg -q 'run-patch-scenario.sh' "${GATE_SH}" \
   || fail "run-quality-gate.sh must invoke run-patch-scenario.sh"
 jq -e '
   [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "compare-and-patch")]
-  | length == 3
+  | length == 4
   and all(
     .value.terminalState == "CHAIN_PATCHED"
     and .value.retainCatalogChain == true
@@ -853,11 +853,11 @@ jq -e '
     and ((.value.seed.elements | type) == "array" and (.value.seed.elements | length) > 0)
   )
 ' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "exactly three active compare-and-patch CHAIN_PATCHED retain scenarios required"
+  || fail "exactly four active compare-and-patch CHAIN_PATCHED retain scenarios required"
 jq -e '."product-patch-chain-multi-turn".prompts | length == 2' "${SCENARIOS_FILE}" >/dev/null \
   || fail "multi-turn patch scenario must send two separate prompts"
-jq -e '."product-patch-chain-try-catch".status == "inactive"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "try-catch wrap patch remains inactive until the known defect is fixed"
+jq -e '."product-patch-chain-try-catch".status == "active"' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "try-catch wrap patch must stay active after live validation"
 jq -e '."product-patch-chain-replace-subgraph".status == "inactive"' "${SCENARIOS_FILE}" >/dev/null \
   || fail "replace-subgraph patch stays inactive beside the wrap scenario until that wrap run is green"
 jq -e '."product-patch-chain-replace-subgraph".catalog.minTypeCounts.script == 2' "${SCENARIOS_FILE}" >/dev/null \

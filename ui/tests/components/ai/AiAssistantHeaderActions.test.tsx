@@ -27,7 +27,7 @@ const confirmAndRunMock = confirmAndRun as jest.MockedFunction<
 
 describe("AiAssistantHeaderActions", () => {
   it("should call confirmAndRun with Clear this chat? when Clear is clicked", () => {
-    const onClearChat = jest.fn();
+    const onClearChat = jest.fn<() => void>();
     render(
       <AiAssistantHeaderActions
         onNewChat={jest.fn()}
@@ -51,7 +51,7 @@ describe("AiAssistantHeaderActions", () => {
     render(
       <AiAssistantHeaderActions
         onNewChat={jest.fn()}
-        onClearChat={jest.fn()}
+        onClearChat={jest.fn<() => void>()}
         clearDisabled
       />,
     );

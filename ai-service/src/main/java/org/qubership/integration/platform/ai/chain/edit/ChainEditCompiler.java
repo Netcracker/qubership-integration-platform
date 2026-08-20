@@ -197,6 +197,18 @@ public class ChainEditCompiler {
 
   private ChainEditOutcome fromResolvedIntent(
       ChainEditRequest request, ChainEditIntent intent, BiConsumer<String, String> progress) {
+    // What the reader was understood to have asked for. Logged before anything acts on it: every
+    // later refusal is judged against these targets, so reading one without them says little.
+    LOG.infof(
+        "Chain edit intent conversationId=%s action=%s disposition=%s targets=%s type=%s"
+            + " resolved=%s ambiguities=%s",
+        request.conversationId(),
+        intent.action(),
+        intent.disposition(),
+        intent.targetNodeIds(),
+        intent.requestedElementType(),
+        intent.resolved(),
+        intent.unresolvedAmbiguities());
     ChainEditOutcome noChange = noChangeOutcome(intent);
     if (noChange != null) {
       return noChange;
