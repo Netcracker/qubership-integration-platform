@@ -223,6 +223,16 @@ public class DesignPlanningCapability implements StageCapability {
     StringBuilder text = new StringBuilder();
     text.append("Normalized design flow. The plan is validated against it.\n\n");
 
+    text.append("Binding resolution policy: ")
+        .append(flow.bindingResolutionPolicy())
+        .append("\n");
+    if (flow.bindingResolutionPolicy()
+        == NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY) {
+      text.append(
+          "APIHub lookup, APIHub specification retrieval, API import, and replacement API search "
+              + "are forbidden for this flow. Reuse the existing catalog binding.\n");
+    }
+
     text.append("Participants. Reference only these, by id or display name:\n");
     for (NormalizedDesignFlow.Participant participant : flow.participants()) {
       text.append("- ")

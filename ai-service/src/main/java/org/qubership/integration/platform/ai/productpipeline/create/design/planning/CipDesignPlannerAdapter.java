@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
@@ -29,7 +30,7 @@ public final class CipDesignPlannerAdapter {
     String first =
         runner.runOnce(conversationId, SKILL_ID, input, Optional.empty(), pinnedSkillHash);
     try {
-      parser.parse(first);
+      parseAndValidate(first, input);
       return new DesignPlanReport("1", first.trim());
     } catch (PlannerReportFormatException firstFailure) {
       String second =
@@ -40,7 +41,7 @@ public final class CipDesignPlannerAdapter {
               Optional.of(firstFailure.getMessage()),
               pinnedSkillHash);
       try {
-        parser.parse(second);
+        parseAndValidate(second, input);
         return new DesignPlanReport("1", second.trim());
       } catch (PlannerReportFormatException secondFailure) {
         throw new PlannerContractException(
@@ -49,5 +50,24 @@ public final class CipDesignPlannerAdapter {
             secondFailure);
       }
     }
+  }
+
+  private ParsedPlannerReport parseAndValidate(String markdown, String input) {
+    ParsedPlannerReport parsed = parser.parse(markdown);
+    if (!input.contains("Binding resolution policy: CATALOG_ONLY")) {
+      return parsed;
+    }
+    List<Integer> forbiddenSteps =
+        parsed.steps().stream()
+            .filter(step -> step.ownerKind() == ParsedPlannerReport.OwnerKind.APIHUB_TOOL)
+            .map(ParsedPlannerReport.Step::reportOrdinal)
+            .toList();
+    if (!forbiddenSteps.isEmpty()) {
+      throw new PlannerReportFormatException(
+          "CATALOG_ONLY forbids APIHub planner steps; remove steps "
+              + forbiddenSteps
+              + " and plan the existing catalog binding with cip-service-call-generator");
+    }
+    return parsed;
   }
 }

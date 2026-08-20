@@ -100,6 +100,40 @@ class DesignPlanProjectorTest {
   }
 
   @Test
+  void rejectsApiHubStepsForCatalogOnlyFlow() {
+    NormalizedDesignFlow base = sampleFlow();
+    NormalizedDesignFlow catalogOnly =
+        new NormalizedDesignFlow(
+            base.schemaVersion(),
+            base.flowId(),
+            base.chainName(),
+            base.description(),
+            base.trigger(),
+            base.participants(),
+            base.steps(),
+            base.connections(),
+            base.transformations(),
+            base.dataMappings(),
+            base.constraints(),
+            base.assumptions(),
+            NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY);
+
+    PlannerReportFormatException ex =
+        assertThrows(
+            PlannerReportFormatException.class,
+            () ->
+                projector.project(
+                    new DesignPlanReport("1", validReport()),
+                    catalogOnly,
+                    sampleDag(),
+                    "catalog-hash",
+                    Map.of(),
+                    Map.of()));
+
+    assertTrue(ex.getMessage().contains("CATALOG_ONLY forbids APIHub planner steps"));
+  }
+
+  @Test
   void rejectsUnknownOwningSkill() {
     String report =
         """

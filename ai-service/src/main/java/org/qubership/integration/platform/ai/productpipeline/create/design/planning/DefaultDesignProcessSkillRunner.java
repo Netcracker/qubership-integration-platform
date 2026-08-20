@@ -11,6 +11,9 @@ import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
+import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.llm.agent.DesignProcessSkillAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 
@@ -22,12 +25,16 @@ import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner {
 
   private final CompilerSkillDocumentService documentService;
+  private final CompilerSkillAddonRepository addonRepository;
   private final DesignProcessSkillAgent agent;
 
   @Inject
   public DefaultDesignProcessSkillRunner(
-      CompilerSkillDocumentService documentService, DesignProcessSkillAgent agent) {
+      CompilerSkillDocumentService documentService,
+      CompilerSkillAddonRepository addonRepository,
+      DesignProcessSkillAgent agent) {
     this.documentService = documentService;
+    this.addonRepository = addonRepository;
     this.agent = agent;
   }
 
@@ -60,7 +67,8 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
     // JSON example — is content, and reaches the prompt renderer as an expression unless escaped.
     String userMessage =
         QuteUserMessageEscaping.escapeForAiServiceUserMessage(
-            buildUserMessage(document, input, formatFailure));
+            buildUserMessage(
+                document, addonRepository.loadForSkill(skillId), input, formatFailure));
     List<String> tokens =
         agent.chat(conversationId, userMessage).collect().asList().await().indefinitely();
     StringBuilder rendered = new StringBuilder();
@@ -70,11 +78,23 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
     return rendered.toString().trim();
   }
 
-  private static String buildUserMessage(
-      CompilerSkillDocument document, String input, Optional<String> formatFailure) {
+  static String buildUserMessage(
+      CompilerSkillDocument document,
+      CompilerSkillAddonContext addon,
+      String input,
+      Optional<String> formatFailure) {
     StringBuilder body = new StringBuilder();
     body.append("## Skill\n\n");
     body.append(document.markdown() == null ? "" : document.markdown().trim());
+    if (addon != null && addon.skillAddon() != null) {
+      String promptMaterial =
+          AddonPromptMaterialStripper.stripForPrompt(addon.skillAddon().content());
+      if (!promptMaterial.isBlank()) {
+        body.append("\n\n## Runtime addon\n\n");
+        body.append(promptMaterial);
+        body.append("\n\nThe runtime addon overrides conflicting workflow instructions above.");
+      }
+    }
     body.append("\n\n## Design input\n\n");
     body.append(input.trim());
     if (formatFailure.isPresent()) {
