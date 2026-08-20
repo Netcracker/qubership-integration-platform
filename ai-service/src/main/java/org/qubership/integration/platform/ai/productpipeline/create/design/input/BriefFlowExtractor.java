@@ -61,6 +61,12 @@ public final class BriefFlowExtractor {
               + "(?:imported\\s+)?(?<service>.+?)\\s+service(?:\\s+from\\s+catalog)?"
               + "(?:\\s*[:,-]?\\s*(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+))?");
 
+  private static final Pattern CATALOG_BOUND_OPERATION =
+      Pattern.compile(
+          "(?i)\\bcall\\s+(?:the\\s+)?catalog-bound\\s+(?<service>.+?)\\s+"
+              + "(?<operation>[A-Za-z0-9_.-]+)\\s+operation\\s*,?\\s*"
+              + "(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+)");
+
   private static final Pattern CATALOG_SERVICE =
       Pattern.compile("(?i)\\bcall\\s+catalog\\s+service\\s+['\\\"]?(?<service>[^'\\\".]+)");
 
@@ -497,6 +503,13 @@ public final class BriefFlowExtractor {
     if (trimmed == null) {
       return Optional.empty();
     }
+    Matcher catalogBound = CATALOG_BOUND_OPERATION.matcher(trimmed);
+    if (catalogBound.find()) {
+      return Optional.of(
+          new ServiceCallIdentity(
+              trimToNull(catalogBound.group("service")),
+              trimTrailingSentencePeriod(catalogBound.group("request"))));
+    }
     Matcher serviceFirst = CATALOG_OPERATION_AFTER_SERVICE.matcher(trimmed);
     if (serviceFirst.find()) {
       return Optional.of(
@@ -556,6 +569,13 @@ public final class BriefFlowExtractor {
       return trimToNull(trimmed.substring(1, trimmed.length() - 1));
     }
     return trimmed;
+  }
+
+  private static String trimTrailingSentencePeriod(String value) {
+    String trimmed = trimToNull(value);
+    return trimmed != null && trimmed.endsWith(".")
+        ? trimToNull(trimmed.substring(0, trimmed.length() - 1))
+        : trimmed;
   }
 
   private static String firstNonBlank(String value, String fallback) {
