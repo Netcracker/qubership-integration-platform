@@ -231,8 +231,9 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
 
     /**
      * Reads the path match off an existing rule fetched from the cluster. Unlike
-     * {@code runtime-catalog}'s sibling code (which preserves an unrecognized rule and logs a
-     * warning), a malformed rule here throws (e.g. {@link IndexOutOfBoundsException} on an
+     * {@code integration-build-pipeline}'s sibling {@code HttpRouteRuleNormalizer} (which
+     * preserves an unrecognized rule and logs a warning), a malformed rule here throws
+     * (e.g. {@link IndexOutOfBoundsException} on an
      * empty {@code matches} list), which {@link #mergeTierRoutes} wraps as a
      * {@link ControlPlaneException} and aborts the whole write. That asymmetry is intentional:
      * this write path merges into a live route the engine itself owns, so failing loudly and

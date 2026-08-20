@@ -25,6 +25,7 @@ import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.services.EgressServiceRouteFormatter;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.camelk.util.paths.GatewayPathMatch;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
@@ -37,7 +38,6 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.k
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
-import org.qubership.integration.platform.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -381,10 +381,10 @@ public class MicroDomainService {
     }
 
     void deleteChainSnapshotHttpRoutes(String name, String snapshotId) {
-        List<Route> ownRoutes = snapshotRepository.findById(snapshotId)
-                .map(snapshot -> routesGetterService.getRoutes(
-                        new SnapshotAdapter(snapshot), integrationServiceCatalog))
-                .orElseGet(List::of);
+        List<Route> ownRoutes = snapshotRepository.findAllByIdIn(List.of(snapshotId)).stream()
+                .flatMap(snapshot -> routesGetterService
+                        .getRoutes(new SnapshotAdapter(snapshot), integrationServiceCatalog).stream())
+                .toList();
 
         Set<GatewayPathMatch> publicPaths = tierOwnPaths(ownRoutes, RouteType::isExternalTriggerRoute);
         Set<GatewayPathMatch> privatePaths = tierOwnPaths(ownRoutes, RouteType::isPrivateTriggerRoute);
@@ -425,7 +425,7 @@ public class MicroDomainService {
      * {@code baseRoutePrefix + path} -- egress routes' {@code path} is the resolved external target
      * URL, not a gateway-facing path. {@code EXTERNAL_SERVICE} routes are additionally run through
      * {@link EgressServiceRouteFormatter} so the computed match reflects the hashed {@code gatewayPrefix}
-     * this module's own {@code EgressRouteResourceBuilder} actually wrote to the cluster.
+     * the build pipeline's own {@code EgressRouteResourceBuilder} actually wrote to the cluster.
      */
     private Set<GatewayPathMatch> egressOwnPaths(List<Route> ownRoutes) {
         return ownRoutes.stream()

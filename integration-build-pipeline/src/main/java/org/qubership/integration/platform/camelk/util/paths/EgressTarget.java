@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.util.paths;
+package org.qubership.integration.platform.camelk.util.paths;
 
 import org.apache.commons.codec.digest.DigestUtils;
 
@@ -40,8 +40,8 @@ public record EgressTarget(String scheme, String host, int port, String path) {
     /**
      * A Kubernetes-safe object name derived from {@link #host()} alone (not port or scheme), so
      * every route that targets the same external host converges on the same
-     * {@code ServiceEntry}/{@code DestinationRule} name -- in engine's live registration and
-     * runtime-catalog's build-time generation alike. The hash suffix guarantees two hosts that
+     * {@code ServiceEntry}/{@code DestinationRule} name -- in engine's live registration and this
+     * module's build-time generation alike. The hash suffix guarantees two hosts that
      * sanitize to the same base string (e.g. differing only in characters this strips) still get
      * distinct names.
      */

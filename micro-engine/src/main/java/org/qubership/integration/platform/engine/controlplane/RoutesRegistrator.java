@@ -45,7 +45,7 @@ public class RoutesRegistrator {
     }
 
     /**
-     * The route table registered here is hand-mirrored in {@code runtime-catalog}'s
+     * The route table registered here is hand-mirrored in {@code integration-build-pipeline}'s
      * {@code EngineRoutesResourceBuilder}, which generates the equivalent Istio HTTPRoute
      * CR for micro-domain deployments (this class only registers with Cloud-Core Mesh
      * control-plane, so it has no effect there). That mirror is NOT derived from this

@@ -13,8 +13,8 @@ import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
+import org.qubership.integration.platform.camelk.util.paths.EgressTarget;
 import org.qubership.integration.platform.chain.model.Snapshot;
-import org.qubership.integration.platform.util.paths.EgressTarget;
 
 import java.util.LinkedHashMap;
 import java.util.List;

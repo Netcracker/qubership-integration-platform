@@ -42,13 +42,9 @@ public final class EgressServiceRouteFormatter {
         }
         String pathHash = DigestUtils.sha1Hex(StringUtils.joinWith(",", formattedPath, route.getConnectTimeout()));
 
-        return Route.builder()
-                .id(route.getId())
+        return route.toBuilder()
                 .path(formattedPath)
                 .gatewayPrefix(route.getGatewayPrefix() + "/" + pathHash)
-                .variableName(route.getVariableName())
-                .type(route.getType())
-                .connectTimeout(route.getConnectTimeout())
                 .build();
     }
 }

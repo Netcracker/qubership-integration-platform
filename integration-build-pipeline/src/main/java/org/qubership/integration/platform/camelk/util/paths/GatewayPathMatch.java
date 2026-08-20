@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.util.paths;
+package org.qubership.integration.platform.camelk.util.paths;
 
 import java.util.Objects;
 import java.util.regex.Pattern;

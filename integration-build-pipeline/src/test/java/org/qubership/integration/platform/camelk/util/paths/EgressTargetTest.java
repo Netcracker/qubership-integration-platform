@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.util.paths;
+package org.qubership.integration.platform.camelk.util.paths;
 
 import org.junit.jupiter.api.Test;
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.util;
+package org.qubership.integration.platform.camelk.util;
 
 /**
  * Formats a millisecond duration for a Gateway API {@code HTTPRouteTimeouts} field. The CRD

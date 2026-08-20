@@ -108,7 +108,7 @@ class MicroDomainServiceHttpRouteTest {
      * entity itself is a bare mock.
      */
     private void stubSnapshotRoutes(List<Route> routes) {
-        when(snapshotRepository.findById(any())).thenReturn(Optional.of(mock(
+        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
                 org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
         when(routesGetterService.getRoutes(any(), any())).thenReturn(routes);
     }
