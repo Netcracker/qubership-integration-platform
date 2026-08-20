@@ -1,5 +1,7 @@
 ---
-name: Integration Build Pipeline Library Build
+name: Integration Build Pipeline Release
+
+run-name: Integration Build Pipeline Release (${{ inputs.release-type }})
 
 on:
   workflow_call:
@@ -9,11 +11,6 @@ on:
         required: false
         type: string
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
-        required: false
-        type: string
-        default: ""
       profile:
         description: "Maven profile to use"
         type: string
@@ -38,7 +35,7 @@ on:
   workflow_dispatch:
     inputs:
       release-type:
-        description: "Release type (ignored if a version override is given)"
+        description: "patch | minor | major"
         type: choice
         options:
           - "patch"
@@ -46,11 +43,6 @@ on:
           - "major"
         required: false
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
-        required: false
-        default: ""
-        type: string
       profile:
         description: "Maven profile to use"
         type: choice
@@ -76,10 +68,13 @@ jobs:
     with:
       module: integration-build-pipeline
       release-type: ${{ inputs.release-type }}
-      version: ${{ inputs.version }}
       profile: ${{ inputs.profile }}
       build-docker: false
       mvn-args: ${{ inputs.mvn-args }}
+      # runtime-catalog pins this library by property; move it onto the release
+      # in the same bump commit, before the runtime-catalog job checks out.
+      sync-property: qip-integration-build-pipeline.version
+      sync-poms: runtime-catalog/pom.xml
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}

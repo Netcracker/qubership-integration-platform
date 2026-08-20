@@ -1,7 +1,14 @@
 ---
 # Release the schemas module as an npm package (@netcracker/qip-schemas) via the
-# shared _npm-module-release workflow, then optionally cascade to ui (and on to
-# vscode-extension).
+# shared _npm-module-release workflow, then release the Maven artifact under the
+# SAME version, then optionally cascade to ui (and on to vscode-extension).
+#
+# One dispatch moves both ecosystems: npm decides the number, Maven takes it as
+# an explicit override. The two tag lines stay separate (schemas-v*, schemas-maven-v*)
+# so each keeps its own recovery sentinel.
+#
+# The only way to release schemas. The Maven line is call-only, so both artifacts
+# always carry the same number.
 #
 # No workflow-level concurrency: the reusable serialises per module (group
 # includes inputs.module). A wrapper-level group keyed on github.workflow would
@@ -12,39 +19,10 @@ name: Schemas Release
 run-name: Schemas Release (${{ inputs.release-type }})
 
 on:
-  workflow_call:
-    inputs:
-      release-type:
-        required: false
-        type: string
-        default: "patch"
-        description: "patch | minor | major"
-      version:
-        required: false
-        type: string
-        default: ""
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
-      npm-dist-tag:
-        required: false
-        type: string
-        default: "latest"
-      cascade-ui:
-        required: false
-        type: boolean
-        default: false
-        description: "After releasing schemas, also release ui (auto patch-bump)"
-      cascade-vscode-extension:
-        required: false
-        type: boolean
-        default: false
-        description: "Also release vscode-extension after ui (only when cascade-ui is enabled)"
-    secrets:
-      GH_BUMP_VERSION_APP_KEY:
-        required: false
   workflow_dispatch:
     inputs:
       release-type:
-        description: "Release type (ignored if a version override is given)"
+        description: "patch | minor | major"
         type: choice
         options:
           - "patch"
@@ -52,16 +30,19 @@ on:
           - "major"
         required: false
         default: "patch"
-      version:
-        required: false
-        default: ""
-        type: string
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         description: "npm distribution tag"
         required: false
         type: string
         default: "latest"
+      maven-profile:
+        description: "Maven profile for the Maven artifact"
+        type: choice
+        options:
+          - "central"
+          - "github"
+        required: false
+        default: "central"
       cascade-ui:
         description: "After releasing schemas, also release ui (auto patch-bump)"
         required: false
@@ -84,9 +65,26 @@ jobs:
     with:
       module: schemas
       release-type: ${{ inputs.release-type }}
-      version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
     secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
+  # Maven artifact, same number as npm. Chained rather than parallel: npm owns the
+  # version, this call only takes the override.
+  release-maven:
+    needs: release
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/schemas-maven-release.yaml
+    with:
+      version: ${{ needs.release.outputs.release-version }}
+      profile: ${{ inputs.maven-profile }}
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   # Cascade: release ui (which itself may cascade on to vscode-extension) with an

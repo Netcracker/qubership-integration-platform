@@ -67,7 +67,20 @@ jobs:
           java-version: "21"
           distribution: "temurin"
           # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
-          cache: "maven"
+
+      # setup-java's built-in maven cache restores on an exact pom-hash key only.
+      # Every release rewrites the poms in a [skip ci] commit, so the tree the
+      # next run checks out was never cached and the restore always missed. A
+      # prefix fallback gives a warm start, and keying per module stops the Java
+      # jobs in a wave from racing for one entry — only the first to finish could
+      # save it, and the rest logged "Unable to reserve cache".
+      - name: Cache the Maven repository
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-${{ inputs.module }}-
 
       # Pre-install the parent pom so the single-module deploy below resolves it.
       - name: Install qip-monorepo-parent locally

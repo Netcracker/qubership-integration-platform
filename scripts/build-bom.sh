@@ -7,6 +7,10 @@
 # Tag scheme: <module>-v<X.Y.Z>. Modules with no released tag yet appear as
 # null. This makes the BOM safe to commit and to diff across releases.
 #
+# schemas is one row for two artifacts: the npm package and the Maven artifact
+# carry the same version, released together (schemas-release.yaml). The row reads
+# the npm tag line.
+#
 # Usage:
 #   scripts/build-bom.sh                  # write JSON to stdout
 #   scripts/build-bom.sh > release-manifest.json
@@ -19,17 +23,9 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# Modules tracked by the BOM. Order is preserved in the output.
+# Modules tracked by the BOM, in output order (scripts/modules.sh).
 # checkstyle is build tooling, not a shipped module, so it stays out.
-MODULES=(
-    "engine"
-    "micro-engine"
-    "runtime-catalog"
-    "sessions-management"
-    "schemas"
-    "ui"
-    "vscode-extension"
-)
+. "$REPO_ROOT/scripts/modules.sh"
 
 # Strip the "<module>-v" prefix from the latest matching tag.
 latest_version() {
@@ -48,9 +44,9 @@ printf '{\n'
 printf '  "generated_at": "%s",\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 printf '  "modules": {\n'
 
-count=${#MODULES[@]}
+count=${#QIP_BOM_MODULES[@]}
 i=0
-for module in "${MODULES[@]}"; do
+for module in "${QIP_BOM_MODULES[@]}"; do
     i=$((i + 1))
     version=$(latest_version "$module")
     if [ -z "$version" ]; then

@@ -1,50 +1,42 @@
 ---
 # Release the schemas module as a Maven artifact (ZIP + sources + javadoc,
 # GPG-signed) to Maven Central via the shared _maven-module-release workflow.
-# Pick patch/minor/major; the version is derived from the pom <revision> and
-# bumped automatically.
 #
-# This Maven version line (0.0.x) is INDEPENDENT of the npm version in
-# package.json (schemas-release.yaml, 0.2.x). The two share the schemas-v* tag
-# prefix but the lines never overlap, so the tags never collide.
+# Call-only, from schemas-release.yaml. The Maven and npm lines carry the SAME
+# version: schemas-release.yaml releases npm first and chains this workflow with
+# that exact number. There is deliberately no workflow_dispatch — dispatching the
+# Maven line on its own is the only way the two could diverge again. Tags differ
+# (schemas-maven-v* here, schemas-v* for npm) so each line keeps its own recovery
+# sentinel.
 #
 # Not part of release-all (rare, manual cadence). build-docker is false: schemas
 # is a library, not a service image.
 
 name: Schemas Maven Release (Central)
 
-run-name: Schemas Maven Release (${{ inputs.release-type }})
-
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      release-type:
-        description: "Release type (ignored if a version override is given)"
-        type: choice
-        options:
-          - "patch"
-          - "minor"
-          - "major"
-        required: false
-        default: "patch"
       version:
-        description: "Explicit release version (X.Y.Z) override. Empty = release the current <revision>, bump by release-type."
-        required: false
-        default: ""
+        description: "Release version (X.Y.Z). The npm release decides it."
+        required: true
         type: string
       profile:
-        description: "Maven profile to use"
-        type: choice
-        options:
-          - "central"
-          - "github"
+        description: "Maven profile to use (central | github)"
         required: false
         default: "central"
-      mvn-args:
-        description: "Additional maven arguments (e.g. -DskipTests=true)"
-        required: false
-        default: ""
         type: string
+    secrets:
+      MAVEN_USER:
+        required: false
+      MAVEN_PASSWORD:
+        required: false
+      MAVEN_GPG_PRIVATE_KEY:
+        required: false
+      MAVEN_GPG_PASSPHRASE:
+        required: false
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
 
 permissions: {}
 
@@ -56,11 +48,12 @@ jobs:
     uses: ./.github/workflows/_maven-module-release.yaml
     with:
       module: schemas
-      release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       profile: ${{ inputs.profile }}
       build-docker: false
-      mvn-args: ${{ inputs.mvn-args }}
+      # The npm line owns schemas-v*; this line needs its own prefix so neither
+      # release reads the other's tag as a recovery sentinel.
+      tag-prefix: schemas-maven
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
