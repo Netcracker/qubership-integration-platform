@@ -52,6 +52,21 @@ on:
         required: false
         default: ""
         type: string
+      tag-prefix:
+        description: "Tag prefix, when it differs from the module dir (e.g. schemas-maven for the Maven schemas line)."
+        required: false
+        default: ""
+        type: string
+      sync-property:
+        description: "Property in sync-poms to rewrite with the released version (e.g. qip-integration-build-pipeline.version)."
+        required: false
+        default: ""
+        type: string
+      sync-poms:
+        description: "Space-separated POMs whose sync-property is rewritten and committed alongside the version bump."
+        required: false
+        default: ""
+        type: string
     secrets:
       MAVEN_USER:
         required: false
@@ -86,7 +101,6 @@ jobs:
       contents: read
     outputs:
       release-version: ${{ steps.compute.outputs.release-version }}
-      next-dev: ${{ steps.compute.outputs.next-dev }}
       release-tag: ${{ steps.compute.outputs.release-tag }}
       recover: ${{ steps.compute.outputs.recover }}
     steps:
@@ -97,18 +111,22 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Compute release and next-dev versions
+      - name: Compute the release version
         id: compute
         env:
           ECOSYSTEM: maven
           MODULE: ${{ inputs.module }}
           RELEASE_TYPE: ${{ inputs.release-type }}
           VERSION_OVERRIDE: ${{ inputs.version }}
+          TAG_PREFIX: ${{ inputs.tag-prefix }}
         run: bash scripts/compute-release-version.sh
 
   # Build, sign, publish, then bump <revision>, commit, and tag. Recovery skips
   # deploy/upload and only re-applies the bump.
   build-and-publish:
+    # run-name can't see a computed value (github/inputs/vars only), but a job
+    # name can read `needs` — so the released version shows up here.
+    name: publish ${{ needs.check-version.outputs.release-version }}
     needs: check-version
     runs-on: ubuntu-latest
     permissions:
@@ -117,7 +135,6 @@ jobs:
     env:
       MODULE: ${{ inputs.module }}
       RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
-      NEXT_DEV: ${{ needs.check-version.outputs.next-dev }}
       # Gate the app-token step on the App key being present (secrets are not
       # allowed in `if:`, env derived from them is).
       APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -176,13 +193,14 @@ jobs:
           SKIP_GPG: ${{ inputs.profile == 'github' && '-Dgpg.skip=true' || '' }}
         run: |
           set -eu
-          # Run from the module dir so Maven reads only this module + parent, not
-          # siblings (micro-engine's private deps this token can't read).
+          # No -am: the parent is pre-installed above, and an in-repo library
+          # dependency (integration-build-pipeline) must come from its published
+          # release, not from a reactor build this job would then deploy twice.
           # -Drevision publishes the computed version; -Dchangelist= strips -SNAPSHOT.
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            -pl $MODULE_NAME -am \
+            -pl $MODULE_NAME \
             -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \
             -Dchangelist= \
@@ -193,15 +211,26 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
           TAG: ${{ needs.check-version.outputs.release-tag }}
+          SYNC_PROPERTY: ${{ inputs.sync-property }}
+          SYNC_POMS: ${{ inputs.sync-poms }}
         run: |
           set -eu
           POM="$MODULE/pom.xml"
           # Write the released version into <revision> (<changelist> untouched).
           # TAG tags this bump commit and pushes it first (see the script). Runs
           # in recovery too — commit-and-push.sh no-ops if unchanged.
-          sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${NEXT_DEV}</revision>#" "$POM"
-          grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to write <revision> in $POM"; exit 1; }
-          bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" "$POM"
+          sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${RELEASE_VERSION}</revision>#" "$POM"
+          grep -q "<revision>${RELEASE_VERSION}</revision>" "$POM" || { echo "::error::Failed to write <revision> in $POM"; exit 1; }
+
+          # Consumers pin this module by property; move them onto the release in
+          # the same commit, so a later job in the wave builds against it.
+          files="$POM"
+          if [ -n "$SYNC_PROPERTY" ]; then
+            # shellcheck disable=SC2086
+            files="$POM $(bash scripts/sync-consumer-pins.sh "$SYNC_PROPERTY" "$RELEASE_VERSION" $SYNC_POMS | tr '\n' ' ')"
+          fi
+          # shellcheck disable=SC2086
+          bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" $files
 
       - name: Upload build output
         if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
@@ -215,6 +244,7 @@ jobs:
 
   # Docker image build (workflow-hub action). Skipped in recovery — no jar built.
   publish-image:
+    name: image ${{ needs.check-version.outputs.release-version }}
     if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
     needs: [check-version, build-and-publish]
     runs-on: ubuntu-latest

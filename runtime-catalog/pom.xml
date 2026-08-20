@@ -18,13 +18,17 @@
   <parent>
       <groupId>org.qubership.integration.platform</groupId>
       <artifactId>qip-monorepo-parent</artifactId>
-      <version>0.5.1-SNAPSHOT</version>
+      <version>1.2.0-SNAPSHOT</version>
       <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
     <revision>1.2.0</revision>
     <changelist>-SNAPSHOT</changelist>
+
+    <!-- Released version of the in-repo library. Kept equal to integration-build-pipeline's <revision> so a
+         reactor build resolves it from source; scripts/check-version-invariants.sh enforces that. -->
+    <qip-integration-build-pipeline.version>1.2.0</qip-integration-build-pipeline.version>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -550,7 +554,7 @@
     <dependency>
       <groupId>${project.parent.groupId}</groupId>
       <artifactId>qip-integration-build-pipeline</artifactId>
-      <version>${project.parent.version}</version>
+      <version>${qip-integration-build-pipeline.version}</version>
     </dependency>
   </dependencies>
   <build>
