@@ -129,19 +129,7 @@ public class ChainStructureCaptureTool {
       }
       ChainStructure normalized =
           mergeConfiguredTriggerProperties(conversationId, sanitized.structure());
-      ChainPlanGraph graphUnderTest;
-      try {
-        graphUnderTest = asMergedOntoEditedChain(editBase, normalized.graph());
-      } catch (IllegalArgumentException e) {
-        return finish(
-            conversationId,
-            startMs,
-            repairable(
-                conversationId,
-                capture,
-                captureFailureClass(e),
-                "Structure validation failed:\n" + e.getMessage()));
-      }
+      ChainPlanGraph graphUnderTest = normalized.graph();
       List<String> errors = graphValidator.validate(graphUnderTest);
       if (!errors.isEmpty()) {
         return finish(
@@ -237,19 +225,6 @@ public class ChainStructureCaptureTool {
     return "This edit nests existing elements, so capture subgraph rather than graph: the container"
         + " type, its branches, the elements each branch creates, and in moveExisting the ids"
         + " of the existing elements that move into a branch.";
-  }
-
-  /**
-   * Returns the graph this capture produces for validation.
-   *
-   * <p>An edit that captures a subgraph assembles it into the full chain before structure
-   * validation runs. A CREATE run publishes no base, and its capture is validated as-is. A
-   * structural edit always captures a subgraph, so this method now only returns the graph to
-   * validate.
-   */
-  private static ChainPlanGraph asMergedOntoEditedChain(
-      ChainEditStructureBase editBase, ChainPlanGraph captured) {
-    return captured;
   }
 
   private String repairable(
