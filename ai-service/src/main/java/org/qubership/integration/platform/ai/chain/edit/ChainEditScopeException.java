@@ -1,8 +1,11 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 /**
- * A structure capture {@link ChainEditStructureMerge} refuses because it falls outside the scope
- * the intent approved.
+ * A structure capture refused because it falls outside the scope the intent approved.
+ *
+ * <p>Raised by {@link ChainEditSubgraphAssembly} for a capture that describes a change the intent
+ * did not name, and by {@link ChainEditStructureMerge} for the whole-graph captures that have yet
+ * to move onto the subgraph contract.
  *
  * <p>Extends {@link IllegalArgumentException} so callers that already treat a refused merge as a
  * bad argument keep working unchanged.
