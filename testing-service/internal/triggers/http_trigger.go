@@ -74,7 +74,9 @@ func (t *httpTrigger) Activate(
 	}
 	response, err := t.httpClient.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to activate trigger: %w", err)
+		// The client error already names the method and the URL, and the caller
+		// prefixes what it was doing, so wrapping here only repeats one of them.
+		return nil, err
 	}
 	defer response.Body.Close()
 	exchange, err := convertResponseToExchange(response)

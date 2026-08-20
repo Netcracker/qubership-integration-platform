@@ -333,7 +333,10 @@ func TestActivateReportsAnUnreachableEngine(t *testing.T) {
 		Activate(context.Background(), testSessionID, &dao.RequestSettings{Method: http.MethodGet})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to activate trigger")
+	// The address is what makes such a failure readable, so the error has to
+	// carry it rather than a prefix the caller repeats anyway.
+	assert.Contains(t, err.Error(), triggersURL+"/orders")
+	assert.Contains(t, err.Error(), "connection refused")
 }
 
 func TestActivateRejectsAnInvalidMethod(t *testing.T) {
