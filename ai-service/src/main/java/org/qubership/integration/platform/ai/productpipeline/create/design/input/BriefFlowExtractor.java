@@ -324,7 +324,7 @@ public final class BriefFlowExtractor {
       }
       mappings.add(
           new NormalizedDesignFlow.DataMapping(
-              mapping.mappingId(),
+              normalizedMappingId(mapping, fromStep, toStep),
               NormalizedDesignFlow.MappingStage.valueOf(mapping.stage().name()),
               fromStep,
               toStep,
@@ -333,6 +333,19 @@ public final class BriefFlowExtractor {
               sourceFactIds));
     }
     return List.copyOf(mappings);
+  }
+
+  private static String normalizedMappingId(
+      RequirementDataMapping mapping, String fromStep, String toStep) {
+    if (!mapping.mappingId().isBlank()) {
+      return mapping.mappingId();
+    }
+    return "map-"
+        + mapping.stage().name().toLowerCase(Locale.ROOT)
+        + "-"
+        + fromStep
+        + "-to-"
+        + toStep;
   }
 
   /**

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -97,6 +98,34 @@ class BriefFlowExtractorTest {
     assertEquals(
         NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY,
         flow.bindingResolutionPolicy());
+  }
+
+  @Test
+  void assignsMappingIdWhenRequirementBriefLeavesItBlank() {
+    RequirementBrief brief =
+        brief(
+            "Pets",
+            List.of("HTTP GET /pets"),
+            "List pets",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP GET /pets findPets"),
+                fact("call-1", RequirementFactKind.SERVICE_CALL, "Petstore Ext: GET /pets")),
+            List.of(
+                new RequirementDataMapping(
+                    "",
+                    RequirementDataMapping.Stage.INITIALIZATION,
+                    "trigger-1",
+                    "call-1",
+                    RequirementDataMapping.Mode.PASS_THROUGH,
+                    List.of(),
+                    List.of("trigger-1", "call-1"))));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertFalse(flow.dataMappings().getFirst().mappingId().isBlank());
+    assertDoesNotThrow(() -> new NormalizedDesignFlowValidator().validate(flow));
   }
 
   @Test
