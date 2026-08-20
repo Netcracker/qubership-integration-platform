@@ -160,6 +160,81 @@ class ChainEditSubgraphAssemblyTest {
   }
 
   @Test
+  void branchOrderFollowsThePriorityPropertyRatherThanTheCaptureListPosition() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
+    ChainEditSubgraph reversedInTheCapture =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                catchBranch("java.lang.Exception", 1, "log-failure"),
+                catchBranch("java.net.SocketTimeoutException", 0, "log-timeout")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), reversedInTheCapture, wrap(CALL), descriptors);
+
+    List<ChainPlanNode> catches =
+        assembled.nodes().stream().filter(node -> "catch-2".equals(node.type())).toList();
+    assertEquals(2, catches.size());
+    assertEquals(0, catches.get(0).order());
+    assertEquals(1, catches.get(1).order());
+    assertEquals(
+        List.of(
+            new PlanProperty("exception", "java.net.SocketTimeoutException"),
+            new PlanProperty("priority", "0")),
+        catches.get(0).properties());
+  }
+
+  @Test
+  void aRepeatableRoleOtherThanCatchIsOrderedByTheDescriptorsOwnPriorityProperty() {
+    CatalogElementDescriptorCache descriptors = ifDescriptors(true, "branchPriority");
+    ChainEditSubgraph reversedInTheCapture =
+        new ChainEditSubgraph(
+            "if-2",
+            "Route by amount",
+            List.of(whenBranch("true", 1, SCRIPT), whenBranch("payload.amount > 100", 0, CALL)));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), reversedInTheCapture, wrap(CALL, SCRIPT), descriptors);
+
+    List<ChainPlanNode> branches =
+        assembled.nodes().stream().filter(node -> "when-2".equals(node.type())).toList();
+    assertEquals(2, branches.size());
+    assertEquals(branches.get(0).nodeId(), node(assembled, CALL).parentNodeId());
+    assertEquals(branches.get(1).nodeId(), node(assembled, SCRIPT).parentNodeId());
+    assertEquals(
+        List.of(
+            new PlanProperty("condition", "payload.amount > 100"),
+            new PlanProperty("branchPriority", "0")),
+        branches.get(0).properties());
+  }
+
+  @Test
+  void aBranchWithNeitherNewNorMovedElementsIsLeftToChildlessContainerPruning() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptorsWithOptionalFinally();
+    ChainEditSubgraph withAnEmptyFinally =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL),
+                catchBranch("java.lang.Exception", null, "log-failure"),
+                new ChainEditSubgraphBranch(
+                    "finally-2", "Finally", List.of(), null, List.of(), null)));
+
+    ChainPlanGraph assembled =
+        assertDoesNotThrow(
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), withAnEmptyFinally, wrap(CALL), descriptors));
+
+    assertEquals("finally-2", nodeOfType(assembled, "finally-2").type());
+  }
+
+  @Test
   void wrappingAnElementInsideAContainerLeavesTheWrapperInThatContainer() {
     ChainPlanGraph nested =
         new ChainPlanGraph(
@@ -685,6 +760,55 @@ class ChainEditSubgraphAssemblyTest {
             "try-catch-finally-2",
             Map.of("try-2", CatalogChildQuantity.ONE, "catch-2", CatalogChildQuantity.ONE_OR_MANY),
             ordered));
+  }
+
+  /**
+   * A repeatable role that is not catch, so descriptor-driven assembly is checked against more than
+   * one container type. {@code priorityProperty} is caller-supplied rather than the catalog default,
+   * so a test using it proves the property name is read from the descriptor rather than hardcoded.
+   */
+  private static CatalogElementDescriptorCache ifDescriptors(
+      boolean ordered, String priorityProperty) {
+    return cacheWithContainer(
+        new CatalogElementDescriptor(
+            "if-2",
+            true,
+            Map.of("when-2", CatalogChildQuantity.ONE_OR_MANY),
+            List.of(),
+            ordered,
+            priorityProperty,
+            false,
+            false,
+            false,
+            true));
+  }
+
+  /**
+   * Like {@link #tryCatchDescriptors}, but {@code finally-2} is optional and, like try and catch,
+   * requires inner content when present -- so an empty one is only safe when pruned before it is
+   * declared to need content.
+   */
+  private static CatalogElementDescriptorCache tryCatchDescriptorsWithOptionalFinally() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "try-catch-finally-2" ->
+                    container(
+                        type,
+                        Map.of(
+                            "try-2", CatalogChildQuantity.ONE,
+                            "catch-2", CatalogChildQuantity.ONE_OR_MANY,
+                            "finally-2", CatalogChildQuantity.ONE_OR_ZERO),
+                        false);
+                case "finally-2" -> CatalogElementDescriptorTestSupport.containerRequiringInner(type);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
   }
 
   /** Like {@link #tryCatchDescriptors}, but the try and catch branches require inner content. */
