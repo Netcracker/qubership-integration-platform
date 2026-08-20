@@ -165,6 +165,12 @@ public final class ChainEditSubgraphAssembly {
    * wraps, and a capture that moves one more encloses an element nobody approved. A capture that
    * moves one fewer leaves the reader with a wrapper around less than they asked for, so both
    * directions are refused while the generator can still correct them.
+   *
+   * <p>Because the union across the branches has to be exactly the intent's targets, whether the
+   * moved elements form a connected run is a property of those targets. That question belongs to
+   * the reader, not to the generator, and {@link ChainEditIntentResolver} asks it before any
+   * capture is requested. Repeating the check here would only refuse a capture that cannot be
+   * corrected: the missing element is one the intent does not name, so no capture may move it.
    */
   private static Map<String, ChainEditSubgraphBranch> movedElements(
       ChainEditSubgraph capture, Map<String, ChainPlanNode> baseById, Set<String> targets) {
