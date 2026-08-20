@@ -177,6 +177,12 @@ pre[class*="language-"] .token.punctuation {
   ) !important;
 }
 
+/* antd leaves a link button borderless. The blanket rule above paints its
+   border anyway, boxing in every inline link the tables use. */
+.ant-btn-variant-link {
+  border-color: transparent !important;
+}
+
 .ant-btn-default {
   background-color: var(--vscode-editor-background) !important;
   color: var(--vscode-foreground) !important;
