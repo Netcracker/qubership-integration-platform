@@ -61,6 +61,42 @@ class BriefFlowExtractorTest {
         flow.participants().stream().anyMatch(p -> "Orders API".equals(p.displayName())));
     assertFalse(
         flow.steps().stream().anyMatch(s -> "create order".equals(s.operationQuery())));
+    assertEquals(
+        NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_FIRST,
+        flow.bindingResolutionPolicy());
+  }
+
+  @Test
+  void explicitApiHubProhibitionBecomesCatalogOnlyPolicy() {
+    RequirementBrief brief =
+        brief(
+            "Pet Inventory Check",
+            List.of("HTTP POST /demo/pet-inventory/check"),
+            "Call the existing Petstore inventory operation",
+            List.of(
+                fact(
+                    "trigger-1",
+                    RequirementFactKind.ENDPOINT,
+                    "HTTP POST /demo/pet-inventory/check"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    "Petstore Ext: GET /store/inventory"),
+                new RequirementFact(
+                    "constraint-apihub",
+                    RequirementFactPolarity.NEGATIVE,
+                    RequirementFactKind.CONSTRAINT,
+                    "apihub",
+                    "Do not query APIHub or import a new API specification")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    BriefFlowExtractor.ExtractionResult result = extractor.extract(brief);
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, result).flow();
+    assertEquals(
+        NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY,
+        flow.bindingResolutionPolicy());
   }
 
   @Test

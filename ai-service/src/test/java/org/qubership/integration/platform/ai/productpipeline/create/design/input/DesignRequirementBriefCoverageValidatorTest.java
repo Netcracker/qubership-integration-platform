@@ -214,6 +214,29 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void rejectsUnexpectedTopologyMappingEvenWhenRequiredEdgesExist() {
+    RequirementDataMapping reversedInitialization =
+        new RequirementDataMapping(
+            "map-extra",
+            RequirementDataMapping.Stage.INITIALIZATION,
+            "call-1",
+            "trigger-1",
+            RequirementDataMapping.Mode.PASS_THROUGH,
+            List.of(),
+            List.of("fact-map-extra"));
+    RequirementBrief brief =
+        twoCallBrief(
+            List.of(initialization(), conversion(), response(), reversedInitialization));
+
+    IllegalArgumentException thrown =
+        assertThrows(IllegalArgumentException.class, () -> designValidator.validate(brief));
+
+    assertTrue(thrown.getMessage().contains("unexpected INITIALIZATION"), thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("call-1"), thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("trigger-1"), thrown.getMessage());
+  }
+
+  @Test
   void rejectsExplicitMappingWithNoRules() {
     RequirementDataMapping explicitMappingWithNoRules =
         new RequirementDataMapping(

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignRequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -15,6 +16,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
  * Empty draft facts are a coverage no-op (catalog-import promotion may approve without facts).
  */
 public final class RequirementBriefCoverageValidator {
+
+  private final DesignRequirementBriefCoverageValidator topologyValidator =
+      new DesignRequirementBriefCoverageValidator();
 
   public Optional<String> validate(RequirementDraft approvedDraft, RequirementBrief brief) {
     Objects.requireNonNull(approvedDraft, "approvedDraft");
@@ -74,7 +78,29 @@ public final class RequirementBriefCoverageValidator {
         && !brief.approvedDraftText().equals(approvedDraft.planningText())) {
       return Optional.of("requirement brief approvedDraftText does not match approved draft");
     }
+    if (isSingleEntryServiceFlow(brief)) {
+      try {
+        topologyValidator.validate(brief);
+      } catch (IllegalArgumentException ex) {
+        return Optional.of("invalid single-entry mapping topology: " + ex.getMessage());
+      }
+    }
     return Optional.empty();
+  }
+
+  private static boolean isSingleEntryServiceFlow(RequirementBrief brief) {
+    long endpoints =
+        brief.facts().stream()
+            .filter(Objects::nonNull)
+            .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+            .filter(fact -> fact.kind() == RequirementFactKind.ENDPOINT)
+            .count();
+    boolean hasServiceCall =
+        brief.facts().stream()
+            .filter(Objects::nonNull)
+            .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+            .anyMatch(fact -> fact.kind() == RequirementFactKind.SERVICE_CALL);
+    return endpoints == 1 && hasServiceCall;
   }
 
   private static Map<String, RequirementFact> indexById(List<RequirementFact> facts, String label) {

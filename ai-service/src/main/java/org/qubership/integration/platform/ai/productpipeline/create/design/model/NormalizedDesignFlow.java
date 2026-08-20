@@ -17,7 +17,8 @@ public record NormalizedDesignFlow(
     List<Transformation> transformations,
     List<DataMapping> dataMappings,
     List<String> constraints,
-    List<String> assumptions) {
+    List<String> assumptions,
+    BindingResolutionPolicy bindingResolutionPolicy) {
 
   public NormalizedDesignFlow {
     schemaVersion = DesignArtifacts.requireText(schemaVersion, "schemaVersion");
@@ -32,6 +33,45 @@ public record NormalizedDesignFlow(
     dataMappings = DesignArtifacts.copyList(dataMappings);
     constraints = DesignArtifacts.copyList(constraints);
     assumptions = DesignArtifacts.copyList(assumptions);
+    bindingResolutionPolicy =
+        bindingResolutionPolicy == null
+            ? BindingResolutionPolicy.CATALOG_FIRST
+            : bindingResolutionPolicy;
+  }
+
+  /** Compatibility constructor for flows created before per-flow binding policy was introduced. */
+  public NormalizedDesignFlow(
+      String schemaVersion,
+      String flowId,
+      String chainName,
+      String description,
+      Trigger trigger,
+      List<Participant> participants,
+      List<Step> steps,
+      List<Connection> connections,
+      List<Transformation> transformations,
+      List<DataMapping> dataMappings,
+      List<String> constraints,
+      List<String> assumptions) {
+    this(
+        schemaVersion,
+        flowId,
+        chainName,
+        description,
+        trigger,
+        participants,
+        steps,
+        connections,
+        transformations,
+        dataMappings,
+        constraints,
+        assumptions,
+        BindingResolutionPolicy.CATALOG_FIRST);
+  }
+
+  public enum BindingResolutionPolicy {
+    CATALOG_FIRST,
+    CATALOG_ONLY
   }
 
   public record Trigger(

@@ -109,6 +109,20 @@ class ExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void catalogOnlyMissFailsWithoutCallingApiHub() {
+    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, sampleCatalogOnlyFlow(), List.of(), approved());
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
+    assertTrue(failed.reason().contains("local catalog"), failed.reason());
+    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
+  }
+
+  @Test
   void ambiguousCatalogMatchWaitsForInputWithoutApiHub() {
     when(catalogReadTool.searchCatalogSystems(anyString()))
         .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
@@ -405,6 +419,24 @@ class ExecutorCatalogBindingAdapterTest {
         List.of(),
         List.of(),
         List.of());
+  }
+
+  private static NormalizedDesignFlow sampleCatalogOnlyFlow() {
+    NormalizedDesignFlow flow = sampleFlowOneCall();
+    return new NormalizedDesignFlow(
+        flow.schemaVersion(),
+        flow.flowId(),
+        flow.chainName(),
+        flow.description(),
+        flow.trigger(),
+        flow.participants(),
+        flow.steps(),
+        flow.connections(),
+        flow.transformations(),
+        flow.dataMappings(),
+        flow.constraints(),
+        flow.assumptions(),
+        NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY);
   }
 
   private static String singleApiHubHitJson() {

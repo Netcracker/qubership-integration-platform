@@ -44,6 +44,11 @@ public final class BriefFlowExtractor {
   private static final Pattern NO_SERVICE_CALL =
       Pattern.compile("(?i)\\bno\\s+service\\s*calls?\\b|\\bservice-call\\b");
 
+  private static final Pattern APIHUB_PROHIBITION =
+      Pattern.compile(
+          "(?i)\\b(?:do\\s+not|don't|never|no)\\b[^.\\n]{0,80}\\bapi\\s*hub\\b"
+              + "|\\bapi\\s*hub\\b[^.\\n]{0,40}\\b(?:forbidden|disabled)\\b");
+
   public sealed interface ExtractionResult {
     record Complete(NormalizedDesignFlow flow) implements ExtractionResult {}
 
@@ -220,7 +225,8 @@ public final class BriefFlowExtractor {
             List.of(),
             mappings,
             List.copyOf(brief.constraints()),
-            List.copyOf(brief.assumptions()));
+            List.copyOf(brief.assumptions()),
+            bindingResolutionPolicy(brief));
     return new ExtractionResult.Complete(flow);
   }
 
@@ -232,31 +238,32 @@ public final class BriefFlowExtractor {
       RequirementBrief brief, NormalizedDesignFlow authoredFlow) {
     Objects.requireNonNull(brief, "brief");
     Objects.requireNonNull(authoredFlow, "authoredFlow");
-    if (brief.dataMappings().isEmpty()) {
-      return authoredFlow;
-    }
-
     List<RequirementFact> endpoints = positive(brief, RequirementFactKind.ENDPOINT);
     List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
     List<NormalizedDesignFlow.Step> serviceCallSteps =
         authoredFlow.steps().stream()
             .filter(step -> "service-call".equalsIgnoreCase(step.kind()))
             .toList();
-    if (endpoints.isEmpty()) {
+    if (!brief.dataMappings().isEmpty() && endpoints.isEmpty()) {
       throw new IllegalArgumentException(
           "Cannot project data mappings because the requirement brief has no ENDPOINT fact");
     }
-    if (calls.size() != serviceCallSteps.size()) {
+    if (!brief.dataMappings().isEmpty() && calls.size() != serviceCallSteps.size()) {
       throw new IllegalArgumentException(
           serviceCallCoverageGap(calls.size(), serviceCallSteps.size()));
     }
 
     Map<String, String> intentToStep = new LinkedHashMap<>();
-    intentToStep.put(endpoints.getFirst().sourceFactId(), "step-trigger");
+    if (!endpoints.isEmpty()) {
+      intentToStep.put(endpoints.getFirst().sourceFactId(), "step-trigger");
+    }
     for (int i = 0; i < calls.size(); i++) {
       intentToStep.put(calls.get(i).sourceFactId(), serviceCallSteps.get(i).stepId());
     }
-    List<NormalizedDesignFlow.DataMapping> mappings = toNormalizedMappings(brief, intentToStep);
+    List<NormalizedDesignFlow.DataMapping> mappings =
+        brief.dataMappings().isEmpty()
+            ? authoredFlow.dataMappings()
+            : toNormalizedMappings(brief, intentToStep);
     return new NormalizedDesignFlow(
         authoredFlow.schemaVersion(),
         authoredFlow.flowId(),
@@ -269,7 +276,29 @@ public final class BriefFlowExtractor {
         authoredFlow.transformations(),
         mappings,
         authoredFlow.constraints(),
-        authoredFlow.assumptions());
+        authoredFlow.assumptions(),
+        bindingResolutionPolicy(brief));
+  }
+
+  private static NormalizedDesignFlow.BindingResolutionPolicy bindingResolutionPolicy(
+      RequirementBrief brief) {
+    boolean catalogOnly =
+        brief.facts().stream()
+                .filter(Objects::nonNull)
+                .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
+                .anyMatch(
+                    fact ->
+                        "apihub".equals(
+                                fact.capabilityKey()
+                                    .toLowerCase(Locale.ROOT)
+                                    .replaceAll("[^a-z0-9]", ""))
+                            || APIHUB_PROHIBITION.matcher(fact.text()).find())
+            || brief.constraints().stream()
+                .filter(Objects::nonNull)
+                .anyMatch(constraint -> APIHUB_PROHIBITION.matcher(constraint).find());
+    return catalogOnly
+        ? NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY
+        : NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_FIRST;
   }
 
   private static List<NormalizedDesignFlow.DataMapping> toNormalizedMappings(
