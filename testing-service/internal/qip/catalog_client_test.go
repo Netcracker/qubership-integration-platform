@@ -151,3 +151,65 @@ func TestFindChainElementGivesUpOnACatalogThatNeverAnswers(t *testing.T) {
 	assert.Less(t, time.Since(start), 5*time.Second)
 	<-answered
 }
+
+func TestFindChainDeploymentsRequestsTheChain(t *testing.T) {
+	var requestPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"d-1","chainId":"c-1","domain":"micro","domainType":"MICRO",` +
+			`"runtime":{"states":{"10.244.0.24":{"status":"DEPLOYED","suspended":false}}},` +
+			`"serviceName":"qip-engine-micro"}]`))
+	}))
+	defer server.Close()
+
+	deployments, err := NewCatalogClient(server.URL, server.Client()).
+		FindChainDeployments(context.Background(), "c-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, "/v1/catalog/chains/c-1/deployments", requestPath)
+	require.Len(t, deployments, 1)
+	assert.Equal(t, "micro", deployments[0].Domain)
+	assert.Equal(t, "MICRO", deployments[0].DomainType)
+	assert.Equal(t, []string{"10.244.0.24"}, deployments[0].DeployedHosts())
+}
+
+// A chain deployed nowhere is an answer, not a failure.
+func TestFindChainDeploymentsAcceptsAnEmptyList(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	deployments, err := NewCatalogClient(server.URL, server.Client()).
+		FindChainDeployments(context.Background(), "c-1")
+
+	require.NoError(t, err)
+	assert.Empty(t, deployments)
+}
+
+func TestFindChainDeploymentsReportsANonOKStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
+	}))
+	defer server.Close()
+
+	_, err := NewCatalogClient(server.URL, server.Client()).
+		FindChainDeployments(context.Background(), "c-1")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non 200 response")
+}
+
+// Only DEPLOYED names an engine that would answer, and a blank host names none.
+func TestDeployedHostsKeepsOnlyTheDeployedOnes(t *testing.T) {
+	deployment := Deployment{Runtime: DeploymentRuntime{States: map[string]DeploymentState{
+		"10.244.0.99": {Status: StatusDeployed},
+		"10.244.0.24": {Status: StatusDeployed},
+		"10.244.0.50": {Status: "FAILED"},
+		"  ":          {Status: StatusDeployed},
+	}}}
+
+	assert.Equal(t, []string{"10.244.0.24", "10.244.0.99"}, deployment.DeployedHosts())
+}

@@ -28,15 +28,13 @@ func NewServices(cfg config.Config, deps config.Deps, d *dao.Dao) (*Services, er
 	repositories := d.Repositories
 
 	catalogClient := qip.NewCatalogClient(cfg.CatalogAddress, deps.HTTPClient)
-	triggerFactory, err := triggers.NewFactory(cfg.EngineAddress, deps.HTTPClient)
-	if err != nil {
-		return nil, err
-	}
+	triggerFactory := triggers.NewFactory(deps.HTTPClient)
 
 	testCasesService := NewTestCasesService(deps.Logger, d, repositories)
 	testCaseRunsService := NewTestCaseRunsService(cfg, d, repositories)
 	testCaseRunErrorsService := NewTestCaseRunErrorsService(d, repositories)
-	triggerResolverService := NewTriggerResolverService(catalogClient, triggerFactory)
+	triggerResolverService := NewTriggerResolverService(
+		deps.Logger, cfg.EngineAddress, catalogClient, triggerFactory)
 
 	// The executor is wired before the test runs service, which signals it as
 	// soon as it has queued a run.

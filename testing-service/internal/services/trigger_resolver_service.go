@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/qip"
@@ -18,12 +19,24 @@ type TriggerResolverService interface {
 type triggerResolverService struct {
 	catalogClient  qip.CatalogClient
 	triggerFactory triggers.Factory
+	engineAddress  *engineAddressResolver
 }
 
 // NewTriggerResolverService returns a TriggerResolverService that reads chain
-// elements from the catalog and builds triggers with the given factory.
-func NewTriggerResolverService(catalogClient qip.CatalogClient, triggerFactory triggers.Factory) TriggerResolverService {
-	return &triggerResolverService{catalogClient: catalogClient, triggerFactory: triggerFactory}
+// elements from the catalog, resolves the engine serving the chain, and builds
+// triggers with the given factory. engineAddress is the address an installation
+// configured, which the resolver falls back to.
+func NewTriggerResolverService(
+	logger *slog.Logger,
+	engineAddress string,
+	catalogClient qip.CatalogClient,
+	triggerFactory triggers.Factory,
+) TriggerResolverService {
+	return &triggerResolverService{
+		catalogClient:  catalogClient,
+		triggerFactory: triggerFactory,
+		engineAddress:  newEngineAddressResolver(logger, engineAddress, catalogClient),
+	}
 }
 
 func (s *triggerResolverService) ResolveTrigger(
@@ -37,5 +50,9 @@ func (s *triggerResolverService) ResolveTrigger(
 	if err != nil {
 		return nil, err
 	}
-	return s.triggerFactory.GetTrigger(chainElement.Type, chainElement.Properties)
+	engineAddress, err := s.engineAddress.Resolve(ctx, triggerReference.ChainID)
+	if err != nil {
+		return nil, err
+	}
+	return s.triggerFactory.GetTrigger(engineAddress, chainElement.Type, chainElement.Properties)
 }

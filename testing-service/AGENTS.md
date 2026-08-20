@@ -51,7 +51,7 @@ formality: every name here is something a downstream host has to keep working.
 
 | Name | What it is |
 | --- | --- |
-| `Config` | settings: catalog and engine addresses, poll interval, worker count, lease duration, retention, pagination limit, production flag. No DSN. |
+| `Config` | settings: catalog and engine addresses, poll interval, worker count, lease duration, retention, pagination limit, production flag. No DSN. `EngineAddress` is a fallback, not the address every case uses — see [Which engine a test case activates](#which-engine-a-test-case-activates). |
 | `(Config).ProductionMode() bool` | reads the tri-state production flag, resolving an unset one |
 | `Deps` | `DB`, `Logger`, `HTTPClient`, `CurrentUser` |
 | `DB`, `CurrentUserFunc` | aliases so a caller can name the types it implements |
@@ -146,6 +146,54 @@ struct fields, and a bulk method takes the same pointer-to-slice its siblings ta
   serving and an in-flight attempt loses its errors, runs a second time against the live chain, and is later overwritten
   by the old worker's terminal status. The requirement is stated at the top of the statement in the migration file,
   because that is where an operator meets it.
+
+## Which engine a test case activates
+
+`Config.EngineAddress` names one engine, and an installation has more than one: a micro domain is a Camel-K
+integration with a Kubernetes service of its own, so a chain deployed there answers nowhere near the classic engine.
+A case whose chain lives on a micro domain used to fail with `connection refused` against the configured address.
+
+`internal/services/engine_address.go` resolves the engine per chain instead. It asks the catalog for
+`/v1/catalog/chains/{id}/deployments` and reads the hosts out of `runtime.states`, keeping the ones reported
+`DEPLOYED`. The scheme and the port stay those of `EngineAddress`; only the host is replaced.
+
+Three rules hold that together:
+
+- **The host comes from `runtime.states`, never from `serviceName`.** The catalog documents that field as the name to
+  show beside an error, and it does not carry the version suffix a micro domain's service gets — `qip-engine-micro`
+  against a service actually named `qip-engine-micro-v1`. The hosts are what the catalog itself dials: `LiveExchangesService`
+  reaches an engine as `http://%s:8080/v1/engine/live-exchanges`.
+- **Nothing found falls back to `EngineAddress`.** A chain the catalog reports nowhere, and a deployments endpoint
+  that cannot answer, both leave the case where it was before this lookup existed. The classic engine keeps a stable
+  service, so a test still runs while the engine state cache of the catalog is cold, and the lookup stays an
+  improvement on a fixed address rather than a new dependency of every run. The fallback does not cover a catalog that
+  is down: `ResolveTrigger` reads the chain element from the same catalog first, so the case fails there instead,
+  `Failed to resolve trigger: failed to get chain element: … connection refused`.
+- **An ambiguous chain is resolved, not refused.** A chain is normally on one kind of engine or the other, so being on
+  several is the configuration nobody meant to make. The classic domain wins, because that is where such a chain was
+  activated before; among micro domains the name settles it, so an installation resolves the same way on every run.
+  The choice is logged at WARN with every domain named. Hosts are sorted for the same reason: a domain of several
+  replicas resolves to the same engine every time rather than wandering between them.
+
+`triggers.Factory.GetTrigger` therefore takes the address as a parameter. It was a field of the factory, which is
+what tied every trigger to one engine.
+
+Two things this does not solve, both of them properties of the answer rather than of the lookup:
+
+- **The hosts are as fresh as the engine state cache of the catalog.** A domain removed seconds ago is still reported,
+  and a case activated in that window fails against a host that no longer exists. Replacing a micro-domain pod on a
+  local cluster left the old address in the answer for roughly 30 to 50 seconds. The failure names the address, so it
+  reads as what it is, and the next run resolves elsewhere on its own once the cache has caught up. Every reader
+  of this API sees the same lag.
+- **A resolved host is not retried on another.** Activating a trigger is not idempotent: a chain that creates an order
+  would create a second one. A run that reached a host and got nothing back is a failed run, not a run to repeat
+  somewhere else.
+
+Deploying the same chain to two domains is mostly prevented by the platform, which is why the ambiguous branch is rare
+rather than dead. `DeploymentService.checkHttpTriggers` refuses a classic deployment whose HTTP trigger path is already
+registered on another domain — `Found similar triggers path registered on other domains`. The micro path does not run
+that check: `CustomResourceController` deploys a Camel-K resource without it, so deploying to a classic domain first
+and to a micro domain second is accepted and leaves the chain on both.
 
 ## The rule counts read one join
 

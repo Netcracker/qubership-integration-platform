@@ -33,7 +33,12 @@ const (
 type Config struct {
 	// CatalogAddress is the base URL of the runtime catalog.
 	CatalogAddress string
-	// EngineAddress is the base URL of the engine that serves chain triggers.
+	// EngineAddress is the base URL of the engine that serves chain triggers. It
+	// is a fallback rather than the address every test case uses: a chain is
+	// activated on the engine the catalog reports it deployed to, since a micro
+	// domain gets a service of its own. Only its scheme and port are reused for
+	// a resolved engine, so an installation that moves the engines to another
+	// port names it here.
 	EngineAddress string
 	// PollInterval is how long a worker waits before looking for work again.
 	PollInterval time.Duration

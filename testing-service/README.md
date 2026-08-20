@@ -92,6 +92,12 @@ go func() { _ = svc.RunExecutor(ctx) }()
 `Deps.HTTPClient` as an `http.RoundTripper`. A host that applies migrations through its own tooling gets the set from
 `testingservice.Migrations()` instead of letting the binary apply them.
 
+`Config.EngineAddress` is a fallback rather than the address every test case uses. A chain is activated on the engine
+the catalog reports it deployed to, which is what makes a chain on a micro domain testable: such a domain runs behind
+a Kubernetes service of its own, and the configured address answers for none of them. Only the scheme and the port of
+this setting are reused for a resolved engine, so an installation that moves its engines to another port names it
+here. A chain the catalog reports nowhere — and a catalog that cannot answer — falls back to this address whole.
+
 `Config.Production` is a `*bool`, because a host that leaves it unset gets production mode: a nil there is not the same
 answer as `false`. Read it back through `Config.ProductionMode()`, which resolves the nil.
 
