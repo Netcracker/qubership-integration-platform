@@ -13,6 +13,7 @@ import io.smallrye.mutiny.Multi;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
@@ -26,6 +27,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
@@ -318,6 +320,43 @@ class ChatDecisionServiceTest {
 
     assertEquals("clarify", decision.kind());
     assertEquals(List.of(ChatEvent.IMPORT_ACTION), decision.actions());
+  }
+
+  @Test
+  void idsPathNoContinuesTheOpenGateWithoutRoutingThroughTheModel() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-ids"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-ids",
+                    "run-ids",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    4L,
+                    new CreateChainPendingAction.Clarify(
+                        "Use an IDS?", List.of(), PipelineGates.IDS_PATH_CHOICE),
+                    "")));
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().item(new CreateChainEvent.Message("Design derived.")));
+    ChatDecisionCommand command = command("no", null, null, null);
+    command.setRevision(4L);
+
+    List<ChatEvent> events =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .apply("conv-ids", command)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals("no", input.getValue().clarificationText());
+    assertTrue(
+        events.stream()
+            .anyMatch(event -> event instanceof ChatEvent.Token token && token.text().equals("Design derived.")),
+        () -> "expected the direct gate result, got: " + events);
   }
 
   /** A clarification the run does not name stays free text. */

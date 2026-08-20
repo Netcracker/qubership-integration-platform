@@ -6,6 +6,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
@@ -17,6 +18,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Appro
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
@@ -195,6 +197,9 @@ public class ChatDecisionService {
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(command, "command");
     String action = command.getAction() == null ? "" : command.getAction();
+    if (isPipelineInputAction(action)) {
+      return continuePipelineInput(conversationId, command, action);
+    }
     if (ChatEvent.CREATE_ACTION.equals(action)) {
       return createChain(conversationId, command.getArtifactHash(), command.getRevision());
     }
@@ -224,6 +229,35 @@ public class ChatDecisionService {
       return approved.onCompletion().switchTo(() -> openGateEvents(conversationId));
     }
     return approved.onCompletion().switchTo(() -> createAfterApproval(conversationId));
+  }
+
+  /**
+   * Routes a typed clarification-card answer straight to the durable run.
+   *
+   * <p>These actions are neither approvals nor model prompts. In particular, IDS {@code no} must
+   * reach {@code design-input} exactly as {@code no}; sending it through the chat router used to
+   * turn it into an ignored {@code "Answered no"} command.
+   */
+  private Multi<ChatEvent> continuePipelineInput(
+      String conversationId, ChatDecisionCommand command, String action) {
+    Optional<ChatEvent.Decision> open = openDecision(conversationId);
+    if (open.isEmpty()
+        || !open.get().actions().contains(action)
+        || command.getRevision() != open.get().revision()) {
+      return openGateEvents(conversationId);
+    }
+    return facade
+        .continueWithInput(
+            new ContinueCreateChainCommand(conversationId, action, UUID.randomUUID().toString()))
+        .onItem()
+        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
+        .onCompletion()
+        .switchTo(() -> openGateEvents(conversationId));
+  }
+
+  private static boolean isPipelineInputAction(String action) {
+    return ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(action)
+        || ChatEvent.MAPPING_GAP_ACTIONS.contains(action);
   }
 
   /** Runs the creation leg of the combined action, if the run reached the gate at all. */

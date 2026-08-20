@@ -5,11 +5,9 @@ import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
-
 /**
- * Agent for immutable {@code cip-design-generator}. Exposes only APIHub tools; never invents
- * operation bindings.
+ * Agent for immutable {@code cip-design-generator}. Receives resolved catalog bindings from the
+ * design-input capability and never resolves operations itself.
  *
  * <p>The system message is the skill's own template, copied onto the classpath at build time from
  * {@code integration-platform-skills/.apm/skills/cip-design-generator/templates/ids_template.md}
@@ -18,7 +16,7 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
  * {@code integration-platform-skills/addons/skills/cip-design-generator.addon.md}, which the
  * runtime loads through {@code qip.ai.qipknowledge.addon-pack-root}.
  */
-@RegisterAiService(tools = {ApiHubMcpTools.class}, maxSequentialToolInvocations = 8)
+@RegisterAiService(maxSequentialToolInvocations = 8)
 @ApplicationScoped
 public interface DesignGeneratorSkillAgent {
 

@@ -101,6 +101,33 @@ class BriefFlowExtractorTest {
   }
 
   @Test
+  void extractsExistingCatalogOperationFromNaturalLanguageServiceCallFact() {
+    RequirementBrief brief =
+        brief(
+            "Pet Inventory Check",
+            List.of("POST /demo/pet-inventory/check"),
+            "Check the Petstore inventory",
+            List.of(
+                fact(
+                    "trigger-1",
+                    RequirementFactKind.ENDPOINT,
+                    "POST /demo/pet-inventory/check"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    "In the try block, call the existing \"getInventory\" operation from the "
+                        + "imported \"Petstore Ext\" service from catalog: GET /store/inventory")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals("Petstore Ext", flow.participants().get(1).displayName());
+    assertEquals("GET /store/inventory", flow.steps().getFirst().operationQuery());
+  }
+
+  @Test
   void assignsMappingIdWhenRequirementBriefLeavesItBlank() {
     RequirementBrief brief =
         brief(

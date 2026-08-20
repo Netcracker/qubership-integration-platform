@@ -24,8 +24,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDa
  * {@link ExtractionResult.NeedsInput} when required identity is absent — never invents path,
  * method, operation, or participant names.
  *
- * <p>SERVICE_CALL fact text must use {@code <Participant>: <operationQuery>} so the target system
- * and search query are both explicit.
+ * <p>SERVICE_CALL facts preferably use {@code <Participant>: <operationQuery>}. Common catalog
+ * wording is also parsed when it names both the service and operation explicitly.
  *
  * <p>Script-only briefs (no positive SERVICE_CALL, with script intent and/or an explicit "no
  * service call" constraint) produce a {@code script} process step instead of requiring outbound
@@ -48,6 +48,21 @@ public final class BriefFlowExtractor {
       Pattern.compile(
           "(?i)\\b(?:do\\s+not|don't|never|no)\\b[^.\\n]{0,80}\\bapi\\s*hub\\b"
               + "|\\bapi\\s*hub\\b[^.\\n]{0,40}\\b(?:forbidden|disabled)\\b");
+
+  private static final Pattern CATALOG_OPERATION_AFTER_SERVICE =
+      Pattern.compile(
+          "(?i)\\bcall\\s+(?<service>.+?)\\s+catalog\\s+operation\\s+"
+              + "(?<operation>[A-Za-z0-9_.-]+)\\s+using\\s+(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+)");
+
+  private static final Pattern CATALOG_OPERATION_BEFORE_SERVICE =
+      Pattern.compile(
+          "(?i)\\bcall\\s+(?:the\\s+)?(?:existing\\s+)?(?:catalog\\s+)?"
+              + "['\"]?(?<operation>[A-Za-z0-9_.-]+)['\"]?\\s+operation\\s+from\\s+(?:the\\s+)?"
+              + "(?:imported\\s+)?(?<service>.+?)\\s+service(?:\\s+from\\s+catalog)?"
+              + "(?:\\s*[:,-]?\\s*(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+))?");
+
+  private static final Pattern CATALOG_SERVICE =
+      Pattern.compile("(?i)\\bcall\\s+catalog\\s+service\\s+['\\\"]?(?<service>[^'\\\".]+)");
 
   public sealed interface ExtractionResult {
     record Complete(NormalizedDesignFlow flow) implements ExtractionResult {}
@@ -164,7 +179,7 @@ public final class BriefFlowExtractor {
       }
     } else {
       for (RequirementFact call : calls) {
-        Optional<ServiceCallIdentity> callIdentity = parseServiceCall(call.text());
+        Optional<ServiceCallIdentity> callIdentity = parseServiceCall(call);
         if (callIdentity.isEmpty()) {
           missing.add(
               "SERVICE_CALL participant and operation query ("
@@ -476,21 +491,48 @@ public final class BriefFlowExtractor {
     return Optional.empty();
   }
 
-  private static Optional<ServiceCallIdentity> parseServiceCall(String text) {
+  private static Optional<ServiceCallIdentity> parseServiceCall(RequirementFact fact) {
+    String text = fact == null ? null : fact.text();
     String trimmed = trimToNull(text);
     if (trimmed == null) {
       return Optional.empty();
     }
+    Matcher serviceFirst = CATALOG_OPERATION_AFTER_SERVICE.matcher(trimmed);
+    if (serviceFirst.find()) {
+      return Optional.of(
+          new ServiceCallIdentity(
+              trimToNull(serviceFirst.group("service")),
+              firstNonBlank(serviceFirst.group("request"), serviceFirst.group("operation"))));
+    }
+
+    Matcher operationFirst = CATALOG_OPERATION_BEFORE_SERVICE.matcher(trimmed);
+    if (operationFirst.find()) {
+      return Optional.of(
+          new ServiceCallIdentity(
+              trimServiceName(operationFirst.group("service")),
+              firstNonBlank(operationFirst.group("request"), operationFirst.group("operation"))));
+    }
+
     int separator = trimmed.indexOf(':');
-    if (separator <= 0 || separator >= trimmed.length() - 1) {
-      return Optional.empty();
+    if (separator > 0 && separator < trimmed.length() - 1) {
+      String participant = trimToNull(trimmed.substring(0, separator));
+      String query = trimToNull(trimmed.substring(separator + 1));
+      if (participant != null && query != null) {
+        return Optional.of(new ServiceCallIdentity(participant, query));
+      }
     }
-    String participant = trimToNull(trimmed.substring(0, separator));
-    String query = trimToNull(trimmed.substring(separator + 1));
-    if (participant == null || query == null) {
-      return Optional.empty();
+
+    Matcher catalogService = CATALOG_SERVICE.matcher(trimmed);
+    if (catalogService.find()) {
+      return Optional.of(
+          new ServiceCallIdentity(trimToNull(catalogService.group("service")), trimmed));
     }
-    return Optional.of(new ServiceCallIdentity(participant, query));
+
+    String capability = trimToNull(fact.capabilityKey());
+    if (capability != null) {
+      return Optional.of(new ServiceCallIdentity(capability, trimmed));
+    }
+    return Optional.empty();
   }
 
   private static String participantId(String displayName) {
@@ -501,6 +543,19 @@ public final class BriefFlowExtractor {
             .replaceAll("[^a-z0-9]+", "-")
             .replaceAll("^-+|-+$", "");
     return "p-" + slug;
+  }
+
+  private static String trimServiceName(String value) {
+    String trimmed = trimToNull(value);
+    if (trimmed == null || trimmed.length() < 2) {
+      return trimmed;
+    }
+    char first = trimmed.charAt(0);
+    char last = trimmed.charAt(trimmed.length() - 1);
+    if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+      return trimToNull(trimmed.substring(1, trimmed.length() - 1));
+    }
+    return trimmed;
   }
 
   private static String firstNonBlank(String value, String fallback) {
