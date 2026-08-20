@@ -59,6 +59,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBody;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphConnection;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphElement;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
@@ -1389,6 +1390,108 @@ class ChainEditCompilerTest {
         clarification.choices());
     assertEquals(List.of(TARGET, UNRELATED), clarification.heldIntent().targetNodeIds());
     assertTrue(engine.requests.isEmpty(), "no generator runs before the reader answers");
+  }
+
+  @Test
+  void anInsertionOfSeveralLinkedElementsSplicesOneRunAtTheNamedAddressThroughTheStructureStage() {
+    intentReply = insertCapture(TARGET, UNRELATED);
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedGraph(),
+            insertionSubgraph("transform", "notify"),
+            insertIntent(TARGET, UNRELATED),
+            permissiveCache());
+    engine.scriptedResults.add(structureOnlyResult(assembled));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"), assembled));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph proposed = proposal.finalGraph();
+    assertTrue(
+        proposed.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && "transform".equals(e.toNodeId())),
+        "the address's preceding element connects into the new run");
+    assertTrue(
+        proposed.edges().stream()
+            .anyMatch(e -> "transform".equals(e.fromNodeId()) && "notify".equals(e.toNodeId())),
+        "the new elements are wired to each other in the order the request gives");
+    assertTrue(
+        proposed.edges().stream()
+            .anyMatch(e -> "notify".equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())),
+        "the new run connects into the address's following element");
+    assertFalse(
+        proposed.edges().stream()
+            .anyMatch(e -> TARGET.equals(e.fromNodeId()) && UNRELATED.equals(e.toNodeId())),
+        "the direct edge between the two named elements is replaced by the new run");
+  }
+
+  @Test
+  void theAddressElementsOfAnInsertionStayExactlyWhereTheyAre() {
+    intentReply = insertCapture(TARGET, UNRELATED);
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedGraph(),
+            insertionSubgraph("transform"),
+            insertIntent(TARGET, UNRELATED),
+            permissiveCache());
+    engine.scriptedResults.add(structureOnlyResult(assembled));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"), assembled));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph proposed = proposal.finalGraph();
+    assertEquals(node(importedGraph(), TARGET), node(proposed, TARGET));
+    assertEquals(node(importedGraph(), UNRELATED), node(proposed, UNRELATED));
+  }
+
+  /** The insertion the reader asks for: new elements spliced at the address they name. */
+  private static ChainEditCapture insertCapture(String... targetNodeIds) {
+    return new ChainEditCapture(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "add a step between the two named elements",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.KEEP);
+  }
+
+  private static ChainEditIntent insertIntent(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "add a step between the two named elements",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.KEEP);
+  }
+
+  /**
+   * What the structure stage captures for that insertion: no container, the new elements and
+   * their connections in a single body, wired to each other in the order given.
+   */
+  private static ChainEditSubgraph insertionSubgraph(String... newNodeIds) {
+    List<ChainEditSubgraphElement> elements = new ArrayList<>();
+    List<ChainEditSubgraphConnection> connections = new ArrayList<>();
+    for (int i = 0; i < newNodeIds.length; i++) {
+      elements.add(new ChainEditSubgraphElement(newNodeIds[i], "script", "Step " + (i + 1)));
+      if (i > 0) {
+        connections.add(new ChainEditSubgraphConnection(newNodeIds[i - 1], newNodeIds[i]));
+      }
+    }
+    return new ChainEditSubgraph(
+        null, null, List.of(), new ChainEditSubgraphBody(elements, connections));
   }
 
   /** The two calls with a script between them, so a wrap of both leaves the script out. */

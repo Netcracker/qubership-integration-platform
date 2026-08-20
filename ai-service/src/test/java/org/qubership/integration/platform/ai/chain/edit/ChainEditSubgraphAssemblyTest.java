@@ -608,6 +608,203 @@ class ChainEditSubgraphAssemblyTest {
     assertTrue(refused.getMessage().contains("more than one branch"), refused.getMessage());
   }
 
+  @Test
+  void severalLinkedElementsSpliceIntoOneRunBetweenTheNamedAddress() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(),
+            insertion(
+                List.of(element("audit"), element("notify")),
+                List.of(new ChainEditSubgraphConnection("audit", "notify"))),
+            insertBetween(CALL, SCRIPT),
+            permissiveCache());
+
+    assertTrue(connects(assembled, CALL, "audit"));
+    assertTrue(connects(assembled, "audit", "notify"));
+    assertTrue(connects(assembled, "notify", SCRIPT));
+    assertFalse(connects(assembled, CALL, SCRIPT));
+  }
+
+  @Test
+  void theAddressElementsStayExactlyWhereTheyAreAndKeepTheirOtherConnections() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), insertBetween(CALL, SCRIPT), permissiveCache());
+
+    assertEquals(node(importedChain(), CALL), node(assembled, CALL));
+    assertEquals(node(importedChain(), SCRIPT), node(assembled, SCRIPT));
+    assertTrue(connects(assembled, TRIGGER, CALL), "the address element's other connections are untouched");
+  }
+
+  @Test
+  void namingOnlyThePrecedingElementInsertsBeforeItsSoleSuccessor() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), insertBetween(CALL), permissiveCache());
+
+    assertTrue(connects(assembled, CALL, "audit"));
+    assertTrue(connects(assembled, "audit", SCRIPT));
+    assertFalse(connects(assembled, CALL, SCRIPT));
+  }
+
+  @Test
+  void anInsertionAfterAnElementWithNoSuccessorAppendsAtTheEnd() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), insertion(element("audit")), insertBetween(SCRIPT), permissiveCache());
+
+    assertTrue(connects(assembled, SCRIPT, "audit"));
+  }
+
+  @Test
+  void anAddressNamedAloneWithMoreThanOneSuccessorIsUnsatisfiable() {
+    ChainPlanGraph branching =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(
+                new ChainPlanNode(CALL, "service-call", "Call orders", null, null, List.of()),
+                new ChainPlanNode("branch-a", "script", "Branch A", null, null, List.of()),
+                new ChainPlanNode("branch-b", "script", "Branch B", null, null, List.of())),
+            List.of(
+                new ChainPlanEdge("edge-a", CALL, "branch-a", null),
+                new ChainPlanEdge("edge-b", CALL, "branch-b", null)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    branching, insertion(element("audit")), insertBetween(CALL), permissiveCache()));
+
+    assertTrue(refused.unsatisfiable(), refused.getMessage());
+  }
+
+  @Test
+  void aContainerNamedForAnInsertionIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph("try-catch-finally-2", "Wrap", List.of()),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("try-catch-finally-2"), refused.getMessage());
+  }
+
+  @Test
+  void branchesNamedForAnInsertionAreRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph(null, null, List.of(tryBranch(CALL))),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("branches"), refused.getMessage());
+  }
+
+  @Test
+  void anEmptyInsertionBodyIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    new ChainEditSubgraph(null, null, List.of()),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("creates no elements"), refused.getMessage());
+  }
+
+  @Test
+  void aBodyThatDoesNotFormASingleConnectedRunIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(),
+                    insertion(List.of(element("audit"), element("notify")), List.of()),
+                    insertBetween(CALL, SCRIPT),
+                    permissiveCache()));
+
+    assertTrue(refused.getMessage().contains("single linked run"), refused.getMessage());
+  }
+
+  @Test
+  void connectingToAnElementTheInsertionDoesNotCreateIsRefused() {
+    ChainEditSubgraph reachesOutsideTheBody =
+        insertion(
+            List.of(element("audit")), List.of(new ChainEditSubgraphConnection("audit", CALL)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), reachesOutsideTheBody, insertBetween(CALL, SCRIPT), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(CALL), refused.getMessage());
+    assertTrue(refused.getMessage().contains("does not create"), refused.getMessage());
+  }
+
+  @Test
+  void anInsertionBetweenTwoElementsOfAContainerKeepsTheNewElementsInThatContainer() {
+    ChainPlanGraph nested =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(
+                new ChainPlanNode("split", "split-2", "Split", null, null, List.of()),
+                new ChainPlanNode(
+                    "split-element", "split-element-2", "Element", "split", null, List.of()),
+                new ChainPlanNode(
+                    CALL, "service-call", "Call orders", "split-element", null, List.of()),
+                new ChainPlanNode(SCRIPT, "script", "Normalize payload", "split-element", null, List.of())),
+            List.of(new ChainPlanEdge("call-to-script", CALL, SCRIPT, "split-element")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            nested, insertion(element("audit")), insertBetween(CALL, SCRIPT), permissiveCache());
+
+    assertEquals("split-element", node(assembled, "audit").parentNodeId());
+  }
+
+  private static ChainEditIntent insertBetween(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "add error handling between the named elements",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.KEEP);
+  }
+
+  private static ChainEditSubgraph insertion(ChainEditSubgraphElement element) {
+    return insertion(List.of(element), List.of());
+  }
+
+  private static ChainEditSubgraph insertion(
+      List<ChainEditSubgraphElement> elements, List<ChainEditSubgraphConnection> connections) {
+    return new ChainEditSubgraph(null, null, List.of(), new ChainEditSubgraphBody(elements, connections));
+  }
+
+  private static ChainEditSubgraphElement element(String nodeId) {
+    return new ChainEditSubgraphElement(nodeId, "script", "Audit");
+  }
+
   private static ChainEditSubgraph errorHandling() {
     return errorHandlingAround(CALL);
   }
