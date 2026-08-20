@@ -358,6 +358,44 @@ func TestExportWritesOneEntityFilePerTestCase(t *testing.T) {
 	assert.True(t, exported.Enabled)
 }
 
+// An exported file is read and edited by hand before it is imported back, and
+// it used to arrive as one line. The payload is checked along with the envelope
+// because it travels as a json.RawMessage, which an envelope-only indent would
+// leave compact.
+func TestExportWritesAFileAPersonCanRead(t *testing.T) {
+	f := newTestCasesFixture()
+	testCase := dao.TestCase{ID: uuid.New(), Name: "readable", Enabled: true}
+	f.testCases.views = []dao.TestCaseView{{TestCase: testCase}}
+
+	data, err := f.service.Export(context.Background(), &[]uuid.UUID{testCase.ID})
+
+	require.NoError(t, err)
+	content := exportedFile(t, *data, testCase.ID.String()+".json")
+	assert.Contains(t, string(content), "\n  \"type\": \"TestCase\"", "the envelope is indented")
+	assert.Contains(t, string(content), "\n    \"name\": \"readable\"", "the payload is indented with it")
+	assert.True(t, bytes.HasSuffix(content, []byte("\n")), "the file ends with a newline")
+}
+
+// exportedFile returns the bytes of one file of an archive, as written.
+func exportedFile(t *testing.T, data []byte, name string) []byte {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	for _, file := range reader.File {
+		if file.Name != name {
+			continue
+		}
+		handle, err := file.Open()
+		require.NoError(t, err)
+		content, err := io.ReadAll(handle)
+		require.NoError(t, handle.Close())
+		require.NoError(t, err)
+		return content
+	}
+	require.FailNowf(t, "file not found in the archive", "%q", name)
+	return nil
+}
+
 // An export of nothing is an empty archive. The same request used to dump every
 // test case in the installation, because an empty id list narrowed the query by
 // nothing at all.

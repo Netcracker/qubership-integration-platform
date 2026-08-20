@@ -18,6 +18,11 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/services/importexport"
 )
 
+// exportIndent is what one nesting level of an exported file is offset by. Two
+// spaces is what the rest of the platform writes: the catalog serializes with
+// Jackson's INDENT_OUTPUT, whose default printer indents by two.
+const exportIndent = "  "
+
 // TestCasesService manages test cases: a reference to a chain element, the
 // request to send it, and the rules the response is validated against.
 type TestCasesService interface {
@@ -386,13 +391,19 @@ func (s *testCasesService) Export(ctx context.Context, ids *[]uuid.UUID) (*[]byt
 
 // writeExportedEntity adds one entity file to the archive, carrying payload as
 // the entity data.
+//
+// An exported file is something a person reads, diffs and edits before importing
+// it back, so it is indented and ends with a newline. Indenting the entity
+// indents the payload with it: Data is a json.RawMessage, which MarshalIndent
+// reformats along with everything around it. The importer reads the file with
+// Unmarshal, which is indifferent to the whitespace either way.
 func writeExportedEntity(zipWriter *zip.Writer, entity model.ExportedEntity, payload any) error {
 	payloadData, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 	entity.Data = payloadData
-	entityData, err := json.Marshal(entity)
+	entityData, err := json.MarshalIndent(entity, "", exportIndent)
 	if err != nil {
 		return err
 	}
@@ -400,7 +411,7 @@ func writeExportedEntity(zipWriter *zip.Writer, entity model.ExportedEntity, pay
 	if err != nil {
 		return err
 	}
-	_, err = f.Write(entityData)
+	_, err = f.Write(append(entityData, '\n'))
 	return err
 }
 
