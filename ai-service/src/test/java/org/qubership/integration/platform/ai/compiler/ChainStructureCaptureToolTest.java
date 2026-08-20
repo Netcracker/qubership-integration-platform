@@ -291,6 +291,44 @@ class ChainStructureCaptureToolTest {
   }
 
   @Test
+  void anInsertionCapturedAsASubgraphIsStoredAsTheGraphItAssemblesTo() {
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), insertIntent()));
+
+    CaptureValidationException accepted =
+        assertThrows(
+            CaptureValidationException.class,
+            () ->
+                tool.captureChainStructure(
+                    new ChainStructure(null, List.of(), List.of(), insertSubgraph())));
+
+    assertTrue(accepted.getMessage().contains("Chain structure captured"));
+    ChainPlanGraph stored = storedGraph();
+    assertTrue(
+        stored.edges().stream()
+            .anyMatch(edge -> "http-trigger-1".equals(edge.fromNodeId()) && "audit-1".equals(edge.toNodeId())));
+    assertTrue(
+        stored.edges().stream()
+            .anyMatch(edge -> "audit-1".equals(edge.fromNodeId()) && "script-1".equals(edge.toNodeId())));
+    assertEquals(validGraph().nodes().get(0), node(stored, "http-trigger-1"));
+    assertEquals(validGraph().nodes().get(1), node(stored, "script-1"));
+  }
+
+  @Test
+  void anInsertionThatCapturesTheWholeGraphIsAskedForTheSubgraphItAdds() {
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), insertIntent()));
+
+    String result =
+        tool.captureChainStructure(new ChainStructure(validGraph(), List.of(), List.of()));
+
+    assertTrue(result.contains("capture subgraph rather than graph"), result);
+    assertTrue(result.contains("no container"), result);
+  }
+
+  @Test
   void reportsAMergeTheCompilerWouldRefuseAsRepairableFeedback() {
     session.set(
         CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
@@ -444,6 +482,30 @@ class ChainStructureCaptureToolTest {
         List.of(),
         List.of(),
         ChainEditDisposition.NEST);
+  }
+
+  /** Names only the preceding element; {@code validGraph} gives it exactly one successor. */
+  private static ChainEditIntent insertIntent() {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of("http-trigger-1"),
+        "add an audit log before the script",
+        null,
+        "script",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.KEEP);
+  }
+
+  /** An insertion capture: no container, no branches, one new element in body. */
+  private static ChainEditSubgraph insertSubgraph() {
+    return new ChainEditSubgraph(
+        null,
+        null,
+        List.of(),
+        new ChainEditSubgraphBody(
+            List.of(new ChainEditSubgraphElement("audit-1", "script", "Audit")), List.of()));
   }
 
   private static ChainStructure validStructure() {
