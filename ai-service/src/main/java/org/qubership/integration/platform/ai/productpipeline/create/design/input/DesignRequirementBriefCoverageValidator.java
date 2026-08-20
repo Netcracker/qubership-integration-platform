@@ -53,6 +53,7 @@ public final class DesignRequirementBriefCoverageValidator {
     for (RequirementDataMapping mapping : normalized.dataMappings()) {
       validateMappingShape(mapping);
     }
+    validateSingleEntryTopology(normalized);
     List<String> missing = listMissingEdges(normalized);
     if (!missing.isEmpty()) {
       throw new IllegalArgumentException(missing.getFirst());
@@ -204,6 +205,18 @@ public final class DesignRequirementBriefCoverageValidator {
   }
 
   private static List<RequiredEdge> missingRequiredEdges(RequirementBrief brief) {
+    List<RequirementDataMapping> mappings =
+        DesignRequirementDataMappingNormalizer.completeMappings(brief.dataMappings());
+    return requiredEdges(brief).stream()
+        .filter(
+            edge ->
+                edge.fromIntentRef() == null
+                    || !hasStageEdge(
+                        mappings, edge.stage(), edge.fromIntentRef(), edge.toIntentRef()))
+        .toList();
+  }
+
+  private static List<RequiredEdge> requiredEdges(RequirementBrief brief) {
     List<RequirementFact> outboundCalls = positiveFacts(brief, RequirementFactKind.SERVICE_CALL);
     if (outboundCalls.isEmpty()) {
       return List.of();
@@ -233,17 +246,56 @@ public final class DesignRequirementBriefCoverageValidator {
               triggerId,
               "map-resp-pass-through"));
     }
-    return required.stream()
-        .filter(
-            edge ->
-                edge.fromIntentRef() == null
-                    || !hasStageEdge(
-                        DesignRequirementDataMappingNormalizer.completeMappings(
-                            brief.dataMappings()),
-                        edge.stage(),
-                        edge.fromIntentRef(),
-                        edge.toIntentRef()))
-        .toList();
+    return List.copyOf(required);
+  }
+
+  private static void validateSingleEntryTopology(RequirementBrief brief) {
+    List<RequirementFact> endpoints = positiveFacts(brief, RequirementFactKind.ENDPOINT);
+    List<RequirementFact> calls = positiveFacts(brief, RequirementFactKind.SERVICE_CALL);
+    if (endpoints.size() != 1 || calls.isEmpty()) {
+      return;
+    }
+
+    Set<MappingEdge> required = new LinkedHashSet<>();
+    for (RequiredEdge edge : requiredEdges(brief)) {
+      if (edge.fromIntentRef() != null) {
+        required.add(new MappingEdge(edge.stage(), edge.fromIntentRef(), edge.toIntentRef()));
+      }
+    }
+    Set<MappingEdge> observed = new LinkedHashSet<>();
+    for (RequirementDataMapping mapping : brief.dataMappings()) {
+      MappingEdge edge =
+          new MappingEdge(mapping.stage(), mapping.fromIntentRef(), mapping.toIntentRef());
+      if (!required.contains(edge)) {
+        RequiredEdge expected =
+            requiredEdges(brief).stream()
+                .filter(candidate -> candidate.stage() == mapping.stage())
+                .findFirst()
+                .orElse(null);
+        throw new IllegalArgumentException(
+            "unexpected "
+                + mapping.stage()
+                + " mapping: "
+                + mapping.fromIntentRef()
+                + " → "
+                + mapping.toIntentRef()
+                + (expected == null
+                    ? ""
+                    : "; expected "
+                        + expected.fromIntentRef()
+                        + " → "
+                        + expected.toIntentRef()));
+      }
+      if (!observed.add(edge)) {
+        throw new IllegalArgumentException(
+            "duplicate "
+                + mapping.stage()
+                + " mapping: "
+                + mapping.fromIntentRef()
+                + " → "
+                + mapping.toIntentRef());
+      }
+    }
   }
 
   private static List<RequirementDataMapping> topologyBoundMappings(RequirementBrief brief) {
@@ -282,6 +334,9 @@ public final class DesignRequirementBriefCoverageValidator {
       String fromIntentRef,
       String toIntentRef,
       String mappingId) {}
+
+  private record MappingEdge(
+      RequirementDataMapping.Stage stage, String fromIntentRef, String toIntentRef) {}
 
   /** Card label: {@code KIND "short text"}; falls back to a role when the fact is missing. */
   private static String factLabel(RequirementBrief brief, String sourceFactId, String roleFallback) {

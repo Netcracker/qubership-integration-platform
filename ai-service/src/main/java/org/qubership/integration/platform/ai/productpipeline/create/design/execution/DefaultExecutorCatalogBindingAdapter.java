@@ -101,6 +101,13 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     if (match instanceof CatalogBindingMatcher.MatchResult.Ambiguous ambiguous) {
       return new BindingResolutionResult.NeedsInput(step.stepId(), ambiguous.candidateIds());
     }
+    if (flow.bindingResolutionPolicy()
+        == NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY) {
+      return new BindingResolutionResult.Failed(
+          step.stepId(),
+          "operation was not found in the local catalog; APIHub lookup is disabled for this flow",
+          StageOutcomeClass.DOMAIN_FAILURE);
+    }
     return resolveViaApiHub(conversationId, flow, step);
   }
 
