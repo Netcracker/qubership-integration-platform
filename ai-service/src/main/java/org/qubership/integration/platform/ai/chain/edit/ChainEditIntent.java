@@ -153,13 +153,15 @@ public record ChainEditIntent(
   /**
    * Whether the structure stage captures what this edit adds instead of the chain it rebuilds.
    *
-   * <p>A nest is the edit that suffered most from the older contract: a capture of the whole chain
-   * let the generator decide containment for elements the request never named, and the wrap was
-   * refused afterwards for enclosing a neighbour. Keep and remove still capture a whole graph, so
-   * both contracts are live and the disposition is what tells them apart.
+   * <p>Nest and keep are the edits that suffered most from the older contract: a capture of the
+   * whole chain let the generator decide containment or a boundary for elements the request never
+   * named, and the change was refused afterwards for enclosing or displacing a neighbour. Remove
+   * still captures a whole graph, so both contracts are live and the disposition is what tells them
+   * apart.
    */
   public boolean capturesSubgraph() {
-    return action == ChainEditAction.ADD_ELEMENTS && disposition == ChainEditDisposition.NEST;
+    return action == ChainEditAction.ADD_ELEMENTS
+        && (disposition == ChainEditDisposition.NEST || disposition == ChainEditDisposition.KEEP);
   }
 
   /**
