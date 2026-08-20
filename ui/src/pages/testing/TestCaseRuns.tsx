@@ -47,16 +47,22 @@ import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { useRegisterChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
+// Every column is held to what it actually renders. The three that carry a uuid
+// take 270: the glyphs of a uuid are not all the same width, so the widest ones
+// need 248px and the 260 they used to get wrapped them onto a second line. The
+// four that follow take what their own content asks for — a 54px status tag, a
+// 117px timestamp, and a count narrower than its own heading — rather than the
+// slack they used to carry at the expense of the ones above.
 const COLUMN_WIDTHS = {
-  id: 260,
+  id: 270,
   test_case_name: 220,
-  tests_run_id: 260,
+  tests_run_id: 270,
   chain_id: 180,
-  status: 120,
-  start: 160,
-  finish: 160,
-  errors: 90,
-  session_id: 260,
+  status: 80,
+  start: 140,
+  finish: 140,
+  errors: 80,
+  session_id: 270,
 };
 
 /**
