@@ -120,9 +120,10 @@ public final class ChainEditSubgraphAssembly {
     if (capture.branches().isEmpty()) {
       throw correctable("capture names container '" + containerType + "' without a branch");
     }
-    CatalogElementDescriptor container = containerDescriptor(containerType, descriptors);
-    validateBranches(containerType, container, capture.branches());
-    List<ChainEditSubgraphBranch> orderedBranches = orderBranches(container, capture.branches());
+    CatalogElementDescriptor container = elementDescriptor(containerType, descriptors);
+    validateBranches(containerType, container, capture.branches(), descriptors);
+    List<ChainEditSubgraphBranch> orderedBranches =
+        orderBranches(descriptors, capture.branches());
 
     Map<String, ChainEditSubgraphBranch> branchOfMovedId =
         movedElements(capture, baseById, targets);
@@ -161,7 +162,7 @@ public final class ChainEditSubgraphAssembly {
               branch.label(),
               containerNodeId,
               order,
-              branchProperties(branch, container, order)));
+              branchProperties(branch, descriptors, order)));
       for (ChainEditSubgraphElement element : branch.body().elements()) {
         nodes.add(
             new ChainPlanNode(
@@ -495,18 +496,22 @@ public final class ChainEditSubgraphAssembly {
    * CatalogElementDescriptor#allowedChildren()} is unknown to the container, a branch count is
    * checked against the matching {@link CatalogChildQuantity}, and a repeated role — more than one
    * branch of the same child type — must carry the property that tells it from its sibling, plus an
-   * order when the container is {@link CatalogElementDescriptor#ordered()}. No container type is
-   * named in this method: two try branches fail and two catch branches do not because {@code try-2}
-   * and {@code catch-2} carry different quantities in the catalog, not because of anything written
-   * here about either type.
+   * order when that child type is itself {@link CatalogElementDescriptor#ordered()}. Ordering is a
+   * property of the role, not the container: {@code catch-2} is ordered and {@code try-catch-finally-2}
+   * is not, the same way {@code if} is ordered under an unordered {@code condition}. No container
+   * type is named in this method beyond that: two try branches fail and two catch branches do not
+   * because {@code try-2} and {@code catch-2} carry different quantities in the catalog, not
+   * because of anything written here about either type.
    */
   private static void validateBranches(
       String containerType,
       CatalogElementDescriptor container,
-      List<ChainEditSubgraphBranch> branches) {
+      List<ChainEditSubgraphBranch> branches,
+      CatalogElementDescriptorCache descriptors) {
     Map<String, List<ChainEditSubgraphBranch>> byChildType = new LinkedHashMap<>();
     for (ChainEditSubgraphBranch branch : branches) {
-      byChildType.computeIfAbsent(branch.childType(), key -> new ArrayList<>()).add(branch);
+      String childType = required(branch.childType(), "capture names a branch without a type");
+      byChildType.computeIfAbsent(childType, key -> new ArrayList<>()).add(branch);
     }
     if (!container.allowedChildren().isEmpty()) {
       for (String childType : byChildType.keySet()) {
@@ -530,8 +535,8 @@ public final class ChainEditSubgraphAssembly {
         continue;
       }
       requireDistinguished(containerType, repeated.getKey(), repeated.getValue());
-      if (container.ordered()) {
-        requireOrdered(containerType, repeated.getKey(), repeated.getValue());
+      if (elementDescriptor(repeated.getKey(), descriptors).ordered()) {
+        requireOrdered(repeated.getKey(), repeated.getValue());
       }
     }
   }
@@ -539,18 +544,14 @@ public final class ChainEditSubgraphAssembly {
   /**
    * Branches in priority order rather than in the order the capture listed them.
    *
-   * <p>Which role comes before which — try before catch before finally — is the container's shape,
-   * not something {@link CatalogElementDescriptor#ordered()} governs, so branches keep the order
-   * their child type first appears in. Only siblings of one repeated role are reordered, by {@link
-   * ChainEditSubgraphBranch#order()}, because that is the one place a generator could otherwise pick
-   * an order the descriptor did not ask for. A container the descriptor does not order is left
-   * exactly as captured: nothing here requires an order to be set on it.
+   * <p>Which role comes before which — try before catch before finally — is the container's shape
+   * and keeps the order its child type first appears in. Only siblings of one repeated role are
+   * reordered, by {@link ChainEditSubgraphBranch#order()}, and only when that role is itself {@link
+   * CatalogElementDescriptor#ordered()}: a role the catalog does not order is left exactly as
+   * captured, since nothing requires an order to be set on it.
    */
   private static List<ChainEditSubgraphBranch> orderBranches(
-      CatalogElementDescriptor container, List<ChainEditSubgraphBranch> branches) {
-    if (!container.ordered()) {
-      return branches;
-    }
+      CatalogElementDescriptorCache descriptors, List<ChainEditSubgraphBranch> branches) {
     Map<String, Integer> roleAppearanceOrder = new LinkedHashMap<>();
     for (ChainEditSubgraphBranch branch : branches) {
       roleAppearanceOrder.putIfAbsent(branch.childType(), roleAppearanceOrder.size());
@@ -559,7 +560,12 @@ public final class ChainEditSubgraphAssembly {
     ordered.sort(
         Comparator.<ChainEditSubgraphBranch>comparingInt(
                 branch -> roleAppearanceOrder.get(branch.childType()))
-            .thenComparingInt(branch -> branch.order() == null ? 0 : branch.order()));
+            .thenComparingInt(
+                branch ->
+                    elementDescriptor(branch.childType(), descriptors).ordered()
+                            && branch.order() != null
+                        ? branch.order()
+                        : 0));
     return ordered;
   }
 
@@ -569,9 +575,10 @@ public final class ChainEditSubgraphAssembly {
    * <p>{@link ChainPlanNode#order()} is Java's own bookkeeping and never reaches the catalog; the
    * property named by {@link CatalogElementDescriptor#priorityProperty()} is what the catalog's
    * ordering service renumbers siblings from, so the capture's order is translated into that
-   * property here rather than left for a materializer that does not read {@code order()}. Only an
-   * {@link CatalogElementDescriptor#ordered()} container gets the property: an order the capture set
-   * on a branch of a container the catalog does not order names nothing the catalog would read.
+   * property here rather than left for a materializer that does not read {@code order()}. Only a
+   * branch whose own child type is {@link CatalogElementDescriptor#ordered()} gets the property —
+   * {@code catch-2} is, {@code try-2} is not — since an order set on a role the catalog does not
+   * order names nothing the catalog would read.
    *
    * <p>{@code order} is the capture's own value when it set one, and the branch's position among
    * its same-type siblings otherwise. A capture that names one catch has nothing to order it
@@ -580,21 +587,22 @@ public final class ChainEditSubgraphAssembly {
    * comes first, and validation refuses one that does not.
    */
   private static List<PlanProperty> branchProperties(
-      ChainEditSubgraphBranch branch, CatalogElementDescriptor container, Integer order) {
-    if (!container.ordered() || order == null) {
+      ChainEditSubgraphBranch branch, CatalogElementDescriptorCache descriptors, Integer order) {
+    if (order == null || !elementDescriptor(branch.childType(), descriptors).ordered()) {
       return branch.properties();
     }
-    String priorityProperty = container.priorityProperty();
+    String priorityProperty = elementDescriptor(branch.childType(), descriptors).priorityProperty();
     List<PlanProperty> properties = new ArrayList<>(branch.properties());
     properties.removeIf(property -> priorityProperty.equals(property.key()));
     properties.add(new PlanProperty(priorityProperty, String.valueOf(order)));
     return List.copyOf(properties);
   }
 
-  private static CatalogElementDescriptor containerDescriptor(
-      String containerType, CatalogElementDescriptorCache descriptors) {
+  /** The live catalog descriptor for a container or a branch's child type, by its type name. */
+  private static CatalogElementDescriptor elementDescriptor(
+      String type, CatalogElementDescriptorCache descriptors) {
     try {
-      return descriptors.require(containerType);
+      return descriptors.require(type);
     } catch (CatalogElementDescriptorException e) {
       throw correctable(e.getMessage());
     }
@@ -645,17 +653,15 @@ public final class ChainEditSubgraphAssembly {
     }
   }
 
-  /** A repeated role in an ordered container needs its own position among its siblings. */
-  private static void requireOrdered(
-      String containerType, String childType, List<ChainEditSubgraphBranch> repeated) {
+  /** A repeated, ordered role needs its own position among its siblings. */
+  private static void requireOrdered(String childType, List<ChainEditSubgraphBranch> repeated) {
     for (ChainEditSubgraphBranch branch : repeated) {
       if (branch.order() == null) {
         throw correctable(
-            "container '"
-                + containerType
-                + "' is ordered and has more than one branch of type '"
+            "'"
                 + childType
-                + "', and one of them carries no order");
+                + "' is ordered and there is more than one branch of that type, and one of them"
+                + " carries no order");
       }
     }
   }
