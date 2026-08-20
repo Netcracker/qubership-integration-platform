@@ -7,6 +7,9 @@
 # read a shell file. Those stay hand-written; keep them in step with this file.
 #
 # Usage: . "$(dirname "$0")/modules.sh"
+#
+# Running this file does nothing. It keeps the executable bit because
+# super-linter's BASH_EXEC rule requires it of every .sh in the repo.
 
 # A sourced library: the consumers use these, this file does not.
 # shellcheck disable=SC2034
