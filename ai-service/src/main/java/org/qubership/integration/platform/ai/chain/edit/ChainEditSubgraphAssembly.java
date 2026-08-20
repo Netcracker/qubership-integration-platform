@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBody;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphConnection;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphElement;
@@ -29,41 +30,42 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubg
  * Builds the graph a structural edit proposes from a capture of what it adds.
  *
  * <p>The imported chain arrives whole and leaves whole. An existing element reaches this assembly
- * as an identifier in the branch it moves into, so the only thing that can happen to it is the
- * reparenting the intent already approved. Its type, label, order, and properties are never read
- * from the capture, which is why the refusals {@link ChainEditStructureMerge} still owes the older
- * contract have no subject here.
+ * as an identifier — in the branch it moves into, for a wrap, or not at all, for an insertion,
+ * which moves nothing. Its type, label, order, and properties are never read from the capture,
+ * which is why the refusals {@link ChainEditStructureMerge} still owes the older contract have no
+ * subject here.
  *
- * <p>Identifiers of the container and its branches are minted here rather than captured. A capture
- * that named them could collide with an element the chain already has, and nothing downstream needs
- * them to be anything in particular: the catalog creates a container together with its children and
- * Java binds those to the planned nodes by type and order.
+ * <p>A wrap or a branch names a container; {@link #assemble} places it beside the elements that
+ * move into it and creates each branch under it, as described on {@link #assembleContainer}. An
+ * insertion names none of that and carries its new elements in a single body instead, spliced at
+ * the address the intent already resolved, as described on {@link #assembleInsertion}.
+ * {@link ChainEditIntent#disposition()} tells the two captures apart; the capture's own shape says
+ * the same thing a second way, so a capture that mismatches its disposition is refused for that
+ * before either path runs.
+ *
+ * <p>Identifiers of new container, branch, and body nodes are minted here rather than captured. A
+ * capture that named them could collide with an element the chain already has, and nothing
+ * downstream needs a container or a branch node to be anything in particular: the catalog creates a
+ * container together with its children and Java binds those to the planned nodes by type and order.
  *
  * <p>Connections to the chain around the edit come from {@link ChainEditBoundaryWiring}, so the
- * capture never states where the container attaches. Incoming hops of a moved element arrive at the
- * container, outgoing hops leave from it, and a connection whose two ends both moved is kept as it
- * was.
+ * capture never states where the new subgraph attaches. Incoming hops of a moved or spliced element
+ * arrive at the subgraph's entry, outgoing hops leave from its exit, and a connection whose two ends
+ * both moved is kept as it was.
  *
  * <p>Branch shape — which child types a container allows, how many of each, and whether a repeated
  * one needs a distinguishing property and an order — comes from the live catalog descriptor, not
- * from anything written about a specific container here. See {@link #assemble} for where that check
- * runs.
+ * from anything written about a specific container here. See {@link #assembleContainer} for where
+ * that check runs. An insertion has no container, so no descriptor governs its shape beyond the
+ * requirement that its body forms one connected run.
  */
 public final class ChainEditSubgraphAssembly {
 
   private ChainEditSubgraphAssembly() {}
 
   /**
-   * The graph this edit proposes: the imported chain, plus the captured container and its branches.
-   *
-   * <p>Two checks run against the live catalog before a proposal is returned. Branch shape is
-   * checked against the container's own descriptor first, so a capture that names a child type the
-   * container does not allow, gets a branch count wrong, or leaves a repeated role undistinguished
-   * is refused for that rule rather than for whatever shape the defect takes once assembled. The
-   * assembled graph then runs through {@link DesiredGraphDescriptorPreflight}, the same check a
-   * catalog write would fail on, so a defect outside branch shape — a nested container still
-   * missing its mandatory content, for one — is caught here instead of after the reader approves a
-   * card.
+   * The graph this edit proposes: the imported chain, plus the captured container and its
+   * branches, or the captured insertion body.
    *
    * @throws ChainEditScopeException when the capture describes something the intent did not
    *     approve, or something the container's catalog descriptor does not allow
@@ -85,6 +87,31 @@ public final class ChainEditSubgraphAssembly {
       missing.removeAll(baseById.keySet());
       throw unsatisfiable("unknown structural target ids " + missing);
     }
+    if (intent.disposition() == ChainEditDisposition.KEEP) {
+      return assembleInsertion(base, baseById, capture, intent, descriptors);
+    }
+    return assembleContainer(base, baseById, capture, targets, descriptors);
+  }
+
+  /**
+   * The graph a wrap or a branch proposes: the imported chain, plus the captured container and its
+   * branches.
+   *
+   * <p>Two checks run against the live catalog before a proposal is returned. Branch shape is
+   * checked against the container's own descriptor first, so a capture that names a child type the
+   * container does not allow, gets a branch count wrong, or leaves a repeated role undistinguished
+   * is refused for that rule rather than for whatever shape the defect takes once assembled. The
+   * assembled graph then runs through {@link DesiredGraphDescriptorPreflight}, the same check a
+   * catalog write would fail on, so a defect outside branch shape — a nested container still
+   * missing its mandatory content, for one — is caught here instead of after the reader approves a
+   * card.
+   */
+  private static ChainPlanGraph assembleContainer(
+      ChainPlanGraph base,
+      Map<String, ChainPlanNode> baseById,
+      ChainEditSubgraph capture,
+      Set<String> targets,
+      CatalogElementDescriptorCache descriptors) {
     String containerType = required(capture.containerType(), "capture names no container type");
     if (capture.branches().isEmpty()) {
       throw correctable("capture names container '" + containerType + "' without a branch");
@@ -161,6 +188,160 @@ public final class ChainEditSubgraphAssembly {
             base.schemaVersion(), base.chain(), List.copyOf(nodes), List.copyOf(edges));
     runDescriptorPreflight(assembled, base, descriptors);
     return assembled;
+  }
+
+  /**
+   * The graph an insertion proposes: the imported chain, unchanged, plus the captured body spliced
+   * into the address the intent already resolved.
+   *
+   * <p>Nothing moves. The preceding and, when named, the following address element keep their type,
+   * label, order, properties, and parent exactly as imported; only the edge between them is
+   * replaced, by an edge into the body's entry and one out of its exit. A single named address
+   * element is followed by whichever element the base graph gives it as its one successor —
+   * {@link ChainEditIntentResolver} already turned a choice among several into a question before
+   * this capture was requested, so more than one here means that step was skipped, not that this
+   * capture can fix it.
+   */
+  private static ChainPlanGraph assembleInsertion(
+      ChainPlanGraph base,
+      Map<String, ChainPlanNode> baseById,
+      ChainEditSubgraph capture,
+      ChainEditIntent intent,
+      CatalogElementDescriptorCache descriptors) {
+    if (capture.containerType() != null && !capture.containerType().isBlank()) {
+      throw correctable(
+          "an insertion capture names no container, and this one names '"
+              + capture.containerType()
+              + "'");
+    }
+    if (!capture.branches().isEmpty()) {
+      throw correctable("an insertion capture carries a single body, not branches");
+    }
+    ChainEditSubgraphBody body = capture.body();
+    if (body == null || body.isEmpty()) {
+      throw correctable("capture creates no elements to insert");
+    }
+
+    List<String> targetIds = intent.targetNodeIds();
+    if (targetIds.isEmpty()) {
+      throw unsatisfiable("insertion address names no element");
+    }
+    String preceding = targetIds.get(0);
+    String following = targetIds.size() > 1 ? targetIds.get(1) : soleSuccessorOrNull(base, preceding);
+    List<String> addressIds = following == null ? List.of(preceding) : List.of(preceding, following);
+    String scope = commonParent(addressIds, baseById);
+
+    Set<String> reserved = new LinkedHashSet<>(baseById.keySet());
+    Map<String, ChainEditSubgraphElement> newElements = new LinkedHashMap<>();
+    for (ChainEditSubgraphElement element : body.elements()) {
+      registerElement(element, newElements, reserved);
+    }
+
+    List<ChainPlanNode> nodes = new ArrayList<>(base.nodes());
+    for (ChainEditSubgraphElement element : body.elements()) {
+      nodes.add(
+          new ChainPlanNode(element.nodeId(), element.type(), element.label(), scope, null, List.of()));
+    }
+    Map<String, ChainPlanNode> assembledById = new LinkedHashMap<>();
+    nodes.forEach(node -> assembledById.put(node.nodeId(), node));
+
+    Set<String> edgeIds = new LinkedHashSet<>();
+    for (ChainPlanEdge existing : baseEdges(base)) {
+      edgeIds.add(existing.edgeId());
+    }
+    List<ChainPlanEdge> bodyEdges = insertionBodyEdges(body, scope, edgeIds);
+    ChainEditBoundaryWiring.SubgraphEnds ends =
+        ChainEditBoundaryWiring.deriveSubgraphEnds(newElements.keySet(), bodyEdges, assembledById);
+    if (ends.entry() == null || ends.exit() == null) {
+      throw correctable("capture body does not connect its elements into a single linked run");
+    }
+
+    List<ChainPlanEdge> edges = new ArrayList<>();
+    Set<String> connections = new LinkedHashSet<>();
+    for (ChainPlanEdge existing : baseEdges(base)) {
+      boolean isAddressEdge =
+          preceding.equals(existing.fromNodeId()) && Objects.equals(following, existing.toNodeId());
+      if (isAddressEdge) {
+        continue;
+      }
+      if (connections.add(connectionKey(existing.fromNodeId(), existing.toNodeId()))) {
+        edges.add(existing);
+      }
+    }
+    edges.addAll(bodyEdges);
+    edges.add(
+        new ChainPlanEdge(
+            reserveId(preceding + "-to-" + ends.entry(), edgeIds), preceding, ends.entry(), scope));
+    if (following != null) {
+      edges.add(
+          new ChainPlanEdge(
+              reserveId(ends.exit() + "-to-" + following, edgeIds), ends.exit(), following, scope));
+    }
+
+    ChainPlanGraph assembled =
+        new ChainPlanGraph(
+            base.schemaVersion(), base.chain(), List.copyOf(nodes), List.copyOf(edges));
+    runDescriptorPreflight(assembled, base, descriptors);
+    return assembled;
+  }
+
+  /**
+   * The element base graph names as the sole successor of a preceding address element named alone,
+   * or {@code null} when that element has none.
+   *
+   * <p>More than one successor is a defect the reader was supposed to be asked about before the
+   * capture was requested, so it is reported {@link #unsatisfiable unsatisfiable}: naming a
+   * different element in the capture cannot fix an address the intent itself left ambiguous.
+   */
+  private static String soleSuccessorOrNull(ChainPlanGraph base, String precedingId) {
+    List<String> successors = new ArrayList<>();
+    for (ChainPlanEdge edge : baseEdges(base)) {
+      if (precedingId.equals(edge.fromNodeId())
+          && edge.toNodeId() != null
+          && !successors.contains(edge.toNodeId())) {
+        successors.add(edge.toNodeId());
+      }
+    }
+    if (successors.size() > 1) {
+      throw unsatisfiable(
+          "'"
+              + precedingId
+              + "' has more than one successor; the insertion address must name which one the"
+              + " new elements precede");
+    }
+    return successors.isEmpty() ? null : successors.get(0);
+  }
+
+  /**
+   * Connections inside an insertion's single body, scoped to the address's own parent.
+   *
+   * <p>A connection reaching outside the body is refused rather than dropped, the same rule a
+   * branch's own connections follow: an insertion body may only wire the elements it creates to
+   * each other, never to the address it splices into.
+   */
+  private static List<ChainPlanEdge> insertionBodyEdges(
+      ChainEditSubgraphBody body, String scope, Set<String> edgeIds) {
+    Set<String> withinBody = new LinkedHashSet<>();
+    for (ChainEditSubgraphElement element : body.elements()) {
+      withinBody.add(element.nodeId());
+    }
+    List<ChainPlanEdge> edges = new ArrayList<>();
+    for (ChainEditSubgraphConnection connection : body.connections()) {
+      String from = requireWithinInsertionBody(connection.fromNodeId(), withinBody);
+      String to = requireWithinInsertionBody(connection.toNodeId(), withinBody);
+      edges.add(new ChainPlanEdge(reserveId(from + "-to-" + to, edgeIds), from, to, scope));
+    }
+    return List.copyOf(edges);
+  }
+
+  private static String requireWithinInsertionBody(String nodeId, Set<String> withinBody) {
+    if (nodeId == null || nodeId.isBlank()) {
+      throw correctable("capture connects an inserted element to nothing");
+    }
+    if (!withinBody.contains(nodeId)) {
+      throw correctable("capture connects '" + nodeId + "', which this insertion does not create");
+    }
+    return nodeId;
   }
 
   /**
@@ -401,18 +582,30 @@ public final class ChainEditSubgraphAssembly {
     Map<String, ChainEditSubgraphElement> byId = new LinkedHashMap<>();
     for (ChainEditSubgraphBranch branch : capture.branches()) {
       for (ChainEditSubgraphElement element : branch.body().elements()) {
-        String nodeId = required(element.nodeId(), "capture creates an element without an id");
-        if (reserved.contains(nodeId)) {
-          throw correctable("capture creates '" + nodeId + "', an id the chain already uses");
-        }
-        if (byId.put(nodeId, element) != null) {
-          throw correctable("capture creates '" + nodeId + "' twice");
-        }
-        required(element.type(), "capture creates '" + nodeId + "' without a type");
+        registerElement(element, byId, reserved);
       }
     }
     reserved.addAll(byId.keySet());
     return byId;
+  }
+
+  /**
+   * Records one new element under its id, refusing a collision with the chain, a sibling body, or
+   * an id this capture already used elsewhere. Shared by a wrap's per-branch bodies and an
+   * insertion's single body, which differ in how many bodies they have but not in this rule.
+   */
+  private static void registerElement(
+      ChainEditSubgraphElement element,
+      Map<String, ChainEditSubgraphElement> byId,
+      Set<String> reserved) {
+    String nodeId = required(element.nodeId(), "capture creates an element without an id");
+    if (reserved.contains(nodeId)) {
+      throw correctable("capture creates '" + nodeId + "', an id the chain already uses");
+    }
+    if (byId.put(nodeId, element) != null) {
+      throw correctable("capture creates '" + nodeId + "' twice");
+    }
+    required(element.type(), "capture creates '" + nodeId + "' without a type");
   }
 
   /**
@@ -523,7 +716,11 @@ public final class ChainEditSubgraphAssembly {
   }
 
   private static String connectionKey(ChainPlanEdge edge) {
-    return edge.fromNodeId() + " " + edge.toNodeId();
+    return connectionKey(edge.fromNodeId(), edge.toNodeId());
+  }
+
+  private static String connectionKey(String fromNodeId, String toNodeId) {
+    return fromNodeId + " " + toNodeId;
   }
 
   private static String required(String value, String message) {

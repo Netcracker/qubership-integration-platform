@@ -6,6 +6,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditDisposition;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditScopeException;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureMerge;
@@ -74,9 +76,10 @@ public class ChainStructureCaptureTool {
       graph must be present and pass deterministic graph validation.
       Always copy configured http-trigger endpoint properties from ConfiguredTriggerSet
       (contextPath, httpMethodRestrict, externalRoute). Never emit properties:null on triggers.
-      An edit that nests existing elements captures subgraph instead of graph: the container type,
-      its branches, the elements each branch creates, and the ids of the existing elements that
-      move into a branch. Never both.""")
+      A wrap or an insertion captures subgraph instead of graph, never both. A wrap names the
+      container type, its branches, the elements each branch creates, and the ids of the existing
+      elements that move into a branch. An insertion names no container: its new elements and their
+      connections go in body, and no existing element is named anywhere.""")
   public String captureChainStructure(ChainStructure capture) {
     String conversationId = CompilerGraphPatchTool.resolveConversationId();
     long startMs = System.currentTimeMillis();
@@ -183,13 +186,13 @@ public class ChainStructureCaptureTool {
   }
 
   /**
-   * Assembles the graph a nesting edit proposes, so the rest of the capture sees a graph either
-   * way.
+   * Assembles the graph a wrap or an insertion proposes, so the rest of the capture sees a graph
+   * either way.
    *
-   * <p>A nesting edit captures what it adds and nothing else, which is what keeps it from
-   * enclosing an element the reader never named. The whole-graph shape is refused for such an edit
-   * rather than merged, because accepting both would leave the defect this contract removes
-   * reachable through the older field.
+   * <p>A wrap or an insertion captures what it adds and nothing else, which is what keeps a wrap
+   * from enclosing an element the reader never named and an insertion from displacing the address
+   * it splices into. The whole-graph shape is refused for such an edit rather than merged, because
+   * accepting both would leave the defect this contract removes reachable through the older field.
    *
    * <p>Assembly checks the capture against the live catalog descriptor before this method returns,
    * so a misdescribed container is reported here, in the same turn as the capture, rather than after
@@ -198,20 +201,17 @@ public class ChainStructureCaptureTool {
    */
   private ChainStructure withGraphAssembledFromSubgraph(
       ChainStructure capture, ChainEditStructureBase editBase) {
-    boolean nesting = editBase != null && editBase.intent().capturesSubgraph();
-    if (!nesting) {
+    boolean subgraphCapture = editBase != null && editBase.intent().capturesSubgraph();
+    if (!subgraphCapture) {
       if (capture.subgraph() != null) {
         throw new IllegalArgumentException(
-            "subgraph describes what a nesting edit adds, and this run is not one."
+            "subgraph describes what a wrap or an insertion adds, and this run is neither."
                 + " Capture the graph instead.");
       }
       return capture;
     }
     if (capture.subgraph() == null) {
-      throw new IllegalArgumentException(
-          "This edit nests existing elements, so capture subgraph rather than graph: the container"
-              + " type, its branches, the elements each branch creates, and in moveExisting the ids"
-              + " of the existing elements that move into a branch.");
+      throw new IllegalArgumentException(subgraphRequiredMessage(editBase.intent()));
     }
     ChainPlanGraph assembled =
         ChainEditSubgraphAssembly.assemble(
@@ -221,6 +221,17 @@ public class ChainStructureCaptureTool {
             new CatalogElementDescriptorCache(descriptorLoader));
     return new ChainStructure(
         assembled, capture.sourceRequirementFactIds(), capture.knowledgeCitations());
+  }
+
+  /** Tells the generator what to name instead, for whichever of the two subgraph shapes applies. */
+  private static String subgraphRequiredMessage(ChainEditIntent intent) {
+    if (intent.disposition() == ChainEditDisposition.KEEP) {
+      return "This edit inserts elements at an address, so capture subgraph rather than graph: no"
+          + " container, and in body the new elements and the connections between them.";
+    }
+    return "This edit nests existing elements, so capture subgraph rather than graph: the container"
+        + " type, its branches, the elements each branch creates, and in moveExisting the ids"
+        + " of the existing elements that move into a branch.";
   }
 
   /**
