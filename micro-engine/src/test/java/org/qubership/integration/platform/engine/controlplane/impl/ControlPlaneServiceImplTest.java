@@ -150,10 +150,10 @@ class ControlPlaneServiceImplTest {
         RuntimeException restFailure = new RuntimeException("control plane is down");
         when(controlPlaneRestService.postRouteConfiguration(any()))
                 .thenThrow(restFailure);
+        List<RouteRegistrationInfo> routes = List.of(triggerRoute("/a", RouteType.EXTERNAL_TRIGGER));
 
         ControlPlaneException exception = assertThrows(ControlPlaneException.class, () ->
-                service.postPublicEngineRoutes(
-                        List.of(triggerRoute("/a", RouteType.EXTERNAL_TRIGGER)), DEPLOYMENT));
+                service.postPublicEngineRoutes(routes, DEPLOYMENT));
 
         assertEquals("Failed to post routes configuration for routes in control plane", exception.getMessage());
         assertSame(restFailure, exception.getCause());
@@ -222,10 +222,10 @@ class ControlPlaneServiceImplTest {
                         prefixRoute("public-uuid", GATEWAY_ROUTES_PREFIX + "/a", DEPLOYMENT + ":8080"))));
         when(controlPlaneRestService.deleteRoute("public-uuid"))
                 .thenThrow(new RuntimeException("control plane is down"));
+        List<RouteRegistrationInfo> routes = List.of(triggerRoute("/a", RouteType.EXTERNAL_TRIGGER));
 
         ControlPlaneException exception = assertThrows(ControlPlaneException.class, () ->
-                service.removeEngineRoutes(
-                        List.of(triggerRoute("/a", RouteType.EXTERNAL_TRIGGER)), DEPLOYMENT));
+                service.removeEngineRoutes(routes, DEPLOYMENT));
 
         assertEquals("Failed to remove routes from control plane.", exception.getMessage());
     }
@@ -305,10 +305,13 @@ class ControlPlaneServiceImplTest {
 
     @Test
     void shouldRejectEgressRouteWithoutTargetUrlOrGatewayPrefix() {
+        RouteRegistrationInfo routeWithoutTargetUrl = senderRoute("", "/system/service-a");
+        RouteRegistrationInfo routeWithoutGatewayPrefix = senderRoute("https://example.com", "");
+
         ControlPlaneException withoutTargetUrl = assertThrows(ControlPlaneException.class, () ->
-                service.postEgressGatewayRoutes(senderRoute("", "/system/service-a")));
+                service.postEgressGatewayRoutes(routeWithoutTargetUrl));
         ControlPlaneException withoutGatewayPrefix = assertThrows(ControlPlaneException.class, () ->
-                service.postEgressGatewayRoutes(senderRoute("https://example.com", "")));
+                service.postEgressGatewayRoutes(routeWithoutGatewayPrefix));
 
         assertEquals("Routes registration parameters must not be null", withoutTargetUrl.getMessage());
         assertEquals("Routes registration parameters must not be null", withoutGatewayPrefix.getMessage());
@@ -321,9 +324,10 @@ class ControlPlaneServiceImplTest {
         RuntimeException restFailure = new RuntimeException("control plane is down");
         when(controlPlaneRestService.postRouteConfiguration(any()))
                 .thenThrow(restFailure);
+        RouteRegistrationInfo route = senderRoute("https://example.com", "/system/service-a");
 
         ControlPlaneException exception = assertThrows(ControlPlaneException.class, () ->
-                service.postEgressGatewayRoutes(senderRoute("https://example.com", "/system/service-a")));
+                service.postEgressGatewayRoutes(route));
 
         assertEquals("Failed to post routes configuration for routes in control plane", exception.getMessage());
         assertSame(restFailure, exception.getCause());
