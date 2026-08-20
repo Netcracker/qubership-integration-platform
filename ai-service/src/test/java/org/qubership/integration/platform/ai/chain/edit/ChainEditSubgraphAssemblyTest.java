@@ -160,6 +160,31 @@ class ChainEditSubgraphAssemblyTest {
   }
 
   @Test
+  void aLoneBranchGetsThePriorityTheCatalogRequiresWithoutTheCaptureNamingIt() {
+    CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
+    ChainEditSubgraph withoutAnOrder =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(tryBranch(CALL), catchBranch("java.lang.Exception", null, "log-failure")));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), withoutAnOrder, wrap(CALL), descriptors);
+
+    ChainPlanNode caught =
+        assembled.nodes().stream()
+            .filter(node -> "catch-2".equals(node.type()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(
+        List.of(
+            new PlanProperty("exception", "java.lang.Exception"),
+            new PlanProperty("priority", "1")),
+        caught.properties());
+  }
+
+  @Test
   void branchOrderFollowsThePriorityPropertyRatherThanTheCaptureListPosition() {
     CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
     ChainEditSubgraph reversedInTheCapture =

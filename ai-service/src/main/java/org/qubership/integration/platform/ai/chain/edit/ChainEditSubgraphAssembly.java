@@ -148,16 +148,20 @@ public final class ChainEditSubgraphAssembly {
             commonParent(branchOfMovedId.keySet(), baseById),
             null,
             List.of()));
+    Map<String, Integer> takenByChildType = new LinkedHashMap<>();
     for (ChainEditSubgraphBranch branch : orderedBranches) {
       String branchNodeId = branchNodeIds.get(branch);
+      int siblingPosition =
+          takenByChildType.merge(branch.childType(), 1, Integer::sum);
+      Integer order = branch.order() == null ? siblingPosition : branch.order();
       nodes.add(
           new ChainPlanNode(
               branchNodeId,
               branch.childType(),
               branch.label(),
               containerNodeId,
-              branch.order(),
-              branchProperties(branch, container)));
+              order,
+              branchProperties(branch, container, order)));
       for (ChainEditSubgraphElement element : branch.body().elements()) {
         nodes.add(
             new ChainPlanNode(
@@ -568,16 +572,22 @@ public final class ChainEditSubgraphAssembly {
    * property here rather than left for a materializer that does not read {@code order()}. Only an
    * {@link CatalogElementDescriptor#ordered()} container gets the property: an order the capture set
    * on a branch of a container the catalog does not order names nothing the catalog would read.
+   *
+   * <p>{@code order} is the capture's own value when it set one, and the branch's position among
+   * its same-type siblings otherwise. A capture that names one catch has nothing to order it
+   * against, so requiring the number from the generator would fail the edit over a value the
+   * position already gives. Where several branches share a role the capture must still say which
+   * comes first, and validation refuses one that does not.
    */
   private static List<PlanProperty> branchProperties(
-      ChainEditSubgraphBranch branch, CatalogElementDescriptor container) {
-    if (!container.ordered() || branch.order() == null) {
+      ChainEditSubgraphBranch branch, CatalogElementDescriptor container, Integer order) {
+    if (!container.ordered() || order == null) {
       return branch.properties();
     }
     String priorityProperty = container.priorityProperty();
     List<PlanProperty> properties = new ArrayList<>(branch.properties());
     properties.removeIf(property -> priorityProperty.equals(property.key()));
-    properties.add(new PlanProperty(priorityProperty, String.valueOf(branch.order())));
+    properties.add(new PlanProperty(priorityProperty, String.valueOf(order)));
     return List.copyOf(properties);
   }
 

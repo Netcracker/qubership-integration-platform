@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
 
@@ -70,15 +71,12 @@ public class ChainStructureCaptureTool {
   }
 
   @Tool("""
-      Capture chain structure with the first valid ChainPlanGraph revision.
+      Capture the whole chain graph. Use this when planning a NEW chain, not when editing one.
       Do not pass conversationId — the server binds this capture to the current chat session.
       graph must be present and pass deterministic graph validation.
       Always copy configured http-trigger endpoint properties from ConfiguredTriggerSet
       (contextPath, httpMethodRestrict, externalRoute). Never emit properties:null on triggers.
-      A wrap or an insertion captures subgraph instead of graph, never both. A wrap names the
-      container type, its branches, the elements each branch creates, and the ids of the existing
-      elements that move into a branch. An insertion names no container: its new elements and their
-      connections go in body, and no existing element is named anywhere.""")
+      To change a chain that already exists, call captureChainEditSubgraph instead.""")
   public String captureChainStructure(ChainStructure capture) {
     String conversationId = CompilerGraphPatchTool.resolveConversationId();
     long startMs = System.currentTimeMillis();
@@ -87,33 +85,48 @@ public class ChainStructureCaptureTool {
         "captureChainStructure",
         conversationId,
         "preview=" + AiTraceLog.preview(previewCapture(capture), 400));
+    if (conversationId == null || conversationId.isBlank()) {
+      return finish(conversationId, startMs, "conversationId is required (no active chat session)");
+    }
+    if (capture == null) {
+      return finish(conversationId, startMs, "capture is required");
+    }
+    ChainEditStructureBase editBase = editBase(conversationId);
+    ChainStructure shaped;
     try {
-      if (conversationId == null || conversationId.isBlank()) {
-        return finish(conversationId, startMs, "conversationId is required (no active chat session)");
-      }
-      if (capture == null) {
-        return finish(conversationId, startMs, "capture is required");
-      }
-      ChainEditStructureBase editBase = editBase(conversationId);
-      ChainStructure shaped;
-      try {
-        shaped = withGraphAssembledFromSubgraph(capture, editBase);
-      } catch (IllegalArgumentException e) {
-        return finish(
-            conversationId,
-            startMs,
-            repairable(
-                conversationId,
-                capture,
-                captureFailureClass(e),
-                "Structure validation failed:\n" + e.getMessage()));
-      }
+      shaped = wholeGraphCapture(capture, editBase);
+    } catch (IllegalArgumentException e) {
+      return finish(
+          conversationId,
+          startMs,
+          repairable(
+              conversationId,
+              capture,
+              captureFailureClass(e),
+              "Structure validation failed:\n" + e.getMessage()));
+    }
+    return completeCapture(conversationId, startMs, shaped, capture);
+  }
+
+  /**
+   * Sanitizes, validates, and stores an already-shaped capture, whichever tool produced it.
+   *
+   * <p>Both capture tools converge here, so a CREATE graph and an assembled edit graph are held to
+   * the same deterministic validation and reach the session through one path.
+   */
+  private String completeCapture(
+      String conversationId, long startMs, ChainStructure shaped, Object fingerprintSource) {
+    ChainStructure capture = shaped;
+    try {
       if (shaped.graph() == null) {
         return finish(
             conversationId,
             startMs,
             repairable(
-                conversationId, capture, CaptureFailureClass.CORRECTABLE, "graph is required"));
+                conversationId,
+                fingerprintSource,
+                CaptureFailureClass.CORRECTABLE,
+                "graph is required"));
       }
       ChainStructurePropertySanitizer.SanitizationResult sanitized =
           propertySanitizer.sanitize(shaped);
@@ -137,7 +150,7 @@ public class ChainStructureCaptureTool {
             startMs,
             repairable(
                 conversationId,
-                capture,
+                fingerprintSource,
                 CaptureFailureClass.CORRECTABLE,
                 "Structure validation failed:\n" + String.join("\n", errors)));
       }
@@ -173,41 +186,96 @@ public class ChainStructureCaptureTool {
   }
 
   /**
-   * Assembles the graph a wrap or an insertion proposes, so the rest of the capture sees a graph
-   * either way.
+   * The capture for a CREATE run, refused when this run edits a chain that already exists.
    *
-   * <p>A wrap or an insertion captures what it adds and nothing else, which is what keeps a wrap
-   * from enclosing an element the reader never named and an insertion from displacing the address
-   * it splices into. The whole-graph shape is refused for such an edit rather than merged, because
-   * accepting both would leave the defect this contract removes reachable through the older field.
-   *
-   * <p>Assembly checks the capture against the live catalog descriptor before this method returns,
-   * so a misdescribed container is reported here, in the same turn as the capture, rather than after
-   * the reader approves a card. The cache is built fresh for this attempt: a retry after a catalog
-   * change must not read a descriptor this turn already found stale.
+   * <p>An edit captures only what it adds, through {@code captureChainEditSubgraph}. Accepting a
+   * whole graph here as well would leave the defect this contract removes reachable through the
+   * older shape: a graph that re-states every element lets the generator reparent, drop, or rewrite
+   * one the reader never named, and Java could only refuse that afterwards.
    */
-  private ChainStructure withGraphAssembledFromSubgraph(
+  private static ChainStructure wholeGraphCapture(
       ChainStructure capture, ChainEditStructureBase editBase) {
-    boolean subgraphCapture = editBase != null && editBase.intent().capturesSubgraph();
-    if (!subgraphCapture) {
-      if (capture.subgraph() != null) {
-        throw new IllegalArgumentException(
-            "subgraph describes what a wrap or an insertion adds, and this run is neither."
-                + " Capture the graph instead.");
-      }
-      return capture;
+    if (editBase != null && editBase.intent().capturesSubgraph()) {
+      throw new IllegalArgumentException(
+          "This run edits a chain that already exists, so the whole graph is not the capture for"
+              + " it. Call captureChainEditSubgraph instead. "
+              + subgraphRequiredMessage(editBase.intent()));
     }
-    if (capture.subgraph() == null) {
-      throw new IllegalArgumentException(subgraphRequiredMessage(editBase.intent()));
+    if (capture.subgraph() != null) {
+      throw new IllegalArgumentException(
+          "subgraph belongs to captureChainEditSubgraph. Capture graph here, or call that tool.");
     }
-    ChainPlanGraph assembled =
-        ChainEditSubgraphAssembly.assemble(
-            editBase.baseGraph(),
-            capture.subgraph(),
-            editBase.intent(),
-            new CatalogElementDescriptorCache(descriptorLoader));
-    return new ChainStructure(
-        assembled, capture.sourceRequirementFactIds(), capture.knowledgeCitations());
+    return capture;
+  }
+
+  /**
+   * Captures what a structural edit adds, and assembles the chain it produces.
+   *
+   * <p>Its own tool rather than a second field on the CREATE capture, because the shape a run needs
+   * is something Java already knows and the generator should not have to choose. The parameter here
+   * has no {@code graph} field at all, so an edit cannot answer with a whole chain the way it could
+   * while both shapes shared one capture.
+   */
+  @Tool("""
+      Capture what a structural edit ADDS to a chain that already exists. Use this for any wrap,
+      insertion, or replacement on the open chain, and never captureChainStructure.
+      Do not pass conversationId — the server binds this capture to the current chat session.
+      A wrap names containerType and one branch per child the container has; each branch names its
+      childType, lists in moveExisting the ids of the existing elements that move into it, and puts
+      the elements it creates in its own body.
+      An insertion or a replacement names no container: its new elements and the connections
+      between them go in the top-level body.
+      Never name an existing element anywhere except in moveExisting, and never give a new element a
+      parent — the branch it is declared in is where it nests. Java places the result and reconnects
+      the chain around it.""")
+  public String captureChainEditSubgraph(ChainEditSubgraph subgraph) {
+    String conversationId = CompilerGraphPatchTool.resolveConversationId();
+    long startMs = System.currentTimeMillis();
+    ToolTraceLog.logToolInvoke(
+        LOG,
+        "captureChainEditSubgraph",
+        conversationId,
+        "preview=" + AiTraceLog.preview(previewCapture(subgraph), 400));
+    if (conversationId == null || conversationId.isBlank()) {
+      return finish(conversationId, startMs, "conversationId is required (no active chat session)");
+    }
+    if (subgraph == null) {
+      return finish(conversationId, startMs, "subgraph is required");
+    }
+    ChainEditStructureBase editBase = editBase(conversationId);
+    if (editBase == null || !editBase.intent().capturesSubgraph()) {
+      return finish(
+          conversationId,
+          startMs,
+          repairable(
+              conversationId,
+              subgraph,
+              CaptureFailureClass.PERMANENT,
+              "This run plans a new chain, so there is nothing to add a subgraph to."
+                  + " Call captureChainStructure with the whole graph instead."));
+    }
+    ChainStructure shaped;
+    try {
+      shaped =
+          new ChainStructure(
+              ChainEditSubgraphAssembly.assemble(
+                  editBase.baseGraph(),
+                  subgraph,
+                  editBase.intent(),
+                  new CatalogElementDescriptorCache(descriptorLoader)),
+              List.of(),
+              List.of());
+    } catch (IllegalArgumentException e) {
+      return finish(
+          conversationId,
+          startMs,
+          repairable(
+              conversationId,
+              subgraph,
+              captureFailureClass(e),
+              "Structure validation failed:\n" + e.getMessage()));
+    }
+    return completeCapture(conversationId, startMs, shaped, subgraph);
   }
 
   /** Tells the generator what to name instead, for whichever of the three subgraph shapes applies. */
@@ -229,7 +297,7 @@ public class ChainStructureCaptureTool {
 
   private String repairable(
       String conversationId,
-      ChainStructure capture,
+      Object fingerprintSource,
       CaptureFailureClass failureClass,
       String message) {
     return outcomeGateway.onFailure(
@@ -239,7 +307,7 @@ public class ChainStructureCaptureTool {
         CaptureFailureKind.VALIDATION,
         failureClass,
         "captureChainStructure",
-        capture,
+        fingerprintSource,
         message);
   }
 
@@ -278,7 +346,7 @@ public class ChainStructureCaptureTool {
     return CaptureFailureClass.CORRECTABLE;
   }
 
-  private String previewCapture(ChainStructure capture) {
+  private String previewCapture(Object capture) {
     if (capture == null) {
       return "null";
     }
