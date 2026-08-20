@@ -8,6 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflight;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -34,6 +40,11 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubg
  * capture never states where the container attaches. Incoming hops of a moved element arrive at the
  * container, outgoing hops leave from it, and a connection whose two ends both moved is kept as it
  * was.
+ *
+ * <p>Branch shape — which child types a container allows, how many of each, and whether a repeated
+ * one needs a distinguishing property and an order — comes from the live catalog descriptor, not
+ * from anything written about a specific container here. See {@link #assemble} for where that check
+ * runs.
  */
 public final class ChainEditSubgraphAssembly {
 
@@ -42,13 +53,27 @@ public final class ChainEditSubgraphAssembly {
   /**
    * The graph this edit proposes: the imported chain, plus the captured container and its branches.
    *
-   * @throws ChainEditScopeException when the capture describes something the intent did not approve
+   * <p>Two checks run against the live catalog before a proposal is returned. Branch shape is
+   * checked against the container's own descriptor first, so a capture that names a child type the
+   * container does not allow, gets a branch count wrong, or leaves a repeated role undistinguished
+   * is refused for that rule rather than for whatever shape the defect takes once assembled. The
+   * assembled graph then runs through {@link DesiredGraphDescriptorPreflight}, the same check a
+   * catalog write would fail on, so a defect outside branch shape — a nested container still
+   * missing its mandatory content, for one — is caught here instead of after the reader approves a
+   * card.
+   *
+   * @throws ChainEditScopeException when the capture describes something the intent did not
+   *     approve, or something the container's catalog descriptor does not allow
    */
   public static ChainPlanGraph assemble(
-      ChainPlanGraph base, ChainEditSubgraph capture, ChainEditIntent intent) {
+      ChainPlanGraph base,
+      ChainEditSubgraph capture,
+      ChainEditIntent intent,
+      CatalogElementDescriptorCache descriptors) {
     Objects.requireNonNull(base, "base");
     Objects.requireNonNull(capture, "capture");
     Objects.requireNonNull(intent, "intent");
+    Objects.requireNonNull(descriptors, "descriptors");
 
     Map<String, ChainPlanNode> baseById = baseNodesById(base);
     Set<String> targets = new LinkedHashSet<>(intent.targetNodeIds());
@@ -61,6 +86,7 @@ public final class ChainEditSubgraphAssembly {
     if (capture.branches().isEmpty()) {
       throw correctable("capture names container '" + containerType + "' without a branch");
     }
+    validateBranches(containerType, capture.branches(), descriptors);
 
     Map<String, ChainEditSubgraphBranch> branchOfMovedId =
         movedElements(capture, baseById, targets);
@@ -125,8 +151,11 @@ public final class ChainEditSubgraphAssembly {
       }
     }
     edges.addAll(bodyEdges);
-    return new ChainPlanGraph(
-        base.schemaVersion(), base.chain(), List.copyOf(nodes), List.copyOf(edges));
+    ChainPlanGraph assembled =
+        new ChainPlanGraph(
+            base.schemaVersion(), base.chain(), List.copyOf(nodes), List.copyOf(edges));
+    runDescriptorPreflight(assembled, base, descriptors);
+    return assembled;
   }
 
   /**
@@ -162,6 +191,144 @@ public final class ChainEditSubgraphAssembly {
       throw correctable("capture leaves out the elements this edit names: " + left);
     }
     return branchOfMovedId;
+  }
+
+  /**
+   * Checks branch shape against the container's own catalog descriptor before a single node is
+   * minted, so a capture that misdescribes a container is refused for the catalog rule it broke,
+   * not for whatever shape the defect happens to take once the graph is built.
+   *
+   * <p>Every bound comes from {@code descriptors}: a child type absent from {@link
+   * CatalogElementDescriptor#allowedChildren()} is unknown to the container, a branch count is
+   * checked against the matching {@link CatalogChildQuantity}, and a repeated role — more than one
+   * branch of the same child type — must carry the property that tells it from its sibling, plus an
+   * order when the container is {@link CatalogElementDescriptor#ordered()}. No container type is
+   * named in this method: two try branches fail and two catch branches do not because {@code try-2}
+   * and {@code catch-2} carry different quantities in the catalog, not because of anything written
+   * here about either type.
+   */
+  private static void validateBranches(
+      String containerType,
+      List<ChainEditSubgraphBranch> branches,
+      CatalogElementDescriptorCache descriptors) {
+    CatalogElementDescriptor container = containerDescriptor(containerType, descriptors);
+    Map<String, List<ChainEditSubgraphBranch>> byChildType = new LinkedHashMap<>();
+    for (ChainEditSubgraphBranch branch : branches) {
+      byChildType.computeIfAbsent(branch.childType(), key -> new ArrayList<>()).add(branch);
+    }
+    if (!container.allowedChildren().isEmpty()) {
+      for (String childType : byChildType.keySet()) {
+        if (!container.allowedChildren().containsKey(childType)) {
+          throw correctable(
+              "container '"
+                  + containerType
+                  + "' does not allow a branch of type '"
+                  + childType
+                  + "'");
+        }
+      }
+      for (Map.Entry<String, CatalogChildQuantity> allowed :
+          container.allowedChildren().entrySet()) {
+        int count = byChildType.getOrDefault(allowed.getKey(), List.of()).size();
+        requireWithinBounds(containerType, allowed.getKey(), count, allowed.getValue());
+      }
+    }
+    for (Map.Entry<String, List<ChainEditSubgraphBranch>> repeated : byChildType.entrySet()) {
+      if (repeated.getValue().size() < 2) {
+        continue;
+      }
+      requireDistinguished(containerType, repeated.getKey(), repeated.getValue());
+      if (container.ordered()) {
+        requireOrdered(containerType, repeated.getKey(), repeated.getValue());
+      }
+    }
+  }
+
+  private static CatalogElementDescriptor containerDescriptor(
+      String containerType, CatalogElementDescriptorCache descriptors) {
+    try {
+      return descriptors.require(containerType);
+    } catch (CatalogElementDescriptorException e) {
+      throw correctable(e.getMessage());
+    }
+  }
+
+  private static void requireWithinBounds(
+      String containerType, String childType, int count, CatalogChildQuantity quantity) {
+    int minimum = quantity.minimum();
+    Integer maximum = quantity.maximum();
+    if (count < minimum) {
+      throw correctable(
+          "container '"
+              + containerType
+              + "' has "
+              + count
+              + branchWord(count)
+              + " of type '"
+              + childType
+              + "'; the catalog requires at least "
+              + minimum);
+    }
+    if (maximum != null && count > maximum) {
+      throw correctable(
+          "container '"
+              + containerType
+              + "' has "
+              + count
+              + branchWord(count)
+              + " of type '"
+              + childType
+              + "'; the catalog allows at most "
+              + maximum);
+    }
+  }
+
+  /** A repeated role needs its own value for whichever property tells it from its sibling. */
+  private static void requireDistinguished(
+      String containerType, String childType, List<ChainEditSubgraphBranch> repeated) {
+    for (ChainEditSubgraphBranch branch : repeated) {
+      if (branch.properties().isEmpty()) {
+        throw correctable(
+            "container '"
+                + containerType
+                + "' has more than one branch of type '"
+                + childType
+                + "', and one of them carries no property to tell it from its sibling");
+      }
+    }
+  }
+
+  /** A repeated role in an ordered container needs its own position among its siblings. */
+  private static void requireOrdered(
+      String containerType, String childType, List<ChainEditSubgraphBranch> repeated) {
+    for (ChainEditSubgraphBranch branch : repeated) {
+      if (branch.order() == null) {
+        throw correctable(
+            "container '"
+                + containerType
+                + "' is ordered and has more than one branch of type '"
+                + childType
+                + "', and one of them carries no order");
+      }
+    }
+  }
+
+  private static String branchWord(int count) {
+    return count == 1 ? " branch" : " branches";
+  }
+
+  /**
+   * Runs the assembled graph through the same descriptor check a catalog write would fail on, so a
+   * defect branch validation does not reach — a nested container still missing its mandatory
+   * content, for one — is reported in this turn instead of after the reader approves a card.
+   */
+  private static void runDescriptorPreflight(
+      ChainPlanGraph assembled, ChainPlanGraph base, CatalogElementDescriptorCache descriptors) {
+    try {
+      new DesiredGraphDescriptorPreflight().validate(assembled, base, descriptors);
+    } catch (DesiredGraphDescriptorPreflightException e) {
+      throw correctable(e.getMessage());
+    }
   }
 
   private static Map<String, ChainEditSubgraphElement> newElements(

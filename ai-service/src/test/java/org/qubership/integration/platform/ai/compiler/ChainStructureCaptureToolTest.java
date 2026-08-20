@@ -24,6 +24,8 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -56,6 +58,8 @@ class ChainStructureCaptureToolTest {
     when(schemaService.allowedPatchPropertyKeys(anyString())).thenReturn(Set.of());
     propertySanitizer = new ChainStructurePropertySanitizer(schemaService);
     CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    CatalogElementDescriptorLoader descriptorLoader = mock(CatalogElementDescriptorLoader.class);
+    CatalogElementDescriptorTestSupport.stubPermissive(descriptorLoader);
     tool =
         new ChainStructureCaptureTool(
             session,
@@ -64,7 +68,8 @@ class ChainStructureCaptureToolTest {
             feedbackStore,
             new CaptureToolOutcomeGateway(
                 feedbackStore.fingerprintStore(), feedbackStore),
-            propertySanitizer);
+            propertySanitizer,
+            descriptorLoader);
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
   }
 

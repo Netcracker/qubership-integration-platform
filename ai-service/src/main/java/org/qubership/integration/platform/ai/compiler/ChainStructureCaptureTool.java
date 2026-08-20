@@ -19,6 +19,8 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
@@ -46,6 +48,7 @@ public class ChainStructureCaptureTool {
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final CaptureToolOutcomeGateway outcomeGateway;
   private final ChainStructurePropertySanitizer propertySanitizer;
+  private final CatalogElementDescriptorLoader descriptorLoader;
 
   @Inject
   ChainStructureCaptureTool(
@@ -54,13 +57,15 @@ public class ChainStructureCaptureTool {
       ObjectMapper objectMapper,
       CaptureAttemptFeedbackStore feedbackStore,
       CaptureToolOutcomeGateway outcomeGateway,
-      ChainStructurePropertySanitizer propertySanitizer) {
+      ChainStructurePropertySanitizer propertySanitizer,
+      CatalogElementDescriptorLoader descriptorLoader) {
     this.captureSession = captureSession;
     this.graphValidator = graphValidator;
     this.objectMapper = objectMapper;
     this.feedbackStore = feedbackStore;
     this.outcomeGateway = outcomeGateway;
     this.propertySanitizer = propertySanitizer;
+    this.descriptorLoader = descriptorLoader;
   }
 
   @Tool("""
@@ -185,8 +190,13 @@ public class ChainStructureCaptureTool {
    * enclosing an element the reader never named. The whole-graph shape is refused for such an edit
    * rather than merged, because accepting both would leave the defect this contract removes
    * reachable through the older field.
+   *
+   * <p>Assembly checks the capture against the live catalog descriptor before this method returns,
+   * so a misdescribed container is reported here, in the same turn as the capture, rather than after
+   * the reader approves a card. The cache is built fresh for this attempt: a retry after a catalog
+   * change must not read a descriptor this turn already found stale.
    */
-  private static ChainStructure withGraphAssembledFromSubgraph(
+  private ChainStructure withGraphAssembledFromSubgraph(
       ChainStructure capture, ChainEditStructureBase editBase) {
     boolean nesting = editBase != null && editBase.intent().capturesSubgraph();
     if (!nesting) {
@@ -205,7 +215,10 @@ public class ChainStructureCaptureTool {
     }
     ChainPlanGraph assembled =
         ChainEditSubgraphAssembly.assemble(
-            editBase.baseGraph(), capture.subgraph(), editBase.intent());
+            editBase.baseGraph(),
+            capture.subgraph(),
+            editBase.intent(),
+            new CatalogElementDescriptorCache(descriptorLoader));
     return new ChainStructure(
         assembled, capture.sourceRequirementFactIds(), capture.knowledgeCitations());
   }

@@ -27,6 +27,9 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorCache;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
@@ -1285,7 +1288,7 @@ class ChainEditCompilerTest {
     intentReply = wrapCapture(TARGET);
     ChainPlanGraph assembled =
         ChainEditSubgraphAssembly.assemble(
-            importedGraph(), errorHandlingSubgraph(TARGET), wrapIntent(TARGET));
+            importedGraph(), errorHandlingSubgraph(TARGET), wrapIntent(TARGET), permissiveCache());
     engine.scriptedResults.add(structureOnlyResult(assembled));
     engine.scriptedResults.add(
         configuredResult(
@@ -1307,7 +1310,7 @@ class ChainEditCompilerTest {
     intentReply = wrapCapture(TARGET);
     ChainPlanGraph assembled =
         ChainEditSubgraphAssembly.assemble(
-            importedGraph(), errorHandlingSubgraph(TARGET), wrapIntent(TARGET));
+            importedGraph(), errorHandlingSubgraph(TARGET), wrapIntent(TARGET), permissiveCache());
     engine.scriptedResults.add(structureOnlyResult(assembled));
     engine.scriptedResults.add(
         configuredResult(
@@ -1384,6 +1387,13 @@ class ChainEditCompilerTest {
         .filter(candidate -> type.equals(candidate.type()))
         .findFirst()
         .orElseThrow(() -> new AssertionError("no element of type " + type));
+  }
+
+  /** Every type is a permissive container, so assembling a fixture never fails descriptor checks. */
+  private static CatalogElementDescriptorCache permissiveCache() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    CatalogElementDescriptorTestSupport.stubPermissive(loader);
+    return new CatalogElementDescriptorCache(loader);
   }
 
   @Test
