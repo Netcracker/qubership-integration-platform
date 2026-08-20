@@ -150,8 +150,10 @@ class ChainEditSubgraphAssemblyTest {
             new ChainSection("Orders", "Orders"),
             List.of(
                 new ChainPlanNode("split", "split-2", "Split", null, null, List.of()),
-                new ChainPlanNode("split-element", "split-element-2", "Element", "split", null, List.of()),
-                new ChainPlanNode(CALL, "service-call", "Call orders", "split-element", null, List.of())),
+                new ChainPlanNode(
+                    "split-element", "split-element-2", "Element", "split", null, List.of()),
+                new ChainPlanNode(
+                    CALL, "service-call", "Call orders", "split-element", null, List.of())),
             List.of());
 
     ChainPlanGraph assembled =
@@ -166,7 +168,9 @@ class ChainEditSubgraphAssemblyTest {
         new ChainEditSubgraph(
             "try-catch-finally-2",
             "Error handler",
-            List.of(tryBranch(CALL, SCRIPT), catchBranch("java.lang.Exception", null, "log-failure")));
+            List.of(
+                tryBranch(CALL, SCRIPT),
+                catchBranch("java.lang.Exception", null, "log-failure")));
 
     ChainEditScopeException refused =
         assertThrows(
@@ -252,7 +256,8 @@ class ChainEditSubgraphAssemblyTest {
                     null,
                     List.of(),
                     new ChainEditSubgraphBody(
-                        List.of(new ChainEditSubgraphElement("log-failure", "script", "Log failure")),
+                        List.of(
+                            new ChainEditSubgraphElement("log-failure", "script", "Log failure")),
                         List.of()))));
 
     ChainEditScopeException refused =

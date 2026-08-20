@@ -19,8 +19,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubg
 /**
  * Builds the graph a structural edit proposes from a capture of what it adds.
  *
- * <p>The imported chain arrives whole and leaves whole. An existing element reaches this assembly as
- * an identifier in the branch it moves into, so the only thing that can happen to it is the
+ * <p>The imported chain arrives whole and leaves whole. An existing element reaches this assembly
+ * as an identifier in the branch it moves into, so the only thing that can happen to it is the
  * reparenting the intent already approved. Its type, label, order, and properties are never read
  * from the capture, which is why the refusals {@link ChainEditStructureMerge} still owes the older
  * contract have no subject here.
@@ -62,7 +62,8 @@ public final class ChainEditSubgraphAssembly {
       throw correctable("capture names container '" + containerType + "' without a branch");
     }
 
-    Map<String, ChainEditSubgraphBranch> branchOfMovedId = movedElements(capture, baseById, targets);
+    Map<String, ChainEditSubgraphBranch> branchOfMovedId =
+        movedElements(capture, baseById, targets);
     Set<String> reserved = new LinkedHashSet<>(baseById.keySet());
     Map<String, ChainEditSubgraphElement> newElements = newElements(capture, reserved);
     String containerNodeId = reserveId(containerType, reserved);
