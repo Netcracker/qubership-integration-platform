@@ -44,6 +44,10 @@ public class GatherRequirementsPromptBuilder {
    * the escaped raw user message so continuation turns stay short.
    */
   public String wrap(String conversationId, String userMessage) {
+    return wrap(conversationId, userMessage, "en");
+  }
+
+  public String wrap(String conversationId, String userMessage, String responseLocale) {
     if (skillDocumentService == null) {
       return QuteUserMessageEscaping.escapeForAiServiceUserMessage(userMessage);
     }
@@ -66,7 +70,8 @@ public class GatherRequirementsPromptBuilder {
           discovery behavior (catalog/API Hub, capture decisions, facts, platform defaults,
           clarifying-question overrides). Do not write files, commit changes, invoke implementation
           skills, or run the compiler spine. Call captureRequirementDraft every turn. Reply in the
-          same language as the user.
+          pinned response locale %s. This locale is authoritative; do not infer another language
+          from conversation history or embedded text.
           </service-runtime-envelope>
           %s
           %s
@@ -79,6 +84,7 @@ public class GatherRequirementsPromptBuilder {
                   document.packVersion().normalized(),
                   document.sourcePath(),
                   document.markdown(),
+                  normalizedLocale(responseLocale),
                   addonBlock(),
                   currentDraftBlock(draft),
                   userMessage != null ? userMessage : "");
@@ -90,6 +96,10 @@ public class GatherRequirementsPromptBuilder {
           RequirementDraftTool.SOURCE_SKILL_ID);
       return QuteUserMessageEscaping.escapeForAiServiceUserMessage(userMessage);
     }
+  }
+
+  private static String normalizedLocale(String responseLocale) {
+    return responseLocale == null || responseLocale.isBlank() ? "en" : responseLocale.trim();
   }
 
   private String addonBlock() {

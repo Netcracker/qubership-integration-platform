@@ -385,17 +385,18 @@ class ChatDecisionServiceTest {
     service.promptAgent =
         new ApprovalPromptAgent() {
           @Override
-          public String askStageApproval(String stageId, String reference) {
+          public String askStageApproval(String stageId, String responseLocale, String reference) {
             return null;
           }
 
           @Override
-          public String askImplementContinuation(String reference) {
+          public String askImplementContinuation(String responseLocale, String reference) {
             return null;
           }
 
           @Override
-          public String askImportConfirmation(String specification, String reference) {
+          public String askImportConfirmation(
+              String specification, String responseLocale, String reference) {
             throw new IllegalStateException("model unavailable");
           }
         };
@@ -408,17 +409,18 @@ class ChatDecisionServiceTest {
   private static ApprovalPromptAgent authoringAgent(String question) {
     return new ApprovalPromptAgent() {
       @Override
-      public String askStageApproval(String stageId, String reference) {
+      public String askStageApproval(String stageId, String responseLocale, String reference) {
         return null;
       }
 
       @Override
-      public String askImplementContinuation(String reference) {
+      public String askImplementContinuation(String responseLocale, String reference) {
         return null;
       }
 
       @Override
-      public String askImportConfirmation(String specification, String reference) {
+      public String askImportConfirmation(
+          String specification, String responseLocale, String reference) {
         return question;
       }
     };

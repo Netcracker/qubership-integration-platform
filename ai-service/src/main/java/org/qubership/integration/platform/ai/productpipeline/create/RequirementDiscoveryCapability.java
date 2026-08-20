@@ -130,7 +130,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
     String skillId = RequirementDraftTool.SOURCE_SKILL_ID;
     SkillActivitySupport.bindParents(skillId);
     Multi<ChatEvent> agentStream =
-        ToolSession.propagateBinding(toolSessionContext, runGather(conversationId, userMessage));
+        ToolSession.propagateBinding(
+            toolSessionContext,
+            runGather(
+                conversationId,
+                userMessage,
+                context.runManifest() == null ? "en" : context.runManifest().responseLocale()));
     return Multi.createBy()
         .concatenating()
         .streams(
@@ -343,7 +348,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
         List.of());
   }
 
-  private Multi<ChatEvent> runGather(String conversationId, String userMessage) {
+  private Multi<ChatEvent> runGather(
+      String conversationId, String userMessage, String responseLocale) {
     if (gatherRunner != null) {
       return gatherRunner.apply(conversationId, userMessage);
     }
@@ -352,7 +358,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     String agentInput =
         promptBuilder != null
-            ? promptBuilder.wrap(conversationId, userMessage)
+            ? promptBuilder.wrap(conversationId, userMessage, responseLocale)
             : (userMessage == null ? "" : userMessage);
     return GatherRequirementsAgentCall.run(gatherRequirementsAgent, conversationId, agentInput);
   }

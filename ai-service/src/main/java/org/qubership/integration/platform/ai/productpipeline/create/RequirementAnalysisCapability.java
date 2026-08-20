@@ -455,7 +455,10 @@ public class RequirementAnalysisCapability implements StageCapability {
                 12,
                 20_000));
     String userMessage =
-        buildAnalysisUserMessage(approved, context.attributeAsString("userText"))
+        buildAnalysisUserMessage(
+                approved,
+                context.attributeAsString("userText"),
+                responseLocale(context))
             + "\n\n"
             + contextPackage.renderMarkdown();
     if (evidenceEmitter != null) {
@@ -525,13 +528,19 @@ public class RequirementAnalysisCapability implements StageCapability {
   }
 
   static String buildAnalysisUserMessage(RequirementDraft approved, String changeRequestText) {
+    return buildAnalysisUserMessage(approved, changeRequestText, "en");
+  }
+
+  static String buildAnalysisUserMessage(
+      RequirementDraft approved, String changeRequestText, String responseLocale) {
     String planning = approved.planningText() == null ? "" : approved.planningText();
     StringBuilder sb = new StringBuilder();
     sb.append("Analyze the approved requirement draft and call captureRequirementBrief now.\n\n");
     sb.append(
-        "Response language rule: after capture, summarize in the language used by Planning text "
-            + "below. Ignore the language of conversation history, approval controls, tool output, "
-            + "and this English instruction.\n\n");
+        "Response language rule: after capture, summarize in pinned response locale "
+            + normalizedLocale(responseLocale)
+            + ". This locale is authoritative; do not infer another language from Planning text, "
+            + "conversation history, approval controls, tool output, or this English instruction.\n\n");
     if (hasPositiveServiceCall(approved)) {
       sb.append(
           "Capture typed dataMappings for every required edge around positive SERVICE_CALL facts. "
@@ -568,6 +577,14 @@ public class RequirementAnalysisCapability implements StageCapability {
           .append('\n');
     }
     return sb.toString();
+  }
+
+  private static String normalizedLocale(String responseLocale) {
+    return responseLocale == null || responseLocale.isBlank() ? "en" : responseLocale.trim();
+  }
+
+  private static String responseLocale(StageExecutionContext context) {
+    return context.runManifest() == null ? "en" : context.runManifest().responseLocale();
   }
 
   private static boolean hasPositiveServiceCall(RequirementDraft approved) {

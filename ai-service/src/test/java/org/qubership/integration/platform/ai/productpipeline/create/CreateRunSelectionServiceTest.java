@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -135,6 +136,27 @@ class CreateRunSelectionServiceTest {
   }
 
   @Test
+  void firstPromptPinsResponseLocaleForTheConversation() {
+    AtomicInteger classifications = new AtomicInteger();
+    ResponseLocaleResolver localeResolver =
+        new ResponseLocaleResolver(
+            (java.util.function.Function<String, String>)
+                prompt -> {
+              classifications.incrementAndGet();
+              return prompt.contains("Create") ? "en" : "ru";
+            });
+    CreateRunSelectionService service =
+        service(catalogWithCreateChain(), pinResolver, knowledge, "2026.1", localeResolver);
+
+    var original = service.selectOrCreate("conv-locale", "Create an integration chain");
+    var resumed = service.selectOrCreate("conv-locale", "Approve the requirements");
+
+    assertEquals("en", original.runManifest().responseLocale());
+    assertEquals("en", resumed.runManifest().responseLocale());
+    assertEquals(1, classifications.get());
+  }
+
+  @Test
   void applicationPropertiesDoNotExposeRuntimeOrProfileSelectors() throws Exception {
     String props =
         Files.readString(
@@ -180,5 +202,22 @@ class CreateRunSelectionServiceTest {
         catalog,
         resolver,
         CLOCK);
+  }
+
+  private CreateRunSelectionService service(
+      ProductPipelineProfileCatalog catalog,
+      CompilerRunPinResolver resolver,
+      FakeKnowledgeClient knowledgeClient,
+      String languageVersion,
+      ResponseLocaleResolver responseLocaleResolver) {
+    return new CreateRunSelectionService(
+        languageVersion,
+        knowledgeClient,
+        new CreateRunBindingStore(blobs, mapper),
+        catalog,
+        resolver,
+        CLOCK,
+        CreateRunSelectionService.CREATE_PROFILE_VERSION,
+        responseLocaleResolver);
   }
 }

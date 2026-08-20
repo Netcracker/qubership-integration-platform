@@ -255,7 +255,9 @@ public class CreateProductPipelineCoordinator {
 
   private ChatEvent creationDecision(String conversationId, ProductPipelineRunDocument doc) {
     String hash = facade.pendingCreationHash(conversationId).orElse("");
-    String question = approvalPrompts.implementContinuationPrompt(languageReference(doc));
+    String question =
+        approvalPrompts.implementContinuationPrompt(
+            facade.responseLocale(conversationId), languageReference(doc));
     if (!hash.isBlank() && approvalQuestions != null) {
       approvalQuestions.save(conversationId, hash, question);
     }

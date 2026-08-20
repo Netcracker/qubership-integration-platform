@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBinding;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.ResponseLocaleResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
@@ -138,7 +139,7 @@ public class CreateChainApplicationFacade {
   public Multi<CreateChainEvent> start(StartCreateChainCommand command) {
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
-    selectionService.selectOrCreate(taskId);
+    selectionService.selectOrCreate(taskId, command.requirementText());
     CreateRunBinding binding = requireBinding(taskId);
 
     Optional<ProductPipelineRunDocument> existing = runStore.loadByConversation(taskId);
@@ -192,6 +193,14 @@ public class CreateChainApplicationFacade {
     String taskId = command.taskId();
     selectionService.selectOrCreate(taskId);
     return continueExisting(taskId, command.clarificationText(), command.commandId());
+  }
+
+  /** Response locale pinned from the conversation's first CREATE prompt. */
+  public String responseLocale(String taskId) {
+    return selectionService
+        .existing(taskId)
+        .map(selection -> selection.runManifest().responseLocale())
+        .orElse(ResponseLocaleResolver.DEFAULT_LOCALE);
   }
 
   /** Approves the current expected artifact or recovers a blocked implementation gate. */

@@ -82,25 +82,32 @@ public class PlanningCapability implements StageCapability {
     if (context.profile() != null && context.profile().compilerPipeline() != null) {
       return Multi.createBy()
           .concatenating()
-          .streams(kickoffAnnouncement(brief), derivedPlanningRunner.planWithProgress(request))
+          .streams(
+              kickoffAnnouncement(
+                  brief,
+                  context.runManifest() == null ? "en" : context.runManifest().responseLocale()),
+              derivedPlanningRunner.planWithProgress(request))
           .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
     }
     return planningRunner.plan(request);
   }
 
-  private Multi<CapabilitySignal> kickoffAnnouncement(RequirementBrief brief) {
+  private Multi<CapabilitySignal> kickoffAnnouncement(RequirementBrief brief, String responseLocale) {
     return Uni.createFrom()
-        .item(() -> (CapabilitySignal) new CapabilitySignal.Message(resolveKickoffText(brief)))
+        .item(
+            () ->
+                (CapabilitySignal)
+                    new CapabilitySignal.Message(resolveKickoffText(brief, responseLocale)))
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
         .toMulti();
   }
 
-  private String resolveKickoffText(RequirementBrief brief) {
+  private String resolveKickoffText(RequirementBrief brief, String responseLocale) {
     String text = FALLBACK_KICKOFF;
     if (kickoffAgent != null) {
       String reference = kickoffLanguageReference(brief);
       try {
-        String announced = kickoffAgent.announce(reference);
+        String announced = kickoffAgent.announce(normalizedLocale(responseLocale), reference);
         if (announced != null && !announced.isBlank()) {
           text = announced.trim();
         }
@@ -125,6 +132,10 @@ public class PlanningCapability implements StageCapability {
       return brief.approvedDraftText().trim();
     }
     return "Create an integration chain.";
+  }
+
+  private static String normalizedLocale(String responseLocale) {
+    return responseLocale == null || responseLocale.isBlank() ? "en" : responseLocale.trim();
   }
 
   /**

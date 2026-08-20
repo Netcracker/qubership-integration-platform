@@ -16,12 +16,12 @@ public interface PlanningKickoffAgent {
   @UserMessage(
       """
 Write one short sentence telling the user that the implementation plan is now being created and \
-generator skills are starting. Match the language of this reference text (do not translate the \
-user's product terms incorrectly; just match the language):
+generator skills are starting. Write in the pinned response locale {responseLocale}. This locale
+is authoritative; do not infer a different language from the reference text. Preserve product terms:
 ---
 {reference}
 ---
 Reply with only that sentence. No markdown, no quotes, no preamble.\
 """)
-  String announce(String reference);
+  String announce(String responseLocale, String reference);
 }

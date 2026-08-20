@@ -114,7 +114,9 @@ public class ChatDecisionService {
     String question = "Import the API Hub specification " + subject + " into the runtime catalog?";
     if (promptAgent != null) {
       try {
-        String authored = promptAgent.askImportConfirmation(subject, draft.assembledText());
+        String authored =
+            promptAgent.askImportConfirmation(
+                subject, facade.responseLocale(conversationId), draft.assembledText());
         if (authored != null && !authored.isBlank()) {
           question = authored.strip();
         }

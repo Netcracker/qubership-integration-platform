@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.llm.agent.DesignInputPromptAgent;
+import org.qubership.integration.platform.ai.productpipeline.create.ResponseLocaleResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
@@ -56,10 +57,15 @@ public final class DesignInputIdsPathPrompts {
   }
 
   public String idsPathChoicePrompt(RequirementBrief brief, String... referenceTexts) {
+    return idsPathChoicePrompt(ResponseLocaleResolver.DEFAULT_LOCALE, brief, referenceTexts);
+  }
+
+  public String idsPathChoicePrompt(
+      String responseLocale, RequirementBrief brief, String... referenceTexts) {
     String reference = languageReference(brief, referenceTexts);
     if (promptAgent != null) {
       try {
-        String authored = promptAgent.askIdsPathChoice(reference);
+        String authored = promptAgent.askIdsPathChoice(normalizedLocale(responseLocale), reference);
         if (authored != null && !authored.isBlank()) {
           return authored.trim();
         }
@@ -75,6 +81,16 @@ public final class DesignInputIdsPathPrompts {
       DesignMode pendingMode,
       List<String> missingEdges,
       String... referenceTexts) {
+    return mappingGapPrompt(
+        ResponseLocaleResolver.DEFAULT_LOCALE, brief, pendingMode, missingEdges, referenceTexts);
+  }
+
+  public String mappingGapPrompt(
+      String responseLocale,
+      RequirementBrief brief,
+      DesignMode pendingMode,
+      List<String> missingEdges,
+      String... referenceTexts) {
     Objects.requireNonNull(pendingMode, "pendingMode");
     Objects.requireNonNull(missingEdges, "missingEdges");
     String edges =
@@ -86,7 +102,8 @@ public final class DesignInputIdsPathPrompts {
     String reference = languageReference(brief, referenceTexts);
     if (promptAgent != null) {
       try {
-        String authored = promptAgent.askMappingGap(reference, edges, pendingLabel);
+        String authored =
+            promptAgent.askMappingGap(normalizedLocale(responseLocale), reference, edges, pendingLabel);
         if (authored != null && !authored.isBlank()) {
           return authored.trim();
         }
@@ -278,6 +295,12 @@ public final class DesignInputIdsPathPrompts {
     return trimmed.toUpperCase(Locale.ROOT).replaceAll("[^A-Z_]", "");
   }
 
+  private static String normalizedLocale(String responseLocale) {
+    return responseLocale == null || responseLocale.isBlank()
+        ? ResponseLocaleResolver.DEFAULT_LOCALE
+        : responseLocale.trim();
+  }
+
   private static boolean isGenerateChoice(String normalized) {
     if (normalized.contains("derive")
         && (normalized.contains("no") || normalized.contains("minimal") || normalized.contains("skip"))) {
@@ -314,12 +337,13 @@ public final class DesignInputIdsPathPrompts {
     DesignInputPromptAgent stub =
         new DesignInputPromptAgent() {
           @Override
-          public String askIdsPathChoice(String reference) {
+          public String askIdsPathChoice(String responseLocale, String reference) {
             return idsChoiceAuthor.apply(reference);
           }
 
           @Override
-          public String askMappingGap(String reference, String missingEdges, String pendingMode) {
+          public String askMappingGap(
+              String responseLocale, String reference, String missingEdges, String pendingMode) {
             return mappingAuthor.apply(missingEdges);
           }
 

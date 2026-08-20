@@ -1184,7 +1184,9 @@ public final class ProductPipelineRunSupport {
   }
 
   private String approvalPromptFor(String runId, String stageId) {
-    return approvalPrompts.stageApprovalPrompt(stageId, languageReferenceFor(runId));
+    RunManifest manifest = manifestsByRun.get(runId);
+    String responseLocale = manifest == null ? "en" : manifest.responseLocale();
+    return approvalPrompts.stageApprovalPrompt(stageId, responseLocale, languageReferenceFor(runId));
   }
 
   private String languageReferenceFor(String runId) {

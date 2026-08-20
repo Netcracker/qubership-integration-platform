@@ -32,6 +32,11 @@ public final class ApprovalPrompts {
   }
 
   public String stageApprovalPrompt(String stageId, String languageReference) {
+    return stageApprovalPrompt(stageId, ResponseLocaleResolver.DEFAULT_LOCALE, languageReference);
+  }
+
+  public String stageApprovalPrompt(
+      String stageId, String responseLocale, String languageReference) {
     String reference =
         languageReference == null || languageReference.isBlank()
             ? "Create an integration chain."
@@ -39,7 +44,7 @@ public final class ApprovalPrompts {
     String stage = stageId == null || stageId.isBlank() ? "current" : stageId.trim();
     if (promptAgent != null) {
       try {
-        String authored = promptAgent.askStageApproval(stage, reference);
+        String authored = promptAgent.askStageApproval(stage, normalizedLocale(responseLocale), reference);
         if (authored != null && !authored.isBlank()) {
           return authored.trim();
         }
@@ -51,13 +56,17 @@ public final class ApprovalPrompts {
   }
 
   public String implementContinuationPrompt(String languageReference) {
+    return implementContinuationPrompt(ResponseLocaleResolver.DEFAULT_LOCALE, languageReference);
+  }
+
+  public String implementContinuationPrompt(String responseLocale, String languageReference) {
     String reference =
         languageReference == null || languageReference.isBlank()
             ? "Create an integration chain."
             : languageReference.trim();
     if (promptAgent != null) {
       try {
-        String authored = promptAgent.askImplementContinuation(reference);
+        String authored = promptAgent.askImplementContinuation(normalizedLocale(responseLocale), reference);
         if (authored != null && !authored.isBlank()) {
           return authored.trim();
         }
@@ -76,21 +85,28 @@ public final class ApprovalPrompts {
     ApprovalPromptAgent stub =
         new ApprovalPromptAgent() {
           @Override
-          public String askStageApproval(String stageId, String reference) {
+          public String askStageApproval(String stageId, String responseLocale, String reference) {
             return stageAuthor.apply(stageId, reference);
           }
 
           @Override
-          public String askImplementContinuation(String reference) {
+          public String askImplementContinuation(String responseLocale, String reference) {
             return implementAuthor.apply(reference);
           }
 
           @Override
-          public String askImportConfirmation(String specification, String reference) {
+          public String askImportConfirmation(
+              String specification, String responseLocale, String reference) {
             // Import questions are authored by the chat decision service, not by this double.
             return null;
           }
         };
     return new ApprovalPrompts(stub);
+  }
+
+  private static String normalizedLocale(String responseLocale) {
+    return responseLocale == null || responseLocale.isBlank()
+        ? ResponseLocaleResolver.DEFAULT_LOCALE
+        : responseLocale.trim();
   }
 }
