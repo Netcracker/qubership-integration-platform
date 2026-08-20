@@ -287,11 +287,13 @@ public final class ChainEditSubgraphAssembly {
    * <p>{@link ChainPlanNode#order()} is Java's own bookkeeping and never reaches the catalog; the
    * property named by {@link CatalogElementDescriptor#priorityProperty()} is what the catalog's
    * ordering service renumbers siblings from, so the capture's order is translated into that
-   * property here rather than left for a materializer that does not read {@code order()}.
+   * property here rather than left for a materializer that does not read {@code order()}. Only an
+   * {@link CatalogElementDescriptor#ordered()} container gets the property: an order the capture set
+   * on a branch of a container the catalog does not order names nothing the catalog would read.
    */
   private static List<PlanProperty> branchProperties(
       ChainEditSubgraphBranch branch, CatalogElementDescriptor container) {
-    if (branch.order() == null) {
+    if (!container.ordered() || branch.order() == null) {
       return branch.properties();
     }
     String priorityProperty = container.priorityProperty();
