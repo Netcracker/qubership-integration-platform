@@ -124,15 +124,18 @@ public final class ChainEditSkillContext {
     } else if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
         && intent.disposition() == ChainEditDisposition.KEEP) {
+      body.append("The listed target ids are the insertion address: the element the new elements")
+          .append(" follow, and, when a second id is listed, the element they precede.\n");
       body.append(
-          "The listed target ids are the insertion address: the element the new elements follow,"
-              + " and, when a second id is listed, the element they precede. Splice every new"
-              + " element the request describes between those two -- wired to each other in the"
-              + " order the request gives, the first connected from the preceding address element"
-              + " and the last connected to the following one. Reuse the id of any edge you"
-              + " retarget instead of dropping and re-adding it. Neither address element moves,"
-              + " is reparented, or is otherwise changed. A configuration generator may change"
-              + " only the node ids in its Active generator plan slice.\n");
+          "Capture subgraph, not graph. Name no container and no branches; put every new element"
+              + " the request describes in body, wired to each other in the order the request"
+              + " gives. The connections into and out of the address are derived, so leave them"
+              + " out -- Java attaches the first new element to the preceding address element and"
+              + " the last one to the following element.\n");
+      body.append(
+          "New elements carry nodeId, type, and label, and no parent. Neither address element"
+              + " moves, is reparented, or is otherwise changed. A configuration generator may"
+              + " change only the node ids in its Active generator plan slice.\n");
     } else if (intent != null && intent.action() == ChainEditAction.ADD_ELEMENTS) {
       body.append(
           "Configure the listed target ids. They name the newly placed element. Every other"

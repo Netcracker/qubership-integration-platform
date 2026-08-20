@@ -42,4 +42,33 @@ class ChainEditSkillContextTest {
     assertTrue(rendered.contains("A wrapped element is only an id"), rendered);
     assertFalse(rendered.contains("parentNodeId"), rendered);
   }
+
+  @Test
+  void aKeepInsertionAsksForTheSubgraphItAddsAndNamesNoContainer() {
+    InMemorySkillWorkspace workspace = new InMemorySkillWorkspace("insert-audit-script");
+    workspace.put(
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_EDIT_INTENT,
+            "chain-edit-intent",
+            new SkillArtifactPayload.ChainEditIntentPayload(
+                new ChainEditIntent(
+                    ChainEditAction.ADD_ELEMENTS,
+                    List.of("b978e8ff-c89e-462b-b512-25d46dae09e5"),
+                    "Add a script after the order call",
+                    null,
+                    "script",
+                    null,
+                    List.of(),
+                    List.of(),
+                    ChainEditDisposition.KEEP))));
+
+    String rendered = ChainEditSkillContext.render(workspace);
+
+    assertTrue(rendered.contains("b978e8ff-c89e-462b-b512-25d46dae09e5"), rendered);
+    assertTrue(rendered.contains("insertion address"), rendered);
+    assertTrue(rendered.contains("Capture subgraph, not graph"), rendered);
+    assertTrue(rendered.contains("Name no container and no branches"), rendered);
+    assertTrue(rendered.contains("Neither address element"), rendered);
+    assertFalse(rendered.contains("moveExisting"), rendered);
+  }
 }
