@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -52,6 +53,10 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBody;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphElement;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
@@ -1273,6 +1278,112 @@ class ChainEditCompilerTest {
     assertEquals("container-1", node(proposal.finalGraph(), UNRELATED).parentNodeId());
     assertTrue(
         proposal.finalGraph().nodes().stream().noneMatch(node -> TARGET.equals(node.nodeId())));
+  }
+
+  @Test
+  void wrappingOneElementLeavesEveryOtherElementWhereTheReaderLeftIt() {
+    intentReply = wrapCapture(TARGET);
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedGraph(), errorHandlingSubgraph(TARGET), wrapIntent(TARGET));
+    engine.scriptedResults.add(structureOnlyResult(assembled));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, ERROR_HANDLING_GENERATOR, "cip-chain-assembler"),
+            assembled));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph proposed = proposal.finalGraph();
+    assertEquals(
+        nodeOfType(proposed, "try-2").nodeId(), node(proposed, TARGET).parentNodeId());
+    assertNull(node(proposed, UNRELATED).parentNodeId());
+    assertNull(node(proposed, "normalize").parentNodeId());
+  }
+
+  @Test
+  void aWrappedElementKeepsItsOutgoingConnectionThroughTheContainer() {
+    intentReply = wrapCapture(TARGET);
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedGraph(), errorHandlingSubgraph(TARGET), wrapIntent(TARGET));
+    engine.scriptedResults.add(structureOnlyResult(assembled));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, ERROR_HANDLING_GENERATOR, "cip-chain-assembler"),
+            assembled));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    ChainPlanGraph proposed = proposal.finalGraph();
+    String container = nodeOfType(proposed, "try-catch-finally-2").nodeId();
+    assertTrue(
+        proposed.edges().stream()
+            .anyMatch(
+                edge ->
+                    container.equals(edge.fromNodeId()) && UNRELATED.equals(edge.toNodeId())),
+        proposed.edges().toString());
+    assertTrue(
+        proposed.edges().stream()
+            .noneMatch(
+                edge -> TARGET.equals(edge.fromNodeId()) && UNRELATED.equals(edge.toNodeId())),
+        proposed.edges().toString());
+  }
+
+  /** The wrap the reader asks for: error handling around one named element. */
+  private static ChainEditCapture wrapCapture(String targetNodeId) {
+    return new ChainEditCapture(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeId),
+        "add error handling to the order call",
+        null,
+        "try-catch-finally-2",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.NEST);
+  }
+
+  private static ChainEditIntent wrapIntent(String targetNodeId) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeId),
+        "add error handling to the order call",
+        null,
+        "try-catch-finally-2",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.NEST);
+  }
+
+  /** What the structure stage captures for that wrap: the container, its branches, and one id. */
+  private static ChainEditSubgraph errorHandlingSubgraph(String movedNodeId) {
+    return new ChainEditSubgraph(
+        "try-catch-finally-2",
+        "Error handler",
+        List.of(
+            new ChainEditSubgraphBranch(
+                "try-2", "Try", List.of(), null, List.of(movedNodeId), null),
+            new ChainEditSubgraphBranch(
+                "catch-2",
+                "Catch",
+                List.of(),
+                null,
+                List.of(),
+                new ChainEditSubgraphBody(
+                    List.of(
+                        new ChainEditSubgraphElement("catch-response", "script", "Return error")),
+                    List.of()))));
+  }
+
+  private static ChainPlanNode nodeOfType(ChainPlanGraph graph, String type) {
+    return graph.nodes().stream()
+        .filter(candidate -> type.equals(candidate.type()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no element of type " + type));
   }
 
   @Test

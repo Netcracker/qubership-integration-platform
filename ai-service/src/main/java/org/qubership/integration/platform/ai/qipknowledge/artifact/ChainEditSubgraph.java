@@ -21,7 +21,8 @@ public record ChainEditSubgraph(
     @Description("Catalog type of the container this edit adds, e.g. try-catch-finally-2")
         String containerType,
     @Description("Human-readable label for the container") String containerLabel,
-    @Description("Branches of the container, one entry per branch") List<ChainEditSubgraphBranch> branches) {
+    @Description("Branches of the container, one entry per branch")
+        List<ChainEditSubgraphBranch> branches) {
 
   public ChainEditSubgraph {
     branches = branches == null ? List.of() : List.copyOf(branches);

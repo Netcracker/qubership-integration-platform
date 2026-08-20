@@ -30,7 +30,8 @@ public record ChainEditSubgraphBranch(
         List<PlanProperty> properties,
     @Description("Priority among sibling branches of the same type; null when the type occurs once")
         Integer order,
-    @Description("Ids of existing chain elements that move into this branch") List<String> moveExisting,
+    @Description("Ids of existing chain elements that move into this branch")
+        List<String> moveExisting,
     @Description("New elements this branch creates") ChainEditSubgraphBody body) {
 
   public ChainEditSubgraphBranch {

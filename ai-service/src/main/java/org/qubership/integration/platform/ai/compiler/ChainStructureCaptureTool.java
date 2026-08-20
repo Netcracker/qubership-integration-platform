@@ -178,12 +178,13 @@ public class ChainStructureCaptureTool {
   }
 
   /**
-   * Assembles the graph a nesting edit proposes, so the rest of this method sees a graph either way.
+   * Assembles the graph a nesting edit proposes, so the rest of the capture sees a graph either
+   * way.
    *
-   * <p>A nesting edit captures what it adds and nothing else, which is what keeps it from enclosing
-   * an element the reader never named. The whole-graph shape is refused for such an edit rather than
-   * merged, because accepting both would leave the defect this contract removes reachable through
-   * the older field.
+   * <p>A nesting edit captures what it adds and nothing else, which is what keeps it from
+   * enclosing an element the reader never named. The whole-graph shape is refused for such an edit
+   * rather than merged, because accepting both would leave the defect this contract removes
+   * reachable through the older field.
    */
   private static ChainStructure withGraphAssembledFromSubgraph(
       ChainStructure capture, ChainEditStructureBase editBase) {
@@ -213,9 +214,10 @@ public class ChainStructureCaptureTool {
    * Returns the graph this capture actually produces, so validation judges that and not a draft.
    *
    * <p>An edit that captures a whole chain has it merged onto the imported one before anything is
-   * built: the merge restores connections the capture dropped and pins fields it echoed differently.
-   * Validating the raw capture therefore reports defects the merge repairs, and misses none it does
-   * not. A CREATE run publishes no base, and its capture is the whole graph already.
+   * built: the merge restores connections the capture dropped and pins fields it echoed
+   * differently. Validating the raw capture therefore reports defects the merge repairs, and
+   * misses none it does not. A CREATE run publishes no base, and its capture is the whole graph
+   * already.
    *
    * <p>A nesting edit was assembled from its subgraph, which leaves the merge nothing to decide.
    *

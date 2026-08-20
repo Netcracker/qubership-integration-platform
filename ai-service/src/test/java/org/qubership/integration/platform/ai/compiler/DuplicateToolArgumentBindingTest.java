@@ -33,7 +33,8 @@ class DuplicateToolArgumentBindingTest {
             .map(java.lang.reflect.RecordComponent::getName)
             .toList();
 
-    assertEquals(List.of("graph", "sourceRequirementFactIds", "knowledgeCitations"), names);
+    assertEquals(
+        List.of("graph", "sourceRequirementFactIds", "knowledgeCitations", "subgraph"), names);
   }
 
   @Test
