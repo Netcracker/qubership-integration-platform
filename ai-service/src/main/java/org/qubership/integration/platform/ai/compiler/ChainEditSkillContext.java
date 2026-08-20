@@ -112,13 +112,16 @@ public final class ChainEditSkillContext {
     } else if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
         && intent.replacesAddressElement()) {
+      body.append("The listed target ids are the elements to replace.\n");
       body.append(
-          "The listed target ids are the elements to replace. Add every new element the request"
-              + " describes as a linked subgraph in their place, then omit the replaced elements."
-              + " Incoming connections of a replaced element attach to the subgraph entry; outgoing"
-              + " connections leave from the subgraph exit. A replaced element that sat inside a"
-              + " container keeps the new subgraph inside that container. Reuse the id of any edge"
-              + " you retarget instead of dropping and re-adding it. Do not change any other"
+          "Capture subgraph, not graph. Name no container and no branches; put every new element"
+              + " the request describes in body, wired to each other in the order the request"
+              + " gives. Do not name the replaced elements anywhere in the capture -- Java removes"
+              + " them and reconnects their neighbours to the new body's entry and exit"
+              + " automatically. A replaced element that sat inside a container keeps the new body"
+              + " inside that container.\n");
+      body.append(
+          "New elements carry nodeId, type, and label, and no parent. Do not change any other"
               + " existing element. A configuration generator may change only the node ids in its"
               + " Active generator plan slice.\n");
     } else if (intent != null

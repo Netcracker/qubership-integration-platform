@@ -37,11 +37,13 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubg
  *
  * <p>A wrap or a branch names a container; {@link #assemble} places it beside the elements that
  * move into it and creates each branch under it, as described on {@link #assembleContainer}. An
- * insertion names none of that and carries its new elements in a single body instead, spliced at
- * the address the intent already resolved, as described on {@link #assembleInsertion}.
- * {@link ChainEditIntent#disposition()} tells the two captures apart; the capture's own shape says
- * the same thing a second way, so a capture that mismatches its disposition is refused for that
- * before either path runs.
+ * insertion or a replacement names none of that and carries its new elements in a single body
+ * instead: an insertion splices the body at the address the intent already resolved and keeps
+ * every address element, as described on {@link #assembleInsertion}; a replacement splices the
+ * same body where the intent's targets used to be and removes them, as described on
+ * {@link #assembleReplacement}. {@link ChainEditIntent#disposition()} tells the three captures
+ * apart; the capture's own shape says the same thing a second way, so a capture that mismatches
+ * its disposition is refused for that before any path runs.
  *
  * <p>Identifiers of new container, branch, and body nodes are minted here rather than captured. A
  * capture that named them could collide with an element the chain already has, and nothing
@@ -89,6 +91,9 @@ public final class ChainEditSubgraphAssembly {
     }
     if (intent.disposition() == ChainEditDisposition.KEEP) {
       return assembleInsertion(base, baseById, capture, intent, descriptors);
+    }
+    if (intent.disposition() == ChainEditDisposition.REMOVE) {
+      return assembleReplacement(base, baseById, capture, intent, descriptors);
     }
     return assembleContainer(base, baseById, capture, targets, descriptors);
   }
@@ -277,6 +282,99 @@ public final class ChainEditSubgraphAssembly {
           new ChainPlanEdge(
               reserveId(ends.exit() + "-to-" + following, edgeIds), ends.exit(), following, scope));
     }
+
+    ChainPlanGraph assembled =
+        new ChainPlanGraph(
+            base.schemaVersion(), base.chain(), List.copyOf(nodes), List.copyOf(edges));
+    runDescriptorPreflight(assembled, base, descriptors);
+    return assembled;
+  }
+
+  /**
+   * The graph a replacement proposes: the imported chain with {@link ChainEditIntent#targetNodeIds()}
+   * removed and the captured body spliced into their place.
+   *
+   * <p>A replacement is an insertion whose address is deleted rather than kept, so it shares the
+   * body-only capture shape {@link #assembleInsertion} checks and reuses
+   * {@link ChainEditBoundaryWiring#rewireReplacedEndpoint} for the connections the removed elements
+   * leave behind: incoming hops attach to the body's entry, outgoing hops leave from its exit, and a
+   * hop whose both ends were removed is dropped because it lived inside the replaced elements, not
+   * among their neighbours. The removed elements are never named in the capture -- the intent
+   * already names them, and a capture that restated them would have nowhere to put a value the
+   * intent has not asked for.
+   */
+  private static ChainPlanGraph assembleReplacement(
+      ChainPlanGraph base,
+      Map<String, ChainPlanNode> baseById,
+      ChainEditSubgraph capture,
+      ChainEditIntent intent,
+      CatalogElementDescriptorCache descriptors) {
+    if (capture.containerType() != null && !capture.containerType().isBlank()) {
+      throw correctable(
+          "a replacement capture names no container, and this one names '"
+              + capture.containerType()
+              + "'");
+    }
+    if (!capture.branches().isEmpty()) {
+      throw correctable("a replacement capture carries a single body, not branches");
+    }
+    ChainEditSubgraphBody body = capture.body();
+    if (body == null || body.isEmpty()) {
+      throw correctable("capture creates no elements to put in the replaced element's place");
+    }
+
+    List<String> replacedIds = intent.targetNodeIds();
+    if (replacedIds.isEmpty()) {
+      throw unsatisfiable("replacement names no element to replace");
+    }
+    Set<String> replaced = new LinkedHashSet<>(replacedIds);
+    String scope = commonParent(replaced, baseById);
+
+    Set<String> reserved = new LinkedHashSet<>(baseById.keySet());
+    Map<String, ChainEditSubgraphElement> newElements = new LinkedHashMap<>();
+    for (ChainEditSubgraphElement element : body.elements()) {
+      registerElement(element, newElements, reserved);
+    }
+
+    List<ChainPlanNode> nodes = new ArrayList<>();
+    for (ChainPlanNode existing : base.nodes()) {
+      if (!replaced.contains(existing.nodeId())) {
+        nodes.add(existing);
+      }
+    }
+    for (ChainEditSubgraphElement element : body.elements()) {
+      nodes.add(
+          new ChainPlanNode(element.nodeId(), element.type(), element.label(), scope, null, List.of()));
+    }
+    Map<String, ChainPlanNode> assembledById = new LinkedHashMap<>();
+    nodes.forEach(node -> assembledById.put(node.nodeId(), node));
+
+    Set<String> edgeIds = new LinkedHashSet<>();
+    for (ChainPlanEdge existing : baseEdges(base)) {
+      edgeIds.add(existing.edgeId());
+    }
+    List<ChainPlanEdge> bodyEdges = insertionBodyEdges(body, scope, edgeIds);
+    ChainEditBoundaryWiring.SubgraphEnds ends =
+        ChainEditBoundaryWiring.deriveSubgraphEnds(newElements.keySet(), bodyEdges, assembledById);
+    if (ends.entry() == null || ends.exit() == null) {
+      throw correctable("capture body does not connect its elements into a single linked run");
+    }
+
+    List<ChainPlanEdge> edges = new ArrayList<>();
+    Set<String> connections = new LinkedHashSet<>();
+    Set<String> availableNodeIds = assembledById.keySet();
+    for (ChainPlanEdge existing : baseEdges(base)) {
+      boolean touchesReplaced =
+          replaced.contains(existing.fromNodeId()) || replaced.contains(existing.toNodeId());
+      ChainPlanEdge kept =
+          touchesReplaced
+              ? ChainEditBoundaryWiring.rewireReplacedEndpoint(existing, replaced, ends, availableNodeIds)
+              : existing;
+      if (kept != null && connections.add(connectionKey(kept))) {
+        edges.add(kept);
+      }
+    }
+    edges.addAll(bodyEdges);
 
     ChainPlanGraph assembled =
         new ChainPlanGraph(
