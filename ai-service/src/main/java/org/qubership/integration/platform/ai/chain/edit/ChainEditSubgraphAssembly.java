@@ -31,9 +31,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubg
  *
  * <p>The imported chain arrives whole and leaves whole. An existing element reaches this assembly
  * as an identifier — in the branch it moves into, for a wrap, or not at all, for an insertion,
- * which moves nothing. Its type, label, order, and properties are never read from the capture,
- * which is why the refusals {@link ChainEditStructureMerge} still owes the older contract have no
- * subject here.
+ * which moves nothing. Its type, label, order, and properties are never read from the capture.
  *
  * <p>A wrap or a branch names a container; {@link #assemble} places it beside the elements that
  * move into it and creates each branch under it, as described on {@link #assembleContainer}. An

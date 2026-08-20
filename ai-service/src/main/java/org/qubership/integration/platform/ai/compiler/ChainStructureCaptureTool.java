@@ -10,7 +10,6 @@ import org.qubership.integration.platform.ai.chain.edit.ChainEditDisposition;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditScopeException;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
-import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureMerge;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditSubgraphAssembly;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
@@ -241,25 +240,16 @@ public class ChainStructureCaptureTool {
   }
 
   /**
-   * Returns the graph this capture actually produces, so validation judges that and not a draft.
+   * Returns the graph this capture produces for validation.
    *
-   * <p>An edit that captures a whole chain has it merged onto the imported one before anything is
-   * built: the merge restores connections the capture dropped and pins fields it echoed
-   * differently. Validating the raw capture therefore reports defects the merge repairs, and
-   * misses none it does not. A CREATE run publishes no base, and its capture is the whole graph
-   * already.
-   *
-   * <p>A nesting edit was assembled from its subgraph, which leaves the merge nothing to decide.
-   *
-   * <p>A merge the compiler would refuse is raised as an {@link IllegalArgumentException} here, one
-   * turn earlier than before, so the generator is asked to correct it while it still can.
+   * <p>An edit that captures a subgraph assembles it into the full chain before structure
+   * validation runs. A CREATE run publishes no base, and its capture is validated as-is. A
+   * structural edit always captures a subgraph, so this method now only returns the graph to
+   * validate.
    */
   private static ChainPlanGraph asMergedOntoEditedChain(
       ChainEditStructureBase editBase, ChainPlanGraph captured) {
-    if (editBase == null || editBase.intent().capturesSubgraph()) {
-      return captured;
-    }
-    return ChainEditStructureMerge.merge(editBase.baseGraph(), captured, editBase.intent());
+    return captured;
   }
 
   private String repairable(
