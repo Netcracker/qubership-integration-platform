@@ -39,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -179,9 +178,9 @@ class MicroDomainServiceHttpRouteTest {
     void deleteChainSnapshotStripsOnlyTargetSnapshotPathsAndKeepsCrWhenRulesRemain() {
         stubSnapshotRoutes(List.of(
                 Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME, List.of(rule("/qip-routes/a"), rule("/qip-routes/b")))));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
@@ -202,10 +201,10 @@ class MicroDomainServiceHttpRouteTest {
     void deleteChainSnapshotNormalizesIntegralDoublesInSurvivingSiblingRule() {
         stubSnapshotRoutes(List.of(
                 Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
                         List.of(rule("/qip-routes/a"), ruleWithBackendRef("/qip-routes/b")))));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
@@ -229,9 +228,9 @@ class MicroDomainServiceHttpRouteTest {
     void deleteChainSnapshotDeletesTierCrWhenNoRulesRemain() {
         stubSnapshotRoutes(List.of(
                 Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME, List.of(rule("/qip-routes/a")))));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
@@ -256,10 +255,10 @@ class MicroDomainServiceHttpRouteTest {
     void deleteChainSnapshotDoesNotStripAnotherChainsRuleThatMerelyEndsWithSameSuffix() {
         stubSnapshotRoutes(List.of(
                 Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
                         List.of(rule("/qip-routes/a"), rule("/qip-routes/x/a")))));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
@@ -280,12 +279,12 @@ class MicroDomainServiceHttpRouteTest {
     void deleteChainSnapshotWithOnlyPrivateRouteNeverTouchesPublicTier() {
         stubSnapshotRoutes(List.of(
                 Route.builder().path("/a").type(RouteType.PRIVATE_TRIGGER).build()));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PRIVATE_ROUTE_NAME, List.of(rule("/qip-routes/a")))));
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
 
-        verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME));
+        verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
     }
 
@@ -296,13 +295,13 @@ class MicroDomainServiceHttpRouteTest {
     void deleteChainSnapshotRecognizesOwnPlaceholderPathAndDeletesCr() {
         stubSnapshotRoutes(List.of(
                 Route.builder().path("/orders/{id}").type(RouteType.EXTERNAL_TRIGGER).build()));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
                         List.of(rule("RegularExpression", "/qip-routes/orders/[^/]+/?")))));
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
 
-        verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME));
+        verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
     }
 
@@ -314,13 +313,13 @@ class MicroDomainServiceHttpRouteTest {
         stubSnapshotRoutes(List.of(
                 Route.builder().path("https://example.com").gatewayPrefix("/system/service-a")
                         .type(RouteType.EXTERNAL_SENDER).build()));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(EGRESS_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, EGRESS_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(EGRESS_ROUTE_NAME, List.of(rule("/system/service-a")))));
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
 
-        verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME));
-        verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME));
+        verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
+        verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, EGRESS_ROUTE_NAME);
     }
 
@@ -332,9 +331,9 @@ class MicroDomainServiceHttpRouteTest {
                 Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
         Map<String, Object> malformedRule = new LinkedHashMap<>();
         malformedRule.put("name", "hand-edited-rule-without-matches");
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME, List.of(rule("/qip-routes/a"), malformedRule))));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
         assertDoesNotThrow(() -> microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1"));
@@ -360,9 +359,9 @@ class MicroDomainServiceHttpRouteTest {
         noRulesRoute.setMetadata(metadata);
         noRulesRoute.setKind("HTTPRoute");
         noRulesRoute.setSpec(new LinkedHashMap<>());
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(noRulesRoute));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
         assertDoesNotThrow(() -> microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1"));
@@ -381,9 +380,9 @@ class MicroDomainServiceHttpRouteTest {
                 Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
         Map<String, Object> ruleWithoutType = new LinkedHashMap<>();
         ruleWithoutType.put("matches", List.of(Map.of("path", Map.of("value", "/qip-routes/a"))));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME, List.of(ruleWithoutType))));
-        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
@@ -422,20 +421,22 @@ class MicroDomainServiceHttpRouteTest {
     void initRegistersHttpRouteSoDeployCanParseIt() throws Exception {
         microDomainService.init();
 
-        String httpRouteYaml = "apiVersion: gateway.networking.k8s.io/v1\n"
-                + "kind: HTTPRoute\n"
-                + "metadata:\n"
-                + "  name: my-domain-v1-chain-public-routes\n"
-                + "spec:\n"
-                + "  parentRefs:\n"
-                + "    - group: gateway.networking.k8s.io\n"
-                + "      kind: Gateway\n"
-                + "      name: public-gateway\n"
-                + "  rules:\n"
-                + "    - matches:\n"
-                + "        - path:\n"
-                + "            type: PathPrefix\n"
-                + "            value: /qip-routes/a\n";
+        String httpRouteYaml = """
+                apiVersion: gateway.networking.k8s.io/v1
+                kind: HTTPRoute
+                metadata:
+                  name: my-domain-v1-chain-public-routes
+                spec:
+                  parentRefs:
+                    - group: gateway.networking.k8s.io
+                      kind: Gateway
+                      name: public-gateway
+                  rules:
+                    - matches:
+                        - path:
+                            type: PathPrefix
+                            value: /qip-routes/a
+                """;
 
         List<Object> parsed = io.kubernetes.client.util.Yaml.loadAll(httpRouteYaml);
 

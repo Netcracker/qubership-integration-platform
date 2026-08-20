@@ -65,6 +65,7 @@ public class KubeOperator {
     private static final String ISTIO_NETWORKING_API_VERSION = "v1";
     private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
     private static final String DESTINATION_RULES_PLURAL = "destinationrules";
+    private static final String APPLY_RESOURCE_LOG_FORMAT = "Applying {} name={}";
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
     private final CustomObjectsApi customObjectsApi;
@@ -201,17 +202,17 @@ public class KubeOperator {
             // HTTPRoute is handled directly (not through GenericCustomResources) because that map
             // returns empty under the "localdev" profile, which would make definitionFor() throw
             // there too. It's also always safe to update in place if it already exists.
-            log.debug("Applying {} name={}", customObject.getKind(), getName(customObject).orElse(""));
+            log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
             createOrUpdateCustomResource(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, customObject,
                     new TypeToken<KubeCustomObjectList>() {}.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject && SERVICE_ENTRY_KIND.equals(customObject.getKind())) {
             // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
-            log.debug("Applying {} name={}", customObject.getKind(), getName(customObject).orElse(""));
+            log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
             createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, SERVICE_ENTRIES_PLURAL,
                     customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject && DESTINATION_RULE_KIND.equals(customObject.getKind())) {
             // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
-            log.debug("Applying {} name={}", customObject.getKind(), getName(customObject).orElse(""));
+            log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
             createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, DESTINATION_RULES_PLURAL,
                     customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject) {
@@ -221,7 +222,7 @@ public class KubeOperator {
                     .definitionFor(customObject.getKind());
             boolean updateIfExists = resourceDefinition.updateIfExists();
 
-            log.debug("Applying {} name={}, updateIfExists={}",
+            log.debug(APPLY_RESOURCE_LOG_FORMAT + ", updateIfExists={}",
                     customObject.getKind(), getName(customObject).orElse(""), updateIfExists);
             createOrUpdateCustomResource(resourceDefinition.group(), resourceDefinition.version(), resourceDefinition.plural(), customObject,
                     new TypeToken<KubeCustomObjectList>() {}.getType(), updateIfExists);
