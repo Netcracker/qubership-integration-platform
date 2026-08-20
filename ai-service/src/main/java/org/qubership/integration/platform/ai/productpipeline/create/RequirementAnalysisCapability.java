@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -10,17 +11,18 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import io.smallrye.mutiny.Context;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
-import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
-import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairRunner;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
+import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
+import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
+import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
@@ -68,6 +70,8 @@ public class RequirementAnalysisCapability implements StageCapability {
   private final BiFunction<String, String, Multi<ChatEvent>> analysisRunner;
   private final EvidenceEmitter evidenceEmitter;
   private final RequirementDraftStore draftStore;
+  private final CaptureRepairRunner captureRepairRunner;
+  private final ChatMemorySanitizer chatMemorySanitizer;
 
   @Inject
   public RequirementAnalysisCapability(
@@ -77,7 +81,9 @@ public class RequirementAnalysisCapability implements StageCapability {
       CaptureAttemptFeedbackStore feedbackStore,
       DiscoveryAgent discoveryAgent,
       EvidenceEmitter evidenceEmitter,
-      RequirementDraftStore draftStore) {
+      RequirementDraftStore draftStore,
+      CaptureRepairRunner captureRepairRunner,
+      ChatMemorySanitizer chatMemorySanitizer) {
     this(
         knowledgeClient,
         knowledgeContextProvider,
@@ -88,7 +94,9 @@ public class RequirementAnalysisCapability implements StageCapability {
         null,
         null,
         evidenceEmitter,
-        draftStore);
+        draftStore,
+        captureRepairRunner,
+        chatMemorySanitizer);
   }
 
   /** Test helper: knowledge-only construction without analyzer agent. */
@@ -98,6 +106,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         knowledgeClient,
         knowledgeContextProvider,
         new RequirementBriefCoverageValidator(),
+        null,
+        null,
         null,
         null,
         null,
@@ -120,6 +130,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         null,
         null,
         briefProducer,
+        null,
+        null,
         null,
         null,
         null);
@@ -145,6 +157,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         briefProducer,
         analysisRunner,
         evidenceEmitter,
+        null,
+        null,
         null);
   }
 
@@ -159,6 +173,34 @@ public class RequirementAnalysisCapability implements StageCapability {
       BiFunction<String, String, Multi<ChatEvent>> analysisRunner,
       EvidenceEmitter evidenceEmitter,
       RequirementDraftStore draftStore) {
+    this(
+        knowledgeClient,
+        knowledgeContextProvider,
+        coverageValidator,
+        captureSession,
+        feedbackStore,
+        discoveryAgent,
+        briefProducer,
+        analysisRunner,
+        evidenceEmitter,
+        draftStore,
+        null,
+        null);
+  }
+
+  RequirementAnalysisCapability(
+      KnowledgeClient knowledgeClient,
+      KnowledgeContextProvider knowledgeContextProvider,
+      RequirementBriefCoverageValidator coverageValidator,
+      CaptureSession captureSession,
+      CaptureAttemptFeedbackStore feedbackStore,
+      DiscoveryAgent discoveryAgent,
+      Function<StageExecutionContext, RequirementBrief> briefProducer,
+      BiFunction<String, String, Multi<ChatEvent>> analysisRunner,
+      EvidenceEmitter evidenceEmitter,
+      RequirementDraftStore draftStore,
+      CaptureRepairRunner captureRepairRunner,
+      ChatMemorySanitizer chatMemorySanitizer) {
     this.knowledgeClient = Objects.requireNonNull(knowledgeClient, "knowledgeClient");
     this.knowledgeContextProvider =
         Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
@@ -170,6 +212,8 @@ public class RequirementAnalysisCapability implements StageCapability {
     this.analysisRunner = analysisRunner;
     this.evidenceEmitter = evidenceEmitter;
     this.draftStore = draftStore;
+    this.captureRepairRunner = captureRepairRunner;
+    this.chatMemorySanitizer = chatMemorySanitizer;
   }
 
   @Override
@@ -414,9 +458,6 @@ public class RequirementAnalysisCapability implements StageCapability {
         buildAnalysisUserMessage(approved, context.attributeAsString("userText"))
             + "\n\n"
             + contextPackage.renderMarkdown();
-    // Quarkus LangChain4j treats @UserMessage as a PromptTemplate/Qute string; braces in draft,
-    // facts, or knowledge markdown (e.g. JSON {"message":"..."}) must be escaped or apply() fails.
-    String safeUserMessage = QuteUserMessageEscaping.escapeForAiServiceUserMessage(userMessage);
     if (evidenceEmitter != null) {
       evidenceEmitter.knowledge(
           context.conversationId(),
@@ -426,16 +467,57 @@ public class RequirementAnalysisCapability implements StageCapability {
               .toList(),
           contextPackage.contentChars());
     }
-    if (analysisRunner != null) {
-      return analysisRunner.apply(context.conversationId(), safeUserMessage);
+    java.util.function.Function<String, Multi<String>> agentChat =
+        message -> {
+          // Quarkus LangChain4j treats @UserMessage as a PromptTemplate/Qute string. Escape each
+          // initial or repair message immediately before the agent call.
+          String safeMessage = QuteUserMessageEscaping.escapeForAiServiceUserMessage(message);
+          if (analysisRunner != null) {
+            return analysisRunner
+                .apply(context.conversationId(), safeMessage)
+                .onItem()
+                .transform(RequirementAnalysisCapability::tokenText);
+          }
+          if (discoveryAgent == null) {
+            return Multi.createFrom().empty();
+          }
+          return discoveryAgent.chat(context.conversationId(), safeMessage);
+        };
+    if (captureRepairRunner == null || captureSession == null || feedbackStore == null) {
+      return agentChat.apply(userMessage).onItem().transform(ChatEvent::token);
     }
-    if (discoveryAgent == null) {
-      return Multi.createFrom().empty();
-    }
-    return discoveryAgent
-        .chat(context.conversationId(), safeUserMessage)
+    CaptureKey briefKey =
+        CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, context.conversationId());
+    return captureRepairRunner
+        .runWithRepair(
+            agentChat,
+            () -> captureSession.isPresent(briefKey),
+            () -> feedbackStore.lastPlanFailure(context.conversationId()),
+            () -> repairDanglingToolCalls(context.conversationId()),
+            "captureRequirementBrief",
+            userMessage,
+            true,
+            null,
+            () -> repairDanglingToolCalls(context.conversationId()),
+            1)
         .onItem()
         .transform(ChatEvent::token);
+  }
+
+  private void repairDanglingToolCalls(String conversationId) {
+    if (chatMemorySanitizer == null) {
+      return;
+    }
+    String feedback =
+        feedbackStore == null
+            ? null
+            : feedbackStore
+                .lastPlanFailure(conversationId)
+                .map(
+                    org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback
+                        ::summary)
+                .orElse(null);
+    chatMemorySanitizer.repairDanglingToolCalls(conversationId, feedback);
   }
 
   static String buildAnalysisUserMessage(RequirementDraft approved) {

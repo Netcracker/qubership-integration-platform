@@ -50,6 +50,25 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void missingMappingMessageListsEveryEdgeAndExactRepairPayload() {
+    IllegalArgumentException thrown =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> designValidator.validate(twoCallBrief(List.of())));
+
+    String message = thrown.getMessage();
+    assertTrue(message.contains("INITIALIZATION mapping required"), message);
+    assertTrue(message.contains("CONVERSION mapping required"), message);
+    assertTrue(message.contains("RESPONSE mapping required"), message);
+    assertTrue(message.contains("\"stage\":\"INITIALIZATION\""), message);
+    assertTrue(message.contains("\"fromIntentRef\":\"trigger-1\""), message);
+    assertTrue(message.contains("\"toIntentRef\":\"call-1\""), message);
+    assertTrue(message.contains("\"mode\":\"PASS_THROUGH\""), message);
+    assertTrue(message.contains("ENDPOINT \"GET /orders\""), message);
+    assertTrue(message.contains("SERVICE_CALL"), message);
+  }
+
+  @Test
   void passThroughFillsMissingEdgesThenValidatePasses() {
     RequirementBrief briefWithoutMappings = twoCallBrief(List.of());
 

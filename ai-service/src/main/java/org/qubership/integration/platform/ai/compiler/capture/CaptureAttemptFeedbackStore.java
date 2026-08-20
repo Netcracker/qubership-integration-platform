@@ -15,6 +15,8 @@ public class CaptureAttemptFeedbackStore {
 
   private final ConcurrentHashMap<String, CaptureAttemptFeedback> planFailures =
       new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, String> planFailureFingerprints =
+      new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>>
       patchFailures = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>>
@@ -32,7 +34,16 @@ public class CaptureAttemptFeedbackStore {
   }
 
   public boolean recordPlanValidationFailure(String conversationId, String summary) {
-    return recordPlanFailure(conversationId, CaptureFailureKind.VALIDATION, summary);
+    return recordPlanFailure(conversationId, CaptureFailureKind.VALIDATION, summary, null);
+  }
+
+  public boolean recordPlanValidationFailure(
+      String conversationId, String summary, Object rejectedPayload) {
+    String fingerprint =
+        fingerprintStore.fingerprint(
+            "plan-validation", "requirement-analysis", rejectedPayload);
+    return recordPlanFailure(
+        conversationId, CaptureFailureKind.VALIDATION, summary, fingerprint);
   }
 
   public void recordPlanConversionFailure(String conversationId, String summary) {
@@ -164,6 +175,11 @@ public class CaptureAttemptFeedbackStore {
 
   boolean recordPlanFailure(
       String conversationId, CaptureFailureKind kind, String summary) {
+    return recordPlanFailure(conversationId, kind, summary, null);
+  }
+
+  private boolean recordPlanFailure(
+      String conversationId, CaptureFailureKind kind, String summary, String fingerprint) {
     if (conversationId == null || conversationId.isBlank()) {
       return false;
     }
@@ -172,10 +188,17 @@ public class CaptureAttemptFeedbackStore {
             .map(
                 previous ->
                     previous.kind() == kind
-                        && (kind == CaptureFailureKind.VALIDATION
-                            || Objects.equals(previous.summary(), summary)))
+                        && Objects.equals(previous.summary(), summary)
+                        && (kind != CaptureFailureKind.VALIDATION
+                            || Objects.equals(
+                                planFailureFingerprints.get(conversationId), fingerprint)))
             .orElse(false);
     planFailures.put(conversationId, new CaptureAttemptFeedback(kind, summary));
+    if (fingerprint == null) {
+      planFailureFingerprints.remove(conversationId);
+    } else {
+      planFailureFingerprints.put(conversationId, fingerprint);
+    }
     return repeated;
   }
 
@@ -243,6 +266,7 @@ public class CaptureAttemptFeedbackStore {
   public void clearPlan(String conversationId) {
     if (conversationId != null) {
       planFailures.remove(conversationId);
+      planFailureFingerprints.remove(conversationId);
       fingerprintStore.clear(conversationId);
     }
   }
@@ -274,6 +298,7 @@ public class CaptureAttemptFeedbackStore {
       return;
     }
     planFailures.remove(conversationId);
+    planFailureFingerprints.remove(conversationId);
     patchFailures.remove(conversationId);
     validationFailures.remove(conversationId);
     fingerprintStore.clear(conversationId);

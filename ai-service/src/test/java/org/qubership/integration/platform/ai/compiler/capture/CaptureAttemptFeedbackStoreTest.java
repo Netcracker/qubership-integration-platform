@@ -60,10 +60,17 @@ class CaptureAttemptFeedbackStoreTest {
   }
 
   @Test
-  void reportsRepeatedPlanValidationEvenWhenMessageChanges() {
+  void changedPlanValidationMessageGetsAnotherAttempt() {
     assertFalse(store.recordPlanFailure("conv-1", CaptureFailureKind.VALIDATION, "bad edge A"));
 
-    assertTrue(store.recordPlanFailure("conv-1", CaptureFailureKind.VALIDATION, "bad edge B"));
+    assertFalse(store.recordPlanFailure("conv-1", CaptureFailureKind.VALIDATION, "bad edge B"));
+  }
+
+  @Test
+  void planValidationRepeatsOnlyForTheSamePayloadAndMessage() {
+    assertFalse(store.recordPlanValidationFailure("conv-1", "bad edge", "payload A"));
+    assertFalse(store.recordPlanValidationFailure("conv-1", "bad edge", "payload B"));
+    assertTrue(store.recordPlanValidationFailure("conv-1", "bad edge", "payload B"));
   }
 
   @Test
