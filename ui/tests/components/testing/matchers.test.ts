@@ -200,18 +200,53 @@ describe("parameter validity", () => {
     ).toEqual(["Missing parameter: pattern", "Unknown parameter: value"]);
   });
 
-  test("should require both JSON parameters", () => {
+  // The service reads `path` as optional and falls back to the whole document,
+  // so a matcher that arrives from an import or from the API without one runs
+  // perfectly well and must not be reported broken.
+  test("should accept a JSON matcher that leaves the path out", () => {
     expect(
       validateMatcherParameters(MatcherType.MATCH_JSON, [
         { name: "sample", value: "{}" },
       ]),
-    ).toEqual(["Missing parameter: path"]);
+    ).toEqual([]);
+    expect(
+      validateMatcherParameters(MatcherType.MATCH_JSON_SCHEMA, [
+        { name: "schema", value: "{}" },
+      ]),
+    ).toEqual([]);
+  });
+
+  test("should require the document parameter of a JSON matcher", () => {
+    expect(
+      validateMatcherParameters(MatcherType.MATCH_JSON, [
+        { name: "path", value: "$" },
+      ]),
+    ).toEqual(["Missing parameter: sample"]);
+    expect(
+      validateMatcherParameters(MatcherType.MATCH_JSON_SCHEMA, [
+        { name: "path", value: "$" },
+      ]),
+    ).toEqual(["Missing parameter: schema"]);
+  });
+
+  test("should accept both JSON parameters together", () => {
     expect(
       matcherParametersAreValid(MatcherType.MATCH_JSON, [
         { name: "path", value: "$" },
         { name: "sample", value: "{}" },
       ]),
     ).toBe(true);
+  });
+
+  // The optional name is still one the engine reads, so it is not an unknown one.
+  test("should not report the path of a JSON matcher as unknown", () => {
+    expect(
+      validateMatcherParameters(MatcherType.MATCH_JSON, [
+        { name: "path", value: "$.order" },
+        { name: "sample", value: "{}" },
+        { name: "pattern", value: "a+" },
+      ]),
+    ).toEqual(["Unknown parameter: pattern"]);
   });
 
   test("should reject parameters on a type that takes none", () => {

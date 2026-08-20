@@ -55,15 +55,9 @@ export function getEntityTypesForOwnerKind(
 }
 
 /**
- * Parameter names the matching engine reads, per matcher type. A missing one is
- * refused at save time, since the service builds every matcher through the same
- * predicate factory the run paths use. An extra parameter under a name no
- * predicate reads is stored and then ignored, and this map is the only guard
- * against that half.
- *
- * The JSON matchers name `path` although the service reads it as optional and
- * falls back to the whole document. Requiring it here keeps every editor writing
- * one, which the service never refuses.
+ * Parameter names the matching engine reads, per matcher type. An extra
+ * parameter under a name no predicate reads is stored and then ignored, and this
+ * map is the only guard against that half.
  */
 export const MATCHER_PARAMETER_NAMES: Record<MatcherType, string[]> = {
   [MatcherType.EMPTY]: [],
@@ -76,6 +70,19 @@ export const MATCHER_PARAMETER_NAMES: Record<MatcherType, string[]> = {
   [MatcherType.MATCH_JSON_SCHEMA]: ["path", "schema"],
   [MatcherType.MATCH_JSON]: ["path", "sample"],
 };
+
+/**
+ * Parameter names a matcher may leave out. The service reads `path` as optional
+ * and falls back to the whole document, so a JSON matcher saved without one
+ * matches perfectly well. The editor writes it all the same; a matcher that
+ * arrives from an import or from the API is the one that would otherwise be
+ * reported broken while it runs.
+ */
+const MATCHER_OPTIONAL_PARAMETER_NAMES: Partial<Record<MatcherType, string[]>> =
+  {
+    [MatcherType.MATCH_JSON_SCHEMA]: ["path"],
+    [MatcherType.MATCH_JSON]: ["path"],
+  };
 
 /** The wire is not held to the enum, so a type the UI does not know has no entry. */
 function matcherParameterNames(type: MatcherType): string[] | undefined {
@@ -98,8 +105,9 @@ export function matcherRequiresEntityName(
 
 /**
  * Returns one message per missing, unknown or repeated parameter; an empty array
- * means valid. A repeated name is refused because the service reads a parameter
- * as a single value and gets two.
+ * means valid. A parameter the service reads as optional is not reported missing,
+ * so a matcher that runs is never shown as broken. A repeated name is refused
+ * because the service reads a parameter as a single value and gets two.
  */
 export function validateMatcherParameters(
   type: MatcherType | null | undefined,
@@ -110,6 +118,9 @@ export function validateMatcherParameters(
     return ["Unknown matcher type"];
   }
   const expected = new Set(names);
+  const optional = new Set(
+    (type ? MATCHER_OPTIONAL_PARAMETER_NAMES[type] : undefined) ?? [],
+  );
   const given = new Set<string>();
   const repeated = new Set<string>();
   for (const parameter of parameters ?? []) {
@@ -121,7 +132,7 @@ export function validateMatcherParameters(
 
   const messages: string[] = [];
   for (const name of expected) {
-    if (!given.has(name)) {
+    if (!given.has(name) && !optional.has(name)) {
       messages.push(`Missing parameter: ${name}`);
     }
   }

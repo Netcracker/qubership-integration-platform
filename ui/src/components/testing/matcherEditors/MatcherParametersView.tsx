@@ -31,8 +31,7 @@ export const MatcherParametersView: React.FC<MatcherParametersViewProps> = ({
     <span>
       {sorted.map(([name, values]) => (
         <span key={name} style={{ display: "block" }}>
-          <Typography.Text type="secondary">{name}: </Typography.Text>
-          {values.join(", ")}
+          {name}: {values.join(", ")}
         </span>
       ))}
     </span>
