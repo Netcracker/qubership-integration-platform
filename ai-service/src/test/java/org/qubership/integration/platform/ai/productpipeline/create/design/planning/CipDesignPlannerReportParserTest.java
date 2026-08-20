@@ -121,6 +121,42 @@ class CipDesignPlannerReportParserTest {
         .runOnce(eq(conversationId), eq("cip-design-planner"), eq(input), any(), eq(pin));
   }
 
+  @Test
+  void retriesApiHubStepsForCatalogOnlyInput() {
+    DesignProcessSkillRunner runner = mock(DesignProcessSkillRunner.class);
+    CipDesignPlannerAdapter adapter = new CipDesignPlannerAdapter(runner, parser);
+    String conversationId = "conv-catalog-only";
+    String input = "Binding resolution policy: CATALOG_ONLY\nReuse the existing catalog binding.";
+    String pin = "pinned-skill-hash";
+    String corrected =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Configure the existing Petstore Ext.getInventory binding (cip-service-call-generator)
+        3. Generate execution structure and element ordering (cip-structure-generator)
+        4. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        5. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    when(runner.runOnce(conversationId, "cip-design-planner", input, Optional.empty(), pin))
+        .thenReturn(validMinimalReport());
+    when(runner.runOnce(
+            eq(conversationId),
+            eq("cip-design-planner"),
+            eq(input),
+            org.mockito.ArgumentMatchers.argThat(
+                failure ->
+                    failure.isPresent()
+                        && failure.get().contains("CATALOG_ONLY forbids APIHub planner steps")),
+            eq(pin)))
+        .thenReturn(corrected);
+
+    assertEquals(corrected, adapter.plan(new PlannerRequest(conversationId, input, pin)).markdown());
+    verify(runner, times(2))
+        .runOnce(eq(conversationId), eq("cip-design-planner"), eq(input), any(), eq(pin));
+  }
+
   private static String fixtureReport() throws Exception {
     return new String(
             Objects.requireNonNull(

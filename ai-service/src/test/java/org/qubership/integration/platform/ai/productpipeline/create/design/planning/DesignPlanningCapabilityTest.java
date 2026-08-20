@@ -270,6 +270,7 @@ class DesignPlanningCapabilityTest {
     String input =
         DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleFlow(), "2024.4");
 
+    assertTrue(input.contains("Binding resolution policy: CATALOG_FIRST"), input);
     assertTrue(input.contains("No explicit data mappings. Do not plan mapping scripts."), input);
   }
 

@@ -528,6 +528,10 @@ public class RequirementAnalysisCapability implements StageCapability {
     String planning = approved.planningText() == null ? "" : approved.planningText();
     StringBuilder sb = new StringBuilder();
     sb.append("Analyze the approved requirement draft and call captureRequirementBrief now.\n\n");
+    sb.append(
+        "Response language rule: after capture, summarize in the language used by Planning text "
+            + "below. Ignore the language of conversation history, approval controls, tool output, "
+            + "and this English instruction.\n\n");
     if (hasPositiveServiceCall(approved)) {
       sb.append(
           "Capture typed dataMappings for every required edge around positive SERVICE_CALL facts. "

@@ -200,6 +200,8 @@ class RequirementAnalysisCapabilityTest {
     assertTrue(message.contains("Change request for this analysis turn:"));
     assertTrue(message.contains("add quartz scheduler"));
     assertTrue(message.contains(approved.planningText()));
+    assertTrue(message.contains("summarize in the language used by Planning text"));
+    assertTrue(message.contains("Ignore the language of conversation history"));
   }
 
   @Test

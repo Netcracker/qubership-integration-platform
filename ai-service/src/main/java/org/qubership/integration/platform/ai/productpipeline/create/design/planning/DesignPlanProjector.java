@@ -66,6 +66,7 @@ public final class DesignPlanProjector {
     validateTriggerCoverage(parsed);
     validateScriptMappingCoverage(parsed, flow);
     validateParticipants(parsed, flow);
+    validateBindingResolutionPolicy(parsed, flow);
 
     List<DesignExecutionPlan.Step> steps = new ArrayList<>();
     Map<String, List<String>> stepsByOwner = new LinkedHashMap<>();
@@ -123,6 +124,24 @@ public final class DesignPlanProjector {
         pinnedAddonHashes == null ? Map.of() : pinnedAddonHashes,
         compilerCatalogHash,
         BINDING_RESOLUTION_POLICY_HASH);
+  }
+
+  private static void validateBindingResolutionPolicy(
+      ParsedPlannerReport parsed, NormalizedDesignFlow flow) {
+    if (flow.bindingResolutionPolicy()
+        != NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY) {
+      return;
+    }
+    List<Integer> forbiddenSteps =
+        parsed.steps().stream()
+            .filter(step -> step.ownerKind() == ParsedPlannerReport.OwnerKind.APIHUB_TOOL)
+            .map(ParsedPlannerReport.Step::reportOrdinal)
+            .toList();
+    if (!forbiddenSteps.isEmpty()) {
+      throw new PlannerReportFormatException(
+          "CATALOG_ONLY forbids APIHub planner steps; remove steps " + forbiddenSteps
+              + " and plan the existing catalog binding with cip-service-call-generator");
+    }
   }
 
   private static Map<String, ResolvedCompilerNode> indexNodes(ResolvedCompilerDag dag) {
