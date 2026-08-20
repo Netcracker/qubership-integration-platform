@@ -380,11 +380,11 @@ class IstioRoutesRegistrationServiceTest {
         doThrow(new KubeApiConflictException("conflict"))
                 .when(kubeOperator)
                 .createOrReplaceCustomObject(argThat(r -> "serviceentries".equals(r.getResourceNamePlural())));
-        DeploymentRouteUpdate route =
-                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
+        List<DeploymentRouteUpdate> routes = List.of(
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE));
 
         assertThrows(ControlPlaneException.class,
-                () -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
+                () -> service.postEgressGatewayRoutes(routes, CLOUD_SERVICE_NAME));
 
         verify(kubeOperator, times(3)).createOrReplaceCustomObject(
                 argThat(r -> "serviceentries".equals(r.getResourceNamePlural())));
@@ -513,9 +513,10 @@ class IstioRoutesRegistrationServiceTest {
                 .backendRefs(List.of())
                 .build();
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(ruleWithNoMatches))));
+        List<DeploymentRouteUpdate> routes = List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null));
 
         ControlPlaneException exception = assertThrows(ControlPlaneException.class, () ->
-                service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
+                service.postPublicEngineRoutes(routes, CLOUD_SERVICE_NAME));
 
         assertInstanceOf(IndexOutOfBoundsException.class, exception.getCause());
         verify(kubeOperator, never()).createOrReplaceCustomObject(any());
@@ -564,9 +565,10 @@ class IstioRoutesRegistrationServiceTest {
     void postPublicEngineRoutesGivesUpAfterThreeConflictsAndWrapsAsControlPlaneException() {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
         doThrow(new KubeApiConflictException("conflict")).when(kubeOperator).createOrReplaceCustomObject(any());
+        List<DeploymentRouteUpdate> routes = List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null));
 
-        assertThrows(ControlPlaneException.class, () -> service.postPublicEngineRoutes(
-                List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
+        assertThrows(ControlPlaneException.class,
+                () -> service.postPublicEngineRoutes(routes, CLOUD_SERVICE_NAME));
 
         verify(kubeOperator, times(3)).getCustomObject(any());
         verify(kubeOperator, times(3)).createOrReplaceCustomObject(any());

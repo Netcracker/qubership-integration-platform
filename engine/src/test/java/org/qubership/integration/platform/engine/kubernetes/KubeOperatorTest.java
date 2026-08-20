@@ -84,8 +84,9 @@ class KubeOperatorTest {
         when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
                 .thenReturn(getRequest);
         when(getRequest.execute()).thenThrow(new ApiException(500, "Internal Server Error"));
+        KubeCustomObjectRequest req = request();
 
-        assertThrows(KubeApiException.class, () -> kubeOperator.getCustomObject(request()));
+        assertThrows(KubeApiException.class, () -> kubeOperator.getCustomObject(req));
     }
 
     @Test
@@ -119,8 +120,9 @@ class KubeOperatorTest {
         when(customObjectsApi.deleteNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
                 .thenReturn(deleteRequest);
         when(deleteRequest.execute()).thenThrow(new ApiException(500, "Internal Server Error"));
+        KubeCustomObjectRequest req = request();
 
-        assertThrows(KubeApiException.class, () -> kubeOperator.deleteCustomObject(request()));
+        assertThrows(KubeApiException.class, () -> kubeOperator.deleteCustomObject(req));
     }
 
     @Test
@@ -195,8 +197,9 @@ class KubeOperatorTest {
         when(customObjectsApi.createNamespacedCustomObject(eq(GROUP), eq(VERSION), eq(NAMESPACE), eq(PLURAL), any(KubeCustomObject.class)))
                 .thenReturn(createRequest);
         when(createRequest.execute()).thenThrow(new ApiException(409, "AlreadyExists"));
+        KubeCustomObjectRequest req = request();
 
-        assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrReplaceCustomObject(request()));
+        assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrReplaceCustomObject(req));
     }
 
     @Test
@@ -221,9 +224,10 @@ class KubeOperatorTest {
         when(customObjectsApi.createNamespacedCustomObject(eq(GROUP), eq(VERSION), eq(NAMESPACE), eq(PLURAL), any(KubeCustomObject.class)))
                 .thenReturn(createRequest);
         when(createRequest.execute()).thenThrow(new ApiException(500, "Internal Server Error"));
+        KubeCustomObjectRequest req = request();
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.createOrReplaceCustomObject(request()));
+                () -> kubeOperator.createOrReplaceCustomObject(req));
         assertFalse(exception instanceof KubeApiConflictException);
     }
 

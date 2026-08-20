@@ -123,9 +123,10 @@ class RemoveRoutesFromControlPlaneActionTest {
         chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, routes);
         doThrow(new ControlPlaneException("boom"))
                 .when(controlPlaneService).removeEngineRoutes(routes, DEPLOYMENT_NAME);
+        DeploymentInfo deploymentInfo = deploymentInfo(DEPLOYMENT_ID_A);
 
         assertThrows(RouteRegistrationException.class, () ->
-                removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null));
+                removeAction.execute(null, deploymentInfo, null));
 
         assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
     }
