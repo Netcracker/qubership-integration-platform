@@ -616,6 +616,43 @@ describe("TestCases bulk actions", () => {
     expect(mockListScaffolding.confirm).toBeUndefined();
   });
 
+  const SELECTION_ACTIONS = [
+    "test-cases-run",
+    "test-cases-export",
+    "test-cases-delete",
+  ];
+
+  it("should offer none of the bulk actions while nothing is selected", async () => {
+    await renderWithCases([testCase()]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).toBeDisabled();
+    }
+  });
+
+  it("should offer them all once a row is selected", async () => {
+    await renderWithCases([testCase()]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
+  });
+
+  it("should offer them all when everything matching is selected", async () => {
+    await renderWithCases([
+      testCase(),
+      testCase({ id: "case-2", name: "Second case" }),
+    ]);
+
+    await selectAllMatching();
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
+  });
+
   it("should report a failed run instead of throwing", async () => {
     mockStartTestsRun.mockRejectedValue(new Error("service is down"));
     await renderWithCases([testCase()]);

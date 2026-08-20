@@ -123,6 +123,8 @@ export type TestingEntityList<T> = {
   sortOrder?: TestingSortOrder;
   handleTableChange: NonNullable<TableProps<T>["onChange"]>;
   selectedRowKeys: React.Key[];
+  /** False while the selection is empty, which is when a bulk action has nothing to work on. */
+  hasSelection: boolean;
   selectAllMatching: boolean;
   rowSelection: TableRowSelection<T>;
   clearSelection: () => void;
@@ -502,6 +504,7 @@ export function useTestingEntityList<T extends { id: string }>({
     sortOrder,
     handleTableChange,
     selectedRowKeys,
+    hasSelection: selectedRowKeys.length > 0,
     selectAllMatching,
     rowSelection,
     clearSelection,

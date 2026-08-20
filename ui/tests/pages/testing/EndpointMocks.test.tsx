@@ -653,6 +653,38 @@ describe("EndpointMocks selection lifetime", () => {
   });
 });
 
+describe("EndpointMocks actions without a selection", () => {
+  const SELECTION_ACTIONS = ["endpoint-mocks-export", "endpoint-mocks-delete"];
+
+  it("should offer neither bulk action while nothing is selected", async () => {
+    await renderWithMocks([endpointMock()]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).toBeDisabled();
+    }
+  });
+
+  it("should offer them both once a row is selected", async () => {
+    await renderWithMocks([endpointMock()]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
+  });
+
+  it("should offer them both when everything matching is selected", async () => {
+    await renderWithMocks([endpointMock()]);
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
+  });
+});
+
 describe("EndpointMocks permission gating", () => {
   it("should hide every write action without chain rights", async () => {
     await renderWithMocks([endpointMock()], {

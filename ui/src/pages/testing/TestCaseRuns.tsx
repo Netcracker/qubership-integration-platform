@@ -29,6 +29,7 @@ import {
 import { useColumnsWithResizeAndScroll } from "../../components/table/useColumnsWithResizeAndScroll.tsx";
 import { TestCaseRunDrawer } from "../../components/testing/TestCaseRunDrawer.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
+import { isTestCaseRunCancellable } from "../../components/testing/runStatus.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
 import {
   TESTING_TESTS_RUN_FEATURE,
@@ -158,6 +159,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     sortOrder,
     handleTableChange,
     selectedRowKeys,
+    hasSelection,
     selectAllMatching,
     rowSelection,
     clearSelection,
@@ -174,6 +176,20 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
   });
 
   useTableInfiniteScroll(tableWrapperRef, { isLoading, allLoaded, loadMore });
+
+  // Selecting everything that matches resolves the ids server-side at click time,
+  // so the statuses off the loaded page are unknown and the button has to stay
+  // open. A hand-picked selection is checked against the rows on screen.
+  const canCancelSelection = useMemo(() => {
+    if (selectAllMatching) {
+      return selectedRowKeys.length > 0;
+    }
+    const selected = new Set(selectedRowKeys.map(String));
+    return items.some(
+      (run) =>
+        selected.has(String(run.id)) && isTestCaseRunCancellable(run.status),
+    );
+  }, [items, selectedRowKeys, selectAllMatching]);
 
   const sessionPaths = useSessionPaths(items);
 
@@ -445,7 +461,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
             "data-testid": "test-case-runs-restart",
             iconName: "play",
             loading: isStarting,
-            disabled: isStarting,
+            disabled: isStarting || !hasSelection,
             onClick: () => void startRun(),
           }}
         />
@@ -455,6 +471,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
           buttonProps={{
             "data-testid": "test-case-runs-cancel",
             iconName: "stop",
+            disabled: !canCancelSelection,
             onClick: handleCancel,
           }}
         />
@@ -464,6 +481,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
           buttonProps={{
             "data-testid": "test-case-runs-export",
             iconName: "cloudDownload",
+            disabled: !hasSelection,
             onClick: () => void handleExport(),
           }}
         />
@@ -473,7 +491,9 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
       permissions,
       handleRefresh,
       isStarting,
+      hasSelection,
       startRun,
+      canCancelSelection,
       handleCancel,
       handleExport,
     ],
@@ -507,6 +527,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     sortOrder,
     selectedRowKeys,
     selectAllMatching,
+    canCancelSelection,
     allLoaded,
     filters,
     permissions,

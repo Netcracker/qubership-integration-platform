@@ -83,6 +83,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
     sortOrder,
     handleTableChange,
     selectedRowKeys,
+    hasSelection,
     selectAllMatching,
     rowSelection,
     clearSelection,
@@ -348,6 +349,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
           buttonProps={{
             "data-testid": "endpoint-mocks-export",
             iconName: "cloudDownload",
+            disabled: !hasSelection,
             onClick: () => void handleExport(),
           }}
         />
@@ -368,6 +370,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
           buttonProps={{
             "data-testid": "endpoint-mocks-delete",
             iconName: "delete",
+            disabled: !hasSelection,
             onClick: handleDelete,
           }}
         />
@@ -390,6 +393,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
       chainId,
       permissions,
       handleRefresh,
+      hasSelection,
       handleExport,
       handleImport,
       handleDelete,

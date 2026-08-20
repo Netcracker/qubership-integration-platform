@@ -407,11 +407,13 @@ describe("TestRuns actions", () => {
     expect(screen.getByTestId("test-runs-restart")).toBeDisabled();
     await act(async () => finishRun("tests-run-9"));
     expect(mockStartTestsRun).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("test-runs-restart")).not.toBeDisabled();
+    // Starting a run reloads the list and drops the selection, so the action
+    // stays closed on what it has just run.
+    expect(screen.getByTestId("test-runs-restart")).toBeDisabled();
   });
 
   it("should cancel the selected runs after a confirmation", async () => {
-    await renderWithRuns([testsRun()]);
+    await renderWithRuns([testsRun({ status: TestRunStatus.RUNNING })]);
 
     fireEvent.click(screen.getAllByRole("checkbox")[1]);
     fireEvent.click(screen.getByTestId("test-runs-cancel"));
@@ -421,6 +423,23 @@ describe("TestRuns actions", () => {
     );
     await mockListScaffolding.confirm?.onOk();
     expect(mockCancelTestsRuns).toHaveBeenCalledWith(["tests-run-1"]);
+  });
+
+  it("should offer no cancel for a run that has no case left to cancel", async () => {
+    await renderWithRuns([testsRun({ status: TestRunStatus.FINISHED })]);
+
+    const cancel = screen.getByTestId("test-runs-cancel");
+    expect(cancel).toBeDisabled();
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(cancel).toBeDisabled();
+  });
+
+  it("should offer the cancel for a cancelled run, which can still hold a queued case", async () => {
+    await renderWithRuns([testsRun({ status: TestRunStatus.CANCELED })]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(screen.getByTestId("test-runs-cancel")).toBeEnabled();
   });
 
   it("should delete the selected runs after a confirmation", async () => {
@@ -612,6 +631,42 @@ describe("TestRuns selection lifetime", () => {
     await screen.findByText("tests-run-2");
 
     expect(rowCheckedState()).toEqual([true, true]);
+  });
+});
+
+describe("TestRuns actions without a selection", () => {
+  const SELECTION_ACTIONS = [
+    "test-runs-restart",
+    "test-runs-export",
+    "test-runs-delete",
+  ];
+
+  it("should offer none of the bulk actions while nothing is selected", async () => {
+    await renderWithRuns([testsRun()]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).toBeDisabled();
+    }
+  });
+
+  it("should offer them all once a row is selected", async () => {
+    await renderWithRuns([testsRun()]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
+  });
+
+  it("should offer them all when everything matching is selected", async () => {
+    await renderWithRuns([testsRun()]);
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
   });
 });
 

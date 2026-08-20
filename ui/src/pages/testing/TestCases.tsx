@@ -90,6 +90,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
     sortOrder,
     handleTableChange,
     selectedRowKeys,
+    hasSelection,
     selectAllMatching,
     rowSelection,
     clearSelection,
@@ -358,7 +359,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
             "data-testid": "test-cases-run",
             iconName: "play",
             loading: isStarting,
-            disabled: isStarting,
+            disabled: isStarting || !hasSelection,
             onClick: () => void startRun(),
           }}
         />
@@ -368,6 +369,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
           buttonProps={{
             "data-testid": "test-cases-export",
             iconName: "cloudDownload",
+            disabled: !hasSelection,
             onClick: () => void handleExport(),
           }}
         />
@@ -388,6 +390,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
           buttonProps={{
             "data-testid": "test-cases-delete",
             iconName: "delete",
+            disabled: !hasSelection,
             onClick: handleDelete,
           }}
         />
@@ -411,6 +414,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
       permissions,
       handleRefresh,
       isStarting,
+      hasSelection,
       startRun,
       handleExport,
       handleImport,

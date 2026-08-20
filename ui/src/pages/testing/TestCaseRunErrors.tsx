@@ -149,6 +149,10 @@ export const TestCaseRunErrors: React.FC = () => {
     setReloadToken((token) => token + 1);
   }, []);
 
+  // This screen keeps its own selection rather than useTestingEntityList's, so
+  // the flag the other testing lists read off the hook is derived here.
+  const hasSelection = selectedRowKeys.length > 0;
+
   const handleExport = useCallback(async () => {
     if (selectedRowKeys.length === 0) {
       return;
@@ -263,12 +267,13 @@ export const TestCaseRunErrors: React.FC = () => {
           buttonProps={{
             "data-testid": "test-case-run-errors-export",
             iconName: "cloudDownload",
+            disabled: !hasSelection,
             onClick: () => void handleExport(),
           }}
         />
       </>
     ),
-    [permissions, handleRefresh, handleExport],
+    [permissions, handleRefresh, hasSelection, handleExport],
   );
 
   const toolbar = useMemo(

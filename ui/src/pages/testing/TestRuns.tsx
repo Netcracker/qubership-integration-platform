@@ -20,6 +20,7 @@ import {
 } from "../../components/table/useColumnSettingsButton.tsx";
 import { useColumnsWithResizeAndScroll } from "../../components/table/useColumnsWithResizeAndScroll.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
+import { isTestsRunCancellable } from "../../components/testing/runStatus.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
 import { TestRunDrawer } from "../../components/testing/TestRunDrawer.tsx";
 import { useTestingFilter } from "../../hooks/filter/useTestingFilter.ts";
@@ -70,6 +71,7 @@ export const TestRuns: React.FC = () => {
     exportEntities,
     handleTableChange,
     selectedRowKeys,
+    hasSelection,
     selectAllMatching,
     rowSelection,
     clearSelection,
@@ -84,6 +86,20 @@ export const TestRuns: React.FC = () => {
   });
 
   useTableInfiniteScroll(tableWrapperRef, { isLoading, allLoaded, loadMore });
+
+  // Selecting everything that matches resolves the ids server-side at click time,
+  // so the statuses off the loaded page are unknown and the button has to stay
+  // open. A hand-picked selection is checked against the rows on screen.
+  const canCancelSelection = useMemo(() => {
+    if (selectAllMatching) {
+      return selectedRowKeys.length > 0;
+    }
+    const selected = new Set(selectedRowKeys.map(String));
+    return items.some(
+      (run) =>
+        selected.has(String(run.id)) && isTestsRunCancellable(run.status),
+    );
+  }, [items, selectedRowKeys, selectAllMatching]);
 
   const handleRefresh = useCallback(() => {
     clearSelection();
@@ -283,7 +299,7 @@ export const TestRuns: React.FC = () => {
             "data-testid": "test-runs-restart",
             iconName: "play",
             loading: isStarting,
-            disabled: isStarting,
+            disabled: isStarting || !hasSelection,
             onClick: () => void startRun(),
           }}
         />
@@ -293,6 +309,7 @@ export const TestRuns: React.FC = () => {
           buttonProps={{
             "data-testid": "test-runs-cancel",
             iconName: "stop",
+            disabled: !canCancelSelection,
             onClick: handleCancel,
           }}
         />
@@ -302,6 +319,7 @@ export const TestRuns: React.FC = () => {
           buttonProps={{
             "data-testid": "test-runs-export",
             iconName: "cloudDownload",
+            disabled: !hasSelection,
             onClick: () => void handleExport(),
           }}
         />
@@ -311,6 +329,7 @@ export const TestRuns: React.FC = () => {
           buttonProps={{
             "data-testid": "test-runs-delete",
             iconName: "delete",
+            disabled: !hasSelection,
             onClick: handleDelete,
           }}
         />
@@ -320,7 +339,9 @@ export const TestRuns: React.FC = () => {
       permissions,
       handleRefresh,
       isStarting,
+      hasSelection,
       startRun,
+      canCancelSelection,
       handleCancel,
       handleExport,
       handleDelete,

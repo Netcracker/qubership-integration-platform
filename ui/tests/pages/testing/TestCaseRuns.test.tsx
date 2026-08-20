@@ -500,7 +500,7 @@ describe("TestCaseRuns filters and sorting", () => {
 describe("TestCaseRuns actions", () => {
   it("should cancel the selected runs after a confirmation", async () => {
     await renderWithRuns([
-      testCaseRun(),
+      testCaseRun({ status: TestRunStatus.PENDING }),
       testCaseRun({ id: "run-2", testCaseName: "Second case" }),
     ]);
 
@@ -512,6 +512,38 @@ describe("TestCaseRuns actions", () => {
     );
     await mockListScaffolding.confirm?.onOk();
     expect(mockCancelTestCaseRuns).toHaveBeenCalledWith(["run-1"]);
+  });
+
+  it("should offer no cancel until a run that is still queued is selected", async () => {
+    await renderWithRuns([
+      testCaseRun({ status: TestRunStatus.RUNNING }),
+      testCaseRun({ id: "run-2", testCaseName: "Second case" }),
+    ]);
+
+    const cancel = screen.getByTestId("test-case-runs-cancel");
+    expect(cancel).toBeDisabled();
+
+    // A started run and a finished one are both past the point the service cancels.
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(cancel).toBeDisabled();
+    fireEvent.click(screen.getAllByRole("checkbox")[2]);
+    expect(cancel).toBeDisabled();
+  });
+
+  it("should offer the cancel when a queued run is among the selected ones", async () => {
+    await renderWithRuns([
+      testCaseRun({ status: TestRunStatus.FINISHED }),
+      testCaseRun({
+        id: "run-2",
+        testCaseName: "Second case",
+        status: TestRunStatus.PENDING,
+      }),
+    ]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(screen.getByTestId("test-case-runs-cancel")).toBeDisabled();
+    fireEvent.click(screen.getAllByRole("checkbox")[2]);
+    expect(screen.getByTestId("test-case-runs-cancel")).toBeEnabled();
   });
 
   it("should restart the selected runs from the test case runs they name", async () => {
@@ -771,6 +803,38 @@ describe("TestCaseRuns selection lifetime", () => {
     await screen.findByText("run-2");
 
     expect(rowCheckedState()).toEqual([true, true]);
+  });
+});
+
+describe("TestCaseRuns actions without a selection", () => {
+  const SELECTION_ACTIONS = ["test-case-runs-restart", "test-case-runs-export"];
+
+  it("should offer neither bulk action while nothing is selected", async () => {
+    await renderWithRuns([testCaseRun()]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).toBeDisabled();
+    }
+  });
+
+  it("should offer them both once a row is selected", async () => {
+    await renderWithRuns([testCaseRun()]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
+  });
+
+  it("should offer them both when everything matching is selected", async () => {
+    await renderWithRuns([testCaseRun()]);
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+
+    for (const action of SELECTION_ACTIONS) {
+      expect(screen.getByTestId(action)).not.toBeDisabled();
+    }
   });
 });
 

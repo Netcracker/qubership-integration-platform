@@ -409,6 +409,22 @@ describe("TestCaseRunErrors export", () => {
     expect(mockExportTestCaseRunErrors).not.toHaveBeenCalled();
   });
 
+  it("should offer no export while nothing is selected", async () => {
+    await renderWithErrors([validationError()]);
+
+    expect(screen.getByTestId("test-case-run-errors-export")).toBeDisabled();
+  });
+
+  it("should offer the export once a row is selected", async () => {
+    await renderWithErrors([validationError()]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+
+    expect(
+      screen.getByTestId("test-case-run-errors-export"),
+    ).not.toBeDisabled();
+  });
+
   it("should notify when the export fails", async () => {
     mockExportTestCaseRunErrors.mockRejectedValue(new Error("no connection"));
     await renderWithErrors([validationError()]);
