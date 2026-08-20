@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ class ChainEditSubgraphAssemblyTest {
   private static final String TRIGGER = "http-entry";
   private static final String CALL = "call-orders";
   private static final String SCRIPT = "normalize";
+  private static final String REPLY = "send-reply";
 
   @Test
   void onlyTheElementTheEditNamesEndsUpInsideTheContainer() {
@@ -446,11 +448,113 @@ class ChainEditSubgraphAssemblyTest {
         () -> ChainEditSubgraphAssembly.assemble(importedChain(), errorHandling(), wrap(CALL), descriptors));
   }
 
+  @Test
+  void everyElementOfAnAdjacentGroupMovesIntoTheBranchThatClaimsThem() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            chainWithATail(),
+            errorHandlingAround(CALL, SCRIPT),
+            wrap(CALL, SCRIPT),
+            permissiveCache());
+
+    String tryBranch = nodeOfType(assembled, "try-2").nodeId();
+    assertEquals(tryBranch, node(assembled, CALL).parentNodeId());
+    assertEquals(tryBranch, node(assembled, SCRIPT).parentNodeId());
+    assertNull(node(assembled, TRIGGER).parentNodeId());
+    assertNull(node(assembled, REPLY).parentNodeId());
+  }
+
+  @Test
+  void aConnectionBetweenTwoElementsOfTheGroupIsKeptAsItWas() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            chainWithATail(),
+            errorHandlingAround(CALL, SCRIPT),
+            wrap(CALL, SCRIPT),
+            permissiveCache());
+
+    ChainPlanEdge withinTheGroup = edge(assembled, "call-to-script");
+    assertEquals(CALL, withinTheGroup.fromNodeId());
+    assertEquals(SCRIPT, withinTheGroup.toNodeId());
+  }
+
+  @Test
+  void theConnectionsIntoAndOutOfTheGroupAttachToTheContainer() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            chainWithATail(),
+            errorHandlingAround(CALL, SCRIPT),
+            wrap(CALL, SCRIPT),
+            permissiveCache());
+
+    String container = nodeOfType(assembled, "try-catch-finally-2").nodeId();
+    assertTrue(connects(assembled, TRIGGER, container));
+    assertTrue(connects(assembled, container, REPLY));
+    assertFalse(connects(assembled, TRIGGER, CALL));
+    assertFalse(connects(assembled, SCRIPT, REPLY));
+  }
+
+  @Test
+  void everyBranchTakesTheElementItNamesAndTheirUnionIsTheApprovedGroup() {
+    ChainEditSubgraph condition =
+        new ChainEditSubgraph(
+            "if-2",
+            "Route by amount",
+            List.of(
+                whenBranch("payload.amount > 100", 0, CALL),
+                whenBranch("true", 1, SCRIPT)));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedChain(), condition, wrap(CALL, SCRIPT), permissiveCache());
+
+    List<ChainPlanNode> branches =
+        assembled.nodes().stream().filter(node -> "when-2".equals(node.type())).toList();
+    assertEquals(branches.get(0).nodeId(), node(assembled, CALL).parentNodeId());
+    assertEquals(branches.get(1).nodeId(), node(assembled, SCRIPT).parentNodeId());
+  }
+
+  @Test
+  void movingOneElementIntoTwoBranchesIsRefused() {
+    ChainEditSubgraph claimedTwice =
+        new ChainEditSubgraph(
+            "if-2",
+            "Route by amount",
+            List.of(whenBranch("payload.amount > 100", 0, CALL), whenBranch("true", 1, CALL)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    importedChain(), claimedTwice, wrap(CALL), permissiveCache()));
+
+    assertTrue(refused.getMessage().contains(CALL), refused.getMessage());
+    assertTrue(refused.getMessage().contains("more than one branch"), refused.getMessage());
+  }
+
   private static ChainEditSubgraph errorHandling() {
+    return errorHandlingAround(CALL);
+  }
+
+  /** The same wrap, around whichever run of existing elements the reader named. */
+  private static ChainEditSubgraph errorHandlingAround(String... moveExisting) {
     return new ChainEditSubgraph(
         "try-catch-finally-2",
         "Error handler",
-        List.of(tryBranch(CALL), catchBranch("java.lang.Exception", null, "log-failure")));
+        List.of(tryBranch(moveExisting), catchBranch("java.lang.Exception", null, "log-failure")));
+  }
+
+  /** One branch of a condition, claiming the existing elements that route through it. */
+  private static ChainEditSubgraphBranch whenBranch(
+      String condition, Integer order, String... moveExisting) {
+    return new ChainEditSubgraphBranch(
+        "when-2",
+        "When",
+        List.of(new PlanProperty("condition", condition)),
+        order,
+        List.of(moveExisting),
+        null);
   }
 
   private static ChainEditSubgraph tryOnly(String... moveExisting) {
@@ -508,6 +612,16 @@ class ChainEditSubgraphAssemblyTest {
             new ChainPlanEdge("call-to-script", CALL, SCRIPT, null)));
   }
 
+  /** The same chain with an element after the script, so a group has a hop leaving it as well. */
+  private static ChainPlanGraph chainWithATail() {
+    ChainPlanGraph chain = importedChain();
+    List<ChainPlanNode> nodes = new ArrayList<>(chain.nodes());
+    nodes.add(new ChainPlanNode(REPLY, "script", "Send reply", null, 4, List.of()));
+    List<ChainPlanEdge> edges = new ArrayList<>(chain.edges());
+    edges.add(new ChainPlanEdge("script-to-reply", SCRIPT, REPLY, null));
+    return new ChainPlanGraph(chain.schemaVersion(), chain.chain(), nodes, edges);
+  }
+
   private static boolean connects(ChainPlanGraph graph, String fromNodeId, String toNodeId) {
     return graph.edges().stream()
         .anyMatch(
@@ -519,6 +633,13 @@ class ChainEditSubgraphAssemblyTest {
         .filter(candidate -> nodeId.equals(candidate.nodeId()))
         .findFirst()
         .orElseThrow(() -> new AssertionError("no element " + nodeId));
+  }
+
+  private static ChainPlanEdge edge(ChainPlanGraph graph, String edgeId) {
+    return graph.edges().stream()
+        .filter(candidate -> edgeId.equals(candidate.edgeId()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no connection " + edgeId));
   }
 
   private static ChainPlanNode nodeOfType(ChainPlanGraph graph, String type) {
