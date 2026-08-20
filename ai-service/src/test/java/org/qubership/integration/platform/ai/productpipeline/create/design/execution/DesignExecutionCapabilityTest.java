@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -17,10 +18,14 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -295,6 +300,46 @@ class DesignExecutionCapabilityTest {
         outcome.candidates().stream()
             .noneMatch(candidate -> candidate.kind() == Kind.DESIGN_EXECUTION_RESULT),
         "Phase 6 DESIGN_EXECUTION_RESULT is owned by materialization, not design-execution");
+  }
+
+  @Test
+  void forwardsGeneratorSkillProgressToTheLiveChatSink() {
+    List<ChatEvent> liveEvents = new ArrayList<>();
+    doAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              BiConsumer<String, String> progress = invocation.getArgument(5);
+              progress.accept("cip-trigger-generator", "running");
+              progress.accept("cip-trigger-generator", "completed");
+              return successfulEngineResult();
+            })
+        .when(runner)
+        .execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any());
+
+    ToolInvocationSink.bind(liveEvents::add, null, CONVERSATION_ID);
+    try {
+      execute(
+          List.of(
+              idsRef,
+              flowRef,
+              reportRef,
+              planRef,
+              implementationRef,
+              manifestRef,
+              idsApprovalRef,
+              implementationApprovalRef));
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertTrue(
+        liveEvents.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Step step
+                        && "skill:cip-trigger-generator".equals(step.id())
+                        && "running".equals(step.status())),
+        () -> "expected generator skill live event, got: " + liveEvents);
   }
 
   @Test
