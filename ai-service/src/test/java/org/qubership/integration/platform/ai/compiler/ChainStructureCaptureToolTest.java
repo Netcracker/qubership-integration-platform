@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBody;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphConnection;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphElement;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger;
@@ -329,25 +330,16 @@ class ChainStructureCaptureToolTest {
   }
 
   @Test
-  void reportsAMergeTheCompilerWouldRefuseAsRepairableFeedback() {
+  void aReplacementThatCapturesTheWholeGraphIsAskedForTheSubgraphItAdds() {
     session.set(
         CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
         new ChainEditStructureBase(validGraph(), replaceIntent()));
-    ChainPlanGraph reparentsTheTrigger =
-        new ChainPlanGraph(
-            "1.0",
-            validGraph().chain(),
-            List.of(
-                new ChainPlanNode("http-trigger-1", "http-trigger", "HTTP Trigger", "try-1", 1, List.of()),
-                new ChainPlanNode("script-1", "script", "Script", "try-1", 2, List.of()),
-                new ChainPlanNode("wrap-1", "try-catch-finally-2", "Wrap", null, null, List.of()),
-                new ChainPlanNode("try-1", "try-2", "Try", "wrap-1", null, List.of())),
-            List.of());
 
     String result =
-        tool.captureChainStructure(new ChainStructure(reparentsTheTrigger, List.of(), List.of()));
+        tool.captureChainStructure(new ChainStructure(replacementCapture(), List.of(), List.of()));
 
-    assertTrue(result.contains("reparented non-target node"), result);
+    assertTrue(result.contains("capture subgraph rather than graph"), result);
+    assertTrue(result.contains("Do not name the replaced element"), result);
   }
 
   @Test
@@ -378,7 +370,7 @@ class ChainStructureCaptureToolTest {
   }
 
   @Test
-  void acceptsAReplacementThatOmitsTheReplacedElement() {
+  void aReplacementCapturedAsASubgraphIsStoredAsTheGraphItAssemblesTo() {
     session.set(
         CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
         new ChainEditStructureBase(validGraph(), replaceIntent()));
@@ -388,9 +380,18 @@ class ChainStructureCaptureToolTest {
             CaptureValidationException.class,
             () ->
                 tool.captureChainStructure(
-                    new ChainStructure(replacementCapture(), List.of(), List.of())));
+                    new ChainStructure(null, List.of(), List.of(), replacementSubgraph())));
 
     assertTrue(accepted.getMessage().contains("Chain structure captured"));
+    ChainPlanGraph stored = storedGraph();
+    assertTrue(stored.nodes().stream().noneMatch(node -> "script-1".equals(node.nodeId())));
+    assertTrue(
+        stored.edges().stream()
+            .anyMatch(
+                edge -> "http-trigger-1".equals(edge.fromNodeId()) && "map-1".equals(edge.toNodeId())));
+    assertTrue(
+        stored.edges().stream()
+            .anyMatch(edge -> "map-1".equals(edge.fromNodeId()) && "call-1".equals(edge.toNodeId())));
   }
 
   /** A wrap capture: only the container, its branches, and the id of the element that moves in. */
@@ -506,6 +507,19 @@ class ChainStructureCaptureToolTest {
         List.of(),
         new ChainEditSubgraphBody(
             List.of(new ChainEditSubgraphElement("audit-1", "script", "Audit")), List.of()));
+  }
+
+  /** A replacement capture: no container, no branches, and no reference to the replaced element. */
+  private static ChainEditSubgraph replacementSubgraph() {
+    return new ChainEditSubgraph(
+        null,
+        null,
+        List.of(),
+        new ChainEditSubgraphBody(
+            List.of(
+                new ChainEditSubgraphElement("map-1", "script", "Map"),
+                new ChainEditSubgraphElement("call-1", "service-call", "Call")),
+            List.of(new ChainEditSubgraphConnection("map-1", "call-1"))));
   }
 
   private static ChainStructure validStructure() {
