@@ -153,15 +153,22 @@ public record ChainEditIntent(
   /**
    * Whether the structure stage captures what this edit adds instead of the chain it rebuilds.
    *
-   * <p>Nest and keep are the edits that suffered most from the older contract: a capture of the
-   * whole chain let the generator decide containment or a boundary for elements the request never
-   * named, and the change was refused afterwards for enclosing or displacing a neighbour. Remove
-   * still captures a whole graph, so both contracts are live and the disposition is what tells them
-   * apart.
+   * <p>Nest, keep, and remove all capture a subgraph now, so this method and
+   * {@link #requiresStructureStage()} test the same thing: an addition that is not a root trigger.
+   * Defined as a delegation rather than restated, so a disposition added later cannot make the two
+   * checks drift apart silently. They stay two names because they answer different questions at
+   * different call sites -- one gates whether the structure stage runs at all, the other tells the
+   * capture tool which contract that stage's output obeys -- not because they can disagree.
+   *
+   * <p>The one intent shape where the underlying formulas would disagree is a root trigger whose
+   * disposition happens to be {@link ChainEditDisposition#KEEP}: {@link #isRootTrigger()} is true,
+   * so a literal reading of "nest, keep, or remove" would still say yes here while
+   * {@link #requiresStructureStage()} says no. That intent never reaches this method. A root
+   * trigger is placed directly and is never given the {@code ChainEditStructureBase} that a call to
+   * this method needs, so the disagreement has no caller left to observe it.
    */
   public boolean capturesSubgraph() {
-    return action == ChainEditAction.ADD_ELEMENTS
-        && (disposition == ChainEditDisposition.NEST || disposition == ChainEditDisposition.KEEP);
+    return requiresStructureStage();
   }
 
   /**

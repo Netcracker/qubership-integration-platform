@@ -223,11 +223,17 @@ public class ChainStructureCaptureTool {
         assembled, capture.sourceRequirementFactIds(), capture.knowledgeCitations());
   }
 
-  /** Tells the generator what to name instead, for whichever of the two subgraph shapes applies. */
+  /** Tells the generator what to name instead, for whichever of the three subgraph shapes applies. */
   private static String subgraphRequiredMessage(ChainEditIntent intent) {
     if (intent.disposition() == ChainEditDisposition.KEEP) {
       return "This edit inserts elements at an address, so capture subgraph rather than graph: no"
           + " container, and in body the new elements and the connections between them.";
+    }
+    if (intent.disposition() == ChainEditDisposition.REMOVE) {
+      return "This edit replaces an existing element, so capture subgraph rather than graph: no"
+          + " container, and in body the new elements and the connections between them. Do not"
+          + " name the replaced element anywhere in the capture -- Java removes it and reconnects"
+          + " its neighbours to the body automatically.";
     }
     return "This edit nests existing elements, so capture subgraph rather than graph: the container"
         + " type, its branches, the elements each branch creates, and in moveExisting the ids"
