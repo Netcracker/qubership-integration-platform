@@ -491,7 +491,7 @@ class ChainEditSubgraphAssemblyTest {
   }
 
   @Test
-  void aRepeatedBranchInAnOrderedContainerMissingItsOrderIsRefused() {
+  void aRepeatedOrderedRoleMissingItsOrderIsRefused() {
     CatalogElementDescriptorCache descriptors = tryCatchDescriptors(true);
     ChainEditSubgraph unordered =
         new ChainEditSubgraph(
@@ -1141,34 +1141,79 @@ class ChainEditSubgraphAssemblyTest {
         type, true, allowedChildren, List.of(), ordered, "priority", false, false, false, true);
   }
 
-  /** The wrapper allows exactly one try branch and any number of catch branches. */
-  private static CatalogElementDescriptorCache tryCatchDescriptors(boolean ordered) {
-    return cacheWithContainer(
-        container(
-            "try-catch-finally-2",
-            Map.of("try-2", CatalogChildQuantity.ONE, "catch-2", CatalogChildQuantity.ONE_OR_MANY),
-            ordered));
+  /**
+   * The wrapper allows exactly one try branch and any number of catch branches. {@code ordered}
+   * lands on {@code catch-2}'s own descriptor, not the container's: the live catalog marks the
+   * container itself unordered and puts {@code ordered} and {@code priorityProperty} on the
+   * repeated role, so a capture's priority is a fact about {@code catch-2}, never about
+   * {@code try-catch-finally-2}.
+   */
+  private static CatalogElementDescriptorCache tryCatchDescriptors(boolean catchOrdered) {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "try-catch-finally-2" ->
+                    container(
+                        type,
+                        Map.of(
+                            "try-2", CatalogChildQuantity.ONE,
+                            "catch-2", CatalogChildQuantity.ONE_OR_MANY),
+                        false);
+                case "catch-2" ->
+                    new CatalogElementDescriptor(
+                        type,
+                        true,
+                        Map.of(),
+                        List.of(),
+                        catchOrdered,
+                        "priority",
+                        false,
+                        false,
+                        false,
+                        true);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
   }
 
   /**
    * A repeatable role that is not catch, so descriptor-driven assembly is checked against more than
    * one container type. {@code priorityProperty} is caller-supplied rather than the catalog default,
    * so a test using it proves the property name is read from the descriptor rather than hardcoded.
+   * {@code ordered} lands on {@code when-2}, the repeated role, not on the {@code if-2} container.
    */
   private static CatalogElementDescriptorCache ifDescriptors(
-      boolean ordered, String priorityProperty) {
-    return cacheWithContainer(
-        new CatalogElementDescriptor(
-            "if-2",
-            true,
-            Map.of("when-2", CatalogChildQuantity.ONE_OR_MANY),
-            List.of(),
-            ordered,
-            priorityProperty,
-            false,
-            false,
-            false,
-            true));
+      boolean whenOrdered, String priorityProperty) {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "if-2" ->
+                    container(type, Map.of("when-2", CatalogChildQuantity.ONE_OR_MANY), false);
+                case "when-2" ->
+                    new CatalogElementDescriptor(
+                        type,
+                        true,
+                        Map.of(),
+                        List.of(),
+                        whenOrdered,
+                        priorityProperty,
+                        false,
+                        false,
+                        false,
+                        true);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
   }
 
   /**
