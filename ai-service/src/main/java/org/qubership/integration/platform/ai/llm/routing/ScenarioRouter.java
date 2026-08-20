@@ -175,7 +175,7 @@ public class ScenarioRouter {
         && productPipelineChatAdapter != null
         && isCreateOwnedScenario(type)) {
       try {
-        createRunSelectionService.selectOrCreate(conversationId);
+        createRunSelectionService.selectOrCreate(conversationId, request.getEffectiveUserText());
       } catch (UnsupportedCreateRunBindingException e) {
         LOG.warnf(
             "Unsupported CREATE binding during select conversationId=%s errorId=%s",

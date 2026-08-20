@@ -217,6 +217,8 @@ public class DesignInputCapability implements StageCapability {
     RequirementBrief brief = requirementBrief(context);
     String userText = context.attributeAsString("userText");
     String discoveryText = context.attributeAsString("discoveryUserText");
+    String responseLocale =
+        context.runManifest() == null ? "en" : context.runManifest().responseLocale();
     // Worker-pool path: allow LLM classify for non-English IDS choice. Stale discovery text must
     // not silently select DERIVE/GENERATE after brief Agree (stage-approval tokens return null).
     DesignMode chosen =
@@ -227,7 +229,7 @@ public class DesignInputCapability implements StageCapability {
     DesignMode mode = chosen != null ? chosen : pending;
 
     if (mode == null) {
-      return waitingForIdsChoice(brief, userText, discoveryText);
+      return waitingForIdsChoice(brief, userText, discoveryText, responseLocale);
     }
 
     RequirementBrief effectiveBrief =
@@ -250,8 +252,8 @@ public class DesignInputCapability implements StageCapability {
     }
 
     return switch (mode) {
-      case GENERATE -> prepareGenerate(effectiveBrief, mode, userText, discoveryText);
-      case DERIVE -> prepareDerive(effectiveBrief, mode, userText, discoveryText);
+      case GENERATE -> prepareGenerate(effectiveBrief, mode, userText, discoveryText, responseLocale);
+      case DERIVE -> prepareDerive(effectiveBrief, mode, userText, discoveryText, responseLocale);
       case PROVIDE ->
           StageOutcome.of(
               StageOutcomeClass.CONTRACT_FAILURE, "PROVIDE is not a standard-route IDS choice");
@@ -350,13 +352,17 @@ public class DesignInputCapability implements StageCapability {
   }
 
   private StageOutcome prepareGenerate(
-      RequirementBrief brief, DesignMode pendingMode, String userText, String discoveryText) {
+      RequirementBrief brief,
+      DesignMode pendingMode,
+      String userText,
+      String discoveryText,
+      String responseLocale) {
     if (brief == null) {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT, "GENERATE requires RequirementBrief");
     }
     StageOutcome mappingWait =
-        mappingCoverageOrWait(brief, pendingMode, userText, discoveryText);
+        mappingCoverageOrWait(brief, pendingMode, userText, discoveryText, responseLocale);
     if (mappingWait != null) {
       return mappingWait;
     }
@@ -387,13 +393,17 @@ public class DesignInputCapability implements StageCapability {
   }
 
   private StageOutcome prepareDerive(
-      RequirementBrief brief, DesignMode pendingMode, String userText, String discoveryText) {
+      RequirementBrief brief,
+      DesignMode pendingMode,
+      String userText,
+      String discoveryText,
+      String responseLocale) {
     if (brief == null) {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT, "DERIVE requires RequirementBrief");
     }
     StageOutcome mappingWait =
-        mappingCoverageOrWait(brief, pendingMode, userText, discoveryText);
+        mappingCoverageOrWait(brief, pendingMode, userText, discoveryText, responseLocale);
     if (mappingWait != null) {
       return mappingWait;
     }
@@ -426,7 +436,8 @@ public class DesignInputCapability implements StageCapability {
       RequirementBrief brief,
       DesignMode pendingMode,
       String userText,
-      String discoveryText) {
+      String discoveryText,
+      String responseLocale) {
     List<String> missing = designCoverageValidator.listMissingEdges(brief);
     if (missing.isEmpty()) {
       try {
@@ -442,7 +453,7 @@ public class DesignInputCapability implements StageCapability {
             PipelineGates.MAPPING_GAP,
             DesignInputIdsPathPrompts.encodeMappingGapWait(
                 idsPathPrompts.mappingGapPrompt(
-                    brief, pendingMode, missing, userText, discoveryText),
+                    responseLocale, brief, pendingMode, missing, userText, discoveryText),
                 designCoverageValidator.listReadableMissingEdges(brief))));
   }
 
@@ -489,12 +500,12 @@ public class DesignInputCapability implements StageCapability {
   }
 
   private StageOutcome waitingForIdsChoice(
-      RequirementBrief brief, String userText, String discoveryText) {
+      RequirementBrief brief, String userText, String discoveryText, String responseLocale) {
     return StageOutcome.of(
         StageOutcomeClass.NEEDS_INPUT,
         PipelineGates.tag(
             PipelineGates.IDS_PATH_CHOICE,
-            idsPathPrompts.idsPathChoicePrompt(brief, userText, discoveryText)));
+            idsPathPrompts.idsPathChoicePrompt(responseLocale, brief, userText, discoveryText)));
   }
 
   /**

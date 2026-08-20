@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.llm.agent.DesignInputPromptAgent;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -158,5 +160,39 @@ class DesignInputIdsPathPromptsTest {
                 "",
                 List.of()));
     assertTrue(prompt.startsWith("LLM authored IDS choice"), prompt);
+  }
+
+  @Test
+  void passesPinnedResponseLocaleToThePromptAgent() {
+    AtomicReference<String> receivedLocale = new AtomicReference<>();
+    DesignInputPromptAgent agent =
+        new DesignInputPromptAgent() {
+          @Override
+          public String askIdsPathChoice(String responseLocale, String reference) {
+            receivedLocale.set(responseLocale);
+            return "Question";
+          }
+
+          @Override
+          public String askMappingGap(
+              String responseLocale, String reference, String missingEdges, String pendingMode) {
+            return "Mappings";
+          }
+
+          @Override
+          public String classifyIdsPathChoice(String userText) {
+            return "NONE";
+          }
+
+          @Override
+          public String classifyMappingReply(String userText) {
+            return "NONE";
+          }
+        };
+    DesignInputIdsPathPrompts prompts = new DesignInputIdsPathPrompts(agent);
+
+    prompts.idsPathChoicePrompt("en", null, "Create an integration chain");
+
+    assertEquals("en", receivedLocale.get());
   }
 }

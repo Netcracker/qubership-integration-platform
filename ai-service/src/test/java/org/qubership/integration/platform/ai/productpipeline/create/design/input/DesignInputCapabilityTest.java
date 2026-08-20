@@ -703,12 +703,13 @@ class DesignInputCapabilityTest {
     DesignInputPromptAgent alwaysDerive =
         new DesignInputPromptAgent() {
           @Override
-          public String askIdsPathChoice(String reference) {
+          public String askIdsPathChoice(String responseLocale, String reference) {
             return "LLM IDS path choice in conversation language";
           }
 
           @Override
-          public String askMappingGap(String reference, String missingEdges, String pendingMode) {
+          public String askMappingGap(
+              String responseLocale, String reference, String missingEdges, String pendingMode) {
             return "LLM mapping ask";
           }
 

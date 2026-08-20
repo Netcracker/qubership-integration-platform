@@ -34,6 +34,7 @@ public class CreateRunSelectionService {
   private final CompilerRunPinResolver compilerRunPinResolver;
   private final Clock clock;
   private final String createProfileVersion;
+  private final ResponseLocaleResolver responseLocaleResolver;
 
   @Inject
   public CreateRunSelectionService(
@@ -42,7 +43,8 @@ public class CreateRunSelectionService {
       KnowledgeContextProvider knowledgeContextProvider,
       CreateRunBindingStore bindingStore,
       ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver) {
+      CompilerRunPinResolver compilerRunPinResolver,
+      ResponseLocaleResolver responseLocaleResolver) {
     this(
         languageVersion,
         knowledgeContextProvider,
@@ -50,7 +52,8 @@ public class CreateRunSelectionService {
         profileCatalog,
         compilerRunPinResolver,
         Clock.systemUTC(),
-        CREATE_PROFILE_VERSION);
+        CREATE_PROFILE_VERSION,
+        responseLocaleResolver);
   }
 
   /** Test constructor that pins new runs to {@link #CREATE_PROFILE_VERSION}. */
@@ -68,7 +71,10 @@ public class CreateRunSelectionService {
         profileCatalog,
         compilerRunPinResolver,
         clock,
-        CREATE_PROFILE_VERSION);
+        CREATE_PROFILE_VERSION,
+        new ResponseLocaleResolver(
+            (java.util.function.Function<String, String>)
+                prompt -> ResponseLocaleResolver.DEFAULT_LOCALE));
   }
 
   /**
@@ -83,6 +89,28 @@ public class CreateRunSelectionService {
       CompilerRunPinResolver compilerRunPinResolver,
       Clock clock,
       String createProfileVersion) {
+    this(
+        languageVersion,
+        knowledgeContextProvider,
+        bindingStore,
+        profileCatalog,
+        compilerRunPinResolver,
+        clock,
+        createProfileVersion,
+        new ResponseLocaleResolver(
+            (java.util.function.Function<String, String>)
+                prompt -> ResponseLocaleResolver.DEFAULT_LOCALE));
+  }
+
+  CreateRunSelectionService(
+      String languageVersion,
+      KnowledgeContextProvider knowledgeContextProvider,
+      CreateRunBindingStore bindingStore,
+      ProductPipelineProfileCatalog profileCatalog,
+      CompilerRunPinResolver compilerRunPinResolver,
+      Clock clock,
+      String createProfileVersion,
+      ResponseLocaleResolver responseLocaleResolver) {
     this.languageVersion = Objects.requireNonNull(languageVersion, "languageVersion");
     this.knowledgeContextProvider =
         Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
@@ -93,6 +121,8 @@ public class CreateRunSelectionService {
     this.clock = Objects.requireNonNull(clock, "clock");
     this.createProfileVersion =
         Objects.requireNonNull(createProfileVersion, "createProfileVersion");
+    this.responseLocaleResolver =
+        Objects.requireNonNull(responseLocaleResolver, "responseLocaleResolver");
   }
 
   public Optional<CreateRunSelection> existing(String conversationId) {
@@ -100,14 +130,19 @@ public class CreateRunSelectionService {
   }
 
   public CreateRunSelection selectOrCreate(String conversationId) {
+    return selectOrCreate(conversationId, "");
+  }
+
+  public CreateRunSelection selectOrCreate(String conversationId, String firstPrompt) {
     Objects.requireNonNull(conversationId, "conversationId");
     return bindingStore
         .load(conversationId)
         .map(this::toSelection)
-        .orElseGet(() -> toSelection(bindingStore.create(newBinding(conversationId))));
+        .orElseGet(
+            () -> toSelection(bindingStore.create(newBinding(conversationId, firstPrompt))));
   }
 
-  private CreateRunBinding newBinding(String conversationId) {
+  private CreateRunBinding newBinding(String conversationId, String firstPrompt) {
     Instant createdAt = clock.instant();
     KnowledgeQueryContext knowledge = knowledgeContextProvider.forConversation(conversationId);
     KnowledgePackageRef packageRef = knowledge.packageRef();
@@ -145,7 +180,8 @@ public class CreateRunSelectionService {
             packageRef,
             languageVersion,
             List.of(),
-            compilerRunPin);
+            compilerRunPin,
+            responseLocaleResolver.resolve(firstPrompt));
     return new CreateRunBinding(conversationId, productRunId, manifest, createdAt);
   }
 

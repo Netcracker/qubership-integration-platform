@@ -17,8 +17,8 @@ public interface DesignInputPromptAgent {
   @UserMessage(
       """
 Write a short chat question asking whether the user wants an integration design document (IDS) \
-for their approved requirements. Match the language of this reference text (do not mistranslate \
-product terms; just match the language):
+for their approved requirements. Write in the pinned response locale {responseLocale}. This locale
+is authoritative; do not infer a different language from the reference text. Preserve product terms:
 ---
 {reference}
 ---
@@ -31,7 +31,7 @@ Do not mention a minimal, derived, short, or partial document, and do not invent
 
 Reply with only the user-facing question text. No markdown fences, no quotes, no preamble.\
 """)
-  String askIdsPathChoice(String reference);
+  String askIdsPathChoice(String responseLocale, String reference);
 
   @UserMessage(
       """
@@ -41,14 +41,16 @@ Describe mappings — do not list the edges in your reply, and do not tell the u
 PASS_THROUGH or EXPLICIT.
 Missing edges (for your context only; do not repeat them):
 {missingEdges}
-Match the language of this reference text:
+Write in the pinned response locale {responseLocale}. This locale is authoritative; do not infer a
+different language from the reference text:
 ---
 {reference}
 ---
 Reply with only one or two short sentences for the card. No markdown fences, no quotes, no \
 preamble, no bullet list.\
 """)
-  String askMappingGap(String reference, String missingEdges, String pendingMode);
+  String askMappingGap(
+      String responseLocale, String reference, String missingEdges, String pendingMode);
 
   @UserMessage(
       """

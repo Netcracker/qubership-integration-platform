@@ -41,7 +41,7 @@ class GatherRequirementsPromptBuilderTest {
 
   @Test
   void wrapIncludesProcessSkillAndAddonFactsContract() {
-    String input = builder.wrap("conv-1", "Create chain named Greetings via script");
+    String input = builder.wrap("conv-1", "Create chain named Greetings via script", "en");
 
     assertTrue(input.contains("<compiler-process-skill id=\"brainstorming\""));
     assertTrue(input.contains("Brainstorming Ideas Into Designs"));
@@ -49,7 +49,7 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("explicit `facts`"));
     assertTrue(input.contains("QIP platform defaults"));
     assertTrue(input.contains("Follow the compiler process skill and the brainstorming addon"));
-    assertTrue(input.contains("same language as the user"));
+    assertTrue(input.contains("pinned response locale en"));
     assertTrue(input.contains("Create chain named Greetings via script"));
     assertFalse(input.contains("searchCatalogSystems, getApiSpecifications, and listCatalogOperations"));
   }
