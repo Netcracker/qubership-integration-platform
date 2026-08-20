@@ -421,13 +421,7 @@ public class ChainEditCompiler {
       return new ChainEditOutcome.CompilationFailure("The structure stage produced no graph.");
     }
 
-    ChainPlanGraph structured;
-    try {
-      structured = ChainEditStructureMerge.merge(imported.graph(), structureResult.graph(), intent);
-    } catch (IllegalArgumentException e) {
-      return new ChainEditOutcome.CompilationFailure(
-          "The captured structure was rejected: " + e.getMessage());
-    }
+    ChainPlanGraph structured = structureResult.graph();
     List<GeneratorPlan> plans =
         ChainEditCapabilitySelection.structuralGeneratorPlans(
             pin.resolvedDag(), imported.graph(), structured, intent);

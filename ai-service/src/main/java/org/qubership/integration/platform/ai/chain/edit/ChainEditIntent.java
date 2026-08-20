@@ -16,9 +16,8 @@ import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
  * one or two existing element ids naming the pair the new subgraph sits between, or the sole
  * element it follows when that element has exactly one successor. A replacement names the element
  * being swapped in {@code targetNodeIds} and sets {@code disposition} to {@code REMOVE}. A nest
- * names the elements it wraps in {@code targetNodeIds}: {@link ChainEditStructureMerge} grants a
- * reparent only to a named target, so a nest with an empty address describes a merge no capture
- * can satisfy and asks the reader which element it wraps instead.
+ * names the elements it wraps in {@code targetNodeIds}. A nest with an empty address describes a
+ * scope violation and asks the reader which element it wraps instead.
  * {@code CONFIGURE} is complete when the capture names both a target and at least one property
  * key; {@code propertyKeys} is empty for every other action. A resolver that cannot decide which
  * existing element an edit means, or which of an anchor's several successors an insertion sits
