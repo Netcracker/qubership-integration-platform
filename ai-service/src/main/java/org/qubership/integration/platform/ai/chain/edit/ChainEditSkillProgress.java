@@ -16,6 +16,13 @@ public final class ChainEditSkillProgress {
 
   private ChainEditSkillProgress() {}
 
+  /**
+   * {@link SkillActivitySupport#bindParents} also emits a {@code running} step, but only when
+   * {@link org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink} is bound on the
+   * calling thread or the active conversation. Chain edit compiles run on the Mutiny worker pool
+   * without carrying that binding across, so {@code bindParents}'s own emission never reaches the
+   * turn there; this emits every status itself rather than depending on it.
+   */
   public static BiConsumer<String, String> toChat(Consumer<ChatEvent> emit) {
     Consumer<ChatEvent> sink = emit == null ? event -> {} : emit;
     return (skillId, status) -> {
