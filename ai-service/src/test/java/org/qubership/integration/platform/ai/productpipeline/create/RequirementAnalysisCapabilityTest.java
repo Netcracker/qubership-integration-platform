@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
@@ -17,8 +19,12 @@ import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessageBuilder;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairRunner;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCapture;
 import org.qubership.integration.platform.ai.plan.RequirementBriefTool;
@@ -355,6 +361,68 @@ class RequirementAnalysisCapabilityTest {
     assertEquals("Greetings with quartz", secondCandidate.goal());
     assertEquals(2, captures.get());
     assertTrue(lastUserMessage.get().contains("also add retry"));
+  }
+
+  @Test
+  void terminalValidationFailureRepairsMemoryAndRetriesAnalysisOnce() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    ChatMemorySanitizer sanitizer = mock(ChatMemorySanitizer.class);
+    AppConfig appConfig = mock(AppConfig.class);
+    AppConfig.CaptureConfig captureConfig = mock(AppConfig.CaptureConfig.class);
+    when(appConfig.capture()).thenReturn(captureConfig);
+    when(captureConfig.maxRepairAttempts()).thenReturn(1);
+    CaptureRepairRunner repairRunner =
+        new CaptureRepairRunner(
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)),
+            feedbackStore,
+            appConfig);
+    AtomicInteger calls = new AtomicInteger();
+    AtomicReference<String> repairMessage = new AtomicReference<>();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              if (calls.incrementAndGet() == 1) {
+                String validation =
+                    "Requirement brief coverage failed: INITIALIZATION mapping required. "
+                        + "Set dataMappings to include the expected PASS_THROUGH mapping.";
+                feedbackStore.recordPlanValidationFailure(
+                    conversationId, validation, "unchanged invalid payload");
+                return Multi.createFrom().failure(new CaptureValidationException(validation));
+              }
+              repairMessage.set(userMessage);
+              captureSession.accept(
+                  CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
+                  coveringBrief(approved, "Repaired brief"),
+                  "captured",
+                  "duplicate");
+              return Multi.createFrom().item(ChatEvent.token("repaired"));
+            },
+            null,
+            null,
+            repairRunner,
+            sanitizer);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, "conv-terminal-repair", null);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(2, calls.get());
+    assertTrue(repairMessage.get().contains("INITIALIZATION mapping required"), repairMessage.get());
+    verify(sanitizer)
+        .repairDanglingToolCalls(
+            "conv-terminal-repair",
+            "Requirement brief coverage failed: INITIALIZATION mapping required. "
+                + "Set dataMappings to include the expected PASS_THROUGH mapping.");
   }
 
   @Test

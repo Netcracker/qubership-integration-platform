@@ -138,7 +138,8 @@ public class RequirementBriefTool {
         String message =
             repairMessageBuilder.requirementBriefEmptyMessage("captureRequirementBrief");
         LOG.warnf("captureRequirementBrief: validation failed conversationId=%s", conversationId);
-        boolean repeated = feedbackStore.recordPlanValidationFailure(conversationId, message);
+        boolean repeated =
+            feedbackStore.recordPlanValidationFailure(conversationId, message, capture);
         if (repeated) {
           throw new CaptureValidationException(message);
         }
@@ -159,7 +160,8 @@ public class RequirementBriefTool {
           LOG.warnf(
               "captureRequirementBrief: coverage failed conversationId=%s reason=%s",
               conversationId, coverageError.get());
-          boolean repeated = feedbackStore.recordPlanValidationFailure(conversationId, message);
+          boolean repeated =
+              feedbackStore.recordPlanValidationFailure(conversationId, message, capture);
           if (repeated) {
             throw new CaptureValidationException(message);
           }

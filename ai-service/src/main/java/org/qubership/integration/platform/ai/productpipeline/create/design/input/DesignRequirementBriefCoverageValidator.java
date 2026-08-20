@@ -56,7 +56,8 @@ public final class DesignRequirementBriefCoverageValidator {
     validateSingleEntryTopology(normalized);
     List<String> missing = listMissingEdges(normalized);
     if (!missing.isEmpty()) {
-      throw new IllegalArgumentException(missing.getFirst());
+      throw new IllegalArgumentException(
+          String.join("; ", missing) + repairInstruction(normalized));
     }
   }
 
@@ -263,6 +264,7 @@ public final class DesignRequirementBriefCoverageValidator {
       }
     }
     Set<MappingEdge> observed = new LinkedHashSet<>();
+    List<String> violations = new ArrayList<>();
     for (RequirementDataMapping mapping : brief.dataMappings()) {
       MappingEdge edge =
           new MappingEdge(mapping.stage(), mapping.fromIntentRef(), mapping.toIntentRef());
@@ -272,7 +274,7 @@ public final class DesignRequirementBriefCoverageValidator {
                 .filter(candidate -> candidate.stage() == mapping.stage())
                 .findFirst()
                 .orElse(null);
-        throw new IllegalArgumentException(
+        violations.add(
             "unexpected "
                 + mapping.stage()
                 + " mapping: "
@@ -287,7 +289,7 @@ public final class DesignRequirementBriefCoverageValidator {
                         + expected.toIntentRef()));
       }
       if (!observed.add(edge)) {
-        throw new IllegalArgumentException(
+        violations.add(
             "duplicate "
                 + mapping.stage()
                 + " mapping: "
@@ -296,6 +298,53 @@ public final class DesignRequirementBriefCoverageValidator {
                 + mapping.toIntentRef());
       }
     }
+    if (!violations.isEmpty()) {
+      throw new IllegalArgumentException(
+          String.join("; ", violations) + repairInstruction(brief));
+    }
+  }
+
+  private static String repairInstruction(RequirementBrief brief) {
+    List<RequiredEdge> edges =
+        requiredEdges(brief).stream()
+            .filter(edge -> edge.fromIntentRef() != null)
+            .toList();
+    if (edges.isEmpty()) {
+      return "";
+    }
+    List<String> readable =
+        edges.stream()
+            .map(
+                edge ->
+                    edge.stage()
+                        + ": "
+                        + factLabel(brief, edge.fromIntentRef(), "source")
+                        + " → "
+                        + factLabel(brief, edge.toIntentRef(), "target"))
+            .toList();
+    List<String> payload =
+        edges.stream().map(DesignRequirementBriefCoverageValidator::repairJson).toList();
+    return ". Required topology: "
+        + String.join("; ", readable)
+        + ". Set dataMappings to include: ["
+        + String.join(",", payload)
+        + "]";
+  }
+
+  private static String repairJson(RequiredEdge edge) {
+    return "{\"mappingId\":\""
+        + edge.mappingId()
+        + "\",\"stage\":\""
+        + edge.stage()
+        + "\",\"fromIntentRef\":\""
+        + edge.fromIntentRef()
+        + "\",\"toIntentRef\":\""
+        + edge.toIntentRef()
+        + "\",\"mode\":\"PASS_THROUGH\",\"rules\":[],\"sourceFactIds\":[\""
+        + edge.fromIntentRef()
+        + "\",\""
+        + edge.toIntentRef()
+        + "\"]}";
   }
 
   private static List<RequirementDataMapping> topologyBoundMappings(RequirementBrief brief) {
