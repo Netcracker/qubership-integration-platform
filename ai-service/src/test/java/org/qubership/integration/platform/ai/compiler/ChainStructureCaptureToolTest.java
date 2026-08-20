@@ -261,8 +261,7 @@ class ChainStructureCaptureToolTest {
         assertThrows(
             CaptureValidationException.class,
             () ->
-                tool.captureChainStructure(
-                    new ChainStructure(null, List.of(), List.of(), wrapSubgraph())));
+                tool.captureChainEditSubgraph(wrapSubgraph()));
 
     assertTrue(accepted.getMessage().contains("Chain structure captured"));
     ChainPlanGraph stored = storedGraph();
@@ -301,8 +300,7 @@ class ChainStructureCaptureToolTest {
         assertThrows(
             CaptureValidationException.class,
             () ->
-                tool.captureChainStructure(
-                    new ChainStructure(null, List.of(), List.of(), insertSubgraph())));
+                tool.captureChainEditSubgraph(insertSubgraph()));
 
     assertTrue(accepted.getMessage().contains("Chain structure captured"));
     ChainPlanGraph stored = storedGraph();
@@ -363,8 +361,7 @@ class ChainStructureCaptureToolTest {
         assertThrows(
             CaptureValidationException.class,
             () ->
-                tool.captureChainStructure(
-                    new ChainStructure(null, List.of(), List.of(), wrapSubgraph())));
+                tool.captureChainEditSubgraph(wrapSubgraph()));
 
     assertTrue(failure.getMessage().contains("unknown structural target ids"), failure.getMessage());
   }
@@ -379,8 +376,7 @@ class ChainStructureCaptureToolTest {
         assertThrows(
             CaptureValidationException.class,
             () ->
-                tool.captureChainStructure(
-                    new ChainStructure(null, List.of(), List.of(), replacementSubgraph())));
+                tool.captureChainEditSubgraph(replacementSubgraph()));
 
     assertTrue(accepted.getMessage().contains("Chain structure captured"));
     ChainPlanGraph stored = storedGraph();
