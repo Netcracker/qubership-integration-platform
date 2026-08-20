@@ -5,10 +5,10 @@ import { ChainHeaderActionsContextProvider } from "../../src/pages/ChainHeaderAc
 
 /**
  * Wraps chain tab pages so `useRegisterChainHeaderActions` runs and header
- * actions render into `data-testid="chain-header-slot"`.
+ * actions render into `data-testid="chain-header-slot"`. Holds one registration
+ * at a time behind a generation guard, as `ChainPage` does.
  */
-/** Exported for tests that need `rerender` with the same Modals + header context. */
-export function ChainHeaderTestRoot({
+export function ChainHeaderActionsTestSlot({
   children,
 }: {
   children: React.ReactNode;
@@ -29,11 +29,22 @@ export function ChainHeaderTestRoot({
     [registerHeaderActions],
   );
   return (
+    <ChainHeaderActionsContextProvider value={contextValue}>
+      {children}
+      <div data-testid="chain-header-slot">{header}</div>
+    </ChainHeaderActionsContextProvider>
+  );
+}
+
+/** Exported for tests that need `rerender` with the same Modals + header context. */
+export function ChainHeaderTestRoot({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
     <Modals>
-      <ChainHeaderActionsContextProvider value={contextValue}>
-        {children}
-        <div data-testid="chain-header-slot">{header}</div>
-      </ChainHeaderActionsContextProvider>
+      <ChainHeaderActionsTestSlot>{children}</ChainHeaderActionsTestSlot>
     </Modals>
   );
 }

@@ -18,7 +18,6 @@ import {
 import { api } from "../../api/api.ts";
 import { TestCase, TestCaseRequest } from "../../api/apiTypes.ts";
 import { UnsavedChangesModal } from "../../components/modal/UnsavedChangesModal.tsx";
-import { TableToolbar } from "../../components/table/TableToolbar.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import {
   introducesViolation,
@@ -26,11 +25,12 @@ import {
 } from "../../components/testing/violations.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useModalsContext } from "../../Modals.tsx";
+import { useRegisterChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 
 const TABS = [
   { key: "general", label: "General" },
-  { key: "request", label: "Request" },
+  { key: "request", label: "Request Parameters" },
   { key: "response-validation", label: "Response Validation" },
 ];
 
@@ -170,15 +170,11 @@ export const TestCasePage: React.FC = () => {
     }
   }, [testCase, testCaseId, notificationService]);
 
+  // Saving keeps the editor open, the way Apply does on the chain's other tabs.
+  // Leaving is the breadcrumb's job, and the blocker below still guards it.
   const handleSave = useCallback(() => {
-    void save()
-      .then(() => navigate(listPath))
-      .catch(() => undefined);
-  }, [save, navigate, listPath]);
-
-  const handleCancel = useCallback(() => {
-    void navigate(listPath);
-  }, [navigate, listPath]);
+    void save().catch(() => undefined);
+  }, [save]);
 
   // Sub-tabs are routes of this editor, so only a navigation that leaves it prompts.
   const editorPath = `${listPath}/${testCaseId ?? ""}`;
@@ -226,6 +222,29 @@ export const TestCasePage: React.FC = () => {
     [testCase, chainId, readonly, handleChange],
   );
 
+  // Registered before the guards below, since a hook cannot sit behind a return,
+  // and withheld until there is a case to save so the button cannot linger over
+  // a screen that failed to load one. The dependencies name the state the button
+  // reads: the hook holds the node by reference and re-reads it on these alone.
+  const hasCase = !!testCase;
+  useRegisterChainHeaderActions(
+    readonly || !hasCase ? undefined : (
+      <ProtectedButton
+        require={permissions.write}
+        tooltipProps={{ title: "Save the test case" }}
+        buttonProps={{
+          "data-testid": "test-case-save",
+          type: "primary",
+          children: "Save",
+          loading: saving,
+          disabled: !hasChanges || !isValid,
+          onClick: handleSave,
+        }}
+      />
+    ),
+    [readonly, hasCase, permissions, saving, hasChanges, isValid, handleSave],
+  );
+
   if (loading) {
     return <Skeleton active />;
   }
@@ -251,36 +270,6 @@ export const TestCasePage: React.FC = () => {
         }
       />
       <Outlet context={editorContext} />
-      {readonly ? null : (
-        <TableToolbar
-          data-testid="test-case-editor-toolbar"
-          actions={
-            <>
-              <ProtectedButton
-                require={permissions.write}
-                tooltipProps={{ title: "Discard the changes" }}
-                buttonProps={{
-                  "data-testid": "test-case-cancel",
-                  children: "Cancel",
-                  onClick: handleCancel,
-                }}
-              />
-              <ProtectedButton
-                require={permissions.write}
-                tooltipProps={{ title: "Save the test case" }}
-                buttonProps={{
-                  "data-testid": "test-case-save",
-                  type: "primary",
-                  children: "Save",
-                  loading: saving,
-                  disabled: !hasChanges || !isValid,
-                  onClick: handleSave,
-                }}
-              />
-            </>
-          }
-        />
-      )}
     </Flex>
   );
 };

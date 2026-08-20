@@ -1,11 +1,14 @@
 import React, { useMemo } from "react";
-import { Button, Flex, Input, Table, Tooltip, Typography } from "antd";
+import { Button, Table, Tooltip, Typography } from "antd";
+import type { Rule } from "antd/lib/form/index";
 import type { TableProps } from "antd/lib/table";
 import { TestingNamedParameter } from "../../api/apiTypes.ts";
+import { CollapsibleSection } from "../CollapsibleSection.tsx";
+import { InlineEdit } from "../InlineEdit.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { formatOptional } from "../../misc/format-utils.ts";
 import { createActionsColumnBase } from "../table/actionsColumn.ts";
-import { inlineTableEmpty } from "../table/tableEmpty.tsx";
+import { TextValueEdit } from "../table/TextValueEdit.tsx";
 
 type KeyedParameter = TestingNamedParameter & { key: number };
 
@@ -23,6 +26,21 @@ export type NameValueTableProps = {
   validateValue?: ValueValidator;
   "data-testid"?: string;
 };
+
+/** Turns a plain validator into the form rule the inline editor validates with. */
+function toRules(validate: ValueValidator | undefined): Rule[] {
+  if (!validate) {
+    return [];
+  }
+  return [
+    {
+      validator: (_, value: string) => {
+        const error = validate(value ?? "");
+        return error ? Promise.reject(new Error(error)) : Promise.resolve();
+      },
+    },
+  ];
+}
 
 /** Name and value pairs of a request: path parameters, query parameters or headers. */
 export const NameValueTable: React.FC<NameValueTableProps> = ({
@@ -51,8 +69,6 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   const removeRow = (index: number) =>
     onChange(rows.filter((_, i) => i !== index));
 
-  // A raw Input rather than InlineEdit: a pair is validated as it is typed, and
-  // InlineEdit commits on Enter alone, which would hide the message until then.
   const renderEditableCell = (
     field: "name" | "value",
     label: string,
@@ -62,19 +78,26 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   ) => {
     const error = validate?.(row[field]);
     return (
-      <>
-        <Input
-          value={row[field]}
-          aria-label={label}
-          status={error ? "error" : undefined}
-          onChange={(event) =>
-            replaceRow(index, { [field]: event.target.value })
-          }
-        />
-        {error ? (
-          <Typography.Text type="danger">{error}</Typography.Text>
-        ) : null}
-      </>
+      <InlineEdit<Record<string, string>>
+        values={{ [field]: row[field] }}
+        editor={
+          <TextValueEdit
+            name={field}
+            rules={toRules(validate)}
+            inputProps={{ "aria-label": label }}
+          />
+        }
+        viewer={
+          error ? (
+            <Typography.Text type="danger">{error}</Typography.Text>
+          ) : (
+            <span>{formatOptional(row[field])}</span>
+          )
+        }
+        onSubmit={(submitted) =>
+          replaceRow(index, { [field]: submitted[field] })
+        }
+      />
     );
   };
 
@@ -82,6 +105,9 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
     {
       title: "Name",
       key: "name",
+      // The editor of a cell is wider than the text it replaces, so without a
+      // width of its own the column would resize the moment a cell is opened.
+      width: "50%",
       render: (_, row, index) =>
         readonly ? (
           <>{formatOptional(row.name)}</>
@@ -92,6 +118,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
     {
       title: "Value",
       key: "value",
+      width: "50%",
       render: (_, row, index) =>
         readonly ? (
           <>{formatOptional(row.value)}</>
@@ -119,27 +146,25 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   ];
 
   return (
-    <Flex vertical gap={8} data-testid={dataTestId}>
-      <Typography.Text strong>{title}</Typography.Text>
-      {readonly ? null : (
-        <Flex>
-          <Button
-            size="small"
-            icon={<OverridableIcon name="plusCircle" />}
-            onClick={() => onChange([...rows, { name: "", value: "" }])}
-          >
-            Add {rowNoun}
-          </Button>
-        </Flex>
-      )}
+    <CollapsibleSection
+      data-testid={dataTestId}
+      title={title}
+      count={rows.length}
+      addLabel={`Add ${rowNoun}`}
+      onAdd={
+        readonly
+          ? undefined
+          : () => onChange([...rows, { name: "", value: "" }])
+      }
+    >
       <Table<KeyedParameter>
         size="small"
+        tableLayout="fixed"
         columns={columns}
         dataSource={keyedRows}
         pagination={false}
         rowKey="key"
-        locale={{ emptyText: inlineTableEmpty(`No ${title.toLowerCase()}`) }}
       />
-    </Flex>
+    </CollapsibleSection>
   );
 };

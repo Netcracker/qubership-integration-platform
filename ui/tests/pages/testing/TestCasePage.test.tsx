@@ -31,6 +31,7 @@ import { UserPermissionsContext } from "../../../src/permissions/UserPermissions
 import type { UserPermissions } from "../../../src/permissions/types.ts";
 import { openSelect, querySelectOption } from "../../helpers/antdSelect.ts";
 import { installDataRouterGlobals } from "../../helpers/dataRouterGlobals.ts";
+import { ChainHeaderActionsTestSlot } from "../../helpers/renderWithChainHeader.tsx";
 
 installDataRouterGlobals();
 
@@ -180,10 +181,17 @@ function renderEditor(
   );
   const utils = render(
     <UserPermissionsContext.Provider value={permissions}>
-      <RouterProvider router={router} />
+      <ChainHeaderActionsTestSlot>
+        <RouterProvider router={router} />
+      </ChainHeaderActionsTestSlot>
     </UserPermissionsContext.Provider>,
   );
   return { ...utils, router };
+}
+
+/** Save lives in the chain header now, so leaving is the breadcrumb's job. */
+function leaveEditor() {
+  fireEvent.click(screen.getByText("Test Cases"));
 }
 
 const CHAIN_EDITOR_PATH = "/chains/chain-1/testing/test-cases/case-1";
@@ -221,9 +229,9 @@ describe("TestCasePage sub-tab routing", () => {
   it("should open the request tab when its tab is selected", async () => {
     const { router } = await renderChainEditor();
 
-    fireEvent.click(screen.getByText("Request"));
+    fireEvent.click(screen.getByRole("tab", { name: "Request Parameters" }));
 
-    await screen.findByLabelText("Trigger");
+    await screen.findByTestId("query-parameters");
     expect(router.state.location.pathname).toBe(`${CHAIN_EDITOR_PATH}/request`);
   });
 
@@ -237,10 +245,9 @@ describe("TestCasePage sub-tab routing", () => {
   });
 });
 
-describe("TestCasePage request tab", () => {
+describe("TestCasePage general tab", () => {
   it("should offer the methods the trigger accepts", async () => {
     await renderChainEditor();
-    fireEvent.click(screen.getByText("Request"));
 
     const method = await screen.findByLabelText("Method");
     openSelect(method.closest(".ant-select") as HTMLElement);
@@ -250,25 +257,54 @@ describe("TestCasePage request tab", () => {
     expect(querySelectOption("DELETE")).toBeNull();
   });
 
-  it("should edit the query parameters of the request", async () => {
-    await renderChainEditor();
-    fireEvent.click(screen.getByText("Request"));
-
-    const section = await screen.findByTestId("query-parameters");
-    fireEvent.change(within(section).getByDisplayValue("on"), {
-      target: { value: "off" },
-    });
-
-    expect(within(section).getByDisplayValue("off")).toBeInTheDocument();
-  });
-
   it("should show the chain of a case opened outside a chain", async () => {
     renderEditor(ADMIN_EDITOR_PATH);
     await screen.findByLabelText("Name");
 
-    fireEvent.click(screen.getByText("Request"));
-
     expect(await screen.findByText("Order chain")).toBeInTheDocument();
+  });
+
+  it("should carry the trigger the case calls and how it is called", async () => {
+    await renderChainEditor();
+
+    expect(await screen.findByLabelText("Trigger")).toBeInTheDocument();
+    expect(screen.getByLabelText("Method")).toBeInTheDocument();
+    expect(screen.getByLabelText("Timeout, ms")).toHaveValue("120000");
+  });
+});
+
+describe("TestCasePage request tab", () => {
+  it("should edit the query parameters of the request", async () => {
+    await renderChainEditor();
+    fireEvent.click(screen.getByRole("tab", { name: "Request Parameters" }));
+
+    const section = await screen.findByTestId("query-parameters");
+    fireEvent.click(within(section).getByText("on"));
+    const value = within(section).getByLabelText("Value");
+    fireEvent.change(value, { target: { value: "off" } });
+    fireEvent.keyDown(value, { key: "Enter", keyCode: 13 });
+
+    // Committing the cell reaches the draft the editor holds, which is what
+    // opens Save; the cell keeps the value it was given.
+    await waitFor(() =>
+      expect(screen.getByTestId("test-case-save")).not.toBeDisabled(),
+    );
+    expect(within(section).getByDisplayValue("off")).toBeInTheDocument();
+  });
+
+  // The parameters a case carries are worth seeing without a click; the ones it
+  // has none of are worth a single line.
+  it("should open a section that carries something and leave an empty one shut", async () => {
+    await renderChainEditor();
+    fireEvent.click(screen.getByRole("tab", { name: "Request Parameters" }));
+
+    const filled = await screen.findByTestId("query-parameters");
+    expect(within(filled).getByText("on")).toBeInTheDocument();
+
+    const empty = screen.getByTestId("path-parameters");
+    expect(within(empty).queryByText("Name")).toBeNull();
+    fireEvent.click(within(empty).getByText("Path Parameters"));
+    expect(await within(empty).findByText(/No entries/)).toBeInTheDocument();
   });
 });
 
@@ -346,7 +382,7 @@ describe("TestCasePage save gating", () => {
 });
 
 describe("TestCasePage saving", () => {
-  it("should send the edited case and return to the list", async () => {
+  it("should send the edited case and stay on the editor", async () => {
     await renderChainEditor();
 
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -371,7 +407,12 @@ describe("TestCasePage saving", () => {
         expect.objectContaining({ name: "body exists" }),
       ],
     });
-    expect(await screen.findByText("test cases list")).toBeInTheDocument();
+    // Saving is not leaving: the editor stays put and Save shuts itself.
+    await waitFor(() =>
+      expect(screen.getByTestId("test-case-save")).toBeDisabled(),
+    );
+    expect(screen.getByLabelText("Name")).toHaveValue("Renamed");
+    expect(screen.queryByText("test cases list")).not.toBeInTheDocument();
     expect(mockShowModal).not.toHaveBeenCalled();
   });
 
@@ -398,7 +439,7 @@ describe("TestCasePage unsaved changes", () => {
   it("should leave without prompting when nothing changed", async () => {
     await renderChainEditor();
 
-    fireEvent.click(screen.getByTestId("test-case-cancel"));
+    leaveEditor();
 
     expect(await screen.findByText("test cases list")).toBeInTheDocument();
     expect(mockShowModal).not.toHaveBeenCalled();
@@ -410,7 +451,7 @@ describe("TestCasePage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByTestId("test-case-cancel"));
+    leaveEditor();
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("test cases list")).not.toBeInTheDocument();
@@ -422,7 +463,7 @@ describe("TestCasePage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByTestId("test-case-cancel"));
+    leaveEditor();
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const modal = (
@@ -440,9 +481,9 @@ describe("TestCasePage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByText("Request"));
+    fireEvent.click(screen.getByRole("tab", { name: "Request Parameters" }));
 
-    await screen.findByLabelText("Trigger");
+    await screen.findByTestId("query-parameters");
     expect(router.state.location.pathname).toBe(`${CHAIN_EDITOR_PATH}/request`);
     expect(mockShowModal).not.toHaveBeenCalled();
   });
@@ -453,8 +494,8 @@ describe("TestCasePage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByText("Request"));
-    await screen.findByLabelText("Trigger");
+    fireEvent.click(screen.getByRole("tab", { name: "Request Parameters" }));
+    await screen.findByTestId("query-parameters");
     fireEvent.click(screen.getByText("General"));
 
     expect(await screen.findByLabelText("Name")).toHaveValue("Renamed");
@@ -466,7 +507,7 @@ describe("TestCasePage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByTestId("test-case-cancel"));
+    leaveEditor();
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const modal = (
@@ -515,18 +556,15 @@ describe("TestCasePage read-only mode", () => {
     await screen.findByLabelText("Name");
 
     expect(screen.queryByTestId("test-case-save")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("test-case-cancel")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeDisabled();
     expect(screen.getByLabelText("Description")).toBeDisabled();
   });
 
-  // The whole Request tab hangs off one `disabled={readonly}` on its form, so it
-  // is opened rather than assumed to follow the General tab.
-  it("should disable the request fields outside a chain", async () => {
+  // The tab hangs off one `disabled={readonly}` on its form, so the trigger
+  // fields are checked rather than assumed to follow the name beside them.
+  it("should disable the trigger fields outside a chain", async () => {
     renderEditor(ADMIN_EDITOR_PATH);
     await screen.findByLabelText("Name");
-
-    fireEvent.click(screen.getByText("Request"));
 
     expect(await screen.findByLabelText("Trigger")).toBeDisabled();
     expect(screen.getByLabelText("Method")).toBeDisabled();
@@ -537,7 +575,7 @@ describe("TestCasePage read-only mode", () => {
     renderEditor(ADMIN_EDITOR_PATH);
     await screen.findByLabelText("Name");
 
-    fireEvent.click(screen.getByText("Request"));
+    fireEvent.click(screen.getByRole("tab", { name: "Request Parameters" }));
 
     const headers = await screen.findByTestId("headers");
     expect(within(headers).queryByLabelText("Name")).not.toBeInTheDocument();
@@ -573,6 +611,5 @@ describe("TestCasePage permission gating", () => {
     await renderChainEditor({ chain: ["read"] });
 
     expect(screen.queryByTestId("test-case-save")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("test-case-cancel")).not.toBeInTheDocument();
   });
 });

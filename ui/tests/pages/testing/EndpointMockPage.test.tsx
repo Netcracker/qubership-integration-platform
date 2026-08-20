@@ -31,6 +31,7 @@ import { UserPermissionsContext } from "../../../src/permissions/UserPermissions
 import type { UserPermissions } from "../../../src/permissions/types.ts";
 import { openSelect, querySelectOption } from "../../helpers/antdSelect.ts";
 import { installDataRouterGlobals } from "../../helpers/dataRouterGlobals.ts";
+import { ChainHeaderActionsTestSlot } from "../../helpers/renderWithChainHeader.tsx";
 
 installDataRouterGlobals();
 
@@ -176,10 +177,17 @@ function renderEditor(
   );
   const utils = render(
     <UserPermissionsContext.Provider value={permissions}>
-      <RouterProvider router={router} />
+      <ChainHeaderActionsTestSlot>
+        <RouterProvider router={router} />
+      </ChainHeaderActionsTestSlot>
     </UserPermissionsContext.Provider>,
   );
   return { ...utils, router };
+}
+
+/** Save lives in the chain header now, so leaving is the breadcrumb's job. */
+function leaveEditor() {
+  fireEvent.click(screen.getByText("Endpoint Mocks"));
 }
 
 const CHAIN_EDITOR_PATH = "/chains/chain-1/testing/endpoint-mocks/mock-1";
@@ -217,13 +225,12 @@ describe("EndpointMockPage sub-tab routing", () => {
   it("should open the response tab when its tab is selected", async () => {
     const { router } = await renderChainEditor();
 
-    fireEvent.click(screen.getByText("Response"));
+    fireEvent.click(screen.getByRole("tab", { name: "Response Parameters" }));
 
-    await screen.findByLabelText("Status Code");
+    await screen.findByTestId("response-headers");
     expect(router.state.location.pathname).toBe(
       `${CHAIN_EDITOR_PATH}/response`,
     );
-    expect(screen.getByLabelText("Delay, ms")).toBeInTheDocument();
   });
 
   it("should open the request matchers tab when its tab is selected", async () => {
@@ -258,18 +265,31 @@ describe("EndpointMockPage general tab", () => {
 
     expect(await screen.findByText("Order chain")).toBeInTheDocument();
   });
+
+  it("should carry the status and the delay the mock answers with", async () => {
+    await renderChainEditor();
+
+    expect(await screen.findByLabelText("Status Code")).toHaveValue("200");
+    expect(screen.getByLabelText("Delay, ms")).toHaveValue("0");
+  });
 });
 
 describe("EndpointMockPage response tab", () => {
   it("should edit the response headers", async () => {
     await renderChainEditor();
-    fireEvent.click(screen.getByText("Response"));
+    fireEvent.click(screen.getByRole("tab", { name: "Response Parameters" }));
 
     const section = await screen.findByTestId("response-headers");
-    fireEvent.change(within(section).getByDisplayValue("text/csv"), {
-      target: { value: "application/json" },
-    });
+    fireEvent.click(within(section).getByText("text/csv"));
+    const value = within(section).getByLabelText("Value");
+    fireEvent.change(value, { target: { value: "application/json" } });
+    fireEvent.keyDown(value, { key: "Enter", keyCode: 13 });
 
+    // Committing the cell reaches the draft the editor holds, which is what
+    // opens Save; the cell keeps the value it was given.
+    await waitFor(() =>
+      expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled(),
+    );
     expect(
       within(section).getByDisplayValue("application/json"),
     ).toBeInTheDocument();
@@ -279,8 +299,6 @@ describe("EndpointMockPage response tab", () => {
   // where the value is typed rather than only through the disabled Save button.
   it("should report a status the service cannot answer with", async () => {
     await renderChainEditor();
-    fireEvent.click(screen.getByText("Response"));
-
     const status = await screen.findByLabelText("Status Code");
     fireEvent.change(status, { target: { value: "42" } });
     fireEvent.blur(status);
@@ -300,8 +318,6 @@ describe("EndpointMockPage response tab", () => {
       }),
     );
     await renderChainEditor();
-    fireEvent.click(screen.getByText("Response"));
-
     const status = await screen.findByLabelText("Status Code");
     fireEvent.focus(status);
     fireEvent.blur(status);
@@ -313,8 +329,6 @@ describe("EndpointMockPage response tab", () => {
   // field must not quietly turn a 404 mock into a 200 one.
   it("should keep the previous status when the field is cleared", async () => {
     await renderChainEditor();
-    fireEvent.click(screen.getByText("Response"));
-
     const status = await screen.findByLabelText("Status Code");
     fireEvent.change(status, { target: { value: "" } });
     fireEvent.blur(status);
@@ -322,19 +336,21 @@ describe("EndpointMockPage response tab", () => {
     expect(screen.getByLabelText("Status Code")).not.toHaveValue("0");
   });
 
-  it("should disable Save when a response header name is not an HTTP field name", async () => {
+  it("should refuse a response header name that is not an HTTP field name", async () => {
     await renderChainEditor();
-    fireEvent.click(screen.getByText("Response"));
+    fireEvent.click(screen.getByRole("tab", { name: "Response Parameters" }));
 
     const section = await screen.findByTestId("response-headers");
-    fireEvent.change(within(section).getAllByLabelText("Name")[0], {
-      target: { value: "Content Type" },
-    });
+    fireEvent.click(within(section).getByText("Accept"));
+    const name = within(section).getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "Content Type" } });
+    fireEvent.keyDown(name, { key: "Enter", keyCode: 13 });
 
-    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
     expect(
-      within(section).getByText(/A header name may carry/),
+      await within(section).findByText(/A header name may carry/),
     ).toBeInTheDocument();
+    // The cell keeps the name to itself, so the mock is still what it was read as.
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
   });
 });
 
@@ -447,7 +463,6 @@ describe("EndpointMockPage save gating", () => {
   it("should disable Save when the status is set outside the range the service answers with", async () => {
     await renderChainEditor();
 
-    fireEvent.click(screen.getByText("Response"));
     const status = await screen.findByLabelText("Status Code");
     fireEvent.change(status, { target: { value: "42" } });
     fireEvent.blur(status);
@@ -480,7 +495,6 @@ describe("EndpointMockPage save gating", () => {
     );
     await renderChainEditor();
 
-    fireEvent.click(screen.getByText("Response"));
     const status = await screen.findByLabelText("Status Code");
     fireEvent.change(status, { target: { value: "99" } });
     fireEvent.blur(status);
@@ -488,7 +502,9 @@ describe("EndpointMockPage save gating", () => {
     expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
   });
 
-  it("should disable Save when a stored bad header name is replaced with another", async () => {
+  // A stored header the service already tolerates keeps Save open, and the cell
+  // says what is wrong with it without waiting for the name to be touched.
+  it("should name what is wrong with a stored bad header without shutting Save", async () => {
     mockGetEndpointMock.mockResolvedValue(
       endpointMock({
         responseSettings: {
@@ -502,19 +518,22 @@ describe("EndpointMockPage save gating", () => {
       }),
     );
     await renderChainEditor();
-
-    fireEvent.click(screen.getByText("Response"));
-    const section = await screen.findByTestId("response-headers");
-    fireEvent.change(within(section).getAllByLabelText("Name")[0], {
-      target: { value: "Content Length" },
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
     });
 
-    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+    fireEvent.click(screen.getByRole("tab", { name: "Response Parameters" }));
+    const section = await screen.findByTestId("response-headers");
+
+    expect(
+      within(section).getByText(/A header name may carry/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
   });
 });
 
 describe("EndpointMockPage saving", () => {
-  it("should send the edited mock and return to the list", async () => {
+  it("should send the edited mock and stay on the editor", async () => {
     await renderChainEditor();
 
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -540,7 +559,12 @@ describe("EndpointMockPage saving", () => {
       },
       requestMatchers: [expect.objectContaining({ name: "body exists" })],
     });
-    expect(await screen.findByText("endpoint mocks list")).toBeInTheDocument();
+    // Saving is not leaving: the editor stays put and Save shuts itself.
+    await waitFor(() =>
+      expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled(),
+    );
+    expect(screen.getByLabelText("Name")).toHaveValue("Renamed");
+    expect(screen.queryByText("endpoint mocks list")).not.toBeInTheDocument();
     expect(mockShowModal).not.toHaveBeenCalled();
   });
 
@@ -567,7 +591,7 @@ describe("EndpointMockPage unsaved changes", () => {
   it("should leave without prompting when nothing changed", async () => {
     await renderChainEditor();
 
-    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+    leaveEditor();
 
     expect(await screen.findByText("endpoint mocks list")).toBeInTheDocument();
     expect(mockShowModal).not.toHaveBeenCalled();
@@ -579,7 +603,7 @@ describe("EndpointMockPage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+    leaveEditor();
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("endpoint mocks list")).not.toBeInTheDocument();
@@ -591,7 +615,7 @@ describe("EndpointMockPage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+    leaveEditor();
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const modal = (
@@ -609,9 +633,9 @@ describe("EndpointMockPage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByText("Response"));
+    fireEvent.click(screen.getByRole("tab", { name: "Response Parameters" }));
 
-    await screen.findByLabelText("Status Code");
+    await screen.findByTestId("response-headers");
     expect(router.state.location.pathname).toBe(
       `${CHAIN_EDITOR_PATH}/response`,
     );
@@ -624,8 +648,8 @@ describe("EndpointMockPage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByText("Response"));
-    await screen.findByLabelText("Status Code");
+    fireEvent.click(screen.getByRole("tab", { name: "Response Parameters" }));
+    await screen.findByTestId("response-headers");
     fireEvent.click(screen.getByText("General"));
 
     expect(await screen.findByLabelText("Name")).toHaveValue("Renamed");
@@ -637,7 +661,7 @@ describe("EndpointMockPage unsaved changes", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
     });
-    fireEvent.click(screen.getByTestId("endpoint-mock-cancel"));
+    leaveEditor();
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const modal = (
@@ -690,22 +714,29 @@ describe("EndpointMockPage read-only mode", () => {
     await screen.findByLabelText("Name");
 
     expect(screen.queryByTestId("endpoint-mock-save")).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("endpoint-mock-cancel"),
-    ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeDisabled();
     expect(screen.getByLabelText("Description")).toBeDisabled();
   });
 
-  it("should disable the response fields outside a chain", async () => {
+  // The General tab hangs off one `disabled={readonly}` on its form, so the
+  // response settings are checked rather than assumed to follow the name.
+  it("should disable the response settings outside a chain", async () => {
     renderEditor(ADMIN_EDITOR_PATH);
     await screen.findByLabelText("Name");
 
-    fireEvent.click(screen.getByText("Response"));
-
     expect(await screen.findByLabelText("Status Code")).toBeDisabled();
-    const section = screen.getByTestId("response-headers");
+    expect(screen.getByLabelText("Delay, ms")).toBeDisabled();
+  });
+
+  it("should offer no way to edit the response headers outside a chain", async () => {
+    renderEditor(ADMIN_EDITOR_PATH);
+    await screen.findByLabelText("Name");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Response Parameters" }));
+
+    const section = await screen.findByTestId("response-headers");
     expect(within(section).queryByLabelText("Delete")).not.toBeInTheDocument();
+    expect(within(section).queryByText("Add header")).not.toBeInTheDocument();
   });
 
   it("should render the matchers table read-only outside a chain", async () => {
@@ -734,8 +765,5 @@ describe("EndpointMockPage permission gating", () => {
     await renderChainEditor({ chain: ["read"] });
 
     expect(screen.queryByTestId("endpoint-mock-save")).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("endpoint-mock-cancel"),
-    ).not.toBeInTheDocument();
   });
 });
