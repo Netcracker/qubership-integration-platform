@@ -90,15 +90,25 @@ public final class ChainEditSkillContext {
     if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
         && intent.disposition() == ChainEditDisposition.NEST) {
-      body.append("The listed intent targets are the approved structural boundary in the imported graph: ")
+      body.append("The listed intent targets are the elements this edit wraps: ")
           .append(String.join(", ", intent.targetNodeIds()))
           .append(".\n");
       body.append(
-          "When wrapping, change parentNodeId only for those ids. Nest them under the new try-2"
-              + " or equivalent container. Do not reparent any other existing node.\n");
+          "Capture subgraph, not graph. Name the container type, then one branch per branch the"
+              + " container has: its child type, the elements that branch creates, and in"
+              + " moveExisting the ids of the wrapped elements that move into it. Every listed"
+              + " target moves into exactly one branch, and no other id appears anywhere.\n");
       body.append(
-          "The structure stage owns new nodes, containment, and edge rewrites. A configuration"
-              + " generator may change only the node ids in its Active generator plan slice.\n");
+          "A wrapped element is only an id: it keeps the type, label, properties, and connections"
+              + " the chain already gives it. New elements carry nodeId, type, and label, and no"
+              + " parent -- the branch they are declared in is where they nest. Connect new"
+              + " elements only to new elements of the same branch; the container's own"
+              + " connections to the chain around it are derived, so leave them out.\n");
+      body.append(
+          "Branch properties carry only what tells a branch from a sibling of the same type, such"
+              + " as the exception a catch handles. Every other property belongs to the"
+              + " configuration generator that owns it, and a configuration generator may change"
+              + " only the node ids in its Active generator plan slice.\n");
     } else if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
         && intent.replacesAddressElement()) {

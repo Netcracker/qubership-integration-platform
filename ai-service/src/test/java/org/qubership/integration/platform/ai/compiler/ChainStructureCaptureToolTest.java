@@ -30,6 +30,10 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBody;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphElement;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
@@ -242,7 +246,7 @@ class ChainStructureCaptureToolTest {
   }
 
   @Test
-  void acceptsAWrapWhoseTriggerEdgeOnlyTheMergeRestores() {
+  void aWrapCapturedAsASubgraphIsStoredAsTheGraphItAssemblesTo() {
     session.set(
         CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
         new ChainEditStructureBase(validGraph(), wrapIntent()));
@@ -250,16 +254,42 @@ class ChainStructureCaptureToolTest {
     CaptureValidationException accepted =
         assertThrows(
             CaptureValidationException.class,
-            () -> tool.captureChainStructure(new ChainStructure(wrapCapture(), List.of(), List.of())));
+            () ->
+                tool.captureChainStructure(
+                    new ChainStructure(null, List.of(), List.of(), wrapSubgraph())));
 
     assertTrue(accepted.getMessage().contains("Chain structure captured"));
+    ChainPlanGraph stored = storedGraph();
+    ChainPlanNode container = nodeOfType(stored, "try-catch-finally-2");
+    ChainPlanNode tryBranch = nodeOfType(stored, "try-2");
+    assertEquals(tryBranch.nodeId(), node(stored, "script-1").parentNodeId());
+    assertEquals(container.nodeId(), tryBranch.parentNodeId());
+    assertEquals(
+        container.nodeId(),
+        stored.edges().stream()
+            .filter(edge -> "http-trigger-1".equals(edge.fromNodeId()))
+            .map(ChainPlanEdge::toNodeId)
+            .findFirst()
+            .orElseThrow());
+  }
+
+  @Test
+  void aWrapThatCapturesTheWholeGraphIsAskedForTheSubgraphItAdds() {
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), wrapIntent()));
+
+    String result =
+        tool.captureChainStructure(new ChainStructure(wrapCapture(), List.of(), List.of()));
+
+    assertTrue(result.contains("capture subgraph rather than graph"), result);
   }
 
   @Test
   void reportsAMergeTheCompilerWouldRefuseAsRepairableFeedback() {
     session.set(
         CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
-        new ChainEditStructureBase(validGraph(), wrapIntent()));
+        new ChainEditStructureBase(validGraph(), replaceIntent()));
     ChainPlanGraph reparentsTheTrigger =
         new ChainPlanGraph(
             "1.0",
@@ -297,7 +327,9 @@ class ChainStructureCaptureToolTest {
     CaptureValidationException failure =
         assertThrows(
             CaptureValidationException.class,
-            () -> tool.captureChainStructure(validStructure()));
+            () ->
+                tool.captureChainStructure(
+                    new ChainStructure(null, List.of(), List.of(), wrapSubgraph())));
 
     assertTrue(failure.getMessage().contains("unknown structural target ids"), failure.getMessage());
   }
@@ -316,6 +348,47 @@ class ChainStructureCaptureToolTest {
                     new ChainStructure(replacementCapture(), List.of(), List.of())));
 
     assertTrue(accepted.getMessage().contains("Chain structure captured"));
+  }
+
+  /** A wrap capture: only the container, its branches, and the id of the element that moves in. */
+  private static ChainEditSubgraph wrapSubgraph() {
+    return new ChainEditSubgraph(
+        "try-catch-finally-2",
+        "Wrap",
+        List.of(
+            new ChainEditSubgraphBranch("try-2", "Try", List.of(), null, List.of("script-1"), null),
+            new ChainEditSubgraphBranch(
+                "catch-2",
+                "Catch",
+                List.of(),
+                null,
+                List.of(),
+                new ChainEditSubgraphBody(
+                    List.of(new ChainEditSubgraphElement("log-1", "script", "Log failure")),
+                    List.of()))));
+  }
+
+  private ChainPlanGraph storedGraph() {
+    return session
+        .get(
+            CaptureKey.conversation(CaptureSlot.CHAIN_STRUCTURE, CONVERSATION_ID),
+            ChainStructure.class)
+        .orElseThrow()
+        .graph();
+  }
+
+  private static ChainPlanNode node(ChainPlanGraph graph, String nodeId) {
+    return graph.nodes().stream()
+        .filter(candidate -> nodeId.equals(candidate.nodeId()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no element " + nodeId));
+  }
+
+  private static ChainPlanNode nodeOfType(ChainPlanGraph graph, String type) {
+    return graph.nodes().stream()
+        .filter(candidate -> type.equals(candidate.type()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no element of type " + type));
   }
 
   /** A wrap whose capture lists no edges at all; the merge has to bring the trigger's over. */
