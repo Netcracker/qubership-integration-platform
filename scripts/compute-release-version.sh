@@ -8,20 +8,29 @@
 #            scripts/compute-release-version.sh
 #
 # Env: ECOSYSTEM (maven|npm), MODULE, RELEASE_TYPE (patch|minor|major),
-#      VERSION_OVERRIDE (explicit X.Y.Z, or empty to derive from the file).
+#      VERSION_OVERRIDE (explicit X.Y.Z, or empty to derive from the file),
+#      TAG_PREFIX (tag prefix when it differs from MODULE; schemas ships as both
+#      an npm package and a Maven artifact, and the two lines need distinct tags
+#      so neither reads the other's tag as its recovery sentinel).
 #
 # Model (bump-before): the file holds the LAST RELEASED version (maven pom
 # <revision>, npm package.json); a release bumps it per release-type and
 # publishes that. Deciding the version at release time (not pre-writing the next
 # one into the file) keeps forked release lines from colliding on a shared
-# pending version. maven also emits next-dev (= the released version) for the
-# workflow to write back into <revision>; npm's release already updated the file.
+# pending version. The maven workflow writes the released version back into
+# <revision> itself; npm's release already updated package.json.
+#
+# ECOSYSTEM=platform reads the root aggregator pom instead of a module. That
+# number is the platform version: the drop tag, the release title, and the version
+# every backend service is released under in a wave.
 
 set -euo pipefail
 
-: "${ECOSYSTEM:?ECOSYSTEM env var required}" "${MODULE:?MODULE env var required}" "${GITHUB_OUTPUT:?GITHUB_OUTPUT env var required}"
+: "${ECOSYSTEM:?ECOSYSTEM env var required}" "${GITHUB_OUTPUT:?GITHUB_OUTPUT env var required}"
+[ "$ECOSYSTEM" = platform ] || : "${MODULE:?MODULE env var required}"
 RELEASE_TYPE="${RELEASE_TYPE:-patch}"
 VERSION_OVERRIDE="${VERSION_OVERRIDE:-}"
+TAG_PREFIX="${TAG_PREFIX:-}"
 
 is_semver() { [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; }
 
@@ -49,6 +58,9 @@ case "$ECOSYSTEM" in
         }
         current=$(grep -oP '(?<=<revision>)[^<]+' "$POM" | head -1 || true)
         ;;
+    platform)
+        current=$(grep -oP '(?<=<revision>)[^<]+' pom.xml | head -1 || true)
+        ;;
     npm)
         PKG="$MODULE/package.json"
         [ -f "$PKG" ] || {
@@ -58,7 +70,7 @@ case "$ECOSYSTEM" in
         current=$(node -p "require('./$PKG').version")
         ;;
     *)
-        echo "::error::ECOSYSTEM must be maven|npm (got '$ECOSYSTEM')"
+        echo "::error::ECOSYSTEM must be maven|npm|platform (got '$ECOSYSTEM')"
         exit 1
         ;;
 esac
@@ -79,16 +91,13 @@ is_semver "$release" || {
     exit 1
 }
 
-# next-dev applies to maven only: the just-released version, written back into
-# <revision> after release (npm's release command already updated package.json).
-next=""
-if [ "$ECOSYSTEM" = maven ]; then
-    next="$release"
-fi
-
 # Tag already there => a prior run published+tagged but its bump never landed:
 # recover (re-apply the bump only) instead of wedging the module.
-tag="$MODULE-v$release"
+if [ "$ECOSYSTEM" = platform ]; then
+    tag="v$release"
+else
+    tag="${TAG_PREFIX:-$MODULE}-v$release"
+fi
 recover=false
 if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null 2>&1; then
     recover=true
@@ -97,8 +106,7 @@ fi
 
 {
     echo "release-version=$release"
-    echo "next-dev=$next"
     echo "release-tag=$tag"
     echo "recover=$recover"
 } >> "$GITHUB_OUTPUT"
-echo "Releasing $MODULE $release (current $current, type $RELEASE_TYPE, recover $recover)${next:+; <revision> set to $next}"
+echo "Releasing ${MODULE:-platform} $release (current $current, type $RELEASE_TYPE, recover $recover)"
