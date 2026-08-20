@@ -109,6 +109,16 @@ public final class ChainEditSkillContext {
               + " as the exception a catch handles. Every other property belongs to the"
               + " configuration generator that owns it, and a configuration generator may change"
               + " only the node ids in its Active generator plan slice.\n");
+      body.append(
+          "Example -- wrapping element 'svc-1' in try-catch-finally-2, with a new script in the"
+              + " catch: {\"containerType\":\"try-catch-finally-2\",\"branches\":["
+              + "{\"childType\":\"try-2\",\"moveExisting\":[\"svc-1\"]},"
+              + "{\"childType\":\"catch-2\",\"properties\":[{\"key\":\"exception\","
+              + "\"value\":\"java.lang.Exception\"}],\"body\":{\"elements\":[{\"nodeId\":"
+              + "\"catch-script-1\",\"type\":\"script\",\"label\":\"Return error\"}]}}]}."
+              + " 'svc-1' is an id the chain already has, so it is only ever named in moveExisting."
+              + " 'catch-script-1' is an id this capture invents, so it is only ever declared in a"
+              + " body. The same id is never both.\n");
     } else if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
         && intent.replacesAddressElement()) {
