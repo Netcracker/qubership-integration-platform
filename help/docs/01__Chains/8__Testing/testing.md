@@ -64,19 +64,27 @@ Click **Create a test case** and fill in the dialog:
 The new test case is created with **Enabled** off, a timeout of 120000 ms, the first method the selected trigger accepts and no validation rules, and the editor opens on it right away.
 
 ### Test Case Editor
-The editor has three tabs and a **Cancel** / **Save** toolbar at the bottom. **Save** stays disabled until something has changed and the test case is valid: it needs a name, a chain, a trigger element, an HTTP method and valid validation rules. Saving returns to the list. Leaving the editor with unsaved changes raises a confirmation; switching between the editor's own tabs does not.
+
+![General tab of a test case](img/test-case-editor.png)
+
+The editor has three tabs and a **Save** button in the chain header, beside the chain tabs, where the **Apply** button of the [Logging](../5__Logging/logging.md) and [Properties](../7__Properties/properties.md) tabs sits. **Save** stays disabled until something has changed and the test case is valid: it needs a name, a chain, a trigger element, an HTTP method and valid validation rules. Saving keeps the editor open. Leaving it with unsaved changes raises a confirmation; switching between the editor's own tabs does not.
 
 #### General Tab
+Names the test case and the call it makes:
+
 - **Name** - mandatory test case name.
-- **Enabled** - switch. A disabled test case is skipped when it is run.
 - **Description** - free-text description.
-
-#### Request Tab
-Defines the request sent to the trigger:
-
+- **Enabled** - switch. A disabled test case is skipped when it is run.
 - **Trigger** - mandatory, the **HTTP Trigger** to call.
 - **Method** - mandatory HTTP method. The list comes from the trigger's own method restriction and falls back to `GET` when the trigger restricts nothing.
 - **Timeout, ms** - how long the testing service waits for the chain to answer.
+
+#### Request Parameters Tab
+
+![Request parameters of a test case](img/request-parameters.png)
+
+Defines what the request carries. Each set of pairs is a section that opens when the test case has something in it and stays closed when it is empty, with the number of pairs beside its name:
+
 - **Path Parameters** - name and value pairs substituted into the `{name}` placeholders of the trigger path.
 - **Query Parameters** - name and value pairs appended to the request as a query string.
 - **Headers** - name and value pairs sent as request headers.
@@ -109,18 +117,22 @@ Click **Create an endpoint mock** and fill in the dialog:
 The new mock is created **Enabled**, with status code `200` and no delay. These defaults are the opposite of the test case ones: a mock starts working the moment it is saved, while a test case has to be enabled first.
 
 ### Endpoint Mock Editor
-Three tabs, the same **Cancel** / **Save** toolbar, and the same unsaved-changes confirmation. **Save** needs a name, a chain, an endpoint element and valid request matchers - no method, because a mock answers whatever method the endpoint is called with.
+Three tabs, the same **Save** button in the chain header, and the same unsaved-changes confirmation. **Save** needs a name, a chain, an endpoint element and valid request matchers - no method, because a mock answers whatever method the endpoint is called with.
 
 #### General Tab
+Names the mock and the endpoint it answers for:
+
 - **Name** - mandatory mock name.
+- **Description** - free-text description.
 - **Enabled** - switch. Only enabled mocks take part in matching.
 - **Endpoint** - mandatory, the element whose call the mock answers.
-- **Description** - free-text description.
-
-#### Response Tab
 - **Status Code** - mandatory, between `100` and `599`. A stored value outside that range is answered as `200`.
 - **Delay, ms** - mandatory, how long the answer is held back, measured from the moment the call arrives. The service caps the wait at one minute.
-- **Headers** - name and value pairs returned with the response. A header whose name is not a valid HTTP field name, or whose value carries a control character, is dropped.
+
+#### Response Parameters Tab
+Defines what the mock answers with:
+
+- **Headers** - name and value pairs returned with the response. The section opens when the mock has headers and stays closed when it has none. A header name that is not a valid HTTP field name, or a value carrying a control character, is refused as it is typed.
 - **Body** - response body, edited as JSON.
 
 #### Request Matchers Tab
@@ -171,7 +183,7 @@ While the run proceeds:
 
 1. Each test case in the run is turned into a test case run and executed in order. Test cases inside a single run execute **sequentially**, one at a time.
 2. A disabled test case is not called; its case run finishes with the status **_Skipped_**.
-3. For an enabled test case, the testing service calls the chain's **HTTP Trigger** through the engine with the request configured on the **Request** tab, and links the resulting chain [session](../4__Sessions/sessions.md) to the case run.
+3. For an enabled test case, the testing service calls the chain's **HTTP Trigger** with the request configured on the **General** and **Request Parameters** tabs, and links the resulting chain [session](../4__Sessions/sessions.md) to the case run. The call goes to the engine the chain is deployed to, so a chain on a micro-engine domain is tested on that domain. A chain deployed to more than one domain is tested on one of them, which the testing service records in its log.
 4. The response is checked against every enabled response validation rule. Each rule that does not hold is stored as a validation error against the case run, and the case run still reaches **_Finished_**.
 
 Separate test runs execute **in parallel**, so several runs can progress at the same time. Test runs themselves are managed under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md).
@@ -202,7 +214,7 @@ The table lists the case runs of the chain, sorted by start time descending. The
 
 - **Refresh**, **Search**, **Filter** and **Column settings**, as on the other tables.
 - **Restart selected test case runs** - creates a new test run over the same test cases.
-- **Cancel selected test case runs** - cancels the checked case runs.
+- **Cancel selected test case runs** - cancels the checked case runs. The button is offered only while a checked case run is still queued, since that is the only state the service cancels.
 - **Export selected test case runs** - downloads the checked case runs as a CSV file.
 
 Case runs cannot be deleted on their own; they are removed with the test run that holds them.

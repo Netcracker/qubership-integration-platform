@@ -72,7 +72,7 @@ A run therefore reads **_Finished_** as soon as its first case run finishes, whi
 
 - **Refresh** - reloads the table.
 - **Restart selected test runs** - creates a new run over the same test cases and refreshes the table, since the new run lands in it.
-- **Cancel selected test runs** - cancels the checked runs.
+- **Cancel selected test runs** - cancels the checked runs. The button is offered only while a checked run may still hold a queued case, so a finished run cannot be cancelled.
 - **Export selected test runs** - downloads the checked runs as a CSV file.
 - **Delete selected test runs** - deletes the checked runs after a confirmation. A run is deleted whatever its state, and its test case runs go with it.
 
