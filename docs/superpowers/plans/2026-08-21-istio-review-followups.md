@@ -314,7 +314,11 @@ git add engine/src/main/java/org/qubership/integration/platform/engine/util/path
 git commit -m "fix: escape literal path segments in placeholder route regexes @cf_skip"
 ```
 
-**Known consequence, no action needed:** a rule already in a cluster for a path that has both a placeholder and a metacharacter was written with the unescaped value, which no longer equals the newly computed match. On the next deploy that rule is preserved rather than replaced, and a second rule appears alongside it. This is limited to that narrow path shape and to clusters running a pre-fix build of an unreleased branch, and the stale rule is a strict superset of the new one, so nothing breaks while it lingers. Delete such rules by hand if a pre-fix cluster is being kept.
+**Known consequence, manual cleanup required:** a rule already in a cluster for a path that has both a placeholder and a regex metacharacter was written with the unescaped value, which no longer equals the newly computed match. On the next deploy that rule is preserved rather than replaced, and a second rule appears alongside it. This is limited to that narrow path shape and to clusters running a pre-fix build of an unreleased branch.
+
+The stale rule is not harmless. Only for `.` is it a superset of the new one. For `+`, `*`, and `?` the pre-fix value described a different language: path `/a+b/{id}` produced `/a+b/[^/]+/?`, where `a+` means one or more `a`, so the rule never matched `/a+b/x` at all. An unbalanced `(`, `[`, or `{` in a literal run produced a value that is not valid RE2, and istiod rejects the whole HTTPRoute. The tier CR is shared per micro-domain, so that takes every chain in the domain offline.
+
+It also never gets cleaned up. Cleanup computes the new value too, so `stripPathsFromTier` and `preservedRulesFromCache` never match the old rule again: it outlives its chain's undeployment, keeps routing to a backend that no longer exists, and blocks deletion of the tier CR, which `stripPathsFromTier` removes only once no rules remain. Delete such rules by hand on any cluster that ran a pre-fix build.
 
 ---
 
@@ -682,7 +686,9 @@ The chart's gateways listen on these ports:
 `internal-gateway`'s Service name must stay in step with `qip.gateway.internal.name`, and
 `egress-gateway`'s port with the port in `qip.gateway.egress.url` — both in `runtime-catalog`'s
 `application.yml`. Change one side and change the other, or override the egress URL with
-`QIP_EGRESS_GATEWAY_URL`.
+`QIP_EGRESS_GATEWAY_URL`. `EndpointHelperSource` reads that URL at build time and bakes it into the
+generated Camel source in the snapshot ConfigMap, so setting it saves a rebuild but takes effect
+only once you redeploy every chain.
 ````
 
 - [ ] **Step 7: Commit**
@@ -706,9 +712,9 @@ git commit -m "fix: align qip-dev gateway ports and Service names with generated
 Run: `mvn -pl engine,integration-build-pipeline,runtime-catalog -am test`
 Expected: PASS, no compilation warnings introduced by the four tasks.
 
-- [ ] **Step 2: Confirm the two helper copies stayed in sync**
+- [ ] **Step 2: Confirm all four helper and test copy pairs stayed in sync**
 
-Run:
+The Global Constraint covers all eight files, not just the two production copies, so diff the test pairs too:
 
 ```bash
 diff --strip-trailing-cr \
@@ -717,12 +723,18 @@ diff --strip-trailing-cr \
 diff --strip-trailing-cr \
   <(grep -v '^package ' engine/src/main/java/org/qubership/integration/platform/engine/util/paths/EgressTarget.java) \
   <(grep -v '^package ' integration-build-pipeline/src/main/java/org/qubership/integration/platform/camelk/util/paths/EgressTarget.java)
+diff --strip-trailing-cr \
+  <(grep -v '^package ' engine/src/test/java/org/qubership/integration/platform/engine/util/paths/GatewayPathMatchTest.java) \
+  <(grep -v '^package ' integration-build-pipeline/src/test/java/org/qubership/integration/platform/camelk/util/paths/GatewayPathMatchTest.java)
+diff --strip-trailing-cr \
+  <(grep -v '^package ' engine/src/test/java/org/qubership/integration/platform/engine/util/paths/EgressTargetTest.java) \
+  <(grep -v '^package ' integration-build-pipeline/src/test/java/org/qubership/integration/platform/camelk/util/paths/EgressTargetTest.java)
 ```
 
-Expected: `GatewayPathMatch` produces no output at all. `EgressTarget` produces exactly the two-line difference that was already there before this plan:
+Expected: `GatewayPathMatch` and `GatewayPathMatchTest` produce no output at all. `EgressTarget` produces exactly the two-line difference that was already there before this plan:
 
 ```
-42,43c42,43
+55,56c55,56
 <      * {@code ServiceEntry}/{@code DestinationRule} name -- in engine's live registration and
 <      * the build pipeline's build-time generation alike. The hash suffix guarantees two hosts that
 ---
@@ -730,7 +742,15 @@ Expected: `GatewayPathMatch` produces no output at all. `EgressTarget` produces 
 >      * module's build-time generation alike. The hash suffix guarantees two hosts that
 ```
 
-Any other difference means Task 1 or Task 2 was applied to one copy only.
+`EgressTargetTest` is already out of sync, and also predates this plan: the engine copy carries a two-line comment around `:61-62` that the pipeline copy lacks. Record it as the known baseline rather than a failure:
+
+```
+61,62d60
+<         // Both "a.b.c" and "abc" sanitize (dots stripped) to the base string "abc" -- the hash
+<         // suffix must keep them distinct.
+```
+
+Any difference beyond these two known ones means Task 1 or Task 2 was applied to one copy only.
 
 - [ ] **Step 3: Render the chart one more time**
 

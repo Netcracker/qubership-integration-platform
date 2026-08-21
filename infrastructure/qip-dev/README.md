@@ -34,7 +34,9 @@ The chart's gateways listen on these ports:
 `internal-gateway`'s Service name must stay in step with `qip.gateway.internal.name`, and
 `egress-gateway`'s port with the port in `qip.gateway.egress.url` — both in `runtime-catalog`'s
 `application.yml`. Change one side and change the other, or override the egress URL with
-`QIP_EGRESS_GATEWAY_URL`.
+`QIP_EGRESS_GATEWAY_URL`. `EndpointHelperSource` reads that URL at build time and bakes it into the
+generated Camel source in the snapshot ConfigMap, so setting it saves a rebuild but takes effect
+only once you redeploy every chain.
 
 ## Installation
 
