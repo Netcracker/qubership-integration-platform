@@ -766,6 +766,43 @@ class ChainEditCompilerTest {
         engine.lastRequest.get(), "an undefined property key never reaches the compiler");
   }
 
+  /**
+   * One CONFIGURE names two types and the union of their keys. A key that only one of them defines
+   * is still a real key: routing already slices each owner to the targets and keys it owns.
+   */
+  @Test
+  void aConfigureRequestNamingKeysSplitAcrossTwoElementTypesReachesEachOwner() {
+    intentReply =
+        configureCapture(
+            List.of(TARGET, "normalize"),
+            "try five times and rewrite the script",
+            List.of("retryCount", "script"));
+
+    compiler.compile(request());
+
+    assertEquals(
+        List.of(SCRIPT_GENERATOR, "cip-retry-generator"),
+        engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(List.of("normalize"), scopedTargets(engine.lastRequest.get(), SCRIPT_GENERATOR));
+    assertEquals(List.of(TARGET), scopedTargets(engine.lastRequest.get(), "cip-retry-generator"));
+  }
+
+  @Test
+  void aConfigureKeyNeitherNamedElementDefinesIsStillRefused() {
+    intentReply =
+        configureCapture(
+            List.of(TARGET, "normalize"),
+            "change something odd on both",
+            List.of("notARealProperty"));
+
+    ChainEditOutcome.ResolutionFailure failure =
+        assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
+
+    assertTrue(failure.message().contains("notARealProperty"), failure.message());
+    org.junit.jupiter.api.Assertions.assertNull(
+        engine.lastRequest.get(), "an undefined property key never reaches the compiler");
+  }
+
   @Test
   void noChangeDoesNotCompileAndDoesNotThrow() {
     intentReply =
