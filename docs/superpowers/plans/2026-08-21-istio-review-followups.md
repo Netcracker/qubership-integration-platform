@@ -641,21 +641,30 @@ Expected: PASS. Both live in `integration-build-pipeline`, not `runtime-catalog`
 
 - [ ] **Step 6: Document what a local Istio install needs**
 
-Add this section to `infrastructure/qip-dev/README.md`, directly after the `## Installation` block:
+Add this section to `infrastructure/qip-dev/README.md`, directly after the `# Qubership Integration
+Platform` title and **before** the `## Installation` block. The order matters: Istio has to be in
+place, and the namespace labeled, before `helm install` creates any pods, because sidecars are
+injected at pod-creation time and never retroactively. Leave `## Installation`'s own content
+untouched — its `--create-namespace` flag is a no-op once the namespace exists.
 
 ````markdown
 ## Istio
 
 `global.qip.controlPlane.meshType: Istio` (the default in `values.yaml`) makes the platform generate
-Gateway API and Istio resources. Install Istio with the Gateway API CRDs before installing this
-chart, and enable the alpha Gateway API features that egress routing depends on:
+Gateway API and Istio resources. Install Istio and the Gateway API CRDs, and label the target
+namespace for sidecar injection, before you install the chart:
 
 ```sh
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
 istioctl install --set profile=minimal \
   --set values.pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=true
+kubectl create namespace qip
 kubectl label namespace qip istio-injection=enabled
 ```
+
+Sidecars are injected when a pod is created, so a namespace labeled after `helm install` leaves the
+running pods without one. Run `kubectl rollout restart deployment -n qip` to recreate them if you get
+the order wrong.
 
 Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` only honors when
 `PILOT_ENABLE_ALPHA_GATEWAY_API` is set. Without it the egress `HTTPRoute` is accepted but never
@@ -670,8 +679,10 @@ The chart's gateways listen on these ports:
 | `internal-gateway` | `internal-gateway-service` | 8080 |
 | `egress-gateway` | `egress-gateway` | 8080 |
 
-The internal and egress ports match `qip.gateway.internal.name` and `qip.gateway.egress.url` in
-`runtime-catalog`. Change one and change the other, or set `QIP_EGRESS_GATEWAY_URL`.
+`internal-gateway`'s Service name must stay in step with `qip.gateway.internal.name`, and
+`egress-gateway`'s port with the port in `qip.gateway.egress.url` — both in `runtime-catalog`'s
+`application.yml`. Change one side and change the other, or override the egress URL with
+`QIP_EGRESS_GATEWAY_URL`.
 ````
 
 - [ ] **Step 7: Commit**
