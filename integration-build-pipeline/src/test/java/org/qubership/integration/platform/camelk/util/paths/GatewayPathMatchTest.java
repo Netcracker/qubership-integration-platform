@@ -79,4 +79,29 @@ class GatewayPathMatchTest {
         assertEquals(a.hashCode(), b.hashCode());
         assertNotEquals(a, c);
     }
+
+    @Test
+    void literalDotIsEscapedSoItMatchesOnlyADot() {
+        GatewayPathMatch match = GatewayPathMatch.forPath("/qip-routes/files/{name}.json");
+
+        assertEquals("RegularExpression", match.getType());
+        assertEquals("/qip-routes/files/[^/]+\\.json/?", match.getValue());
+    }
+
+    @Test
+    void escapedLiteralsMatchOnlyTheLiteralText() {
+        GatewayPathMatch match = GatewayPathMatch.forPath("/qip-routes/files/{name}.json");
+        Pattern pattern = Pattern.compile(match.getValue());
+
+        assertTrue(pattern.matcher("/qip-routes/files/report.json").matches());
+        assertFalse(pattern.matcher("/qip-routes/files/report-json").matches());
+    }
+
+    @Test
+    void everyRegexMetacharacterInALiteralIsEscaped() {
+        GatewayPathMatch match = GatewayPathMatch.forPath("/a+b(c)/{id}/d[e]f*");
+
+        assertEquals("RegularExpression", match.getType());
+        assertEquals("/a\\+b\\(c\\)/[^/]+/d\\[e\\]f\\*/?", match.getValue());
+    }
 }

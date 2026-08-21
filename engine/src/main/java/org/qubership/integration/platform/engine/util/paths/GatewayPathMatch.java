@@ -17,22 +17,25 @@
 package org.qubership.integration.platform.engine.util.paths;
 
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Resolves a route path to the Gateway API {@code HTTPPathMatch} type/value pair that
  * correctly matches it: {@code PathPrefix} for a literal path, or {@code RegularExpression}
  * for a path containing one or more {@code {param}} placeholders (each placeholder is
- * replaced with {@code [^/]+}; no anchors are added, since Istio/Envoy's regex path
- * matching already requires a full match). Unless the path already ends in a slash, a
- * trailing {@code /?} is appended to the regex so it stays optional, matching
- * {@code PathPrefix}'s own behavior of treating a path and that same path with a trailing
- * slash as equivalent. Equality is by (type, value), so an instance can be used both to
- * build a new rule's match and as an identity key when checking whether an existing rule's
- * match belongs to a given route.
+ * replaced with {@code [^/]+} and every literal segment around it is regex-escaped; no
+ * anchors are added, since Istio/Envoy's regex path matching already requires a full match).
+ * Unless the path already ends in a slash, a trailing {@code /?} is appended to the regex
+ * so it stays optional, matching {@code PathPrefix}'s own behavior of treating a path and
+ * that same path with a trailing slash as equivalent. Equality is by (type, value), so an
+ * instance can be used both to build a new rule's match and as an identity key when
+ * checking whether an existing rule's match belongs to a given route.
  */
 public final class GatewayPathMatch {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{[^{}/]+\\}");
+    private static final String PLACEHOLDER_REGEX = "[^/]+";
+    private static final String REGEX_METACHARACTERS = "\\.^$|?*+()[]{}";
     private static final String PATH_PREFIX = "PathPrefix";
     private static final String REGULAR_EXPRESSION = "RegularExpression";
 
@@ -45,11 +48,40 @@ public final class GatewayPathMatch {
     }
 
     public static GatewayPathMatch forPath(String path) {
-        if (!PLACEHOLDER.matcher(path).find()) {
+        Matcher matcher = PLACEHOLDER.matcher(path);
+        if (!matcher.find()) {
             return new GatewayPathMatch(PATH_PREFIX, path);
         }
-        String regex = PLACEHOLDER.matcher(path).replaceAll("[^/]+");
-        return new GatewayPathMatch(REGULAR_EXPRESSION, regex.endsWith("/") ? regex : regex + "/?");
+        StringBuilder regex = new StringBuilder();
+        int literalStart = 0;
+        do {
+            regex.append(quoteLiteral(path.substring(literalStart, matcher.start())));
+            regex.append(PLACEHOLDER_REGEX);
+            literalStart = matcher.end();
+        } while (matcher.find());
+        regex.append(quoteLiteral(path.substring(literalStart)));
+        if (!path.endsWith("/")) {
+            regex.append("/?");
+        }
+        return new GatewayPathMatch(REGULAR_EXPRESSION, regex.toString());
+    }
+
+    /**
+     * Escapes every regex metacharacter in a literal (non-placeholder) run of the path, so a path
+     * such as {@code /files/{name}.json} matches a literal dot instead of any character.
+     * {@link Pattern#quote} is not usable here: it wraps its input in {@code \Q...\E}, which RE2 --
+     * the engine Envoy evaluates these matches with -- does not support.
+     */
+    private static String quoteLiteral(String literal) {
+        StringBuilder quoted = new StringBuilder(literal.length());
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (REGEX_METACHARACTERS.indexOf(c) >= 0) {
+                quoted.append('\\');
+            }
+            quoted.append(c);
+        }
+        return quoted.toString();
     }
 
     public static GatewayPathMatch of(String type, String value) {
