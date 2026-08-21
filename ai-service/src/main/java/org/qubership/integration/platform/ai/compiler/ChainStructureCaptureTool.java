@@ -278,7 +278,7 @@ public class ChainStructureCaptureTool {
     return completeCapture(conversationId, startMs, shaped, subgraph);
   }
 
-  /** Tells the generator what to name instead, for whichever of the three subgraph shapes applies. */
+  /** Tells the generator what to name instead, for whichever of the four subgraph shapes applies. */
   private static String subgraphRequiredMessage(ChainEditIntent intent) {
     if (intent.disposition() == ChainEditDisposition.KEEP) {
       return "This edit inserts elements at an address, so capture subgraph rather than graph: no"
@@ -289,6 +289,11 @@ public class ChainStructureCaptureTool {
           + " container, and in body the new elements and the connections between them. Do not"
           + " name the replaced element anywhere in the capture -- Java removes it and reconnects"
           + " its neighbours to the body automatically.";
+    }
+    if (intent.disposition() == ChainEditDisposition.ATTACH) {
+      return "This edit adds a branch to a container the chain already has, so capture subgraph"
+          + " rather than graph: no containerType -- the container is not new -- and exactly one"
+          + " branch, naming its child type and the elements it creates.";
     }
     return "This edit nests existing elements, so capture subgraph rather than graph: the container"
         + " type, its branches, the elements each branch creates, and in moveExisting the ids"

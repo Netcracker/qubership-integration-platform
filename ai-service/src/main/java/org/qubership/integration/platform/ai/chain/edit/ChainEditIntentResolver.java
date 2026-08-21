@@ -294,6 +294,11 @@ public class ChainEditIntentResolver {
             ? List.of("Say which element the new one should wrap.")
             : gapInTheWrappedRun(graph, resolvedTargets);
       }
+      if (disposition == ChainEditDisposition.ATTACH) {
+        return resolvedTargets.isEmpty()
+            ? List.of("Say which container the new branch joins.")
+            : List.of();
+      }
       if (resolvedTargets.isEmpty()) {
         return List.of("Say where to place the new element.");
       }

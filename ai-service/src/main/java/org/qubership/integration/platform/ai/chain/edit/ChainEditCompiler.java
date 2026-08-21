@@ -255,8 +255,9 @@ public class ChainEditCompiler {
       return compileConfigure(request, intent, pin, progress);
     }
 
-      if (intent.requiresStructureStage()) {
+    if (intent.requiresStructureStage()) {
       if (intent.disposition() != ChainEditDisposition.NEST
+          && intent.disposition() != ChainEditDisposition.ATTACH
           && ChainEditCapabilitySelection.owningSkillId(pin.resolvedDag(), intent).isEmpty()) {
         return new ChainEditOutcome.Unsupported(intent.action());
       }

@@ -957,6 +957,290 @@ class ChainEditSubgraphAssemblyTest {
     assertTrue(refused.getMessage().contains("does not create"), refused.getMessage());
   }
 
+  /**
+   * The live scenario this disposition exists for: a {@code condition} with an existing {@code if}
+   * asks for a second {@code if}, evaluated first, logging to a new element.
+   */
+  @Test
+  void anAttachedBranchJoinsTheContainerBesideItsExistingSiblingAndNestsItsOwnElement() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            conditionChain(), attachedIfBranch(0, "healthy-log"), attach(CONDITION), conditionDescriptors());
+
+    ChainPlanNode container = node(assembled, CONDITION);
+    ChainPlanNode newIf =
+        assembled.nodes().stream()
+            .filter(n -> "if".equals(n.type()) && !EXISTING_IF.equals(n.nodeId()))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no new if branch"));
+    ChainPlanNode logRecord = node(assembled, "healthy-log");
+
+    assertEquals(container.nodeId(), newIf.parentNodeId());
+    assertEquals(newIf.nodeId(), logRecord.parentNodeId());
+    assertEquals(container.nodeId(), node(assembled, EXISTING_IF).parentNodeId());
+    assertTrue(newIf.properties().contains(new PlanProperty("priority", "0")));
+    assertTrue(newIf.properties().contains(
+        new PlanProperty("condition", "${exchangeProperty.available} >= 10")));
+  }
+
+  @Test
+  void anAttachDoesNotChangeAConnectionOutsideTheContainer() {
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            conditionChain(), attachedIfBranch(0, "healthy-log"), attach(CONDITION), conditionDescriptors());
+
+    assertEquals(importedConditionEdges(), assembled.edges());
+  }
+
+  @Test
+  void anAttachNamingANewContainerTypeIsRefused() {
+    ChainEditSubgraph withContainerType =
+        new ChainEditSubgraph(
+            "condition",
+            null,
+            List.of(ifBranch(0, "condition-value", "healthy-log")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), withContainerType, attach(CONDITION), conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("names no new one"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachWithMoreThanOneBranchIsRefused() {
+    ChainEditSubgraph twoBranches =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(
+                ifBranch(0, "condition-value", "healthy-log"),
+                ifBranch(1, "another-value", "other-log")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), twoBranches, attach(CONDITION), conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("exactly one branch"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachNamingMoreThanOneContainerIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(),
+                    attachedIfBranch(0, "healthy-log"),
+                    attach(CONDITION, EXISTING_IF),
+                    conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("more than one container"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachToALeafElementIsRefused() {
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(),
+                    attachedIfBranch(0, "healthy-log"),
+                    attach(SCRIPT),
+                    // SCRIPT's type is 'script'; every other type falls back to permissive.
+                    cacheWithContainer(CatalogElementDescriptorTestSupport.leaf("script"))));
+
+    assertTrue(refused.getMessage().contains("is not a container"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachedBranchTypeTheContainerDoesNotAllowIsRefused() {
+    CatalogElementDescriptorCache descriptors =
+        cacheWithContainer(container("condition", Map.of("if", CatalogChildQuantity.ONE_OR_MANY), false));
+    ChainEditSubgraph elseBranch =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(
+                new ChainEditSubgraphBranch(
+                    "else", "No pets", List.of(), null, List.of(),
+                    new ChainEditSubgraphBody(
+                        List.of(new ChainEditSubgraphElement("no-pets-log", "script", "Log")),
+                        List.of()))));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(conditionChain(), elseBranch, attach(CONDITION), descriptors));
+
+    assertTrue(refused.getMessage().contains("does not allow a branch of type 'else'"),
+        refused.getMessage());
+  }
+
+  @Test
+  void anAttachExceedingTheContainersQuantityBoundIsRefused() {
+    CatalogElementDescriptorCache descriptors =
+        cacheWithContainer(container("condition", Map.of("if", CatalogChildQuantity.ONE), false));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), attachedIfBranch(0, "healthy-log"), attach(CONDITION), descriptors));
+
+    assertTrue(refused.getMessage().contains("at most 1"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachedOrderedRoleMissingItsOrderIsRefusedWhenASiblingAlreadyExists() {
+    ChainEditSubgraph noOrder =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(ifBranch(null, "${exchangeProperty.available} >= 10", "healthy-log")));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () ->
+                ChainEditSubgraphAssembly.assemble(
+                    conditionChain(), noOrder, attach(CONDITION), conditionDescriptors()));
+
+    assertTrue(refused.getMessage().contains("set order"), refused.getMessage());
+  }
+
+  @Test
+  void anAttachedBranchStillRunsThroughTheDescriptorPreflight() {
+    CatalogElementDescriptorCache descriptors = conditionDescriptorsWithMandatoryInnerIf();
+    ChainEditSubgraph emptyIf =
+        new ChainEditSubgraph(
+            null,
+            null,
+            List.of(
+                new ChainEditSubgraphBranch(
+                    "if",
+                    "Healthy",
+                    List.of(new PlanProperty("condition", "${exchangeProperty.available} >= 10")),
+                    0,
+                    List.of(),
+                    null)));
+
+    ChainEditScopeException refused =
+        assertThrows(
+            ChainEditScopeException.class,
+            () -> ChainEditSubgraphAssembly.assemble(conditionChain(), emptyIf, attach(CONDITION), descriptors));
+
+    assertTrue(refused.getMessage().contains("requires inner content"), refused.getMessage());
+  }
+
+  private static final String CONDITION = "available-condition";
+  private static final String EXISTING_IF = "available-if";
+
+  private static ChainEditIntent attach(String... targetNodeIds) {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(targetNodeIds),
+        "add a branch for stock at or above ten, logging a healthy message",
+        null,
+        "if",
+        null,
+        List.of(),
+        List.of(),
+        ChainEditDisposition.ATTACH);
+  }
+
+  private static ChainEditSubgraph attachedIfBranch(Integer order, String logNodeId) {
+    return new ChainEditSubgraph(
+        null, null, List.of(ifBranch(order, "${exchangeProperty.available} >= 10", logNodeId)));
+  }
+
+  private static ChainEditSubgraphBranch ifBranch(Integer order, String condition, String logNodeId) {
+    return new ChainEditSubgraphBranch(
+        "if",
+        "Stock is healthy",
+        List.of(new PlanProperty("condition", condition)),
+        order,
+        List.of(),
+        new ChainEditSubgraphBody(
+            List.of(new ChainEditSubgraphElement(logNodeId, "log-record", "Log healthy inventory")),
+            List.of()));
+  }
+
+  /** A {@code condition} with one existing {@code if}, matching the chain the live edit failed on. */
+  private static ChainPlanGraph conditionChain() {
+    ChainPlanGraph chain = importedChain();
+    List<ChainPlanNode> nodes = new ArrayList<>(chain.nodes());
+    nodes.add(new ChainPlanNode(CONDITION, "condition", "Available pets decision", null, null, List.of()));
+    nodes.add(
+        new ChainPlanNode(
+            EXISTING_IF,
+            "if",
+            "Available is greater than zero",
+            CONDITION,
+            0,
+            List.of(new PlanProperty("condition", "${exchangeProperty.available} > 0"))));
+    return new ChainPlanGraph(chain.schemaVersion(), chain.chain(), nodes, chain.edges());
+  }
+
+  private static List<ChainPlanEdge> importedConditionEdges() {
+    return importedChain().edges();
+  }
+
+  /**
+   * {@code condition} allows any number of {@code if} branches. {@code ordered} and
+   * {@code priorityProperty} land on {@code if}'s own descriptor, not the container's, the same
+   * live-catalog shape {@link #tryCatchDescriptors} documents for {@code try-catch-finally-2}. Every
+   * other type, including the log-record the branch creates, stays permissive.
+   */
+  private static CatalogElementDescriptorCache conditionDescriptors() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "condition" ->
+                    container("condition", Map.of("if", CatalogChildQuantity.ONE_OR_MANY), false);
+                case "if" ->
+                    // container, so the branch's own log-record nests under it, matching the live
+                    // catalog: 'if' holds the elements a matched branch runs.
+                    new CatalogElementDescriptor(
+                        "if", true, Map.of(), List.of(), true, "priority", false, false, false, true);
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
+  private static CatalogElementDescriptorCache conditionDescriptorsWithMandatoryInnerIf() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    lenient()
+        .when(loader.load(anyString()))
+        .thenAnswer(
+            invocation -> {
+              String type = invocation.getArgument(0);
+              return switch (type) {
+                case "condition" ->
+                    container("condition", Map.of("if", CatalogChildQuantity.ONE_OR_MANY), false);
+                case "if" ->
+                    CatalogElementDescriptorTestSupport.containerRequiringInner("if");
+                default -> CatalogElementDescriptorTestSupport.permissive(type);
+              };
+            });
+    return new CatalogElementDescriptorCache(loader);
+  }
+
   private static ChainEditIntent replaceElement(String... targetNodeIds) {
     return new ChainEditIntent(
         ChainEditAction.ADD_ELEMENTS,

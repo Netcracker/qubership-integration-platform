@@ -121,6 +121,38 @@ public final class ChainEditSkillContext {
               + " body. The same id is never both.\n");
     } else if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
+        && intent.disposition() == ChainEditDisposition.ATTACH) {
+      body.append("The listed target id is the container this edit adds a branch to: ")
+          .append(String.join(", ", intent.targetNodeIds()))
+          .append(". The container is not new -- do not name a containerType.\n");
+      body.append(
+          "Capture subgraph, not graph. Name no containerType and exactly one branch: its child"
+              + " type, the elements it creates in its own body, and, only when the request"
+              + " distinguishes this branch from a sibling of the same type, the property that does"
+              + " so -- the condition of an if, the exception of a catch. Never name an existing"
+              + " element in this branch: nothing moves, so moveExisting stays empty.\n");
+      body.append(
+          "Set order to the priority this branch evaluates at whenever the request gives one, or"
+              + " implies one by saying this branch comes before or after another. Java does not"
+              + " infer an order for an attach the way it numbers a brand-new container's branches,"
+              + " because the siblings this one joins were never in this capture to count a"
+              + " position from.\n");
+      body.append(
+          "New elements carry nodeId, type, and label, and no parent -- the branch is where they"
+              + " nest. Connect new elements only to new elements of this same branch; the"
+              + " container's connections to the rest of the chain do not change. A configuration"
+              + " generator may change only the node ids in its Active generator plan slice.\n");
+      body.append(
+          "Example -- adding a branch to condition 'available-condition' for stock at or above ten,"
+              + " ahead of the existing branches: {\"branches\":[{\"childType\":\"if\","
+              + "\"properties\":[{\"key\":\"condition\",\"value\":\"${exchangeProperty.available}"
+              + " >= 10\"}],\"order\":0,\"body\":{\"elements\":[{\"nodeId\":\"healthy-log-1\","
+              + "\"type\":\"log-record\",\"label\":\"Log healthy inventory\"}]}}]}."
+              + " 'available-condition' is named once in targetNodeIds, never repeated in the"
+              + " capture. 'healthy-log-1' is an id this capture invents, so it nests in the"
+              + " branch's own body rather than being connected to the container.\n");
+    } else if (intent != null
+        && intent.action() == ChainEditAction.ADD_ELEMENTS
         && intent.replacesAddressElement()) {
       body.append("The listed target ids are the elements to replace.\n");
       body.append(

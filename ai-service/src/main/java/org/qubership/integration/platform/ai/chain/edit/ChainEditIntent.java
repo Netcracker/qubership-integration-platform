@@ -17,7 +17,9 @@ import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
  * element it follows when that element has exactly one successor. A replacement names the element
  * being swapped in {@code targetNodeIds} and sets {@code disposition} to {@code REMOVE}. A nest
  * names the elements it wraps in {@code targetNodeIds}. A nest with an empty address describes a
- * scope violation and asks the reader which element it wraps instead.
+ * scope violation and asks the reader which element it wraps instead. An attach names the single
+ * existing container the new branch joins in {@code targetNodeIds} and sets {@code disposition} to
+ * {@code ATTACH} -- nothing moves and nothing is replaced.
  * {@code CONFIGURE} is complete when the capture names both a target and at least one property
  * key; {@code propertyKeys} is empty for every other action. A resolver that cannot decide which
  * existing element an edit means, or which of an anchor's several successors an insertion sits
@@ -140,10 +142,10 @@ public record ChainEditIntent(
    * Whether this addition needs the shared structure stage to build its shape.
    *
    * <p>Keep splices at the address {@code targetNodeIds} names. Nest wraps, moves, or branches an
-   * existing element. Remove puts a new subgraph in a named element's place. All three can add
-   * more than one linked element at once, so they go through the stage that produces a whole
-   * subgraph rather than a single bare node. A root trigger needs no address and no subgraph, so
-   * it is placed directly.
+   * existing element. Remove puts a new subgraph in a named element's place. Attach adds a branch
+   * to a container the chain already has. All four can add more than one linked element at once,
+   * so they go through the stage that produces a whole subgraph rather than a single bare node. A
+   * root trigger needs no address and no subgraph, so it is placed directly.
    */
   public boolean requiresStructureStage() {
     return action == ChainEditAction.ADD_ELEMENTS && !isRootTrigger();
@@ -152,7 +154,7 @@ public record ChainEditIntent(
   /**
    * Whether the structure stage captures what this edit adds instead of the chain it rebuilds.
    *
-   * <p>Nest, keep, and remove all capture a subgraph now, so this method and
+   * <p>Nest, keep, remove, and attach all capture a subgraph now, so this method and
    * {@link #requiresStructureStage()} test the same thing: an addition that is not a root trigger.
    * Defined as a delegation rather than restated, so a disposition added later cannot make the two
    * checks drift apart silently. They stay two names because they answer different questions at
@@ -192,7 +194,8 @@ public record ChainEditIntent(
         && requestedElementType != null
         && ChainPlanGraphValidator.isTriggerElementType(requestedElementType)
         && disposition != ChainEditDisposition.NEST
-        && disposition != ChainEditDisposition.REMOVE;
+        && disposition != ChainEditDisposition.REMOVE
+        && disposition != ChainEditDisposition.ATTACH;
   }
 
   ChainEditIntent withTargets(List<String> targets) {
