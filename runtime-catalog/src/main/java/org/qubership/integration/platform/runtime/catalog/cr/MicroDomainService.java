@@ -38,6 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjec
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -383,13 +384,25 @@ public class MicroDomainService {
     }
 
     /**
-     * The snapshot IDs this micro-domain still hosts once {@code removedSnapshotId} is gone. Read
-     * from the integrations-configuration ConfigMap's source list -- the same list
-     * {@link #deleteChainSnapshot} filters this snapshot out of, and the one in-cluster record that
-     * stores raw, unsanitized snapshot IDs (the source ConfigMaps' {@code SNAPSHOT_ID_LABEL} holds
-     * a {@code K8sNameValidator}-sanitized form), so it is the set that can be handed straight to
-     * {@code SnapshotRepository}. The label map is the fallback for a domain whose
-     * integrations-configuration ConfigMap is missing.
+     * The snapshot IDs this micro-domain still hosts once {@code removedSnapshotId} is gone, read
+     * from the integrations-configuration ConfigMap's source list. That list is the only in-cluster
+     * record holding raw snapshot IDs, and so the only one whose entries can go straight to
+     * {@code SnapshotRepository}: the source ConfigMaps' {@code SNAPSHOT_ID_LABEL} holds a
+     * {@code K8sNameValidator}-sanitized form, which strips a leading digit and therefore misses the
+     * catalog row for most snapshot UUIDs.
+     *
+     * <p>{@link #deleteChainSnapshot} reads this before it rewrites that ConfigMap, so the removed
+     * snapshot is still listed and is subtracted here. A redeployed chain's list already carries the
+     * new snapshot ID by the time cleanup runs, because {@code IntegrationsConfiguration.merge}
+     * dedupes sources by {@code chainId} and the later write wins. Cleanup depends on that dedupe
+     * key: change it and a superseded snapshot stops seeing its replacement.
+     *
+     * <p>The result is empty when the domain has no integrations-configuration ConfigMap at all. A
+     * ConfigMap that exists but is blank takes the same branch as a populated one, because
+     * {@code IntegrationConfigurationSerdes.getFromConfigMap} returns an empty
+     * {@code IntegrationsConfiguration} rather than null, and yields an empty set that way. Either
+     * way, no remaining snapshot can be identified, and cleanup strips every path this snapshot
+     * owns -- the behavior from before the subtraction existed.
      */
     private Set<String> remainingSnapshotIds(IntegrationResources resources, String removedSnapshotId) {
         Set<String> ids = Optional.ofNullable(resources.integrationsConfiguration())
@@ -399,7 +412,7 @@ public class MicroDomainService {
                         .map(SourceDefinition::getId)
                         .filter(Objects::nonNull)
                         .collect(Collectors.toCollection(HashSet::new)))
-                .orElseGet(() -> new HashSet<>(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL).keySet()));
+                .orElseGet(HashSet::new);
         ids.remove(removedSnapshotId);
         return ids;
     }
@@ -411,12 +424,14 @@ public class MicroDomainService {
      * chain redeployed under a new snapshot ID before the superseded one is removed, or two chains
      * reaching the same external system through the same egress prefix. Deleting a rule another
      * snapshot still serves takes a running chain offline silently, so the strip set is this
-     * snapshot's paths minus every remaining snapshot's paths -- the same subtraction
-     * {@code ChainRouteRegistry.getUnsharedRoutes} performs on the engine side.
+     * snapshot's paths minus every remaining snapshot's paths.
+     * {@code ChainRouteRegistry.getUnsharedRoutes} runs the same shape of subtraction on the engine
+     * side over a narrower set: it compares only other deployments of the same chain, while this
+     * compares every snapshot the domain hosts, other chains included.
      */
     void deleteChainSnapshotHttpRoutes(String name, String snapshotId, Set<String> remainingSnapshotIds) {
-        List<Route> ownRoutes = snapshotRoutes(List.of(snapshotId), "removed");
-        List<Route> retainedRoutes = snapshotRoutes(remainingSnapshotIds, "remaining");
+        List<Route> ownRoutes = snapshotRoutes(name, List.of(snapshotId), "removed");
+        List<Route> retainedRoutes = snapshotRoutes(name, remainingSnapshotIds, "remaining");
 
         Set<GatewayPathMatch> publicPaths = unsharedPaths(
                 tierOwnPaths(ownRoutes, RouteType::isExternalTriggerRoute),
@@ -442,20 +457,30 @@ public class MicroDomainService {
     }
 
     /**
-     * Resolves {@code snapshotIds} to the gateway routes they define. {@code description} labels the
-     * warning logged when the catalog database has no row for every requested ID: a remaining
-     * snapshot that cannot be resolved contributes no paths, which risks stripping a rule that is
-     * still live, so it must not pass silently.
+     * Resolves {@code snapshotIds} to the gateway routes they define. {@code domainName} and
+     * {@code description} label the warning logged when the catalog database has no row for every
+     * requested ID: a remaining snapshot that cannot be resolved contributes no paths, which risks
+     * stripping a rule that is still live, so it must not pass silently. The warning names the
+     * micro-domain and the unresolved IDs, because it fires at the moment rules may be removed
+     * without a full picture of who still owns them.
      */
-    private List<Route> snapshotRoutes(Collection<String> snapshotIds, String description) {
+    private List<Route> snapshotRoutes(String domainName, Collection<String> snapshotIds, String description) {
         if (snapshotIds.isEmpty()) {
             return List.of();
         }
         var snapshots = snapshotRepository.findAllByIdIn(snapshotIds);
         if (snapshots.size() < snapshotIds.size()) {
-            log.warn("Found {} of {} {} snapshot(s) in the catalog database; paths owned only by the "
-                            + "missing snapshot(s) are invisible to HTTPRoute cleanup",
-                    snapshots.size(), snapshotIds.size(), description);
+            Set<String> resolvedIds = snapshots.stream()
+                    .map(AbstractEntity::getId)
+                    .collect(Collectors.toSet());
+            List<String> unresolvedIds = snapshotIds.stream()
+                    .filter(id -> !resolvedIds.contains(id))
+                    .toList();
+            log.warn("Found {} of {} {} snapshot(s) for micro-domain '{}' in the catalog database; "
+                            + "snapshot(s) {} did not resolve, so paths only they own are invisible to "
+                            + "HTTPRoute cleanup and a rule still in use can be stripped. Redeploy the "
+                            + "affected chains to restore any rule that goes missing",
+                    snapshots.size(), snapshotIds.size(), description, domainName, unresolvedIds);
         }
         return snapshots.stream()
                 .flatMap(snapshot -> routesGetterService

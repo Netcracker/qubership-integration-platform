@@ -71,6 +71,7 @@ class MicroDomainServiceTest {
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private GenericCustomResources genericCustomResources;
     private IntegrationServiceCatalog integrationServiceCatalog;
+    private SnapshotRepository snapshotRepository;
 
     @SuppressWarnings("unchecked")
     private MicroDomainService newService(boolean monitoringEnabled) {
@@ -83,7 +84,7 @@ class MicroDomainServiceTest {
                 integrationServiceCatalog,
                 monitoringEnabled,
                 mock(RoutesGetterService.class),
-                mock(SnapshotRepository.class),
+                snapshotRepository,
                 context -> "http-route-public",
                 context -> "http-route-private",
                 context -> "http-route-egress",
@@ -105,6 +106,7 @@ class MicroDomainServiceTest {
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
         genericCustomResources = mock(GenericCustomResources.class);
         integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
+        snapshotRepository = mock(SnapshotRepository.class);
     }
 
     private void stubNamingStrategies() {
@@ -326,6 +328,11 @@ class MicroDomainServiceTest {
                 .build();
         when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
         when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+        // HTTPRoute cleanup resolves the removed snapshot ("s1") and then the remaining one ("s2").
+        // Each lookup asks for one ID, so returning one row per call keeps the "Found N of M"
+        // warning quiet: this test is about the mount and the configuration entry, not cleanup.
+        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
+                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
 
         MicroDomainService service = newService(false);
         service.deleteChainSnapshot(DOMAIN, "s1");
