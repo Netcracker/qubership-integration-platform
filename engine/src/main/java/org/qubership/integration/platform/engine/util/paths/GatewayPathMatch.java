@@ -69,8 +69,8 @@ public final class GatewayPathMatch {
     /**
      * Escapes every regex metacharacter in a literal (non-placeholder) run of the path, so a path
      * such as {@code /files/{name}.json} matches a literal dot instead of any character.
-     * {@link Pattern#quote} is not usable here: it wraps its input in {@code \Q...\E}, which RE2 --
-     * the engine Envoy evaluates these matches with -- does not support.
+     * {@link Pattern#quote} is not usable here: it wraps its input in {@code \Q...\E}, which RE2,
+     * the regex engine Envoy uses for these matches, does not support.
      */
     private static String quoteLiteral(String literal) {
         StringBuilder quoted = new StringBuilder(literal.length());
