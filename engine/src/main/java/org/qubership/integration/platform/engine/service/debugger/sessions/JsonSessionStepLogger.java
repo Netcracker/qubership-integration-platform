@@ -18,6 +18,8 @@ package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import net.logstash.logback.marker.LogstashMarker;
 import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.logging.SessionLogDetails;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
@@ -29,21 +31,11 @@ import org.springframework.stereotype.Component;
 
 import static net.logstash.logback.marker.Markers.append;
 
-/**
- * Logs a JSON record for each finished session step. Isolated from the OpenSearch writer so it can
- * stay once OpenSearch support is removed. Only "after" records are emitted (never "before").
- */
 @Component
 @ConditionalOnProperty(name = "qip.logging.format", havingValue = "json", matchIfMissing = true)
 public class JsonSessionStepLogger implements SessionStepJsonLogger {
 
     private static final Logger LOG = LoggerFactory.getLogger(JsonSessionStepLogger.class);
-
-    private static final String MDC_SESSION_ID = "internalProperty_sessionId";
-    private static final String MDC_CHAIN_ID = "chainId";
-    private static final String MDC_CHAIN = "chainName";
-    private static final String MDC_CHAIN_ELEMENT_ID = "elementId";
-    private static final String MDC_CHAIN_ELEMENT = "elementName";
 
     @Override
     public void logAfter(SessionElementElastic element, SessionLogDetails details) {
@@ -71,19 +63,19 @@ public class JsonSessionStepLogger implements SessionStepJsonLogger {
     }
 
     private void setLoggerContext(SessionElementElastic element) {
-        AbstractChainLogger.updateMDCProperty(MDC_SESSION_ID, element.getSessionId());
-        AbstractChainLogger.updateMDCProperty(MDC_CHAIN_ID, element.getChainId());
-        AbstractChainLogger.updateMDCProperty(MDC_CHAIN, element.getChainName());
-        AbstractChainLogger.updateMDCProperty(MDC_CHAIN_ELEMENT_ID, element.getChainElementId());
-        AbstractChainLogger.updateMDCProperty(MDC_CHAIN_ELEMENT, element.getElementName());
+        AbstractChainLogger.updateMDCProperty(Properties.SESSION_ID, element.getSessionId());
+        AbstractChainLogger.updateMDCProperty(ChainProperties.CHAIN_ID, element.getChainId());
+        AbstractChainLogger.updateMDCProperty(ChainProperties.CHAIN_NAME, element.getChainName());
+        AbstractChainLogger.updateMDCProperty(ChainProperties.ELEMENT_ID, element.getChainElementId());
+        AbstractChainLogger.updateMDCProperty(ChainProperties.ELEMENT_NAME, element.getElementName());
     }
 
     private void clearLoggerContext() {
-        MDC.remove(MDC_SESSION_ID);
-        MDC.remove(MDC_CHAIN_ID);
-        MDC.remove(MDC_CHAIN);
-        MDC.remove(MDC_CHAIN_ELEMENT_ID);
-        MDC.remove(MDC_CHAIN_ELEMENT);
+        MDC.remove(Properties.SESSION_ID);
+        MDC.remove(ChainProperties.CHAIN_ID);
+        MDC.remove(ChainProperties.CHAIN_NAME);
+        MDC.remove(ChainProperties.ELEMENT_ID);
+        MDC.remove(ChainProperties.ELEMENT_NAME);
     }
 
     private String buildMessage(SessionElementElastic element) {
