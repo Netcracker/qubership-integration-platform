@@ -107,6 +107,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          # The branch tip, not the dispatch SHA: an earlier job in the same wave
+          # may already have pushed a version bump this one has to read.
+          ref: ${{ github.ref }}
           # The tag check queries the remote via ls-remote, so shallow is fine.
           fetch-depth: 1
           persist-credentials: false
@@ -125,7 +128,9 @@ jobs:
   # deploy/upload and only re-applies the bump.
   build-and-publish:
     # run-name can't see a computed value (github/inputs/vars only), but a job
-    # name can read `needs` — so the released version shows up here.
+    # name can read `needs` — so the released version shows up here. This job has
+    # no job-level if, so the name always evaluates; a job that can be skipped
+    # would render the raw expression instead.
     name: publish ${{ needs.check-version.outputs.release-version }}
     needs: check-version
     runs-on: ubuntu-latest
@@ -153,6 +158,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          # Without this, checkout takes github.sha — the commit the wave was
+          # dispatched at — so a library released earlier in the same wave has
+          # moved its consumer's pin on the branch, and this job cannot see it.
+          # commit-and-push.sh already rebases onto the tip, so building from the
+          # tip is also what makes the build and the commit agree.
+          ref: ${{ github.ref }}
           fetch-depth: 0
           # Persist credentials: the tag and the version-bump commit are pushed
           # at the end via the App token (or GITHUB_TOKEN if the App is unset).
@@ -257,7 +268,6 @@ jobs:
 
   # Docker image build (workflow-hub action). Skipped in recovery — no jar built.
   publish-image:
-    name: image ${{ needs.check-version.outputs.release-version }}
     if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
     needs: [check-version, build-and-publish]
     runs-on: ubuntu-latest

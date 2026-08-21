@@ -1,8 +1,10 @@
 name: Release All
 
 # run-name is fixed before any job runs and can only read github/inputs/vars, so
-# it cannot carry the computed version. The number lands in the job names, the
-# run summary, and the drop release.
+# it cannot carry the computed version. The number lands in each module's publish
+# job name, the run summary, and the drop release. Jobs that can be skipped keep
+# static names: a skipped job never evaluates its name, and GitHub then renders
+# the raw expression.
 run-name: Release All (${{ inputs.release-type }})
 
 on:
@@ -128,7 +130,6 @@ jobs:
         run: bash scripts/compute-release-version.sh
 
   release-engine:
-    name: engine ${{ needs.prepare.outputs.platform-version }}
     needs: prepare
     if: needs.prepare.outputs.release-engine == 'true'
     permissions:
@@ -148,7 +149,6 @@ jobs:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-micro-engine:
-    name: micro-engine ${{ needs.prepare.outputs.platform-version }}
     needs: prepare
     if: needs.prepare.outputs.release-micro-engine == 'true'
     permissions:
@@ -183,7 +183,6 @@ jobs:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-runtime-catalog:
-    name: runtime-catalog ${{ needs.prepare.outputs.platform-version }}
     # After the library: its release moves runtime-catalog's pin, and this job
     # must check out a tree that already carries the new one.
     needs: [prepare, release-integration-build-pipeline]
@@ -205,7 +204,6 @@ jobs:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-sessions-management:
-    name: sessions-management ${{ needs.prepare.outputs.platform-version }}
     needs: prepare
     if: needs.prepare.outputs.release-sessions-management == 'true'
     permissions:
@@ -300,7 +298,6 @@ jobs:
 
   # The one GitHub Release per wave (tag v<platform-version>); module jobs only tag.
   create-drop-release:
-    name: drop v${{ needs.prepare.outputs.platform-version }}
     needs:
       - prepare
       - release-engine
