@@ -420,8 +420,23 @@ public class SessionsService {
             }
         }
 
-        SessionElementElastic elementToLog = sessionElement;
-        sessionStepJsonLogger.ifPresent(logger -> logger.logAfter(elementToLog, details));
+        SessionStepLogRecord logRecord = toLogRecord(sessionElement);
+        sessionStepJsonLogger.ifPresent(logger -> logger.logAfter(logRecord, details));
+    }
+
+    private SessionStepLogRecord toLogRecord(SessionElementElastic element) {
+        return new SessionStepLogRecord(
+                element.getDomain(),
+                element.getDomainType(),
+                element.getSnapshotName(),
+                element.getParentElementId(),
+                element.getCamelElementName(),
+                element.getExecutionStatus(),
+                element.getBodyAfter(),
+                element.getHeadersAfter(),
+                element.getPropertiesAfter(),
+                element.getElementName(),
+                element.getChainElementId());
     }
 
     private void populateAfterFields(Exchange exchange, Exception externalException,
