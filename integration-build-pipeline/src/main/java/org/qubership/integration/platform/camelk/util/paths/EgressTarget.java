@@ -38,6 +38,19 @@ public record EgressTarget(String scheme, String host, int port, String path) {
     }
 
     /**
+     * The {@code ServiceEntry} port name for this target. A {@code ServiceEntry} is named after its
+     * host alone, so one resource collects every port any route targets on that host -- and Istio's
+     * own validation rejects a {@code ServiceEntry} whose ports share a name. Naming a port after
+     * the scheme alone therefore collides as soon as one host is reached on two ports (443 and 9443
+     * would both be "https"). Appending the port number keeps Istio's conventional
+     * {@code <protocol>-<suffix>} shape, stays a valid DNS-1123 label, and is unique by
+     * construction, since ports are merged by number.
+     */
+    public String portName() {
+        return (isHttps() ? "https" : "http") + "-" + port;
+    }
+
+    /**
      * A Kubernetes-safe object name derived from {@link #host()} alone (not port or scheme), so
      * every route that targets the same external host converges on the same
      * {@code ServiceEntry}/{@code DestinationRule} name -- in engine's live registration and this

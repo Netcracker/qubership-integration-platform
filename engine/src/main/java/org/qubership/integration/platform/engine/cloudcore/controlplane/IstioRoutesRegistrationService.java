@@ -339,7 +339,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     private void upsertServiceEntry(String name, EgressTarget target) {
         ObjectNode newPort = objectMapper.createObjectNode();
         newPort.put("number", target.port());
-        newPort.put("name", target.isHttps() ? "https" : "http");
+        newPort.put("name", target.portName());
         newPort.put("protocol", target.isHttps() ? "HTTPS" : "HTTP");
 
         upsertHostResource(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, SERVICE_ENTRIES_PLURAL,

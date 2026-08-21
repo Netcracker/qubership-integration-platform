@@ -74,4 +74,12 @@ class EgressTargetTest {
 
         assertTrue(name.length() <= 63);
     }
+
+    @Test
+    void portNameCombinesSchemeAndPortSoOneHostsPortsStayUnique() {
+        assertEquals("https-443", EgressTarget.parse("https://api.example.com/v2").portName());
+        assertEquals("https-9443", EgressTarget.parse("https://api.example.com:9443/v2").portName());
+        assertEquals("http-80", EgressTarget.parse("http://api.example.com/v2").portName());
+        assertEquals("http-8080", EgressTarget.parse("http://api.example.com:8080/v2").portName());
+    }
 }

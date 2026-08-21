@@ -163,6 +163,24 @@ class EgressRouteResourceBuilderTest {
     }
 
     @Test
+    void buildGivesEveryPortOnAHostItsOwnNameSoIstioAcceptsTheServiceEntry() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com:9443/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("https://api.example.com").hostResourceName();
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.serviceEntryCacheKey(hostResourceName),
+                existingServiceEntrySpec(port(443, "https-443", "HTTPS")));
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("name: https-443"));
+        assertTrue(result.contains("name: https-9443"));
+    }
+
+    @Test
     void buildReplacesAnExistingPortWithTheSameNumberInsteadOfDuplicating() throws Exception {
         when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
                 Route.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-a")

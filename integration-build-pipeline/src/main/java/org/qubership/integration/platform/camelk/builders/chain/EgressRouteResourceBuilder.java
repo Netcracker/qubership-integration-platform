@@ -261,7 +261,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
         ObjectNode newPort = yamlMapper.createObjectNode();
         newPort.put("number", target.port());
-        newPort.put("name", target.isHttps() ? "https" : "http");
+        newPort.put("name", target.portName());
         newPort.put("protocol", target.isHttps() ? "HTTPS" : "HTTP");
 
         ObjectNode serviceEntry = yamlMapper.createObjectNode();

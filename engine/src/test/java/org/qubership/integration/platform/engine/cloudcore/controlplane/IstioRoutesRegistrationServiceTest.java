@@ -413,6 +413,27 @@ class IstioRoutesRegistrationServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesGivesEveryPortOnAHostItsOwnName() {
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingServiceEntry(port(443, "https-443", "HTTPS"))));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        KubeCustomObjectRequest serviceEntryRequest = captor.getAllValues().stream()
+                .filter(r -> "serviceentries".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+        List<Map<String, Object>> ports = (List<Map<String, Object>>) serviceEntryRequest.getBody().getSpec().get("ports");
+        List<String> names = ports.stream().map(p -> (String) p.get("name")).sorted().toList();
+        assertEquals(List.of("https-443", "https-9443"), names);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void postEgressGatewayRoutesReplacesAnExistingPortWithTheSameNumberInsteadOfDuplicating() {
         when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
                 .thenReturn(Optional.of(existingServiceEntry(port(443, "https", "HTTPS"))));
