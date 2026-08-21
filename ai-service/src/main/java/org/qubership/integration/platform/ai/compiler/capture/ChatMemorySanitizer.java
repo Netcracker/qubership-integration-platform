@@ -14,7 +14,8 @@ import java.util.Set;
 import org.jboss.logging.Logger;
 
 /**
- * Repairs a conversation's shared chat memory after a tool call is left unanswered.
+ * Repairs the shapes a conversation's shared chat memory can be left in that OpenAI refuses on the
+ * next request, whichever turn produced them.
  *
  * <p>When tool-argument deserialization fails ({@code ToolArgumentsException}), quarkus-langchain4j
  * rethrows before the tool runs, so the assistant message carrying the {@code tool_call} stays in
@@ -22,6 +23,10 @@ import org.jboss.logging.Logger;
  * conversationId} then sends OpenAI an assistant {@code tool_calls} message not followed by tool
  * results, which is rejected with {@code invalid_request_error}. This appends a synthetic error
  * result for each dangling {@code tool_call} so the next turn is well formed.
+ *
+ * <p>An empty assistant completion leaves the other refused shape behind; see {@link
+ * #isEmptyAssistantTurn}. Both are repaired in the same pass, because both cost the conversation
+ * every turn that follows rather than only the turn that produced them.
  */
 @ApplicationScoped
 public class ChatMemorySanitizer {
@@ -81,7 +86,12 @@ public class ChatMemorySanitizer {
 
     List<ChatMessage> repaired = new ArrayList<>(messages.size());
     int inserted = 0;
+    int dropped = 0;
     for (ChatMessage message : messages) {
+      if (isEmptyAssistantTurn(message)) {
+        dropped++;
+        continue;
+      }
       repaired.add(message);
       if (message instanceof AiMessage ai && ai.hasToolExecutionRequests()) {
         for (ToolExecutionRequest request : ai.toolExecutionRequests()) {
@@ -95,11 +105,32 @@ public class ChatMemorySanitizer {
       }
     }
 
-    if (inserted > 0) {
+    if (inserted > 0 || dropped > 0) {
       store.updateMessages(conversationId, repaired);
       LOG.warnf(
-          "Repaired dangling tool calls conversationId=%s inserted=%d", conversationId, inserted);
+          "Repaired chat memory conversationId=%s danglingResults=%d emptyAssistantTurns=%d",
+          conversationId, inserted, dropped);
     }
     return inserted;
+  }
+
+  /**
+   * An assistant turn that says nothing and asks for nothing.
+   *
+   * <p>A model that answers a tool result with neither text nor another tool call leaves an {@link
+   * AiMessage} with null text and no tool calls in memory. OpenAI serializes that as {@code
+   * content: null} on a message carrying no {@code tool_calls} to justify it, and refuses every
+   * later request on the conversation for it -- including the repair retry that would have
+   * corrected whatever the tool rejected in the first place. One empty completion therefore costs
+   * the whole run rather than one turn.
+   *
+   * <p>Null text alongside tool calls is the ordinary shape of a tool-calling turn and is kept:
+   * OpenAI accepts it, and dropping it would strand the tool results that answer it.
+   */
+  private static boolean isEmptyAssistantTurn(ChatMessage message) {
+    if (!(message instanceof AiMessage ai) || ai.hasToolExecutionRequests()) {
+      return false;
+    }
+    return ai.text() == null || ai.text().isBlank();
   }
 }
