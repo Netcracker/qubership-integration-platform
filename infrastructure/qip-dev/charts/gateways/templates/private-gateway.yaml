@@ -1,0 +1,20 @@
+{{- if .Values.enabled }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  annotations:
+    networking.istio.io/service-type: NodePort
+    # This forces Istio to name the created K8s Service "private-gateway"
+    gateway.istio.io/name-override: "private-gateway"
+  name: private-gateway
+spec:
+  gatewayClassName: istio
+  listeners:
+    - allowedRoutes:
+        namespaces:
+          from: Same
+      name: http
+      port: 80
+      protocol: HTTP
+{{- end }}

@@ -3,7 +3,7 @@ data:
   DYNAMIC_ENGINE_CONSUL_STATE_ENABLED: "true"
   KUBE_DEV_MODE: "false"
   POSTGRES_URL: {{ .Release.Name }}-postgres:5432
-  RUNTIME_CATALOG_SERVICE_URL: http://{{ .Release.Name }}-runtime-catalog:8080
+  RUNTIME_CATALOG_SERVICE_URL: http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080
 kind: ConfigMap
 metadata:
   labels:

@@ -31,9 +31,11 @@ import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConf
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -102,8 +104,18 @@ class MicroDomainResourceBuildContextFactoryTest {
             V1ConfigMap integrationsConfiguration,
             List<V1ConfigMap> sources
     ) {
+        return resources(integration, integrationsConfiguration, sources, null);
+    }
+
+    private MicroDomainService.IntegrationResources resources(
+            CamelKIntegration integration,
+            V1ConfigMap integrationsConfiguration,
+            List<V1ConfigMap> sources,
+            KubeCustomObject publicHttpRoute
+    ) {
         return new MicroDomainService.IntegrationResources(
-                integration, null, null, integrationsConfiguration, sources, null, List.of());
+                integration, null, null, integrationsConfiguration, sources, null, List.of(),
+                publicHttpRoute, null, null);
     }
 
     @DisplayName("Stamps a fresh build id and the strategy name onto the context, and skips the append step")
@@ -202,5 +214,24 @@ class MicroDomainResourceBuildContextFactoryTest {
 
         verify(sourceDslConfigMapNamingStrategy).useName(any(), eq("src-snap"));
         verify(sourceDslConfigMapNamingStrategy).useName(any(), eq("src-chain"));
+    }
+
+    @DisplayName("Caches the public tier's existing HTTPRoute rules so append-mode builds can preserve them")
+    @Test
+    void appendModeCachesExistingHttpRouteRules() {
+        Map<String, Object> spec = new LinkedHashMap<>();
+        spec.put("rules", List.of(Map.of("matches", List.of(Map.of("path", Map.of("value", "/qip-routes/a"))))));
+        KubeCustomObject publicRoute = new KubeCustomObject();
+        publicRoute.setSpec(spec);
+
+        CamelKIntegration integration = new CamelKIntegration();
+        integration.setSpec(new CamelKIntegration.IntegrationSpec());
+        when(microDomainService.getMainIntegrationResources(DOMAIN))
+                .thenReturn(java.util.Optional.of(resources(integration, null, List.of(), publicRoute)));
+
+        ResourceBuildContext<List<Snapshot>> context =
+                factory.createResourceBuildContext(request(options()), true);
+
+        assertEquals(spec, context.getBuildCache().get("publicHttpRoute"));
     }
 }

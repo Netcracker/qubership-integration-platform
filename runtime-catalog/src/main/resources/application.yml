@@ -189,6 +189,12 @@ qip:
         suffix: ""
       chain:
         suffix-length: 7
+      http-route:
+        public-suffix: -chain-public-routes
+        private-suffix: -chain-private-routes
+        egress-suffix: -egress-routes
+      engine-routes:
+        suffix: -routes
     build:
       replicas: ${MICRO_DOMAIN_REPLICAS:1}
       container:
@@ -261,6 +267,8 @@ qip:
       interval: ${ACTION_LOG_CLEANUP_INTERVAL:14 days} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
       cron: ${ACTION_LOG_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format
   chains:
+    external-routes:
+      base-path: /${app.prefix}-routes
     triggers:
       check:
         enabled: true
@@ -275,14 +283,25 @@ qip:
     default: default
   gateway:
     egress:
+      name: egress-gateway
       protocol: http
-      url: egress-gateway:8080
+      url: ${QIP_EGRESS_GATEWAY_URL:egress-gateway:8080}
+    public:
+      name: public-gateway
+    private:
+      name: private-gateway
+    internal:
+      name: internal-gateway-service
   engine:
     app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   control-plane:
+    mesh-type: ${SERVICE_MESH_TYPE:Core}
     chain-routes-registration:
       ingress-gateways: ${QIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
       egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
+    routes:
+      public:
+        v1-prefix: /api/v1/${app.prefix}/engine
   build:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
   json:

@@ -55,6 +55,17 @@ public class KubeOperator {
     private static final String BUILD_VERSION_LABEL = "app.kubernetes.io/version";
     private static final String DEFAULT_ERR_MESSAGE = "Invalid k8s cluster parameters or API error. ";
     private static final String REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME = ".*-v\\d+$";
+    private static final String HTTP_ROUTE_KIND = "HTTPRoute";
+    private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
+    private static final String GATEWAY_API_VERSION = "v1";
+    private static final String HTTP_ROUTES_PLURAL = "httproutes";
+    private static final String SERVICE_ENTRY_KIND = "ServiceEntry";
+    private static final String DESTINATION_RULE_KIND = "DestinationRule";
+    private static final String ISTIO_NETWORKING_API_GROUP = "networking.istio.io";
+    private static final String ISTIO_NETWORKING_API_VERSION = "v1";
+    private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
+    private static final String DESTINATION_RULES_PLURAL = "destinationrules";
+    private static final String APPLY_RESOURCE_LOG_FORMAT = "Applying {} name={}";
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
     private final CustomObjectsApi customObjectsApi;
@@ -187,6 +198,23 @@ public class KubeOperator {
             createOrUpdateCustomResource("monitoring.coreos.com", "v1", "servicemonitors",
                     serviceMonitor, new TypeToken<V1ServiceMonitorList>() {
                     }.getType(), true);
+        } else if (resource instanceof KubeCustomObject customObject && HTTP_ROUTE_KIND.equals(customObject.getKind())) {
+            // HTTPRoute is handled directly (not through GenericCustomResources) because that map
+            // returns empty under the "localdev" profile, which would make definitionFor() throw
+            // there too. It's also always safe to update in place if it already exists.
+            log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
+            createOrUpdateCustomResource(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, customObject,
+                    new TypeToken<KubeCustomObjectList>() {}.getType(), true);
+        } else if (resource instanceof KubeCustomObject customObject && SERVICE_ENTRY_KIND.equals(customObject.getKind())) {
+            // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
+            log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
+            createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, SERVICE_ENTRIES_PLURAL,
+                    customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
+        } else if (resource instanceof KubeCustomObject customObject && DESTINATION_RULE_KIND.equals(customObject.getKind())) {
+            // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
+            log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
+            createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, DESTINATION_RULES_PLURAL,
+                    customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject) {
             GenericCustomResources.CustomResourceDefinition resourceDefinition =
                 Optional.ofNullable(genericCustomResources)
@@ -194,7 +222,7 @@ public class KubeOperator {
                     .definitionFor(customObject.getKind());
             boolean updateIfExists = resourceDefinition.updateIfExists();
 
-            log.debug("Applying {} name={}, updateIfExists={}",
+            log.debug(APPLY_RESOURCE_LOG_FORMAT + ", updateIfExists={}",
                     customObject.getKind(), getName(customObject).orElse(""), updateIfExists);
             createOrUpdateCustomResource(resourceDefinition.group(), resourceDefinition.version(), resourceDefinition.plural(), customObject,
                     new TypeToken<KubeCustomObjectList>() {}.getType(), updateIfExists);
@@ -378,6 +406,50 @@ public class KubeOperator {
             return items;
         } catch (ApiException exception) {
             throw new KubeApiException("Failed to get custom objects.", exception);
+        }
+    }
+
+    public List<KubeCustomObject> getServiceEntries() throws KubeApiException {
+        return listCustomObjects(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, SERVICE_ENTRIES_PLURAL);
+    }
+
+    public List<KubeCustomObject> getDestinationRules() throws KubeApiException {
+        return listCustomObjects(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, DESTINATION_RULES_PLURAL);
+    }
+
+    /**
+     * Lists every object of the given kind in this namespace, unfiltered by label -- unlike
+     * {@link #getCustomObjectsByLabelAndDefinition}, which scopes to one domain's own resources.
+     * {@code ServiceEntry}/{@code DestinationRule} are shared across every domain that targets a
+     * given external host, so there's no single domain label to filter by; callers that only need
+     * specific ones filter the result themselves. A 404 (the CRD itself isn't installed, e.g. a
+     * Core-mesh cluster with no Istio CRDs) is treated as "none exist" rather than an error.
+     */
+    private List<KubeCustomObject> listCustomObjects(String group, String version, String plural) throws KubeApiException {
+        try {
+            Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
+            KubeCustomObjectList listObject = fromRawObject(rawListObj, new TypeToken<KubeCustomObjectList>() {}.getType());
+            return listObject.getItems();
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                return List.of();
+            }
+            throw new KubeApiException("Failed to list custom objects.", exception);
+        }
+    }
+
+    public Optional<KubeCustomObject> getCustomObject(String group, String version, String plural, String name)
+            throws KubeApiException {
+        try {
+            Object rawObj = customObjectsApi.getNamespacedCustomObject(group, version, namespace, plural, name)
+                    .execute();
+            KubeCustomObject customObject = fromRawObject(rawObj, KubeCustomObject.class);
+            return Optional.of(customObject);
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                return Optional.empty();
+            }
+            throw new KubeApiException("Failed to get object: " + name, exception);
         }
     }
 

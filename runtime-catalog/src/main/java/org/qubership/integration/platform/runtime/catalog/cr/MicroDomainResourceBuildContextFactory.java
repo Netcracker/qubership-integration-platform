@@ -12,6 +12,7 @@ import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
@@ -23,6 +24,11 @@ import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.camelk.builders.chain.EgressRouteResourceBuilder.EGRESS_HTTP_ROUTE_CACHE_KEY;
+import static org.qubership.integration.platform.camelk.builders.chain.EgressRouteResourceBuilder.destinationRuleCacheKey;
+import static org.qubership.integration.platform.camelk.builders.chain.EgressRouteResourceBuilder.serviceEntryCacheKey;
+import static org.qubership.integration.platform.camelk.builders.chain.HttpRouteResourceBuilder.PRIVATE_HTTP_ROUTE_CACHE_KEY;
+import static org.qubership.integration.platform.camelk.builders.chain.HttpRouteResourceBuilder.PUBLIC_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
 import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
@@ -70,6 +76,12 @@ public class MicroDomainResourceBuildContextFactory {
             addAppendConfigurationToContext(context);
         }
 
+        // Unlike the rest of addAppendConfigurationToContext, this runs regardless of
+        // appendToExising: ServiceEntry/DestinationRule are shared across every domain that targets
+        // a given external host, not scoped to this one, so another domain's existing contribution
+        // matters even on this domain's very first build.
+        putHostResourceSpecsToBuildCache(context);
+
         return context;
     }
 
@@ -96,6 +108,7 @@ public class MicroDomainResourceBuildContextFactory {
                     updateIntegrationEmptyDirs(context, resources.integration());
                     putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());
                     putSourceConfigMapNamesToBuildCache(context, resources);
+                    putHttpRouteRulesToBuildCache(context, resources);
                 });
     }
 
@@ -127,6 +140,41 @@ public class MicroDomainResourceBuildContextFactory {
                     .ifPresent(name ->
                             sourceDslConfigMapNamingStrategy.useName(context.updateTo(snapshot), name));
         });
+    }
+
+    private void putHttpRouteRulesToBuildCache(
+            ResourceBuildContext<List<Snapshot>> context,
+            MicroDomainService.IntegrationResources resources
+    ) {
+        if (resources.publicHttpRoute() != null) {
+            context.getBuildCache().put(PUBLIC_HTTP_ROUTE_CACHE_KEY, resources.publicHttpRoute().getSpec());
+        }
+        if (resources.privateHttpRoute() != null) {
+            context.getBuildCache().put(PRIVATE_HTTP_ROUTE_CACHE_KEY, resources.privateHttpRoute().getSpec());
+        }
+        if (resources.egressHttpRoute() != null) {
+            context.getBuildCache().put(EGRESS_HTTP_ROUTE_CACHE_KEY, resources.egressHttpRoute().getSpec());
+        }
+    }
+
+    /**
+     * Seeds every existing {@code ServiceEntry}/{@code DestinationRule}'s current spec into the
+     * build cache, keyed by {@code EgressRouteResourceBuilder}'s host-derived cache keys, so that
+     * builder can merge its own port into whatever another domain already contributed for the same
+     * host instead of overwriting it -- without needing to talk to Kubernetes itself. Unlike
+     * {@link #putHttpRouteRulesToBuildCache} (three fixed, per-domain-named CRs), there's no way to
+     * know in advance which hosts this build's routes will touch, so every existing one is fetched
+     * and seeded; {@code EgressRouteResourceBuilder} looks up only the keys it actually needs.
+     */
+    private void putHostResourceSpecsToBuildCache(ResourceBuildContext<List<Snapshot>> context) {
+        for (KubeCustomObject serviceEntry : microDomainService.getExistingServiceEntries()) {
+            getName(serviceEntry).ifPresent(name ->
+                    context.getBuildCache().put(serviceEntryCacheKey(name), serviceEntry.getSpec()));
+        }
+        for (KubeCustomObject destinationRule : microDomainService.getExistingDestinationRules()) {
+            getName(destinationRule).ifPresent(name ->
+                    context.getBuildCache().put(destinationRuleCacheKey(name), destinationRule.getSpec()));
+        }
     }
 
     private void updateIntegrationResources(

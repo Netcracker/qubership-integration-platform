@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
 import com.coreos.monitoring.models.V1ServiceMonitor;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -30,12 +31,14 @@ import org.qubership.integration.platform.camelk.integrations.configuration.Inte
 import org.qubership.integration.platform.camelk.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -68,6 +71,7 @@ class MicroDomainServiceTest {
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private GenericCustomResources genericCustomResources;
     private IntegrationServiceCatalog integrationServiceCatalog;
+    private SnapshotRepository snapshotRepository;
 
     @SuppressWarnings("unchecked")
     private MicroDomainService newService(boolean monitoringEnabled) {
@@ -78,7 +82,14 @@ class MicroDomainServiceTest {
                 integrationConfigurationSerdes,
                 genericCustomResources,
                 integrationServiceCatalog,
-                monitoringEnabled);
+                monitoringEnabled,
+                mock(RoutesGetterService.class),
+                snapshotRepository,
+                context -> "http-route-public",
+                context -> "http-route-private",
+                context -> "http-route-egress",
+                context -> "engine-routes",
+                new YAMLMapper());
         // The @Value fields are package-private, so the test in this package sets them directly.
         service.domainLabel = "qip.domain";
         service.bgVersionLabel = "qip.bgVersion";
@@ -95,6 +106,7 @@ class MicroDomainServiceTest {
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
         genericCustomResources = mock(GenericCustomResources.class);
         integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
+        snapshotRepository = mock(SnapshotRepository.class);
     }
 
     private void stubNamingStrategies() {
@@ -196,7 +208,7 @@ class MicroDomainServiceTest {
         V1ConfigMap withoutLabel = configMap("cm-3", Map.of());
         MicroDomainService.IntegrationResources resources = new MicroDomainService.IntegrationResources(
                 null, null, null, null,
-                List.of(withS1, withS2, withoutLabel), null, List.of());
+                List.of(withS1, withS2, withoutLabel), null, List.of(), null, null, null);
 
         Map<String, V1ConfigMap> byLabel = resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL);
 
@@ -316,6 +328,11 @@ class MicroDomainServiceTest {
                 .build();
         when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
         when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+        // HTTPRoute cleanup resolves the removed snapshot ("s1") and then the remaining one ("s2").
+        // Each lookup asks for one ID, so returning one row per call keeps the "Found N of M"
+        // warning quiet: this test is about the mount and the configuration entry, not cleanup.
+        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
+                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
 
         MicroDomainService service = newService(false);
         service.deleteChainSnapshot(DOMAIN, "s1");

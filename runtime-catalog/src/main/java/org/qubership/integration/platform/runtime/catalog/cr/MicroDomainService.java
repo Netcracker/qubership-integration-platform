@@ -2,6 +2,8 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 
 import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.coreos.monitoring.models.V1ServiceMonitorList;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -12,21 +14,32 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.camelk.builders.IntegrationsConfigurationConfigMapBuilder;
+import org.qubership.integration.platform.camelk.builders.chain.HttpRouteRuleNormalizer;
 import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.camelk.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
+import org.qubership.integration.platform.camelk.model.routes.Route;
+import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.services.EgressServiceRouteFormatter;
+import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.camelk.util.paths.GatewayPathMatch;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +47,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
@@ -50,7 +64,10 @@ public class MicroDomainService {
             V1ConfigMap integrationsConfiguration,
             Collection<V1ConfigMap> integrationSources,
             V1Secret secret,
-            Collection<KubeCustomObject> customResources
+            Collection<KubeCustomObject> customResources,
+            KubeCustomObject publicHttpRoute,
+            KubeCustomObject privateHttpRoute,
+            KubeCustomObject egressHttpRoute
     ) {
         public Map<String, V1ConfigMap> getSourceByLabelMap(String label) {
             return integrationSources.stream().collect(Collectors.toMap(
@@ -69,7 +86,24 @@ public class MicroDomainService {
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private final boolean monitoringEnabled;
     private final GenericCustomResources genericCustomResources;
+    private final RoutesGetterService routesGetterService;
+    private final SnapshotRepository snapshotRepository;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy;
+    private final YAMLMapper yamlMapper;
+
+    private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
+    private static final String GATEWAY_API_VERSION = "v1";
+    private static final String HTTP_ROUTES_PLURAL = "httproutes";
+    private static final String NETWORKING_ISTIO_API_GROUP = "networking.istio.io";
+    private static final String NETWORKING_ISTIO_API_VERSION = "v1";
+
     private final IntegrationServiceCatalog integrationServiceCatalog;
+
+    @Value("${qip.chains.external-routes.base-path}")
+    String baseRoutePrefix;
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -90,7 +124,18 @@ public class MicroDomainService {
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
             GenericCustomResources genericCustomResources,
             IntegrationServiceCatalog integrationServiceCatalog,
-            @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled
+            @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled,
+            RoutesGetterService routesGetterService,
+            SnapshotRepository snapshotRepository,
+            @Qualifier("httpRoutePublicNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy,
+            @Qualifier("httpRoutePrivateNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy,
+            @Qualifier("httpRouteEgressNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
+            @Qualifier("engineRoutesNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy,
+            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -99,13 +144,42 @@ public class MicroDomainService {
         this.genericCustomResources = genericCustomResources;
         this.integrationServiceCatalog = integrationServiceCatalog;
         this.monitoringEnabled = monitoringEnabled;
+        this.routesGetterService = routesGetterService;
+        this.snapshotRepository = snapshotRepository;
+        this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
+        this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
+        this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
+        this.engineRoutesNamingStrategy = engineRoutesNamingStrategy;
+        this.yamlMapper = yamlMapper;
     }
 
     @PostConstruct
     public void init() {
         ModelMapper.addModelMap("camel.apache.org", "v1", "Integration", "Integrations", CamelKIntegration.class, CamelKIntegrationList.class);
         ModelMapper.addModelMap("monitoring.coreos.com", "v1", "ServiceMonitor", "ServiceMonitors", V1ServiceMonitor.class, V1ServiceMonitorList.class);
+        ModelMapper.addModelMap(GATEWAY_API_GROUP, GATEWAY_API_VERSION, "HTTPRoute", HTTP_ROUTES_PLURAL,
+                KubeCustomObject.class, KubeCustomObjectList.class);
+        ModelMapper.addModelMap(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, "ServiceEntry", "serviceentries",
+                KubeCustomObject.class, KubeCustomObjectList.class);
+        ModelMapper.addModelMap(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, "DestinationRule", "destinationrules",
+                KubeCustomObject.class, KubeCustomObjectList.class);
         genericCustomResources.registerModelMaps();
+    }
+
+    /**
+     * Every existing {@code ServiceEntry} in this namespace, unfiltered -- there's no per-domain
+     * label to scope by, since a single {@code ServiceEntry} can be shared across every domain that
+     * targets its host. Used to seed {@code EgressRouteResourceBuilder}'s build cache so it can
+     * merge its own port into whatever another domain already contributed for the same host,
+     * instead of overwriting it; see {@code MicroDomainResourceBuildContextFactory}.
+     */
+    public List<KubeCustomObject> getExistingServiceEntries() {
+        return kubeOperator.getServiceEntries();
+    }
+
+    /** Same rationale as {@link #getExistingServiceEntries}, for {@code DestinationRule}. */
+    public List<KubeCustomObject> getExistingDestinationRules() {
+        return kubeOperator.getDestinationRules();
     }
 
     public void deploy(String resourceText) throws MicroDomainDeployError {
@@ -120,6 +194,8 @@ public class MicroDomainService {
     }
 
     public void delete(String name) {
+        deleteHttpRoutes(name);
+        deleteEngineRoutes(name);
         getAllIntegrationResources(name).ifPresent(resources -> {
             Optional.ofNullable(resources.integration)
                     .flatMap(KubeUtil::getName)
@@ -160,6 +236,7 @@ public class MicroDomainService {
     public void deleteChainSnapshot(String name, String snapshotId) {
         getMainIntegrationResources(name).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
+            Set<String> remainingSnapshotIds = remainingSnapshotIds(resources, snapshotId);
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
                     .map(m -> m.get(snapshotId))
                     .flatMap(KubeUtil::getName)
@@ -195,6 +272,7 @@ public class MicroDomainService {
             if (StringUtils.isNotBlank(cfgName)) {
                 kubeOperator.deleteConfigMap(cfgName);
             }
+            deleteChainSnapshotHttpRoutes(name, snapshotId, remainingSnapshotIds);
         });
     }
 
@@ -245,6 +323,20 @@ public class MicroDomainService {
                 customResources.addAll(kubeOperator.getCustomObjectsByLabelAndDefinition(
                         CAMEL_K_INTEGRATION_LABEL, integrationName, def)));
         }
+
+        String publicRouteName = httpRoutePublicNamingStrategy.getName(getContextForDomain(name));
+        String privateRouteName = httpRoutePrivateNamingStrategy.getName(getContextForDomain(name));
+        String egressRouteName = httpRouteEgressNamingStrategy.getName(getContextForDomain(name));
+        KubeCustomObject publicHttpRoute = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, publicRouteName)
+                .orElse(null);
+        KubeCustomObject privateHttpRoute = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, privateRouteName)
+                .orElse(null);
+        KubeCustomObject egressHttpRoute = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, egressRouteName)
+                .orElse(null);
+
         return Optional.of(new IntegrationResources(
                 integration.orElse(null),
                 serviceMonitor.orElse(null),
@@ -252,7 +344,10 @@ public class MicroDomainService {
                 integrationsConfiguration.orElse(null),
                 integrationSources,
                 secret.orElse(null),
-                customResources
+                customResources,
+                publicHttpRoute,
+                privateHttpRoute,
+                egressHttpRoute
         ));
     }
 
@@ -270,5 +365,249 @@ public class MicroDomainService {
             .build();
         return ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
             .updateTo(Collections.emptyList());
+    }
+
+    void deleteHttpRoutes(String name) {
+        ResourceBuildContext<List<Snapshot>> context = getContextForDomain(name);
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                httpRoutePublicNamingStrategy.getName(context));
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                httpRoutePrivateNamingStrategy.getName(context));
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                httpRouteEgressNamingStrategy.getName(context));
+    }
+
+    void deleteEngineRoutes(String name) {
+        ResourceBuildContext<List<Snapshot>> context = getContextForDomain(name);
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                engineRoutesNamingStrategy.getName(context));
+    }
+
+    /**
+     * The snapshot IDs this micro-domain still hosts once {@code removedSnapshotId} is gone, read
+     * from the integrations-configuration ConfigMap's source list. That list is the only in-cluster
+     * record holding raw snapshot IDs, and so the only one whose entries can go straight to
+     * {@code SnapshotRepository}: the source ConfigMaps' {@code SNAPSHOT_ID_LABEL} holds a
+     * {@code K8sNameValidator}-sanitized form, which strips a leading digit and therefore misses the
+     * catalog row for most snapshot UUIDs.
+     *
+     * <p>{@link #deleteChainSnapshot} reads this before it rewrites that ConfigMap, so the removed
+     * snapshot is still listed and is subtracted here. A redeployed chain's list already carries the
+     * new snapshot ID by the time cleanup runs, because {@code IntegrationsConfiguration.merge}
+     * dedupes sources by {@code chainId} and the later write wins. Cleanup depends on that dedupe
+     * key: change it and a superseded snapshot stops seeing its replacement.
+     *
+     * <p>The result is empty when the domain has no integrations-configuration ConfigMap at all. A
+     * ConfigMap that exists but is blank takes the same branch as a populated one, because
+     * {@code IntegrationConfigurationSerdes.getFromConfigMap} returns an empty
+     * {@code IntegrationsConfiguration} rather than null, and yields an empty set that way. Either
+     * way, no remaining snapshot can be identified, and cleanup strips every path this snapshot
+     * owns -- the behavior from before the subtraction existed.
+     */
+    private Set<String> remainingSnapshotIds(IntegrationResources resources, String removedSnapshotId) {
+        Set<String> ids = Optional.ofNullable(resources.integrationsConfiguration())
+                .map(integrationConfigurationSerdes::getFromConfigMap)
+                .map(IntegrationsConfiguration::getSources)
+                .map(sources -> sources.stream()
+                        .map(SourceDefinition::getId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toCollection(HashSet::new)))
+                .orElseGet(HashSet::new);
+        ids.remove(removedSnapshotId);
+        return ids;
+    }
+
+    /**
+     * Strips {@code snapshotId}'s gateway paths from this domain's shared HTTPRoute tiers, minus any
+     * path {@code remainingSnapshotIds} still owns. The tiers are one CR per micro-domain, shared by
+     * every snapshot that domain hosts, and two snapshots can legitimately claim the same path: a
+     * chain redeployed under a new snapshot ID before the superseded one is removed, or two chains
+     * reaching the same external system through the same egress prefix. Deleting a rule another
+     * snapshot still serves takes a running chain offline silently, so the strip set is this
+     * snapshot's paths minus every remaining snapshot's paths.
+     * {@code ChainRouteRegistry.getUnsharedRoutes} runs the same shape of subtraction on the engine
+     * side over a narrower set: it compares only other deployments of the same chain, while this
+     * compares every snapshot the domain hosts, other chains included.
+     */
+    void deleteChainSnapshotHttpRoutes(String name, String snapshotId, Set<String> remainingSnapshotIds) {
+        List<Route> ownRoutes = snapshotRoutes(name, List.of(snapshotId), "removed");
+        List<Route> retainedRoutes = snapshotRoutes(name, remainingSnapshotIds, "remaining");
+
+        Set<GatewayPathMatch> publicPaths = unsharedPaths(
+                tierOwnPaths(ownRoutes, RouteType::isExternalTriggerRoute),
+                tierOwnPaths(retainedRoutes, RouteType::isExternalTriggerRoute));
+        Set<GatewayPathMatch> privatePaths = unsharedPaths(
+                tierOwnPaths(ownRoutes, RouteType::isPrivateTriggerRoute),
+                tierOwnPaths(retainedRoutes, RouteType::isPrivateTriggerRoute));
+        Set<GatewayPathMatch> egressPaths = unsharedPaths(
+                egressOwnPaths(ownRoutes), egressOwnPaths(retainedRoutes));
+
+        if (publicPaths.isEmpty() && privatePaths.isEmpty() && egressPaths.isEmpty()) {
+            return;
+        }
+        if (!publicPaths.isEmpty()) {
+            stripPathsFromTier(httpRoutePublicNamingStrategy.getName(getContextForDomain(name)), publicPaths, "public");
+        }
+        if (!privatePaths.isEmpty()) {
+            stripPathsFromTier(httpRoutePrivateNamingStrategy.getName(getContextForDomain(name)), privatePaths, "private");
+        }
+        if (!egressPaths.isEmpty()) {
+            stripPathsFromTier(httpRouteEgressNamingStrategy.getName(getContextForDomain(name)), egressPaths, "egress");
+        }
+    }
+
+    /**
+     * Resolves {@code snapshotIds} to the gateway routes they define. {@code domainName} and
+     * {@code description} label the warning logged when the catalog database has no row for every
+     * requested ID: a remaining snapshot that cannot be resolved contributes no paths, which risks
+     * stripping a rule that is still live, so it must not pass silently. The warning names the
+     * micro-domain and the unresolved IDs, because it fires at the moment rules may be removed
+     * without a full picture of who still owns them.
+     */
+    private List<Route> snapshotRoutes(String domainName, Collection<String> snapshotIds, String description) {
+        if (snapshotIds.isEmpty()) {
+            return List.of();
+        }
+        var snapshots = snapshotRepository.findAllByIdIn(snapshotIds);
+        if (snapshots.size() < snapshotIds.size()) {
+            Set<String> resolvedIds = snapshots.stream()
+                    .map(AbstractEntity::getId)
+                    .collect(Collectors.toSet());
+            List<String> unresolvedIds = snapshotIds.stream()
+                    .filter(id -> !resolvedIds.contains(id))
+                    .toList();
+            log.warn("Found {} of {} {} snapshot(s) for micro-domain '{}' in the catalog database; "
+                            + "snapshot(s) {} did not resolve, so paths only they own are invisible to "
+                            + "HTTPRoute cleanup and a rule still in use can be stripped. Redeploy the "
+                            + "affected chains to restore any rule that goes missing",
+                    snapshots.size(), snapshotIds.size(), description, domainName, unresolvedIds);
+        }
+        return snapshots.stream()
+                .flatMap(snapshot -> routesGetterService
+                        .getRoutes(new SnapshotAdapter(snapshot), integrationServiceCatalog).stream())
+                .toList();
+    }
+
+    /**
+     * Returns {@code ownPaths} minus {@code retainedPaths}: the paths only the snapshot being
+     * removed claims, and so the only ones safe to strip from a tier shared with other snapshots.
+     */
+    private Set<GatewayPathMatch> unsharedPaths(Set<GatewayPathMatch> ownPaths, Set<GatewayPathMatch> retainedPaths) {
+        Set<GatewayPathMatch> unshared = new HashSet<>(ownPaths);
+        unshared.removeAll(retainedPaths);
+        return unshared;
+    }
+
+    /**
+     * Builds the set of this snapshot's own route path matches (type + value, via
+     * {@link GatewayPathMatch}) for a single gateway tier, so they can be compared exactly
+     * against the paths recorded in the tier's HTTPRoute CR (mirroring
+     * {@code HttpRouteResourceBuilder}'s own path bookkeeping). Egress routes
+     * ({@code EXTERNAL_SENDER}/{@code EXTERNAL_SERVICE}, whose "paths" are absolute target
+     * URLs, not gateway paths) are excluded by the tier predicate.
+     */
+    private Set<GatewayPathMatch> tierOwnPaths(List<Route> ownRoutes, Predicate<RouteType> tierPredicate) {
+        return ownRoutes.stream()
+                .filter(route -> tierPredicate.test(route.getType()))
+                .map(route -> GatewayPathMatch.forPath(baseRoutePrefix + route.getPath()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Builds the set of this snapshot's own egress route path matches. Unlike {@link #tierOwnPaths},
+     * this reads {@code gatewayPrefix} (the resolved internal path, e.g. {@code /system/{id}}), not
+     * {@code baseRoutePrefix + path} -- egress routes' {@code path} is the resolved external target
+     * URL, not a gateway-facing path. {@code EXTERNAL_SERVICE} routes are additionally run through
+     * {@link EgressServiceRouteFormatter} so the computed match reflects the hashed {@code gatewayPrefix}
+     * the build pipeline's own {@code EgressRouteResourceBuilder} actually wrote to the cluster.
+     */
+    private Set<GatewayPathMatch> egressOwnPaths(List<Route> ownRoutes) {
+        return ownRoutes.stream()
+                .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
+                        || route.getType() == RouteType.EXTERNAL_SERVICE)
+                .map(EgressServiceRouteFormatter::formatServiceRoute)
+                .map(route -> GatewayPathMatch.forPath(route.getGatewayPrefix()))
+                .collect(Collectors.toSet());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stripPathsFromTier(String routeName, Set<GatewayPathMatch> ownPaths, String tierName) {
+        Optional<KubeCustomObject> existing = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, routeName);
+        if (existing.isEmpty()) {
+            return;
+        }
+        KubeCustomObject httpRoute = existing.get();
+        Map<String, Object> spec = httpRoute.getSpec();
+        Object rulesRaw = spec == null ? null : spec.get("rules");
+        if (!(rulesRaw instanceof List<?> rules)) {
+            log.warn("HTTPRoute '{}' ({} tier) has no 'rules' to strip snapshot paths from; leaving it unchanged",
+                    routeName, tierName);
+            return;
+        }
+        List<Map<String, Object>> remaining = rules.stream()
+                .map(rule -> (Map<String, Object>) rule)
+                .filter(rule -> {
+                    GatewayPathMatch path = extractRulePath(rule);
+                    if (path == null) {
+                        log.warn("HTTPRoute '{}' ({} tier) has a rule with an unrecognized path match shape; "
+                                + "keeping it rather than risk dropping it during snapshot cleanup", routeName, tierName);
+                        return true;
+                    }
+                    return !ownPaths.contains(path);
+                })
+                .map(this::normalizeRawRule)
+                .toList();
+        if (remaining.isEmpty()) {
+            kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, routeName);
+            return;
+        }
+        httpRoute.getSpec().put("rules", remaining);
+        httpRoute.setApiVersion(GATEWAY_API_GROUP + "/" + GATEWAY_API_VERSION);
+        httpRoute.setKind("HTTPRoute");
+        kubeOperator.createOrUpdateResource(httpRoute);
+    }
+
+    /**
+     * Fixes up a surviving rule's whole-number values before it's re-applied. {@code rule} comes
+     * from {@link KubeOperator#getCustomObject}, whose Gson deserialization decodes every JSON
+     * number as {@code Double} (see {@link HttpRouteRuleNormalizer}), so a port or weight that
+     * round-trips through this method unmodified would be re-emitted as e.g. {@code 8080.0} and
+     * rejected by the Gateway API's int32-typed schema.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> normalizeRawRule(Map<String, Object> rule) {
+        ObjectNode node = yamlMapper.convertValue(rule, ObjectNode.class);
+        HttpRouteRuleNormalizer.normalizeIntegralDoubles(node);
+        return yamlMapper.convertValue(node, Map.class);
+    }
+
+    /**
+     * Reads {@code matches[0].path.{type,value}} out of a raw (deserialized-from-YAML/JSON)
+     * HTTPRoute rule, returning {@code null} for any shape that doesn't hold a readable path (no
+     * {@code matches}, an empty {@code matches} list, a header-only match with no {@code path},
+     * and similar) instead of throwing. The caller treats a {@code null} result as "not matched
+     * by any of ownPaths" and preserves the rule.
+     */
+    private GatewayPathMatch extractRulePath(Map<String, Object> rule) {
+        try {
+            if (!(rule.get("matches") instanceof List<?> matches) || matches.isEmpty()) {
+                return null;
+            }
+            if (!(matches.get(0) instanceof Map<?, ?> match)) {
+                return null;
+            }
+            if (!(match.get("path") instanceof Map<?, ?> path)) {
+                return null;
+            }
+            if (!(path.get("value") instanceof String value)) {
+                return null;
+            }
+            // Gateway API defaults HTTPPathMatch.type to PathPrefix when omitted.
+            String type = path.get("type") instanceof String t ? t : "PathPrefix";
+            return GatewayPathMatch.of(type, value);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 }

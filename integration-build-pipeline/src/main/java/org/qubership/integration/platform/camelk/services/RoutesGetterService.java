@@ -75,7 +75,9 @@ public class RoutesGetterService {
                     try {
                         String targetURL = SimpleHttpUriUtils.extractProtocolAndDomainWithPort(ElementUtils.getPropertyAsString(sender, CamelOptions.URI));
 
-                        String gatewayPrefix = String.format("/%s/%s/%s", sender.getType(), sender.getOriginalId(), getEncodedURL(getHttpConnectionTimeout(sender), targetURL));
+                        String gatewayPrefix = String.format("/%s/%s/%s", sender.getType(),
+                            sender.getOriginalId().orElseGet(sender::getId),
+                            getEncodedURL(getHttpConnectionTimeout(sender), targetURL));
 
                         Route.RouteBuilder builder = Route.builder()
                                 .id(UUID.randomUUID().toString())
@@ -132,9 +134,19 @@ public class RoutesGetterService {
 
             RouteType routeType = getRouteTypeForSystemType(service.getType());
 
+            // NOTE: this method's output feeds the deployment payload engine/micro-engine receive
+            // (via EngineController's REST endpoint / the baked micro-engine artifact) in addition to
+            // build-time CR generation. Engine's
+            // RegisterRoutesInControlPlaneAction.formatServiceRoutes (and micro-engine's
+            // RouteRegistrationService equivalent) unconditionally append their own hash to
+            // gatewayPrefix for EXTERNAL_SERVICE routes downstream of this method -- so this method
+            // must NOT pre-hash, or the live-registered path ends up hashed twice. Build-time CR
+            // generation applies the same transformation itself, locally, via
+            // EgressServiceRouteFormatter -- see EgressRouteResourceBuilder/MicroDomainService.
+
             List<Element> elements = systemsIds.get(service.getId());
             for (Element element : elements) {
-                String gatewayPrefix = String.format("/system/%s", element.getOriginalId());
+                String gatewayPrefix = String.format("/system/%s", element.getOriginalId().orElseGet(element::getId));
 
                 routes.add(Route.builder()
                         .id(UUID.randomUUID().toString())

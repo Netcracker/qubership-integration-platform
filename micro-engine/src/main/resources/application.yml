@@ -80,6 +80,15 @@ qip:
   variables:
     default-secret:
       enabled: ${DEFAULT_SECRET_ENABLED:false}
+  gateway:
+    egress:
+      name: egress-gateway
+    public:
+      name: public-gateway
+    private:
+      name: private-gateway
+    internal:
+      name: internal-gateway-service
   control-plane:
     egress:
       name: egress-gateway
@@ -103,7 +112,9 @@ qip:
       error-handling:
         ignore-variables-errors: false
         ignore-route-loading-errors: false
-    routes-prefix: /routes
+    routes:
+      prefix: /${application.prefix}-routes
+      legacy-prefix: /routes
     stream-caching:
       enabled: true # enable exchange payload spooling
       buffer:
@@ -228,7 +239,7 @@ quarkus:
     port: 8080
   rest-client:
     checkpoints:
-      url: "http://localhost:8080${qip.camel.routes-prefix}"
+      url: "http://localhost:8080${qip.camel.routes.prefix}"
       scope: jakarta.inject.Singleton
     control-plane:
       url: ${apigateway.control-plane.url}
@@ -294,7 +305,8 @@ quarkus:
       servlet-name: CamelServlet
       servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
       url-patterns:
-        - "${qip.camel.routes-prefix}/*"
+        - "${qip.camel.routes.prefix}/*"
+        - "${qip.camel.routes.legacy-prefix}/*"
     trace:
       enabled: ${TRACING_ENABLED:false}
   scheduler:

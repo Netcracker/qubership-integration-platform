@@ -24,7 +24,7 @@ public class CamelServletMetricsTagsContributor implements HttpServerMetricsTags
     @Inject
     public CamelServletMetricsTagsContributor(
             @ConfigProperty(name = "quarkus.camel.servlet.servlet-name") String servletName,
-            @ConfigProperty(name = "qip.camel.routes-prefix") String routesPrefix,
+            @ConfigProperty(name = "qip.camel.routes.prefix") String routesPrefix,
             GatewayHttpRegistry httpRegistry,
             CustomHttpRestServletResolveConsumerStrategy resolveConsumerStrategy
     ) {

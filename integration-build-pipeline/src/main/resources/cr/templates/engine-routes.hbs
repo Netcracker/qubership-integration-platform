@@ -1,0 +1,34 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{name}}
+  labels:
+    {{domainLabel}}: {{domainName}}
+    {{bgVersionLabel}}: {{bgVersion}}
+spec:
+  parentRefs:
+{{#each parentRefs}}
+  - group: '{{group}}'
+    kind: {{kind}}
+    name: {{name}}
+{{/each}}
+  rules:
+{{#each rules}}
+  - matches:
+    - path:
+        type: PathPrefix
+        value: {{path}}
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: {{rewritePath}}
+    backendRefs:
+    - group: ''
+      kind: Service
+      name: {{backendServiceName}}
+      port: 8080
+      weight: 1
+{{/each}}
