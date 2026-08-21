@@ -11,7 +11,7 @@
 ## Global constraints
 
 - `engine/.../util/paths/GatewayPathMatch.java` and `integration-build-pipeline/.../util/paths/GatewayPathMatch.java` are identical apart from the `package` line. The two `EgressTarget.java` copies differ only in that plus two Javadoc words (`the build pipeline's` versus `this module's` in `hostResourceName`). Any change to one copy must be applied verbatim to the other, including Javadoc. Both modules write the same cluster objects, so a divergence silently produces two different resource shapes for one host.
-- The `integration-build-pipeline` copies use CRLF line endings; the `engine` copies use LF. Preserve each file's existing endings — do not normalize one to the other, and pass `--strip-trailing-cr` when diffing the pair.
+- All eight helper and test files are stored in git with LF endings. `core.autocrlf` checks some of them out with CRLF on Windows, so a working-tree `file` probe disagrees with the blob. Edit in place and let git normalize; never rewrite a whole file to change its endings, and pass `--strip-trailing-cr` when diffing the pair so the checkout style cannot mask a real difference.
 - Port names must be valid DNS-1123 labels. Istio's `ValidateServiceEntry` runs `ValidatePortName` per port and rejects the whole resource when two ports share a name.
 - Path regexes are evaluated by Envoy, which uses RE2. `Pattern.quote` is not usable for escaping: it emits `\Q…\E`, which RE2 does not support.
 - `qip.gateway.egress.url` is shared by the `Core` and `Istio` mesh types. Its default stays `egress-gateway:8080`; the `qip-dev` chart moves to match it, not the other way round.
