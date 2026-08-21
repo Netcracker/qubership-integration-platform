@@ -1,11 +1,15 @@
 package org.qubership.integration.platform.runtime.catalog.kubernetes;
 
+import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
+import io.kubernetes.client.openapi.apis.AppsV1Api;
+import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.util.ModelMapper;
 import io.kubernetes.client.util.Yaml;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
@@ -18,6 +22,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +48,24 @@ class KubeOperatorTest {
         customObjectsApi = mock(CustomObjectsApi.class);
         ReflectionTestUtils.setField(kubeOperator, "customObjectsApi", customObjectsApi);
         ReflectionTestUtils.setField(kubeOperator, "namespace", NAMESPACE);
+    }
+
+    // Each of the three API clients is constructed separately, so the shared ApiClient has to be
+    // handed to every one of them. Missing a single call leaves that API pointed at the default
+    // localhost base path, which fails only at request time and only for the calls it serves.
+    @Test
+    void constructorHandsTheApiClientToEveryApiItOwns() {
+        ApiClient client = new ApiClient();
+        GenericCustomResources definitions = mock(GenericCustomResources.class);
+
+        KubeOperator operator = new KubeOperator(client, NAMESPACE, definitions);
+
+        assertSame(client, ((CoreV1Api) ReflectionTestUtils.getField(operator, "coreApi")).getApiClient());
+        assertSame(client, ((AppsV1Api) ReflectionTestUtils.getField(operator, "appsApi")).getApiClient());
+        assertSame(client,
+                ((CustomObjectsApi) ReflectionTestUtils.getField(operator, "customObjectsApi")).getApiClient());
+        assertEquals(NAMESPACE, ReflectionTestUtils.getField(operator, "namespace"));
+        assertSame(definitions, ReflectionTestUtils.getField(operator, "genericCustomResources"));
     }
 
     @Test
