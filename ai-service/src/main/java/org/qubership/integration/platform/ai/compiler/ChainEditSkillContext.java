@@ -126,6 +126,9 @@ public final class ChainEditSkillContext {
           .append(String.join(", ", intent.targetNodeIds()))
           .append(". The container is not new -- do not name a containerType.\n");
       body.append(
+          "Call captureChainEditSubgraph, never captureChainStructure: this run changes a chain"
+              + " that already exists, so there is no whole graph to capture.\n");
+      body.append(
           "Capture subgraph, not graph. Name no containerType and exactly one branch: its child"
               + " type, the elements it creates in its own body, and, only when the request"
               + " distinguishes this branch from a sibling of the same type, the property that does"

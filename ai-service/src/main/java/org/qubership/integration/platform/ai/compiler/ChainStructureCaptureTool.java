@@ -88,10 +88,26 @@ public class ChainStructureCaptureTool {
     if (conversationId == null || conversationId.isBlank()) {
       return finish(conversationId, startMs, "conversationId is required (no active chat session)");
     }
+    ChainEditStructureBase editBase = editBase(conversationId);
+    // Ahead of the null check on purpose. A generator that reaches for the CREATE tool on an edit
+    // run often calls it with no argument at all, and "capture is required" answers a question it
+    // did not ask: the tool is wrong for this run whatever the argument was. Saying so here keeps
+    // the redirect reachable instead of ending the turn on a message that names no next step.
+    if (editBase != null && editBase.intent().capturesSubgraph()) {
+      return finish(
+          conversationId,
+          startMs,
+          repairable(
+              conversationId,
+              capture,
+              CaptureFailureClass.CORRECTABLE,
+              "This run edits a chain that already exists, so the whole graph is not the capture"
+                  + " for it. Call captureChainEditSubgraph instead. "
+                  + subgraphRequiredMessage(editBase.intent())));
+    }
     if (capture == null) {
       return finish(conversationId, startMs, "capture is required");
     }
-    ChainEditStructureBase editBase = editBase(conversationId);
     ChainStructure shaped;
     try {
       shaped = wholeGraphCapture(capture, editBase);
@@ -186,21 +202,17 @@ public class ChainStructureCaptureTool {
   }
 
   /**
-   * The capture for a CREATE run, refused when this run edits a chain that already exists.
+   * The capture for a CREATE run.
    *
    * <p>An edit captures only what it adds, through {@code captureChainEditSubgraph}. Accepting a
    * whole graph here as well would leave the defect this contract removes reachable through the
    * older shape: a graph that re-states every element lets the generator reparent, drop, or rewrite
-   * one the reader never named, and Java could only refuse that afterwards.
+   * one the reader never named, and Java could only refuse that afterwards. An edit run never
+   * reaches this method: {@link #captureChainStructure} redirects it to the subgraph tool first,
+   * before the argument is examined at all.
    */
   private static ChainStructure wholeGraphCapture(
       ChainStructure capture, ChainEditStructureBase editBase) {
-    if (editBase != null && editBase.intent().capturesSubgraph()) {
-      throw new IllegalArgumentException(
-          "This run edits a chain that already exists, so the whole graph is not the capture for"
-              + " it. Call captureChainEditSubgraph instead. "
-              + subgraphRequiredMessage(editBase.intent()));
-    }
     if (capture.subgraph() != null) {
       throw new IllegalArgumentException(
           "subgraph belongs to captureChainEditSubgraph. Capture graph here, or call that tool.");
