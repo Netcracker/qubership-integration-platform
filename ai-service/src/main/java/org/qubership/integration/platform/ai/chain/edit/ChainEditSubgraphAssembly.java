@@ -33,15 +33,17 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubg
  * as an identifier — in the branch it moves into, for a wrap, or not at all, for an insertion,
  * which moves nothing. Its type, label, order, and properties are never read from the capture.
  *
- * <p>A wrap or a branch names a container; {@link #assemble} places it beside the elements that
- * move into it and creates each branch under it, as described on {@link #assembleContainer}. An
- * insertion or a replacement names none of that and carries its new elements in a single body
- * instead: an insertion splices the body at the address the intent already resolved and keeps
- * every address element, as described on {@link #assembleInsertion}; a replacement splices the
- * same body where the intent's targets used to be and removes them, as described on
- * {@link #assembleReplacement}. {@link ChainEditIntent#disposition()} tells the three captures
- * apart; the capture's own shape says the same thing a second way, so a capture that mismatches
- * its disposition is refused for that before any path runs.
+ * <p>A wrap names a new container; {@link #assemble} places it beside the elements that move into
+ * it and creates each branch under it, as described on {@link #assembleContainer}. An attach names
+ * a container the chain already has and adds one branch to it, as described on
+ * {@link #assembleAttachBranch}; the container itself is untouched, so it is the sole target rather
+ * than a fresh node this method mints. An insertion or a replacement names neither and carries its
+ * new elements in a single body instead: an insertion splices the body at the address the intent
+ * already resolved and keeps every address element, as described on {@link #assembleInsertion}; a
+ * replacement splices the same body where the intent's targets used to be and removes them, as
+ * described on {@link #assembleReplacement}. {@link ChainEditIntent#disposition()} tells the four
+ * captures apart; the capture's own shape says the same thing a second way, so a capture that
+ * mismatches its disposition is refused for that before any path runs.
  *
  * <p>Identifiers of new container, branch, and body nodes are minted here rather than captured. A
  * capture that named them could collide with an element the chain already has, and nothing
@@ -93,6 +95,9 @@ public final class ChainEditSubgraphAssembly {
     }
     if (intent.disposition() == ChainEditDisposition.REMOVE) {
       return assembleReplacement(base, baseById, capture, intent, descriptors);
+    }
+    if (intent.disposition() == ChainEditDisposition.ATTACH) {
+      return assembleAttachBranch(base, baseById, capture, targets, descriptors);
     }
     return assembleContainer(base, baseById, capture, targets, descriptors);
   }
@@ -197,6 +202,112 @@ public final class ChainEditSubgraphAssembly {
             base.schemaVersion(), base.chain(), List.copyOf(nodes), List.copyOf(edges));
     runDescriptorPreflight(assembled, base, descriptors);
     return assembled;
+  }
+
+  /**
+   * The graph an attach proposes: the imported chain, unchanged, plus one new branch added to a
+   * container the chain already has.
+   *
+   * <p>Nothing moves and nothing is replaced, so the only address is the container itself, named
+   * once in {@code targetNodeIds}. The branch's cardinality is checked against the container's
+   * existing children read off the base graph, not against anything in the capture: an attach
+   * names one branch, never the siblings it joins, so there is nothing in the capture for a
+   * cardinality count to double as. For the same reason a repeated role that the catalog orders
+   * must carry an explicit {@code order} -- {@link #assembleContainer} can number a brand-new
+   * container's branches by the position they arrive in because the whole set is in one capture;
+   * here the existing siblings are not, so there is no position to count from.
+   */
+  private static ChainPlanGraph assembleAttachBranch(
+      ChainPlanGraph base,
+      Map<String, ChainPlanNode> baseById,
+      ChainEditSubgraph capture,
+      Set<String> targets,
+      CatalogElementDescriptorCache descriptors) {
+    if (capture.containerType() != null && !capture.containerType().isBlank()) {
+      throw correctable(
+          "an attach capture joins a container the chain already has, and names no new one, but"
+              + " this one names '"
+              + capture.containerType()
+              + "'");
+    }
+    if (capture.branches().size() != 1) {
+      throw correctable("an attach capture carries exactly one branch");
+    }
+    if (targets.size() != 1) {
+      throw unsatisfiable("attach address names more than one container");
+    }
+    String containerNodeId = targets.iterator().next();
+    String containerType = baseById.get(containerNodeId).type();
+    CatalogElementDescriptor container = elementDescriptor(containerType, descriptors);
+    if (!container.container()) {
+      throw correctable(
+          "'" + containerNodeId + "' (type '" + containerType + "') is not a container");
+    }
+
+    ChainEditSubgraphBranch branch = capture.branches().get(0);
+    String childType = required(branch.childType(), "capture names a branch without a type");
+    if (!container.allowedChildren().isEmpty()) {
+      CatalogChildQuantity quantity = container.allowedChildren().get(childType);
+      if (quantity == null) {
+        throw correctable(
+            "container '"
+                + containerType
+                + "' does not allow a branch of type '"
+                + childType
+                + "'");
+      }
+      int existingCount = existingChildrenOfType(base, containerNodeId, childType);
+      requireWithinBounds(containerType, childType, existingCount + 1, quantity);
+      if (existingCount > 0
+          && elementDescriptor(childType, descriptors).ordered()
+          && branch.order() == null) {
+        throw correctable(
+            "'"
+                + childType
+                + "' already has a sibling under '"
+                + containerNodeId
+                + "'; set order to place this branch among them");
+      }
+    }
+
+    Set<String> reserved = new LinkedHashSet<>(baseById.keySet());
+    Map<String, ChainEditSubgraphElement> newElements = newElements(capture, reserved);
+    String branchNodeId = reserveId(childType, reserved);
+    Map<ChainEditSubgraphBranch, String> branchNodeIds = Map.of(branch, branchNodeId);
+
+    List<ChainPlanNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(
+        new ChainPlanNode(
+            branchNodeId,
+            childType,
+            branch.label(),
+            containerNodeId,
+            branch.order(),
+            branchProperties(branch, descriptors, branch.order())));
+    for (ChainEditSubgraphElement element : branch.body().elements()) {
+      nodes.add(
+          new ChainPlanNode(
+              element.nodeId(), element.type(), element.label(), branchNodeId, null, List.of()));
+    }
+
+    List<ChainPlanEdge> edges = new ArrayList<>(baseEdges(base));
+    edges.addAll(bodyEdges(capture, branchNodeIds, newElements, base));
+
+    ChainPlanGraph assembled =
+        new ChainPlanGraph(
+            base.schemaVersion(), base.chain(), List.copyOf(nodes), List.copyOf(edges));
+    runDescriptorPreflight(assembled, base, descriptors);
+    return assembled;
+  }
+
+  private static int existingChildrenOfType(ChainPlanGraph base, String parentId, String childType) {
+    int count = 0;
+    for (ChainPlanNode node : base.nodes()) {
+      if (node != null && parentId.equals(node.parentNodeId()) && childType.equals(node.type())) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /**

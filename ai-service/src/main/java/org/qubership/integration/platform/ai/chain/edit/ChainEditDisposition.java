@@ -19,7 +19,13 @@ public enum ChainEditDisposition {
   /** Move the named targets into the new structure. */
   NEST,
   /** Remove the named targets and put the new subgraph in their place. */
-  REMOVE;
+  REMOVE,
+  /**
+   * Add a new branch to a container the chain already has. Nothing moves and nothing is replaced:
+   * the single named target is the existing container, and the new branch takes its place beside
+   * the container's other branches.
+   */
+  ATTACH;
 
   /**
    * Maps a capture value onto this enum. Blank or unknown names become {@link #UNSET} so the

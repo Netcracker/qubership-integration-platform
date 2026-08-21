@@ -53,10 +53,12 @@ Where the new subgraph sits is `targetNodeIds`, not a separate placement field.
   when the request does not name what follows; the structure stage places the new elements after
   that element when it has one successor, and Java asks which successor when it has several.
   Set `disposition=KEEP` (or leave it `UNSET`; Java infers `KEEP` from a named address).
-- A wrap, move, or new branch: set `disposition=NEST`. `targetNodeIds` is required whenever the
-  request wraps, moves, or reparents an existing element — name every element the new structure
-  will enclose or attach to. A request that only adds new elements next to the existing chain (a
-  new branch with no existing element moving into it) may leave `targetNodeIds` empty.
+- A wrap or a move: set `disposition=NEST`. `targetNodeIds` is required whenever the request wraps,
+  moves, or reparents an existing element — name every element the new structure will enclose.
+- A new branch on a container the chain already has (another `if` on a `condition`, another `catch`
+  on a `try-catch-finally-2`): set `disposition=ATTACH`. `targetNodeIds` is exactly one id, the
+  container itself — never the branches beside it, and never the elements the new branch will hold.
+  Nothing moves and nothing is replaced: the container keeps every branch it already has.
 
 ## Disposition (`ADD_ELEMENTS` only)
 
@@ -71,6 +73,10 @@ same subgraph insertion with a different fate for that element.
   element being swapped in `targetNodeIds`, not its neighbours. Incoming connections of that
   element attach to the subgraph entry; outgoing connections leave from the subgraph exit. A
   replaced element that sat inside a container keeps the new subgraph inside that container.
+- `ATTACH`: add one new branch to a container the chain already has. Use this when the request
+  adds a condition outcome, a catch, or any other branch to a container that is already on the
+  chain, rather than wrapping something in a brand-new one. Emit `ATTACH` yourself; Java will not
+  infer it from a single named id the way it infers `KEEP`.
 - `UNSET`: not an addition, a new root trigger, or you are leaving an insertion's fate to Java.
   Java infers `KEEP` when `targetNodeIds` names an address. Emit `REMOVE` yourself when the
   request swaps an element for something else; Java will not infer a removal.
@@ -110,7 +116,8 @@ which key was meant — emit `UNRESOLVED` and put the question in `ambiguities`.
 Catalog type name for `ADD_ELEMENTS`. Use the catalog's own type name, not a paraphrase:
 
 - error handling, try/catch, "handle failures" → `try-catch-finally-2`
-- a new branch on an existing condition → `if` (the condition container itself already exists)
+- a new outcome on an existing condition → `if` (or `else`), with `disposition=ATTACH` and
+  `targetNodeIds` naming the `condition` container — see the `ATTACH` example below
 - a script step → `script`
 - a call to another service → `service-call`
 - a scheduler that starts the chain on a cron → `quartz-scheduler`
@@ -138,6 +145,14 @@ Example — request: "Replace the mapper with a script that normalizes the paylo
 shipping."
 `action=ADD_ELEMENTS`, `elementType=script`, `disposition=REMOVE`,
 `targetNodeIds=["mapper-1"]`. Name only the element being swapped. Do not list its neighbours.
+
+Example — request: "Add a branch to the availability condition for when stock is at least ten,
+logging a healthy message."
+`action=ADD_ELEMENTS`, `elementType=if`, `disposition=ATTACH`,
+`targetNodeIds=["available-condition"]`. `available-condition` is the `condition` container the
+new `if` joins — never the `if` or `else` branches already beside it. The log record the branch
+logs with belongs inside this same compound request, the same way a wrap's inner elements do: one
+capture, `requestedChange` describing both the branch and what it logs.
 
 ## cronExpression
 
