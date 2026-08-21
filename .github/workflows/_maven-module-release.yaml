@@ -128,7 +128,9 @@ jobs:
   # deploy/upload and only re-applies the bump.
   build-and-publish:
     # run-name can't see a computed value (github/inputs/vars only), but a job
-    # name can read `needs` — so the released version shows up here.
+    # name can read `needs` — so the released version shows up here. This job has
+    # no job-level if, so the name always evaluates; a job that can be skipped
+    # would render the raw expression instead.
     name: publish ${{ needs.check-version.outputs.release-version }}
     needs: check-version
     runs-on: ubuntu-latest
@@ -266,7 +268,6 @@ jobs:
 
   # Docker image build (workflow-hub action). Skipped in recovery — no jar built.
   publish-image:
-    name: image ${{ needs.check-version.outputs.release-version }}
     if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
     needs: [check-version, build-and-publish]
     runs-on: ubuntu-latest
