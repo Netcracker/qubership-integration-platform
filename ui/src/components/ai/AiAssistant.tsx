@@ -40,6 +40,7 @@ import type { ChainModificationProposal } from "./ChainModificationConfirmation.
 import { ChainModificationConfirmation } from "./ChainModificationConfirmation.tsx";
 import { applyChainModificationProposal } from "./applyChainModificationProposal.ts";
 import { useAiDrawerResize } from "./useAiDrawerResize.ts";
+import { useChatStickToBottom } from "./useChatStickToBottom.ts";
 import { useChainContext } from "./useChainContext.ts";
 import {
   appendTurnFailure,
@@ -153,8 +154,13 @@ export const AiAssistant: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const sendInProgressRef = useRef(false);
 
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const shouldAutoScrollRef = useRef(true);
+  const {
+    scrollContainerRef,
+    contentRef,
+    onScroll: handleScroll,
+    pinToBottom: scrollToBottom,
+    resumeFollowing,
+  } = useChatStickToBottom();
 
   const lastUiRefreshTimeRef = useRef(0);
   const pendingRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -193,7 +199,7 @@ export const AiAssistant: React.FC = () => {
   useEffect(() => {
     // A session becoming current is the reader looking at it fresh, whatever scroll position a
     // previous session was left at — start following again rather than carrying that over.
-    shouldAutoScrollRef.current = true;
+    resumeFollowing();
     if (currentSessionId) {
       const session = sessionStore.getSession(currentSessionId);
       if (session) {
@@ -211,7 +217,7 @@ export const AiAssistant: React.FC = () => {
     } else {
       setCurrentSession(null);
     }
-  }, [currentSessionId, sessionStore]);
+  }, [currentSessionId, sessionStore, resumeFollowing]);
 
   useEffect(() => {
     const allSessions = sessionStore.getAllSessions();
@@ -260,11 +266,6 @@ export const AiAssistant: React.FC = () => {
     lastUiRefreshTimeRef.current = Date.now();
     refreshSessions();
   }, [refreshSessions]);
-
-  const scrollToBottom = useCallback(() => {
-    const el = scrollContainerRef.current;
-    if (el && shouldAutoScrollRef.current) el.scrollTop = el.scrollHeight;
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Chain plan status
@@ -885,7 +886,7 @@ export const AiAssistant: React.FC = () => {
   const handleDecisionAnswer = useCallback(
     async (decision: ChatDecision, action: string, comment: string) => {
       if (!currentSessionId || sendInProgressRef.current) return;
-      shouldAutoScrollRef.current = true;
+      resumeFollowing();
       const session = sessionStore.getSession(currentSessionId);
       if (!session) return;
 
@@ -913,7 +914,13 @@ export const AiAssistant: React.FC = () => {
         },
       );
     },
-    [currentSessionId, sessionStore, refreshSessions, sendToProvider],
+    [
+      currentSessionId,
+      sessionStore,
+      refreshSessions,
+      sendToProvider,
+      resumeFollowing,
+    ],
   );
 
   // ---------------------------------------------------------------------------
@@ -928,7 +935,7 @@ export const AiAssistant: React.FC = () => {
   const handleClarificationSubmit = useCallback(
     async (decision: ChatDecision, text: string) => {
       if (!currentSessionId || sendInProgressRef.current) return;
-      shouldAutoScrollRef.current = true;
+      resumeFollowing();
       const session = sessionStore.getSession(currentSessionId);
       if (!session) return;
 
@@ -951,7 +958,13 @@ export const AiAssistant: React.FC = () => {
         session.lastAttachmentObjectKeys,
       );
     },
-    [currentSessionId, sessionStore, refreshSessions, sendToProvider],
+    [
+      currentSessionId,
+      sessionStore,
+      refreshSessions,
+      sendToProvider,
+      resumeFollowing,
+    ],
   );
 
   // ---------------------------------------------------------------------------
@@ -969,7 +982,7 @@ export const AiAssistant: React.FC = () => {
     ) {
       return;
     }
-    shouldAutoScrollRef.current = true;
+    resumeFollowing();
 
     const sessionId = currentSessionId ?? sessionStore.createSession().id;
     if (sessionId !== currentSessionId) setCurrentSessionId(sessionId);
@@ -1051,6 +1064,7 @@ export const AiAssistant: React.FC = () => {
     refreshSessions,
     sendToProvider,
     sessionStore,
+    resumeFollowing,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -1301,37 +1315,6 @@ export const AiAssistant: React.FC = () => {
   const isTurnInFlight = isLoading || isStreaming;
   const hasActivity = activityStore.rows.length > 0;
 
-  /**
-   * Re-pins to the bottom on every real DOM change instead of guessing how long a paint (markdown,
-   * syntax highlighting, activity rows, a long historical plan on session switch) takes. A fixed
-   * wait — even two animation frames — races that paint and can freeze the view partway down a
-   * long message once nothing schedules another attempt.
-   */
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const observer = new MutationObserver(() => {
-      if (shouldAutoScrollRef.current) {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-    observer.observe(el, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-    return () => observer.disconnect();
-    // `open`: the Drawer lazily mounts its body on first open, so scrollContainerRef.current is
-    // still null when this effect first runs; re-attaching once it becomes true finds the real node.
-  }, [open]);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    shouldAutoScrollRef.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  }, []);
-
   const sessionOptions = useMemo(
     () =>
       sessions.map((session) => ({
@@ -1471,264 +1454,266 @@ export const AiAssistant: React.FC = () => {
             className="ai-message-list"
             onScroll={handleScroll}
           >
-            {visibleMessages.length === 0 ? (
-              <AiEmptyState assistantName={assistantName} />
-            ) : (
-              <>
-                {visibleMessages.map((message, index) => {
-                  const isLastVisible = index === visibleMessages.length - 1;
-                  const isUser = message.role === "user";
-                  const showLiveActivity =
-                    message.role === "assistant" &&
-                    isLastVisible &&
-                    hasActivity;
-                  if (
-                    shouldHideEmptyStreamingAssistant(message, {
-                      isLastVisible,
-                      isTurnInFlight: isLoading || isStreaming,
-                      hasLiveActivity: showLiveActivity,
-                    })
-                  ) {
-                    return null;
-                  }
-                  const showPersistedActivity =
-                    message.role === "assistant" &&
-                    Boolean(message.activity?.steps?.length) &&
-                    !showLiveActivity;
-                  const isErrorBubble = message.variant === "error";
-                  const narrativeContent =
-                    message.role === "assistant" && !isErrorBubble
-                      ? replaceChainModificationProposalForDisplay(
-                          message.content,
-                        )
-                      : message.content;
-                  const showThinkingInBubble =
-                    message.role === "assistant" &&
-                    !isErrorBubble &&
-                    isLastVisible &&
-                    (isLoading || isStreaming) &&
-                    !narrativeContent.trim() &&
-                    !hasActivity &&
-                    !showPersistedActivity;
-                  const turnIdle = !isLoading && !isStreaming;
-                  const showEdit = isUser && turnIdle;
-                  const showCopy =
-                    message.role === "assistant" &&
-                    !isErrorBubble &&
-                    Boolean(narrativeContent.trim());
-                  const showRegenerate =
-                    message.role === "assistant" &&
-                    index === lastAssistantVisibleIndex &&
-                    turnIdle;
+            <div ref={contentRef} className="ai-message-list__content">
+              {visibleMessages.length === 0 ? (
+                <AiEmptyState assistantName={assistantName} />
+              ) : (
+                <>
+                  {visibleMessages.map((message, index) => {
+                    const isLastVisible = index === visibleMessages.length - 1;
+                    const isUser = message.role === "user";
+                    const showLiveActivity =
+                      message.role === "assistant" &&
+                      isLastVisible &&
+                      hasActivity;
+                    if (
+                      shouldHideEmptyStreamingAssistant(message, {
+                        isLastVisible,
+                        isTurnInFlight: isLoading || isStreaming,
+                        hasLiveActivity: showLiveActivity,
+                      })
+                    ) {
+                      return null;
+                    }
+                    const showPersistedActivity =
+                      message.role === "assistant" &&
+                      Boolean(message.activity?.steps?.length) &&
+                      !showLiveActivity;
+                    const isErrorBubble = message.variant === "error";
+                    const narrativeContent =
+                      message.role === "assistant" && !isErrorBubble
+                        ? replaceChainModificationProposalForDisplay(
+                            message.content,
+                          )
+                        : message.content;
+                    const showThinkingInBubble =
+                      message.role === "assistant" &&
+                      !isErrorBubble &&
+                      isLastVisible &&
+                      (isLoading || isStreaming) &&
+                      !narrativeContent.trim() &&
+                      !hasActivity &&
+                      !showPersistedActivity;
+                    const turnIdle = !isLoading && !isStreaming;
+                    const showEdit = isUser && turnIdle;
+                    const showCopy =
+                      message.role === "assistant" &&
+                      !isErrorBubble &&
+                      Boolean(narrativeContent.trim());
+                    const showRegenerate =
+                      message.role === "assistant" &&
+                      index === lastAssistantVisibleIndex &&
+                      turnIdle;
 
-                  return (
-                    <div
-                      key={message.id ?? `msg-${index}`}
-                      className={`ai-message ai-message--${message.role}${
-                        isErrorBubble ? " ai-message--error" : ""
-                      }`}
-                    >
-                      {!isUser ? (
+                    return (
+                      <div
+                        key={message.id ?? `msg-${index}`}
+                        className={`ai-message ai-message--${message.role}${
+                          isErrorBubble ? " ai-message--error" : ""
+                        }`}
+                      >
+                        {!isUser ? (
+                          <div className="ai-message__meta">
+                            <Typography.Text
+                              type="secondary"
+                              className="ai-message__role"
+                            >
+                              {getRoleLabel(message.role, assistantName)}
+                            </Typography.Text>
+                          </div>
+                        ) : null}
+                        <div className="ai-message__bubble">
+                          {showLiveActivity ? (
+                            <AiActivityInline
+                              rows={activityStore.rows}
+                              collapsed={false}
+                            />
+                          ) : null}
+                          {showPersistedActivity && message.activity ? (
+                            <AiActivityInline
+                              rows={message.activity.steps}
+                              collapsed={message.activity.collapsed}
+                              summary={message.activity.summary}
+                            />
+                          ) : null}
+                          {isErrorBubble && (
+                            <div className="ai-message__error">
+                              <Typography.Text type="danger">
+                                {message.content}
+                              </Typography.Text>
+                              {message.detail?.trim() ? (
+                                <Typography.Paragraph
+                                  type="secondary"
+                                  className="ai-message__error-detail"
+                                >
+                                  {message.detail}
+                                </Typography.Paragraph>
+                              ) : null}
+                            </div>
+                          )}
+                          {!isErrorBubble && narrativeContent.trim() && (
+                            <MarkdownRenderer>
+                              {narrativeContent}
+                            </MarkdownRenderer>
+                          )}
+                          {message.decision ? (
+                            <AiDecisionCard
+                              decision={message.decision}
+                              busy={isLoading || isStreaming}
+                              onAnswer={(action, comment) =>
+                                void handleDecisionAnswer(
+                                  message.decision!,
+                                  action,
+                                  comment,
+                                )
+                              }
+                              onSubmitClarification={(text) =>
+                                void handleClarificationSubmit(
+                                  message.decision!,
+                                  text,
+                                )
+                              }
+                            />
+                          ) : null}
+                          {showThinkingInBubble ? (
+                            <Typography.Text
+                              type="secondary"
+                              style={{ fontStyle: "italic" }}
+                            >
+                              {showLongRunningHint
+                                ? "Working… (this may take a minute)"
+                                : "Thinking"}
+                              <span className="ai-thinking-dots">
+                                <span className="ai-thinking-dot ai-thinking-dot--1">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--2">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--3">
+                                  .
+                                </span>
+                              </span>
+                            </Typography.Text>
+                          ) : null}
+
+                          {message.role === "assistant" &&
+                            !isErrorBubble &&
+                            index === visibleMessages.length - 1 &&
+                            !isLoading &&
+                            !isStreaming &&
+                            looksLikeValidationResult(message.content) &&
+                            chainContext?.chain?.id && (
+                              <div className="ai-message__plan-actions">
+                                <Button
+                                  type="primary"
+                                  size="middle"
+                                  onClick={() => {
+                                    window.location.href = `/chains/${chainContext.chain.id}/sessions`;
+                                  }}
+                                >
+                                  Go to Sessions
+                                </Button>
+                              </div>
+                            )}
+                        </div>
+                        {showEdit || showCopy || showRegenerate ? (
+                          <Space size="small" className="ai-message__actions">
+                            {showEdit ? (
+                              <Tooltip title="Edit message and send again">
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<OverridableIcon name="edit" />}
+                                  aria-label="Edit message and send again"
+                                  onClick={() =>
+                                    void handlePrepareRegenerateFromIndex(index)
+                                  }
+                                />
+                              </Tooltip>
+                            ) : null}
+                            {showCopy ? (
+                              <Tooltip title="Copy">
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<OverridableIcon name="copy" />}
+                                  aria-label="Copy"
+                                  onClick={() =>
+                                    handleCopyMessage(narrativeContent)
+                                  }
+                                />
+                              </Tooltip>
+                            ) : null}
+                            {showRegenerate ? (
+                              <Tooltip title="Regenerate this answer">
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={
+                                    <OverridableIcon
+                                      name="redo"
+                                      className="ai-icon-rotate-vertical"
+                                    />
+                                  }
+                                  aria-label="Regenerate this answer"
+                                  onClick={() =>
+                                    void handleRegenerateFromIndex(index)
+                                  }
+                                />
+                              </Tooltip>
+                            ) : null}
+                          </Space>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+
+                  {(isLoading || isStreaming) &&
+                    visibleMessages[visibleMessages.length - 1]?.role ===
+                      "user" && (
+                      <div className="ai-message ai-message--assistant">
                         <div className="ai-message__meta">
                           <Typography.Text
                             type="secondary"
                             className="ai-message__role"
                           >
-                            {getRoleLabel(message.role, assistantName)}
+                            {getRoleLabel("assistant", assistantName)}
                           </Typography.Text>
                         </div>
-                      ) : null}
-                      <div className="ai-message__bubble">
-                        {showLiveActivity ? (
-                          <AiActivityInline
-                            rows={activityStore.rows}
-                            collapsed={false}
-                          />
-                        ) : null}
-                        {showPersistedActivity && message.activity ? (
-                          <AiActivityInline
-                            rows={message.activity.steps}
-                            collapsed={message.activity.collapsed}
-                            summary={message.activity.summary}
-                          />
-                        ) : null}
-                        {isErrorBubble && (
-                          <div className="ai-message__error">
-                            <Typography.Text type="danger">
-                              {message.content}
+                        <div className="ai-message__bubble">
+                          {hasActivity ? (
+                            <AiActivityInline
+                              rows={activityStore.rows}
+                              collapsed={false}
+                            />
+                          ) : (
+                            <Typography.Text
+                              type="secondary"
+                              style={{ fontStyle: "italic" }}
+                            >
+                              {showLongRunningHint
+                                ? "Working… (this may take a minute)"
+                                : "Thinking"}
+                              <span className="ai-thinking-dots">
+                                <span className="ai-thinking-dot ai-thinking-dot--1">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--2">
+                                  .
+                                </span>
+                                <span className="ai-thinking-dot ai-thinking-dot--3">
+                                  .
+                                </span>
+                              </span>
                             </Typography.Text>
-                            {message.detail?.trim() ? (
-                              <Typography.Paragraph
-                                type="secondary"
-                                className="ai-message__error-detail"
-                              >
-                                {message.detail}
-                              </Typography.Paragraph>
-                            ) : null}
-                          </div>
-                        )}
-                        {!isErrorBubble && narrativeContent.trim() && (
-                          <MarkdownRenderer>
-                            {narrativeContent}
-                          </MarkdownRenderer>
-                        )}
-                        {message.decision ? (
-                          <AiDecisionCard
-                            decision={message.decision}
-                            busy={isLoading || isStreaming}
-                            onAnswer={(action, comment) =>
-                              void handleDecisionAnswer(
-                                message.decision!,
-                                action,
-                                comment,
-                              )
-                            }
-                            onSubmitClarification={(text) =>
-                              void handleClarificationSubmit(
-                                message.decision!,
-                                text,
-                              )
-                            }
-                          />
-                        ) : null}
-                        {showThinkingInBubble ? (
-                          <Typography.Text
-                            type="secondary"
-                            style={{ fontStyle: "italic" }}
-                          >
-                            {showLongRunningHint
-                              ? "Working… (this may take a minute)"
-                              : "Thinking"}
-                            <span className="ai-thinking-dots">
-                              <span className="ai-thinking-dot ai-thinking-dot--1">
-                                .
-                              </span>
-                              <span className="ai-thinking-dot ai-thinking-dot--2">
-                                .
-                              </span>
-                              <span className="ai-thinking-dot ai-thinking-dot--3">
-                                .
-                              </span>
-                            </span>
-                          </Typography.Text>
-                        ) : null}
-
-                        {message.role === "assistant" &&
-                          !isErrorBubble &&
-                          index === visibleMessages.length - 1 &&
-                          !isLoading &&
-                          !isStreaming &&
-                          looksLikeValidationResult(message.content) &&
-                          chainContext?.chain?.id && (
-                            <div className="ai-message__plan-actions">
-                              <Button
-                                type="primary"
-                                size="middle"
-                                onClick={() => {
-                                  window.location.href = `/chains/${chainContext.chain.id}/sessions`;
-                                }}
-                              >
-                                Go to Sessions
-                              </Button>
-                            </div>
                           )}
+                        </div>
                       </div>
-                      {showEdit || showCopy || showRegenerate ? (
-                        <Space size="small" className="ai-message__actions">
-                          {showEdit ? (
-                            <Tooltip title="Edit message and send again">
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={<OverridableIcon name="edit" />}
-                                aria-label="Edit message and send again"
-                                onClick={() =>
-                                  void handlePrepareRegenerateFromIndex(index)
-                                }
-                              />
-                            </Tooltip>
-                          ) : null}
-                          {showCopy ? (
-                            <Tooltip title="Copy">
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={<OverridableIcon name="copy" />}
-                                aria-label="Copy"
-                                onClick={() =>
-                                  handleCopyMessage(narrativeContent)
-                                }
-                              />
-                            </Tooltip>
-                          ) : null}
-                          {showRegenerate ? (
-                            <Tooltip title="Regenerate this answer">
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={
-                                  <OverridableIcon
-                                    name="redo"
-                                    className="ai-icon-rotate-vertical"
-                                  />
-                                }
-                                aria-label="Regenerate this answer"
-                                onClick={() =>
-                                  void handleRegenerateFromIndex(index)
-                                }
-                              />
-                            </Tooltip>
-                          ) : null}
-                        </Space>
-                      ) : null}
-                    </div>
-                  );
-                })}
-
-                {(isLoading || isStreaming) &&
-                  visibleMessages[visibleMessages.length - 1]?.role ===
-                    "user" && (
-                    <div className="ai-message ai-message--assistant">
-                      <div className="ai-message__meta">
-                        <Typography.Text
-                          type="secondary"
-                          className="ai-message__role"
-                        >
-                          {getRoleLabel("assistant", assistantName)}
-                        </Typography.Text>
-                      </div>
-                      <div className="ai-message__bubble">
-                        {hasActivity ? (
-                          <AiActivityInline
-                            rows={activityStore.rows}
-                            collapsed={false}
-                          />
-                        ) : (
-                          <Typography.Text
-                            type="secondary"
-                            style={{ fontStyle: "italic" }}
-                          >
-                            {showLongRunningHint
-                              ? "Working… (this may take a minute)"
-                              : "Thinking"}
-                            <span className="ai-thinking-dots">
-                              <span className="ai-thinking-dot ai-thinking-dot--1">
-                                .
-                              </span>
-                              <span className="ai-thinking-dot ai-thinking-dot--2">
-                                .
-                              </span>
-                              <span className="ai-thinking-dot ai-thinking-dot--3">
-                                .
-                              </span>
-                            </span>
-                          </Typography.Text>
-                        )}
-                      </div>
-                    </div>
-                  )}
-              </>
-            )}
+                    )}
+                </>
+              )}
+            </div>
           </div>
 
           <Divider className="ai-divider" />

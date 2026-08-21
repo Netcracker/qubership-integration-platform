@@ -64,6 +64,17 @@ describe("AiAssistantPanel.css polish contracts", () => {
   const css = readFileSync(PANEL_CSS, "utf8");
   const assistantSource = readFileSync(ASSISTANT_TSX, "utf8");
 
+  it("should observe message-list content size and disable scroll anchoring", () => {
+    expect(assistantSource).toContain("useChatStickToBottom");
+    expect(assistantSource).toContain("ai-message-list__content");
+
+    const list = declarationsFor(css, ".ai-message-list");
+    expect(list).toContain("overflow-anchor: none");
+
+    const content = declarationsFor(css, ".ai-message-list__content");
+    expect(content).toContain("min-height: 100%");
+  });
+
   it("should right-align Copy and Regenerate on assistant turns", () => {
     expect(assistantSource).toContain('aria-label="Copy"');
     expect(assistantSource).toContain('aria-label="Regenerate this answer"');

@@ -88,8 +88,8 @@ class ChainPatchSummaryTest {
                         List.of(),
                         List.of(changeProperty("enrich", "script", "return null;"))));
 
-        assertTrue(text.contains("1. **Removes** Legacy audit log (script)"), text);
-        assertTrue(text.contains("2. **Adds** Map fields (mapper)"), text);
+        assertTrue(text.contains("1. **Removes** Legacy audit log (script)\n\n"), text);
+        assertTrue(text.contains("2. **Adds** Map fields (mapper)\n\n"), text);
         assertTrue(text.contains("3. **Updates** Enrich payload (script) — script"), text);
     }
 

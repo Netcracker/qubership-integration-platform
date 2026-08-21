@@ -8,6 +8,50 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { AiDecisionCard } from "../../../src/components/ai/AiDecisionCard.tsx";
 import type { ChatDecision } from "../../../src/ai/modelProviders/types.ts";
 
+jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory runs before imports
+  const R = require("react") as typeof import("react");
+
+  function withBold(text: string): R.ReactNode[] {
+    return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+      const match = /^\*\*(.+)\*\*$/.exec(part);
+      return match ? R.createElement("strong", { key: index }, match[1]) : part;
+    });
+  }
+
+  return {
+    MarkdownRenderer: ({ children }: { children: string }) => {
+      const listItems: R.ReactElement[] = [];
+      const body: R.ReactNode[] = [];
+      const flushList = () => {
+        if (listItems.length === 0) {
+          return;
+        }
+        body.push(
+          R.createElement("ol", { key: `ol-${body.length}` }, listItems.splice(0)),
+        );
+      };
+      for (const line of String(children).split("\n")) {
+        const item = /^(\d+)\.\s+(.*)$/.exec(line);
+        if (item) {
+          listItems.push(
+            R.createElement("li", { key: item[1] }, withBold(item[2])),
+          );
+        } else if (line.trim() === "") {
+          flushList();
+        } else {
+          flushList();
+          body.push(
+            R.createElement("p", { key: `p-${body.length}` }, withBold(line)),
+          );
+        }
+      }
+      flushList();
+      return R.createElement("div", { className: "ai-markdown" }, body);
+    },
+  };
+});
+
 function buildDecision(overrides: Partial<ChatDecision> = {}): ChatDecision {
   return {
     id: "gate-1",
@@ -319,6 +363,29 @@ describe("AiDecisionCard", () => {
     expect(onSubmitClarification).toHaveBeenCalledWith(
       "1: $.id → $.customerId",
     );
+  });
+
+  it("should render numbered patch actions as a list with bold verbs", () => {
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          question:
+            'Add an if branch to the Available pets decision.\n\n1. **Adds** Available is at least ten (if)\n\n2. **Adds** Log healthy inventory (log-record)\n\nApply this to the chain?',
+          actions: ["apply-chain-patch", "request-changes"],
+        })}
+        onAnswer={jest.fn()}
+      />,
+    );
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Adds Available is at least ten (if)");
+    expect(items[1]).toHaveTextContent("Adds Log healthy inventory (log-record)");
+    expect(items[0].querySelector("strong")).toHaveTextContent("Adds");
+    expect(items[1].querySelector("strong")).toHaveTextContent("Adds");
+    expect(
+      screen.getByRole("button", { name: "Apply" }),
+    ).toBeInTheDocument();
   });
 
   it("should freeze the clarify card and hide the text area once submitted", () => {
