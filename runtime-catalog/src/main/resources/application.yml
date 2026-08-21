@@ -285,7 +285,7 @@ qip:
     egress:
       name: egress-gateway
       protocol: http
-      url: egress-gateway:8080
+      url: ${QIP_EGRESS_GATEWAY_URL:egress-gateway:8080}
     public:
       name: public-gateway
     private:

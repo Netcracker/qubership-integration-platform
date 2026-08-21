@@ -15,6 +15,6 @@ spec:
         namespaces:
           from: Same
       name: http
-      port: 80
+      port: 8080
       protocol: HTTP
 {{- end }}

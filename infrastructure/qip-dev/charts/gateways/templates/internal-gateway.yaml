@@ -5,6 +5,10 @@ kind: Gateway
 metadata:
   annotations:
     networking.istio.io/service-type: NodePort
+    # This forces Istio to name the created K8s Service "internal-gateway-service", which is the
+    # Service the engine HTTPRoute names in its parentRef (qip.gateway.internal.name). Without the
+    # override Istio would name it "internal-gateway-istio" and the route would attach to nothing.
+    gateway.istio.io/name-override: "internal-gateway-service"
   name: internal-gateway
 spec:
   gatewayClassName: istio
@@ -13,6 +17,6 @@ spec:
         namespaces:
           from: Same
       name: http
-      port: 80
+      port: 8080
       protocol: HTTP
 {{- end }}
