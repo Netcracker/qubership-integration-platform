@@ -138,9 +138,9 @@ public class ChainFinishProcessor implements Processor {
                     sessionsService.logSessionElementAfter(
                             exchange,
                             exchange.getProperty(Properties.LAST_EXCEPTION, Exception.class),
-                            sessionId, sessionElementId,
+                            sessionId, sessionElementId, null,
                             MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
-                            runtimeProperties.isMaskingEnabled());
+                            runtimeProperties.isMaskingEnabled(), dbgProperties);
                 }
             }
 

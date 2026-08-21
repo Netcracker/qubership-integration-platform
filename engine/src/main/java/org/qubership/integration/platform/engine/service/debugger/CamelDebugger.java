@@ -40,6 +40,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelNames;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.model.logging.SessionLogDetails;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.model.sessionsreporting.EventSourceType;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
@@ -309,7 +310,9 @@ public class CamelDebugger extends DefaultDebugger {
                         break;
                     }
                 case DEBUG:
-                    if (sessionShouldBeLogged) {
+                    SessionLogDetails sessionLogDetails = dbgProperties.getRuntimeProperties(exchange)
+                            .getSessionLogDetails();
+                    if (sessionShouldBeLogged || sessionLogDetails != SessionLogDetails.OFF) {
                         String sessionId = exchange.getProperty(CamelConstants.Properties.SESSION_ID)
                                 .toString();
                         String splitIdChain = (String) exchange.getProperty(
@@ -325,12 +328,14 @@ public class CamelDebugger extends DefaultDebugger {
                                 null,
                                 sessionId,
                                 sessionElementId,
+                                nodeId,
                                 bodyForLogging, headersForLogging,
                                 payloadExtractor.extractContextForLogging(
                                         MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                                         dbgProperties.getRuntimeProperties(exchange)
                                                 .isMaskingEnabled()),
-                                exchangePropertiesForLogging);
+                                exchangePropertiesForLogging,
+                                dbgProperties);
                     }
                     break;
                 default:
@@ -530,10 +535,10 @@ public class CamelDebugger extends DefaultDebugger {
                         DebuggerUtils.removeStepPropertyFromAllExchanges(exchange,
                                 sessionElementId);
                     }
-                    sessionsService.logSessionElementAfter(exchange, null, sessionId, sessionElementId,
+                    sessionsService.logSessionElementAfter(exchange, null, sessionId, sessionElementId, stepId,
                             MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
                             dbgProperties.getRuntimeProperties(exchange)
-                                    .isMaskingEnabled());
+                                    .isMaskingEnabled(), dbgProperties);
                 }
                 break;
             default:

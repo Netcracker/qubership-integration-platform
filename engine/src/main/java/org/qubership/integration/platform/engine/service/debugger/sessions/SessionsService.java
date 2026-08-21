@@ -30,6 +30,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants.
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.model.logging.SessionLogDetails;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.model.opensearch.ExceptionInfo;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
@@ -46,6 +47,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
 
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
@@ -60,15 +62,19 @@ public class SessionsService {
 
     private final OpenSearchWriter writer;
 
+    private final Optional<SessionStepJsonLogger> sessionStepJsonLogger;
+
     private final Random random = new Random();
 
     @Value("${qip.sessions.sampler.probabilistic}")
     private double samplerProbabilistic;
 
     @Autowired
-    public SessionsService(PayloadExtractor extractor, OpenSearchWriter writer) {
+    public SessionsService(PayloadExtractor extractor, OpenSearchWriter writer,
+                           Optional<SessionStepJsonLogger> sessionStepJsonLogger) {
         this.extractor = extractor;
         this.writer = writer;
+        this.sessionStepJsonLogger = sessionStepJsonLogger;
     }
 
     public Session startSession(
@@ -340,8 +346,8 @@ public class SessionsService {
     }
 
     public void logSessionElementAfter(Exchange exchange, Exception externalException,
-        String sessionId, String sessionElementId,
-        Set<String> maskedFields, boolean maskingEnabled) {
+        String sessionId, String sessionElementId, String nodeId,
+        Set<String> maskedFields, boolean maskingEnabled, CamelDebuggerProperties dbgProperties) {
         logSessionElementAfter(
             exchange,
             externalException,
@@ -349,24 +355,28 @@ public class SessionsService {
             extractor.extractBodyForLogging(exchange, maskedFields, maskingEnabled),
             extractor.extractHeadersForLogging(exchange, maskedFields, maskingEnabled),
             extractor.extractContextForLogging(maskedFields, maskingEnabled),
-            extractor.extractExchangePropertiesForLogging(exchange, maskedFields, maskingEnabled));
+            extractor.extractExchangePropertiesForLogging(exchange, maskedFields, maskingEnabled),
+            sessionId, sessionElementId, nodeId, dbgProperties);
     }
 
     public void logSessionElementAfter(Exchange exchange,
         Exception externalException,
         String sessionId,
         String sessionElementId,
+        String nodeId,
         String bodyForLogging,
         Map<String, String> headersForLogging,
         Map<String, String> contextHeaders,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging
+        Map<String, SessionElementProperty> exchangePropertiesForLogging,
+        CamelDebuggerProperties dbgProperties
     ) {
         logSessionElementAfter(
             exchange,
             externalException,
             writer.getSessionElementFromCache(sessionId, sessionElementId),
             bodyForLogging, headersForLogging,
-            contextHeaders, exchangePropertiesForLogging);
+            contextHeaders, exchangePropertiesForLogging,
+            sessionId, sessionElementId, nodeId, dbgProperties);
     }
 
     private void logSessionElementAfter(
@@ -376,12 +386,48 @@ public class SessionsService {
         String bodyForLogging,
         Map<String, String> headersForLogging,
         Map<String, String> contextHeaders,
-        Map<String, SessionElementProperty> propertiesForLogging
+        Map<String, SessionElementProperty> propertiesForLogging,
+        String sessionId,
+        String sessionElementId,
+        String nodeId,
+        CamelDebuggerProperties dbgProperties
     ) {
-        if (sessionElement == null) {
-            return;
+        SessionLogDetails details = dbgProperties.getRuntimeProperties(exchange).getSessionLogDetails();
+        boolean fromCache = sessionElement != null;
+        if (!fromCache) {
+            if (details == SessionLogDetails.OFF) {
+                return;
+            }
+            sessionElement = buildAfterElementFresh(exchange, dbgProperties, sessionId, sessionElementId, nodeId);
+            if (sessionElement == null) {
+                return;
+            }
         }
 
+        populateAfterFields(exchange, externalException, sessionElement, bodyForLogging,
+                headersForLogging, contextHeaders, propertiesForLogging);
+
+        if (fromCache) {
+            writer.scheduleElementToLogAndCache(sessionElement);
+
+            if (exchange.getProperty(CORRELATION_ID) != null) {
+                Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(exchange.getProperty(
+                        Properties.SESSION_ID).toString());
+                String correlationId = String.valueOf(exchange.getProperty(CORRELATION_ID));
+                if (sessionPair != null && sessionPair.getRight() != null) {
+                    sessionPair.getRight().setCorrelationId(correlationId);
+                }
+            }
+        }
+
+        SessionElementElastic elementToLog = sessionElement;
+        sessionStepJsonLogger.ifPresent(logger -> logger.logAfter(elementToLog, details));
+    }
+
+    private void populateAfterFields(Exchange exchange, Exception externalException,
+            SessionElementElastic sessionElement, String bodyForLogging,
+            Map<String, String> headersForLogging, Map<String, String> contextHeaders,
+            Map<String, SessionElementProperty> propertiesForLogging) {
         String finished = LocalDateTime.now().toString();
         sessionElement.setFinished(finished);
         sessionElement.setBodyAfter(bodyForLogging);
@@ -414,17 +460,33 @@ public class SessionsService {
         if (exception != null) {
             sessionElement.setExceptionInfo(new ExceptionInfo(exception));
         }
+    }
 
-        writer.scheduleElementToLogAndCache(sessionElement);
-
-        if (exchange.getProperty(CORRELATION_ID) != null) {
-            Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(exchange.getProperty(
-                    Properties.SESSION_ID).toString());
-            String correlationId = String.valueOf(exchange.getProperty(CORRELATION_ID));
-            if (sessionPair != null && sessionPair.getRight() != null) {
-                sessionPair.getRight().setCorrelationId(correlationId);
-            }
+    private SessionElementElastic buildAfterElementFresh(Exchange exchange,
+            CamelDebuggerProperties dbgProperties, String sessionId, String sessionElementId, String nodeId) {
+        if (StringUtils.isEmpty(nodeId)) {
+            return null;
         }
+        Map<String, String> elementProperties = dbgProperties.getElementProperty(nodeId);
+        if (elementProperties == null) {
+            return null;
+        }
+        Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(sessionId);
+        Session session = sessionPair != null ? sessionPair.getRight() : null;
+
+        SessionElementElastic element = SessionElementElastic.builder()
+                .id(sessionElementId)
+                .sessionId(sessionId)
+                .chainElementId(nodeId)
+                .elementName(elementProperties.get(ChainProperties.ELEMENT_NAME))
+                .camelElementName(elementProperties.get(ChainProperties.ELEMENT_TYPE))
+                .started(LocalDateTime.now().toString())
+                .parentElementId(extractParentId(exchange, sessionId, elementProperties))
+                .build();
+        if (session != null) {
+            element.updateRelatedSessionData(session);
+        }
+        return element;
     }
 
     /**
