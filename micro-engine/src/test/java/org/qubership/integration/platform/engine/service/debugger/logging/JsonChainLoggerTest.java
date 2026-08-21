@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
@@ -54,6 +55,8 @@ class JsonChainLoggerTest {
     @InjectMock
     VariablesService variablesService;
 
+    LogExchangeMarkers logExchangeMarkers;
+
     ExtendedErrorLogger chainLogger;
     MockedStatic<ExtendedErrorLoggerFactory> factoryMock;
 
@@ -64,8 +67,9 @@ class JsonChainLoggerTest {
         factoryMock = Mockito.mockStatic(ExtendedErrorLoggerFactory.class);
         factoryMock.when(() -> ExtendedErrorLoggerFactory.getLogger(Mockito.any(Class.class)))
                 .thenReturn(chainLogger);
+        logExchangeMarkers = spy(new LogExchangeMarkers());
         jsonChainLogger = new JsonChainLogger(tracingService, originatingBusinessIdProvider, payloadExtractor,
-                chainRuntimePropertiesService, variablesService);
+                chainRuntimePropertiesService, variablesService, logExchangeMarkers);
     }
 
     @AfterEach
@@ -96,6 +100,7 @@ class JsonChainLoggerTest {
     @Test
     void shouldLogExchangeWithTruncatedStructuredArgumentsValuesWhenLogFieldsMaxSizeIsSet() {
         jsonChainLogger.fieldValueMaxSize = 6;
+        logExchangeMarkers.fieldValueMaxSize = 6;
         LoggedPayloadValues loggedPayloadValues = LoggedPayloadValues.builder()
                 .headers("{\"header1\":\"value1\"}")
                 .properties("{\"prop1\":\"value1\"}")

@@ -228,6 +228,8 @@ quarkus:
         level: INFO
       "org.qubership.integration.platform.engine.service.debugger.logging.JsonChainLogger":
         level: INFO
+      "org.qubership.integration.platform.engine.service.debugger.sessions.JsonSessionStepLogger":
+        level: INFO
   http:
     host: 0.0.0.0
     port: 8080

@@ -1584,6 +1584,13 @@ components:
           type: "boolean"
         maskingEnabled:
           type: "boolean"
+        sessionLogDetails:
+          default: "OFF"
+          enum:
+          - "SENDERS"
+          - "FULL"
+          - "OFF"
+          type: "string"
         sessionsLoggingLevel:
           enum:
           - "OFF"
