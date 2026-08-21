@@ -330,11 +330,12 @@ public class ChainEditCompiler {
   /**
    * Routes a {@code CONFIGURE} edit by ownership metadata rather than a hand-maintained action map.
    *
-   * <p>The requested property keys are checked against the target elements' schema first, so a key
-   * the element type does not define is reported before any generator sees it. What is left is
-   * matched against the pinned compiler package's ownership declarations the same way an addition
-   * is: an unmatched key means no generator owns it, and the refusal names the element and the
-   * property, never a generator the reader never mentioned.
+   * <p>The requested property keys are checked against the named elements' schemas first, so a key
+   * no named type defines is reported before any generator sees it. A key that only some of those
+   * types define is kept: routing already scopes each owner to the targets and keys it owns. What
+   * is left is matched against the pinned compiler package's ownership declarations the same way an
+   * addition is: an unmatched key means no generator owns it, and the refusal names the element and
+   * the property, never a generator the reader never mentioned.
    */
   private ChainEditOutcome compileConfigure(
       ChainEditRequest request,
@@ -362,21 +363,29 @@ public class ChainEditCompiler {
         request, intent, List.of(), plans, skillIds, Set.of(), List.of(), pin, graph, progress);
   }
 
-  /** Refuses a property key before routing, when the target element's schema does not define it. */
+  /**
+   * Refuses a property key before routing when no named target element's schema defines it.
+   *
+   * <p>One {@code CONFIGURE} may name several types and the union of their keys. A key is undefined
+   * only when none of those types accept it; a key that belongs to one named type and not another
+   * is still routed to the owner of the type that has it.
+   */
   private ChainEditOutcome rejectUndefinedPropertyKeys(ChainPlanGraph graph, ChainEditIntent intent) {
-    List<String> undefined = new ArrayList<>();
+    Set<String> definedOnAnyTarget = new LinkedHashSet<>();
+    boolean sawTypedTarget = false;
     for (String nodeId : intent.targetNodeIds()) {
       ChainPlanNode target = node(graph, nodeId);
       if (target == null || target.type() == null) {
         continue;
       }
-      Set<String> allowed = schemaService.allowedPatchPropertyKeys(target.type());
-      for (String key : intent.propertyKeys()) {
-        if (!allowed.contains(key) && !undefined.contains(key)) {
-          undefined.add(key);
-        }
-      }
+      sawTypedTarget = true;
+      definedOnAnyTarget.addAll(schemaService.allowedPatchPropertyKeys(target.type()));
     }
+    if (!sawTypedTarget) {
+      return null;
+    }
+    List<String> undefined =
+        intent.propertyKeys().stream().filter(key -> !definedOnAnyTarget.contains(key)).toList();
     if (undefined.isEmpty()) {
       return null;
     }
