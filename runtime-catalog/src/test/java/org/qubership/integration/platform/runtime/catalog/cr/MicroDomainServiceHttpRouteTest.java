@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -158,6 +159,61 @@ class MicroDomainServiceHttpRouteTest {
         return rule;
     }
 
+    // A path both the removed and a remaining snapshot claim must survive: the shared tier CR is
+    // the running chain's only route to the gateway.
+    @Test
+    void deleteChainSnapshotKeepsAPathARemainingSnapshotStillOwns() {
+        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+                .thenReturn(List.of(mock(
+                        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2")))
+                .thenReturn(List.of(mock(
+                        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of("snapshot-2"));
+
+        verify(kubeOperator, never()).createOrUpdateResource(any());
+        verify(kubeOperator, never()).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
+    }
+
+    // Only the shared path is spared. The removed snapshot's exclusive path still goes.
+    // getRoutes is stubbed by consecutive return: deleteChainSnapshotHttpRoutes resolves the
+    // removed snapshot's routes first, then the remaining snapshots'.
+    @Test
+    void deleteChainSnapshotStripsOnlyThePathsNoRemainingSnapshotOwns() {
+        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+                .thenReturn(List.of(mock(
+                        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2")))
+                .thenReturn(List.of(mock(
+                        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+        when(routesGetterService.getRoutes(any(), any()))
+                .thenReturn(List.of(
+                        Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build(),
+                        Route.builder().path("/shared").type(RouteType.EXTERNAL_TRIGGER).build()))
+                .thenReturn(List.of(
+                        Route.builder().path("/shared").type(RouteType.EXTERNAL_TRIGGER).build()));
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
+                .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
+                        List.of(rule("/qip-routes/a"), rule("/qip-routes/shared")))));
+
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of("snapshot-2"));
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        KubeCustomObject updated = (KubeCustomObject) captor.getValue();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> remainingRules = (List<Map<String, Object>>) updated.getSpec().get("rules");
+        assertEquals(1, remainingRules.size());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> matches = (List<Map<String, Object>>) remainingRules.get(0).get("matches");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pathMatch = (Map<String, Object>) matches.get(0).get("path");
+        assertEquals("/qip-routes/shared", pathMatch.get("value"));
+    }
+
     @Test
     void deleteHttpRoutesDeletesAllComputedTierNamesUnconditionally() {
         microDomainService.deleteHttpRoutes(DOMAIN);
@@ -183,7 +239,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(kubeOperator).createOrUpdateResource(captor.capture());
@@ -207,7 +263,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(kubeOperator).createOrUpdateResource(captor.capture());
@@ -233,7 +289,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
         verify(kubeOperator, never()).createOrUpdateResource(any());
@@ -243,7 +299,7 @@ class MicroDomainServiceHttpRouteTest {
     void deleteChainSnapshotDoesNothingWhenSnapshotHasNoRoutes() {
         stubSnapshotRoutes(List.of());
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         verify(kubeOperator, never()).getCustomObject(any(), any(), any(), any());
     }
@@ -261,7 +317,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(kubeOperator).createOrUpdateResource(captor.capture());
@@ -282,7 +338,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(PRIVATE_ROUTE_NAME, List.of(rule("/qip-routes/a")))));
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
@@ -299,7 +355,7 @@ class MicroDomainServiceHttpRouteTest {
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
                         List.of(rule("RegularExpression", "/qip-routes/orders/[^/]+/?")))));
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
@@ -316,7 +372,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, EGRESS_ROUTE_NAME))
                 .thenReturn(Optional.of(httpRoute(EGRESS_ROUTE_NAME, List.of(rule("/system/service-a")))));
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
         verify(kubeOperator, never()).getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
@@ -336,7 +392,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
-        assertDoesNotThrow(() -> microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1"));
+        assertDoesNotThrow(() -> microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of()));
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
         verify(kubeOperator).createOrUpdateResource(captor.capture());
@@ -364,7 +420,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
-        assertDoesNotThrow(() -> microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1"));
+        assertDoesNotThrow(() -> microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of()));
 
         verify(kubeOperator, never()).createOrUpdateResource(any());
         verify(kubeOperator, never()).deleteCustomObject(any(), any(), any(), any());
@@ -385,7 +441,7 @@ class MicroDomainServiceHttpRouteTest {
         when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME))
                 .thenReturn(Optional.empty());
 
-        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
         verify(kubeOperator, never()).createOrUpdateResource(any());

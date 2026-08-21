@@ -16,6 +16,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.camelk.builders.IntegrationsConfigurationConfigMapBuilder;
 import org.qubership.integration.platform.camelk.builders.chain.HttpRouteRuleNormalizer;
 import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.camelk.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
@@ -234,6 +235,7 @@ public class MicroDomainService {
     public void deleteChainSnapshot(String name, String snapshotId) {
         getMainIntegrationResources(name).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
+            Set<String> remainingSnapshotIds = remainingSnapshotIds(resources, snapshotId);
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
                     .map(m -> m.get(snapshotId))
                     .flatMap(KubeUtil::getName)
@@ -269,7 +271,7 @@ public class MicroDomainService {
             if (StringUtils.isNotBlank(cfgName)) {
                 kubeOperator.deleteConfigMap(cfgName);
             }
-            deleteChainSnapshotHttpRoutes(name, snapshotId);
+            deleteChainSnapshotHttpRoutes(name, snapshotId, remainingSnapshotIds);
         });
     }
 
@@ -380,15 +382,50 @@ public class MicroDomainService {
                 engineRoutesNamingStrategy.getName(context));
     }
 
-    void deleteChainSnapshotHttpRoutes(String name, String snapshotId) {
-        List<Route> ownRoutes = snapshotRepository.findAllByIdIn(List.of(snapshotId)).stream()
-                .flatMap(snapshot -> routesGetterService
-                        .getRoutes(new SnapshotAdapter(snapshot), integrationServiceCatalog).stream())
-                .toList();
+    /**
+     * The snapshot IDs this micro-domain still hosts once {@code removedSnapshotId} is gone. Read
+     * from the integrations-configuration ConfigMap's source list -- the same list
+     * {@link #deleteChainSnapshot} filters this snapshot out of, and the one in-cluster record that
+     * stores raw, unsanitized snapshot IDs (the source ConfigMaps' {@code SNAPSHOT_ID_LABEL} holds
+     * a {@code K8sNameValidator}-sanitized form), so it is the set that can be handed straight to
+     * {@code SnapshotRepository}. The label map is the fallback for a domain whose
+     * integrations-configuration ConfigMap is missing.
+     */
+    private Set<String> remainingSnapshotIds(IntegrationResources resources, String removedSnapshotId) {
+        Set<String> ids = Optional.ofNullable(resources.integrationsConfiguration())
+                .map(integrationConfigurationSerdes::getFromConfigMap)
+                .map(IntegrationsConfiguration::getSources)
+                .map(sources -> sources.stream()
+                        .map(SourceDefinition::getId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toCollection(HashSet::new)))
+                .orElseGet(() -> new HashSet<>(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL).keySet()));
+        ids.remove(removedSnapshotId);
+        return ids;
+    }
 
-        Set<GatewayPathMatch> publicPaths = tierOwnPaths(ownRoutes, RouteType::isExternalTriggerRoute);
-        Set<GatewayPathMatch> privatePaths = tierOwnPaths(ownRoutes, RouteType::isPrivateTriggerRoute);
-        Set<GatewayPathMatch> egressPaths = egressOwnPaths(ownRoutes);
+    /**
+     * Strips {@code snapshotId}'s gateway paths from this domain's shared HTTPRoute tiers, minus any
+     * path {@code remainingSnapshotIds} still owns. The tiers are one CR per micro-domain, shared by
+     * every snapshot that domain hosts, and two snapshots can legitimately claim the same path: a
+     * chain redeployed under a new snapshot ID before the superseded one is removed, or two chains
+     * reaching the same external system through the same egress prefix. Deleting a rule another
+     * snapshot still serves takes a running chain offline silently, so the strip set is this
+     * snapshot's paths minus every remaining snapshot's paths -- the same subtraction
+     * {@code ChainRouteRegistry.getUnsharedRoutes} performs on the engine side.
+     */
+    void deleteChainSnapshotHttpRoutes(String name, String snapshotId, Set<String> remainingSnapshotIds) {
+        List<Route> ownRoutes = snapshotRoutes(List.of(snapshotId), "removed");
+        List<Route> retainedRoutes = snapshotRoutes(remainingSnapshotIds, "remaining");
+
+        Set<GatewayPathMatch> publicPaths = unsharedPaths(
+                tierOwnPaths(ownRoutes, RouteType::isExternalTriggerRoute),
+                tierOwnPaths(retainedRoutes, RouteType::isExternalTriggerRoute));
+        Set<GatewayPathMatch> privatePaths = unsharedPaths(
+                tierOwnPaths(ownRoutes, RouteType::isPrivateTriggerRoute),
+                tierOwnPaths(retainedRoutes, RouteType::isPrivateTriggerRoute));
+        Set<GatewayPathMatch> egressPaths = unsharedPaths(
+                egressOwnPaths(ownRoutes), egressOwnPaths(retainedRoutes));
 
         if (publicPaths.isEmpty() && privatePaths.isEmpty() && egressPaths.isEmpty()) {
             return;
@@ -402,6 +439,38 @@ public class MicroDomainService {
         if (!egressPaths.isEmpty()) {
             stripPathsFromTier(httpRouteEgressNamingStrategy.getName(getContextForDomain(name)), egressPaths, "egress");
         }
+    }
+
+    /**
+     * Resolves {@code snapshotIds} to the gateway routes they define. {@code description} labels the
+     * warning logged when the catalog database has no row for every requested ID: a remaining
+     * snapshot that cannot be resolved contributes no paths, which risks stripping a rule that is
+     * still live, so it must not pass silently.
+     */
+    private List<Route> snapshotRoutes(Collection<String> snapshotIds, String description) {
+        if (snapshotIds.isEmpty()) {
+            return List.of();
+        }
+        var snapshots = snapshotRepository.findAllByIdIn(snapshotIds);
+        if (snapshots.size() < snapshotIds.size()) {
+            log.warn("Found {} of {} {} snapshot(s) in the catalog database; paths owned only by the "
+                            + "missing snapshot(s) are invisible to HTTPRoute cleanup",
+                    snapshots.size(), snapshotIds.size(), description);
+        }
+        return snapshots.stream()
+                .flatMap(snapshot -> routesGetterService
+                        .getRoutes(new SnapshotAdapter(snapshot), integrationServiceCatalog).stream())
+                .toList();
+    }
+
+    /**
+     * Returns {@code ownPaths} minus {@code retainedPaths}: the paths only the snapshot being
+     * removed claims, and so the only ones safe to strip from a tier shared with other snapshots.
+     */
+    private Set<GatewayPathMatch> unsharedPaths(Set<GatewayPathMatch> ownPaths, Set<GatewayPathMatch> retainedPaths) {
+        Set<GatewayPathMatch> unshared = new HashSet<>(ownPaths);
+        unshared.removeAll(retainedPaths);
+        return unshared;
     }
 
     /**
