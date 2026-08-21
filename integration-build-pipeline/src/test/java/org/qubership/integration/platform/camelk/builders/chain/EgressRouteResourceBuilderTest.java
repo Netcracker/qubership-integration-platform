@@ -123,6 +123,26 @@ class EgressRouteResourceBuilderTest {
         assertEqualsOccurrences(1, "kind: ServiceEntry", result);
     }
 
+    // Two ports on one host within a single build. The ServiceEntry is named after the host alone,
+    // so both ports have to land in the same document: two documents under one metadata.name would
+    // apply in sequence and leave only the last port in the cluster.
+    @Test
+    void buildFoldsEveryPortOnAHostIntoOneServiceEntry() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com:443/a").gatewayPrefix("/system/elem-a")
+                        .type(RouteType.EXTERNAL_SERVICE).build(),
+                Route.builder().path("https://api.example.com:9443/b").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        String result = builder.build(contextWithSnapshot("snap-1"));
+
+        assertEqualsOccurrences(1, "kind: ServiceEntry", result);
+        assertTrue(result.contains("number: 443"));
+        assertTrue(result.contains("number: 9443"));
+        assertTrue(result.contains("name: https-443"));
+        assertTrue(result.contains("name: https-9443"));
+    }
+
     @Test
     void buildPreservesUntouchedRulesFromTheCache() throws Exception {
         when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(

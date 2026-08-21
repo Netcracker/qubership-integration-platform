@@ -238,31 +238,49 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     private void appendHostResources(
             StringBuilder out, ResourceBuildContext<List<Snapshot>> context, List<Route> routes
     ) {
-        // Keyed on (host, port), not host alone: two routes can legitimately share a host on
-        // different ports, and each such pair must reach appendServiceEntry/appendDestinationRule
-        // so its port gets merged in -- deduping by host alone would silently drop every port but
-        // one, even within this single build.
-        Map<String, EgressTarget> targetsByHostAndPort = new LinkedHashMap<>();
+        // Grouped by hostResourceName(), which is derived from the host alone: a ServiceEntry and a
+        // DestinationRule are named after the host, so every port any route targets on that host
+        // belongs to one object. All of this build's ports for a host therefore have to be folded
+        // into a single document. Emitting one document per port instead writes several documents
+        // under the same metadata.name, and applying them in sequence leaves only the last port in
+        // the cluster while the egress HTTPRoute still holds a backendRef to the others.
+        Map<String, Map<Integer, EgressTarget>> targetsByHostResource = new LinkedHashMap<>();
         for (Route route : routes) {
             EgressTarget target = EgressTarget.parse(route.getPath());
-            targetsByHostAndPort.putIfAbsent(target.host() + ":" + target.port(), target);
+            targetsByHostResource
+                    .computeIfAbsent(target.hostResourceName(), hostResourceName -> new LinkedHashMap<>())
+                    .putIfAbsent(target.port(), target);
         }
-        for (EgressTarget target : targetsByHostAndPort.values()) {
-            appendServiceEntry(out, context, target);
-            if (target.isHttps()) {
-                appendDestinationRule(out, context, target);
+        for (Map.Entry<String, Map<Integer, EgressTarget>> entry : targetsByHostResource.entrySet()) {
+            List<EgressTarget> targets = List.copyOf(entry.getValue().values());
+            appendServiceEntry(out, context, entry.getKey(), targets);
+            List<EgressTarget> httpsTargets = targets.stream().filter(EgressTarget::isHttps).toList();
+            if (!httpsTargets.isEmpty()) {
+                appendDestinationRule(out, context, entry.getKey(), httpsTargets);
             }
         }
     }
 
-    private void appendServiceEntry(StringBuilder out, ResourceBuildContext<List<Snapshot>> context, EgressTarget target) {
-        String name = target.hostResourceName();
+    /**
+     * Appends the one {@code ServiceEntry} document for {@code name}, carrying every port
+     * {@code targets} reaches on that host plus every port already recorded in the build cache.
+     * {@code targets} all resolve to the same {@code hostResourceName()} and so to the same host.
+     */
+    private void appendServiceEntry(
+            StringBuilder out,
+            ResourceBuildContext<List<Snapshot>> context,
+            String name,
+            List<EgressTarget> targets
+    ) {
         JsonNode existingSpec = existingHostResourceSpec(context, serviceEntryCacheKey(name));
 
-        ObjectNode newPort = yamlMapper.createObjectNode();
-        newPort.put("number", target.port());
-        newPort.put("name", target.portName());
-        newPort.put("protocol", target.isHttps() ? "HTTPS" : "HTTP");
+        List<JsonNode> newPorts = targets.stream().map(target -> {
+            ObjectNode newPort = yamlMapper.createObjectNode();
+            newPort.put("number", target.port());
+            newPort.put("name", target.portName());
+            newPort.put("protocol", target.isHttps() ? "HTTPS" : "HTTP");
+            return (JsonNode) newPort;
+        }).toList();
 
         ObjectNode serviceEntry = yamlMapper.createObjectNode();
         serviceEntry.put("apiVersion", NETWORKING_ISTIO_API_GROUP + "/" + NETWORKING_ISTIO_API_VERSION);
@@ -270,25 +288,37 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         serviceEntry.withObjectProperty("metadata").put("name", name);
 
         ObjectNode spec = serviceEntry.withObjectProperty("spec");
-        spec.withArray("hosts").add(target.host());
+        spec.withArray("hosts").add(targets.get(0).host());
         spec.put("location", "MESH_EXTERNAL");
         spec.put("resolution", "DNS");
         ArrayNode ports = spec.withArray("ports");
-        mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(), newPort)
+        mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(), newPorts)
                 .forEach(ports::add);
 
         appendYamlDocument(out, serviceEntry, "ServiceEntry " + name);
     }
 
-    private void appendDestinationRule(StringBuilder out, ResourceBuildContext<List<Snapshot>> context, EgressTarget target) {
-        String name = target.hostResourceName();
+    /**
+     * Appends the one {@code DestinationRule} document for {@code name}, carrying a port-level TLS
+     * setting for every HTTPS port {@code targets} reaches on that host plus every setting already
+     * recorded in the build cache. Plain HTTP targets are filtered out before this is called.
+     */
+    private void appendDestinationRule(
+            StringBuilder out,
+            ResourceBuildContext<List<Snapshot>> context,
+            String name,
+            List<EgressTarget> targets
+    ) {
         JsonNode existingSpec = existingHostResourceSpec(context, destinationRuleCacheKey(name));
 
-        ObjectNode newPortLevelSetting = yamlMapper.createObjectNode();
-        newPortLevelSetting.putObject("port").put("number", target.port());
-        ObjectNode tls = newPortLevelSetting.putObject("tls");
-        tls.put("mode", "SIMPLE");
-        tls.put("sni", target.host());
+        List<JsonNode> newPortLevelSettings = targets.stream().map(target -> {
+            ObjectNode newPortLevelSetting = yamlMapper.createObjectNode();
+            newPortLevelSetting.putObject("port").put("number", target.port());
+            ObjectNode tls = newPortLevelSetting.putObject("tls");
+            tls.put("mode", "SIMPLE");
+            tls.put("sni", target.host());
+            return (JsonNode) newPortLevelSetting;
+        }).toList();
 
         ObjectNode destinationRule = yamlMapper.createObjectNode();
         destinationRule.put("apiVersion", NETWORKING_ISTIO_API_GROUP + "/" + NETWORKING_ISTIO_API_VERSION);
@@ -296,11 +326,11 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         destinationRule.withObjectProperty("metadata").put("name", name);
 
         ObjectNode spec = destinationRule.withObjectProperty("spec");
-        spec.put("host", target.host());
+        spec.put("host", targets.get(0).host());
         ArrayNode portLevelSettings = spec.withObjectProperty("trafficPolicy").withArray("portLevelSettings");
         JsonNode existingPortLevelSettings = existingSpec.path("trafficPolicy").path("portLevelSettings");
         mergedEntries(existingPortLevelSettings,
-                entry -> entry.path("port").path("number").asInt(), newPortLevelSetting)
+                entry -> entry.path("port").path("number").asInt(), newPortLevelSettings)
                 .forEach(portLevelSettings::add);
 
         appendYamlDocument(out, destinationRule, "DestinationRule " + name);
@@ -327,24 +357,27 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     }
 
     /**
-     * Returns {@code existingList}'s entries with any entry sharing {@code newEntry}'s key (per
-     * {@code keyExtractor}) removed, plus {@code newEntry} appended -- i.e. add-or-replace-by-key,
-     * never duplicate. {@code existingList} may be a Jackson {@code MissingNode} (absent field);
-     * that's treated as an empty list, not an error.
+     * Returns {@code existingList}'s entries with any entry sharing a key (per {@code keyExtractor})
+     * with one of {@code newEntries} removed, plus {@code newEntries} appended in order -- i.e.
+     * add-or-replace-by-key, never duplicate. {@code newEntries} carries every port of a single host
+     * because that host's {@code ServiceEntry}/{@code DestinationRule} is one object; replacing one
+     * port at a time would need one document per port under the same name, and only the
+     * last-applied one would survive. {@code existingList} may be a Jackson {@code MissingNode}
+     * (absent field); that's treated as an empty list, not an error.
      */
     private List<JsonNode> mergedEntries(
-            JsonNode existingList, Function<JsonNode, Integer> keyExtractor, JsonNode newEntry
+            JsonNode existingList, Function<JsonNode, Integer> keyExtractor, List<JsonNode> newEntries
     ) {
-        int newKey = keyExtractor.apply(newEntry);
+        Set<Integer> newKeys = newEntries.stream().map(keyExtractor).collect(Collectors.toSet());
         List<JsonNode> merged = new ArrayList<>();
         if (existingList.isArray()) {
             for (JsonNode entry : existingList) {
-                if (!keyExtractor.apply(entry).equals(newKey)) {
+                if (!newKeys.contains(keyExtractor.apply(entry))) {
                     merged.add(entry);
                 }
             }
         }
-        merged.add(newEntry);
+        merged.addAll(newEntries);
         return merged;
     }
 
