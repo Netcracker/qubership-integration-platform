@@ -67,4 +67,39 @@ class SkillActivitySupportTest {
         assertInstanceOf(CapabilitySignal.SkillProgress.class, wrapped.get(0));
     assertEquals("error", skill.status());
   }
+
+  @Test
+  void bindWorkerLooksUpTheTurnSinkByConversationId() {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, null, "conv-design-exec");
+    try {
+      SkillActivitySupport.bindWorker("cip-design-executor", "conv-design-exec");
+    } finally {
+      SkillActivitySupport.unbindWorker();
+      ToolInvocationSink.unbind();
+    }
+
+    assertTrue(
+        out.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Step step
+                        && "skill".equals(step.kind())
+                        && "cip-design-executor".equals(step.label())
+                        && "running".equals(step.status())),
+        () -> "expected skill running after bindWorker by conversation id, got: " + out);
+  }
+
+  @Test
+  void unbindWorkerClearsABindLookedUpByConversationId() {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, null, "conv-design-exec");
+    SkillActivitySupport.bindWorker("cip-design-executor", "conv-design-exec");
+    SkillActivitySupport.unbindWorker();
+    ToolInvocationSink.unbind();
+
+    assertTrue(
+        ToolInvocationSink.currentEmit().isEmpty(),
+        "expected the conversation lookup bind to be undone");
+  }
 }

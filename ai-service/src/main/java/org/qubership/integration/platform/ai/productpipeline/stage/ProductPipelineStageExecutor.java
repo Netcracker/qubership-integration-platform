@@ -41,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.SkipPolicy;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
+import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignalLiveSink;
 import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -244,9 +245,22 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             attributes);
     return capability
         .execute(context)
+        .onItem()
+        .invoke(signal -> forwardLiveSkillProgress(runId, signal))
         .collect()
         .asList()
         .map(signals -> handleCapabilitySignals(runId, stage, signals));
+  }
+
+  /**
+   * Flow waits to drain stage signals until the capability Multi completes. Push skill rows to the
+   * in-flight chat command as each {@link CapabilitySignal.SkillProgress} arrives.
+   */
+  private static void forwardLiveSkillProgress(String runId, CapabilitySignal signal) {
+    if (signal instanceof CapabilitySignal.SkillProgress skillProgress) {
+      PipelineSignalLiveSink.emit(
+          runId, new PipelineSignal.SkillProgress(skillProgress.skillId(), skillProgress.status()));
+    }
   }
 
   private StageExecutionResult handleCapabilitySignals(
@@ -254,6 +268,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     List<PipelineSignal> live = new ArrayList<>();
     for (CapabilitySignal signal : signals) {
       if (signal instanceof CapabilitySignal.SkillProgress skillProgress) {
+        // Live rows already went out through forwardLiveSkillProgress. Putting them in the drain
+        // batch replays the skill timeline after the stage ends.
+        if (PipelineSignalLiveSink.isBound(runId)) {
+          continue;
+        }
         live.add(new PipelineSignal.SkillProgress(skillProgress.skillId(), skillProgress.status()));
       } else if (signal instanceof CapabilitySignal.Progress progress) {
         live.add(new PipelineSignal.Progress(stage.stageId(), progress.label()));

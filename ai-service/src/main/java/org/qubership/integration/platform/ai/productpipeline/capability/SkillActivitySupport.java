@@ -65,15 +65,41 @@ public final class SkillActivitySupport {
 
   /** Re-binds the turn sink on a worker thread and nests later tool steps under {@code skillId}. */
   public static void bindWorker(String skillId, Optional<Consumer<ChatEvent>> turnEmit) {
-    turnEmit.ifPresent(emit -> ToolInvocationSink.bind(emit, EvidenceIds.wireSkill(skillId)));
+    bindWorker(skillId, turnEmit, null);
+  }
+
+  /**
+   * Looks up the chat-turn consumer by conversation id, then binds it on this worker.
+   */
+  public static void bindWorker(String skillId, String conversationId) {
+    bindWorker(skillId, captureTurnEmit(conversationId), conversationId);
+  }
+
+  /**
+   * When {@code turnEmit} is empty, looks up the chat-turn consumer by conversation id and binds
+   * it on this worker.
+   */
+  public static void bindWorker(
+      String skillId, Optional<Consumer<ChatEvent>> turnEmit, String conversationId) {
+    Objects.requireNonNull(turnEmit, "turnEmit");
+    Optional<Consumer<ChatEvent>> emit =
+        turnEmit.isPresent() ? turnEmit : captureTurnEmit(conversationId);
+    emit.ifPresent(
+        consumer ->
+            ToolInvocationSink.bind(consumer, EvidenceIds.wireSkill(skillId), conversationId));
     bindParents(skillId);
   }
 
-  public static void unbindWorker(Optional<Consumer<ChatEvent>> turnEmit) {
+  /** Clears parent skill ids and undoes {@link #bindWorker} if that call bound the turn sink. */
+  public static void unbindWorker() {
     clearParents();
-    if (turnEmit.isPresent()) {
-      ToolInvocationSink.unbind();
-    }
+    ToolInvocationSink.unbindIfBound();
+  }
+
+  /** Delegates to {@link #unbindWorker()}. Existing stages pass the optional they captured for bind. */
+  public static void unbindWorker(Optional<Consumer<ChatEvent>> turnEmit) {
+    Objects.requireNonNull(turnEmit, "turnEmit");
+    unbindWorker();
   }
 
   /**

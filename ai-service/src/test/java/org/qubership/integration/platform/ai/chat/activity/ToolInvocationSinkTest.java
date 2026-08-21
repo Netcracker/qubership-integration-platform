@@ -101,6 +101,33 @@ class ToolInvocationSinkTest {
   }
 
   @Test
+  void conversationMapIsVisibleOnAnotherThread() throws Exception {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, "skill:cip-http-generator", "conv-live");
+    try {
+      Thread worker =
+          new Thread(
+              () -> {
+                org.qubership.integration.platform.ai.chat.ToolSession.bind("conv-live");
+                try {
+                  ToolInvocationSink.onInvoke("captureGraphPatch");
+                } finally {
+                  org.qubership.integration.platform.ai.chat.ToolSession.clear();
+                }
+              });
+      worker.start();
+      worker.join(5_000);
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertEquals(1, out.size());
+    ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
+    assertEquals("captureGraphPatch", running.label());
+    assertEquals("skill:cip-http-generator", running.parentId());
+  }
+
+  @Test
   void propagatesBindingThroughMutinyContextOnWorkerThread() {
     List<ChatEvent> out = new ArrayList<>();
     ToolInvocationSink.bind(out::add, "skill:worker-skill");
@@ -212,5 +239,39 @@ class ToolInvocationSinkTest {
     assertEquals(1, out.size());
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
     assertEquals("captureRequirementBrief", running.label());
+  }
+
+  @Test
+  void nestedUnbindRestoresTheOuterConversationParent() throws Exception {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, "skill:cip-design-executor", "conv-nested-parent");
+    try {
+      ToolInvocationSink.bind(out::add, "skill:cip-http-generator", "conv-nested-parent");
+      ToolInvocationSink.unbind();
+      Thread worker =
+          new Thread(
+              () -> {
+                org.qubership.integration.platform.ai.chat.ToolSession.bind("conv-nested-parent");
+                try {
+                  ToolInvocationSink.onInvoke("POST /v1/systems/search");
+                } finally {
+                  org.qubership.integration.platform.ai.chat.ToolSession.clear();
+                }
+              });
+      worker.start();
+      worker.join();
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertEquals(1, out.size());
+    ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
+    assertEquals("skill:cip-design-executor", running.parentId());
+  }
+
+  @Test
+  void unbindIfBoundIsANoOpWhenThisThreadNeverCalledBind() {
+    ToolInvocationSink.unbindIfBound();
+    ToolInvocationSink.onInvoke("captureGraphPatch");
   }
 }
