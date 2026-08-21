@@ -290,6 +290,23 @@ class ChainStructureCaptureToolTest {
     assertTrue(result.contains("capture subgraph rather than graph"), result);
   }
 
+  /**
+   * A generator that reaches for the CREATE tool on an edit run often calls it with no argument at
+   * all. The reply has to name the tool this run wants; answering "capture is required" ends the
+   * turn on a message that names no next step, and the structure stage produces nothing.
+   */
+  @Test
+  void anEditThatCallsTheCreateToolWithNoCaptureIsStillAskedForTheSubgraph() {
+    session.set(
+        CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(validGraph(), wrapIntent()));
+
+    String result = tool.captureChainStructure(null);
+
+    assertTrue(result.contains("captureChainEditSubgraph"), result);
+    assertTrue(result.contains("capture subgraph rather than graph"), result);
+  }
+
   @Test
   void anInsertionCapturedAsASubgraphIsStoredAsTheGraphItAssemblesTo() {
     session.set(
