@@ -39,6 +39,48 @@ class ChatMemorySanitizerTest {
     assertEquals(ChatMemorySanitizer.DANGLING_RESULT_TEXT, result.text());
   }
 
+  /**
+   * The shape that cost a chain edit its repair retry. The model answered a rejected patch with an
+   * empty completion, and OpenAI then refused every request on that conversation for
+   * {@code messages.[4].content} being null -- before the retry could correct the patch.
+   */
+  @Test
+  void dropsAnAssistantTurnThatSaysNothingAndAsksForNothing() {
+    InMemoryChatMemoryStore store = new InMemoryChatMemoryStore();
+    store.updateMessages(
+        "conv",
+        List.of(
+            UserMessage.from("go"),
+            AiMessage.from(request("call-1")),
+            ToolExecutionResultMessage.from(request("call-1"), "ownership violation"),
+            AiMessage.builder().build()));
+    ChatMemorySanitizer sanitizer = new ChatMemorySanitizer(store);
+
+    sanitizer.repairDanglingToolCalls("conv");
+
+    List<ChatMessage> messages = store.getMessages("conv");
+    assertEquals(3, messages.size());
+    assertInstanceOf(ToolExecutionResultMessage.class, messages.get(2));
+  }
+
+  /** Null text alongside tool calls is the ordinary tool-calling turn, and OpenAI accepts it. */
+  @Test
+  void keepsAToolCallingTurnWhoseTextIsNull() {
+    InMemoryChatMemoryStore store = new InMemoryChatMemoryStore();
+    store.updateMessages(
+        "conv",
+        List.of(
+            UserMessage.from("go"),
+            AiMessage.from(request("call-1")),
+            ToolExecutionResultMessage.from(request("call-1"), "ok")));
+    ChatMemorySanitizer sanitizer = new ChatMemorySanitizer(store);
+
+    sanitizer.repairDanglingToolCalls("conv");
+
+    assertEquals(3, store.getMessages("conv").size());
+    assertInstanceOf(AiMessage.class, store.getMessages("conv").get(1));
+  }
+
   @Test
   void defaultRepairInsertsParseFailureText() {
     InMemoryChatMemoryStore store = new InMemoryChatMemoryStore();
