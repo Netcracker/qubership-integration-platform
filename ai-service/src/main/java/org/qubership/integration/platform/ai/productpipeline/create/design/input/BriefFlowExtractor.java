@@ -52,7 +52,8 @@ public final class BriefFlowExtractor {
   private static final Pattern CATALOG_OPERATION_AFTER_SERVICE =
       Pattern.compile(
           "(?i)\\bcall\\s+(?<service>.+?)\\s+catalog\\s+operation\\s+"
-              + "(?<operation>[A-Za-z0-9_.-]+)\\s+using\\s+(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+)");
+              + "(?<operation>[A-Za-z0-9_.-]+)\\s*(?:,|using)\\s*"
+              + "(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+)");
 
   private static final Pattern CATALOG_OPERATION_BEFORE_SERVICE =
       Pattern.compile(
@@ -188,9 +189,9 @@ public final class BriefFlowExtractor {
         Optional<ServiceCallIdentity> callIdentity = parseServiceCall(call);
         if (callIdentity.isEmpty()) {
           missing.add(
-              "SERVICE_CALL participant and operation query ("
-                  + call.sourceFactId()
-                  + " must be '<Participant>: <operationQuery>')");
+              "SERVICE_CALL participant and operation query (need '<Participant>: <operationQuery>'; got \""
+                  + factPreview(call)
+                  + "\")");
           continue;
         }
         ServiceCallIdentity identity = callIdentity.get();
@@ -515,7 +516,8 @@ public final class BriefFlowExtractor {
       return Optional.of(
           new ServiceCallIdentity(
               trimToNull(serviceFirst.group("service")),
-              firstNonBlank(serviceFirst.group("request"), serviceFirst.group("operation"))));
+              trimTrailingSentencePeriod(
+                  firstNonBlank(serviceFirst.group("request"), serviceFirst.group("operation")))));
     }
 
     Matcher operationFirst = CATALOG_OPERATION_BEFORE_SERVICE.matcher(trimmed);
@@ -593,6 +595,17 @@ public final class BriefFlowExtractor {
       return null;
     }
     return SCRIPT_INTENT.matcher(trimmed).find() ? trimmed : null;
+  }
+
+  private static String factPreview(RequirementFact fact) {
+    String text = fact == null ? null : trimToNull(fact.text());
+    if (text == null) {
+      return "";
+    }
+    if (text.length() > 120) {
+      return text.substring(0, 117) + "...";
+    }
+    return text;
   }
 
   private static String trimToNull(String value) {

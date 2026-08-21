@@ -154,6 +154,36 @@ class BriefFlowExtractorTest {
   }
 
   @Test
+  void extractsCatalogOperationWhenRequestFollowsACommaInsteadOfUsing() {
+    RequirementBrief brief =
+        brief(
+            "Pet Inventory Check",
+            List.of("POST /pet-inventory/check"),
+            "Check the Petstore inventory",
+            List.of(
+                fact(
+                    "trigger-1",
+                    RequirementFactKind.ENDPOINT,
+                    "Receive internal HTTP POST /pet-inventory/check."),
+                fact(
+                    "c0875e786c4b8d657f8b792a68c029ef65fa6da6590a61fd8fafec3c65b40bc0",
+                    RequirementFactKind.SERVICE_CALL,
+                    "Call Petstore Ext catalog operation getInventory, GET /store/inventory.")),
+            List.of(
+                passThrough(
+                    "map-init",
+                    "trigger-1",
+                    "c0875e786c4b8d657f8b792a68c029ef65fa6da6590a61fd8fafec3c65b40bc0")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals("Petstore Ext", flow.participants().get(1).displayName());
+    assertEquals("GET /store/inventory", flow.steps().getFirst().operationQuery());
+  }
+
+  @Test
   void assignsMappingIdWhenRequirementBriefLeavesItBlank() {
     RequirementBrief brief =
         brief(
