@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.chat.activity;
 import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import java.util.ArrayDeque;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -32,6 +33,7 @@ public final class ToolInvocationSink {
   private static final ThreadLocal<Context> SUBSCRIBE_PATH_CONTEXT = new ThreadLocal<>();
   private static final ThreadLocal<Integer> BIND_DEPTH = new ThreadLocal<>();
   private static final ThreadLocal<String> REGISTERED_CONVERSATION_ID = new ThreadLocal<>();
+  private static final ThreadLocal<ArrayDeque<Binding>> NESTED_PREVIOUS = new ThreadLocal<>();
   private static final ConcurrentHashMap<String, Binding> BY_CONVERSATION = new ConcurrentHashMap<>();
 
   private ToolInvocationSink() {}
@@ -49,12 +51,18 @@ public final class ToolInvocationSink {
   public static void bind(Consumer<ChatEvent> emit, String parentSkillId, String conversationId) {
     Binding binding = new Binding(emit, parentSkillId);
     Context context = Context.of(CONTEXT_KEY, binding);
+    Binding current = THREAD_BINDING.get();
     int depth = bindDepth() + 1;
     BIND_DEPTH.set(depth);
+    if (depth > 1 && current != null) {
+      nestedPrevious().push(current);
+    }
     installBinding(binding, context);
     if (conversationId != null && !conversationId.isBlank()) {
       String id = conversationId.trim();
-      if (BY_CONVERSATION.putIfAbsent(id, binding) == null) {
+      Binding previous = BY_CONVERSATION.put(id, binding);
+      // Nested worker binds may refresh parentSkillId; only the first binder may unbind the map.
+      if (previous == null) {
         REGISTERED_CONVERSATION_ID.set(id);
       }
     }
@@ -64,9 +72,11 @@ public final class ToolInvocationSink {
     int depth = bindDepth() - 1;
     if (depth > 0) {
       BIND_DEPTH.set(depth);
+      restoreNestedPrevious();
       return;
     }
     BIND_DEPTH.remove();
+    NESTED_PREVIOUS.remove();
     String registered = REGISTERED_CONVERSATION_ID.get();
     if (registered != null) {
       BY_CONVERSATION.remove(registered);
@@ -75,6 +85,13 @@ public final class ToolInvocationSink {
     THREAD_BINDING.remove();
     THREAD_CONTEXT.remove();
     SUBSCRIBE_PATH_CONTEXT.remove();
+  }
+
+  /** Decrements bind depth if this thread called {@link #bind}. No-op when the depth is zero. */
+  public static void unbindIfBound() {
+    if (bindDepth() > 0) {
+      unbind();
+    }
   }
 
   /**
@@ -201,6 +218,31 @@ public final class ToolInvocationSink {
   private static int bindDepth() {
     Integer depth = BIND_DEPTH.get();
     return depth == null ? 0 : depth;
+  }
+
+  private static ArrayDeque<Binding> nestedPrevious() {
+    ArrayDeque<Binding> stack = NESTED_PREVIOUS.get();
+    if (stack == null) {
+      stack = new ArrayDeque<>();
+      NESTED_PREVIOUS.set(stack);
+    }
+    return stack;
+  }
+
+  private static void restoreNestedPrevious() {
+    ArrayDeque<Binding> stack = NESTED_PREVIOUS.get();
+    if (stack == null || stack.isEmpty()) {
+      return;
+    }
+    Binding previous = stack.pop();
+    installBinding(previous, Context.of(CONTEXT_KEY, previous));
+    String conversationId = REGISTERED_CONVERSATION_ID.get();
+    if (conversationId == null || conversationId.isBlank()) {
+      conversationId = ToolSession.resolveConversationId();
+    }
+    if (conversationId != null && BY_CONVERSATION.containsKey(conversationId)) {
+      BY_CONVERSATION.put(conversationId, previous);
+    }
   }
 
   private static Context activeSubscribeContext() {

@@ -18,7 +18,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +57,8 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInput
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.FakeStageCapabilities;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
+import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignalLiveSink;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
@@ -124,6 +131,122 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.RUNNING, doc.run().status());
     assertEquals(StageStatus.SUCCEEDED, stageStatus(doc, "first"));
     assertFalse(result.decision() instanceof StageDecision.Complete);
+  }
+
+  @Test
+  void skillProgressReachesTheLiveSinkBeforeTheStageFinishes() throws Exception {
+    CountDownLatch liveRunning = new CountDownLatch(1);
+    AtomicBoolean stageFinished = new AtomicBoolean(false);
+    AtomicReference<StageExecutionResult> result = new AtomicReference<>();
+    List<PipelineSignal> live = new CopyOnWriteArrayList<>();
+    StageCapability slow =
+        capability(
+            "only-cap",
+            context ->
+                Multi.createFrom()
+                    .emitter(
+                        emitter -> {
+                          emitter.emit(
+                              new CapabilitySignal.SkillProgress("cip-http-generator", "running"));
+                          try {
+                            Thread.sleep(250);
+                          } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                          }
+                          emitter.emit(
+                              new CapabilitySignal.Completed(
+                                  StageOutcome.of(StageOutcomeClass.SUCCEEDED, "done")));
+                          emitter.complete();
+                        }));
+    ProductPipelineProfile profile =
+        new ProductPipelineProfile(
+            1,
+            "live-skill",
+            "2",
+            List.of(new ArtifactTypeRef("user-input", 1)),
+            List.of(
+                new ProfileStage(
+                    "only",
+                    "only-cap",
+                    List.of(new ArtifactTypeRef("user-input", 1)),
+                    List.of(),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L))),
+            new TerminalPolicy("only", "CHAIN_MATERIALIZED"),
+            List.of("only-cap"));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, slow);
+    startAndRecordInput(runtime, profile);
+    PipelineSignalLiveSink.bind(
+        RUN_ID,
+        signal -> {
+          live.add(signal);
+          if (signal instanceof PipelineSignal.SkillProgress progress
+              && "cip-http-generator".equals(progress.skillId())
+              && "running".equals(progress.status())) {
+            assertFalse(stageFinished.get());
+            liveRunning.countDown();
+          }
+        });
+    try {
+      Thread runner =
+          new Thread(
+              () -> {
+                result.set(execute(runtime, "only"));
+                stageFinished.set(true);
+              });
+      runner.start();
+      assertTrue(liveRunning.await(5, TimeUnit.SECONDS));
+      runner.join(10_000);
+      assertTrue(stageFinished.get());
+      assertTrue(
+          live.stream().anyMatch(PipelineSignal.SkillProgress.class::isInstance),
+          "live sink should receive skill progress while the stage is running");
+      assertTrue(
+          result.get().signals().stream().noneMatch(PipelineSignal.SkillProgress.class::isInstance),
+          "drain batch must not replay skill progress that already went live");
+    } finally {
+      PipelineSignalLiveSink.unbind(RUN_ID);
+    }
+  }
+
+  @Test
+  void skillProgressStaysInTheDrainBatchWhenTheLiveSinkIsUnbound() {
+    StageCapability cap =
+        capability(
+            "only-cap",
+            context ->
+                Multi.createFrom()
+                    .items(
+                        new CapabilitySignal.SkillProgress("cip-http-generator", "running"),
+                        new CapabilitySignal.SkillProgress("cip-http-generator", "completed"),
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.SUCCEEDED, "done"))));
+    ProductPipelineProfile profile =
+        new ProductPipelineProfile(
+            1,
+            "drain-skill",
+            "2",
+            List.of(new ArtifactTypeRef("user-input", 1)),
+            List.of(
+                new ProfileStage(
+                    "only",
+                    "only-cap",
+                    List.of(new ArtifactTypeRef("user-input", 1)),
+                    List.of(),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L))),
+            new TerminalPolicy("only", "CHAIN_MATERIALIZED"),
+            List.of("only-cap"));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, cap);
+    startAndRecordInput(runtime, profile);
+
+    StageExecutionResult result = execute(runtime, "only");
+
+    assertTrue(
+        result.signals().stream().anyMatch(PipelineSignal.SkillProgress.class::isInstance),
+        "without a live sink, skill progress must still reach the drain batch");
   }
 
   @Test

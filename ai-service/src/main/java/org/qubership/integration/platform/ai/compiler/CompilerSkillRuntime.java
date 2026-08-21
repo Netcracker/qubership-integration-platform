@@ -14,6 +14,7 @@ import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -252,11 +253,20 @@ public class CompilerSkillRuntime {
     String userMessage = buildUserMessage(conversationId, document, snapshot, activePlan, route);
     ChainPlanGraph inputGraph = snapshot.chainPlanGraph();
 
+    Context toolSinkContext = ToolInvocationSink.attachedContext();
     Multi<String> agentStream =
-        ToolSession.propagateBinding(
-            toolSessionContext,
-            agentStreamFor(
-                route, document.phase(), conversationId, memoryId, capabilityId, userMessage, inputGraph));
+        ToolInvocationSink.propagateBinding(
+            toolSinkContext,
+            ToolSession.propagateBinding(
+                toolSessionContext,
+                agentStreamFor(
+                    route,
+                    document.phase(),
+                    conversationId,
+                    memoryId,
+                    capabilityId,
+                    userMessage,
+                    inputGraph)));
 
     return Multi.createFrom()
         .<ChatEvent>emitter(

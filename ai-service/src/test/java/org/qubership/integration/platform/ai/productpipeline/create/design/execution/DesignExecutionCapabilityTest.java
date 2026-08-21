@@ -18,14 +18,11 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.chat.ChatEvent;
-import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -303,8 +300,7 @@ class DesignExecutionCapabilityTest {
   }
 
   @Test
-  void forwardsGeneratorSkillProgressToTheLiveChatSink() {
-    List<ChatEvent> liveEvents = new ArrayList<>();
+  void emitsGeneratorSkillProgressOnTheCapabilityStream() {
     doAnswer(
             invocation -> {
               @SuppressWarnings("unchecked")
@@ -316,30 +312,16 @@ class DesignExecutionCapabilityTest {
         .when(runner)
         .execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any());
 
-    ToolInvocationSink.bind(liveEvents::add, null, CONVERSATION_ID);
-    try {
-      execute(
-          List.of(
-              idsRef,
-              flowRef,
-              reportRef,
-              planRef,
-              implementationRef,
-              manifestRef,
-              idsApprovalRef,
-              implementationApprovalRef));
-    } finally {
-      ToolInvocationSink.unbind();
-    }
+    List<CapabilitySignal> signals = collectSignals(standardInputRefs());
 
     assertTrue(
-        liveEvents.stream()
+        signals.stream()
             .anyMatch(
-                event ->
-                    event instanceof ChatEvent.Step step
-                        && "skill:cip-trigger-generator".equals(step.id())
-                        && "running".equals(step.status())),
-        () -> "expected generator skill live event, got: " + liveEvents);
+                signal ->
+                    signal instanceof CapabilitySignal.SkillProgress progress
+                        && "cip-trigger-generator".equals(progress.skillId())
+                        && "running".equals(progress.status())),
+        () -> "expected generator skill progress on the capability stream, got: " + signals);
   }
 
   @Test
@@ -362,6 +344,15 @@ class DesignExecutionCapabilityTest {
   }
 
   private StageOutcome execute(List<Reference> inputRefs) {
+    return collectSignals(inputRefs).stream()
+        .filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast)
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("expected Completed signal"))
+        .outcome();
+  }
+
+  private List<CapabilitySignal> collectSignals(List<Reference> inputRefs) {
     StageExecutionContext context =
         new StageExecutionContext(
             RUN_ID,
@@ -383,13 +374,19 @@ class DesignExecutionCapabilityTest {
                 approvedPlan,
                 "implementationPlan",
                 implementationPlan));
-    CapabilitySignal.Completed completed =
-        capability.execute(context).collect().asList().await().indefinitely().stream()
-            .filter(CapabilitySignal.Completed.class::isInstance)
-            .map(CapabilitySignal.Completed.class::cast)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("expected Completed signal"));
-    return completed.outcome();
+    return capability.execute(context).collect().asList().await().indefinitely();
+  }
+
+  private List<Reference> standardInputRefs() {
+    return List.of(
+        idsRef,
+        flowRef,
+        reportRef,
+        planRef,
+        implementationRef,
+        manifestRef,
+        idsApprovalRef,
+        implementationApprovalRef);
   }
 
   private Reference append(Kind kind, String schemaVersion, Object payload) {

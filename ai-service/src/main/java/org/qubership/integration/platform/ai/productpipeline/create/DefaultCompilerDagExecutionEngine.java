@@ -19,6 +19,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchArtifactFactory;
@@ -246,6 +248,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           appendNewCompletions(executed, previous, state);
         } else {
           skillProgress.accept(node.skillId(), "running");
+          Optional<String> previousParent = ToolInvocationSink.currentParentSkillId();
+          ToolInvocationSink.setParentSkillId(EvidenceIds.wireSkill(node.skillId()));
           try {
             List<SkillArtifact> outputs =
                 executeNode(
@@ -276,6 +280,9 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               skillProgress.accept(node.skillId(), "error");
               throw ex;
             }
+          } finally {
+            previousParent.ifPresentOrElse(
+                ToolInvocationSink::setParentSkillId, ToolInvocationSink::clearParentSkillId);
           }
         }
         if (stopAfterAssemblyAndMandatoryValidators(dag, state)) {

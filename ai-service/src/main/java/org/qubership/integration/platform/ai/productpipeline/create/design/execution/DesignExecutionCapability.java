@@ -3,14 +3,15 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -60,44 +61,59 @@ public class DesignExecutionCapability implements StageCapability {
   public Multi<CapabilitySignal> execute(StageExecutionContext context) {
     Objects.requireNonNull(context, "context");
     // Catalog RestClient + compiler DAG await block; must not run on the Vert.x event loop.
-    // Stream SkillProgress (executor + DAG generators/validators) like brainstorming / planning.
-    var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
+    // Generator skill rows go out as CapabilitySignal.SkillProgress; the stage executor forwards
+    // them live. Tool steps still nest through ToolInvocationSink after bindWorker.
     return Multi.createFrom()
         .emitter(
-            emitter ->
-                Uni.createFrom()
-                    .item(
-                        () -> {
-                          String skillId = CipDesignExecutorJavaAdapter.SKILL_ID;
-                          emitter.emit(SkillActivitySupport.running(skillId));
-                          SkillActivitySupport.bindWorker(skillId, turnEmit);
-                          BiConsumer<String, String> dagProgress =
-                              (id, status) -> {
-                                CapabilitySignal.SkillProgress progress =
-                                    new CapabilitySignal.SkillProgress(id, status);
-                                emitter.emit(progress);
-                                turnEmit.ifPresent(
-                                    emit -> emit.accept(ChatEvent.skillStep(id, status)));
-                              };
-                          try {
-                            CapabilitySignal.Completed completed =
-                                executeBlocking(context, dagProgress);
-                            return SkillActivitySupport.wrapTerminal(
-                                skillId, List.of(completed));
-                          } finally {
-                            SkillActivitySupport.unbindWorker(turnEmit);
-                          }
-                        })
-                    .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                    .subscribe()
-                    .with(
-                        signals -> {
-                          for (CapabilitySignal signal : signals) {
-                            emitter.emit(signal);
-                          }
-                          emitter.complete();
-                        },
-                        emitter::fail));
+            emitter -> {
+              AtomicReference<Cancellable> subscription = new AtomicReference<>();
+              emitter.onTermination(
+                  () -> {
+                    Cancellable cancellable = subscription.get();
+                    if (cancellable != null) {
+                      cancellable.cancel();
+                    }
+                  });
+              subscription.set(
+                  Uni.createFrom()
+                      .item(
+                          () -> {
+                            String skillId = CipDesignExecutorJavaAdapter.SKILL_ID;
+                            try {
+                              SkillActivitySupport.bindWorker(skillId, context.conversationId());
+                              emitter.emit(SkillActivitySupport.running(skillId));
+                              BiConsumer<String, String> dagProgress =
+                                  (id, status) ->
+                                      emitter.emit(new CapabilitySignal.SkillProgress(id, status));
+                              CapabilitySignal.Completed completed =
+                                  executeBlocking(context, dagProgress);
+                              return SkillActivitySupport.wrapTerminal(
+                                  skillId, List.of(completed));
+                            } finally {
+                              SkillActivitySupport.unbindWorker();
+                            }
+                          })
+                      .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                      .subscribe()
+                      .with(
+                          signals -> {
+                            if (emitter.isCancelled()) {
+                              return;
+                            }
+                            for (CapabilitySignal signal : signals) {
+                              if (emitter.isCancelled()) {
+                                return;
+                              }
+                              emitter.emit(signal);
+                            }
+                            emitter.complete();
+                          },
+                          failure -> {
+                            if (!emitter.isCancelled()) {
+                              emitter.fail(failure);
+                            }
+                          }));
+            });
   }
 
   private CapabilitySignal.Completed executeBlocking(
