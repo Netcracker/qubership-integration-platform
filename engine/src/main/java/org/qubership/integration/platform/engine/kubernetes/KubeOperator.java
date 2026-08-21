@@ -49,21 +49,21 @@ public class KubeOperator {
     private final CustomObjectsApi customObjectsApi;
 
     private final String namespace;
-    private final Boolean devmode;
+    private final Boolean devMode;
 
-    public KubeOperator(ObjectMapper objectMapper) {
+    public KubeOperator(ObjectMapper objectMapper, boolean devMode) {
         this.objectMapper = objectMapper;
         coreApi = new CoreV1Api();
         customObjectsApi = new CustomObjectsApi();
         namespace = null;
-        devmode = null;
+        this.devMode = devMode;
     }
 
     public KubeOperator(
             ObjectMapper objectMapper,
             ApiClient client,
             String namespace,
-            Boolean devmode
+            boolean devMode
     ) {
         this.objectMapper = objectMapper;
         coreApi = new CoreV1Api(client);
@@ -71,7 +71,7 @@ public class KubeOperator {
         customObjectsApi = new CustomObjectsApi(client);
 
         this.namespace = namespace;
-        this.devmode = devmode;
+        this.devMode = devMode;
     }
 
     KubeOperator(
@@ -79,13 +79,13 @@ public class KubeOperator {
             CoreV1Api coreApi,
             CustomObjectsApi customObjectsApi,
             String namespace,
-            Boolean devmode
+            boolean devMode
     ) {
         this.objectMapper = objectMapper;
         this.coreApi = coreApi;
         this.customObjectsApi = customObjectsApi;
         this.namespace = namespace;
-        this.devmode = devmode;
+        this.devMode = devMode;
     }
 
     public Map<String, Map<String, String>> getAllSecretsWithLabel(Pair<String, String> label) {
@@ -111,13 +111,13 @@ public class KubeOperator {
             }
         } catch (ApiException e) {
             if (e.getCode() != 404) {
-                if (!isDevmode()) {
+                if (!devMode) {
                     log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
                 }
                 throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
             }
         } catch (Exception e) {
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
@@ -151,12 +151,12 @@ public class KubeOperator {
             if (e.getCode() == 409) {
                 throw new KubeApiConflictException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
             }
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         } catch (Exception e) {
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
@@ -178,12 +178,12 @@ public class KubeOperator {
             if (e.getCode() == 404) {
                 return Optional.empty();
             }
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         } catch (Exception e) {
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
@@ -212,20 +212,20 @@ public class KubeOperator {
             if (e.getCode() == 409) {
                 throw new KubeApiConflictException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
             }
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         } catch (Exception e) {
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
         }
     }
 
-    public Boolean isDevmode() {
-        return devmode;
+    public boolean isDevMode() {
+        return devMode;
     }
 
     private String getNotNullNamespace() {
