@@ -1,6 +1,7 @@
 import { Button, Input, List, Space, Typography } from "antd";
 import React, { useRef, useState } from "react";
 import type { ChatDecision } from "../../ai/modelProviders/types.ts";
+import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 
 /**
  * Action labels live here rather than on the wire: the question is server-authored in the language
@@ -137,9 +138,10 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   return (
     <div className="ai-decision-card" data-decision-id={decision.id}>
       {cardText ? (
-        <Typography.Paragraph style={{ marginBottom: 8 }}>
-          {cardText}
-        </Typography.Paragraph>
+        <div className="ai-decision-card__question">
+          {/* Server text is Markdown: numbered actions and **Adds** / **Removes** verbs. */}
+          <MarkdownRenderer>{cardText}</MarkdownRenderer>
+        </div>
       ) : null}
 
       {isClarify && missingEvidence.length > 0 ? (

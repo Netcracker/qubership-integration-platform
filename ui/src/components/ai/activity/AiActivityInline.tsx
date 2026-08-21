@@ -4,6 +4,7 @@ import type { ActivityStepPayload } from "./activityTypes.ts";
 import {
   buildActivitySummary,
   resolveActivityVisualKind,
+  resolveDisplayedActivityStatus,
   visualKindBadgeLabel,
 } from "./activitySummary.ts";
 
@@ -113,13 +114,14 @@ export const AiActivityInline: React.FC<AiActivityInlineProps> = ({
 
   const renderLeaf = (row: ActivityStepPayload, nested: boolean) => {
     const visual = resolveActivityVisualKind(row.kind);
+    const status = resolveDisplayedActivityStatus(row, rows);
     return (
       <div
         key={row.id}
         className={[
           "ai-activity-inline__row",
           nested ? "ai-activity-inline__row--child" : "ai-activity-inline__row--parent",
-          statusClass(row.status),
+          statusClass(status),
           `ai-activity-inline__row--${visual}`,
         ].join(" ")}
       >
@@ -127,7 +129,7 @@ export const AiActivityInline: React.FC<AiActivityInlineProps> = ({
           <span className="ai-activity-inline__chevron-spacer" aria-hidden />
         ) : null}
         <span className="ai-activity-inline__icon" aria-hidden>
-          {statusIcon(row.status)}
+          {statusIcon(status)}
         </span>
         <span className="ai-activity-inline__label">{row.label ?? row.id}</span>
         <span
@@ -141,6 +143,7 @@ export const AiActivityInline: React.FC<AiActivityInlineProps> = ({
 
   const renderParent = (row: ActivityStepPayload) => {
     const visual = resolveActivityVisualKind(row.kind);
+    const status = resolveDisplayedActivityStatus(row, rows);
     const children = childRowsByParent.get(row.id) ?? [];
     const hasChildren = children.length > 0;
     const open = detailsOpen && isParentOpen(row.id, hasChildren);
@@ -148,7 +151,7 @@ export const AiActivityInline: React.FC<AiActivityInlineProps> = ({
     const parentRowClass = [
       "ai-activity-inline__row",
       "ai-activity-inline__row--parent",
-      statusClass(row.status),
+      statusClass(status),
       `ai-activity-inline__row--${visual}`,
     ].join(" ");
     const parentRowBody = (
@@ -164,7 +167,7 @@ export const AiActivityInline: React.FC<AiActivityInlineProps> = ({
           <span className="ai-activity-inline__chevron-spacer" aria-hidden />
         )}
         <span className="ai-activity-inline__icon" aria-hidden>
-          {statusIcon(row.status)}
+          {statusIcon(status)}
         </span>
         <span className="ai-activity-inline__label">{row.label ?? row.id}</span>
         <span

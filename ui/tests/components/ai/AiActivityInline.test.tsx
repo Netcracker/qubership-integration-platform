@@ -317,6 +317,45 @@ describe("AiActivityInline", () => {
     ).not.toBeNull();
   });
 
+  it("should show a completed mark on an earlier skill once a later skill is running", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:brainstorming",
+            kind: "skill",
+            status: "running",
+            label: "brainstorming",
+          },
+          {
+            id: "tool:draft",
+            kind: "tool",
+            status: "completed",
+            label: "captureRequirementDraft",
+            parentId: "skill:brainstorming",
+          },
+          {
+            id: "skill:analyzer",
+            kind: "skill",
+            status: "running",
+            label: "cip-requirement-analyzer",
+          },
+        ]}
+      />,
+    );
+
+    const brainstorming = screen
+      .getByText("brainstorming")
+      .closest(".ai-activity-inline__row");
+    const analyzer = screen
+      .getByText("cip-requirement-analyzer")
+      .closest(".ai-activity-inline__row");
+    expect(brainstorming?.querySelector(".ai-activity-inline__spinner")).toBeNull();
+    expect(brainstorming).toHaveClass("ai-activity-inline__row--completed");
+    expect(analyzer?.querySelector(".ai-activity-inline__spinner")).not.toBeNull();
+  });
+
   it("should omit a parent chevron when the skill has no nested tools", () => {
     render(
       <AiActivityInline

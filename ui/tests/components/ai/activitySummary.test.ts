@@ -5,6 +5,7 @@ import {
   buildActivitySummary,
   formatActivityDuration,
   resolveActivityVisualKind,
+  resolveDisplayedActivityStatus,
 } from "../../../src/components/ai/activity/activitySummary.ts";
 
 describe("formatActivityDuration", () => {
@@ -83,6 +84,70 @@ describe("resolveActivityVisualKind", () => {
 
   it("should map pipeline to the api visual variant without inventing SSE fields", () => {
     expect(resolveActivityVisualKind("pipeline")).toBe("api");
+  });
+});
+
+describe("resolveDisplayedActivityStatus", () => {
+  const brainstorming: ActivityStepPayload = {
+    id: "skill:brainstorming",
+    kind: "skill",
+    status: "running",
+    label: "brainstorming",
+  };
+  const draft: ActivityStepPayload = {
+    id: "tool:draft",
+    kind: "tool",
+    status: "completed",
+    label: "captureRequirementDraft",
+    parentId: "skill:brainstorming",
+  };
+  const analyzer: ActivityStepPayload = {
+    id: "skill:cip-requirement-analyzer",
+    kind: "skill",
+    status: "running",
+    label: "cip-requirement-analyzer",
+  };
+
+  it("should show an earlier skill as completed once a later skill has started", () => {
+    expect(
+      resolveDisplayedActivityStatus(brainstorming, [
+        brainstorming,
+        draft,
+        analyzer,
+      ]),
+    ).toBe("completed");
+  });
+
+  it("should keep a skill running while it still has a running child", () => {
+    const runningDraft: ActivityStepPayload = {
+      ...draft,
+      status: "running",
+    };
+    expect(
+      resolveDisplayedActivityStatus(brainstorming, [
+        brainstorming,
+        runningDraft,
+        analyzer,
+      ]),
+    ).toBe("running");
+  });
+
+  it("should keep a skill running when no later skill has started", () => {
+    expect(
+      resolveDisplayedActivityStatus(brainstorming, [brainstorming, draft]),
+    ).toBe("running");
+  });
+
+  it("should keep a skill running when only a pipeline pulse follows it", () => {
+    const working: ActivityStepPayload = {
+      id: "pipeline:working",
+      kind: "pipeline",
+      status: "running",
+      label: "Working",
+    };
+    expect(
+      resolveDisplayedActivityStatus(brainstorming, [brainstorming, working]),
+    ).toBe("running");
   });
 });
 

@@ -69,6 +69,33 @@ export function resolveActivityVisualKind(
   }
 }
 
+/**
+ * SSE can leave an earlier skill `running` after the next skill has already started. Show that
+ * earlier skill as completed unless one of its nested tools is still running.
+ */
+export function resolveDisplayedActivityStatus(
+  row: ActivityStepPayload,
+  rows: ActivityStepPayload[],
+): ActivityStepPayload["status"] {
+  if (row.status !== "running" || row.kind === "tool") {
+    return row.status;
+  }
+  const hasRunningChild = rows.some(
+    (candidate) => candidate.parentId === row.id && candidate.status === "running",
+  );
+  if (hasRunningChild) {
+    return "running";
+  }
+  const rowIndex = rows.findIndex((candidate) => candidate.id === row.id);
+  if (rowIndex < 0) {
+    return row.status;
+  }
+  const laterParentStarted = rows
+    .slice(rowIndex + 1)
+    .some((candidate) => candidate.kind === "skill");
+  return laterParentStarted ? "completed" : "running";
+}
+
 export function visualKindBadgeLabel(visual: ActivityVisualKind): string {
   switch (visual) {
     case "skill":

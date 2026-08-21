@@ -117,10 +117,15 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overflow-anchor: none;
   border: 1px solid var(--vscode-border, #d9d9d9);
   border-radius: 8px;
   background: var(--vscode-editor-background, #fff);
   padding: 8px;
+}
+
+.ai-message-list__content {
+  min-height: 100%;
 }
 
 .ai-empty-state {
@@ -755,4 +760,22 @@ button.ai-activity-inline__row:not(:disabled):hover {
   border: 1px solid var(--vscode-border, #d9d9d9);
   border-radius: 8px;
   background: var(--vscode-editorWidget-background, rgb(0 0 0 / 2%));
+}
+
+.ai-decision-card__question {
+  margin-bottom: 8px;
+}
+
+.ai-decision-card__question .ai-markdown {
+  font-size: inherit;
+}
+
+.ai-markdown ol,
+.ai-markdown ul {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.ai-markdown li + li {
+  margin-top: 4px;
 }
