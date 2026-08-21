@@ -22,7 +22,7 @@
   </parent>
 
   <properties>
-    <revision>1.2.0</revision>
+    <revision>1.2.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <!-- BOMs -->
