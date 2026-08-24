@@ -83,11 +83,12 @@ private record ResolvedRoutes(List<Route> routes, List<String> unresolvedIds) {
     }
 }
 
-private ResolvedRoutes snapshotRoutes(String domainName, Collection<String> snapshotIds)
+private ResolvedRoutes snapshotRoutes(Collection<String> snapshotIds)
 ```
 
-The `description` parameter goes away with the log statement it labeled. Each call site now
-writes its own message, which is what makes the two outcomes distinguishable.
+Both the `description` and `domainName` parameters go away with the log statement they served.
+Each call site now writes its own message, which is what makes the two outcomes
+distinguishable.
 
 An empty `snapshotIds` returns `new ResolvedRoutes(List.of(), List.of())` — complete, with
 nothing to resolve. That is what keeps the last-chain case fail-open.
@@ -96,12 +97,12 @@ nothing to resolve. That is what keeps the last-chain case fail-open.
 
 ```java
 void deleteChainSnapshotHttpRoutes(String name, String snapshotId, Set<String> remainingSnapshotIds) {
-    ResolvedRoutes retained = snapshotRoutes(name, remainingSnapshotIds);
+    ResolvedRoutes own = snapshotRoutes(List.of(snapshotId));
+    ResolvedRoutes retained = snapshotRoutes(remainingSnapshotIds);
     if (!retained.isComplete()) {
         log.warn(...);
         return;
     }
-    ResolvedRoutes own = snapshotRoutes(name, List.of(snapshotId));
     if (!own.isComplete()) {
         log.warn(...);
         return;
@@ -114,8 +115,18 @@ Both guards skip the whole domain rather than a single tier. An unresolved snaps
 are precisely what cannot be seen, so there is no way to attribute it to one tier and spare
 the others.
 
-The retained set is checked first because it is the one that can cause damage. Checking it
-before resolving the removed snapshot also avoids a pointless second query.
+Resolution order stays as it is today, removed snapshot first and remaining second, because
+`MicroDomainServiceHttpRouteTest.deleteChainSnapshotStripsOnlyThePathsNoRemainingSnapshotOwns`
+stubs `getRoutes` with consecutive returns and would silently assert the wrong thing if the
+two calls swapped. Only the *checks* are ordered deliberately: the retained set is tested
+first, so that when both are incomplete the message describing the dangerous condition is the
+one an operator sees.
+
+`snapshotRoutes` must keep the existing size-based short-circuit and compute `unresolvedIds`
+only when `snapshots.size() < snapshotIds.size()`. Computing them unconditionally would call
+`AbstractEntity::getId` on every returned row, and the suite's bare `mock(Snapshot.class)`
+stubs return `null` there, so every currently passing test would start reporting its own
+snapshot as unresolved and fail closed.
 
 ### 4. A missing ConfigMap is unresolvable, not empty
 
