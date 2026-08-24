@@ -51,14 +51,14 @@ class ToolInvocationSinkTest {
     assertEquals("tool", running.kind());
     assertEquals("tool:captureSelectedPattern", running.id());
     assertEquals("running", running.status());
-    assertEquals("captureSelectedPattern", running.label());
+    assertEquals("Capturing the selected pattern", running.label());
     assertEquals("skill:cip-auth-generator", running.parentId());
 
     ChatEvent.Step completed = assertInstanceOf(ChatEvent.Step.class, out.get(1));
     assertEquals("tool", completed.kind());
     assertEquals("tool:captureSelectedPattern", completed.id());
     assertEquals("completed", completed.status());
-    assertEquals("captureSelectedPattern", completed.label());
+    assertEquals("Capturing the selected pattern", completed.label());
     assertEquals("skill:cip-auth-generator", completed.parentId());
   }
 
@@ -123,7 +123,7 @@ class ToolInvocationSinkTest {
 
     assertEquals(1, out.size());
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
-    assertEquals("captureGraphPatch", running.label());
+    assertEquals("Capturing the graph patch", running.label());
     assertEquals("skill:cip-http-generator", running.parentId());
   }
 
@@ -209,7 +209,7 @@ class ToolInvocationSinkTest {
     assertEquals(2, out.size());
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
     assertEquals("tool", running.kind());
-    assertEquals("POST /v1/systems/search", running.label());
+    assertEquals("Searching for a service", running.label());
     assertEquals("skill:cip-requirement-analyzer", running.parentId());
   }
 
@@ -238,7 +238,7 @@ class ToolInvocationSinkTest {
 
     assertEquals(1, out.size());
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
-    assertEquals("captureRequirementBrief", running.label());
+    assertEquals("Capturing the requirement brief", running.label());
   }
 
   @Test

@@ -46,7 +46,7 @@ class CatalogOutboundLoggingFilterTest {
     assertEquals(2, out.size());
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
     assertEquals("tool", running.kind());
-    assertEquals("POST /v1/chains", running.label());
+    assertEquals("Creating the chain", running.label());
     assertEquals("skill:materialization", running.parentId());
     assertTrue(running.id().startsWith("tool:"));
   }

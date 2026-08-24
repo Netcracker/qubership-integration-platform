@@ -240,7 +240,7 @@ class ChatDecisionServiceTest {
                 event ->
                     event instanceof ChatEvent.Step step
                         && "skill".equals(step.kind())
-                        && "cip-requirement-analyzer".equals(step.label())
+                        && "Parsing requirements".equals(step.label())
                         && "running".equals(step.status())),
         () -> "expected a kind=skill running step, got: " + events);
   }
@@ -285,7 +285,7 @@ class ChatDecisionServiceTest {
                 event ->
                     event instanceof ChatEvent.Step step
                         && "skill".equals(step.kind())
-                        && "materialization".equals(step.label())
+                        && "Creating the chain".equals(step.label())
                         && "running".equals(step.status())),
         () -> "expected a kind=skill running step on create-chain, got: " + events);
   }

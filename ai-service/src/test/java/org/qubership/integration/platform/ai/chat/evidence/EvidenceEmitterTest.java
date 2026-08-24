@@ -55,7 +55,7 @@ class EvidenceEmitterTest {
     assertEquals("skill:cip-trigger-generator", step.id());
     assertEquals("skill", step.kind());
     assertEquals("completed", step.status());
-    assertEquals("cip-trigger-generator", step.label());
+    assertEquals("Configuring triggers", step.label());
     assertEquals("pipeline:compile", step.parentId());
 
     EvidenceSnapshot.TimelineEntry entry = store.getOrCreate("c1").toSnapshot("c1").timeline().get(0);

@@ -130,7 +130,7 @@ class DesignPlanningCapabilityTest {
                 event ->
                     event instanceof ChatEvent.Step step
                         && "skill".equals(step.kind())
-                        && CipDesignPlannerAdapter.SKILL_ID.equals(step.label())
+                        && "Planning the implementation".equals(step.label())
                         && "running".equals(step.status())),
         () -> "expected cip-design-planner running on the turn sink, got: " + out);
     assertTrue(
@@ -139,7 +139,7 @@ class DesignPlanningCapabilityTest {
                 event ->
                     event instanceof ChatEvent.Step step
                         && "tool".equals(step.kind())
-                        && "runOnce".equals(step.label())),
+                        && "Running run once".equals(step.label())),
         () -> "expected worker tool steps on the turn sink, got: " + out);
   }
 

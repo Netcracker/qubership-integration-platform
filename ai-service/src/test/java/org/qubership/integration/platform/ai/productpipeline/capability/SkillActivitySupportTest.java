@@ -35,7 +35,7 @@ class SkillActivitySupportTest {
                 event ->
                     event instanceof ChatEvent.Step step
                         && "skill".equals(step.kind())
-                        && "cip-design-planner".equals(step.label())
+                        && "Planning the implementation".equals(step.label())
                         && "running".equals(step.status())),
         () -> "expected a kind=skill running step from bindParents, got: " + out);
   }
@@ -85,7 +85,7 @@ class SkillActivitySupportTest {
                 event ->
                     event instanceof ChatEvent.Step step
                         && "skill".equals(step.kind())
-                        && "cip-design-executor".equals(step.label())
+                        && "Executing the plan".equals(step.label())
                         && "running".equals(step.status())),
         () -> "expected skill running after bindWorker by conversation id, got: " + out);
   }
