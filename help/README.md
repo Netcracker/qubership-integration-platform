@@ -16,9 +16,9 @@ All documentation is located in the [`docs/`](docs/) directory and organized int
 | Section | Description |
 |---------|-------------|
 | [Overview](docs/00__Overview/) | Platform concepts: token processing, Apache Camel context, chain configuration, general functions, access control |
-| [Chains](docs/01__Chains/) | Chain graph editor, QIP elements library (routing, files, triggers, services, transformation, senders), triggers and properties |
+| [Chains](docs/01__Chains/) | Chain graph editor, QIP elements library (routing, files, triggers, services, transformation, senders), triggers, properties, testing |
 | [Services](docs/02__Services/) | External and inner cloud services, implemented services, context configuration |
-| [Admin Tools](docs/03__Admin_Tools/) | Domains, variables, audit, sessions, live exchanges |
+| [Admin Tools](docs/03__Admin_Tools/) | Domains, variables, audit, sessions, live exchanges, testing |
 | [Dev Tools](docs/04__Dev_Tools/) | MaaS integration, diagnostic tools |
 
 ## Contribution
