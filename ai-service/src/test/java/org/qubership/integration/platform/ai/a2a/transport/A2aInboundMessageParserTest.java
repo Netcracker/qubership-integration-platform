@@ -78,6 +78,32 @@ class A2aInboundMessageParserTest {
   }
 
   @Test
+  void parsesRetryStructuredDataAsClarifyText() throws Exception {
+    Message message =
+        Message.builder()
+            .role(Message.Role.ROLE_USER)
+            .messageId("m-retry")
+            .parts(List.of(new DataPart(Map.of("action", "retry"))))
+            .build();
+    InboundCommand.ClarifyText clarify =
+        assertInstanceOf(InboundCommand.ClarifyText.class, A2aInboundMessageParser.parse(message));
+    assertEquals("retry", clarify.text());
+  }
+
+  @Test
+  void parsesReviseStructuredDataAsClarifyText() throws Exception {
+    Message message =
+        Message.builder()
+            .role(Message.Role.ROLE_USER)
+            .messageId("m-revise")
+            .parts(List.of(new DataPart(Map.of("action", "revise"))))
+            .build();
+    InboundCommand.ClarifyText clarify =
+        assertInstanceOf(InboundCommand.ClarifyText.class, A2aInboundMessageParser.parse(message));
+    assertEquals("revise", clarify.text());
+  }
+
+  @Test
   void rejectsPublicImplementAction() {
     Message message =
         Message.builder()

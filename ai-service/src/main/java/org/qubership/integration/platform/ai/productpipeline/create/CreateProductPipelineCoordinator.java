@@ -241,7 +241,7 @@ public class CreateProductPipelineCoordinator {
       return Multi.createFrom()
           .item(
               ChatEvent.decision(
-                  pending, revision, question, ChatEvent.actionsForGate(clarify.gateId())));
+                  pending, revision, question, ChatEvent.actionsForClarify(clarify)));
     }
     return Multi.createFrom().item(ChatEvent.decision(pending, revision, ""));
   }

@@ -34,8 +34,10 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.agent.DesignInputPromptAgent;
+import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
+import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
@@ -167,6 +169,7 @@ public class ProductPipelineRuntimeProducers {
       CompilerRunPinResolver compilerRunPinResolver,
       DesignInputPromptAgent designInputPromptAgent,
       ApprovalPromptAgent approvalPromptAgent,
+      FailureNarrativeAgent failureNarrativeAgent,
       S3Service s3Service) {
     return new ProductPipelineRunSupport(
         runs,
@@ -177,7 +180,8 @@ public class ProductPipelineRuntimeProducers {
         Clock.systemUTC(),
         new DesignInputIdsPathPrompts(designInputPromptAgent),
         new ApprovalPrompts(approvalPromptAgent),
-        s3Service);
+        s3Service,
+        new FailureNarrative(failureNarrativeAgent));
   }
 
   @Produces

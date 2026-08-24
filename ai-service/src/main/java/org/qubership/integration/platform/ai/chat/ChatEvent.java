@@ -227,8 +227,22 @@ public sealed interface ChatEvent {
       case PipelineGates.IMPORT_SPECIFICATION -> List.of(IMPORT_ACTION);
       case PipelineGates.IDS_PATH_CHOICE -> IDS_PATH_CHOICE_ACTIONS;
       case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
+      case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);
+      case PipelineGates.STAGE_REVISE ->
+          List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
       default -> null;
     };
+  }
+
+  /** Actions a clarify gate offers, including owner-choice stage ids from missing evidence. */
+  static List<String> actionsForClarify(PendingAction.Clarify clarify) {
+    if (clarify == null) {
+      return null;
+    }
+    if (PipelineGates.OWNER_CHOICE.equals(clarify.gateId())) {
+      return clarify.missingEvidence();
+    }
+    return actionsForGate(clarify.gateId());
   }
 
   static ChatEvent error(String message) {

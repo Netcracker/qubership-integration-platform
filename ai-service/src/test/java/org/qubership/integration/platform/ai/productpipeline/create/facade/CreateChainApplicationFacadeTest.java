@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -57,6 +58,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -171,6 +173,61 @@ class CreateChainApplicationFacadeTest {
     assertEquals(1, fixture.bindingCount(taskId));
     assertEquals(RunStatus.WAITING_FOR_APPROVAL,
         fixture.runStore().loadByConversation(taskId).orElseThrow().run().status());
+  }
+
+  @Test
+  void typedFollowUpAtHaltStaysOnTheSameRunAndKeepsRetry() {
+    fixture = Fixture.createWithDomainFailureAfterInput();
+    CreateChainApplicationFacade facade = fixture.facade();
+    String taskId = "task-halt-follow-up-1";
+    String requirements = "create greetings API";
+
+    facade
+        .start(new StartCreateChainCommand(taskId, requirements))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    CreateChainExecutionSnapshot halted = facade.snapshot(taskId).orElseThrow();
+    assertEquals(CreateChainExecutionStatus.INPUT_REQUIRED, halted.status());
+    assertFalse(halted.finished());
+    CreateChainPendingAction.Clarify haltCard =
+        assertInstanceOf(CreateChainPendingAction.Clarify.class, halted.pendingAction());
+    assertEquals(PipelineGates.STAGE_RETRY, haltCard.gateId());
+    String runId = halted.runId();
+
+    facade
+        .continueWithInput(new ContinueCreateChainCommand(taskId, "use a different service"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    CreateChainExecutionSnapshot afterFollowUp = facade.snapshot(taskId).orElseThrow();
+    assertEquals(runId, afterFollowUp.runId());
+    assertEquals(CreateChainExecutionStatus.INPUT_REQUIRED, afterFollowUp.status());
+    assertFalse(afterFollowUp.finished());
+    CreateChainPendingAction.Clarify stillHalted =
+        assertInstanceOf(CreateChainPendingAction.Clarify.class, afterFollowUp.pendingAction());
+    assertEquals(PipelineGates.STAGE_RETRY, stillHalted.gateId());
+    assertEquals(
+        "use a different service",
+        fixture.runtime().support().haltFollowUpText(runId).orElseThrow());
+    assertEquals(1, fixture.discoveryAttempts());
+
+    facade
+        .continueWithInput(new ContinueCreateChainCommand(taskId, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(2, fixture.discoveryAttempts());
+    assertEquals(requirements, fixture.lastDiscoveryUserText());
+    assertEquals("use a different service", fixture.lastDiscoveryFollowUp());
+    CreateChainExecutionSnapshot afterRetry = facade.snapshot(taskId).orElseThrow();
+    assertEquals(runId, afterRetry.runId());
+    assertFalse(afterRetry.finished());
   }
 
   @Test
@@ -676,7 +733,11 @@ class CreateChainApplicationFacadeTest {
     private final boolean materialize;
     private final boolean blankNeedInputReason;
     private final int needInputTimes;
+    private final boolean domainFailureAfterInput;
     private final RequirementDraftStore draftStore;
+    private final AtomicInteger discoveryAttempts = new AtomicInteger();
+    private final AtomicReference<String> lastDiscoveryUserText = new AtomicReference<>();
+    private final AtomicReference<String> lastDiscoveryFollowUp = new AtomicReference<>();
     private CreateRunSelectionService selectionService;
     private CreateRunBindingStore bindingStore;
     private ProductPipelineRunStore runStore;
@@ -690,7 +751,7 @@ class CreateChainApplicationFacadeTest {
         ProductPipelineProfileCatalog catalog,
         boolean needInputFirst,
         boolean materialize) {
-      this(blobs, mapper, knowledge, catalog, needInputFirst, materialize, false, 1, null);
+      this(blobs, mapper, knowledge, catalog, needInputFirst, materialize, false, 1, false, null);
     }
 
     private Fixture(
@@ -703,6 +764,30 @@ class CreateChainApplicationFacadeTest {
         boolean blankNeedInputReason,
         int needInputTimes,
         RequirementDraftStore draftStore) {
+      this(
+          blobs,
+          mapper,
+          knowledge,
+          catalog,
+          needInputFirst,
+          materialize,
+          blankNeedInputReason,
+          needInputTimes,
+          false,
+          draftStore);
+    }
+
+    private Fixture(
+        InMemoryArtifactBlobStore blobs,
+        ObjectMapper mapper,
+        FakeKnowledgeClient knowledge,
+        ProductPipelineProfileCatalog catalog,
+        boolean needInputFirst,
+        boolean materialize,
+        boolean blankNeedInputReason,
+        int needInputTimes,
+        boolean domainFailureAfterInput,
+        RequirementDraftStore draftStore) {
       this.blobs = blobs;
       this.mapper = mapper;
       this.knowledge = knowledge;
@@ -711,6 +796,7 @@ class CreateChainApplicationFacadeTest {
       this.materialize = materialize;
       this.blankNeedInputReason = blankNeedInputReason;
       this.needInputTimes = Math.max(1, needInputTimes);
+      this.domainFailureAfterInput = domainFailureAfterInput;
       this.draftStore = draftStore;
     }
 
@@ -721,6 +807,25 @@ class CreateChainApplicationFacadeTest {
     static Fixture createWithNeedingInputDiscovery() {
       try {
         return create(true, false);
+      } catch (Exception e) {
+        throw new IllegalStateException(e);
+      }
+    }
+
+    static Fixture createWithDomainFailureAfterInput() {
+      try {
+        Fixture base = create(false, false);
+        return new Fixture(
+            base.blobs,
+            base.mapper,
+            base.knowledge,
+            base.catalog,
+            false,
+            false,
+            false,
+            1,
+            true,
+            null);
       } catch (Exception e) {
         throw new IllegalStateException(e);
       }
@@ -810,6 +915,18 @@ class CreateChainApplicationFacadeTest {
       return bindingStore().load(taskId).isPresent() ? 1 : 0;
     }
 
+    int discoveryAttempts() {
+      return discoveryAttempts.get();
+    }
+
+    String lastDiscoveryUserText() {
+      return lastDiscoveryUserText.get();
+    }
+
+    String lastDiscoveryFollowUp() {
+      return lastDiscoveryFollowUp.get();
+    }
+
     private void ensureBuilt() {
       if (facade != null) {
         return;
@@ -864,6 +981,16 @@ class CreateChainApplicationFacadeTest {
                 .item(
                     new CapabilitySignal.Completed(
                         StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, needInputMessage)));
+          }
+          if (domainFailureAfterInput && context.attributeAsString("userText") != null) {
+            discoveryAttempts.incrementAndGet();
+            lastDiscoveryUserText.set(context.attributeAsString("userText"));
+            lastDiscoveryFollowUp.set(
+                context.attributeAsString(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR));
+            return Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        StageOutcome.of(StageOutcomeClass.DOMAIN_FAILURE, "bad domain")));
           }
           RequirementDraft draft = RequirementFactFixtures.greetingsApprovedDraft();
           return Multi.createFrom()

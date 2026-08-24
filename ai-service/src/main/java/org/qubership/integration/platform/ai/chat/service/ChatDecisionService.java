@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Conti
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
 /**
  * Runs a typed answer to a decision card against the same facade command the A2A transport uses.
@@ -159,7 +160,7 @@ public class ChatDecisionService {
       return List.of(ChatEvent.APPROVE_AND_CREATE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION);
     }
     if (pending instanceof PendingAction.Clarify clarify) {
-      return ChatEvent.actionsForGate(clarify.gateId());
+      return ChatEvent.actionsForClarify(clarify);
     }
     return null;
   }
@@ -197,7 +198,7 @@ public class ChatDecisionService {
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(command, "command");
     String action = command.getAction() == null ? "" : command.getAction();
-    if (isPipelineInputAction(action)) {
+    if (isPipelineInputAction(action) || isOpenClarifyChoice(conversationId, action)) {
       return continuePipelineInput(conversationId, command, action);
     }
     if (ChatEvent.CREATE_ACTION.equals(action)) {
@@ -257,7 +258,22 @@ public class ChatDecisionService {
 
   private static boolean isPipelineInputAction(String action) {
     return ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(action)
-        || ChatEvent.MAPPING_GAP_ACTIONS.contains(action);
+        || ChatEvent.MAPPING_GAP_ACTIONS.contains(action)
+        || PipelineGates.isHaltCardAction(action);
+  }
+
+  /**
+   * Owner-choice buttons are stage ids, not the Retry/Revise tokens. Route them the same way when
+   * they are on the open clarify card.
+   */
+  private boolean isOpenClarifyChoice(String conversationId, String action) {
+    if (action == null || action.isBlank() || ChatEvent.IMPORT_ACTION.equals(action)) {
+      return false;
+    }
+    return openDecision(conversationId)
+        .filter(decision -> "clarify".equals(decision.kind()))
+        .filter(decision -> decision.actions().contains(action))
+        .isPresent();
   }
 
   /** Runs the creation leg of the combined action, if the run reached the gate at all. */

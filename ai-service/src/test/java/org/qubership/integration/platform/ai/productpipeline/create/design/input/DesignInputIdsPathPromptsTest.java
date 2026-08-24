@@ -66,6 +66,13 @@ class DesignInputIdsPathPromptsTest {
   }
 
   @Test
+  void stageRetryGateOffersTheRetryAction() {
+    assertEquals(
+        List.of(PipelineGates.RETRY_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.STAGE_RETRY));
+  }
+
+  @Test
   void anUnmarkedPromptNamesNoGateAndIsAnsweredAsFreeText() {
     assertTrue(PipelineGates.gateOf(DesignInputIdsPathPrompts.FALLBACK_IDS_PATH_CHOICE).isEmpty());
     assertTrue(PipelineGates.gateOf("").isEmpty());

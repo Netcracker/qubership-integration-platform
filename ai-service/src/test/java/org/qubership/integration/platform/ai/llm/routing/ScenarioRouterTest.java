@@ -197,7 +197,14 @@ class ScenarioRouterTest {
   }
 
   private static CreateChainExecutionSnapshot snapshotWith(CreateChainExecutionStatus status) {
-    return new CreateChainExecutionSnapshot(CONVERSATION_ID, "run-1", status, 1L, null, "");
+    return snapshotWith(status, null);
+  }
+
+  private static CreateChainExecutionSnapshot snapshotWith(
+      CreateChainExecutionStatus status,
+      org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction
+          pendingAction) {
+    return new CreateChainExecutionSnapshot(CONVERSATION_ID, "run-1", status, 1L, pendingAction, "");
   }
 
   private ScenarioRouter boundRouter(
@@ -450,5 +457,72 @@ class ScenarioRouterTest {
     assertEquals(
         "ask", ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
     org.mockito.Mockito.verify(selection, org.mockito.Mockito.never()).selectOrCreate(CONVERSATION_ID);
+  }
+
+  @Test
+  void haltedCreateRunKeepsATypedFollowUpWithoutClassifying() {
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    ScenarioRouter productRouter =
+        boundRouter(
+            adapter,
+            snapshotWith(
+                CreateChainExecutionStatus.INPUT_REQUIRED,
+                new org.qubership.integration.platform.ai.productpipeline.create.facade
+                    .CreateChainPendingAction.Clarify(
+                    "The catalog could not find that service.",
+                    java.util.List.of(),
+                    org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates
+                        .STAGE_RETRY)));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("why this service?");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
+    org.mockito.Mockito.verify(adapter).handle(any(), anyString());
+  }
+
+  @Test
+  void haltedCreateRunKeepsAFollowUpEvenWhenAChainIsInContext() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.ASK_CHAIN);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    ScenarioRouter productRouter =
+        boundRouter(
+            adapter,
+            snapshotWith(
+                CreateChainExecutionStatus.INPUT_REQUIRED,
+                new org.qubership.integration.platform.ai.productpipeline.create.facade
+                    .CreateChainPendingAction.Clarify(
+                    "The catalog could not find that service.",
+                    java.util.List.of(),
+                    org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates
+                        .STAGE_RETRY)));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("use a different service");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
+    org.mockito.Mockito.verify(adapter).handle(any(), anyString());
   }
 }

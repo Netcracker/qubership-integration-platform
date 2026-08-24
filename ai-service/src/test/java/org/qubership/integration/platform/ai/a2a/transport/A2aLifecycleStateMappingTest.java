@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -115,6 +116,53 @@ class A2aLifecycleStateMappingTest {
             new CreateChainExecutionSnapshot(
                 "task-1", "run-1", CreateChainExecutionStatus.WORKING, 1L, null, ""));
     assertEquals(A2aTaskState.INPUT_REQUIRED, projected.state());
+  }
+
+  @Test
+  void stageRetryHaltMapsToInputRequiredWithRetryAction() {
+    CreateChainPendingAction.Clarify halt =
+        new CreateChainPendingAction.Clarify(
+            "The catalog could not find that service.",
+            List.of(),
+            "stage-retry");
+    CreateChainExecutionSnapshot snapshot =
+        new CreateChainExecutionSnapshot(
+            "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 3L, halt, "");
+    ProjectedTask projected =
+        CreateChainA2aStateMapper.project(
+            snapshot, List.of(new CreateChainEvent.Waiting(halt)));
+
+    assertEquals(A2aTaskState.INPUT_REQUIRED, projected.state());
+    assertFalse(projected.terminal());
+    assertEquals("retry", projected.pendingActionData().get("action"));
+    assertEquals(List.of("retry"), projected.pendingActionData().get("allowedActions"));
+    assertTrue(projected.statusText().contains("The catalog could not find that service."));
+    assertTrue(projected.statusText().contains("retry"));
+    assertFalse(
+        projected.statusText().toLowerCase().contains("something went wrong"),
+        projected.statusText());
+  }
+
+  @Test
+  void stageReviseHaltMapsToInputRequiredWithRetryAndRevise() {
+    CreateChainPendingAction.Clarify halt =
+        new CreateChainPendingAction.Clarify(
+            "The brief omitted the scheduler.",
+            List.of(),
+            "stage-revise");
+    CreateChainExecutionSnapshot snapshot =
+        new CreateChainExecutionSnapshot(
+            "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 3L, halt, "");
+    ProjectedTask projected =
+        CreateChainA2aStateMapper.project(
+            snapshot, List.of(new CreateChainEvent.Waiting(halt)));
+
+    assertEquals(A2aTaskState.INPUT_REQUIRED, projected.state());
+    assertFalse(projected.terminal());
+    assertEquals(List.of("retry", "revise"), projected.pendingActionData().get("allowedActions"));
+    assertTrue(projected.statusText().contains("The brief omitted the scheduler."));
+    assertTrue(projected.statusText().contains("retry"));
+    assertTrue(projected.statusText().contains("revise"));
   }
 
   @Test

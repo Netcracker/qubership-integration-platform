@@ -196,6 +196,9 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
                     () -> {
                       ProductPipelineRunDocument afterRecord =
                           runStore.load(runId).orElseThrow();
+                      if (afterRecord.run().status() == waitingStatus) {
+                        return tasks.drainSignals(runId);
+                      }
                       if (alreadyApplied && afterRecord.run().status() != waitingStatus) {
                         return tasks.drainSignals(runId);
                       }

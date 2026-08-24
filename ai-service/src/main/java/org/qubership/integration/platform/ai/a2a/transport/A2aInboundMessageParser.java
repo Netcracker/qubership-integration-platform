@@ -10,6 +10,7 @@ import org.a2aproject.sdk.spec.FilePart;
 import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.Part;
 import org.a2aproject.sdk.spec.TextPart;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
 /**
  * Parses inbound A2A Message parts into create-chain commands.
@@ -115,6 +116,12 @@ public final class A2aInboundMessageParser {
         throw A2aProtocolErrorMapper.malformedStructuredData("clarify requires clarification text");
       }
       return new InboundCommand.ClarifyText(text);
+    }
+    if (PipelineGates.RETRY_ACTION.equalsIgnoreCase(action)) {
+      return new InboundCommand.ClarifyText(PipelineGates.RETRY_ACTION);
+    }
+    if (PipelineGates.REVISE_ACTION.equalsIgnoreCase(action)) {
+      return new InboundCommand.ClarifyText(PipelineGates.REVISE_ACTION);
     }
     throw A2aProtocolErrorMapper.malformedStructuredData("Unsupported action: " + action);
   }
