@@ -1,0 +1,90 @@
+/*
+ * Copyright 2024-2025 NetCracker Technology Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
+
+import com.github.jknack.handlebars.Helper;
+import com.github.jknack.handlebars.Options;
+import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.io.util.MaasUtils;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplatesHelper;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementProperty;
+import org.qubership.integration.platform.util.ElementUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+import static java.util.stream.Collectors.joining;
+
+/**
+ * Handlebars helper, which is used for providing values of 'uri' attribute
+ * for <to /> xml elements.
+ */
+@TemplatesHelper("query")
+public class QueryParamsHelper extends BaseHelper implements Helper<Element> {
+
+    private final LibraryElementsService libraryElementsService;
+
+    @Autowired
+    public QueryParamsHelper(LibraryElementsService libraryElementsService) {
+        this.libraryElementsService = libraryElementsService;
+    }
+
+    @Override
+    public Object apply(Element element, Options options) throws IOException {
+        ElementDescriptor descriptor = libraryElementsService.getElementDescriptorOrDefault(element.getType());
+        StringBuilder str = new StringBuilder();
+        List<ElementProperty> queryProperties = descriptor.getQueryProperties();
+        ArrayList<String> maasEnabledParams = MaasUtils.getMaasParams(element);
+        for (ElementProperty property : queryProperties) {
+            String value = getPropertyValue(element, property);
+            if (!maasEnabledParams.isEmpty() && maasEnabledParams.contains(property.getName())) {
+                value = MaasUtils.getMaasParamPlaceholder(element.getOriginalId().orElse(element.getId()), property.getName());
+                setPropertyValue(str, property, value);
+            } else if (StringUtils.isNotBlank(value)) {
+                setPropertyValue(str, property, value);
+            }
+        }
+        return str.toString();
+    }
+
+    private String getPropertyValue(Element element, ElementProperty property) {
+        String value = ElementUtils.getPropertyAsString(element, property.getName());
+        if (property.isMultiple()) {
+            value = Optional.ofNullable(element.getProperties().get(property.getName()))
+                    .filter(Collection.class::isInstance)
+                    .map(values -> ((Collection<?>) values).stream().map(String::valueOf).collect(joining(",")))
+                    .orElse(value);
+        }
+        return value;
+    }
+
+    private void setPropertyValue(StringBuilder str, ElementProperty property, String value) {
+        if (str.isEmpty()) {
+            str.append("?");
+        } else {
+            str.append("&");
+        }
+        str.append(property.getName()).append("=").append(value);
+    }
+}

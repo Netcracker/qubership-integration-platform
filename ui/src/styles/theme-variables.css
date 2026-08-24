@@ -208,6 +208,17 @@
 :root {
   --doc-bg: #fff;
   --doc-fg: rgb(0 0 0 / 88%);
+
+  /* `--vscode-border` is ours, and the webview host never injects it. The blocks
+     above resolve it from the host color first for the same reason: the
+     `vscode-webview` class that switches them off is only applied once the host
+     sends its theme, so until then the webview reads them too. Left unresolved,
+     `var(--vscode-border)` makes border-color fall back to currentColor and
+     paints white borders on a dark theme. */
+  --vscode-border: var(
+    --vscode-editorGroup-border,
+    var(--vscode-panel-border, var(--vscode-widget-border, #454545))
+  );
 }
 
 /* Container Node Colors - available in webview too */

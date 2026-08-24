@@ -1,0 +1,159 @@
+package org.qubership.integration.platform.runtime.catalog.cr;
+
+import io.kubernetes.client.openapi.models.V1ConfigMap;
+import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.camelk.model.BuildInfo;
+import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
+import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
+import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
+import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.*;
+
+import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
+import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
+import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
+
+@Component
+public class MicroDomainResourceBuildContextFactory {
+    private final SnapshotRepository snapshotRepository;
+    private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
+    private final MicroDomainService microDomainService;
+    private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
+
+    @Autowired
+    public MicroDomainResourceBuildContextFactory(
+            SnapshotRepository snapshotRepository,
+            NamingStrategy<BuildNamingContext> buildNamingStrategy,
+            MicroDomainService microDomainService,
+            IntegrationConfigurationSerdes integrationConfigurationSerdes,
+
+            @Qualifier("sourceDslConfigMapNamingStrategy")
+            SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy
+    ) {
+        this.snapshotRepository = snapshotRepository;
+        this.buildNamingStrategy = buildNamingStrategy;
+        this.microDomainService = microDomainService;
+        this.integrationConfigurationSerdes = integrationConfigurationSerdes;
+        this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
+    }
+
+    public ResourceBuildContext<List<Snapshot>> createResourceBuildContext(
+            ResourceBuildRequest request,
+            boolean appendToExising
+    ) {
+        List<Snapshot> snapshots = snapshotRepository.findAllByIdIn(request.getSnapshotIds())
+            .stream()
+            .<Snapshot>map(SnapshotAdapter::new)
+            .toList();
+
+        ResourceBuildOptions options = request.getOptions().toBuilder().build();
+        BuildInfo buildInfo = createBuildInfo(options);
+        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo)
+                .updateTo(snapshots);
+
+        if (appendToExising) {
+            addAppendConfigurationToContext(context);
+        }
+
+        return context;
+    }
+
+    private BuildInfo createBuildInfo(ResourceBuildOptions options) {
+        String id = UUID.randomUUID().toString();
+        Instant timestamp = Instant.now();
+        BuildNamingContext buildNamingContext = BuildNamingContext.builder()
+                .id(id)
+                .timestamp(timestamp)
+                .build();
+        return BuildInfo.builder()
+                .id(id)
+                .timestamp(timestamp)
+                .name(buildNamingStrategy.getName(buildNamingContext))
+                .options(options)
+                .build();
+    }
+
+    private void addAppendConfigurationToContext(ResourceBuildContext<List<Snapshot>> context) {
+        microDomainService
+                .getMainIntegrationResources(context.getBuildInfo().getOptions().getName())
+                .ifPresent(resources -> {
+                    updateIntegrationResources(context, resources.integration());
+                    updateIntegrationEmptyDirs(context, resources.integration());
+                    putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());
+                    putSourceConfigMapNamesToBuildCache(context, resources);
+                });
+    }
+
+    private void putIntegrationsConfigurationToBuildCache(
+            ResourceBuildContext<List<Snapshot>> context,
+            V1ConfigMap configMap
+    ) {
+        if (isNull(configMap)) {
+            return;
+        }
+        IntegrationsConfiguration cfg = integrationConfigurationSerdes.getFromConfigMap(configMap);
+        String key = getName(configMap).orElse(null);
+        context.getBuildCache().put(key, cfg);
+    }
+
+    private void putSourceConfigMapNamesToBuildCache(
+            ResourceBuildContext<List<Snapshot>> context,
+            MicroDomainService.IntegrationResources resources
+    ) {
+        Map<String, V1ConfigMap> sourceBySnapshotId = resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL);
+        Map<String, V1ConfigMap> sourceByChainId = resources.getSourceByLabelMap(CHAIN_ID_LABEL);
+        context.getData().forEach(snapshot -> {
+            Optional.ofNullable(sourceBySnapshotId.get(snapshot.getId()))
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(name ->
+                            sourceDslConfigMapNamingStrategy.useName(context.updateTo(snapshot), name));
+            Optional.ofNullable(sourceByChainId.get(snapshot.getChain().getId()))
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(name ->
+                            sourceDslConfigMapNamingStrategy.useName(context.updateTo(snapshot), name));
+        });
+    }
+
+    private void updateIntegrationResources(
+            ResourceBuildContext<List<Snapshot>> context,
+            CamelKIntegration integration
+    ) {
+        ResourceBuildOptions options = context.getBuildInfo().getOptions();
+        Set<String> resources = new HashSet<>(Optional.ofNullable(integration.getSpec())
+                .map(CamelKIntegration.IntegrationSpec::getTraits)
+                .map(CamelKIntegration.IntegrationSpec.Traits::getMount)
+                .map(CamelKIntegration.IntegrationSpec.Traits.MountTrait::getResources)
+                .orElse(Collections.emptyList()));
+        resources.addAll(Optional.ofNullable(options.getMount().getResources()).orElse(Collections.emptySet()));
+        options.getMount().setResources(resources);
+    }
+
+    private void updateIntegrationEmptyDirs(
+        ResourceBuildContext<List<Snapshot>> context,
+        CamelKIntegration integration
+    ) {
+        ResourceBuildOptions options = context.getBuildInfo().getOptions();
+        Set<String> emptyDirs = new HashSet<>(Optional.ofNullable(integration.getSpec())
+                .map(CamelKIntegration.IntegrationSpec::getTraits)
+                .map(CamelKIntegration.IntegrationSpec.Traits::getMount)
+                .map(CamelKIntegration.IntegrationSpec.Traits.MountTrait::getEmptyDirs)
+                .orElse(Collections.emptyList()));
+        emptyDirs.addAll(options.getMount().getEmptyDirs());
+        options.getMount().setEmptyDirs(emptyDirs);
+    }
+}

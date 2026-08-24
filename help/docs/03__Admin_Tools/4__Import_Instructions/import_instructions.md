@@ -6,7 +6,7 @@
 
 ---
 
-This page allows to manage Import Instructions, that supposed to extend existing import logic. Import Instruction is a configuration, that contains pair of entity and its action during the import. This instructions might be utilized for the following purposes:
+This page allows managing Import Instructions, which are intended to extend the existing import logic. An Import Instruction is a configuration that contains a pair of an entity and its action during import. These instructions can be used for the following purposes:
 
 - Removal of unnecessary entities such as chains, services, API groups and specifications and common variables.
 - Ignore of specific entities desired to be taken from import process completely.
@@ -20,18 +20,21 @@ Find more details about manual import process on the design articles for respect
 ### View Import Instructions
 After navigation to "Import Instructions" tab, system initially displays a table, where next information and control elements are presented:
 
-- **Id** - identifies the particular entity. It might contain the next data depending on the section:
-  - **Chains** - unique identifier of the chain, that becomes clickable when respective chain exist in QIP. It is possible to see the full name of the chain by hovering the mouse over the id, when it is transformed to the reference.
-  - **Services** - unique identifier of the service, that becomes clickable when respective service exist in QIP. When id is transformed to the reference, hover the mouse over it to see service's name.
+- **Id** - identifies the particular entity. Content depends on the section:
+  - **Chains** - unique identifier of the chain. When the chain exists in QIP, its name is displayed as a clickable link to the chain's Configuration Graph; otherwise the ID is shown as plain text.
+  - **Services** - unique identifier of the service. When the service exists in QIP, its name is displayed as a clickable link to the service's parameters page; otherwise the ID is shown as plain text.
   - **Common Variables** - unique name of the common variable.
 - **Action** - editable value, describes the action, that will be taken during entity import process. List of available values:
   - **Ignore** - specified entity will be ignored. Applicable for Chains, Services and Common Variables.
   - **Override** - specified chain is going to be overridden by another one. Applicable only for the Chains section. Overridden chain will receive all changes from import archive without snapshot creation and be undeployed. Applicable for Chains only.
-> ℹ️ **Note:** **"Delete"** action cannot be configured via UI. It is only possible to specify entities, that are going to be removed as the result of the import, via **import instruction file**. The file itself must be specifically named as **qip-import-instructions.yaml**.
-- **Overridden By** - editable value, applicable only for "Override" action. It specifies id of the chain, that is going to override the original chain. That becomes clickable when respective chain exist in QIP. It is possible to see the full name of the chain by hovering the mouse over the id, when it is transformed to the reference.
+> ℹ️ **Note:** **"Delete"** action cannot be configured via UI. It is only possible to specify entities, that are going to be removed as the result of the import, via **import instruction file**.
+- **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in QIP, its name is displayed as a clickable link; clicking it opens the chain's Configuration Graph in a new tab.
 - **Labels** - list of colored **technical labels**, optional populated during import instructions upload via API.
 - **Modified At** - date and time of the last entity modification.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table. To find a particular entity by its id or name, specify criteria in search field and click "**Enter**".
   - ![20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Id**.
   - ![20](img/filter.svg) - opens the pop-up, that allows to apply filtering to the table.
@@ -84,7 +87,7 @@ commonVariables:
 
 > ℹ️ **Note:** The **apiGroups** section was called **specificationGroups** in earlier releases. Files that still use the old name load as before, so existing instruction files need no update.
 
-Before further processing system shows confirmation dialog. When operation is confirmed, system performs the next steps:
+Before further processing, the system shows a confirmation dialog. When the operation is confirmed, the system performs the following steps:
 
 - Validate that file corresponds to the following criteria:
   - There are no parameters with empty value.

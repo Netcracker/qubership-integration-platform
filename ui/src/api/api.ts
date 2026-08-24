@@ -266,8 +266,6 @@ export interface ApiClient {
 
   getPathToFolder(folderId: string): Promise<FolderItem[]>;
 
-  getPathToFolderByName(folderName: string): Promise<FolderItem[]>;
-
   listFolder(request: ListFolderRequest): Promise<(FolderItem | ChainItem)[]>;
 
   createFolder(request: CreateFolderRequest): Promise<FolderItem>;
@@ -607,6 +605,10 @@ export interface ApiClient {
 
   // Admin Tools: Import Instructions
   getImportInstructions(): Promise<GeneralImportInstructions>;
+
+  filterImportInstructions(
+    filters: EntityFilterModel[],
+  ): Promise<GeneralImportInstructions>;
 
   addImportInstruction(
     request: ImportInstructionRequest,

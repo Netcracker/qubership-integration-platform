@@ -7,12 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiGroupContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationSourceDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.MCPServiceContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
 

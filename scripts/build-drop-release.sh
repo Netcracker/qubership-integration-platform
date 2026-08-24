@@ -2,20 +2,26 @@
 #
 # Cut the single GitHub Release for a platform drop (one per release-all wave).
 # Module releases only publish + tag; this is the only place a Release is made.
-# Tag = bare vX.Y.Z from the root pom <revision>; body = module BOM +
-# GitHub-native notes since the previous drop.
+# Tag = bare vX.Y.Z; body = module BOM + GitHub-native notes since the previous
+# drop.
 #
-# Env: REPO, GH_TOKEN (required); BRANCH (push target for the bump);
-#      RELEASE_TYPE=patch|minor|major; TARGET_SHA (default HEAD);
-#      PRERELEASE=true|false; DRY_RUN=true|1 (print only).
+# VERSION is the version the wave released — the same number every backend
+# service was published under. The caller (release-all) computes it once; this
+# script writes it into the platform POMs (root <revision>, parent, and the
+# children that pin the parent), commits, tags that commit, and cuts the release.
 #
-#   REPO=Netcracker/qubership-integration-platform DRY_RUN=1 \
+# The tag rides the bump commit, matching every module tag: `git checkout v1.3.0`
+# then reproduces the tree whose root <revision> is 1.3.0.
+#
+# Env: VERSION, REPO, GH_TOKEN (required); BRANCH (push target for the bump);
+#      TARGET_SHA (default HEAD); PRERELEASE=true|false; DRY_RUN=true|1.
+#
+#   VERSION=1.3.0 REPO=Netcracker/qubership-integration-platform DRY_RUN=1 \
 #   GH_TOKEN=$(gh auth token) bash scripts/build-drop-release.sh
 
 set -euo pipefail
 
-: "${REPO:?REPO env var required}" "${GH_TOKEN:?GH_TOKEN env var required}"
-RELEASE_TYPE="${RELEASE_TYPE:-patch}"
+: "${REPO:?REPO env var required}" "${GH_TOKEN:?GH_TOKEN env var required}" "${VERSION:?VERSION env var required}"
 PRERELEASE="${PRERELEASE:-false}"
 DRY_RUN="${DRY_RUN:-false}"
 TARGET_SHA="${TARGET_SHA:-$(git rev-parse HEAD)}"
@@ -23,23 +29,9 @@ TARGET_SHA="${TARGET_SHA:-$(git rev-parse HEAD)}"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-bump() { # X.Y.Z patch|minor|major -> next (10# avoids octal)
-    local ma mi pa
-    IFS=. read -r ma mi pa <<< "$1"
-    case "$2" in
-        patch) echo "$ma.$mi.$((10#$pa + 1))" ;;
-        minor) echo "$ma.$((10#$mi + 1)).0" ;;
-        major) echo "$((10#$ma + 1)).0.0" ;;
-        *)
-            echo "::error::release-type must be patch|minor|major (got '$2')" >&2
-            exit 1
-            ;;
-    esac
-}
-
-version="$(grep -oP '(?<=<revision>)[^<]+' pom.xml | head -1)"
+version="$VERSION"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-    echo "::error::root pom <revision> is not X.Y.Z (got '$version')"
+    echo "::error::VERSION must be X.Y.Z (got '$version')"
     exit 1
 }
 tag="v$version"
@@ -83,27 +75,29 @@ else
     echo "_Changelog generation failed; see the commit history for $tag._" >> "$notes"
 fi
 
-next="$(bump "$version" "$RELEASE_TYPE")"
-
 if [ "$DRY_RUN" = "true" ] || [ "$DRY_RUN" = "1" ]; then
-    echo "===== DRY RUN: drop $tag (next dev $next) ====="
+    echo "===== DRY RUN: drop $tag ====="
     cat "$notes"
     exit 0
 fi
 
-# Bump + push the version BEFORE cutting the release: a blocked push fails cleanly
-# and retries next wave instead of wedging an already-created release.
-sed -i "s|<revision>${version}</revision>|<revision>${next}</revision>|" pom.xml
-bash scripts/commit-and-push.sh \
-    "chore: bump platform version to $next [skip ci]" \
-    pom.xml
+# Write + push the version BEFORE cutting the release: a blocked push fails cleanly
+# and retries next wave instead of wedging an already-created release. Command
+# substitution (not a process substitution) so a failed write aborts here.
+touched="$(bash scripts/set-platform-version.sh "$version")"
+# TAG rides the bump commit and is pushed before the branch (see the script).
+# shellcheck disable=SC2086
+TAG="$tag" bash scripts/commit-and-push.sh \
+    "chore: platform version $version released [skip ci]" \
+    $touched
 
 if gh release view "$tag" --repo "$REPO" > /dev/null 2>&1; then
     gh release edit "$tag" --repo "$REPO" --title "$tag" \
         --notes-file "$notes" --prerelease="$PRERELEASE"
     echo "Updated existing drop release $tag"
 else
-    gh release create "$tag" --repo "$REPO" --target "$TARGET_SHA" \
+    # No --target: commit-and-push.sh already pushed the tag at the bump commit.
+    gh release create "$tag" --repo "$REPO" \
         --title "$tag" --notes-file "$notes" --prerelease="$PRERELEASE"
     echo "Created drop release $tag"
 fi

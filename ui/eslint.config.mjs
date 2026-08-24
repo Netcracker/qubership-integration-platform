@@ -46,6 +46,14 @@ export default [
           ignoreRestSiblings: true,
         },
       ],
+      "react/no-danger": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[property.name='innerHTML']",
+          message: "Using innerHTML is forbidden.",
+        }
+      ],
     },
     settings: {
       react: {
@@ -124,6 +132,8 @@ export default [
       "@typescript-eslint/prefer-promise-reject-errors": "off",
       "react/display-name": "off",
       "react/prop-types": "off",
+      "react/no-danger": "off",
+      "no-restricted-syntax": "off",
     },
   },
 ];

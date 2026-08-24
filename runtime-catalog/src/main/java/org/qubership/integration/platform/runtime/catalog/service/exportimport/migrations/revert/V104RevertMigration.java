@@ -1,14 +1,15 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_GROUPS;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil.removeMigrationVersion;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil.renameField;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_GROUPS;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
+import static org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil.removeMigrationVersion;
+import static org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil.renameField;
 
 /**
  * Reverts the api-group rename for {@code QIP_EXPORT_LEGACY_FORMAT}: on the service document, {@code content.apiGroups}

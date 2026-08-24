@@ -1,6 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiOperationDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.AsyncapiOperation;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.GraphqlOperation;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.OpenapiOperation;

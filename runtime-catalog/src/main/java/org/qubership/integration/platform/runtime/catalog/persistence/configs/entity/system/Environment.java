@@ -24,8 +24,8 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.Type;
 import org.hibernate.proxy.HibernateProxy;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.util.CompareListUtils;
 
 import java.util.List;

@@ -6,7 +6,8 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiOperationDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.TypedOperation;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.WsdlOperation;
@@ -17,10 +18,10 @@ import org.qubership.integration.platform.runtime.catalog.service.migration.Type
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.MIGRATION_PROTOCOL;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_TYPE;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil.renameField;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.MIGRATION_PROTOCOL;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_TYPE;
+import static org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil.renameField;
 
 /**
  * Converts a legacy {@code specification}-shaped model node to the {@code api} shape: typed operations, renamed
@@ -28,7 +29,7 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
  * the de-materialized {@code requestSchema}/{@code responseSchemas}.
  *
  * <p>Typing needs the operation protocol, which lives only in the service file. The deserializer stamps it on the
- * model node in a {@link org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants#MIGRATION_PROTOCOL}
+ * model node in a {@link org.qubership.integration.platform.io.model.exportimport.ExportImportConstants#MIGRATION_PROTOCOL}
  * scratch field, read here from the root or, once V101 has relocated it, from {@code content}. That scratch field is
  * also the model-node discriminator: service and specification-group documents run through the same migration list
  * but never carry it, so they fall through untouched.

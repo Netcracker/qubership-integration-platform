@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersionParser;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ProtocolExtractionService;
-import org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl.WsdlVersionParser;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.IOException;

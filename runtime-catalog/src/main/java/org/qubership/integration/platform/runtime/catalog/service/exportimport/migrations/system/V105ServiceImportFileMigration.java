@@ -2,6 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.springframework.stereotype.Component;
 
 /**

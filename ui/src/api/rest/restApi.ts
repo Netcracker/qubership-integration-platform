@@ -1103,13 +1103,6 @@ export class RestApi implements ApiClient {
     return response.data;
   };
 
-  getPathToFolderByName = async (folderName: string): Promise<FolderItem[]> => {
-    const response = await this.instance.get<FolderItem[]>(
-      `${this.v2()}/folders/path?name=${folderName}`,
-    );
-    return response.data;
-  };
-
   createFolder = async (request: CreateFolderRequest): Promise<FolderItem> => {
     const response = await this.instance.post<FolderItem>(
       `${this.v2()}/folders`,
@@ -2190,6 +2183,28 @@ export class RestApi implements ApiClient {
   getImportInstructions = async (): Promise<GeneralImportInstructions> => {
     const catalog = await this.instance.get<GeneralImportInstructions>(
       `${this.v1()}/catalog/import-instructions`,
+    );
+    return {
+      chains: catalog.data.chains ?? { delete: [], ignore: [], override: [] },
+      services: catalog.data.services ?? { delete: [], ignore: [] },
+      specificationGroups: catalog.data.specificationGroups ?? {
+        delete: [],
+        ignore: [],
+      },
+      specifications: catalog.data.specifications ?? { delete: [], ignore: [] },
+      commonVariables: catalog.data.commonVariables ?? {
+        delete: [],
+        ignore: [],
+      },
+    };
+  };
+
+  filterImportInstructions = async (
+    filters: EntityFilterModel[],
+  ): Promise<GeneralImportInstructions> => {
+    const catalog = await this.instance.post<GeneralImportInstructions>(
+      `${this.v1()}/catalog/import-instructions/filter`,
+      filters,
     );
     return {
       chains: catalog.data.chains ?? { delete: [], ignore: [], override: [] },

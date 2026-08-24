@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.util;
 
+import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.ElementService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
@@ -29,7 +29,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -66,7 +65,7 @@ public class OldContainerUtils {
     }
 
     public boolean isOldStyleContainer(String elementType) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(elementType))
+        return libraryService.lookupElementDescriptor(elementType)
                 .map(descriptor -> descriptor.isContainer() && descriptor.isOldStyleContainer())
                 .orElse(false);
     }

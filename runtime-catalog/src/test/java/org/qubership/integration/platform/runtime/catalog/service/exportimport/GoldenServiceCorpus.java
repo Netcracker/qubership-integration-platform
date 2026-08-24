@@ -3,9 +3,20 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.io.model.exportimport.ExportImportConstants;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.mcp.MCPServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.mcp.V100MCPServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
+import org.qubership.integration.platform.io.readers.system.ContextServiceReader;
+import org.qubership.integration.platform.io.readers.system.McpServiceReader;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportableObject;
@@ -28,16 +39,8 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.MCPServiceDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.mcp.MCPServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.mcp.V100MCPServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.TestRevertMigrations;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.TestServiceMigrations;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.strategies.MigrationFieldInContentStrategy;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.strategies.MigrationFieldStrategy;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.strategies.VersionFieldStrategy;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ArchiveWriter;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ContextServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
@@ -384,18 +387,14 @@ public final class GoldenServiceCorpus {
     /** Context services are stamped from the service migration list, so they take the same registry. */
     public static ContextServiceDeserializer contextServiceDeserializer(List<ServiceImportFileMigration> migrations) {
         return new ContextServiceDeserializer(
-                mapper(),
-                forwardMigrationService(),
-                migrations,
+                new ContextServiceReader(mapper(), forwardMigrationService(), migrations),
                 new ContextServiceDtoMapper(URI.create(SCHEMAS.getContextService()), migrations));
     }
 
     public static MCPSystemDeserializer mcpSystemDeserializer() {
         List<MCPServiceImportFileMigration> migrations = List.of(new V100MCPServiceImportFileMigration());
         return new MCPSystemDeserializer(
-                mapper(),
-                forwardMigrationService(),
-                migrations,
+                new McpServiceReader(mapper(), forwardMigrationService(), migrations),
                 new MCPServiceDtoMapper(URI.create(SCHEMAS.getMcpService()), migrations));
     }
 

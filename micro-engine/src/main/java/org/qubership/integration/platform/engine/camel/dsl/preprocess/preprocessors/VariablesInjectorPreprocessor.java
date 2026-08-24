@@ -20,4 +20,9 @@ public class VariablesInjectorPreprocessor implements ResourceContentPreprocesso
     public String apply(String content) throws Exception {
         return variablesService.injectVariables(content, true);
     }
+
+    @Override
+    public boolean runsInPreParse() {
+        return true;
+    }
 }

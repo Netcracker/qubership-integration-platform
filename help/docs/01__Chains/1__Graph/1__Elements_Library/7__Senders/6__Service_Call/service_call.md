@@ -8,9 +8,9 @@
 
 ---
 ### "Endpoint" Tab
-The tab is responsible for choosing service, it's API specification and operation which will be invoked. All services configured in [Services](../../../../../02__Services/services.md) are available for use.
+The tab is responsible for choosing service, its API specification and operation which will be invoked. All services configured in [Services](../../../../../02__Services/services.md) are available for use.
 
-Service Call support operations from **Swagger/WSDL/AsyncAPI/GraphQL/Protobuf** specifications.
+Service Call supports operations from **Swagger/WSDL/AsyncAPI/GraphQL/Protobuf** specifications.
 
 | Parameter           | Mandatory | Data Type | Description                                                                                                                   | Sample           |
 | ------------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------- |
@@ -174,7 +174,7 @@ The tab is responsible for choosing an action on receiving the request. Possible
 This tab allows to set up an authorization for service call.
 
 Possible selectable options:
-- **Inherit** - default option, that allows to keeps exchange Authorization header and its value
+- **Inherit** - default option, that keeps exchange Authorization header and its value
 - **None** - removes auth settings (removes Authorization header)
 - **Basic Auth** - basic authorization with username and password
 - **Bearer Token** - authorization with bearer token
@@ -182,14 +182,14 @@ Possible selectable options:
 
 | Parameter | Mandatory | Data Type | Description                                                                                                       | Sample                    |
 | --------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| Token     | O         | String    | Available for **"Bearer Token"** option. This fields is supposed to contain a token.                              | ${exchangeProperty.token} |
-| Username  | O         | String    | Available for **"Basic Auth"** option. This fields is supposed to contain a username to be used in authorization. | #{username}               |
-| Password  | O         | String    | Available for **"Basic Auth"** option. This fields is supposed to contain a password to be used in authorization. | #{password}               |
+| Token     | O         | String    | Available for **"Bearer Token"** option. This field is supposed to contain a token.                              | ${exchangeProperty.token} |
+| Username  | O         | String    | Available for **"Basic Auth"** option. This field is supposed to contain a username to be used in authorization. | #{username}               |
+| Password  | O         | String    | Available for **"Basic Auth"** option. This field is supposed to contain a password to be used in authorization. | #{password}               |
 
 ### "Validations" Tab
-This tab allows to set up scheme validation(s) for service's response in order to instantly fail the chain without its further processing in case of receiving invalid response.
+This tab allows to set up schema validation(s) for service's response in order to instantly fail the chain without its further processing in case of receiving invalid response.
 Validation(s) must be added for specific pair of code and content type, accessed by clicking "**Add**" button.
-Only codes from range 200-299, which are **properly and fully described** in the response scheme and have **JSON** - based content type are available for applying validations against.
+Only codes from range 200-299, which are **properly and fully described** in the response schema and have **JSON**-based content type are available for applying validations against.
 Validation will only happen for service's response when a pair of HTTP code and content type in response fully matches with the settings, added under Validation tab, otherwise validation will be skipped.
 
 ### "Handle Validation Failure" Tab

@@ -12,6 +12,12 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
@@ -30,17 +36,12 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.TestServiceMigrations;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.strategies.MigrationFieldInContentStrategy;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.strategies.MigrationFieldStrategy;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.strategies.VersionFieldStrategy;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.ExtractorTestParsers;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
 import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter.ServiceConfigurationsToFilesConverter;
-import org.qubership.integration.platform.runtime.catalog.util.HashUtils;
+import org.qubership.integration.platform.util.HashUtils;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -59,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.extractor.CorpusTestSupport.corpusRoot;
 import static org.qubership.integration.platform.runtime.catalog.service.extractor.CorpusTestSupport.readInput;
 
@@ -75,7 +76,12 @@ class ServiceDeserializerTest {
     @TempDir
     private Path serviceDirectory;
 
+    private YAMLMapper yamlMapper;
+    private ServiceSerializer serializer;
     private ServiceDeserializer deserializer;
+
+    private String fallbackSourceHash;
+    private String directSourceHash;
 
     @BeforeEach
     void setUp() {
@@ -638,15 +644,12 @@ class ServiceDeserializerTest {
     }
 
     /**
-     * Import reads only the specification slice, while materializing request and response schemas inlines every
-     * referenced component into every operation and every response code — inside the import transaction, on every
-     * model of the archive.
+     * Import stores the specification slice and nothing else. The library parsers always build request and
+     * response schemas now, so the guarantee moved from "do not ask for them" to "do not keep them": they are
+     * rebuilt from the source on read, and a stored copy would be a second source of truth.
      */
     @Test
-    void importDoesNotAskTheParserToMaterializeSchemas() throws IOException {
-        ExtractorTestParsers.RecordingSwaggerParser parser = ExtractorTestParsers.recordingSwaggerParser();
-        ServiceDeserializer recording = buildDeserializer(ExtractorTestParsers.extractor(parser));
-
+    void importKeepsNoMaterializedSchemas() throws IOException {
         File serviceFile = writeService(serviceYaml());
         writeFile(GROUP_ID + ".specification-group." + APP_NAME + ".yaml", groupYaml(GROUP_ID, SYSTEM_ID));
         writeFile(SPEC_ID + ".api." + APP_NAME + ".yaml", apiModelYaml("openapi", """
@@ -657,11 +660,12 @@ class ServiceDeserializerTest {
                 """));
         writeFile("source-" + SPEC_ID + "/source.yaml", readInput(corpusRoot().resolve("openapi30-orders")));
 
-        IntegrationSystem system = recording.deserializeSystem(serviceFile);
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
-        assertNotNull(onlyOperation(system).getSpecification(), "the slice is still derived");
-        assertEquals(List.of(false), parser.withSchemasCalls(),
-                "import consumes only the specification slice, so it must not ask for the schemas");
+        Operation operation = onlyOperation(system);
+        assertNotNull(operation.getSpecification(), "the slice is still derived");
+        assertNull(operation.getRequestSchema(), "request schemas are rebuilt on read, never stored");
+        assertNull(operation.getResponseSchemas(), "response schemas are rebuilt on read, never stored");
     }
 
     // --- migrations ------------------------------------------------------------------------------------------------
@@ -1469,5 +1473,18 @@ class ServiceDeserializerTest {
                 .getSystemModels().get(0).getOperations();
         assertEquals(1, operations.size());
         return operations.get(0);
+    }
+
+    private static String fileNameOf(String recordedName) {
+        return Path.of(recordedName).getFileName().toString();
+    }
+
+    private static SpecificationSource findSource(SystemModel model, String name) {
+        SpecificationSource source = model.getSpecificationSources().stream()
+                .filter(candidate -> name.equals(candidate.getName()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(source, "Expected a specification source named " + name);
+        return source;
     }
 }

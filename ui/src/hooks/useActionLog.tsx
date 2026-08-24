@@ -1,8 +1,9 @@
 import { api } from "../api/api.ts";
-import { ActionLog, ActionLogFilterRequest } from "../api/apiTypes.ts";
+import { ActionLog } from "../api/apiTypes.ts";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
+import { EntityFilterModel } from "../components/table/filter/filterTypes.ts";
 
 const PAGE_SIZE = 20;
 
@@ -16,7 +17,7 @@ function sortLogsByActionTime(logs: ActionLog[]): ActionLog[] {
 }
 
 export const useActionLog = (
-  filters: ActionLogFilterRequest[] = [],
+  filters: EntityFilterModel[],
 ): {
   fetchNextPage: () => Promise<void>;
   logsData: ActionLog[];

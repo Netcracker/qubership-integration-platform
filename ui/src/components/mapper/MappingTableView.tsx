@@ -1870,7 +1870,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
           </Flex>
         </Flex>
         <Table<MappingTableItem>
-          className="flex-table"
+          className={`flex-table ${styles["mapping-table"]}`}
           size="small"
           columns={columnsWithResize}
           dataSource={tableItems}

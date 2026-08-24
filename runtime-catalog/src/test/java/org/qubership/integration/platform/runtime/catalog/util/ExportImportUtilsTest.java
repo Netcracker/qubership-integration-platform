@@ -36,13 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.AFTER;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.BEFORE;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SCRIPT;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.TYPE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.AFTER;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.BEFORE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SCRIPT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.TYPE;
 
 class ExportImportUtilsTest {
 

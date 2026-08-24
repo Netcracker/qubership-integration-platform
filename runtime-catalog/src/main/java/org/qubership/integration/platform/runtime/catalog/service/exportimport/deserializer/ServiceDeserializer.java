@@ -23,27 +23,29 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupDto;
+import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.MigrationException;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiGroupDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.ExtractedSchemas;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.OperationKey;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -51,12 +53,37 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_GROUPS;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_GROUP_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.MIGRATION_PROTOCOL;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.PARENT_ID;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_FILE_PREFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUP_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUP_FILE_PREFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_TYPE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SYNCHRONIZATION;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SYSTEM_MODELS;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 
+/**
+ * Turns an exported integration-system archive into its persistence graph.
+ *
+ */
 @Slf4j
 @Component
 public class ServiceDeserializer {
@@ -75,7 +102,7 @@ public class ServiceDeserializer {
 
     @Autowired
     public ServiceDeserializer(
-            YAMLMapper yamlExportImportMapper,
+            @Qualifier("defaultYamlMapper") YAMLMapper yamlMapper,
             VersionsGetterService versionsGetterService,
             IntegrationSystemDtoMapper integrationSystemDtoMapper,
             ApiGroupDtoMapper apiGroupDtoMapper,
@@ -85,7 +112,7 @@ public class ServiceDeserializer {
             OperationSchemaExtractor operationSchemaExtractor,
             ServiceTypeFiles serviceTypeFiles
     ) {
-        this.yamlMapper = yamlExportImportMapper;
+        this.yamlMapper = yamlMapper;
         this.versionsGetterService = versionsGetterService;
         this.integrationSystemDtoMapper = integrationSystemDtoMapper;
         this.apiGroupDtoMapper = apiGroupDtoMapper;
@@ -437,9 +464,9 @@ public class ServiceDeserializer {
                         .id(specificationSourceDto.getId())
                         .name(specificationSourceDto.getName())
                         .description(specificationSourceDto.getDescription())
-                        .createdBy(specificationSourceDto.getCreatedBy())
+                        .createdBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getCreatedBy()))
                         .createdWhen(specificationSourceDto.getCreatedWhen())
-                        .modifiedBy(specificationSourceDto.getModifiedBy())
+                        .modifiedBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getModifiedBy()))
                         .modifiedWhen(specificationSourceDto.getModifiedWhen())
                         .isMainSource(specificationSourceDto.isMainSource());
                 // No sourceHash from the file: the source builder below recomputes it, and a missing source must

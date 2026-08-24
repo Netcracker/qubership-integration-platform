@@ -32,14 +32,12 @@ const mockProceed = jest.fn<void, []>();
 const mockReset = jest.fn<void, []>();
 const mockUseBlocker = jest.fn<BlockerState, []>();
 const mockCloseContainingModal = jest.fn<void, []>();
-const mockGetPathToFolderByName = jest.fn<Promise<unknown[]>, unknown[]>();
 const mockMoveChain = jest.fn<Promise<void>, unknown[]>();
 const mockChainUpdate = jest.fn<Promise<void>, unknown[]>();
+let mockIsVsCode = false;
 
 jest.mock("../../src/api/api.ts", () => ({
   api: {
-    getPathToFolderByName: (...args: unknown[]) =>
-      mockGetPathToFolderByName(...args),
     moveChain: (...args: unknown[]) => mockMoveChain(...args),
   },
 }));
@@ -61,7 +59,9 @@ jest.mock("../../src/ModalContextProvider.tsx", () => ({
 }));
 
 jest.mock("../../src/api/rest/vscodeExtensionApi.ts", () => ({
-  isVsCode: false,
+  get isVsCode() {
+    return mockIsVsCode;
+  },
 }));
 
 jest.mock("react-router-dom", () => ({
@@ -118,7 +118,8 @@ jest.mock("../../src/pages/ChainPage.tsx", () => ({
 describe("ChainProperties", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetPathToFolderByName.mockResolvedValue([]);
+    mockIsVsCode = false;
+    mockMoveChain.mockResolvedValue(undefined);
     mockChainUpdate.mockResolvedValue(undefined);
     mockUseBlocker.mockReturnValue({
       state: "unblocked" as const,
@@ -187,51 +188,71 @@ describe("ChainProperties", () => {
     expect(mockChainUpdate).not.toHaveBeenCalled();
   });
 
-  it("should label the path field Path", () => {
+  it("should not show the group field when running in a browser", () => {
     render(<ChainProperties />);
 
-    expect(screen.getByRole("textbox", { name: /path/i })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /group/i })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /path/i })).toBeNull();
   });
 
-  it("should block submit and show an error when a path segment has a forbidden character", async () => {
-    render(<ChainProperties />);
-
-    fireEvent.change(screen.getByRole("textbox", { name: /path/i }), {
-      target: { value: "a:b" },
-    });
-    fireEvent.submit(document.getElementById("chain-properties-form")!);
-
-    expect(
-      await screen.findByText(/Path segments must not contain/i),
-    ).toBeInTheDocument();
-    expect(mockChainUpdate).not.toHaveBeenCalled();
-  });
-
-  it("should move the chain to the resolved folder and save when a valid path is submitted", async () => {
-    mockGetPathToFolderByName.mockResolvedValue([
-      { id: "f1", name: "a" },
-      { id: "f2", name: "b" },
-    ]);
-    render(<ChainProperties />);
-
-    fireEvent.change(screen.getByRole("textbox", { name: /path/i }), {
-      target: { value: "a/b" },
-    });
-    fireEvent.submit(document.getElementById("chain-properties-form")!);
-
-    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
-    expect(mockMoveChain).toHaveBeenCalledWith("chain-1", "f2");
-  });
-
-  it("should save with an empty navigation path and no move when the path is empty", async () => {
+  it("should save without moving the chain when running in a browser", async () => {
     render(<ChainProperties />);
 
     fireEvent.submit(document.getElementById("chain-properties-form")!);
 
     await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
     expect(mockChainUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ navigationPath: [] }),
+      expect.not.objectContaining({ navigationPath: expect.anything() }),
     );
     expect(mockMoveChain).not.toHaveBeenCalled();
+  });
+
+  it("should label the group field Group when running in the extension", () => {
+    mockIsVsCode = true;
+    render(<ChainProperties />);
+
+    expect(screen.getByRole("textbox", { name: /group/i })).toBeInTheDocument();
+  });
+
+  it("should block submit and show an error when a group segment has a forbidden character", async () => {
+    mockIsVsCode = true;
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /group/i }), {
+      target: { value: "a:b" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    expect(
+      await screen.findByText(/Group segments must not contain/i),
+    ).toBeInTheDocument();
+    expect(mockChainUpdate).not.toHaveBeenCalled();
+  });
+
+  it("should move the chain to the group and save when a valid group is submitted", async () => {
+    mockIsVsCode = true;
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /group/i }), {
+      target: { value: "a/b" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    expect(mockMoveChain).toHaveBeenCalledWith("chain-1", "a/b");
+  });
+
+  it("should not save when the move fails in the extension", async () => {
+    mockIsVsCode = true;
+    mockMoveChain.mockRejectedValue(new Error("move failed"));
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /group/i }), {
+      target: { value: "a/b" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockRequestFailed).toHaveBeenCalled());
+    expect(mockChainUpdate).not.toHaveBeenCalled();
   });
 });

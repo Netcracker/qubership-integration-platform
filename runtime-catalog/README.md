@@ -58,6 +58,16 @@ Application has 'development' Spring profile to run service locally with minimum
 - Access to Kubernetes API.
 - PostgreSQL database.
 
+## OpenAPI Specification
+
+`OpenApiSpecGeneratorTest` starts the application with the datasource, Flyway, and Consul mocked or stubbed,
+calls the `/v3/api-docs.yaml` endpoint, and writes the result to `api-spec/`. It runs as part of the normal
+test suite, so `mvn test` keeps `api-spec/openapi.yaml` up to date. To run just this test:
+
+```shell
+mvn test -Dtest=OpenApiSpecGeneratorTest
+```
+
 ## Contribution
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).

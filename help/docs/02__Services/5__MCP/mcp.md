@@ -19,14 +19,17 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 - **Identifier** - unique identifier of the MCP service.
 - **Labels** - list of colored labels of the MCP service, unique within particular entity.
 - **Used by** - list of chains where the MCP service is used.
-- **Created At** - datetime of entity creation.
-- **Created By** - shows the user, who created an entity.
-- **Modified At** - datetime of entity modifying.
-- **Modified By** - shows the user, who modified an entity.
+- **Created At** - datetime of entity creation (hidden by default).
+- **Created By** - shows the user, who created an entity (hidden by default).
+- **Modified At** - datetime of entity modifying (hidden by default).
+- **Modified By** - shows the user, who modified an entity (hidden by default).
 - **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
   - **Delete** ![delete](img/delete.svg) - deletes entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search services** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
@@ -36,14 +39,18 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any MCP service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 Inside that folder services are grouped by type: **External**, **Internal**, **Implemented**, **Context**, **MCP**, and an **Unknown** group for a file whose type is not stated anywhere. A group with no services is not shown. The grouping is a view of the tree only — the files stay where they are on disk.
 
 ### Add MCP Service
 <ins>Web UI</ins>
 
-To add new MCP service, click **"Create service"** button at the top right of the screen. Specify service name and description on a newly opened pop-up and click **"Create"** button.
+To add new MCP service, click **"Create service"** button at the top right of the screen. Fill in the following fields on the newly opened pop-up and click **"Create"** button:
+
+- **Name** - mandatory service name.
+- **Identifier** - mandatory unique identifier of the MCP service.
+- **Description** - optional description of the service.
 
 System opens new window with **Common Parameters** section.
 
@@ -69,7 +76,7 @@ Parameters tab contains the following information:
 - **Identifier** - unique identifier of the MCP service. This identifier is used when selecting MCP services in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md).
 - **Instructions** - Instructions that describe how MCP clients should use this service.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.

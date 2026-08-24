@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.parsers.impl.WsdlSpecificationParser;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersionParser;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.AsyncapiOperation;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.GraphqlOperation;
@@ -15,8 +17,6 @@ import org.qubership.integration.platform.runtime.catalog.model.system.typed.Wsd
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ProtocolExtractionService;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.impl.WSDLSpecificationParser;
-import org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl.WsdlVersionParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,8 +46,8 @@ class TypedOperationBackfillTest {
         WsdlVersionParser wsdlVersionParser = new WsdlVersionParser(SAXParserFactory.newDefaultInstance());
         ProtocolExtractionService protocolExtractionService =
                 new ProtocolExtractionService(new ObjectMapper(), new YAMLMapper(), wsdlVersionParser);
-        WSDLSpecificationParser wsdlSpecificationParser =
-                new WSDLSpecificationParser(null, null, null, wsdlVersionParser, null, null);
+        WsdlSpecificationParser wsdlSpecificationParser =
+                new WsdlSpecificationParser(new WsdlVersionParser(javax.xml.parsers.SAXParserFactory.newInstance()));
         backfill = new TypedOperationBackfill(protocolExtractionService, wsdlSpecificationParser);
     }
 

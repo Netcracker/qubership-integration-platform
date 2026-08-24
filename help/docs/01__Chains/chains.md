@@ -2,9 +2,9 @@
 ## Description
 
 ---
-Chain is an integration configuration which consist of Apache Camel (or customized) modules. Each chain is indented to perform particular integration task.
-Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, MCP Trigger, Kafka Trigger, etc.).
-When the chain configuration was completed, it should be deployed at least on one [Engine Domain](../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
+Chain is an integration configuration that consists of Apache Camel (or customized) modules. Each chain is intended to perform a particular integration task.
+A chain can be triggered by any external consumer, so chain configuration starts with a trigger (HTTP Trigger, MCP Trigger, Kafka Trigger, etc.).
+When the chain configuration is complete, it should be deployed on at least one [Engine Domain](../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
 
 ## User Interface
 
@@ -12,8 +12,8 @@ When the chain configuration was completed, it should be deployed at least on on
 ### Chains and Folders View
 <ins>Web UI</ins>
 
-Screen shows the table of chains (marked with icon ![file](img/file.svg)) and chain folders (marked with icon ![folder](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![right](img/right.svg) icon near folder name. Next control elements are available on top of the table:
-- **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use search field at the top of the screen with the text "Full text search" and a lens icon ![search](img/search.svg). Full-text search is applicable by the following data:
+The screen shows a table of chains (marked with icon ![chain](img/chain.svg)) and chain folders (marked with icon ![folder](img/folder.svg)). To see all the chains and folders under a particular folder, click the ![right](img/right.svg) icon next to the folder name. The following control elements are available at the top of the table:
+- **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use the search field at the top of the screen with the text "Full text search" and a lens icon ![search](img/search.svg). Full-text search is applicable by the following data:
   - Chain fields:
     - Chain name
     - Chain ID
@@ -32,13 +32,13 @@ Screen shows the table of chains (marked with icon ![file](img/file.svg)) and ch
 - ![filter](img/filter.svg) - opens filter pop-up.
 - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns except **Name**.
 - ![difference](img/diff.svg) - compares selected chains.
-- ![carry-out](img/carry-out.svg) - pastes chain or folder.
+- ![carry-out](img/carry-out.svg) - pastes chain/folder.
 - ![send](img/send.svg) - opens pop-up for chains redeploy.
 - ![cloud-download](img/cloud-download.svg) - exports the chain(s).
-- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for chain(s) import. As part of upload/import operation, user is able to additionally select an option to create a snapshot for imported chain or even deploy it to the selected engine as soon import is successfully completed.
+- ![cloud-upload](img/cloud-upload.svg) - opens a pop-up for chain import. As part of the upload/import operation, the user can additionally select an option to create a snapshot for the imported chain or even deploy it to the selected engine as soon as the import is successfully completed.
 - ![delete](img/delete.svg) - deletes selected chains or folders.
 
-Each **chain** contains the following parameters on table view:
+Each **chain** contains the following parameters in the table:
 - **Name** - chain name, which is clickable reference to the chain [graph](1__Graph/graph.md).
 - **Description** - user description of the chain.
 - **Status** - shows chain's deployment status. Possible values:
@@ -49,7 +49,7 @@ Each **chain** contains the following parameters on table view:
 - **Labels** - list of colored chain labels, unique within particular chain. It might contain **custom** labels, entered on the chain by user on the <ins>Web UI</ins> or **technical** labels, populated as part of the deployment via Samples Repository. **Technical** labels cannot be updated manually.
 - **Modified At** - date of last chain modification.
 - **Modified By** - name of the user who modified the chain last.
-- **Actions menu** - list of operations, accessed via menu symbol ![more](img/more.svg), contains the list of available operations with the chain:
+- **Actions menu** - list of operations accessed via the menu icon ![more](img/more.svg):
   - **_Copy link_** - copies chain link to clipboard.
   - _**Edit**_ - opens pop-up to update chain name, description, **custom** labels and additional data, required for DDS generation.
   - _**Export**_ - exports chain from QIP.
@@ -59,9 +59,9 @@ Each **chain** contains the following parameters on table view:
   - _**Duplicate**_ - duplicates chain. New chain will be duplicated with the  **"- copy"** postfix.
   - _**Delete**_ - deletes chain.
 
-**Folder** contains the following parameters on table view:
+Each **folder** contains the following parameters in the table:
 - **Name** - clickable reference to the page with folder content.
-- **Actions menu** - list of operations, accessed via menu symbol ![more](img/more.svg), contains the list of available operations with the folder:
+- **Actions menu** - list of operations accessed via the menu icon ![more](img/more.svg):
   - **_Create New Folder_** - opens pop-up to add new folder under this one.
   - **_Create New Chain_** - opens pop-up to create chain under the folder.
   - **_Expand All_** - expands all folders (regardless of the nesting level) under the current one.
@@ -70,10 +70,10 @@ Each **chain** contains the following parameters on table view:
   - **_Edit_** - opens pop-up to update the folder name.
   - **_Export_** - exports all the chains under the folder.
   - **_Cut_** - cuts the chain folder (with all folder content). To paste folder, click "paste" ![carry-out](img/carry-out.svg) icon button, available on top of the screen.
-  - **_Paste_** - pastes copied chain or folder.
+  - **_Paste_** - pastes copied chain/folder.
   - _**Delete**_ - deletes folder with all content under it.
 
-> ℹ️ Mentioned "Chains" window **does not validate** the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.
+> ℹ️ The **Chains** window **does not validate** the uniqueness of names for folders or chains. It is possible that multiple chains (or folders) have the same name.
 
 <ins>VS Code Extension</ins>
 
@@ -82,7 +82,7 @@ All chains configured using VS Code Extension appears under the "Chains" section
 ### Chain Details Side Panel
 **`⛔ Not available via VS Code extension`**
 
-More chain details are available via **right side panel**. To open it, click on any place in the chain row (except chain name, which leads to [graph](1__Graph/graph.md)). The following information about chain will be available (in read-only mode):
+More chain details are available in the **right side panel**. To open it, click anywhere in the chain row (except the chain name, which leads to the [graph](1__Graph/graph.md)). The following information about the chain is available (in read-only mode):
 
 - **ID** - chain identifier.
 - **Name** - chain name (same as in the table).
@@ -95,8 +95,9 @@ More chain details are available via **right side panel**. To open it, click on 
 - **Logging settings source** - shows the source of the logging settings: Default (Consul), Custom or Default (Fallback).
 - **Sessions logging level** - level of logs for chain sessions: Off, Error, Info or Debug.
 - **Log logging level** - shows current log level: Error, Warning or Info.
-- **Log payload level** - shows if payload is being logged.
+- **Log payload** - shows if payload is being logged.
 - **DPT events enabled** - shows is DPT events are being sent.
+- **Masking enabled** - shows if masking of any field is enabled on chain.
 - **Created** - date, time and creator (username) of the chain.
 - **Modified** - date, time and user of the last chain modification.
 
@@ -105,7 +106,7 @@ More chain details are available via **right side panel**. To open it, click on 
 
 To create a new chain or a folder, click button **"Create"** on the top right of the screen and select either **"New chain"** or **"New folder"** from the list menu.
 
-You will be presented with the window. Fill in the following fields:
+A dialog opens. Fill in the following fields:
 
 For a new folder:
 - **Name** - mandatory field for the folder name. The name must not contain any of the following characters: `/ : * ? " < > | , ; \`.
@@ -113,9 +114,9 @@ For a new folder:
 
 For a new chain:
 - In the **"General Info"** tab:
-  - **Name**  - in this mandatory field, you could populate a name for new chain or a folder.
-  - **Labels**  - customizable list of chain labels. To populate new label to the list, specify its value and then press **`Enter`**.
-  - **Description** - here you could add detailed description for new chain or a folder.
+  - **Name** - enter a name for the new chain.
+  - **Labels** - customizable list of chain labels. To add a label, specify its value and press **`Enter`**.
+  - **Description** - enter a detailed description for the new chain.
   - At the bottom, users can choose to open the newly created chain immediately after submitting it by selecting **Open chain**. Alternatively, they can opt to open it in a **new tab**. If neither option is selected, the system simply returns to the list of chains.
 
 - In the **"Extended Description"** tab (all the following fields are optional):
@@ -130,13 +131,13 @@ When all necessary parameters are filled, click **"Submit"** button or use the c
 To create a chain using VS Code Extension, follow the steps outlined below:
 1. Open "VS Code Extension" in Visual Studio Code.
 2. In the left bottom find QIP section and expand it.
-3. Near the "Chains" section click on appearing button "QIP Create a chain in the current directory".
+3. Next to the "Chains" section, click the **"QIP Create a chain in the current directory"** button.
 4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the QIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
 
 ### Move Chain or Folder
 **`⛔ Not available via VS Code extension`**
 
-To move chain/folder to the folder (instead of Cut and Paste), drag & drop chain/folder to the target folder. To **move it to the root directory**, drag & drop the chain/folder to ![home](img/home.svg) at the right top above the table.
+To move a chain/folder (instead of Cut and Paste), drag and drop it to the target folder. To **move it to the root directory**, drag and drop the chain or folder to ![home](img/home.svg) at the top right above the table.
 
 ### Import Chain(s)
 **`⛔ Not available via VS Code extension`**
@@ -146,10 +147,10 @@ To upload the chain(s), click the icon ![cloud-upload](img/cloud-upload.svg), dr
 #### Chains Tab
 This tab contains all chains that are going to be imported.
 
-The first element is a switcher "Validate By Hash". This option may enhance the time of import by comparing hash of any chains with each other. If the hash of one chain is the same, the system will skip to import this chain.
+The first element is a switcher "Validate By Hash". This option can reduce the import time by comparing the hash of each chain. If the hash matches, the system skips importing that chain.
 
 Under this option there is a table of chains with the following parameters:
-* Name - name of the imported chain;
+* Name - name of the imported chain. If a chain with the same ID already exists in the system, a ![diff](img/diff.svg) icon appears next to the name — click it to open the **Chain compare** dialog and preview the differences between the existing chain and the version being imported before proceeding with the import;
 * ID - ID of the imported chain;
 * Domain - the selected domain for deployment;
 * Instruction Action - shows the exact instruction for the particular chain. Available only on preview before import process is completed. Possible values:
@@ -170,7 +171,7 @@ This tab contains all services that are going to be imported.
 On this tab there is a table with the following data:
 * Name - name of the service;
 * ID - ID of the service;
-* Status -this field is available only after finishing import process and shows the status of imported services. Available status:
+* Status - this field is available only after finishing import process and shows the status of imported services. Available status:
   * **Created** - new service is successfully imported.
   - **Updated** - imported data from archive is successfully merged with existing one for particular service with matched ID.
   - **Error** - service import failed.
@@ -179,7 +180,7 @@ On this tab there is a table with the following data:
 #### Common Variables Tab
 This tab contains all common variables that are going to be imported.
 
-The following information are available:
+The following information is available:
 * Name - name of the common variable;
 * Value - value of the common variable;
 * Current Value - existing value of the common variable;
@@ -190,7 +191,7 @@ The following information are available:
   - **No action** - import is skipped for particular common variable that has been unchecked via checkboxes.
 
 #### Import Instructions Tab
-The tab contains the full list of entities, that are going to be managed via Import Instructions.
+The tab contains the full list of entities that will be managed via Import Instructions.
 There is a table with the following columns:
 * ID - ID of the instruction;
 * Action - describes the exact instruction given to the specific entity;
@@ -204,39 +205,40 @@ There is a table with the following columns:
   - **Error on Override** - override process failed.
   - **No action** - specified instruction has not applied during the import.
 
-After all actions it is necessary to click on the "import" button at the bottom right. The next step is the processing of import. The user has to wait for it.
+After configuring all actions, click **Import** at the bottom right. Wait for the process to complete.
 
-The last step is the result of import. In each tab the specified field "Status" is added as a result of import that is described at the end of each table.
+The final step shows the import results. In each tab, the **Status** field is populated with the outcome, as described at the end of each table.
 
 ### Export Chain(s)
 **`⛔ Not available via VS Code extension`**
 
 To export the chain(s), simply select respective rows in the table with checkboxes (use checkbox in table heading if you need to select all/filtered chains) and ![cloud-download](img/cloud-download.svg).
-When no entities are selected and button clicked, system will attempt to export every chain after receiving a user's confirmation.
+If no chains are selected, clicking the button exports all chains after confirmation.
 During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
 
-- **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
+- **Export related sub-chains** - if selected, the system also exports the whole tree of chains, that are connected via [Chain Call](1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
 sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
 and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
-- **Export related services** - if selected, system will also export services and specifications, utilized within chains.
-- **Export all common variables** - if selected, system will also export all common variables, utilized within chains.
+- **Export related services** - if selected, the system also exports services and specifications, utilized within chains.
+- **Export all common variables** - if selected, the system also exports all common variables, utilized within chains.
 
 ### Deploy Chain(s)
 **`⛔ Not available via VS Code extension`**
 
 To deploy desired chains, mark them via checkboxes (use checkbox in table heading if you need to select all/filtered chains) and click ![send](img/send.svg).
-System will attempt to deploy every available chain when button is clicked but none of the chains selected.
-In both cases, system shows pop-up and requests additional data:
+If no chains are selected, clicking the button deploys all available chains.
+In both cases, a pop-up opens requesting additional data:
 
-- **Engine Domain** - the engine, selected chains will be deployed on.
+- **Engine Domains** - one or more engine domains the selected chains will be deployed on. Choose from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain. Availability of each domain type depends on configuration — see [Domains](../03__Admin_Tools/1__Domains/domains.md).
 - **Snapshot Action** - defines if new snapshot must be deployed. There are two actions available:
   - **Create new** - system will attempt to redeploy the chain with new snapshot.
   - **Reuse latest, otherwise create new** - system will attempt to reuse latest snapshot. If it does not exist - redeploy will be attempted with newly created snapshot.
 
-Confirm selected options and click "**Deploy**" button. System will attempt to deploy selected chains and show result window and the end of operation. Window consists of next columns:
+Confirm the selected options and click "**Deploy**". The system deploys the selected chains and shows a result window at the end of the operation. The window contains the following columns:
 
 - **Chain ID** - contains the unique identifiers of the chains, requested to be deployed.
 - **Chain Name** - contains the names of the chains, requested to be deployed.
+- **Domain** - the engine domain the chain was deployed on. Domains of **Micro** type display a **`micro`** tag next to the name.
 - **Status** - contains operation status:
   - **Snapshot error** - operation failed while operating with snapshot.
   - **Deployment error** - operation failed while attempting to create a deployment.
@@ -247,7 +249,7 @@ Confirm selected options and click "**Deploy**" button. System will attempt to d
 ### Delete Chain(s) and Folder(s)
 <ins>Web UI</ins>
 
-From the Chains and Folders View, click on action menu against the entity (folder or chain) name to be deleted. Next, from the available options, click "Delete" ![delete](img/delete.svg). Or mark all entities to be deleted and click on "Delete" button ![delete](img/delete.svg) above the table on the right corner. The screen displays a user confirmation prompt to proceed with deletion. Click "Yes" to delete or "No" to cancel operation.
+From the Chains and Folders View, click the action menu for the entity (folder or chain) to be deleted. Next, from the available options, click "Delete" ![delete](img/delete.svg). Or mark all entities to be deleted and click on "Delete" button ![delete](img/delete.svg) above the table on the right corner. The screen displays a user confirmation prompt to proceed with deletion. Click "Yes" to delete or "No" to cancel operation.
 If a folder is deleted, all chains grouped under that folder will also be deleted.
 
 <ins>VS Code Extension</ins>
@@ -257,54 +259,49 @@ Under "Chains" folder, right-click on the chain name you want to delete. From th
 ### Compare Chains
 <ins>Web UI</ins>
 
-Mark two chains with checkboxes, click ![diff](img/diff.svg) button to open widget with two comparison areas and supplementary elements. When a comparison window is requested, while only a single snapshot is marked with a checkbox, the system compares it with current state of the chain. Next elements are available on the comparator window:
+Select two chains using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog. Above each comparison area, a chain name link and a version selector are shown; use the version selector to switch that side between the chain's **Current** (unsaved) state and any of its snapshots. The following controls are available:
 
-- **Chain Name** - read only text field, specifies chain name.
-- **Snapshot Name** - dropdown with snapshot versions, available for given chain. Current, unsaved version of the chain can be also selected in this dropdown.
-- Switcher **Graph/Table/Text** - allows to switch between three different comparison views.
-- **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigates to the previous or next detected difference. The corresponding element and its changed property are selected in the comparison areas, and the property details are displayed above the graphs.
+- **Graph/Table/Text** switcher - switches between the three comparison views.
+- **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigate to the previous or next detected difference. The corresponding element and its changed property are highlighted in the comparison areas, and property details are displayed above the graphs.
+- ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - opens the dialog in full screen and collapses it back.
 
-> ℹ️ **Note**: Comparison functionality was specifically introduced in order to compare two **similar** chains and quickly identify the differences between them. It won't provide much value when comparing two completely different chains.
+> ℹ️ **Note**: The comparison feature is designed for two **similar** chains. It provides little value when comparing two completely different chains.
 
-Comparison could be done in three different views, that could be switched anytime:
+You can view the comparison in three modes, switchable at any time:
 
-- **Graph View** - default view for comparison widget. When this type of view is selected, comparison areas show configuration graphs, compiled on the basis of selected chains and their snapshots. Next tools are available:
+- **Graph View** - the default view. Each comparison area shows the chain's configuration graph. The following tools are available:
   - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in/out the graph.
   - ![expand](img/expand.svg) - fit view.
-  - ![rotate-right](img/rotate-right.svg) - changes graphs orientation from vertical to horizontal and vice versa.
-  - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
+  - ![rotate-right](img/rotate-right.svg) - toggles the graph orientation between vertical and horizontal.
 
-  Chain graph elements are marked according to the found differences:
-   - **Identical (grey)** - no differences were found in the element or dependency.
-   - **Changed (yellow)** - the element exists in both chain versions, but its properties differ.
-   - **Removed (red)** - the element or dependency does not exist in the compared chain version.
-   - **Created (green)** - a new element or dependency exists in the compared chain version.
+  Elements are color-coded by their comparison state:
+  - **Identical (grey)** - no differences found in the element or its connections.
+  - **Changed (yellow)** - the element exists in both chains, but its properties differ.
+  - **Removed (red)** - shown in the left comparison area; the element or connection does not exist in the right chain.
+  - **Created (green)** - shown in the right comparison area; the element or connection does not exist in the left chain.
 
-Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, complied on the basis of the element's data.
+- **Table View** - select **Table** in the switcher to display differences as a table. Each row represents one detected difference and contains the following columns:
 
-- **Table View** - select **Table** in the **Graph/Table/Text** switcher to display the comparison results as a table. Each row represents a detected difference. The table contains the following columns:
+  - **Type** - the type of the changed entity: `element`, `element property`, `chain property`, or `connection`.
+  - Two columns named after the compared chains — each shows the change data from the corresponding chain version.
 
-  - **Type** - type of the changed entity.
-  - **Compared chain versions** - two columns named after the compared chains. Each column shows the data from the corresponding chain version:
-    - **Element** - element whose configuration differs. Click the element name to open its properties in a new browser window.
-    - **Name** - name of the changed property.
-    - **Value** - property value in the corresponding chain version.
+  Select a row using the radio button to focus on a particular difference. Use **Previous change** and **Next change** to navigate between differences.
 
-  Select a row using the radio button to focus on a particular difference. Use the **Previous change** and **Next change** arrows to move between the detected differences.
+- **Text View** - select **Text** in the switcher to display a side-by-side YAML representation of both chains. Per-line differences are highlighted:
 
-- **Text View** - mark two chains with checkboxes, click ![diff](img/diff.svg) button to open comparison widget and then use **Graph/Table/Text** switcher to change the view option to "**Text**". Compare areas in this view contain text representation of the chains and per line differences, highlighted in next color:
-
-  - **Red** - properties don't exist in the compared chain version.
-  - **Green** - new properties exist in the compared chain version.
-
-Text view is also accessible via double-clicking the element while working with graph view of comparator.
+  - **Red** - the line exists only in the left chain version.
+  - **Green** - the line exists only in the right chain version.
 
 <ins>VS Code Extension</ins>
 
-TBD
+Chain comparison is available from a chain's Git history: use any Visual Studio Code action that opens a diff for a `*.chain.qip.yaml` file (for example, **Open Changes** or **Compare with...** in the Source Control view). By default, the QIP visual diff opens in place of the built-in text diff and shows the same **Graph** and **Table** views described above, with the **Previous change**/**Next change** controls. The **Text** view is not available, since it duplicates the built-in text diff.
+
+> ℹ️ **Note**: To compare `*.chain.qip.yaml` files with the built-in text diff instead, enable the **"Integration Designer: Use Default Diff View"** VS Code setting.
+
+Because the two compared versions are fixed by Git, there is no chain/snapshot selector above the comparison areas. Clicking a chain or element link in either comparison area opens it in a new editor tab within Visual Studio Code instead of a browser tab.
 
 ### Constraints
 
 ---
 
-**Technical** chain labels cannot be imported via UI or exported.
+**Technical** chain labels cannot be imported via the UI or exported.

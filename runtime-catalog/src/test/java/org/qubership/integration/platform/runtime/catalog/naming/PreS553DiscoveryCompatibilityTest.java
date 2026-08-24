@@ -4,7 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants;
+import org.qubership.integration.platform.io.model.exportimport.ExportImportConstants;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus;
 
 import java.io.File;

@@ -19,7 +19,7 @@ The following properties are available:
 
 ### <ins>VS Code Extension</ins>
 * **Name** - the user-defined identifier for the chain.
-* **Path** - the chain's folder path. Separate levels with `/` (for example, `payments/processing`). Each segment must not contain any of the following characters: `/ : * ? " < > | , ; \`.
+* **Group** - the chain's folder path. Separate levels with `/` (for example, `payments/processing`). Each segment must not contain any of the following characters: `/ : * ? " < > | , ; \`.
 * **Labels** - tags used for categorization or filtering.
 * **Description** - general description.
 * **Business Description** - non-tech description for better understanding.

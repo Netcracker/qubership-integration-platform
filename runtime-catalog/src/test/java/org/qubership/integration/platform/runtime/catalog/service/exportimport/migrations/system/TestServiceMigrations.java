@@ -1,5 +1,9 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system;
 
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.system.V100ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.system.V101ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.system.V102ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 
 import java.util.List;

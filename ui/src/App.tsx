@@ -67,6 +67,7 @@ import {
   useChainFullscreenContext,
 } from "./pages/ChainFullscreenContext.tsx";
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
+import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
 
 const { Header, Content } = Layout;
 
@@ -82,16 +83,19 @@ const RootLayoutInner = () => {
   const fullscreenCtx = useChainFullscreenContext();
   return (
     // hasSider={false}: keep the root a column; a nested Sider would otherwise flip it to a row.
-    <Layout className={styles.layout} hasSider={false}>
-      {!fullscreenCtx?.fullscreen && (
-        <Header className={styles.header}>
-          <Navigation />
-        </Header>
-      )}
-      <Content className={styles.content}>
-        <Outlet />
-      </Content>
-    </Layout>
+    <>
+      <BrowserTabTitle />
+      <Layout className={styles.layout} hasSider={false}>
+        {!fullscreenCtx?.fullscreen && (
+          <Header className={styles.header}>
+            <Navigation />
+          </Header>
+        )}
+        <Content className={styles.content}>
+          <Outlet />
+        </Content>
+      </Layout>
+    </>
   );
 };
 

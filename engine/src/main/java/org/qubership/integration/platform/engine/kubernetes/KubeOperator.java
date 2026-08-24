@@ -28,6 +28,7 @@ import io.kubernetes.client.openapi.models.V1SecretList;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
+import org.springframework.lang.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -121,7 +122,7 @@ public class KubeOperator {
                         request.getResourceNamePlural(),
                         getNotNullCustomResourceName(request),
                         request.getBody()
-                );
+                ).execute();
             } else {
                 customObjectsApi.createNamespacedCustomObject(
                         request.getGroup(),
@@ -129,7 +130,7 @@ public class KubeOperator {
                         getNotNullNamespace(),
                         request.getResourceNamePlural(),
                         request.getBody()
-                );
+                ).execute();
             }
         } catch (Exception e) {
             if (!isDevmode()) {
@@ -143,6 +144,7 @@ public class KubeOperator {
         return devmode;
     }
 
+    @Nullable
     private String getCustomObjectResourceVersion(KubeCustomObjectRequest request) {
         try {
             Object response = customObjectsApi.getNamespacedCustomObject(
@@ -157,6 +159,11 @@ public class KubeOperator {
             JsonNode resourceVersion = responseNode.path("metadata").path("resourceVersion");
             return resourceVersion.isMissingNode() || resourceVersion.isNull() ? null : resourceVersion.asText();
         } catch (Exception e) {
+            if (e instanceof ApiException apiEx && apiEx.getCode() == 404) {
+                log.debug("Custom kubernetes resource does not exist: {}", request);
+                return null;
+            }
+
             if (!isDevmode()) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }

@@ -26,7 +26,10 @@ Table with **Context** services is accessible by navigating to **Services** → 
   - **Edit** ![edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
   - **Delete** ![delete](img/delete.svg) - deletes entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
@@ -36,7 +39,7 @@ Table with **Context** services is accessible by navigating to **Services** → 
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any context service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 Inside that folder services are grouped by type: **External**, **Internal**, **Implemented**, **Context**, **MCP**, and an **Unknown** group for a file whose type is not stated anywhere. A group with no services is not shown. The grouping is a view of the tree only — the files stay where they are on disk.
 
@@ -46,7 +49,7 @@ Parameters tab contains the following information:
 - **Description** - description of service.
 - **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.

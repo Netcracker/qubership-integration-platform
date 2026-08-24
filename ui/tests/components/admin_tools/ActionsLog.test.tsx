@@ -11,10 +11,8 @@ import {
 } from "../../../src/api/apiTypes.ts";
 import { useActionLog } from "../../../src/hooks/useActionLog.tsx";
 import { exportActionsLogAsExcel } from "../../../src/misc/log-export-utils.ts";
-import {
-  ActionsLog,
-  formatEntityType,
-} from "../../../src/components/admin_tools/ActionsLog.tsx";
+import { ActionsLog } from "../../../src/components/admin_tools/ActionsLog.tsx";
+import { formatEntityType } from "../../../src/misc/entityTypeLabels.ts";
 
 // src/components/admin_tools/ActionsLog.integration.test.tsx
 // ====== MOCKS ======
@@ -26,6 +24,14 @@ jest.mock("antd", () =>
 // Mock useActionLog
 jest.mock("../../../src/hooks/useActionLog.tsx", () => ({
   useActionLog: jest.fn(),
+}));
+
+// Mock Modals context (used by useFilter via useActionLogFilter)
+jest.mock("../../../src/Modals.tsx", () => ({
+  useModalsContext: () => ({
+    showModal: jest.fn(),
+    closeModal: jest.fn(),
+  }),
 }));
 
 // Mock useResizeHeight (returns [ref, height])

@@ -5,7 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiOperationDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
+import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,10 +15,10 @@ import org.springframework.stereotype.Component;
 
 import java.net.URI;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_TYPE;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil.removeMigrationVersion;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil.renameField;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_TYPE;
+import static org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil.removeMigrationVersion;
+import static org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil.renameField;
 
 /**
  * Reverts the {@code api} shape back to the legacy {@code specification} shape for {@code QIP_EXPORT_LEGACY_FORMAT}:

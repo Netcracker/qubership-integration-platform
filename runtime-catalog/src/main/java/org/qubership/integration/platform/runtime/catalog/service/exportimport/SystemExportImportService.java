@@ -76,7 +76,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.ZIP_EXTENSION;
 import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.*;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
 
@@ -84,6 +84,9 @@ import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORT
 @Slf4j
 @Transactional
 public class SystemExportImportService {
+    private static final List<IntegrationSystemType> SINGLE_ENVIRONMENT_SERVICE_TYPES = List
+            .of(IntegrationSystemType.INTERNAL, IntegrationSystemType.IMPLEMENTED);
+
     private static final String LIB_COMPILATION_ERROR = "Failed to compile libraries for service specifications: ";
     private static final String SYSTEM_SAVED_DDL_ERROR = "System has been saved, but with DDL script execution error. ";
     private static final String CHAINS_REDEPLOY_NEEDED_MSG = "There are changes in environment address. Please redeploy affected chains (if any)";
@@ -694,7 +697,9 @@ public class SystemExportImportService {
         validateServiceTypeUnchanged(newSystem, oldSystem);
         EnvironmentLimitUtils.validate(newSystem, newSystem.getEnvironments().size());
 
-        if (IntegrationSystemType.INTERNAL == newSystem.getIntegrationSystemType()) {
+        // main widened this from INTERNAL to every single-environment type; the environment count itself is
+        // still checked by EnvironmentLimitUtils above, which reads the limit off the type.
+        if (SINGLE_ENVIRONMENT_SERVICE_TYPES.contains(newSystem.getIntegrationSystemType())) {
             Environment environment = newSystem.getEnvironments().isEmpty() ? null : newSystem.getEnvironments().get(0);
             Environment oldEnvironment = oldSystem.getEnvironments().isEmpty() ? null : oldSystem.getEnvironments().get(0);
 

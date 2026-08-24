@@ -14,8 +14,10 @@ import org.qubership.integration.platform.engine.camel.dsl.errorhandling.ErrorHa
 import org.qubership.integration.platform.engine.camel.dsl.notification.SourceProcessingNotifier;
 import org.qubership.integration.platform.engine.camel.dsl.preprocess.ResourceContentPreprocessingService;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Objects.isNull;
@@ -31,6 +33,16 @@ import static java.util.Objects.isNull;
 @ManagedResource(description = "Managed XML RoutesBuilderLoader")
 @RoutesLoader(XmlRoutesBuilderLoader.EXTENSION)
 public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
+
+    /**
+     * {@link XmlRoutesBuilderLoader} parses the whole {@code <camel>} document (beans and routes) during
+     * {@link #preParseRoute} and caches it by source location in this private field; {@code doLoadRouteBuilder}
+     * then reuses that cached definition to build routes. We evict the entry so routes are re-parsed from the
+     * fully preprocessed resource.
+     * Keep in sync with the Camel source when upgrading Camel.
+     */
+    static final Field CAMEL_APP_CACHE_FIELD = resolveCamelAppCacheField();
+
     private ResourceContentPreprocessingService preprocessingService;
     private ErrorHandlerFactory errorHandlerFactory;
     private SourceProcessingNotifier sourceProcessingNotifier;
@@ -39,7 +51,7 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
     public void preParseRoute(Resource resource) throws Exception {
         try {
             getSourceProcessingNotifier().notifySourceProcessingStarted(resource);
-            super.preParseRoute(resource);
+            super.preParseRoute(preprocessForBeans(resource));
         } catch (Exception e) {
             handleError(resource, e);
         }
@@ -49,6 +61,7 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
     public RouteBuilder doLoadRouteBuilder(Resource input) throws Exception {
         try {
             Resource preprocessedInput = preprocessInput(input);
+            evictParentAppCache(input.getLocation());
             return wrapRouteBuilder(input, super.doLoadRouteBuilder(preprocessedInput));
         } catch (Exception e) {
             handleError(input, e);
@@ -57,14 +70,51 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
     }
 
     private Resource preprocessInput(Resource input) throws Exception {
-        ResourceContentPreprocessingService preprocessingService = getPreprocessingService();
-        String content = new String(input.getInputStream().readAllBytes());
-        content = preprocessingService.preprocess(content);
+        String content = new String(input.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        content = getPreprocessingService().preprocess(content);
+        return preprocessedResource(input, content);
+    }
+
+    // Resolves only registry-independent placeholders (#{...}) so beans are instantiated with resolved values.
+    private Resource preprocessForBeans(Resource input) throws Exception {
+        String content = new String(input.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        content = getPreprocessingService().preprocessForPreParse(content);
+        return preprocessedResource(input, content);
+    }
+
+    private Resource preprocessedResource(Resource input, String content) {
         return new SimpleResource(
                 input.getScheme(),
                 input.getLocation(),
                 content.getBytes(StandardCharsets.UTF_8)
         );
+    }
+
+    /**
+     *  Drop the cached Resource entry so routes are parsed from the fully preprocessed resource rather than the bean-only preprocessed(done in preParseRoute).
+     *  Keep in sync with the Camel source when upgrading Camel
+     */
+    private void evictParentAppCache(String location) {
+        try {
+            Object cache = CAMEL_APP_CACHE_FIELD.get(this);
+            if (cache instanceof Map<?, ?> map) {
+                map.remove(location);
+            }
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("Cannot access XmlRoutesBuilderLoader.camelAppCache", e);
+        }
+    }
+
+    private static Field resolveCamelAppCacheField() {
+        try {
+            Field field = XmlRoutesBuilderLoader.class.getDeclaredField("camelAppCache");
+            field.setAccessible(true);
+            return field;
+        } catch (NoSuchFieldException e) {
+            throw new IllegalStateException(
+                    "Field XmlRoutesBuilderLoader.camelAppCache not found; route preprocessing relies on it. "
+                            + "Check compatibility when upgrading Camel.", e);
+        }
     }
 
     private synchronized ResourceContentPreprocessingService getPreprocessingService() {

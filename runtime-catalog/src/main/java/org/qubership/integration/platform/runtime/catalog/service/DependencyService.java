@@ -20,16 +20,16 @@ import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.Quantity;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DependencyValidationException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.Quantity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -183,10 +183,7 @@ public class DependencyService {
             }
         }
 
-        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(elementTo);
-        if (elementDescriptor == null) {
-            throw new DependencyValidationException("Element of type " + elementTo.getType() + " not found");
-        }
+        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(elementTo.getType());
 
         if (!elementDescriptor.isInputEnabled()) {
             throw new DependencyValidationException("Input dependency disabled for " + elementTo.getType());

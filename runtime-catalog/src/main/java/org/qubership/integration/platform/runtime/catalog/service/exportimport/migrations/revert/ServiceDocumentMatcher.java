@@ -9,14 +9,14 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Set;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_GROUPS;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.DEPENDENCIES;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.DEPLOY_ACTION;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ELEMENTS;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_GROUPS;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.DEPENDENCIES;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.DEPLOY_ACTION;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.ELEMENTS;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
+import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
 
 /**
  * Recognizes the three documents that stamp {@code content.migrations} from the service migration list: service,

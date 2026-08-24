@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert;
 
+import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
+import org.qubership.integration.platform.io.readers.migrations.revert.V101RevertMigration;
+import org.qubership.integration.platform.io.readers.migrations.revert.V108RevertMigration;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;

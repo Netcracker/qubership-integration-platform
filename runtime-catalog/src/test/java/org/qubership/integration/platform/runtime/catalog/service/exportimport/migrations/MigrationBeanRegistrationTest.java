@@ -2,10 +2,11 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.RevertMigration;
+import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.TestRevertMigrations;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.TestServiceMigrations;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -31,7 +32,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class MigrationBeanRegistrationTest {
 
-    private static final String ROOT_PACKAGE = "org.qubership.integration.platform.runtime.catalog";
+    // Both halves of the application: the catalog's own migrations and the ones the integration-build-pipeline
+    // library declares. Spring injects them into one collection, so the registry has to see one collection too.
+    private static final List<String> ROOT_PACKAGES = List.of(
+            "org.qubership.integration.platform.runtime.catalog",
+            "org.qubership.integration.platform.io");
 
     private static final String SKIPPED_ON_ROLLOUT_HINT =
             "These versions are claimed as applied on the rollout import path, so their migrations never run there. "
@@ -169,7 +174,9 @@ class MigrationBeanRegistrationTest {
         scanner.addIncludeFilter(new AssignableTypeFilter(migrationType));
 
         List<Class<?>> implementations = new ArrayList<>();
-        for (BeanDefinition definition : scanner.findCandidateComponents(ROOT_PACKAGE)) {
+        for (BeanDefinition definition : ROOT_PACKAGES.stream()
+                .flatMap(rootPackage -> scanner.findCandidateComponents(rootPackage).stream())
+                .toList()) {
             try {
                 implementations.add(Class.forName(definition.getBeanClassName()));
             } catch (ClassNotFoundException exception) {

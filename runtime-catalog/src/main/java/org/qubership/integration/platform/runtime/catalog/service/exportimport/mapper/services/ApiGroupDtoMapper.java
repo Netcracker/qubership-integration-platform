@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiGroupContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiGroupDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroupLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
@@ -46,9 +46,9 @@ public class ApiGroupDtoMapper implements ExternalEntityMapper<ApiGroup, ApiGrou
                 .id(apiGroupDto.getId())
                 .name(apiGroupDto.getName())
                 .description(apiGroupDto.getContent().getDescription())
-                .createdBy(apiGroupDto.getContent().getCreatedBy())
+                .createdBy(SystemEntitySeam.toPersistenceUser(apiGroupDto.getContent().getCreatedBy()))
                 .createdWhen(apiGroupDto.getContent().getCreatedWhen())
-                .modifiedBy(apiGroupDto.getContent().getModifiedBy())
+                .modifiedBy(SystemEntitySeam.toPersistenceUser(apiGroupDto.getContent().getModifiedBy()))
                 .modifiedWhen(apiGroupDto.getContent().getModifiedWhen())
                 .url(apiGroupDto.getContent().getUrl())
                 .synchronization(apiGroupDto.getContent().isSynchronization())

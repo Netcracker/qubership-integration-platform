@@ -22,6 +22,7 @@ import type { ColumnsType } from "antd/es/table";
 import { EntityLabels } from "../../labels/EntityLabels";
 import {
   Environment,
+  EnvironmentLabel,
   EnvironmentRequest,
   EnvironmentSourceType,
 } from "../../../api/apiTypes";
@@ -274,7 +275,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
           currentSourceType !== EnvironmentSourceType.MAAS_BY_CLASSIFIER
             ? values.address
             : undefined,
-        labels: values.labels?.map((l) => ({ name: l, technical: false })),
+        labels: values.labels?.map((l) => (l as unknown as EnvironmentLabel)),
         properties: mergedProps,
         sourceType: currentSourceType,
       };

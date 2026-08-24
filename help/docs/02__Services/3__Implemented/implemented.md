@@ -39,7 +39,10 @@ Table with Implemented services is accessible by navigating to **Services** → 
   - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
   - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
   - **Export** ![cloud-upload](img/cloud-upload.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
@@ -49,7 +52,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any implemented service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 Inside that folder services are grouped by type: **External**, **Internal**, **Implemented**, **Context**, **MCP**, and an **Unknown** group for a file whose type is not stated anywhere. A group with no services is not shown. The grouping is a view of the tree only — the files stay where they are on disk.
 
@@ -64,7 +67,7 @@ Parameters tab contains the following information:
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.
@@ -99,7 +102,9 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 - **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
 - **Delete** ![delete](img/delete.svg) - deletes entity.
 
-In general at the right top the next operation is available only for <ins>Web UI</ins>:
+**Control panel**
+
+At the right top the next operation is available only for <ins>Web UI</ins>:
 - ![cloud-download](img/cloud-download.svg) - Export service.
 
 
@@ -107,8 +112,8 @@ In general at the right top the next operation is available only for <ins>Web UI
 When particular API group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
-  API group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
-  from appropriate _"version"_ parameter in specification file. For **WSDL, GraphQL, Protobuf** specifications -
+  API group for any type of service. For **Swagger** and **AsyncAPI** specifications, version is retrieved
+  from the appropriate _"version"_ parameter in the specification file. For **WSDL, GraphQL, Protobuf** specifications -
   _filename_ will be considered as a specification version.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -122,7 +127,7 @@ When particular API group name is clicked, the system opens new page with the ta
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 
-To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
+To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following fields are available:
 
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
@@ -138,7 +143,9 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
-In general at the right top the following operations are available:
+**Control panel**
+
+At the right top the following operations are available:
 - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the specification import.
 - ![cloud-download](img/cloud-download.svg) - exports the specification (available only for <ins>Web UI</ins>).
 
@@ -154,6 +161,11 @@ When specification is clicked, the system opens new page with the table of avail
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 - **Used by** - list, that contains references to the chains, utilizing this operation.
+
+**Control panel**
+
+At the top of the table the following options are available:
+- ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
 
 ### Add Implemented Service
 <ins>Web UI</ins>
@@ -203,7 +215,7 @@ To add API specification into existing API group:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
     > ℹ️ **Note:**
     > - API Specification **version must be unique inside of API group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
-    > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and will be dropped during import; the system shows a warning notification after such import.
+    > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and are dropped during import. The system shows a warning notification when this happens.
 
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
     > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
@@ -277,7 +289,7 @@ During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
   - Fetch the list of service IDs with **ignore** action and skip import process for them.
 - Find existing services, API groups and specification by IDs from import archive:
-  - If there are specifications with IDs already exist in the system, regardless of their parent API groups and services, system **ignores** them.
+  - If there are specifications with IDs that already exist in the system, regardless of their parent API groups and services, system **ignores** them.
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - Technical labels are going to be removed from existing entities if they are updated as a part of import process.

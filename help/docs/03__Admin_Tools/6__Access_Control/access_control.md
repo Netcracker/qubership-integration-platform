@@ -26,7 +26,9 @@ Tab "Access Control" contains a table, representing the unique endpoint, that is
 - **Chain** - name of the chain, that exposes the endpoint. Navigates to the chain by click.
 - **Chain Status** - current status of the related chain.
 
-Next capabilities are available above the table in the right top:
+**Control panel**
+
+At the top of the table the following options are available:
 - **Search access control** - search box, provides ability to find respective data in the table.
 - ![setting](img/setting.svg) - opens column settings.
 - ![carry-out](img/carry-out.svg) - selects unsaved chains.

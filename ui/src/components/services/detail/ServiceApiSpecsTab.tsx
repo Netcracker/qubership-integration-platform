@@ -80,10 +80,6 @@ const operationAllColumnKeys = () => [
   "method",
   "url",
   "usedBy",
-  "createdWhen",
-  "createdBy",
-  "modifiedWhen",
-  "modifiedBy",
 ];
 
 const buildOperationDefaultVisibleKeys = () => [
@@ -251,7 +247,7 @@ export const getSpecActions =
       {
         key: "export",
         label: "Export",
-        icon: <OverridableIcon name="export" />,
+        icon: <OverridableIcon name="cloudDownload" />,
         require: { specification: ["export" as const] },
         onClick: () => void handleExportSpecifications([spec], notify),
       },

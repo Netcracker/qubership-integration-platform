@@ -83,6 +83,7 @@ import {
 import { ApiClient } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
 import { DiffDocumentType } from "../../components/chains/diff/DiffDocumentContext.tsx";
+import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
 
 export const NAVIGATE_EVENT = "navigate";
 export const STARTUP_EVENT = "startup";
@@ -946,10 +947,6 @@ export class VSCodeExtensionApi implements ApiClient {
     throw new Error("Method getPathToFolder not implemented.");
   }
 
-  getPathToFolderByName(): Promise<FolderItem[]> {
-    throw new Error("Method getPathToFolder not implemented.");
-  }
-
   listFolder(): Promise<(FolderItem | ChainItem)[]> {
     throw new Error("Method listFolder not implemented.");
   }
@@ -1186,6 +1183,9 @@ export class VSCodeExtensionApi implements ApiClient {
 
   getImportInstructions(): Promise<GeneralImportInstructions> {
     throw new Error("Method getImportInstructions not implemented.");
+  }
+  filterImportInstructions(_filters: EntityFilterModel[]): Promise<GeneralImportInstructions> {
+    throw new Error("Method filterImportInstructions not implemented.");
   }
   addImportInstruction(
     _request: ImportInstructionRequest,

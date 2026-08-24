@@ -1,0 +1,35 @@
+asyncapi: 3.0.0
+info:
+  title: AMQP Simple API
+  version: 1.0.0
+  description: AMQP v3 with bindings
+servers:
+  production:
+    host: rabbitmq.example.com:5672
+    pathname: /vhost
+    protocol: amqp
+channels:
+  notificationQueue:
+    address: notifications
+    description: Notification queue
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: notifications
+          durable: true
+    messages:
+      Notification:
+        payload:
+          type: object
+          properties:
+            message:
+              type: string
+            level:
+              type: string
+operations:
+  consumeNotification:
+    action: receive
+    channel:
+      $ref: '#/channels/notificationQueue'
+    summary: Consume notifications

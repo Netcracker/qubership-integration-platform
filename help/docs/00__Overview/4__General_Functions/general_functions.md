@@ -3,7 +3,7 @@
 ## Notifications
 <ins>Web UI</ins>
 
-Notifications ![bell](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
+Notifications ![bell](img/bell.svg) are implemented to communicate interactively with the user. It provides the ability to track the process of system changes. Notifications are divided into 3 types:
 
 ![exclamation-circle-blue](img/info-circle.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
 
@@ -11,24 +11,24 @@ Notifications ![bell](img/bell.svg) are implemented to communicate interactively
 
 ![close-circle](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
 
-Notification has the next general structure:
-1. **Service** (optional) - name of the QIP service where the change was occurred.
+Each notification has the following structure:
+1. **Service** (optional) - name of the QIP service where the change occurred.
 2. **Message** - the main content of the notifications.
-3. **Stack trace** (optional) - in case of technical error provides the ability to check root cause of the error and helps to find the problem root cause.
-4. **Occured** - date and time of the notification.
+3. **Stack trace** (optional) - in case of a technical error, provides the stack trace to help identify the root cause.
+4. **Occurred** - date and time of the notification.
 
 <ins>VS Code Extension</ins>
 
 The extension uses the standard Visual Studio Code notification structure.
 
 ## Qubership Integration Platform Help
-Qubership Integration Platform Help is embedded to QIP UI detailed guide about how to use QIP. For each UI page or QIP element there is particular help page.
+Qubership Integration Platform Help is a UI embedded guide on how to work with QIP. For each UI page or QIP element there is a particular help page.
 
 To open QIP Help:
 
-1. Authorize in QIP UI.
-2. Navigate to some page or popup of some QIP element. Click icon ![question-circle](img/question-circle.svg) (for the page - top-right side, for the QIP element popup - top left side near the element type in curly brackets). There will be opened appropriate page in new browser tab.
-3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by fulltext search.
+1. Log in to <ins>Web UI</ins>.
+2. Navigate to some page or popup of some QIP element. Click icon ![question-circle](img/question-circle.svg) (for the page - top-right side, for the QIP element popup - top left side near the element type in curly brackets). The appropriate page opens in a new browser tab.
+3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by full-text search.
 
 ## Export/Import
 **`⛔ Not available via VS Code extension`**
@@ -36,8 +36,8 @@ To open QIP Help:
 QIP provides an ability to export ![download](img/cloud-download.svg) and import ![upload](img/cloud-upload.svg) different entities.
 The export function supports both **legacy** and **new** formats for QIP artifacts.
 Switching between legacy and new format option for export is possible via configuration of specific environment parameter
-(for the correct parameter name, please, contact system administrator).
-The next set of tables specifies the structure for QIP artifacts in the different supported formats.
+(for the correct parameter name, contact your system administrator).
+The following tables specify the structure for QIP artifacts in the different supported formats.
 
 <details><summary>Export - New Format</summary>
 
@@ -63,7 +63,7 @@ Project root (git/SVN root, not included in zip-archive)
 │               └── {specification_name}.{json|yaml|wsdl|xsd}                  swagger | asyncAPI | wsdl specification source file [1..N]
 ├── variables/                                                                 common QIP variables [1..1]
 │   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
-└── qip-import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
+└── import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
 ```
 
 `{app_name}` is the application prefix of the QIP installation that produced the archive (`qip` by default).
@@ -94,56 +94,56 @@ Project root (git/SVN root, not included in zip-archive)
 │           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
 ├── variables/                                                                 common QIP variables [1..1]
 │   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
-└── qip-import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
+└── import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
 ```
 
 </details>
 
 ## Filters
 
-There is filtering functionality available for most of the column tables, utilized across different pages. Click button ![filter](img/filter.svg) and enter next data on filter pop-up:
+There is filtering functionality available for most of the column tables, utilized across different pages. Click the ![filter](img/filter.svg) button and enter the following values in the filter popup:
 - Column
 - Condition
 - Value
 
-It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing quantity of active filters. It is also possible to remove particular filter via ![delete](img/delete.svg) button or remove all filters via "**Clear All**" button.
+It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing the number of active filters. It is also possible to remove particular filter via ![delete](img/delete.svg) button or remove all filters via "**Clear All**" button.
 
 ## Table Sorting
 
-For some table columns the following functions can be available:
+For some table columns the following sort options are available:
 - ![caret-up](img/caret-up.svg) Sort Ascending
 - ![caret-down](img/caret-down.svg) Sort Descending
 
 ## Table Settings
 
-Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![setting](img/setting.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
+Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click the gear button ![setting](img/setting.svg) at the top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
 
 ## View User Details
 **`⛔ Not available via VS Code extension`**
 
-Click user icon ![user](img/user.svg) on top right of the screen to see user and tenant details:
+Click the user icon ![user](img/user.svg) at the top right of the screen to see user and tenant details:
 - username
 - user email
 - tenant name
 - tenant ID
 
-Tenant is being defined during the login operation, exactly when user selects the domain.
+The tenant is set during login, when you select the domain.
 
 
 ## Go to Home Page
 **`⛔ Not available via VS Code extension`**
 
-In the top-left corner, there is a “QIP” button that allows users to return to the Home Page, where the full list of chains is displayed. This button provides quick navigation back to the main overview, making it easier to access and manage available chains at any time.
+In the top-left corner, the “QIP” button returns you to the home page, which lists all chains and chain folders.
 
 ## Switch between Blue and Green versions
 **`⛔ Not available via VS Code extension`**
 
-In order to switch between Blue and Green configuration versions in QIP, simply use selector on top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.
+To switch between Blue and Green configuration versions in QIP, use the selector at the top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.
 
 ## Reset UI Configuration
 **`⛔ Not available via VS Code extension`**
 
-System saves state of some UI elements while user is working with them. Such elements are mentioned below:
+The system saves the state of some UI elements while the user works with them. Such elements are mentioned below:
 - **Table filters** - selected columns, conditions and values.
 - **Table columns** - sorting results, visibility and sequence.
 - **Left panel** for sections "Services", "Admin Tools", "Dev Tools" - expanded or collapsed view.
@@ -153,12 +153,12 @@ To reset saved configuration, click user icon ![user](img/user.svg) on top right
 ## Theme Settings
 <ins>Web UI</ins>
 
-To change the interface theme, click the user icon ![user](img/user.svg) at the top right of the screen, then click "Theme settings" and select one of the following options:
-- System (default) – automatically follows the theme of your operating system (light or dark mode).
-- Light – applies a bright background with dark text.
-- Dark – applies a dark background with light text.
-- HC – maximizes color contrast for better readability.
+To choose the interface theme, click the user icon ![user](img/user.svg) at the top right of the screen. The popup includes a **Theme** selector with the following options:
+- ![desktop](img/desktop.svg) – System (default); automatically follows the theme of your operating system (light or dark mode).
+- ![sun](img/sun.svg) – Light; applies a bright background with dark text.
+- ![moon](img/moon.svg)  – Dark; applies a dark background with light text.
+- ![eye](img/eye.svg)  – HC (high contrast); maximizes color contrast for better readability.
 
 <ins>VS Code Extension</ins>
 
-In the VS Code Extension, the interface theme cannot be changed separately. It automatically follows the theme currently selected in the Visual Studio Code.
+In the VS Code Extension, the interface theme cannot be changed separately. It automatically follows the theme selected in Visual Studio Code.

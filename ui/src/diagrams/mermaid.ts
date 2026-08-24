@@ -5,6 +5,7 @@ import {
   Participant,
   SequenceDiagram,
 } from "./model.ts";
+import { toDiagramIdentifier } from "./identifiers.ts";
 
 export function exportAsMermaid(diagram: SequenceDiagram): string {
   const lines: string[] = [];
@@ -26,7 +27,7 @@ export function exportAsMermaid(diagram: SequenceDiagram): string {
 }
 
 function exportParticipant(participant: Participant): string {
-  return `participant ${_escape(participant.id)} as ${_escape(participant.name ?? participant.id)};`;
+  return `participant ${escapeId(participant.id)} as ${_escape(participant.name ?? participant.id)};`;
 }
 
 function exportAction(
@@ -35,12 +36,12 @@ function exportAction(
 ): string[] {
   switch (action.type) {
     case "activate":
-      return [`activate ${_escape(action.participantId)};`];
+      return [`activate ${escapeId(action.participantId)};`];
     case "deactivate":
-      return [`deactivate ${_escape(action.participantId)};`];
+      return [`deactivate ${escapeId(action.participantId)};`];
     case "message":
       return [
-        `${_escape(action.fromId)} ${getArrow(action.arrowType)} ${_escape(action.toId)}${action.message ? ` : ${_escape(action.message)}` : ""};`,
+        `${escapeId(action.fromId)} ${getArrow(action.arrowType)} ${escapeId(action.toId)}${action.message ? ` : ${_escape(action.message)}` : ""};`,
       ];
     case "loop":
       return exportGroup(
@@ -88,7 +89,7 @@ function exportRect(
 ): string[] {
   return [
     "rect rgb(250, 250, 250);",
-    `note right of ${_escape(participantId)} : ${_escape(label ?? "")};`,
+    `note right of ${escapeId(participantId)} : ${_escape(label ?? "")};`,
     ...exportActions(actions, participantIdGetter),
     "end;",
   ];
@@ -146,6 +147,10 @@ function getArrow(arrowType: ArrowType): string {
     case "open-arrow-dotted":
       return "--)";
   }
+}
+
+function escapeId(text: string): string {
+  return toDiagramIdentifier(text);
 }
 
 function mustBeEscaped(c: string): boolean {

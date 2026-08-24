@@ -1,0 +1,142 @@
+package org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.element;
+
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
+import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
+import org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.element.helpers.MaasClassifierHelper;
+import org.qubership.integration.platform.chain.model.Chain;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.ServiceEnvironment;
+import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.util.ElementUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import javax.xml.stream.XMLStreamException;
+
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
+
+@Slf4j
+@Component
+public class AmpqBeansBinder implements ElementBeansBuilder {
+    private static final Set<String> RABBITMQ_ELEMENTS = Set.of(
+                CamelNames.RABBITMQ_SENDER_COMPONENT,
+                CamelNames.RABBITMQ_SENDER_2_COMPONENT,
+                CamelNames.RABBITMQ_TRIGGER_COMPONENT,
+                CamelNames.RABBITMQ_TRIGGER_2_COMPONENT
+        );
+
+    private final MaasClassifierHelper maasClassifierHelper;
+
+    @Autowired
+    public AmpqBeansBinder(
+            MaasClassifierHelper maasClassifierHelper
+    ) {
+        this.maasClassifierHelper = maasClassifierHelper;
+    }
+
+    @Override
+    public boolean applicableTo(Element element) {
+        String type = element.getType();
+        return RABBITMQ_ELEMENTS.contains(type)
+                || (
+                        Set.of(ASYNC_API_TRIGGER_COMPONENT, SERVICE_CALL_COMPONENT).contains(type)
+                        && OPERATION_PROTOCOL_TYPE_AMQP.equals(
+                                element.getProperties().get(OPERATION_PROTOCOL_TYPE_PROP))
+        );
+    }
+
+    @Override
+    public void build(XMLStreamWriter2 streamWriter, Element element, SourceBuilderContext context) throws Exception {
+        streamWriter.writeStartElement("bean");
+        streamWriter.writeAttribute("name", element.getId());
+        streamWriter.writeAttribute("type", "com.rabbitmq.client.MetricsCollector");
+        streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.util.builders.RabbitMQMetricsCollectorBuilder");
+        streamWriter.writeAttribute("builderMethod", "build");
+
+        streamWriter.writeStartElement("properties");
+
+        Chain chain = element.getSnapshot().map(Snapshot::getChain)
+            .orElseThrow(() -> new RuntimeException("Failed to get chain from snapshot"));
+
+        writePropertyElement(streamWriter, "chainId",  chain.getId());
+        writePropertyElement(streamWriter, "chainName",  chain.getName());
+        writePropertyElement(streamWriter, "elementId", element.getOriginalId().orElse(element.getId()));
+        writePropertyElement(streamWriter, "elementName", element.getName());
+
+        String maasClassifier = getMaasClassifier(element, context);
+        boolean useMaas = StringUtils.isNotBlank(maasClassifier);
+        if (useMaas) {
+            writePropertyElement(streamWriter, "maasClassifier", maasClassifier);
+        }
+
+        streamWriter.writeEndElement();
+        streamWriter.writeEndElement();
+
+        if (useMaas) {
+            addMaasClassifierInfoBean(streamWriter, element, context);
+        }
+    }
+
+    private void addMaasClassifierInfoBean(
+            XMLStreamWriter2 streamWriter,
+            Element element,
+            SourceBuilderContext context
+    ) throws XMLStreamException {
+        String maasClassifier = getMaasClassifier(element, context);
+
+        String namespace;
+        String tenantId;
+        String tenantEnabled;
+
+        if (RABBITMQ_ELEMENTS.contains(element.getType())) {
+            namespace = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_NAMESPACE))
+                    .map(Object::toString).orElse(null);
+            tenantId = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_TENANT_ID))
+                    .map(Object::toString).orElse(null);
+            tenantEnabled = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_TENANT_ENABLED))
+                    .map(Object::toString).orElse("false");
+        } else { // Async API Trigger and Service Call elements
+            // The element's own async properties decide; the active environment fills in what they leave unset,
+            // which is where the scope around an async classifier actually lives.
+            Map<String, Object> own = ElementUtils.extractOperationAsyncProperties(element.getProperties());
+            Map<String, Object> environment = element.getEnvironment()
+                    .map(ServiceEnvironment::getProperties).orElseGet(Map::of);
+            namespace = asyncScope(own, environment, CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP, null);
+            tenantId = asyncScope(own, environment, CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME, null);
+            tenantEnabled = asyncScope(own, environment, CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME, "false");
+        }
+        maasClassifierHelper.addMaasClassifierInfoBean(
+                streamWriter,
+                element,
+                OPERATION_PROTOCOL_TYPE_AMQP,
+                maasClassifier,
+                namespace,
+                tenantId,
+                tenantEnabled
+        );
+    }
+
+    private String getMaasClassifier(Element element, SourceBuilderContext context) {
+        return RABBITMQ_ELEMENTS.contains(element.getType())
+            ? maasClassifierHelper.getMaasClassifierForAmpqElement(element)
+            : maasClassifierHelper.getMaasClassifierForServiceCallOrAsyncApiElement(
+                    element, context.getIntegrationServiceCatalog());
+    }
+
+    private static String asyncScope(Map<String, Object> own, Map<String, Object> environment, String key, String fallback) {
+        Object value = own.get(key);
+        if (value == null) {
+            value = environment.get(key);
+        }
+        return value == null ? fallback : value.toString();
+    }
+}

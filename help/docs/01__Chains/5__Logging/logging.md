@@ -4,7 +4,7 @@
 ## Description
 
 ---
-This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed.Next main capabilities are available:
+This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed. Next main capabilities are available:
 - Configure logging settings and apply them in runtime.
 - Apply logging masking for specific parameters in order to protect the data from unauthorized access.
 
@@ -12,11 +12,11 @@ Please refer to the diagram below, that represents architecture on the high leve
 
 ![loggingSettings](img/loggingSettings.svg)
 
-| #   | Description                                                                                                                                                                                                                                                                                     |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Consul data is being cached in the QIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                            |
-| 2   | Either Consul's data or default (pre-configured set of logging settings in Qubership Integration Platform itself) will be used by the Engine while maintaining the chain. Selected way will depend on the availability of the settings data in the Consul (this data has the highest priority). |
-| 3   | Custom logging settings might be applied and pushed to the Consul via Qubership Integration Platform User Interface.                                                                                                                                                                            |
+| # | Description                                                                                                                                                                                                                                                                                     |
+|---|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | Consul data is being cached in the QIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                            |
+| 2 | Either Consul's data or default (pre-configured set of logging settings in Qubership Integration Platform itself) will be used by the Engine while maintaining the chain. Selected way will depend on the availability of the settings data in the Consul (this data has the highest priority). |
+| 3 | Custom logging settings might be applied and pushed to the Consul via Qubership Integration Platform User Interface.                                                                                                                                                                            |
 
 ## User Interface
 
@@ -35,17 +35,24 @@ Qubership Integration Platform will apply its own default hardcoded option and n
 - **Sessions Level** - level of logs for chain [sessions](../../01__Chains/4__Sessions/sessions.md). Possible values:
   - **Off** _(Default value)_ - logging is fully turned off.
   - **Error** - only sessions failed with errors are going to be logged. If failed elements are part of sub-chain(s), session will also show Chain Call(s) to maintain proper structure.
-  This level of logging has low affect on performance, as it handles only failed sessions and considers writing the data, related to the failed element only. Memory and storage capacity consumption is also considered to be on low level.
-  - **Info** - only completed inbound/outbound communications, as well as failed sessions are going to be logged. When mentioned elements are part of sub-chain(s), session will also contain Chain Call(s) to maintain proper structure. This level of logging has medium affect on performance in general, as well as on memory and storage capacity consumption.
+  This level of logging has a low effect on performance, as it handles only failed sessions and considers writing the data, related to the failed element only. Memory and storage capacity consumption is also considered to be on low level.
+  - **Info** - only completed inbound/outbound communications, as well as failed sessions are going to be logged. When mentioned elements are part of sub-chain(s), session will also contain Chain Call(s) to maintain proper structure. This level of logging has a medium effect on performance in general, as well as on memory and storage capacity consumption.
   - **Debug** - all available parameters will be logged: session status, status of each chain element, headers, body (request and response). This level of logging _drastically_ increases the consumption of memory and storage capacity, as well as negatively affects the performance in general, hence shall be used carefully.
 
 > ℹ️ **Note:** You can also log a particular transaction with a **Debug** session level by sending **"TraceMe"** header with "true" value in the HTTP request, which will make all available session parameters logged at **Debug level**, regardless of the current state of chain's logging settings.
 
 - **Log Level** - supported log levels. For proper logging, it should not be higher than logging level, globally specified for microservice. Possible values:
   - **Error** _(Default value)_ - logging of Integrations with Exceptions. Log levels - ERROR, FATAL.
-  - **Warning** - logging of Integrations with Warnings. Log level - WARNINNG, ERROR, FATAL.
+  - **Warning** - logging of Integrations with Warnings. Log level - WARNING, ERROR, FATAL.
   - **Info** - log only external communications (sending and receiving external messages by any protocol, incoming and outgoing). Used for investigation of production incidents.
 - **Log Payload** - controls payload parts, which must be logged: Headers, Properties, Body. If nothing is selected - no payload data will be logged.
+
+> ⚠️ **Warning:** Log format and maximum size of logged headers, body, and exchange properties are configurable before installation:
+> - Log format options: _json_ or _plain text_.
+> - When logged content exceeds the configured size limit, it is truncated and appended with `...`.
+>
+> Contact your system administrator for the values configured in the environment.
+
 - **Produce DPT Events** - based on selected option, system either sends DPT events or not:
   - **checked** - deployed chain will be publishing events to DPT (Distributed Process Tracing and Monitoring system).
   - **unchecked** _(Default value)_ - no events will be published to DPT.

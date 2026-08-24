@@ -6,13 +6,13 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.qubership.integration.platform.parsers.impl.WsdlSpecificationParser;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersionParser;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.TypedOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ProtocolExtractionService;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.CorpusTestSupport;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.impl.WSDLSpecificationParser;
-import org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl.WsdlVersionParser;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ class TypedOperationBackfillParityTest {
     // Task 1's TypedOperationTest, not by this gate.
     private final TypedOperationBackfill backfill = new TypedOperationBackfill(
             protocolExtractionService,
-            new WSDLSpecificationParser(null, null, null, wsdlVersionParser, null, null));
+            new WsdlSpecificationParser(new WsdlVersionParser(javax.xml.parsers.SAXParserFactory.newInstance())));
 
     @Test
     void corpusExposesAllThirtyEightOperations() throws IOException {

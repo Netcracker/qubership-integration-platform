@@ -3,12 +3,13 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_GROUPS;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil.renameField;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_GROUPS;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
+import static org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil.renameField;
 
 /**
  * Renames the inline group list on a legacy (pre-multi-file) service document from
@@ -21,7 +22,7 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
  * the discriminator then sees an empty list and the import takes the multi-file branch instead of the legacy one.
  *
  * <p>Service, group, and model documents all run through the same migration list; a group or model document has no
- * {@code content.specificationGroups} field, so {@link org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil#renameField}
+ * {@code content.specificationGroups} field, so {@link org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil#renameField}
  * leaves them untouched.
  */
 @Slf4j

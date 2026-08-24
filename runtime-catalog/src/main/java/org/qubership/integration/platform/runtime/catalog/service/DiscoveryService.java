@@ -64,8 +64,8 @@ import java.util.stream.Collectors;
 
 import static io.swagger.v3.parser.util.DeserializationUtils.isJson;
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType.MAAS_BY_CLASSIFIER;
-import static org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType.MANUAL;
+import static org.qubership.integration.platform.chain.model.EnvironmentSourceType.MAAS_BY_CLASSIFIER;
+import static org.qubership.integration.platform.chain.model.EnvironmentSourceType.MANUAL;
 import static org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType.INTERNAL;
 import static org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource.DISCOVERED;
 

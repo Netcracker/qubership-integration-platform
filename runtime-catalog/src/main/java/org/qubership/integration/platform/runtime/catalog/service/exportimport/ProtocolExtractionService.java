@@ -22,10 +22,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersion;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersionParser;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.model.system.WsdlVersion;
-import org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl.WsdlVersionParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -37,7 +37,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser.SPECIFICATION_FILE_PROCESSING_ERROR;
+import static org.qubership.integration.platform.parsers.SpecificationParser.SPECIFICATION_FILE_PROCESSING_ERROR;
 
 
 @Slf4j

@@ -3,15 +3,15 @@ package org.qubership.integration.platform.runtime.catalog.service.extractor;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.parsers.SpecificationParserException;
+import org.qubership.integration.platform.parsers.impl.AsyncapiSpecificationParser;
+import org.qubership.integration.platform.parsers.impl.GraphqlSpecificationParser;
+import org.qubership.integration.platform.parsers.impl.ProtobufSpecificationParser;
+import org.qubership.integration.platform.parsers.impl.SwaggerSpecificationParser;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.impl.AsyncapiSpecificationParser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.impl.GraphqlSpecificationParser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.impl.ProtobufSpecificationParser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.impl.SwaggerSpecificationParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +38,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class OperationSchemaExtractor {
+
+    private static final String SPECIFICATION_FILE_PROCESSING_ERROR =
+            "An error occurred during parsing specification file";
 
     private static final String SYNTHETIC_SOURCE_NAME = "source.proto";
     private static final int KEYS_TO_DESCRIBE = 10;
@@ -126,7 +130,7 @@ public class OperationSchemaExtractor {
         if (hasNoSchemaExtraction(protocol) || lacksParseableSource(sources, protocol)) {
             return EMPTY_SCHEMAS;
         }
-        List<Operation> operations = parseDocument(sources, protocol, true);
+        List<ParsedOperation> operations = parseDocument(sources, protocol, true);
         return toExtractedSchemas(matchOperation(operations, path, method));
     }
 
@@ -150,7 +154,7 @@ public class OperationSchemaExtractor {
         }
         Map<OperationKey, ExtractedSchemas> schemasByOperation = new HashMap<>();
         Set<OperationKey> ambiguousKeys = new HashSet<>();
-        for (Operation operation : parseDocument(sources, protocol, withSchemas)) {
+        for (ParsedOperation operation : parseDocument(sources, protocol, withSchemas)) {
             OperationKey key = OperationKey.of(operation.getPath(), operation.getMethod());
             if (schemasByOperation.put(key, toExtractedSchemas(operation)) != null) {
                 ambiguousKeys.add(key);
@@ -166,22 +170,58 @@ public class OperationSchemaExtractor {
 
     // Parses on the request thread, inside the caller's read-only transaction, with no size cap: every parser core
     // wraps its failures in SpecificationImportException, so a bad source costs one parse and degrades to null schemas.
-    private List<Operation> parseDocument(
+    private List<ParsedOperation> parseDocument(
             List<SpecificationSource> sources, OperationProtocol protocol, boolean withSchemas) {
-        String rawSource = SpecificationParser.mainSourceText(sources);
+        List<org.qubership.integration.platform.parsers.SpecificationSource> librarySources = toLibrarySources(sources);
+        Consumer<String> silent = message -> { };
+        try {
+            return parseWithLibrary(protocol, librarySources, silent);
+        } catch (SpecificationParserException e) {
+            // The read path answers with the catalog's import-facing exception, the same one the import path
+            // surfaces, so a caller has one type to degrade on rather than two.
+            throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+        }
+    }
+
+    private List<ParsedOperation> parseWithLibrary(
+            OperationProtocol protocol,
+            List<org.qubership.integration.platform.parsers.SpecificationSource> librarySources,
+            Consumer<String> silent) {
         return switch (protocol) {
-            case HTTP -> swaggerSpecificationParser.parseOperations(rawSource, withSchemas, message -> { });
-            case AMQP, KAFKA -> asyncapiSpecificationParser.parseOperations(rawSource, protocol, withSchemas);
-            case GRAPHQL -> graphqlSpecificationParser.parseOperations(rawSource);
-            case GRPC -> protobufSpecificationParser.parseOperations(sources, withSchemas);
+            case HTTP -> swaggerSpecificationParser.parseSpecification(null, librarySources, silent).getOperations();
+            case AMQP, KAFKA -> asyncapiSpecificationParser.parseSpecification(null, librarySources, silent).getOperations();
+            case GRAPHQL -> graphqlSpecificationParser.parseSpecification(null, librarySources, silent).getOperations();
+            case GRPC -> protobufSpecificationParser.parseSpecification(null, librarySources, silent).getOperations();
             default -> List.of(); // SOAP/METAMODEL never reach here: filtered out by hasNoSchemaExtraction above
         };
+    }
+
+    // The library parsers read their own source type and always build schemas; `withSchemas` no longer changes
+    // the parse, only whether the caller keeps what came back.
+    private static List<org.qubership.integration.platform.parsers.SpecificationSource> toLibrarySources(
+            List<SpecificationSource> sources) {
+        return sources == null ? List.of() : sources.stream()
+                .map(source -> new org.qubership.integration.platform.parsers.SpecificationSource(
+                        source.getName(), source.getSource(), source.isMainSource()))
+                .toList();
+    }
+
+    private static String mainSourceText(List<SpecificationSource> sources) {
+        if (sources == null) {
+            return null;
+        }
+        return sources.stream()
+                .filter(SpecificationSource::isMainSource)
+                .findFirst()
+                .or(() -> sources.stream().findFirst())
+                .map(SpecificationSource::getSource)
+                .orElse(null);
     }
 
     // A blank main source (no content to parse) degrades to EMPTY_SCHEMAS up front instead of handing a
     // null/blank string to a parser. Protobuf is exempt: it parses every source, not just the main one.
     private static boolean lacksParseableSource(List<SpecificationSource> sources, OperationProtocol protocol) {
-        return protocol != OperationProtocol.GRPC && StringUtils.isBlank(SpecificationParser.mainSourceText(sources));
+        return protocol != OperationProtocol.GRPC && StringUtils.isBlank(mainSourceText(sources));
     }
 
     private static void requireProtocol(OperationProtocol protocol) {
@@ -205,15 +245,15 @@ public class OperationSchemaExtractor {
         return protocol == OperationProtocol.SOAP || protocol == OperationProtocol.METAMODEL;
     }
 
-    private static ExtractedSchemas toExtractedSchemas(Operation operation) {
+    private static ExtractedSchemas toExtractedSchemas(ParsedOperation operation) {
         return new ExtractedSchemas(
                 operation.getSpecification(),
                 operation.getRequestSchema(),
                 operation.getResponseSchemas());
     }
 
-    private static Operation matchOperation(List<Operation> operations, String path, String method) {
-        List<Operation> byPathAndMethod = operations.stream()
+    private static ParsedOperation matchOperation(List<ParsedOperation> operations, String path, String method) {
+        List<ParsedOperation> byPathAndMethod = operations.stream()
                 .filter(operation -> Objects.equals(operation.getPath(), path)
                         && method != null
                         && method.equalsIgnoreCase(operation.getMethod()))

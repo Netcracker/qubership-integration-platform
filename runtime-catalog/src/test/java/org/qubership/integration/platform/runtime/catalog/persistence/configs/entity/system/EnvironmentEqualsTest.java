@@ -3,8 +3,8 @@ package org.qubership.integration.platform.runtime.catalog.persistence.configs.e
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 
 import java.util.ArrayList;
 import java.util.List;

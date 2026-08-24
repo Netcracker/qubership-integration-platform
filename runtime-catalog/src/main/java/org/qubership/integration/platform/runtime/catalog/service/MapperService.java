@@ -17,9 +17,9 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.mapper.MappingInterpretation;
-import org.qubership.integration.platform.runtime.catalog.mapper.MappingInterpreter;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
+import org.qubership.integration.platform.mapper.build.MappingInterpretation;
+import org.qubership.integration.platform.mapper.build.MappingInterpreter;
+import org.qubership.integration.platform.mapper.model.mapping.MappingDescription;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

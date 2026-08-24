@@ -48,6 +48,17 @@ function makeChain(
   } as unknown as Chain;
 }
 
+// A composite block is kept only when it holds at least one step.
+function makeStep(id: string, parentElementId: string): Element {
+  return makeElement({
+    id,
+    name: `Step ${id}`,
+    type: "sftp-upload",
+    parentElementId,
+    properties: { connectUrl: "sftp://host", fileName: `${id}.txt` } as never,
+  });
+}
+
 function collectMessages(actions: unknown[]): string[] {
   const messages: string[] = [];
   for (const action of actions) {
@@ -127,6 +138,7 @@ describe("buildSequenceDiagram", () => {
         name: "My Loop",
         type: "loop-2",
         properties: { expression: "item.count > 0" } as never,
+        children: [makeStep("loop-step-1", "loop-1")],
       });
       const chain = makeChain(
         [trigger, loop],
@@ -138,7 +150,7 @@ describe("buildSequenceDiagram", () => {
       const loopAction = diagram.actions
         .flatMap((a) => {
           const act = a as Record<string, unknown>;
-          return act.actions ? (act.actions) : [a];
+          return act.actions ? act.actions : [a];
         })
         .find((a) => (a as Record<string, unknown>).type === "loop") as
         | Record<string, unknown>
@@ -158,6 +170,7 @@ describe("buildSequenceDiagram", () => {
         name: "My Loop",
         type: "loop-2",
         properties: { maxLoopIteration: 1500 } as never,
+        children: [makeStep("loop-step-1", "loop-1")],
       });
       const chain = makeChain(
         [trigger, loop],
@@ -169,7 +182,7 @@ describe("buildSequenceDiagram", () => {
       const loopAction = diagram.actions
         .flatMap((a) => {
           const act = a as Record<string, unknown>;
-          return act.actions ? (act.actions) : [a];
+          return act.actions ? act.actions : [a];
         })
         .find((a) => (a as Record<string, unknown>).type === "loop") as
         | Record<string, unknown>
@@ -558,6 +571,23 @@ describe("buildSequenceDiagram", () => {
         type: "http-trigger",
         properties: { contextPath: "/test" } as never,
       });
+      const ifStep = makeElement({
+        id: "if-step-1",
+        name: "If step",
+        type: "sftp-upload",
+        parentElementId: "if-1",
+        properties: { connectUrl: "sftp://host", fileName: "if.txt" } as never,
+      });
+      const elseStep = makeElement({
+        id: "else-step-1",
+        name: "Else step",
+        type: "sftp-upload",
+        parentElementId: "else-1",
+        properties: {
+          connectUrl: "sftp://host",
+          fileName: "else.txt",
+        } as never,
+      });
       const condition = makeElement({
         id: "cond-1",
         name: "Condition",
@@ -569,12 +599,14 @@ describe("buildSequenceDiagram", () => {
             type: "if",
             parentElementId: "cond-1",
             properties: { condition: "x > 0" } as never,
+            children: [ifStep],
           }),
           makeElement({
             id: "else-1",
             name: "Else",
             type: "else",
             parentElementId: "cond-1",
+            children: [elseStep],
           }),
         ],
       });
@@ -604,6 +636,83 @@ describe("buildSequenceDiagram", () => {
       const branches = alt!.branches as Record<string, unknown>[];
       expect(branches.length).toBe(2);
       expect(branches[0].label as string).toContain("on condition x > 0");
+    });
+  });
+
+  describe("Composite blocks without steps", () => {
+    const findByType = (
+      actions: unknown[],
+      type: string,
+    ): Record<string, unknown> | undefined => {
+      for (const a of actions) {
+        const act = a as Record<string, unknown>;
+        if (act.type === type) return act;
+        if (act.actions) {
+          const found = findByType(act.actions as unknown[], type);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
+    it("should drop the alternatives block when every branch is empty", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const condition = makeElement({
+        id: "cond-1",
+        name: "Condition",
+        type: "condition",
+        children: [
+          makeElement({
+            id: "if-1",
+            name: "If",
+            type: "if",
+            parentElementId: "cond-1",
+            properties: { condition: "x > 0" } as never,
+          }),
+          makeElement({
+            id: "else-1",
+            name: "Else",
+            type: "else",
+            parentElementId: "cond-1",
+          }),
+        ],
+      });
+      const chain = makeChain(
+        [trigger, condition],
+        [{ from: "trigger-1", to: "cond-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(findByType(diagram.actions, "alternatives")).toBeUndefined();
+    });
+
+    it("should drop the loop block when it has no steps", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const loop = makeElement({
+        id: "loop-1",
+        name: "My Loop",
+        type: "loop-2",
+        properties: { expression: "item.count > 0" } as never,
+      });
+      const chain = makeChain(
+        [trigger, loop],
+        [{ from: "trigger-1", to: "loop-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(findByType(diagram.actions, "loop")).toBeUndefined();
     });
   });
 
@@ -678,6 +787,102 @@ describe("buildSequenceDiagram", () => {
 
       const messages = collectMessages(diagram.actions);
       expect(messages.some((m) => m === "Inner Script")).toBe(true);
+    });
+  });
+
+  describe("Participants of elements without steps", () => {
+    it("should not create a participant when the element is not reachable from a trigger", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const unreachable = makeElement({
+        id: "sftp-1",
+        name: "SFTP Upload",
+        type: "sftp-upload",
+        properties: { connectUrl: "sftp://host", fileName: "x.txt" } as never,
+      });
+      const chain = makeChain([trigger, unreachable]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(
+        diagram.participants.some((p) => p.id.includes("sftp://host")),
+      ).toBe(false);
+    });
+
+    it("should not create a participant when no reference points at the reuse", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const reuseChild = makeElement({
+        id: "child-1",
+        name: "Inner SFTP",
+        type: "sftp-upload",
+        parentElementId: "reuse-1",
+        properties: { connectUrl: "sftp://unused", fileName: "x.txt" } as never,
+      });
+      const reuse = makeElement({
+        id: "reuse-1",
+        name: "Reuse",
+        type: "reuse",
+        children: [reuseChild],
+      });
+      const chain = makeChain([trigger, reuse, reuseChild]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(
+        diagram.participants.some((p) => p.id.includes("sftp://unused")),
+      ).toBe(false);
+    });
+
+    it("should keep the chain participant when the chain has no steps", async () => {
+      const chain = makeChain([]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(diagram.participants.map((p) => p.id)).toEqual(["chain-1"]);
+    });
+  });
+
+  describe("Trigger inside a group container", () => {
+    it("should build steps when the trigger is wrapped in a container", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        parentElementId: "container-1",
+        properties: { contextPath: "/test" } as never,
+      });
+      const sftp = makeElement({
+        id: "sftp-1",
+        name: "SFTP Upload",
+        type: "sftp-upload",
+        parentElementId: "container-1",
+        properties: { connectUrl: "sftp://host", fileName: "x.txt" } as never,
+      });
+      const container = makeElement({
+        id: "container-1",
+        name: "Container",
+        type: "container",
+        children: [trigger, sftp],
+      });
+      const chain = makeChain(
+        [container],
+        [{ from: "trigger-1", to: "sftp-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(messages.some((m) => m.includes("/test"))).toBe(true);
+      expect(messages.some((m) => m.includes("x.txt"))).toBe(true);
     });
   });
 
@@ -1100,12 +1305,14 @@ describe("buildSequenceDiagram", () => {
             type: "when",
             parentElementId: "choice-1",
             properties: { condition: "a == 1" } as never,
+            children: [makeStep("when-step-1", "when-1")],
           }),
           makeElement({
             id: "otherwise-1",
             name: "Otherwise",
             type: "otherwise",
             parentElementId: "choice-1",
+            children: [makeStep("otherwise-step-1", "otherwise-1")],
           }),
         ],
       });
@@ -1158,6 +1365,7 @@ describe("buildSequenceDiagram", () => {
             name: "Try",
             type: "try",
             parentElementId: "tcf-1",
+            children: [makeStep("try-step-1", "try-1")],
           }),
           makeElement({
             id: "catch-1",
@@ -1165,12 +1373,14 @@ describe("buildSequenceDiagram", () => {
             type: "catch",
             parentElementId: "tcf-1",
             properties: { exception: "java.lang.Exception" } as never,
+            children: [makeStep("catch-step-1", "catch-1")],
           }),
           makeElement({
             id: "finally-1",
             name: "Finally",
             type: "finally",
             parentElementId: "tcf-1",
+            children: [makeStep("finally-step-1", "finally-1")],
           }),
         ],
       });
@@ -1205,6 +1415,107 @@ describe("buildSequenceDiagram", () => {
     });
   });
 
+  describe("Branch order", () => {
+    const findBranchLabels = (actions: unknown[]): string[] | undefined => {
+      for (const a of actions) {
+        const act = a as Record<string, unknown>;
+        if (act.branches) {
+          return (act.branches as Record<string, unknown>[]).map(
+            (b) => b.label as string,
+          );
+        }
+        if (act.actions) {
+          const found = findBranchLabels(act.actions as unknown[]);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
+    it("should order try, catch and finally when the children arrive shuffled", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const branch = (id: string, name: string, type: string) =>
+        makeElement({
+          id,
+          name,
+          type,
+          parentElementId: "tcf-1",
+          children: [makeStep(`${id}-step`, id)],
+        });
+      const tcf = makeElement({
+        id: "tcf-1",
+        name: "Try Catch Finally",
+        type: "try-catch-finally-2",
+        children: [
+          branch("finally-1", "Finally", "finally-2"),
+          branch("catch-1", "Catch", "catch-2"),
+          branch("try-1", "Try", "try-2"),
+        ],
+      });
+      const chain = makeChain(
+        [trigger, tcf],
+        [{ from: "trigger-1", to: "tcf-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const labels = findBranchLabels(diagram.actions);
+      expect(labels?.[0]).toBe("Try");
+      expect(labels?.[1]).toContain("Catch");
+      expect(labels?.[2]).toBe("Finally");
+    });
+
+    it("should sort if branches by priority and keep else last", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const ifBranch = (id: string, name: string, priority: number) =>
+        makeElement({
+          id,
+          name,
+          type: "if",
+          parentElementId: "cond-1",
+          properties: { condition: "x > 0", priority } as never,
+          children: [makeStep(`${id}-step`, id)],
+        });
+      const condition = makeElement({
+        id: "cond-1",
+        name: "Condition",
+        type: "condition",
+        children: [
+          makeElement({
+            id: "else-1",
+            name: "Else",
+            type: "else",
+            parentElementId: "cond-1",
+            children: [makeStep("else-step", "else-1")],
+          }),
+          ifBranch("if-2", "Second", 1),
+          ifBranch("if-1", "First", 0),
+        ],
+      });
+      const chain = makeChain(
+        [trigger, condition],
+        [{ from: "trigger-1", to: "cond-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const labels = findBranchLabels(diagram.actions);
+      expect(labels?.[0]).toContain("First");
+      expect(labels?.[1]).toContain("Second");
+      expect(labels?.[2]).toBe("Else");
+    });
+  });
+
   describe("Split Async", () => {
     it("should create parallel branches", async () => {
       const trigger = makeElement({
@@ -1218,12 +1529,14 @@ describe("buildSequenceDiagram", () => {
         name: "Async Split Element",
         type: "async-split-element-2",
         parentElementId: "sa-1",
+        children: [makeStep("ac-step-1", "ac-1")],
       });
       const asyncChild2 = makeElement({
         id: "ac-2",
         name: "Async Split Element",
         type: "async-split-element-2",
         parentElementId: "sa-1",
+        children: [makeStep("ac-step-2", "ac-2")],
       });
       const splitAsync = makeElement({
         id: "sa-1",
@@ -1395,12 +1708,14 @@ describe("buildSequenceDiagram", () => {
         type: "circuit-breaker-configuration-2",
         parentElementId: "cb-1",
         properties: { failureRateThreshold: 50 } as never,
+        children: [makeStep("cb-step-1", "cb-config-1")],
       });
       const onFallback = makeElement({
         id: "fb-1",
         name: "On fallback",
         type: "on-fallback-2",
         parentElementId: "cb-1",
+        children: [makeStep("fb-step-1", "fb-1")],
       });
       const cb = makeElement({
         id: "cb-1",

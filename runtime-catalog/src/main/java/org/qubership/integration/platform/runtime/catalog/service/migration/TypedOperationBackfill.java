@@ -2,6 +2,9 @@ package org.qubership.integration.platform.runtime.catalog.service.migration;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.parsers.SpecificationSource;
+import org.qubership.integration.platform.parsers.impl.WsdlSpecificationParser;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.AsyncapiOperation;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.GraphqlOperation;
@@ -12,10 +15,11 @@ import org.qubership.integration.platform.runtime.catalog.model.system.typed.Wsd
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ProtocolExtractionService;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.impl.WSDLSpecificationParser;
+import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +38,7 @@ import java.util.Map;
  * collaborators; pass nulls when only that path is used (the Flyway migration).
  */
 @Slf4j
+@Component
 public class TypedOperationBackfill {
 
     private static final String ID_FIELD = "$id";
@@ -42,10 +47,10 @@ public class TypedOperationBackfill {
     private static final String GRAPHQL_OPERATION_FIELD = "operation";
 
     private final ProtocolExtractionService protocolExtractionService;
-    private final WSDLSpecificationParser wsdlSpecificationParser;
+    private final WsdlSpecificationParser wsdlSpecificationParser;
 
     public TypedOperationBackfill(ProtocolExtractionService protocolExtractionService,
-                                  WSDLSpecificationParser wsdlSpecificationParser) {
+                                  WsdlSpecificationParser wsdlSpecificationParser) {
         this.protocolExtractionService = protocolExtractionService;
         this.wsdlSpecificationParser = wsdlSpecificationParser;
     }
@@ -147,12 +152,26 @@ public class TypedOperationBackfill {
         return incompleteModelIds;
     }
 
+    // The library parser records the SOAP protocol and binding in each operation's specification node, so a
+    // reparse recovers both without a catalog-side WSDL API. Rows the Flyway migration passes carry no source
+    // and keep the "SOAP"/null fallback until their next import.
     private Map<String, WsdlOperation> reparseWsdlTypedByName(String rawSource) {
         if (rawSource == null) {
             return Map.of();
         }
         try {
-            return wsdlSpecificationParser.reparseTypedOperations(rawSource);
+            List<ParsedOperation> operations = wsdlSpecificationParser
+                    .parseSpecification(null, List.of(new SpecificationSource(null, rawSource, true)), message -> { })
+                    .getOperations();
+            Map<String, WsdlOperation> typedByName = new HashMap<>();
+            for (ParsedOperation operation : operations) {
+                if (operation.getName() != null) {
+                    typedByName.put(operation.getName(), new WsdlOperation(
+                            text(operation.getSpecification(), "protocol"),
+                            text(operation.getSpecification(), "binding")));
+                }
+            }
+            return typedByName;
         } catch (Exception e) {
             log.warn("Unable to reparse WSDL source", e);
             return Map.of();

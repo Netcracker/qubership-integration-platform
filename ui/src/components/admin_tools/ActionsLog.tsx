@@ -1,6 +1,5 @@
 import {
   ActionLog,
-  ActionLogFilterRequest,
   EntityType,
   LogOperation,
 } from "../../api/apiTypes.ts";
@@ -22,13 +21,6 @@ import {
 } from "../../misc/format-utils.ts";
 import DateRangePicker from "../modal/DateRangePicker.tsx";
 import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
-import type {
-  FilterDropdownProps,
-  FilterValue,
-} from "antd/lib/table/interface";
-import { TextColumnFilterDropdown } from "../table/TextColumnFilterDropdown.tsx";
-import { TimestampColumnFilterDropdown } from "../table/TimestampColumnFilterDropdown.tsx";
-import { makeEnumColumnFilterDropdown } from "../EnumColumnFilterDropdown.tsx";
 import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import commonStyles from "./CommonStyle.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -43,42 +35,10 @@ import {
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
 import { matchesByFields } from "../table/tableSearch.ts";
-import { convertTableFiltersToApi } from "../../misc/action-log-filter-utils.ts";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
-
-const TextFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
-  <TextColumnFilterDropdown {...props} />
-);
-const TimestampFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
-  <TimestampColumnFilterDropdown {...props} />
-);
-
-const operationFilterOptions = Object.values(LogOperation).map((value) => ({
-  label: formatSnakeCased(capitalize(value)),
-  value,
-}));
-
-// `capitalize` lowercases everything after the first letter, so an acronym renders as "Api group" without an
-// override. Values whose default formatting reads wrong are listed here.
-const ENTITY_TYPE_LABELS: Partial<Record<EntityType, string>> = {
-  [EntityType.API_GROUP]: "API group",
-};
-
-export function formatEntityType(value: EntityType): string {
-  return ENTITY_TYPE_LABELS[value] ?? formatSnakeCased(capitalize(value));
-}
-
-const entityTypeFilterOptions = Object.values(EntityType).map((value) => ({
-  label: formatEntityType(value),
-  value,
-}));
-
-const { filterDropdown: OPERATION_FILTER_DROPDOWN } =
-  makeEnumColumnFilterDropdown(operationFilterOptions, "operation", true);
-
-const { filterDropdown: ENTITY_TYPE_FILTER_DROPDOWN } =
-  makeEnumColumnFilterDropdown(entityTypeFilterOptions, "entityType", true);
+import { useActionLogFilter } from "../../hooks/useActionLogFilter.ts";
+import { formatEntityType } from "../../misc/entityTypeLabels.ts";
 
 export enum OperationType {
   READ = "read",
@@ -199,7 +159,7 @@ function actionLogMatchesSearch(log: ActionLog, term: string): boolean {
 }
 
 export const ActionsLog: React.FC = () => {
-  const [apiFilters, setApiFilters] = useState<ActionLogFilterRequest[]>([]);
+  const { filters, filterButton } = useActionLogFilter();
   const {
     logsData,
     fetchNextPage,
@@ -207,7 +167,7 @@ export const ActionsLog: React.FC = () => {
     isFetching,
     isLoading,
     refresh,
-  } = useActionLog(apiFilters);
+  } = useActionLog(filters);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentActionLog, setCurrentActionLog] = useState<ActionLog | null>(
     null,
@@ -231,13 +191,6 @@ export const ActionsLog: React.FC = () => {
     if (movedVertically && hasNextPage && !isFetching && isScrolledToTheEnd) {
       await fetchNextPage();
     }
-  };
-
-  const handleTableChange = (
-    _pagination: unknown,
-    tableFilters: Record<string, FilterValue | null>,
-  ) => {
-    setApiFilters(convertTableFiltersToApi(tableFilters));
   };
 
   const [containerRef, containerHeight] = useResizeHeight<HTMLElement>();
@@ -361,7 +314,6 @@ export const ActionsLog: React.FC = () => {
         },
         width: actionLogColumnResize.columnWidths.actionTime,
         sorter: (a: ActionLog, b: ActionLog) => b.actionTime - a.actionTime,
-        filterDropdown: TimestampFilterDropdown,
         render: (_, actionLog) => <>{formatTimestamp(actionLog.actionTime)}</>,
       },
       {
@@ -369,14 +321,12 @@ export const ActionsLog: React.FC = () => {
         key: "username",
         dataIndex: "username",
         width: actionLogColumnResize.columnWidths.username,
-        filterDropdown: TextFilterDropdown,
       },
       {
         title: "Operation",
         key: "operation",
         dataIndex: "operation",
         width: actionLogColumnResize.columnWidths.operation,
-        filterDropdown: OPERATION_FILTER_DROPDOWN,
         render: (_, actionLog) => (
           <>
             <Badge
@@ -392,7 +342,6 @@ export const ActionsLog: React.FC = () => {
         key: "entityType",
         dataIndex: "entityType",
         width: actionLogColumnResize.columnWidths.entityType,
-        filterDropdown: ENTITY_TYPE_FILTER_DROPDOWN,
         render: (_, actionLog) => (
           <>
             {getIconByEntityType(actionLog.entityType)}
@@ -405,7 +354,6 @@ export const ActionsLog: React.FC = () => {
         key: "entityName",
         dataIndex: "entityName",
         width: actionLogColumnResize.columnWidths.entityName,
-        filterDropdown: TextFilterDropdown,
         render: (_, actionLog) =>
           renderEntityLink(
             actionLog,
@@ -417,7 +365,6 @@ export const ActionsLog: React.FC = () => {
         key: "parentName",
         dataIndex: "parentName",
         width: actionLogColumnResize.columnWidths.parentName,
-        filterDropdown: TextFilterDropdown,
         render: (_, actionLog) =>
           renderParentLink(
             actionLog,
@@ -506,6 +453,7 @@ export const ActionsLog: React.FC = () => {
         allowClear: true,
       }}
       columnSettingsButton={columnSettingsButton}
+      filterButton={filterButton}
       actions={
         <>
           <Tooltip title="Refresh" placement="bottom">
@@ -619,7 +567,6 @@ export const ActionsLog: React.FC = () => {
               pagination={false}
               rowKey="id"
               loading={isFetching}
-              onChange={handleTableChange}
               onScroll={(event) => void onScroll(event)}
               components={actionLogColumnResize.resizableHeaderComponents}
               onRow={(row) => {

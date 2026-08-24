@@ -9,11 +9,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
+import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiOperationDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecification;
@@ -33,10 +36,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.MCPServiceDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.RevertMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.TestRevertMigrations;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.ExtractorTestParsers;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
@@ -253,15 +253,20 @@ class ServiceSerializerTest {
                 "the unmatched key is named, not just counted: " + event.getFormattedMessage());
     }
 
-    /** The legacy file is the one that still needs schemas, so its export is what may pay for materializing them. */
+    /**
+     * The legacy file is the one that still carries schemas, so its export is where they have to be rebuilt.
+     * The library parsers always produce them, so the observable guarantee is the document, not the call.
+     */
     @Test
-    void legacyExportAsksTheParserForSchemas() {
-        ExtractorTestParsers.RecordingSwaggerParser parser = ExtractorTestParsers.recordingSwaggerParser();
+    void legacyExportCarriesTheRebuiltSchemas() {
+        ObjectNode legacy = buildSerializer(true, ExtractorTestParsers.extractor()).serialize(httpModel())
+                .getObjectNode();
 
-        buildSerializer(true, ExtractorTestParsers.extractor(parser)).serialize(httpModel());
-
-        assertEquals(List.of(true), parser.withSchemasCalls(),
-                "the legacy export reads the schemas, so it has to request them");
+        ObjectNode operation = (ObjectNode) legacy.path("operations").get(0);
+        assertFalse(operation.path("requestSchema").isMissingNode(),
+                "the reverted document states the request schema it was exported with");
+        assertFalse(operation.path("responseSchemas").isMissingNode(),
+                "and the response schemas alongside it");
     }
 
     /**
@@ -436,7 +441,8 @@ class ServiceSerializerTest {
                 props.getImplementedService());
         assertEquals("http://qubership.org/schemas/product/qip/context-service.schema.yaml", props.getContextService());
         assertEquals("http://qubership.org/schemas/product/qip/mcp-service.schema.yaml", props.getMcpService());
-        assertEquals("http://qubership.org/schemas/product/qip/specification-group.schema.yaml", props.getSpecificationGroup());
+        assertEquals("http://qubership.org/schemas/product/qip/specification-group.schema.yaml",
+                props.getSpecificationGroup());
         assertEquals("http://qubership.org/schemas/product/qip/api-group.schema.yaml", props.getApiGroup());
         assertEquals("http://qubership.org/schemas/product/qip/specification.schema.yaml", props.getSpecification());
         assertEquals("http://qubership.org/schemas/product/qip/api.schema.yaml", props.getApi());

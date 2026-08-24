@@ -293,6 +293,25 @@ export function getAntdThemeConfig(
           isDark ? "#1f1f1f" : "#ffffff",
         ),
       },
+      // Selects sit next to inputs in forms, so they follow the input colors.
+      Select: {
+        colorBgContainer: getCSSVariable(
+          "--vscode-input-background",
+          isDark ? "#1f1f1f" : "#ffffff",
+        ),
+        colorText: getCSSVariable(
+          "--vscode-input-foreground",
+          isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
+        ),
+        colorBorder: getCSSVariable(
+          "--vscode-input-border",
+          isDark ? "#303030" : "#d9d9d9",
+        ),
+        colorTextPlaceholder: getCSSVariable(
+          "--vscode-input-placeholderForeground",
+          isDark ? "rgba(255, 255, 255, 0.45)" : "rgba(0, 0, 0, 0.45)",
+        ),
+      },
       Drawer: {
         colorBgElevated: getCSSVariable(
           "--vscode-editor-background",
