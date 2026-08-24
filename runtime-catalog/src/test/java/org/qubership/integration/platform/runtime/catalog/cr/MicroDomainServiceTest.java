@@ -354,4 +354,34 @@ class MicroDomainServiceTest {
 
         verify(kubeOperator).deleteConfigMap("src-s1");
     }
+
+    @DisplayName("Skips HTTPRoute cleanup when the domain has no integrations-configuration config map")
+    @Test
+    void deleteChainSnapshotSkipsHttpRouteCleanupWhenConfigurationConfigMapAbsent() {
+        stubNamingStrategies();
+
+        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
+                new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
+        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x")));
+        CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
+        traits.setMount(mount);
+        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
+        spec.setTraits(traits);
+        CamelKIntegration integration = new CamelKIntegration();
+        integration.setSpec(spec);
+
+        // Only the snapshot's own source config map comes back, never the integrations
+        // configuration one, so IntegrationResources.integrationsConfiguration() is null.
+        V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
+        when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
+        when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(source));
+
+        MicroDomainService service = newService(false);
+        service.deleteChainSnapshot(DOMAIN, "s1");
+
+        // The cleanup path is the only caller of the snapshot repository. Never touching it
+        // proves the tiers were not read, let alone rewritten.
+        verify(snapshotRepository, never()).findAllByIdIn(any());
+    }
 }

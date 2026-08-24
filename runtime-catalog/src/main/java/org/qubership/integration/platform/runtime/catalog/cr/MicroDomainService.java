@@ -236,7 +236,7 @@ public class MicroDomainService {
     public void deleteChainSnapshot(String name, String snapshotId) {
         getMainIntegrationResources(name).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
-            Set<String> remainingSnapshotIds = remainingSnapshotIds(resources, snapshotId);
+            Optional<Set<String>> remainingSnapshotIds = remainingSnapshotIds(resources, snapshotId);
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
                     .map(m -> m.get(snapshotId))
                     .flatMap(KubeUtil::getName)
@@ -272,7 +272,12 @@ public class MicroDomainService {
             if (StringUtils.isNotBlank(cfgName)) {
                 kubeOperator.deleteConfigMap(cfgName);
             }
-            deleteChainSnapshotHttpRoutes(name, snapshotId, remainingSnapshotIds);
+            remainingSnapshotIds.ifPresentOrElse(
+                    ids -> deleteChainSnapshotHttpRoutes(name, snapshotId, ids),
+                    () -> log.warn("Micro-domain '{}' has no integrations-configuration ConfigMap, so the snapshots it still "
+                            + "hosts are unknown. Kept every rule for removed snapshot '{}' rather than risk stripping "
+                            + "one a live chain still serves. Redeploy the domain to clear the leftovers.",
+                            name, snapshotId));
         });
     }
 
@@ -385,9 +390,10 @@ public class MicroDomainService {
 
     /**
      * The snapshot IDs this micro-domain still hosts once {@code removedSnapshotId} is gone, read
-     * from the integrations-configuration ConfigMap's source list. That list is the only in-cluster
-     * record holding raw snapshot IDs, and so the only one whose entries can go straight to
-     * {@code SnapshotRepository}: the source ConfigMaps' {@code SNAPSHOT_ID_LABEL} holds a
+     * from the integrations-configuration ConfigMap's source list, or {@link Optional#empty()} when
+     * the domain has no such ConfigMap and they cannot be enumerated at all. That list is the only
+     * in-cluster record holding raw snapshot IDs, and so the only one whose entries can go straight
+     * to {@code SnapshotRepository}: the source ConfigMaps' {@code SNAPSHOT_ID_LABEL} holds a
      * {@code K8sNameValidator}-sanitized form, which strips a leading digit and therefore misses the
      * catalog row for most snapshot UUIDs.
      *
@@ -397,16 +403,18 @@ public class MicroDomainService {
      * dedupes sources by {@code chainId} and the later write wins. Cleanup depends on that dedupe
      * key: change it and a superseded snapshot stops seeing its replacement.
      *
-     * <p>The result is empty when the domain has no integrations-configuration ConfigMap at all. A
-     * ConfigMap that exists but is blank takes the same branch as a populated one, because
+     * <p>A present but blank ConfigMap yields an empty set, not an empty {@code Optional}:
      * {@code IntegrationConfigurationSerdes.getFromConfigMap} returns an empty
-     * {@code IntegrationsConfiguration} rather than null, and yields an empty set that way. Either
-     * way, no remaining snapshot can be identified, and cleanup strips every path this snapshot
-     * owns -- the behavior from before the subtraction existed.
+     * {@code IntegrationsConfiguration} rather than null, and a domain whose last chain is being
+     * removed legitimately has no remaining snapshots. Those two cases must stay distinct -- the
+     * empty set still strips, the empty {@code Optional} does not.
      */
-    private Set<String> remainingSnapshotIds(IntegrationResources resources, String removedSnapshotId) {
-        Set<String> ids = Optional.ofNullable(resources.integrationsConfiguration())
-                .map(integrationConfigurationSerdes::getFromConfigMap)
+    private Optional<Set<String>> remainingSnapshotIds(IntegrationResources resources, String removedSnapshotId) {
+        V1ConfigMap configurationConfigMap = resources.integrationsConfiguration();
+        if (configurationConfigMap == null) {
+            return Optional.empty();
+        }
+        Set<String> ids = Optional.ofNullable(integrationConfigurationSerdes.getFromConfigMap(configurationConfigMap))
                 .map(IntegrationsConfiguration::getSources)
                 .map(sources -> sources.stream()
                         .map(SourceDefinition::getId)
@@ -414,7 +422,7 @@ public class MicroDomainService {
                         .collect(Collectors.toCollection(HashSet::new)))
                 .orElseGet(HashSet::new);
         ids.remove(removedSnapshotId);
-        return ids;
+        return Optional.of(ids);
     }
 
     /**
