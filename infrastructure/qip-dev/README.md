@@ -8,7 +8,7 @@ namespace for sidecar injection, before you install the chart:
 
 ```sh
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
-istioctl install --set profile=minimal \
+istioctl install --set profile=demo \
   --set values.pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=true
 kubectl create namespace qip
 kubectl label namespace qip istio-injection=enabled
