@@ -68,6 +68,24 @@ import {
 } from "./pages/ChainFullscreenContext.tsx";
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
+import {
+  TestingGuard,
+  TestingLayout,
+  type TestingPageVariant,
+} from "./pages/testing/TestingLayout.tsx";
+import { TestCases } from "./pages/testing/TestCases.tsx";
+import { EndpointMocks } from "./pages/testing/EndpointMocks.tsx";
+import { TestCaseRuns } from "./pages/testing/TestCaseRuns.tsx";
+import { TestRuns } from "./pages/testing/TestRuns.tsx";
+import { TestCaseRunErrors } from "./pages/testing/TestCaseRunErrors.tsx";
+import { TestCasePage } from "./pages/testing/TestCasePage.tsx";
+import { TestCaseGeneralTab } from "./components/testing/testCase/TestCaseGeneralTab.tsx";
+import { TestCaseRequestTab } from "./components/testing/testCase/TestCaseRequestTab.tsx";
+import { TestCaseResponseValidationTab } from "./components/testing/testCase/TestCaseResponseValidationTab.tsx";
+import { EndpointMockPage } from "./pages/testing/EndpointMockPage.tsx";
+import { EndpointMockGeneralTab } from "./components/testing/endpointMock/EndpointMockGeneralTab.tsx";
+import { EndpointMockResponseTab } from "./components/testing/endpointMock/EndpointMockResponseTab.tsx";
+import { EndpointMockRequestMatchersTab } from "./components/testing/endpointMock/EndpointMockRequestMatchersTab.tsx";
 
 const { Header, Content } = Layout;
 
@@ -99,141 +117,192 @@ const RootLayoutInner = () => {
   );
 };
 
+/**
+ * Test case and endpoint mock screens, mounted both under admin tools and
+ * inside a chain. Only the run screens differ between the two mount points, so
+ * they stay at the call sites.
+ */
+const testingEntityRoutes = (variant: TestingPageVariant) => (
+  <>
+    <Route index element={<Navigate to="test-cases" replace />} />
+    <Route path="test-cases" element={<TestCases variant={variant} />} />
+    <Route path="test-cases/:testCaseId" element={<TestCasePage />}>
+      <Route index element={<Navigate to="general" replace />} />
+      <Route path="general" element={<TestCaseGeneralTab />} />
+      <Route path="request" element={<TestCaseRequestTab />} />
+      <Route
+        path="response-validation"
+        element={<TestCaseResponseValidationTab />}
+      />
+    </Route>
+    <Route
+      path="endpoint-mocks"
+      element={<EndpointMocks variant={variant} />}
+    />
+    <Route path="endpoint-mocks/:endpointMockId" element={<EndpointMockPage />}>
+      <Route index element={<Navigate to="general" replace />} />
+      <Route path="general" element={<EndpointMockGeneralTab />} />
+      <Route path="response" element={<EndpointMockResponseTab />} />
+      <Route
+        path="request-matchers"
+        element={<EndpointMockRequestMatchersTab />}
+      />
+    </Route>
+  </>
+);
+
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <>
-      <Route element={<RootLayout />}>
+    <Route element={<RootLayout />}>
+      <Route
+        path="/devtools"
+        element={
+          <Require
+            permissions={{ devTools: ["read"] }}
+            fallback={<NotAuthorized />}
+          >
+            <DevTools />
+          </Require>
+        }
+      >
+        <Route path="" element={<Navigate to="maas/kafka" />} />
+        <Route path="maas/kafka" element={<KafkaMaasPage />} />
+        <Route path="maas/rabbitmq" element={<RabbitMQMaasPage />} />
         <Route
-          path="/devtools"
-          element={
-            <Require
-              permissions={{ devTools: ["read"] }}
-              fallback={<NotAuthorized />}
-            >
-              <DevTools />
-            </Require>
-          }
-        >
-          <Route path="" element={<Navigate to="maas/kafka" />} />
-          <Route path="maas/kafka" element={<KafkaMaasPage />} />
-          <Route path="maas/rabbitmq" element={<RabbitMQMaasPage />} />
-          <Route
-            path="diagnostic/validations"
-            element={<DiagnosticValidationPage />}
-          />
-        </Route>
-        <Route
-          path="/admintools"
-          element={
-            <Require
-              permissions={{ adminTools: ["read"] }}
-              fallback={<NotAuthorized />}
-            >
-              <AdminTools />
-            </Require>
-          }
-        >
-          <Route path="" element={<Navigate to="domains" />} />
-          <Route path="domains" element={<Domains />} />
-          <Route
-            path="engine-list"
-            element={<Navigate to="../domains" relative={"path"} />}
-          />
-          <Route path="variables/common" element={<CommonVariables />} />
-          <Route path="variables/secured" element={<SecuredVariables />} />
-          <Route path="audit" element={<ActionsLog />} />
-          <Route path="sessions" element={<SessionsPage />} />
-          <Route path="import-instructions" element={<ImportInstructions />} />
-          <Route path="access-control" element={<AccessControl />} />
-          <Route path="exchanges" element={<LiveExchanges />} />
-          <Route
-            path="detailed-design/templates"
-            element={<DesignTemplates />}
-          />
-        </Route>
-        <Route index path="/" element={<Navigate to="/chains" />} />
-        <Route
-          index
-          path="/chains"
-          element={
-            <Require
-              permissions={{ chain: ["list"] }}
-              fallback={<NotAuthorized />}
-            >
-              <Chains />
-            </Require>
-          }
+          path="diagnostic/validations"
+          element={<DiagnosticValidationPage />}
         />
-        <Route
-          path="/chains/:chainId"
-          element={
-            <Require
-              permissions={{ chain: ["read"] }}
-              fallback={<NotAuthorized />}
-            >
-              <ChainPage />
-            </Require>
-          }
-        >
-          <Route index element={<ChainGraph />} />
-          <Route index path="graph" element={<ChainGraph />} />
-          <Route path="graph/:elementId" element={<ChainGraph />} />
-          <Route path="snapshots" element={<Snapshots />} />
-          <Route path="deployments" element={<Deployments />} />
-          <Route path="sessions" element={<Sessions />} />
-          <Route path="sessions/:sessionId" element={<SessionPage />} />
-          <Route path="logging-settings" element={<LoggingSettings />} />
-          <Route path="masking" element={<Masking />} />
-          <Route path="properties" element={<ChainProperties />} />
-        </Route>
-        <Route
-          path="/services"
-          element={
-            <Require
-              permissions={{ service: ["list"] }}
-              fallback={<NotAuthorized />}
-            >
-              <Services />
-            </Require>
-          }
-        />
-        <Route
-          path="/services/systems/:systemId/parameters"
-          element={<ServiceParametersPage />}
-        />
-        <Route
-          path="/services/systems/:systemId/specificationGroups"
-          element={<ServiceParametersPage />}
-        />
-        <Route
-          path="/services/systems/:systemId/specificationGroups/:groupId/specifications"
-          element={<ServiceParametersPage />}
-        />
-        <Route
-          path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations"
-          element={<ServiceParametersPage />}
-        />
-        <Route
-          path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations/:operationId"
-          element={<ServiceParametersPage />}
-        />
-        <Route
-          path="/services/systems/:systemId/environments"
-          element={<ServiceParametersPage />}
-        />
-        <Route
-          path="/services/context/:systemId/parameters"
-          element={<ContextServiceParametersPage />}
-        />
-        <Route
-          path="/services/mcp/:systemId/parameters"
-          element={<McpServiceParametersPage />}
-        />
-        <Route path="/doc/*" element={<DocumentationPage />} />
-        <Route path="*" element={<NotFound />} />
-        <Route path="/not-implemented" element={<NotImplemented />} />
       </Route>
-    </>,
+      <Route
+        path="/admintools"
+        element={
+          <Require
+            permissions={{ adminTools: ["read"] }}
+            fallback={<NotAuthorized />}
+          >
+            <AdminTools />
+          </Require>
+        }
+      >
+        <Route path="" element={<Navigate to="domains" />} />
+        <Route path="domains" element={<Domains />} />
+        <Route
+          path="engine-list"
+          element={<Navigate to="../domains" relative={"path"} />}
+        />
+        <Route path="variables/common" element={<CommonVariables />} />
+        <Route path="variables/secured" element={<SecuredVariables />} />
+        <Route path="audit" element={<ActionsLog />} />
+        <Route path="sessions" element={<SessionsPage />} />
+        <Route path="import-instructions" element={<ImportInstructions />} />
+        <Route path="access-control" element={<AccessControl />} />
+        <Route path="exchanges" element={<LiveExchanges />} />
+        <Route path="detailed-design/templates" element={<DesignTemplates />} />
+        <Route path="testing" element={<TestingGuard />}>
+          {testingEntityRoutes("admin-page")}
+          <Route path="test-runs" element={<TestRuns />} />
+          <Route
+            path="test-runs/:runId"
+            element={<TestCaseRuns variant="run-page" />}
+          />
+          <Route
+            path="test-runs/:runId/:caseRunId"
+            element={<TestCaseRunErrors />}
+          />
+        </Route>
+      </Route>
+      <Route index path="/" element={<Navigate to="/chains" />} />
+      <Route
+        index
+        path="/chains"
+        element={
+          <Require
+            permissions={{ chain: ["list"] }}
+            fallback={<NotAuthorized />}
+          >
+            <Chains />
+          </Require>
+        }
+      />
+      <Route
+        path="/chains/:chainId"
+        element={
+          <Require
+            permissions={{ chain: ["read"] }}
+            fallback={<NotAuthorized />}
+          >
+            <ChainPage />
+          </Require>
+        }
+      >
+        <Route index element={<ChainGraph />} />
+        <Route index path="graph" element={<ChainGraph />} />
+        <Route path="graph/:elementId" element={<ChainGraph />} />
+        <Route path="snapshots" element={<Snapshots />} />
+        <Route path="deployments" element={<Deployments />} />
+        <Route path="sessions" element={<Sessions />} />
+        <Route path="sessions/:sessionId" element={<SessionPage />} />
+        <Route path="logging-settings" element={<LoggingSettings />} />
+        <Route path="masking" element={<Masking />} />
+        <Route path="properties" element={<ChainProperties />} />
+        <Route path="testing" element={<TestingGuard />}>
+          <Route element={<TestingLayout />}>
+            {testingEntityRoutes("chain-tab")}
+            <Route path="test-case-runs" element={<TestCaseRuns />} />
+            <Route
+              path="test-case-runs/:caseRunId"
+              element={<TestCaseRunErrors />}
+            />
+          </Route>
+        </Route>
+      </Route>
+      <Route
+        path="/services"
+        element={
+          <Require
+            permissions={{ service: ["list"] }}
+            fallback={<NotAuthorized />}
+          >
+            <Services />
+          </Require>
+        }
+      />
+      <Route
+        path="/services/systems/:systemId/parameters"
+        element={<ServiceParametersPage />}
+      />
+      <Route
+        path="/services/systems/:systemId/specificationGroups"
+        element={<ServiceParametersPage />}
+      />
+      <Route
+        path="/services/systems/:systemId/specificationGroups/:groupId/specifications"
+        element={<ServiceParametersPage />}
+      />
+      <Route
+        path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations"
+        element={<ServiceParametersPage />}
+      />
+      <Route
+        path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations/:operationId"
+        element={<ServiceParametersPage />}
+      />
+      <Route
+        path="/services/systems/:systemId/environments"
+        element={<ServiceParametersPage />}
+      />
+      <Route
+        path="/services/context/:systemId/parameters"
+        element={<ContextServiceParametersPage />}
+      />
+      <Route
+        path="/services/mcp/:systemId/parameters"
+        element={<McpServiceParametersPage />}
+      />
+      <Route path="/doc/*" element={<DocumentationPage />} />
+      <Route path="*" element={<NotFound />} />
+      <Route path="/not-implemented" element={<NotImplemented />} />
+    </Route>,
   ),
 );
 

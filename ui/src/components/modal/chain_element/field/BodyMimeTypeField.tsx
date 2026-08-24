@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { FieldProps } from "@rjsf/utils";
 import type { RJSFSchema } from "@rjsf/utils";
 import { Select, Input, Button, SelectProps } from "antd";
 import styles from "./BodyParametersField.module.css";
+import { CollapsibleSection } from "../../../CollapsibleSection.tsx";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
 import { FormContext } from "../ChainElementModificationContext";
 import {
@@ -31,8 +32,6 @@ const BodyMimeTypeField: React.FC<
     () => toBodyFormData(formContext.bodyFormData),
     [formContext.bodyFormData],
   );
-
-  const [collapsed, setCollapsed] = useState(formData?.length === 0);
 
   const updateBodyFormData = (nextFormData: BodyFormEntry[]) => {
     formContext.updateContext?.({
@@ -94,117 +93,88 @@ const BodyMimeTypeField: React.FC<
       </div>
 
       {showTable && (
-        <div>
-          <div className={styles.tableHeader}>
-            <div
-              className={styles.tableHeaderLeft}
-              onClick={() => setCollapsed((s) => !s)}
-            >
-              <span className={styles.iconWrapper}>
-                {collapsed ? (
-                  <OverridableIcon name="right" />
-                ) : (
-                  <OverridableIcon name="down" />
+        <CollapsibleSection
+          title="Parameters"
+          count={bodyFormData.length}
+          onAdd={handleAddRow}
+          addDisabled={disabled || readonly}
+        >
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>Name</th>
+                {isMultipartFormData && (
+                  <th className={styles.th}>MIME Type</th>
                 )}
-              </span>
-              <span>Parameters</span>
-              <span className={styles.badge}>{bodyFormData.length}</span>
-            </div>
-            <div>
-              <Button
-                size="small"
-                type="text"
-                icon={<OverridableIcon name="plus" />}
-                onClick={handleAddRow}
-                disabled={disabled || readonly}
-                style={{ marginLeft: 8 }}
-              />
-            </div>
-          </div>
-
-          {!collapsed &&
-            (bodyFormData.length === 0 ? (
-              <div className={styles.noEntries}>
-                No entries. Click <b>+</b> to add.
-              </div>
-            ) : (
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th className={styles.th}>Name</th>
-                    {isMultipartFormData && (
-                      <th className={styles.th}>MIME Type</th>
-                    )}
-                    {isMultipartFormData && (
-                      <th className={styles.th}>File Name</th>
-                    )}
-                    <th className={styles.th}>Value</th>
-                    <th className={`${styles.th} ${styles.actionsCol}`}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bodyFormData.map((entry: BodyFormEntry, idx: number) => (
-                    <tr key={idx}>
-                      <td className={styles.td}>
-                        <Input
-                          value={entry.name}
-                          onChange={(e) =>
-                            handleFieldChange(idx, "name", e.target.value)
-                          }
-                          disabled={disabled || readonly}
-                          placeholder="Name"
-                        />
-                      </td>
-                      {isMultipartFormData && (
-                        <td className={styles.td}>
-                          <Input
-                            value={entry.mimeType}
-                            onChange={(e) =>
-                              handleFieldChange(idx, "mimeType", e.target.value)
-                            }
-                            disabled={disabled || readonly}
-                            placeholder="text/plain"
-                          />
-                        </td>
-                      )}
-                      {isMultipartFormData && (
-                        <td className={styles.td}>
-                          <Input
-                            value={entry.fileName}
-                            onChange={(e) =>
-                              handleFieldChange(idx, "fileName", e.target.value)
-                            }
-                            disabled={disabled || readonly}
-                            placeholder="File Name"
-                          />
-                        </td>
-                      )}
-                      <td className={styles.td}>
-                        <Input
-                          value={entry.value}
-                          onChange={(e) =>
-                            handleFieldChange(idx, "value", e.target.value)
-                          }
-                          disabled={disabled || readonly}
-                          placeholder="Value"
-                        />
-                      </td>
-                      <td className={styles.tdAction}>
-                        <Button
-                          size="small"
-                          type="text"
-                          icon={<OverridableIcon name="delete" />}
-                          onClick={() => handleDeleteRow(idx)}
-                          disabled={disabled || readonly}
-                          className={styles.deleteBtn}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ))}
-        </div>
+                {isMultipartFormData && (
+                  <th className={styles.th}>File Name</th>
+                )}
+                <th className={styles.th}>Value</th>
+                <th className={`${styles.th} ${styles.actionsCol}`}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {bodyFormData.map((entry: BodyFormEntry, idx: number) => (
+                <tr key={idx}>
+                  <td className={styles.td}>
+                    <Input
+                      value={entry.name}
+                      onChange={(e) =>
+                        handleFieldChange(idx, "name", e.target.value)
+                      }
+                      disabled={disabled || readonly}
+                      placeholder="Name"
+                    />
+                  </td>
+                  {isMultipartFormData && (
+                    <td className={styles.td}>
+                      <Input
+                        value={entry.mimeType}
+                        onChange={(e) =>
+                          handleFieldChange(idx, "mimeType", e.target.value)
+                        }
+                        disabled={disabled || readonly}
+                        placeholder="text/plain"
+                      />
+                    </td>
+                  )}
+                  {isMultipartFormData && (
+                    <td className={styles.td}>
+                      <Input
+                        value={entry.fileName}
+                        onChange={(e) =>
+                          handleFieldChange(idx, "fileName", e.target.value)
+                        }
+                        disabled={disabled || readonly}
+                        placeholder="File Name"
+                      />
+                    </td>
+                  )}
+                  <td className={styles.td}>
+                    <Input
+                      value={entry.value}
+                      onChange={(e) =>
+                        handleFieldChange(idx, "value", e.target.value)
+                      }
+                      disabled={disabled || readonly}
+                      placeholder="Value"
+                    />
+                  </td>
+                  <td className={styles.tdAction}>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<OverridableIcon name="delete" />}
+                      onClick={() => handleDeleteRow(idx)}
+                      disabled={disabled || readonly}
+                      className={styles.deleteBtn}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CollapsibleSection>
       )}
     </div>
   );

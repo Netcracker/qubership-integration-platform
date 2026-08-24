@@ -28,6 +28,21 @@ interface RowSelection {
   onChange?: (keys: React.Key[], rows: unknown[]) => void;
   getCheckboxProps?: (record: unknown) => Record<string, unknown>;
   checkStrictly?: boolean;
+  selections?: unknown[];
+}
+
+/** Custom entry of `rowSelection.selections`; antd's own presets are symbols. */
+interface CustomSelection {
+  key: string;
+  text?: React.ReactNode;
+  onSelect?: (changeableRowKeys: React.Key[]) => void;
+}
+
+function asCustomSelection(selection: unknown): CustomSelection | null {
+  const candidate = selection as CustomSelection | null;
+  return candidate && typeof candidate === "object" && candidate.key
+    ? candidate
+    : null;
 }
 
 interface ExpandableConfig {
@@ -303,6 +318,29 @@ export function LightweightTable({
                       rowSelection.onChange?.(allSelected ? [] : allKeys, []);
                     }}
                   />
+                  {rowSelection.selections?.map((selection) => {
+                    const custom = asCustomSelection(selection);
+                    return custom ? (
+                      <button
+                        key={custom.key}
+                        type="button"
+                        data-testid={`table-selection-${custom.key}`}
+                        onClick={() =>
+                          custom.onSelect?.(
+                            rows.map((row, index) =>
+                              getRowKey(
+                                row as Record<string, unknown>,
+                                index,
+                                rowKeyProp,
+                              ),
+                            ),
+                          )
+                        }
+                      >
+                        {custom.text}
+                      </button>
+                    ) : null;
+                  })}
                 </HeaderCell>
               )}
               {cols.map((col, idx) => {
