@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -329,8 +330,9 @@ class MicroDomainServiceTest {
         when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
         when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
         // HTTPRoute cleanup resolves the removed snapshot ("s1") and then the remaining one ("s2").
-        // Each lookup asks for one ID, so returning one row per call keeps the "Found N of M"
-        // warning quiet: this test is about the mount and the configuration entry, not cleanup.
+        // Returning one row per lookup keeps both resolutions complete, so cleanup runs instead of
+        // being skipped by the fail-closed guards: this test is about the mount and the
+        // configuration entry, not cleanup.
         when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
                 org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
 
@@ -425,6 +427,6 @@ class MicroDomainServiceTest {
 
         // The guard only reaches this call when remainingSnapshotIds resolved to a present (even
         // if empty) set, so this proves cleanup ran rather than being skipped.
-        verify(snapshotRepository).findAllByIdIn(List.of("s1"));
+        verify(snapshotRepository).findAllByIdIn(Set.of("s1"));
     }
 }

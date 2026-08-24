@@ -276,7 +276,7 @@ public class MicroDomainService {
                     ids -> deleteChainSnapshotHttpRoutes(name, snapshotId, ids),
                     () -> log.warn("Micro-domain '{}' has no integrations-configuration ConfigMap, so the snapshots it still "
                             + "hosts are unknown. Kept every rule for removed snapshot '{}' rather than risk stripping "
-                            + "one a live chain still serves. Redeploy the domain to clear the leftovers.",
+                            + "one a live chain still serves. Redeploy the domain (REWRITE mode) to clear the leftovers.",
                             name, snapshotId));
         });
     }
@@ -407,7 +407,10 @@ public class MicroDomainService {
      * {@code IntegrationConfigurationSerdes.getFromConfigMap} returns an empty
      * {@code IntegrationsConfiguration} rather than null, and a domain whose last chain is being
      * removed legitimately has no remaining snapshots. Those two cases must stay distinct -- the
-     * empty set still strips, the empty {@code Optional} does not.
+     * empty set still strips, the empty {@code Optional} does not. A present configuration listing
+     * no sources is an affirmative statement that no chains are deployed to the domain -- unlike an
+     * absent ConfigMap, which carries no information at all -- so stripping the removed snapshot's
+     * remaining rules here is correct rather than blind.
      */
     private Optional<Set<String>> remainingSnapshotIds(IntegrationResources resources, String removedSnapshotId) {
         V1ConfigMap configurationConfigMap = resources.integrationsConfiguration();
@@ -444,18 +447,18 @@ public class MicroDomainService {
      * running chain still serves.
      */
     void deleteChainSnapshotHttpRoutes(String name, String snapshotId, Set<String> remainingSnapshotIds) {
-        ResolvedRoutes own = snapshotRoutes(List.of(snapshotId));
+        ResolvedRoutes own = snapshotRoutes(Set.of(snapshotId));
         ResolvedRoutes retained = snapshotRoutes(remainingSnapshotIds);
         if (!retained.isComplete()) {
             log.warn("Snapshot(s) {} listed for micro-domain '{}' have no catalog row, so the paths they own "
                     + "are unknown. Kept every rule for removed snapshot '{}' rather than risk stripping one a "
-                    + "live chain still serves. Redeploy the domain to clear the leftovers.",
+                    + "live chain still serves. Redeploy the domain (REWRITE mode) to clear the leftovers.",
                     retained.unresolvedIds(), name, snapshotId);
             return;
         }
         if (!own.isComplete()) {
-            log.warn("Removed snapshot '{}' has no catalog row for micro-domain '{}', so the paths it owns are "
-                    + "unknown. Its HTTPRoute rules stay in place. Redeploy the domain to clear them.",
+            log.warn("Removed snapshot '{}' has no catalog row, so the paths it owns in micro-domain '{}' are "
+                    + "unknown. Its HTTPRoute rules stay in place. Redeploy the domain (REWRITE mode) to clear them.",
                     snapshotId, name);
             return;
         }
@@ -507,26 +510,30 @@ public class MicroDomainService {
      * {@code getId()} on every row unconditionally would be equivalent, but the test suite stubs
      * the repository with bare mocks whose ID is {@code null}, and they would all read as
      * unresolved.
+     *
+     * <p>Comparing counts to decide completeness is only valid because {@code findAllByIdIn} is a
+     * derived query over the primary key: it returns at most one row per requested ID, so a
+     * duplicate-free {@code snapshotIds} can never come back with more rows than it asked for.
      */
     private ResolvedRoutes snapshotRoutes(Collection<String> snapshotIds) {
         if (snapshotIds.isEmpty()) {
             return new ResolvedRoutes(List.of(), List.of());
         }
         var snapshots = snapshotRepository.findAllByIdIn(snapshotIds);
+        if (snapshots.size() < snapshotIds.size()) {
+            Set<String> resolvedIds = snapshots.stream()
+                    .map(AbstractEntity::getId)
+                    .collect(Collectors.toSet());
+            List<String> unresolvedIds = snapshotIds.stream()
+                    .filter(id -> !resolvedIds.contains(id))
+                    .toList();
+            return new ResolvedRoutes(List.of(), unresolvedIds);
+        }
         List<Route> routes = snapshots.stream()
                 .flatMap(snapshot -> routesGetterService
                         .getRoutes(new SnapshotAdapter(snapshot), integrationServiceCatalog).stream())
                 .toList();
-        if (snapshots.size() >= snapshotIds.size()) {
-            return new ResolvedRoutes(routes, List.of());
-        }
-        Set<String> resolvedIds = snapshots.stream()
-                .map(AbstractEntity::getId)
-                .collect(Collectors.toSet());
-        List<String> unresolvedIds = snapshotIds.stream()
-                .filter(id -> !resolvedIds.contains(id))
-                .toList();
-        return new ResolvedRoutes(routes, unresolvedIds);
+        return new ResolvedRoutes(routes, List.of());
     }
 
     /**

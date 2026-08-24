@@ -163,7 +163,7 @@ class MicroDomainServiceHttpRouteTest {
     // the running chain's only route to the gateway.
     @Test
     void deleteChainSnapshotKeepsAPathARemainingSnapshotStillOwns() {
-        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-1")))
                 .thenReturn(List.of(mock(
                         org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
         when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2")))
@@ -183,7 +183,7 @@ class MicroDomainServiceHttpRouteTest {
     // removed snapshot's routes first, then the remaining snapshots'.
     @Test
     void deleteChainSnapshotStripsOnlyThePathsNoRemainingSnapshotOwns() {
-        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-1")))
                 .thenReturn(List.of(mock(
                         org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
         when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2")))
@@ -218,7 +218,7 @@ class MicroDomainServiceHttpRouteTest {
     // subtraction that protects a shared path is incomplete and no rule may be stripped.
     @Test
     void deleteChainSnapshotStripsNothingWhenARemainingSnapshotDoesNotResolve() {
-        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-1")))
                 .thenReturn(List.of(mock(
                         org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
         when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2")))
@@ -244,7 +244,7 @@ class MicroDomainServiceHttpRouteTest {
         org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot resolved =
                 mock(org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class);
         when(resolved.getId()).thenReturn("snapshot-2");
-        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-1")))
                 .thenReturn(List.of(mock(
                         org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
         when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2", "snapshot-3")))
@@ -267,7 +267,7 @@ class MicroDomainServiceHttpRouteTest {
     // in that neither route to "do nothing" ever starts writing.
     @Test
     void deleteChainSnapshotStripsNothingWhenTheRemovedSnapshotDoesNotResolve() {
-        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1"))).thenReturn(List.of());
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-1"))).thenReturn(List.of());
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
 
