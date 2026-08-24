@@ -384,4 +384,47 @@ class MicroDomainServiceTest {
         // proves the tiers were not read, let alone rewritten.
         verify(snapshotRepository, never()).findAllByIdIn(any());
     }
+
+    @DisplayName("Still runs HTTPRoute cleanup when a present integrations-configuration config map lists no other sources")
+    @Test
+    void deleteChainSnapshotRunsHttpRouteCleanupWhenConfigurationConfigMapListsNoOtherSources() {
+        stubNamingStrategies();
+
+        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
+                new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
+        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x")));
+        CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
+        traits.setMount(mount);
+        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
+        spec.setTraits(traits);
+        CamelKIntegration integration = new CamelKIntegration();
+        integration.setSpec(spec);
+
+        V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
+        V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
+        when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
+        when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(cfg, source));
+
+        // The config map lists only the removed snapshot's own source, so remainingSnapshotIds
+        // subtracts it down to an empty set, not an absent Optional. A domain's last chain being
+        // removed must still run cleanup.
+        IntegrationsConfiguration configuration = IntegrationsConfiguration.builder()
+                .sources(new ArrayList<>(List.of(SourceDefinition.builder().id("s1").build())))
+                .build();
+        when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
+        when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+        // Cleanup still resolves the removed snapshot ("s1") even though the remaining set is
+        // empty. Stubbing one row back keeps resolution complete, past the removed-snapshot guard,
+        // so the test fails for the right reason if cleanup stops running.
+        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
+                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+
+        MicroDomainService service = newService(false);
+        service.deleteChainSnapshot(DOMAIN, "s1");
+
+        // The guard only reaches this call when remainingSnapshotIds resolved to a present (even
+        // if empty) set, so this proves cleanup ran rather than being skipped.
+        verify(snapshotRepository).findAllByIdIn(List.of("s1"));
+    }
 }
