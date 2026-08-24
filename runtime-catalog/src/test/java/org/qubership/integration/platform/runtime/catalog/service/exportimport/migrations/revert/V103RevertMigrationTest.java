@@ -11,6 +11,7 @@ import org.qubership.integration.platform.io.readers.migrations.versions.Version
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -389,16 +390,13 @@ class V103RevertMigrationTest {
         ReflectionTestUtils.setField(fileMigrationService, "isLegacyExport", false);
 
         ServiceDeserializer deserializer = new ServiceDeserializer(
-                mapper,
-                versionsGetterService,
-                new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), TestServiceMigrations.all()),
-                new ApiGroupDtoMapper(GROUP_SCHEMA),
-                new SystemModelDtoMapper(API_SCHEMA, new ApiOperationDtoMapper()),
-                fileMigrationService,
-                TestServiceMigrations.all(),
-                ExtractorTestParsers.extractor(),
-                new ServiceTypeFiles(new ApplicationJsonSchemaProperties()));
-        ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
+        mapper,
+        new IntegrationSystemReader(mapper, fileMigrationService, versionsGetterService, TestServiceMigrations.all()),
+        new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), TestServiceMigrations.all()),
+        new ApiGroupDtoMapper(GROUP_SCHEMA),
+        new SystemModelDtoMapper(API_SCHEMA, new ApiOperationDtoMapper()),
+        ExtractorTestParsers.extractor(),
+        new ServiceTypeFiles(new ApplicationJsonSchemaProperties()));
         return deserializer;
     }
 

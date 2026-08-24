@@ -12,6 +12,7 @@ import org.qubership.integration.platform.io.readers.migrations.versions.Version
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
@@ -148,18 +149,14 @@ class V104ServiceImportFileMigrationTest {
         List<ServiceImportFileMigration> migrations = TestServiceMigrations.all();
 
         ServiceDeserializer built = new ServiceDeserializer(
-                yamlMapper,
-                versionsGetterService,
-                new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), migrations),
-                new ApiGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/api-group")),
-                new SystemModelDtoMapper(
-                        URI.create("http://qubership.org/schemas/product/qip/api.schema.yaml"),
-                        new ApiOperationDtoMapper()),
-                fileMigrationService,
-                migrations,
-                ExtractorTestParsers.extractor(),
-                new ServiceTypeFiles(new ApplicationJsonSchemaProperties()));
-        ReflectionTestUtils.setField(built, "appName", APP_NAME);
+        yamlMapper,
+        new IntegrationSystemReader(yamlMapper, fileMigrationService, versionsGetterService, migrations),
+        new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), migrations),
+        new ApiGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/api-group")),
+        new SystemModelDtoMapper(
+                        URI.create("http://qubership.org/schemas/product/qip/api.schema.yaml"), new ApiOperationDtoMapper()),
+        ExtractorTestParsers.extractor(),
+        new ServiceTypeFiles(new ApplicationJsonSchemaProperties()));
         return built;
     }
 

@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
@@ -62,7 +63,27 @@ public class ApiGroupDtoMapper implements ExternalEntityMapper<ApiGroup, ApiGrou
         return apiGroup;
     }
 
-    @Override
+    /** The same group read through the library reader rather than off a document this mapper parsed itself. */
+    public ApiGroup toInternalEntity(ImportSpecificationGroup importGroup) {
+        ApiGroup apiGroup = ApiGroup.builder()
+                .id(importGroup.getId())
+                .name(importGroup.getName())
+                .description(importGroup.getDescription())
+                .createdBy(SystemEntitySeam.toPersistenceUser(importGroup.getCreatedBy()))
+                .createdWhen(importGroup.getCreatedWhen())
+                .modifiedBy(SystemEntitySeam.toPersistenceUser(importGroup.getModifiedBy()))
+                .modifiedWhen(importGroup.getModifiedWhen())
+                .url(importGroup.getUrl())
+                .synchronization(importGroup.isSynchronization())
+                .build();
+        apiGroup.setLabels(importGroup
+                .getLabels()
+                .stream()
+                .map(name -> new ApiGroupLabel(name, apiGroup))
+                .collect(Collectors.toSet()));
+        return apiGroup;
+    }
+
     public ApiGroupDto toExternalEntity(ApiGroup apiGroup) {
         return ApiGroupDto.builder()
                 .id(apiGroup.getId())

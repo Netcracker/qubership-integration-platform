@@ -14,6 +14,7 @@ import org.qubership.integration.platform.io.readers.migrations.versions.strateg
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
 import org.qubership.integration.platform.io.readers.system.ContextServiceReader;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.io.readers.system.McpServiceReader;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
@@ -367,16 +368,13 @@ public final class GoldenServiceCorpus {
      */
     public static ServiceDeserializer deserializer(List<ServiceImportFileMigration> migrations) {
         ServiceDeserializer deserializer = new ServiceDeserializer(
-                mapper(),
-                versionsGetterService(),
-                new IntegrationSystemDtoMapper(serviceTypeFiles(), migrations),
-                new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
-                new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
-                forwardMigrationService(),
-                migrations,
-                EXTRACTOR,
-                serviceTypeFiles());
-        ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
+        mapper(),
+        new IntegrationSystemReader(mapper(), forwardMigrationService(), versionsGetterService(), migrations),
+        new IntegrationSystemDtoMapper(serviceTypeFiles(), migrations),
+        new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
+        new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
+        EXTRACTOR,
+        serviceTypeFiles());
         return deserializer;
     }
 

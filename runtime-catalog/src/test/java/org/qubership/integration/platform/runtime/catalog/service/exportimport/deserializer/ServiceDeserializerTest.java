@@ -18,6 +18,7 @@ import org.qubership.integration.platform.io.readers.migrations.versions.Version
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
@@ -104,21 +105,20 @@ class ServiceDeserializerTest {
 
         List<ServiceImportFileMigration> migrations = TestServiceMigrations.all();
 
-        ServiceDeserializer built = new ServiceDeserializer(
+        IntegrationSystemReader reader =
+                new IntegrationSystemReader(yamlMapper, fileMigrationService, versionsGetterService, migrations);
+
+        return new ServiceDeserializer(
                 yamlMapper,
-                versionsGetterService,
+                reader,
                 new IntegrationSystemDtoMapper(SERVICE_TYPE_FILES, migrations),
                 new ApiGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/api-group")),
                 new SystemModelDtoMapper(
                         URI.create("http://qubership.org/schemas/product/qip/api.schema.yaml"),
                         new ApiOperationDtoMapper()),
-                fileMigrationService,
-                migrations,
                 extractor,
                 SERVICE_TYPE_FILES
         );
-        ReflectionTestUtils.setField(built, "appName", APP_NAME);
-        return built;
     }
 
     // --- structure -------------------------------------------------------------------------------------------------

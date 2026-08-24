@@ -23,13 +23,37 @@ import org.qubership.integration.platform.io.readers.migrations.ImportFileMigrat
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.stream.Collectors;
 
 public class MigrationUtil {
     private MigrationUtil() {
     }
 
+    private static boolean isAlreadyMoved(ObjectNode rootNode) {
+        if (!rootNode.has("content")) {
+            return false;
+        }
+        Iterator<String> names = rootNode.fieldNames();
+        while (names.hasNext()) {
+            String name = names.next();
+            // `migrations` is written onto the root by the caller right before the chain runs, so a node that
+            // carries it is still in the moved shape.
+            if (!"id".equals(name) && !"name".equals(name) && !"content".equals(name)
+                    && !"migrations".equals(name)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static ObjectNode moveFieldsToContentField(ObjectNode rootNode) {
+        // Idempotent: a node already holding nothing but id, name and content is in the shape this produces, and
+        // moving again would nest the content a second time. The reader shapes an inline node before the migration
+        // chain reaches it, so both may run over the same node.
+        if (isAlreadyMoved(rootNode)) {
+            return rootNode;
+        }
         ObjectNode result = JsonNodeFactory.instance.objectNode();
 
         result.set("id", rootNode.get("id"));
