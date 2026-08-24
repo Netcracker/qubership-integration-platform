@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat;
 
 import java.util.List;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.chat.activity.ActivityDisplayLabels;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
@@ -94,10 +95,14 @@ public sealed interface ChatEvent {
   }
 
   static ChatEvent step(String id, String kind, String status, String label, String parentId) {
-    return new Step(id, kind, status, label, parentId);
+    String display =
+        "skill".equals(kind) || "tool".equals(kind)
+            ? ActivityDisplayLabels.of(kind, label)
+            : label;
+    return new Step(id, kind, status, display, parentId);
   }
 
-  /** Convenience for skill steps when label equals the skill id. */
+  /** Skill activity row. {@code id} is {@code skill:<skillId>}; {@code label} is the display gerund. */
   static ChatEvent skillStep(String skillId, String status) {
     return step("skill:" + skillId, "skill", status, skillId, null);
   }
