@@ -225,6 +225,8 @@ class MicroDomainServiceHttpRouteTest {
                 .thenReturn(List.of());
         when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
                 Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
+                .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME, List.of(rule("/qip-routes/a")))));
 
         microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of("snapshot-2"));
 
@@ -233,7 +235,10 @@ class MicroDomainServiceHttpRouteTest {
     }
 
     // The guard keys on completeness, not on emptiness: one resolved remaining snapshot does
-    // not make the other one's paths visible.
+    // not make the other one's paths visible. getRoutes is stubbed by consecutive return so the
+    // resolved remaining snapshot (snapshot-2) does not coincidentally claim the same path as the
+    // removed snapshot -- otherwise the subtraction would cancel /a out on its own, and the test
+    // would pass whether or not the guard exists.
     @Test
     void deleteChainSnapshotStripsNothingWhenOnlySomeRemainingSnapshotsResolve() {
         org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot resolved =
@@ -244,8 +249,11 @@ class MicroDomainServiceHttpRouteTest {
                         org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
         when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2", "snapshot-3")))
                 .thenReturn(List.of(resolved));
-        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
-                Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+        when(routesGetterService.getRoutes(any(), any()))
+                .thenReturn(List.of(Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()))
+                .thenReturn(List.of());
+        when(kubeOperator.getCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME))
+                .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME, List.of(rule("/qip-routes/a")))));
 
         microDomainService.deleteChainSnapshotHttpRoutes(
                 DOMAIN, "snapshot-1", Set.of("snapshot-2", "snapshot-3"));
@@ -254,8 +262,9 @@ class MicroDomainServiceHttpRouteTest {
         verify(kubeOperator, never()).deleteCustomObject(any(), any(), any(), any());
     }
 
-    // The removed snapshot itself may be missing from the catalog. Nothing is stripped then
-    // either, and the leftover rules stay until the domain is redeployed.
+    // Regression pin, not a proof of the guard: an unresolved removed snapshot yields no paths,
+    // so the pre-existing empty-path early return already produced this outcome. The test locks
+    // in that neither route to "do nothing" ever starts writing.
     @Test
     void deleteChainSnapshotStripsNothingWhenTheRemovedSnapshotDoesNotResolve() {
         when(snapshotRepository.findAllByIdIn(List.of("snapshot-1"))).thenReturn(List.of());
