@@ -323,6 +323,216 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void aStageRetryGateShowsTheNarrativeAndOffersRetry() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    String narrative = "The catalog could not find that service.";
+    when(facade.snapshot("conv-retry"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-retry",
+                    "run-retry",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        narrative, List.of(), PipelineGates.STAGE_RETRY),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-retry")
+            .orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertEquals(narrative, decision.reason());
+    assertEquals(List.of(PipelineGates.RETRY_ACTION), decision.actions());
+  }
+
+  @Test
+  void retryContinuesTheOpenGateWithoutRoutingThroughTheModel() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-retry"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-retry",
+                    "run-retry",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        "The catalog could not find that service.",
+                        List.of(),
+                        PipelineGates.STAGE_RETRY),
+                    "")));
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = command(PipelineGates.RETRY_ACTION, null, null, null);
+    command.setRevision(6L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-retry", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals(PipelineGates.RETRY_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
+  void aStageReviseGateShowsTheNarrativeAndOffersRetryAndRevise() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    String narrative = "The brief omitted the scheduler.";
+    when(facade.snapshot("conv-revise"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-revise",
+                    "run-revise",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        narrative, List.of(), PipelineGates.STAGE_REVISE),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-revise")
+            .orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertEquals(narrative, decision.reason());
+    assertEquals(
+        List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION), decision.actions());
+  }
+
+  @Test
+  void reviseContinuesTheOpenGateWithoutRoutingThroughTheModel() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-revise"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-revise",
+                    "run-revise",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        "The brief omitted the scheduler.",
+                        List.of(),
+                        PipelineGates.STAGE_REVISE),
+                    "")));
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = command(PipelineGates.REVISE_ACTION, null, null, null);
+    command.setRevision(6L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-revise", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals(PipelineGates.REVISE_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
+  void anOwnerChoiceGateOffersTheCandidateStageIds() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-choice"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-choice",
+                    "run-choice",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        "Either artifact could be wrong.",
+                        List.of("planning", "analysis"),
+                        PipelineGates.OWNER_CHOICE),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-choice")
+            .orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertEquals(List.of("planning", "analysis"), decision.actions());
+  }
+
+  @Test
+  void ownerChoiceContinuesTheOpenGateWithoutRoutingThroughTheModel() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-choice"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-choice",
+                    "run-choice",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        "Either artifact could be wrong.",
+                        List.of("planning", "analysis"),
+                        PipelineGates.OWNER_CHOICE),
+                    "")));
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = command("analysis", null, null, null);
+    command.setRevision(6L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-choice", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals("analysis", input.getValue().clarificationText());
+  }
+
+  @Test
+  void aTypedFollowUpIsNotADecisionCardAction() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-retry"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-retry",
+                    "run-retry",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        "The catalog could not find that service.",
+                        List.of(),
+                        PipelineGates.STAGE_RETRY),
+                    "")));
+    ChatDecisionCommand command = command("use a different service", null, null, null);
+    command.setRevision(6L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-retry", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    verify(facade, never()).continueWithInput(any(ContinueCreateChainCommand.class));
+  }
+
+  @Test
   void idsPathNoContinuesTheOpenGateWithoutRoutingThroughTheModel() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-ids"))

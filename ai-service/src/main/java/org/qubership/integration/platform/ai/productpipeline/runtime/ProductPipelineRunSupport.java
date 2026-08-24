@@ -24,16 +24,25 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactPr
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
-import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
-import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
+import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ImplementationGatePolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
+import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
+import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -42,13 +51,6 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
-import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
-import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutionResult;
-import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
@@ -62,6 +64,32 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 public final class ProductPipelineRunSupport {
 
   private static final Logger LOG = Logger.getLogger(ProductPipelineRunSupport.class);
+
+  /**
+   * Latest typed message recorded while the run was at a recoverable halt. The next diagnosis
+   * turn reads this attribute from the stage context.
+   */
+  public static final String HALT_FOLLOW_UP_TEXT_ATTR = "haltFollowUpText";
+
+  /** Diagnosed owner stage id from the last validation/domain/contract halt. */
+  public static final String DIAGNOSED_OWNER_STAGE_ATTR = "diagnosedOwnerStageId";
+
+  /** Raw failure evidence for the next attempt of the current unapproved stage. */
+  public static final String STAGE_ERROR_CONTEXT_ATTR = "stageErrorContext";
+
+  /** Outcome class stored with {@link #STAGE_ERROR_CONTEXT_ATTR}. */
+  public static final String STAGE_ERROR_OUTCOME_ATTR = "stageErrorOutcomeClass";
+
+  /**
+   * Content hash of the owner's last approved candidate. Set when that stage is re-entered after a
+   * causal reopen.
+   */
+  public static final String PRIOR_CANDIDATE_ATTR = "priorCandidate";
+
+  private static final String CAUSAL_REOPEN_REASON_PREFIX = "causal reopen of ";
+  private static final int MAX_CAUSAL_REOPENS = 2;
+
+  private static final String HALT_FOLLOW_UP_INPUT_PREFIX = "halt-follow-up-";
 
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
@@ -164,6 +192,30 @@ public final class ProductPipelineRunSupport {
       DesignInputIdsPathPrompts idsPathPrompts,
       ApprovalPrompts approvalPrompts,
       S3Service s3Service) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        profileCatalog,
+        compilerRunPinResolver,
+        clock,
+        idsPathPrompts,
+        approvalPrompts,
+        s3Service,
+        null);
+  }
+
+  public ProductPipelineRunSupport(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      ProductPipelineProfileCatalog profileCatalog,
+      CompilerRunPinResolver compilerRunPinResolver,
+      Clock clock,
+      DesignInputIdsPathPrompts idsPathPrompts,
+      ApprovalPrompts approvalPrompts,
+      S3Service s3Service,
+      FailureNarrative failureNarrative) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -184,7 +236,8 @@ public final class ProductPipelineRunSupport {
             manifestsByRun,
             attributesByRun,
             technicalRetriesByStage,
-            this.approvalPrompts);
+            this.approvalPrompts,
+            failureNarrative == null ? new FailureNarrative() : failureNarrative);
   }
 
   /** Single-stage execution seam used by Flow. */
@@ -356,44 +409,60 @@ public final class ProductPipelineRunSupport {
                         new IllegalStateException(
                             "run is not waiting for input or approval: " + doc.run().status()));
               }
-              artifactStore.append(
-                  new AppendCommand(
-                      command.runId(),
-                      Kind.USER_INPUT,
-                      "1",
-                      "product-pipeline-runtime",
-                      "1",
-                      new UserInput(
-                          userInputId(command),
-                          doc.run().currentStageId(),
-                          command.text(),
-                          clock.instant()),
-                      List.of(),
-                      null,
-                      provenance(
-                          command.runId(),
-                          doc.run().currentStageId(),
-                          currentStage(doc).capabilityId())));
+              if (isHaltFollowUp(doc, command.text())) {
+                return recordHaltFollowUp(doc, command);
+              }
+              if (isOwnerChoicePick(doc, command.text())) {
+                return recordOwnerChoice(doc, command);
+              }
+              boolean retryClick = PipelineGates.RETRY_ACTION.equals(command.text());
+              boolean reviseClick = PipelineGates.REVISE_ACTION.equals(command.text());
+              boolean haltCardClick = retryClick || reviseClick;
+              if (!haltCardClick) {
+                artifactStore.append(
+                    new AppendCommand(
+                        command.runId(),
+                        Kind.USER_INPUT,
+                        "1",
+                        "product-pipeline-runtime",
+                        "1",
+                        new UserInput(
+                            userInputId(command),
+                            doc.run().currentStageId(),
+                            command.text(),
+                            clock.instant()),
+                        List.of(),
+                        null,
+                        provenance(
+                            command.runId(),
+                            doc.run().currentStageId(),
+                            currentStage(doc).capabilityId())));
+              }
               Map<String, Object> attributes =
                   attributesByRun.computeIfAbsent(
                       command.runId(), ignored -> new ConcurrentHashMap<>());
-              attributes.put("userText", command.text());
-              // Only design-input may latch GENERATE/DERIVE. Keywords only here: acceptInput may
-              // run on the Vert.x event loop, so blocking LLM classify is forbidden. Full LLM
-              // classify runs later in DesignInputCapability on the worker pool.
-              if ("design-input".equals(doc.run().currentStageId())) {
-                DesignMode idsPathChoice =
-                    DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords(command.text());
-                if (idsPathChoice == DesignMode.GENERATE || idsPathChoice == DesignMode.DERIVE) {
-                  attributes.put(
-                      DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR, idsPathChoice);
+              if (!haltCardClick) {
+                attributes.put("userText", command.text());
+                // Only design-input may latch GENERATE/DERIVE. Keywords only here: acceptInput may
+                // run on the Vert.x event loop, so blocking LLM classify is forbidden. Full LLM
+                // classify runs later in DesignInputCapability on the worker pool.
+                if ("design-input".equals(doc.run().currentStageId())) {
+                  DesignMode idsPathChoice =
+                      DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords(command.text());
+                  if (idsPathChoice == DesignMode.GENERATE || idsPathChoice == DesignMode.DERIVE) {
+                    attributes.put(
+                        DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR, idsPathChoice);
+                  }
+                }
+                // Leak checks must cover the original requirement ask, not later clarifications
+                // or process instructions sent while discovery is WAITING_FOR_INPUT.
+                Object priorDiscovery = attributes.get("discoveryUserText");
+                if (!(priorDiscovery instanceof String prior) || prior.isBlank()) {
+                  attributes.put("discoveryUserText", command.text() == null ? "" : command.text());
                 }
               }
-              // Leak checks must cover the original requirement ask, not later clarifications
-              // or process instructions sent while discovery is WAITING_FOR_INPUT.
-              Object priorDiscovery = attributes.get("discoveryUserText");
-              if (!(priorDiscovery instanceof String prior) || prior.isBlank()) {
-                attributes.put("discoveryUserText", command.text() == null ? "" : command.text());
+              if (reviseClick) {
+                return recordRevise(doc, command);
               }
               commitStatus(
                   doc,
@@ -416,6 +485,295 @@ public final class ProductPipelineRunSupport {
     return command.commandId() == null || command.commandId().isBlank()
         ? UUID.randomUUID().toString()
         : "user-input-" + command.commandId();
+  }
+
+  /**
+   * Typed message at a recoverable halt: same run, original requirements unchanged, Retry still
+   * open. The next diagnosis turn reads {@link #HALT_FOLLOW_UP_TEXT_ATTR}.
+   */
+  private Multi<PipelineSignal> recordHaltFollowUp(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    artifactStore.append(
+        new AppendCommand(
+            command.runId(),
+            Kind.USER_INPUT,
+            "1",
+            "product-pipeline-runtime",
+            "1",
+            new UserInput(
+                haltFollowUpInputId(command),
+                doc.run().currentStageId(),
+                command.text(),
+                clock.instant()),
+            List.of(),
+            null,
+            provenance(
+                command.runId(),
+                doc.run().currentStageId(),
+                currentStage(doc).capabilityId())));
+    Map<String, Object> attributes =
+        attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+    attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text() == null ? "" : command.text());
+    String prompt = latestWaitingForInputPrompt(doc);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        doc.run().stages(),
+        prompt,
+        null,
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom()
+        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+  }
+
+  private Multi<PipelineSignal> recordRevise(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    String owner = diagnosedOwnerOf(command.runId());
+    if (isCurrentUnapprovedOwner(doc, owner)) {
+      commitStatus(
+          doc,
+          RunStatus.RUNNING,
+          StageStatus.RUNNING,
+          doc.run().stages(),
+          "accepted input",
+          null,
+          command.commandId(),
+          command.commandPayloadHash());
+      return Multi.createFrom().empty();
+    }
+    if (shouldCausalReopen(doc, owner)) {
+      return causalReopenOwner(doc, command, owner);
+    }
+    return stayWaitingForInput(doc, command);
+  }
+
+  private boolean shouldCausalReopen(ProductPipelineRunDocument doc, String owner) {
+    if (!isEarlierApprovedOwner(doc, owner)) {
+      return false;
+    }
+    if (catalogHasBeenWritten(doc.run().runId())) {
+      return false;
+    }
+    if (causalReopenCount(doc) >= MAX_CAUSAL_REOPENS) {
+      return false;
+    }
+    return !ownerAlreadyHadCausalReopen(doc, owner);
+  }
+
+  private static boolean isEarlierApprovedOwner(ProductPipelineRunDocument doc, String owner) {
+    if (owner == null || owner.isBlank() || owner.equals(doc.run().currentStageId())) {
+      return false;
+    }
+    return doc.run().stages().stream()
+        .filter(stage -> owner.equals(stage.stageId()))
+        .findFirst()
+        .map(
+            stage ->
+                stage.approvedArtifactId() != null && !stage.approvedArtifactId().isBlank())
+        .orElse(false);
+  }
+
+  private boolean catalogHasBeenWritten(String runId) {
+    if (latestCatalogChainSnapshot(runId).isPresent()) {
+      return true;
+    }
+    return artifactStore.latest(runId, Kind.MATERIALIZATION_RESULT).isPresent();
+  }
+
+  private static long causalReopenCount(ProductPipelineRunDocument doc) {
+    return doc.transitions().stream()
+        .filter(
+            transition ->
+                transition.reason() != null
+                    && transition.reason().startsWith(CAUSAL_REOPEN_REASON_PREFIX))
+        .count();
+  }
+
+  private static boolean ownerAlreadyHadCausalReopen(
+      ProductPipelineRunDocument doc, String owner) {
+    String reason = CAUSAL_REOPEN_REASON_PREFIX + owner;
+    return doc.transitions().stream().anyMatch(transition -> reason.equals(transition.reason()));
+  }
+
+  private Multi<PipelineSignal> causalReopenOwner(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, String owner) {
+    ProductPipelineProfile profile = profilesByRun.get(command.runId());
+    StageSnapshot ownerSnapshot =
+        doc.run().stages().stream()
+            .filter(stage -> owner.equals(stage.stageId()))
+            .findFirst()
+            .orElse(null);
+    Reference prior = ownerSnapshot == null ? null : resolveReopenApprovable(ownerSnapshot);
+    if (profile == null || ownerSnapshot == null || prior == null) {
+      return stayWaitingForInput(doc, command);
+    }
+    attributesByRun
+        .computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>())
+        .put(PRIOR_CANDIDATE_ATTR, prior.contentHash());
+    Set<String> afterOwner = stageIdsAfter(profile, owner);
+    List<StageSnapshot> updated = new ArrayList<>();
+    for (StageSnapshot snapshot : doc.run().stages()) {
+      if (owner.equals(snapshot.stageId())) {
+        updated.add(
+            new StageSnapshot(
+                snapshot.stageId(),
+                StageStatus.RUNNING,
+                snapshot.outputRefs(),
+                null,
+                snapshot.candidateReferences(),
+                snapshot.approvableReference(),
+                snapshot.candidateRevision()));
+      } else if (afterOwner.contains(snapshot.stageId())) {
+        updated.add(
+            new StageSnapshot(
+                snapshot.stageId(),
+                StageStatus.PENDING,
+                List.of(),
+                null,
+                List.of(),
+                null,
+                null));
+      } else {
+        updated.add(snapshot);
+      }
+    }
+    commitMove(
+        doc,
+        owner,
+        updated,
+        CAUSAL_REOPEN_REASON_PREFIX + owner,
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom().empty();
+  }
+
+  private Multi<PipelineSignal> stayWaitingForInput(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    String prompt = latestWaitingForInputPrompt(doc);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        doc.run().stages(),
+        prompt,
+        null,
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom()
+        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+  }
+
+  private Multi<PipelineSignal> recordOwnerChoice(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    Map<String, Object> attributes =
+        attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+    attributes.put(DIAGNOSED_OWNER_STAGE_ATTR, command.text());
+    if (isCurrentUnapprovedOwner(doc, command.text())) {
+      commitStatus(
+          doc,
+          RunStatus.RUNNING,
+          StageStatus.RUNNING,
+          doc.run().stages(),
+          "accepted input",
+          null,
+          command.commandId(),
+          command.commandPayloadHash());
+      return Multi.createFrom().empty();
+    }
+    String body = PipelineGates.strip(latestWaitingForInputPrompt(doc));
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_REVISE, body);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        doc.run().stages(),
+        prompt,
+        null,
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom()
+        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+  }
+
+  private static boolean isOwnerChoicePick(ProductPipelineRunDocument doc, String text) {
+    if (text == null || text.isBlank()) {
+      return false;
+    }
+    String prompt = latestWaitingForInputPrompt(doc);
+    if (!PipelineGates.OWNER_CHOICE.equals(PipelineGates.gateOf(prompt).orElse(""))) {
+      return false;
+    }
+    return PipelineGates.ownerCandidatesOf(prompt).contains(text);
+  }
+
+  private String diagnosedOwnerOf(String runId) {
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes == null) {
+      return "";
+    }
+    Object value = attributes.get(DIAGNOSED_OWNER_STAGE_ATTR);
+    return value instanceof String text ? text : "";
+  }
+
+  private static boolean isCurrentUnapprovedOwner(ProductPipelineRunDocument doc, String owner) {
+    if (owner == null || owner.isBlank() || !owner.equals(doc.run().currentStageId())) {
+      return false;
+    }
+    return doc.run().stages().stream()
+        .filter(stage -> owner.equals(stage.stageId()))
+        .findFirst()
+        .map(stage -> stage.approvedArtifactId() == null || stage.approvedArtifactId().isBlank())
+        .orElse(false);
+  }
+
+  private static boolean isHaltFollowUp(ProductPipelineRunDocument doc, String text) {
+    if (PipelineGates.isHaltCardAction(text) || doc.run().status() != RunStatus.WAITING_FOR_INPUT) {
+      return false;
+    }
+    if (isOwnerChoicePick(doc, text)) {
+      return false;
+    }
+    return PipelineGates.isRecoverableHaltGate(
+        PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""));
+  }
+
+  private static String haltFollowUpInputId(AcceptInputCommand command) {
+    String suffix =
+        command.commandId() == null || command.commandId().isBlank()
+            ? UUID.randomUUID().toString()
+            : command.commandId();
+    return HALT_FOLLOW_UP_INPUT_PREFIX + suffix;
+  }
+
+  private static boolean isHaltFollowUpInput(UserInput input) {
+    return input != null
+        && input.inputId() != null
+        && input.inputId().startsWith(HALT_FOLLOW_UP_INPUT_PREFIX);
+  }
+
+  /** Latest halt follow-up text on this run, or empty when none has been recorded. */
+  public Optional<String> haltFollowUpText(String runId) {
+    return stringAttribute(runId, HALT_FOLLOW_UP_TEXT_ATTR);
+  }
+
+  /** Diagnosed owner from the last halt, or empty when none was chosen. */
+  public Optional<String> diagnosedOwnerStageId(String runId) {
+    return stringAttribute(runId, DIAGNOSED_OWNER_STAGE_ATTR);
+  }
+
+  private Optional<String> stringAttribute(String runId, String key) {
+    Objects.requireNonNull(runId, "runId");
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes == null) {
+      return Optional.empty();
+    }
+    Object value = attributes.get(key);
+    if (value instanceof String text && !text.isBlank()) {
+      return Optional.of(text);
+    }
+    return Optional.empty();
   }
 
   /** Records approval without selecting or running the next stage. */
@@ -1111,19 +1469,27 @@ public final class ProductPipelineRunSupport {
             .map(revision -> artifactStore.payload(revision, UserInput.class))
             .filter(input -> input.targetStageId().equals(doc.run().currentStageId()))
             .toList();
-    if (!stageInputs.isEmpty()) {
-      attributes.put("userText", stageInputs.get(stageInputs.size() - 1).text());
-      attributes.put("discoveryUserText", stageInputs.get(0).text());
+    List<UserInput> requirementInputs =
+        stageInputs.stream().filter(input -> !isHaltFollowUpInput(input)).toList();
+    List<UserInput> followUps =
+        stageInputs.stream().filter(ProductPipelineRunSupport::isHaltFollowUpInput).toList();
+    if (!requirementInputs.isEmpty()) {
+      attributes.put("userText", requirementInputs.get(requirementInputs.size() - 1).text());
+      attributes.put("discoveryUserText", requirementInputs.get(0).text());
       if ("design-input".equals(doc.run().currentStageId())) {
-        for (int i = stageInputs.size() - 1; i >= 0; i--) {
+        for (int i = requirementInputs.size() - 1; i >= 0; i--) {
           DesignMode idsPathChoice =
-              DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords(stageInputs.get(i).text());
+              DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords(
+                  requirementInputs.get(i).text());
           if (idsPathChoice == DesignMode.GENERATE || idsPathChoice == DesignMode.DERIVE) {
             attributes.put(DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR, idsPathChoice);
             break;
           }
         }
       }
+    }
+    if (!followUps.isEmpty()) {
+      attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, followUps.get(followUps.size() - 1).text());
     }
     // Rehydrate only this run's counters. Clearing the whole map would drop retries for
     // other in-memory runs that share the same runtime bean.

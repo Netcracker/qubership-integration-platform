@@ -208,7 +208,16 @@ public final class CreateChainA2aStateMapper {
     } else if (pending instanceof CreateChainPendingAction.Clarify clarify) {
       data.put("reason", clarify.reason());
       data.put("missingEvidence", clarify.missingEvidence());
-      data.put("allowedActions", List.of("clarify"));
+      if (PipelineGates.STAGE_RETRY.equals(clarify.gateId())) {
+        data.put("action", PipelineGates.RETRY_ACTION);
+        data.put("allowedActions", List.of(PipelineGates.RETRY_ACTION));
+      } else if (PipelineGates.STAGE_REVISE.equals(clarify.gateId())) {
+        data.put("allowedActions", List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION));
+      } else if (PipelineGates.OWNER_CHOICE.equals(clarify.gateId())) {
+        data.put("allowedActions", clarify.missingEvidence());
+      } else {
+        data.put("allowedActions", List.of("clarify"));
+      }
     }
     return Map.copyOf(data);
   }
@@ -250,6 +259,21 @@ public final class CreateChainA2aStateMapper {
       text.append(
           "\nReply PASS_THROUGH to apply pass-through for every missing edge, or describe EXPLICIT"
               + " field mappings.");
+      return text.toString();
+    }
+    if (PipelineGates.STAGE_RETRY.equals(gate)) {
+      return reason + "\nReply \"retry\" to repeat this stage.";
+    }
+    if (PipelineGates.STAGE_REVISE.equals(gate)) {
+      return reason
+          + "\nReply \"retry\" to repeat this stage, or \"revise\" to reopen the diagnosed owner.";
+    }
+    if (PipelineGates.OWNER_CHOICE.equals(gate)) {
+      StringBuilder text = new StringBuilder(reason);
+      for (String stageId : clarify.missingEvidence()) {
+        text.append("\n- ").append(stageId);
+      }
+      text.append("\nReply with one of those stage ids.");
       return text.toString();
     }
     return reason;

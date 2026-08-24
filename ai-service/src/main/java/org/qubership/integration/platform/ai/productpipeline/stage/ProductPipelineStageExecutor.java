@@ -30,10 +30,15 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
+import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
+import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
+import org.qubership.integration.platform.ai.productpipeline.create.OwnerDiagnosis;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.BypassPolicy;
@@ -42,6 +47,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStag
 import org.qubership.integration.platform.ai.productpipeline.profile.SkipPolicy;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignalLiveSink;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -67,6 +73,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final Map<String, Map<String, Object>> attributesByRun;
   private final Map<String, Integer> technicalRetriesByStage;
   private final ApprovalPrompts approvalPrompts;
+  private final FailureNarrative failureNarrative;
 
   public ProductPipelineStageExecutor(
       ProductPipelineRunStore runStore,
@@ -78,6 +85,30 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       Map<String, Map<String, Object>> attributesByRun,
       Map<String, Integer> technicalRetriesByStage,
       ApprovalPrompts approvalPrompts) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        clock,
+        profilesByRun,
+        manifestsByRun,
+        attributesByRun,
+        technicalRetriesByStage,
+        approvalPrompts,
+        null);
+  }
+
+  public ProductPipelineStageExecutor(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      Clock clock,
+      Map<String, ProductPipelineProfile> profilesByRun,
+      Map<String, RunManifest> manifestsByRun,
+      Map<String, Map<String, Object>> attributesByRun,
+      Map<String, Integer> technicalRetriesByStage,
+      ApprovalPrompts approvalPrompts,
+      FailureNarrative failureNarrative) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -89,6 +120,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         Objects.requireNonNull(technicalRetriesByStage, "technicalRetriesByStage");
     this.approvalPrompts =
         approvalPrompts == null ? new ApprovalPrompts() : approvalPrompts;
+    this.failureNarrative =
+        failureNarrative == null ? new FailureNarrative() : failureNarrative;
   }
 
   @Override
@@ -377,25 +410,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       case CANDIDATE -> {
         CandidateResolution resolution = resolveCandidateResolution(stage, outcome.candidates());
         if (resolution.contractFailure() != null) {
-          String evidence = "CONTRACT_FAILURE: " + resolution.contractFailure();
-          commitStatus(
+          yield haltRecoverable(
               doc,
-              RunStatus.FAILED,
-              StageStatus.FAILED,
-              doc.run().stages(),
-              evidence,
-              evidence);
-          emitted.add(
-              new PipelineSignal.Failed(
-                  stage.stageId(),
-                  StageOutcomeClass.CONTRACT_FAILURE,
-                  resolution.contractFailure()));
-          yield new StageExecutionResult(
-              new StageDecision.Fail(
-                  stage.stageId(),
-                  StageOutcomeClass.CONTRACT_FAILURE,
-                  resolution.contractFailure()),
-              emitted);
+              stage,
+              List.of(),
+              StageOutcomeClass.CONTRACT_FAILURE,
+              resolution.contractFailure(),
+              List.of(),
+              emitted,
+              true);
         }
         List<Reference> refs =
             appendCandidates(runId, stage, resolution.resolvedCandidates(), committedInputs(doc));
@@ -454,24 +477,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         int used = technicalRetriesByStage.getOrDefault(key, 0);
         int max = stage.retry().maxTechnicalRetries();
         if (used >= max) {
-          String evidence =
-              outcome.outcomeClass().name()
-                  + (outcome.message() == null || outcome.message().isBlank()
-                      ? ""
-                      : ": " + outcome.message());
-          commitStatus(
+          yield haltRecoverable(
               doc,
-              RunStatus.FAILED,
-              StageStatus.FAILED,
-              doc.run().stages(),
-              evidence,
-              evidence);
-          emitted.add(
-              new PipelineSignal.Failed(
-                  stage.stageId(), outcome.outcomeClass(), outcome.message()));
-          yield new StageExecutionResult(
-              new StageDecision.Fail(stage.stageId(), outcome.outcomeClass(), outcome.message()),
-              emitted);
+              stage,
+              List.of(),
+              outcome.outcomeClass(),
+              outcome.message(),
+              outcome.candidates(),
+              emitted,
+              false);
         }
         technicalRetriesByStage.put(key, used + 1);
         long delayMs =
@@ -482,58 +496,127 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             new StageDecision.Retry(stage.stageId(), Duration.ofMillis(Math.max(delayMs, 0L))),
             emitted);
       }
-      case VALIDATION_FAILURE -> {
+      case VALIDATION_FAILURE, CONTRACT_FAILURE, DOMAIN_FAILURE -> {
         List<Reference> refs =
             appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates()));
         String failureMessage =
             outcome.message() == null || outcome.message().isBlank()
                 ? outcome.outcomeClass().name()
                 : outcome.message();
-        ProductPipelineProfile profile = profilesByRun.get(runId);
-        Optional<String> reopenStageId = previousApprovalStageId(profile, stage.stageId());
-        if (reopenStageId.isPresent()) {
-          yield new StageExecutionResult(
-              new StageDecision.ReopenApproval(
-                  stage.stageId(), reopenStageId.get(), failureMessage, refs),
-              emitted);
-        }
-        yield failClosed(doc, stage, refs, outcome.outcomeClass(), failureMessage, emitted);
+        yield haltRecoverable(
+            doc,
+            stage,
+            refs,
+            outcome.outcomeClass(),
+            failureMessage,
+            outcome.candidates(),
+            emitted,
+            true);
       }
-      case CONTRACT_FAILURE,
-          POLICY_FAILURE,
-          DOMAIN_FAILURE,
-          MISSING_MANDATORY_INPUT -> {
+      case POLICY_FAILURE, MISSING_MANDATORY_INPUT -> {
         List<Reference> refs =
             appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates()));
-        yield failClosed(
+        yield haltRecoverable(
             doc,
             stage,
             refs,
             outcome.outcomeClass(),
             outcome.message(),
-            emitted);
+            outcome.candidates(),
+            emitted,
+            false);
       }
     };
   }
 
-  private StageExecutionResult failClosed(
+  private StageExecutionResult haltRecoverable(
       ProductPipelineRunDocument doc,
       ProfileStage stage,
       List<Reference> refs,
       StageOutcomeClass outcomeClass,
       String message,
-      List<PipelineSignal> emitted) {
-    List<StageSnapshot> failedStages =
+      List<ArtifactCandidate> candidates,
+      List<PipelineSignal> emitted,
+      boolean diagnoseOwner) {
+    String evidence = message == null || message.isBlank() ? outcomeClass.name() : message;
+    String findings = FailureNarrative.findingsText(candidates);
+    RunManifest manifest = manifestsByRun.get(doc.run().runId());
+    String locale = manifest == null ? "en" : manifest.responseLocale();
+    String followUp = followUpText(doc.run().runId());
+    String body;
+    String gate = PipelineGates.STAGE_RETRY;
+    List<String> choiceIds = List.of();
+    if (diagnoseOwner) {
+      ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+      List<OwnerCandidate> closed = OwnerCandidateSet.firstLayer(profile, stage.stageId());
+      OwnerDiagnosis diagnosis =
+          failureNarrative.diagnose(
+              locale, stage.stageId(), outcomeClass, evidence, findings, closed, followUp);
+      List<OwnerCandidate> deeper = OwnerCandidateSet.deepen(profile, closed);
+      if ((diagnosis.ambiguous() || diagnosis.owner().isEmpty()) && deeper.size() > closed.size()) {
+        closed = deeper;
+        diagnosis =
+            failureNarrative.diagnose(
+                locale, stage.stageId(), outcomeClass, evidence, findings, closed, followUp);
+      }
+      body = diagnosis.narrative().isBlank() ? evidence : diagnosis.narrative();
+      putRunAttribute(
+          doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, evidence);
+      putRunAttribute(
+          doc.run().runId(),
+          ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR,
+          outcomeClass.name());
+      if (diagnosis.ambiguous()) {
+        gate = PipelineGates.OWNER_CHOICE;
+        choiceIds = OwnerCandidateSet.stageIds(closed);
+        putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+      } else if (diagnosis.owner().isPresent()) {
+        gate = PipelineGates.STAGE_REVISE;
+        putRunAttribute(
+            doc.run().runId(),
+            ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
+            diagnosis.owner().orElseThrow());
+      } else {
+        putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+      }
+    } else {
+      body =
+          failureNarrative
+              .narrate(locale, stage.stageId(), outcomeClass, evidence, findings, followUp)
+              .orElse(evidence);
+    }
+    String prompt =
+        PipelineGates.OWNER_CHOICE.equals(gate)
+            ? PipelineGates.tagOwnerChoice(body, choiceIds)
+            : PipelineGates.tag(gate, body);
+    List<StageSnapshot> stages =
         refs.isEmpty()
             ? doc.run().stages()
-            : markStageOutputs(doc, stage.stageId(), refs, StageStatus.FAILED);
-    String evidence =
-        outcomeClass.name()
-            + (message == null || message.isBlank() ? "" : ": " + message);
-    commitStatus(doc, RunStatus.FAILED, StageStatus.FAILED, failedStages, evidence, evidence);
-    emitted.add(new PipelineSignal.Failed(stage.stageId(), outcomeClass, message));
+            : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        stages,
+        prompt);
+    emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
     return new StageExecutionResult(
-        new StageDecision.Fail(stage.stageId(), outcomeClass, message), emitted);
+        new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
+  }
+
+  private String followUpText(String runId) {
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes == null) {
+      return "";
+    }
+    Object value = attributes.get(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR);
+    return value instanceof String text ? text : "";
+  }
+
+  private void putRunAttribute(String runId, String key, String value) {
+    attributesByRun
+        .computeIfAbsent(runId, ignored -> new java.util.concurrent.ConcurrentHashMap<>())
+        .put(key, value == null ? "" : value);
   }
 
   private Map<String, Object> enrichAttributesFromCommittedInputs(

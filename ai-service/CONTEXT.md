@@ -96,6 +96,56 @@ heuristic intercepts before the classifier runs. Dispatch goes through the plain
 CDI mechanism (`@ForScenario(COMPARE_AND_PATCH)`, same shape as `ChainQuestionScenario`), not the
 CREATE product pipeline -- `isCreateOwnedScenario` does not list it.
 
+**Causal reopen**:
+Returning a run to the stage that *produced* the defective input artifact, not to the stage that
+observed the failure. The owning stage emits a new candidate; the previous Decision card binding
+is stale until the user accepts the new one.
+_Avoid_: go back one step, retry previous stage, silent rewrite of an approved plan
+
+**Repair candidate**:
+The replacement artifact produced after diagnosis, shown on a Decision card. The pipeline does not
+continue on that artifact until the user accepts the new binding.
+_Avoid_: auto-approved fix, in-place edit of an approved plan
+
+**Owner diagnosis**:
+Choosing the stage that produced the defective artifact. Candidates are the producers of the failed
+stage's inputs (and those producers' inputs, if the search must go deeper); an LLM picks among that
+set. If more than one candidate stays plausible, a Decision card asks which artifact to revise.
+_Avoid_: previous-approval heuristic, unconstrained LLM blame
+
+**Recoverable halt**:
+A pause that keeps the run inside the product pipeline. The user can retry the current stage, go
+back to an earlier approval, ask questions, or revise the plan. The run is not finished and is not
+a tombstone. A typed message at this pause is a halt follow-up: it stays on this run and continues
+the diagnosis, and it is not a new router classification.
+_Avoid_: terminal FAILED, abort the conversation, irreversible pipeline death, drop out of CREATE
+
+**Failure narrative**:
+LLM-authored explanation of what went wrong, written for the user at a recoverable halt. The
+runtime supplies structured evidence (outcome class, exception, validation findings, stage id);
+it does not supply the prose. The same model turn that diagnoses the owner writes the narrative;
+a technical halt uses a short narration turn on the same evidence. If that turn fails, the card
+keeps its actions and the raw evidence — no fallback marketing sentence.
+_Avoid_: hardcoded halt copy, template error strings, "rolled back to stage X"
+
+**Failure routing** (decided):
+A recoverable halt is the only user-visible stop. Same-stage technical retry still runs first;
+when that budget is exhausted the halt card always includes Retry (including connection loss).
+Validation, domain, and contract failures take owner diagnosis and causal reopen. Missing mandatory
+input and policy failures halt on a Decision card; the model does not rewrite policy. No outcome
+class may leave the user with nothing to do.
+
+**Causal reopen window** (decided):
+Causal reopen runs only before any materializer has written to the catalog. A failure at or after
+materialization is outside this feature: the model does not reopen the plan and write again on its
+own.
+_Avoid_: auto-reopen after a catalog write
+
+**Reasoning effort** (deferred):
+Owner diagnosis and the failure narrative use the ordinary chat model. This feature does not turn
+on service-wide `LLM_REASONING_EFFORT`.
+_Avoid_: global reasoning as a substitute for halt or retry
+
 **Decision card** (`ChatEvent.Decision`):
 The typed gate a run stops at, rendered as a card in the transcript and answered by a
 `ChatDecisionCommand` on its own endpoint. The card carries its own binding (`artifactType`,

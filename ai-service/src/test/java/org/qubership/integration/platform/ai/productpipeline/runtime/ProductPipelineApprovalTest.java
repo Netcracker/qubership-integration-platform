@@ -44,6 +44,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
@@ -365,7 +366,7 @@ class ProductPipelineApprovalTest {
             candidateOutcome(artifact(Kind.REQUIREMENT_BRIEF, Map.of("unexpected", true))),
             multiItemPolicy(),
             multiItemProduces());
-    assertEquals(StageStatus.FAILED, currentStage(doc).status());
+    assertEquals(StageStatus.WAITING_FOR_INPUT, currentStage(doc).status());
   }
 
   @Test
@@ -377,7 +378,7 @@ class ProductPipelineApprovalTest {
             new ArtifactTypeRef("chain-plan-graph", 1));
     ProductPipelineRunDocument doc =
         runAndExpectFailure(validCreateChainCandidate(), multiItemPolicy(), producesWithUndeclaredSchema);
-    assertEquals(StageStatus.FAILED, currentStage(doc).status());
+    assertEquals(StageStatus.WAITING_FOR_INPUT, currentStage(doc).status());
   }
 
   @Test
@@ -388,7 +389,7 @@ class ProductPipelineApprovalTest {
             artifact(Kind.PLAN_VALIDATION_RESULT, Map.of("validation", "ok")));
     ProductPipelineRunDocument doc =
         runAndExpectFailure(missingGraph, multiItemPolicy(), multiItemProduces());
-    assertEquals(StageStatus.FAILED, currentStage(doc).status());
+    assertEquals(StageStatus.WAITING_FOR_INPUT, currentStage(doc).status());
   }
 
   @Test
@@ -401,7 +402,7 @@ class ProductPipelineApprovalTest {
             artifact(Kind.PLAN_VALIDATION_RESULT, Map.of("validation", "ok")));
     ProductPipelineRunDocument doc =
         runAndExpectFailure(duplicateImplementationPlans, multiItemPolicy(), multiItemProduces());
-    assertEquals(StageStatus.FAILED, currentStage(doc).status());
+    assertEquals(StageStatus.WAITING_FOR_INPUT, currentStage(doc).status());
   }
 
   @Test
@@ -526,13 +527,14 @@ class ProductPipelineApprovalTest {
     startRun();
     List<PipelineSignal> signals =
         runtime.acceptInput(new AcceptInputCommand(RUN_ID, "candidate")).collect().asList().await().indefinitely();
-    PipelineSignal.Failed failed =
+    PipelineSignal.WaitingForInput waiting =
         signals.stream()
-            .filter(PipelineSignal.Failed.class::isInstance)
-            .map(PipelineSignal.Failed.class::cast)
+            .filter(PipelineSignal.WaitingForInput.class::isInstance)
+            .map(PipelineSignal.WaitingForInput.class::cast)
             .findFirst()
             .orElseThrow();
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, failed.outcomeClass());
+    assertEquals(
+        PipelineGates.STAGE_RETRY, PipelineGates.gateOf(waiting.prompt()).orElseThrow());
     return runStore.load(RUN_ID).orElseThrow();
   }
 

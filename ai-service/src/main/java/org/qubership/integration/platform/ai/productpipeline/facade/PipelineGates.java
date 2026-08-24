@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.facade;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,6 +28,48 @@ public final class PipelineGates {
   /** The design needs field mappings, or permission to pass the payload through as-is. */
   public static final String MAPPING_GAP = "mapping-gap";
 
+  /** The current stage halted; Retry re-enters it without treating the click as new requirements. */
+  public static final String STAGE_RETRY = "stage-retry";
+
+  /**
+   * Validation, domain, or contract halt with a diagnosed owner. Retry and Revise are both on the
+   * card; Revise does not overwrite requirements.
+   */
+  public static final String STAGE_REVISE = "stage-revise";
+
+  /**
+   * More than one owner stayed plausible. Actions are the candidate stage ids in missing evidence,
+   * not free text.
+   */
+  public static final String OWNER_CHOICE = "owner-choice";
+
+  /** Wire action for {@link #STAGE_RETRY}. */
+  public static final String RETRY_ACTION = "retry";
+
+  /** Wire action for {@link #STAGE_REVISE}. */
+  public static final String REVISE_ACTION = "revise";
+
+  /**
+   * Durable delimiter between the halt narrative and candidate stage ids on an owner-choice wait.
+   * Parsed back into missing evidence; stripped before a reader sees the prompt.
+   */
+  static final String OWNER_CANDIDATES_MARKER = "__OWNER_CANDIDATES__";
+
+  /**
+   * True when {@code action} is a halt-card button (Retry or Revise). A typed follow-up is not a
+   * halt-card action.
+   */
+  public static boolean isHaltCardAction(String action) {
+    return RETRY_ACTION.equals(action) || REVISE_ACTION.equals(action);
+  }
+
+  /** True when the wait is a recoverable halt (Retry, Revise, or owner choice). */
+  public static boolean isRecoverableHaltGate(String gateId) {
+    return STAGE_RETRY.equals(gateId)
+        || STAGE_REVISE.equals(gateId)
+        || OWNER_CHOICE.equals(gateId);
+  }
+
   private static final Pattern MARKER = Pattern.compile("__GATE:([a-z0-9-]+)__");
 
   private PipelineGates() {}
@@ -37,6 +81,54 @@ public final class PipelineGates {
       return text;
     }
     return "__GATE:" + gateId + "__" + text;
+  }
+
+  /** Replaces any existing gate marker with {@code gateId}. */
+  public static String retag(String gateId, String prompt) {
+    return tag(gateId, strip(prompt));
+  }
+
+  /**
+   * Owner-choice wait: gate plus narrative, then candidate stage ids after {@link
+   * #OWNER_CANDIDATES_MARKER}.
+   */
+  public static String tagOwnerChoice(String prompt, List<String> stageIds) {
+    String tagged = tag(OWNER_CHOICE, prompt);
+    if (stageIds == null || stageIds.isEmpty()) {
+      return tagged;
+    }
+    List<String> ids = new ArrayList<>();
+    for (String stageId : stageIds) {
+      if (stageId != null && !stageId.isBlank()) {
+        ids.add(stageId.trim());
+      }
+    }
+    if (ids.isEmpty()) {
+      return tagged;
+    }
+    return tagged + OWNER_CANDIDATES_MARKER + String.join(",", ids);
+  }
+
+  /** Candidate stage ids encoded on an owner-choice wait, or empty. */
+  public static List<String> ownerCandidatesOf(String prompt) {
+    if (prompt == null || prompt.isBlank()) {
+      return List.of();
+    }
+    int marker = prompt.indexOf(OWNER_CANDIDATES_MARKER);
+    if (marker < 0) {
+      return List.of();
+    }
+    String raw = prompt.substring(marker + OWNER_CANDIDATES_MARKER.length()).strip();
+    if (raw.isBlank()) {
+      return List.of();
+    }
+    List<String> ids = new ArrayList<>();
+    for (String part : raw.split(",")) {
+      if (part != null && !part.isBlank()) {
+        ids.add(part.trim());
+      }
+    }
+    return List.copyOf(ids);
   }
 
   /** The gate this prompt names, or empty when it names none. */
@@ -53,6 +145,11 @@ public final class PipelineGates {
     if (prompt == null || prompt.isBlank()) {
       return "";
     }
-    return MARKER.matcher(prompt).replaceAll("").strip();
+    String withoutGate = MARKER.matcher(prompt).replaceAll("");
+    int marker = withoutGate.indexOf(OWNER_CANDIDATES_MARKER);
+    if (marker >= 0) {
+      withoutGate = withoutGate.substring(0, marker);
+    }
+    return withoutGate.strip();
   }
 }

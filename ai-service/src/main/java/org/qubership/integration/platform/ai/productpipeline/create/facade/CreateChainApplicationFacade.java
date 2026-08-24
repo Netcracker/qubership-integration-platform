@@ -1107,6 +1107,10 @@ public class CreateChainApplicationFacade {
         return new CreateChainPendingAction.Clarify(
             view.question(), view.missingEdges(), gateId);
       }
+      if (PipelineGates.OWNER_CHOICE.equals(gateId)) {
+        return new CreateChainPendingAction.Clarify(
+            prompt, PipelineGates.ownerCandidatesOf(waitPrompt), gateId);
+      }
       return new CreateChainPendingAction.Clarify(prompt, List.of(), gateId);
     }
     Optional<RequirementDraft> draft =

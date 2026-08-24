@@ -19,6 +19,8 @@ const ACTION_LABELS: Record<string, string> = {
   no: "No",
   pass_through: "Pass through",
   describe_mappings: "Describe mappings",
+  retry: "Retry",
+  revise: "Revise",
 };
 
 /**
@@ -41,6 +43,8 @@ const PRIMARY_ACTIONS = new Set([
   "import-specification",
   "yes",
   "pass_through",
+  "retry",
+  "revise",
 ]);
 
 function actionLabel(action: string): string {

@@ -71,7 +71,7 @@ class ProductPipelineValidationRollbackTest {
   }
 
   @Test
-  void planningValidationFailureReopensBriefApprovalWithFindings() {
+  void planningValidationFailureHaltsWithRetryInsteadOfReopeningBriefApproval() {
     ScriptedCapability analysis =
         new ScriptedCapability(
             "requirement-analysis",
@@ -138,20 +138,13 @@ class ProductPipelineValidationRollbackTest {
             .await()
             .indefinitely();
 
-    assertValidationRollback(afterApprove);
+    assertValidationHalt(afterApprove);
 
     var doc = runStore.load(RUN_ID).orElseThrow();
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, doc.run().status());
-    assertEquals("requirement-analysis", doc.run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, doc.run().status());
+    assertEquals("planning", doc.run().currentStageId());
     assertEquals(
-        StageStatus.WAITING_FOR_APPROVAL,
-        doc.run().stages().stream()
-            .filter(s -> s.stageId().equals("requirement-analysis"))
-            .findFirst()
-            .orElseThrow()
-            .status());
-    assertEquals(
-        StageStatus.PENDING,
+        StageStatus.WAITING_FOR_INPUT,
         doc.run().stages().stream()
             .filter(s -> s.stageId().equals("planning"))
             .findFirst()
@@ -159,19 +152,13 @@ class ProductPipelineValidationRollbackTest {
             .status());
   }
 
-  private void assertValidationRollback(List<PipelineSignal> signals) {
-    PipelineSignal.Failed failed =
-        signals.stream()
-            .filter(PipelineSignal.Failed.class::isInstance)
-            .map(PipelineSignal.Failed.class::cast)
-            .findFirst()
-            .orElseThrow();
-    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, failed.outcomeClass());
-    assertTrue(failed.message().contains("missing quartz-scheduler"));
-    assertTrue(failed.message().contains("Rolled back to approval"));
+  private void assertValidationHalt(List<PipelineSignal> signals) {
     assertTrue(
-        signals.stream().anyMatch(PipelineSignal.WaitingForApproval.class::isInstance),
-        "expected WaitingForApproval after rollback");
+        signals.stream().anyMatch(PipelineSignal.WaitingForInput.class::isInstance),
+        "expected WaitingForInput halt after planning validation");
+    assertTrue(
+        signals.stream().noneMatch(PipelineSignal.Failed.class::isInstance),
+        "validation halt must not fail the run");
   }
 
   private static ProductPipelineProfile twoStageProfile() {

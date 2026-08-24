@@ -268,6 +268,52 @@ describe("AiDecisionCard", () => {
     expect(onSubmitClarification).toHaveBeenCalledWith("yes");
   });
 
+  it("should render Retry for a stage-retry clarify gate", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "bad domain",
+      missingEvidence: [],
+      actions: ["retry"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onSubmitClarification).toHaveBeenCalledWith("retry");
+  });
+
+  it("should render Revise for a stage-revise clarify gate", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "The brief omitted the scheduler.",
+      missingEvidence: [],
+      actions: ["retry", "revise"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Revise" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onSubmitClarification).toHaveBeenCalledWith("revise");
+  });
+
   it("should send a command action through onAnswer even on a clarify card", () => {
     // The import gate is a clarification the server can execute: it has to arrive as a typed
     // command so the transcript records the marker the import stage reads. A stage answer such as

@@ -23,6 +23,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductPipel
 import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
 import java.util.List;
 import java.util.Locale;
@@ -113,6 +115,23 @@ public class ScenarioRouter {
   }
 
   public Multi<ChatEvent> route(ChatRequest request, String conversationId) {
+    if (createRunSelectionService != null && productPipelineChatAdapter != null) {
+      try {
+        if (createRunSelectionService.existing(conversationId).isPresent()
+            && recoverableHalt(conversationId)) {
+          LOG.infof(
+              "Routing conversationId=%s to product CREATE pipeline (halt follow-up)",
+              conversationId);
+          return productPipelineChatAdapter.handle(request, conversationId);
+        }
+      } catch (UnsupportedCreateRunBindingException e) {
+        LOG.warnf(
+            "Unsupported CREATE binding conversationId=%s errorId=%s",
+            conversationId, e.errorId());
+        return Multi.createFrom().item(ChatEvent.error(e.sseMessage()));
+      }
+    }
+
     // Resolved before the CREATE run is offered the turn, because a turn about a chain that already
     // exists is not the run's to take -- not even mid-run, when the chain in question is the one
     // the run has just built and the reader has moved on to changing it.
@@ -233,6 +252,25 @@ public class ScenarioRouter {
             .snapshot(conversationId)
             .map(ExecutionSnapshot::finished)
             .orElse(false);
+  }
+
+  /**
+   * True when the bound CREATE run is at a recoverable halt. A typed follow-up stays on that run
+   * and is not a new router classification.
+   */
+  private boolean recoverableHalt(String conversationId) {
+    if (createChainFacade == null) {
+      return false;
+    }
+    return createChainFacade
+        .snapshot(conversationId)
+        .filter(snapshot -> !snapshot.finished())
+        .map(ExecutionSnapshot::pendingAction)
+        .filter(PendingAction.Clarify.class::isInstance)
+        .map(PendingAction.Clarify.class::cast)
+        .map(PendingAction.Clarify::gateId)
+        .filter(PipelineGates::isRecoverableHaltGate)
+        .isPresent();
   }
 
   RoutingOutcome resolveRouting(ChatRequest request, String conversationId) {
