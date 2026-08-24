@@ -214,6 +214,59 @@ class MicroDomainServiceHttpRouteTest {
         assertEquals("/qip-routes/shared", pathMatch.get("value"));
     }
 
+    // Fail closed: a remaining snapshot with no catalog row contributes no paths, so the
+    // subtraction that protects a shared path is incomplete and no rule may be stripped.
+    @Test
+    void deleteChainSnapshotStripsNothingWhenARemainingSnapshotDoesNotResolve() {
+        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+                .thenReturn(List.of(mock(
+                        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2")))
+                .thenReturn(List.of());
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of("snapshot-2"));
+
+        verify(kubeOperator, never()).createOrUpdateResource(any());
+        verify(kubeOperator, never()).deleteCustomObject(any(), any(), any(), any());
+    }
+
+    // The guard keys on completeness, not on emptiness: one resolved remaining snapshot does
+    // not make the other one's paths visible.
+    @Test
+    void deleteChainSnapshotStripsNothingWhenOnlySomeRemainingSnapshotsResolve() {
+        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot resolved =
+                mock(org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class);
+        when(resolved.getId()).thenReturn("snapshot-2");
+        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1")))
+                .thenReturn(List.of(mock(
+                        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+        when(snapshotRepository.findAllByIdIn(Set.of("snapshot-2", "snapshot-3")))
+                .thenReturn(List.of(resolved));
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+
+        microDomainService.deleteChainSnapshotHttpRoutes(
+                DOMAIN, "snapshot-1", Set.of("snapshot-2", "snapshot-3"));
+
+        verify(kubeOperator, never()).createOrUpdateResource(any());
+        verify(kubeOperator, never()).deleteCustomObject(any(), any(), any(), any());
+    }
+
+    // The removed snapshot itself may be missing from the catalog. Nothing is stripped then
+    // either, and the leftover rules stay until the domain is redeployed.
+    @Test
+    void deleteChainSnapshotStripsNothingWhenTheRemovedSnapshotDoesNotResolve() {
+        when(snapshotRepository.findAllByIdIn(List.of("snapshot-1"))).thenReturn(List.of());
+
+        microDomainService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1", Set.of());
+
+        verify(kubeOperator, never()).getCustomObject(any(), any(), any(), any());
+        verify(kubeOperator, never()).createOrUpdateResource(any());
+        verify(kubeOperator, never()).deleteCustomObject(any(), any(), any(), any());
+    }
+
     @Test
     void deleteHttpRoutesDeletesAllComputedTierNamesUnconditionally() {
         microDomainService.deleteHttpRoutes(DOMAIN);

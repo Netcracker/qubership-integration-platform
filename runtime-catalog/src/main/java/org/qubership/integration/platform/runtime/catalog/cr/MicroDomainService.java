@@ -428,10 +428,31 @@ public class MicroDomainService {
      * {@code ChainRouteRegistry.getUnsharedRoutes} runs the same shape of subtraction on the engine
      * side over a narrower set: it compares only other deployments of the same chain, while this
      * compares every snapshot the domain hosts, other chains included.
+     * <p>When either resolution is incomplete the method strips nothing at all, across every tier.
+     * An unresolved snapshot's routes are exactly what cannot be seen, so there is no way to
+     * attribute it to one tier and spare the others. That leaves stale rules behind, and nothing
+     * reconciles these CRs afterwards, so they persist until the domain is deleted or the owning
+     * chain is redeployed. It is the safer half of the trade: the alternative removes a rule a
+     * running chain still serves.
      */
     void deleteChainSnapshotHttpRoutes(String name, String snapshotId, Set<String> remainingSnapshotIds) {
-        List<Route> ownRoutes = snapshotRoutes(name, List.of(snapshotId), "removed");
-        List<Route> retainedRoutes = snapshotRoutes(name, remainingSnapshotIds, "remaining");
+        ResolvedRoutes own = snapshotRoutes(List.of(snapshotId));
+        ResolvedRoutes retained = snapshotRoutes(remainingSnapshotIds);
+        if (!retained.isComplete()) {
+            log.warn("Snapshot(s) {} listed for micro-domain '{}' have no catalog row, so the paths they own "
+                    + "are unknown. Kept every rule for removed snapshot '{}' rather than risk stripping one a "
+                    + "live chain still serves. Redeploy the domain to clear the leftovers.",
+                    retained.unresolvedIds(), name, snapshotId);
+            return;
+        }
+        if (!own.isComplete()) {
+            log.warn("Removed snapshot '{}' has no catalog row for micro-domain '{}', so the paths it owns are "
+                    + "unknown. Its HTTPRoute rules stay in place. Redeploy the domain to clear them.",
+                    snapshotId, name);
+            return;
+        }
+        List<Route> ownRoutes = own.routes();
+        List<Route> retainedRoutes = retained.routes();
 
         Set<GatewayPathMatch> publicPaths = unsharedPaths(
                 tierOwnPaths(ownRoutes, RouteType::isExternalTriggerRoute),
@@ -457,35 +478,47 @@ public class MicroDomainService {
     }
 
     /**
-     * Resolves {@code snapshotIds} to the gateway routes they define. {@code domainName} and
-     * {@code description} label the warning logged when the catalog database has no row for every
-     * requested ID: a remaining snapshot that cannot be resolved contributes no paths, which risks
-     * stripping a rule that is still live, so it must not pass silently. The warning names the
-     * micro-domain and the unresolved IDs, because it fires at the moment rules may be removed
-     * without a full picture of who still owns them.
+     * The routes a set of snapshot IDs resolved to, plus the IDs that had no catalog row. An
+     * incomplete result means some other snapshot's paths are invisible, so the caller must not
+     * strip anything: it cannot tell a path only the removed snapshot owns from one a live chain
+     * still serves.
      */
-    private List<Route> snapshotRoutes(String domainName, Collection<String> snapshotIds, String description) {
+    private record ResolvedRoutes(List<Route> routes, List<String> unresolvedIds) {
+        boolean isComplete() {
+            return unresolvedIds.isEmpty();
+        }
+    }
+
+    /**
+     * Resolves {@code snapshotIds} to the gateway routes they define, reporting any ID the catalog
+     * database has no row for rather than logging and continuing. The caller decides what an
+     * incomplete result means, because the answer differs between the removed snapshot and the
+     * ones that remain.
+     *
+     * <p>Unresolved IDs are computed only when fewer rows came back than were asked for. Reading
+     * {@code getId()} on every row unconditionally would be equivalent, but the test suite stubs
+     * the repository with bare mocks whose ID is {@code null}, and they would all read as
+     * unresolved.
+     */
+    private ResolvedRoutes snapshotRoutes(Collection<String> snapshotIds) {
         if (snapshotIds.isEmpty()) {
-            return List.of();
+            return new ResolvedRoutes(List.of(), List.of());
         }
         var snapshots = snapshotRepository.findAllByIdIn(snapshotIds);
-        if (snapshots.size() < snapshotIds.size()) {
-            Set<String> resolvedIds = snapshots.stream()
-                    .map(AbstractEntity::getId)
-                    .collect(Collectors.toSet());
-            List<String> unresolvedIds = snapshotIds.stream()
-                    .filter(id -> !resolvedIds.contains(id))
-                    .toList();
-            log.warn("Found {} of {} {} snapshot(s) for micro-domain '{}' in the catalog database; "
-                            + "snapshot(s) {} did not resolve, so paths only they own are invisible to "
-                            + "HTTPRoute cleanup and a rule still in use can be stripped. Redeploy the "
-                            + "affected chains to restore any rule that goes missing",
-                    snapshots.size(), snapshotIds.size(), description, domainName, unresolvedIds);
-        }
-        return snapshots.stream()
+        List<Route> routes = snapshots.stream()
                 .flatMap(snapshot -> routesGetterService
                         .getRoutes(new SnapshotAdapter(snapshot), integrationServiceCatalog).stream())
                 .toList();
+        if (snapshots.size() >= snapshotIds.size()) {
+            return new ResolvedRoutes(routes, List.of());
+        }
+        Set<String> resolvedIds = snapshots.stream()
+                .map(AbstractEntity::getId)
+                .collect(Collectors.toSet());
+        List<String> unresolvedIds = snapshotIds.stream()
+                .filter(id -> !resolvedIds.contains(id))
+                .toList();
+        return new ResolvedRoutes(routes, unresolvedIds);
     }
 
     /**
