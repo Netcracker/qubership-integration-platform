@@ -91,7 +91,13 @@ spec:
                   POSTGRES_URL: 'configmap:{{ .Release.Name }}-engine-env/POSTGRES_URL',
                   POSTGRES_USER: 'secret:{{ .Release.Name }}-postgres-auth/username',
                   POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password',
-                  ROUTES_REGISTRATION_ENABLED: 'false'
+                  ROUTES_REGISTRATION_ENABLED: 'false',
+                  {{- /* Mocking is a property of the engine that runs the chain, so a micro
+                       domain needs the same two settings the classic engine reads. They
+                       come from the engine config map, which is rendered whatever the
+                       flags say, so the reference resolves even with mocking off. */}}
+                  TESTING_SERVICE_ENABLED: 'configmap:{{ .Release.Name }}-engine-env/TESTING_SERVICE_ENABLED',
+                  TESTING_SERVICE_ADDRESS: 'configmap:{{ .Release.Name }}-engine-env/TESTING_SERVICE_ADDRESS'
                 }
             - name: DEFAULT_SECRET_ENABLED
               valueFrom:
