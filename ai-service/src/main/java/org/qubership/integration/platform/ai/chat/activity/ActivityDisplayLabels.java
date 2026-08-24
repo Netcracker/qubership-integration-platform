@@ -85,7 +85,7 @@ public final class ActivityDisplayLabels {
     if (id.endsWith("-analyzer")) {
       return "Analyzing " + id.substring(0, id.length() - "-analyzer".length()).replace('-', ' ');
     }
-    return humanizeTool(skillId);
+    return humanizeTool(id);
   }
 
   private static String humanizeTool(String name) {
