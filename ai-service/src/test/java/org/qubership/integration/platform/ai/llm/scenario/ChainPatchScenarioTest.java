@@ -182,13 +182,13 @@ class ChainPatchScenarioTest {
                 "skill:cip-script-generator",
                 "skill",
                 "running",
-                "cip-script-generator",
+                "Writing scripts",
                 null),
             new ChatEvent.Step(
                 "skill:cip-script-generator",
                 "skill",
                 "completed",
-                "cip-script-generator",
+                "Writing scripts",
                 null)),
         skills);
   }

@@ -189,7 +189,9 @@ class A2aJsonRpcTransportIT {
     JsonNode metadata = root.path("result").path("task").path("artifacts").path(0).path("metadata");
     // Ordered by first appearance and de-duplicated: the sequence of work, not a tally.
     assertEquals(
-        "requirement-analysis,design-planning", metadata.path("skillsUsed").asText(), root.toString());
+        "Running requirement analysis,Running design planning",
+        metadata.path("skillsUsed").asText(),
+        root.toString());
     // A completed turn says nothing about an active stage.
     assertTrue(metadata.path("activeStage").isMissingNode(), root.toString());
     assertEquals("Done.", firstArtifactText(root.path("result").path("task")), root.toString());

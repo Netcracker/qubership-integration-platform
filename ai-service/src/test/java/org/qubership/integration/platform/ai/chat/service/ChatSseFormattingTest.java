@@ -32,12 +32,13 @@ class ChatSseFormattingTest {
   void framesStepReplacePayloadWithIdKindStatus() {
     String sse =
         ChatExecutionService.toSse(
-            ChatEvent.step("skill:auth", "skill", "running", "Implement auth", null), objectMapper);
+            ChatEvent.step("skill:auth", "skill", "running", "cip-auth-generator", null),
+            objectMapper);
     assertTrue(sse.startsWith("event: step\n"));
     assertTrue(sse.contains("\"id\":\"skill:auth\""));
     assertTrue(sse.contains("\"kind\":\"skill\""));
     assertTrue(sse.contains("\"status\":\"running\""));
-    assertTrue(sse.contains("\"label\":\"Implement auth\""));
+    assertTrue(sse.contains("\"label\":\"Configuring authentication\""));
     assertTrue(!sse.contains("\"step\":\"skill:auth\""));
   }
 

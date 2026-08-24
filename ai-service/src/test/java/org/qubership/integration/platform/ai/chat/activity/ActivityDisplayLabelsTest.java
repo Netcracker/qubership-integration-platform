@@ -45,6 +45,11 @@ class ActivityDisplayLabelsTest {
   }
 
   @Test
+  void cipPrefixedSkillHumanizesWithoutRepeatingPrefix() {
+    assertEquals("Running fix planner", ActivityDisplayLabels.of("skill", "cip-fix-planner"));
+  }
+
+  @Test
   void unknownToolUsesRunningPlusSplitWords() {
     assertEquals(
         "Running frobnicate payload", ActivityDisplayLabels.of("tool", "frobnicatePayload"));
