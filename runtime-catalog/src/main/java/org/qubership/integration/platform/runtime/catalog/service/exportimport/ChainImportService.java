@@ -650,13 +650,15 @@ public class ChainImportService {
                 newChainState.getMaskedFields()
         );
 
-        //Chain
-        chainService.setActualizedChainState(currentChainState, newChainState);
+
 
         //Chain Folder
-        if (currentFolder == null && newChainState.getParentFolder() != null) {
+        if (newChainState.getParentFolder() != null) {
             newChainState.setParentFolder(folderService.setActualizedFolderState(newChainState.getParentFolder()));
         }
+
+        //Chain
+        chainService.setActualizedChainState(currentChainState, newChainState);
     }
 
     private void logImportAction(@NonNull Chain chain, LogOperation operation) {

@@ -24,8 +24,6 @@ import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedList;
-import java.util.List;
 
 @Service
 @Transactional
@@ -75,19 +73,19 @@ public class FolderService {
     }
 
     public Folder setActualizedFolderState(Folder folderState) {
-        List<Folder> actualizedFolderList = new LinkedList<>(folderState
-                .getFolderList()
-                .stream()
-                .map(folderRepository::persist)
-                .toList());
-
-        folderState.setFolderList(actualizedFolderList);
-
         if (folderState.getParentFolder() != null) {
-           Folder actualizedParentFolder = setActualizedFolderState(folderState.getParentFolder());
-           folderState.setParentFolder(actualizedParentFolder);
+            Folder actualizedParentFolder = setActualizedFolderState(folderState.getParentFolder());
+            folderState.setParentFolder(actualizedParentFolder);
         }
 
-        return folderRepository.persist(folderState);
+        Folder existingFolder = folderState.getId() != null
+                ? folderRepository.findById(folderState.getId()).orElse(null)
+                : null;
+        if (existingFolder == folderState) {
+            return folderState;
+        }
+
+        folderRepository.actualizeObjectState(existingFolder, folderState);
+        return folderState;
     }
 }
