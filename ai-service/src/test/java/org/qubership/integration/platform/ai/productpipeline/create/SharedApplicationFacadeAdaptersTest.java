@@ -73,7 +73,7 @@ class SharedApplicationFacadeAdaptersTest {
                 e ->
                     e instanceof ChatEvent.Step step
                         && "skill".equals(step.kind())
-                        && "cip-requirement-analyzer".equals(step.label())),
+                        && "Parsing requirements".equals(step.label())),
         () -> "expected a kind=skill step for the invoked skill, got: " + browserEvents);
     assertTrue(browserEvents.stream().anyMatch(e -> e instanceof ChatEvent.Decision));
     assertTrue(browserEvents.stream().noneMatch(e -> e instanceof ChatEvent.Meta));
