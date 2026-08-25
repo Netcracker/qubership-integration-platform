@@ -1,0 +1,114 @@
+---
+
+# The repository's only Go module.
+#
+# `go 1.22` in testing-service/go.mod is a ceiling, not a floor: the downstream
+# build compiles this module with GOTOOLCHAIN=local against a 1.22 toolchain, so
+# a dependency that asks for a newer Go has to fail here rather than pull one in.
+# setup-go reads the directive from go.mod and GOTOOLCHAIN=local keeps it there.
+
+name: Testing Service Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'testing-service/**'
+      - 'scripts/check-go-dependencies.sh'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  GOTOOLCHAIN: local
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      # Runs before the toolchain: a module from an unvetted source is worth
+      # reporting as itself rather than as a download failure further down.
+      - name: Dependency allowlist
+        run: scripts/check-go-dependencies.sh testing-service
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: testing-service/go.mod
+          cache-dependency-path: testing-service/go.sum
+
+      - name: Build
+        working-directory: testing-service
+        run: go build ./...
+
+      - name: Vet
+        working-directory: testing-service
+        run: go vet ./...
+
+      - name: Test
+        working-directory: testing-service
+        run: go test ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: testing-service/go.mod
+          cache-dependency-path: testing-service/go.sum
+
+      # v1.64.8 is the version testing-service/.golangci.yml is written against;
+      # a v2 binary reads neither the file nor the action inputs the same way.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@55c2c1448f86e01eaae002a5a3a9624417608d84 # v6.5.2
+        with:
+          version: v1.64.8
+          working-directory: testing-service
+
+  # The claim, the lease fence and the migrations are SQL, so mocks say nothing
+  # about them. These tests sit behind the `integration` build tag and start
+  # PostgreSQL through testcontainers on the runner's Docker daemon.
+  integration:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: testing-service/go.mod
+          cache-dependency-path: testing-service/go.sum
+
+      - name: Vet
+        working-directory: testing-service
+        run: go vet -tags integration ./...
+
+      - name: Test
+        working-directory: testing-service
+        run: go test -tags integration ./...

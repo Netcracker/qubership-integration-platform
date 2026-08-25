@@ -2,6 +2,7 @@
   "default": true,
   "MD004": false,
   "MD007": false,
+  "MD010": { "code_blocks": false },
   "MD012": false,
   "MD013": { "line_length": 600, "code_blocks": false, "tables": false },
   "MD022": false,

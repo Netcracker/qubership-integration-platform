@@ -29,6 +29,7 @@ QIP_BOM_MODULES=(
     sessions-management
     integration-build-pipeline
     schemas
+    testing-service
     ui
     vscode-extension
 )

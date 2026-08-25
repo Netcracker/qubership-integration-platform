@@ -1,0 +1,56 @@
+# Configuration of the standalone testing-service binary.
+#
+# Every key can be overridden from the environment: uppercase it, replace the
+# dots with underscores and prefix it with QIP_TESTING_. For example
+# QIP_TESTING_POSTGRES_DSN sets postgres.dsn and QIP_TESTING_EXECUTION_WORKERS
+# sets execution.workers.
+
+server:
+  bind: ":8080"
+
+postgres:
+  # The DSN can carry a password, so it is supplied per installation through
+  # QIP_TESTING_POSTGRES_DSN rather than shipped in the image. Its search_path
+  # must name the same schema as postgres.schema below, which the binary creates
+  # on startup:
+  #   postgres://USER:PASSWORD@HOST:5432/DATABASE?sslmode=disable&search_path=testing_service
+  dsn: ""
+  # The DSN is a URL, so a `#`, `/` or `?` in a credential has to be
+  # percent-encoded there. Set postgres.user and postgres.password instead and
+  # leave the credentials out of the DSN: they reach the driver verbatim, and
+  # they override whatever the DSN carries.
+  user: ""
+  password: ""
+  schema: "testing_service"
+  # Two connections is the minimum the binary accepts, because the migrations
+  # hold one for their advisory lock while they run.
+  maxconnections: 16
+  # The socket deadlines are not settings of their own. The service replaces the
+  # 10-second read deadline of the driver, which would cut off a migration over a
+  # populated table, with one that leaves the context of the caller as the bound.
+  # Append read_timeout or write_timeout to the DSN to override it.
+
+# The settings the library owns are left out on purpose, so that no value is
+# spelled out twice: catalog.address, engine.address, pagination.limit,
+# execution.interval, execution.workers, execution.lease and retention.interval
+# fall back to the defaults in internal/config/config.go. Set any of them here to
+# override one.
+
+retention:
+  # Zero keeps every test run, and it is the one setting with no default. Set an
+  # age to have old runs deleted along with their case runs and validation
+  # errors.
+  age: 0s
+
+log:
+  level: info
+  format: json
+
+pprof:
+  enabled: false
+  bind: ":6060"
+
+# production is reported through GET /api/v1/mode, and the front end hides the
+# operations that are unsafe on a live installation while it is on. It is left
+# out here so that it stays on: an installation nobody told otherwise is treated
+# as a live one. Add `production: false` on a sandbox to show those operations.

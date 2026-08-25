@@ -17,41 +17,6 @@
   font-size: 14px;
 }
 
-.tableHeader {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.tableHeaderLeft {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.iconWrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.badge {
-  min-width: 22px;
-  height: 22px;
-  border-radius: 11px;
-  background: #e6eef8;
-  color: #0b66ff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-}
-
-.noEntries {
-  font-weight: 600;
-}
-
 .table {
   composes: table from "./parameterTable.module.css";
 }
