@@ -1,8 +1,9 @@
 lockfile_version: '1'
-generated_at: '2026-07-24T18:19:54.844726+00:00'
-apm_version: 0.26.0
+generated_at: '2026-08-25T10:09:40.279275+00:00'
+apm_version: 0.28.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
+  materialization_repo_url: Netcracker/qubership-ai-agent-telemetry
   name: ai-agent-telemetry
   host: github.com
   resolved_commit: 6ec9a71177fd9dd1a9d0dc134fdccbf255d26a55
@@ -12,6 +13,7 @@ dependencies:
   package_type: apm_package
   content_hash: sha256:900bb9fe3c6dee45ea5f0f32bc08d1962a21f0dc1f1dbefd2bf3279b33c93bf0
 - repo_url: netcracker/qubership-ai-packages
+  materialization_repo_url: Netcracker/qubership-ai-packages
   name: apm-authoring
   host: github.com
   resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
@@ -34,6 +36,7 @@ dependencies:
   content_hash: sha256:1d731d0a26376eda0b82629e6e1cff1b41dfeae13fe8d7e5debb24a1699ea4a8
   is_dev: true
 - repo_url: netcracker/qubership-ai-packages
+  materialization_repo_url: Netcracker/qubership-ai-packages
   name: codex-review
   host: github.com
   resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
@@ -51,6 +54,7 @@ dependencies:
     .claude/skills/codex-review/SKILL.md: sha256:2119ddab29ecb75cc470068fc7464419e386f57127e1cdf3bb5e9bbb48609960
   content_hash: sha256:2e2ea3193e6bb5e8647f60a6d7777b98a2722ef9146f023d6fda0764bd79d7e5
 - repo_url: netcracker/qubership-ai-packages
+  materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-developer-style
   host: github.com
   resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
@@ -60,6 +64,7 @@ dependencies:
   package_type: apm_package
   content_hash: sha256:c7a28df93a78f7f9beb609e1ea6cfaa59e818d73b6b017e949c71b45806a065f
 - repo_url: netcracker/qubership-ai-packages
+  materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-us-developer-style
   host: github.com
   resolved_commit: cb31b6ce4d9457d2638b40590500a5229c230d99
@@ -68,7 +73,7 @@ dependencies:
   virtual_path: agent-packages/english-us-developer-style
   is_virtual: true
   depth: 2
-  resolved_by: netcracker/qubership-ai-packages
+  resolved_by: Netcracker/qubership-ai-packages
   package_type: apm_package
   deployed_files:
   - .agents/skills/english-developer-style
@@ -84,6 +89,24 @@ dependencies:
     .cursor/rules/english-developer-style.mdc: sha256:77065463f554e95f32be987d5a51849ded6e621515ea1b8e9dd61530c3046928
   content_hash: sha256:30311d4be0a1b4111895a3ac1f67183ba0a1a64a99f3ed09724ae4731682c8b9
 deployments:
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ci-fix
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ci-fix/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6ed69576b370c71e4420fb4af6d4fcdef353d21c1d639b75b0c25d6b074da9bc
 - kind: project-relative
   target: agents
   value: .agents/skills/docs-authoring
@@ -104,6 +127,87 @@ deployments:
   content_hash: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
 - kind: project-relative
   target: agents
+  value: .agents/skills/runtime-catalog-api-testing
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/runtime-catalog-api-testing/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:647735809716b0a19699d51e1e8d4ec9e2e11f98f659cd07ec1346a5d121c66f
+- kind: project-relative
+  target: agents
+  value: .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
+- kind: project-relative
+  target: agents
+  value: .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
+- kind: project-relative
+  target: agents
+  value: .agents/skills/runtime-catalog-api-testing/scripts/example.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2cf55572310f806f5cc3b6e0a44028d16bb4763a9460f47f9d3c7c5ee9575c25
+- kind: project-relative
+  target: agents
+  value: .agents/skills/runtime-catalog-api-testing/scripts/example_deploy_vars.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:57eeb0e50140765689feedd14f8d1ad0f60fdaac596f59c9549fa1651b8383d6
+- kind: project-relative
+  target: agents
+  value: .agents/skills/runtime-catalog-api-testing/scripts/rc_e2e.py
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:9d3d264ffe343aff6c196c70ecf1897b3dc3c039e0ddedb57d2636d14f0ac291
+- kind: project-relative
+  target: agents
+  value: .agents/skills/sonar-triage
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/sonar-triage/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:f3647ef599d587dda282fafe39f73c10f6b51bb54aaa403a46f94b53313462ff
+- kind: project-relative
+  target: agents
   value: .agents/skills/ui-api-and-utilities
   runtime: null
   scope: project
@@ -119,7 +223,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
+  content_hash: sha256:6f57d2fe204a021400dc4cf181aac1fa354427d5560109d82680043e9efc201d
 - kind: project-relative
   target: agents
   value: .agents/skills/ui-component-patterns
@@ -137,7 +241,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
+  content_hash: sha256:ad3a255d9aeddbe70481ae1fb45627ed12f701ae5d5b99589ba0647b78e3fb4c
 - kind: project-relative
   target: agents
   value: .agents/skills/ui-core-development
@@ -155,7 +259,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
+  content_hash: sha256:ac5633e7de5d3986b25c8f7a4da212cf81ef3cf290ab45a86e87deefa0194830
 - kind: project-relative
   target: agents
   value: .agents/skills/ui-theme-and-vscode-webview
@@ -173,7 +277,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  content_hash: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
 - kind: project-relative
   target: agents
   value: .agents/skills/update-docs
@@ -194,6 +298,24 @@ deployments:
   content_hash: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
 - kind: project-relative
   target: claude
+  value: .claude/agents/maven-verifier.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:bf2a2ff02b9cfeca8a1dc4e0cddfb10501cfdec81c3e685e3a59c6a37682f24d
+- kind: project-relative
+  target: claude
+  value: .claude/agents/npm-verifier.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:4892db0ec41ebfe7a5a7800ca4a78ab04b8ce792bc123f158cde72cbccbef22f
+- kind: project-relative
+  target: claude
   value: .claude/rules/apm-authoring.md
   runtime: null
   scope: project
@@ -201,6 +323,15 @@ deployments:
   - netcracker/qubership-ai-packages/agent-packages/apm-authoring
   active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
   content_hash: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
+- kind: project-relative
+  target: claude
+  value: .claude/rules/ci-fix.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:c2ddc26141c02593bc0e9be4e0ebe0f64567eb35ec5e6c22d87f882e7fe4fbaa
 - kind: project-relative
   target: claude
   value: .claude/rules/docs-authoring.md
@@ -219,6 +350,33 @@ deployments:
   - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   content_hash: sha256:7b837ce6ca63996064b7eb7378a54b484f9905a7102d18ee009ee2e1fb9edf7a
+- kind: project-relative
+  target: claude
+  value: .claude/rules/qip-working-agreements.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:a2b32453026a31b27976531afd83bf6fc5b248f0628a59f32755edba51556525
+- kind: project-relative
+  target: claude
+  value: .claude/rules/runtime-catalog-api-testing.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:02fb70071ba0474e8f5e7c9142d730c9e52c47d9e13adbb4a7cee828e8440be6
+- kind: project-relative
+  target: claude
+  value: .claude/rules/sonar-triage.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:ea988a493a79772bb1ddf7fba7647bc49eca01f1041c58f2388ccfac5a2bfd7e
 - kind: project-relative
   target: claude
   value: .claude/rules/ui-api-and-utilities.md
@@ -275,6 +433,24 @@ deployments:
   content_hash: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
 - kind: project-relative
   target: claude
+  value: .claude/skills/ci-fix
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ci-fix/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6ed69576b370c71e4420fb4af6d4fcdef353d21c1d639b75b0c25d6b074da9bc
+- kind: project-relative
+  target: claude
   value: .claude/skills/codex-review
   runtime: null
   scope: project
@@ -329,6 +505,24 @@ deployments:
   content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
 - kind: project-relative
   target: claude
+  value: .claude/skills/sonar-triage
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/sonar-triage/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:f3647ef599d587dda282fafe39f73c10f6b51bb54aaa403a46f94b53313462ff
+- kind: project-relative
+  target: claude
   value: .claude/skills/ui-api-and-utilities
   runtime: null
   scope: project
@@ -344,7 +538,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
+  content_hash: sha256:6f57d2fe204a021400dc4cf181aac1fa354427d5560109d82680043e9efc201d
 - kind: project-relative
   target: claude
   value: .claude/skills/ui-component-patterns
@@ -362,7 +556,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
+  content_hash: sha256:ad3a255d9aeddbe70481ae1fb45627ed12f701ae5d5b99589ba0647b78e3fb4c
 - kind: project-relative
   target: claude
   value: .claude/skills/ui-core-development
@@ -380,7 +574,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
+  content_hash: sha256:ac5633e7de5d3986b25c8f7a4da212cf81ef3cf290ab45a86e87deefa0194830
 - kind: project-relative
   target: claude
   value: .claude/skills/ui-theme-and-vscode-webview
@@ -398,7 +592,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  content_hash: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
 - kind: project-relative
   target: claude
   value: .claude/skills/update-docs
@@ -472,6 +666,42 @@ deployments:
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
 - kind: project-relative
+  target: codex
+  value: .codex/agents/maven-verifier.toml
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:e0bdd6c95e328b48bff2087b6d1f612e65638bce64e9faee7600ed7478e99f3a
+- kind: project-relative
+  target: codex
+  value: .codex/agents/npm-verifier.toml
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:73b8ee0433745039a5125040d243b101a0bf6d463887689756d9185a9e657b52
+- kind: project-relative
+  target: cursor
+  value: .cursor/agents/maven-verifier.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:bf2a2ff02b9cfeca8a1dc4e0cddfb10501cfdec81c3e685e3a59c6a37682f24d
+- kind: project-relative
+  target: cursor
+  value: .cursor/agents/npm-verifier.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:4892db0ec41ebfe7a5a7800ca4a78ab04b8ce792bc123f158cde72cbccbef22f
+- kind: project-relative
   target: cursor
   value: .cursor/rules/apm-authoring.mdc
   runtime: null
@@ -480,6 +710,15 @@ deployments:
   - netcracker/qubership-ai-packages/agent-packages/apm-authoring
   active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
   content_hash: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/ci-fix.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:109a184dc1ef19e6c62f44be3405630c91130475783c9ff57392df51f5645164
 - kind: project-relative
   target: cursor
   value: .cursor/rules/docs-authoring.mdc
@@ -498,6 +737,33 @@ deployments:
   - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   content_hash: sha256:77065463f554e95f32be987d5a51849ded6e621515ea1b8e9dd61530c3046928
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/qip-working-agreements.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:cfefdccde4a2649021bb550ed96b1d47355d04566fdcc0f989fd5054b00f643f
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/runtime-catalog-api-testing.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:81df32a53ec38086c7518b12a2a8ae6b6f606bbacbb1170a35f0e0e24988ce16
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/sonar-triage.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:c9075401812e61d3c6d4288830692767517f83dbbf5e4c97a7a14672663d03e8
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ui-api-and-utilities.mdc
@@ -535,8 +801,19 @@ deployments:
   active_owner: .
   content_hash: sha256:6d22cae143816f98685ba75afb5198d9abf57c9e584aa7b78391553a49ffabd9
 local_deployed_files:
+- .agents/skills/ci-fix
+- .agents/skills/ci-fix/SKILL.md
 - .agents/skills/docs-authoring
 - .agents/skills/docs-authoring/SKILL.md
+- .agents/skills/runtime-catalog-api-testing
+- .agents/skills/runtime-catalog-api-testing/SKILL.md
+- .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc
+- .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc
+- .agents/skills/runtime-catalog-api-testing/scripts/example.py
+- .agents/skills/runtime-catalog-api-testing/scripts/example_deploy_vars.py
+- .agents/skills/runtime-catalog-api-testing/scripts/rc_e2e.py
+- .agents/skills/sonar-triage
+- .agents/skills/sonar-triage/SKILL.md
 - .agents/skills/ui-api-and-utilities
 - .agents/skills/ui-api-and-utilities/SKILL.md
 - .agents/skills/ui-component-patterns
@@ -547,13 +824,23 @@ local_deployed_files:
 - .agents/skills/ui-theme-and-vscode-webview/SKILL.md
 - .agents/skills/update-docs
 - .agents/skills/update-docs/SKILL.md
+- .claude/agents/maven-verifier.md
+- .claude/agents/npm-verifier.md
+- .claude/rules/ci-fix.md
 - .claude/rules/docs-authoring.md
+- .claude/rules/qip-working-agreements.md
+- .claude/rules/runtime-catalog-api-testing.md
+- .claude/rules/sonar-triage.md
 - .claude/rules/ui-api-and-utilities.md
 - .claude/rules/ui-component-patterns.md
 - .claude/rules/ui-core-development.md
 - .claude/rules/ui-theme-and-vscode-webview.md
+- .claude/skills/ci-fix
+- .claude/skills/ci-fix/SKILL.md
 - .claude/skills/docs-authoring
 - .claude/skills/docs-authoring/SKILL.md
+- .claude/skills/sonar-triage
+- .claude/skills/sonar-triage/SKILL.md
 - .claude/skills/ui-api-and-utilities
 - .claude/skills/ui-api-and-utilities/SKILL.md
 - .claude/skills/ui-component-patterns
@@ -564,30 +851,62 @@ local_deployed_files:
 - .claude/skills/ui-theme-and-vscode-webview/SKILL.md
 - .claude/skills/update-docs
 - .claude/skills/update-docs/SKILL.md
+- .codex/agents/maven-verifier.toml
+- .codex/agents/npm-verifier.toml
+- .cursor/agents/maven-verifier.md
+- .cursor/agents/npm-verifier.md
+- .cursor/rules/ci-fix.mdc
 - .cursor/rules/docs-authoring.mdc
+- .cursor/rules/qip-working-agreements.mdc
+- .cursor/rules/runtime-catalog-api-testing.mdc
+- .cursor/rules/sonar-triage.mdc
 - .cursor/rules/ui-api-and-utilities.mdc
 - .cursor/rules/ui-component-patterns.mdc
 - .cursor/rules/ui-core-development.mdc
 - .cursor/rules/ui-theme-and-vscode-webview.mdc
 local_deployed_file_hashes:
+  .agents/skills/ci-fix/SKILL.md: sha256:6ed69576b370c71e4420fb4af6d4fcdef353d21c1d639b75b0c25d6b074da9bc
   .agents/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
-  .agents/skills/ui-api-and-utilities/SKILL.md: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
-  .agents/skills/ui-component-patterns/SKILL.md: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
-  .agents/skills/ui-core-development/SKILL.md: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
-  .agents/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  .agents/skills/runtime-catalog-api-testing/SKILL.md: sha256:647735809716b0a19699d51e1e8d4ec9e2e11f98f659cd07ec1346a5d121c66f
+  .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
+  .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
+  .agents/skills/runtime-catalog-api-testing/scripts/example.py: sha256:2cf55572310f806f5cc3b6e0a44028d16bb4763a9460f47f9d3c7c5ee9575c25
+  .agents/skills/runtime-catalog-api-testing/scripts/example_deploy_vars.py: sha256:57eeb0e50140765689feedd14f8d1ad0f60fdaac596f59c9549fa1651b8383d6
+  .agents/skills/runtime-catalog-api-testing/scripts/rc_e2e.py: sha256:9d3d264ffe343aff6c196c70ecf1897b3dc3c039e0ddedb57d2636d14f0ac291
+  .agents/skills/sonar-triage/SKILL.md: sha256:f3647ef599d587dda282fafe39f73c10f6b51bb54aaa403a46f94b53313462ff
+  .agents/skills/ui-api-and-utilities/SKILL.md: sha256:6f57d2fe204a021400dc4cf181aac1fa354427d5560109d82680043e9efc201d
+  .agents/skills/ui-component-patterns/SKILL.md: sha256:ad3a255d9aeddbe70481ae1fb45627ed12f701ae5d5b99589ba0647b78e3fb4c
+  .agents/skills/ui-core-development/SKILL.md: sha256:ac5633e7de5d3986b25c8f7a4da212cf81ef3cf290ab45a86e87deefa0194830
+  .agents/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
   .agents/skills/update-docs/SKILL.md: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
+  .claude/agents/maven-verifier.md: sha256:bf2a2ff02b9cfeca8a1dc4e0cddfb10501cfdec81c3e685e3a59c6a37682f24d
+  .claude/agents/npm-verifier.md: sha256:4892db0ec41ebfe7a5a7800ca4a78ab04b8ce792bc123f158cde72cbccbef22f
+  .claude/rules/ci-fix.md: sha256:c2ddc26141c02593bc0e9be4e0ebe0f64567eb35ec5e6c22d87f882e7fe4fbaa
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
+  .claude/rules/qip-working-agreements.md: sha256:a2b32453026a31b27976531afd83bf6fc5b248f0628a59f32755edba51556525
+  .claude/rules/runtime-catalog-api-testing.md: sha256:02fb70071ba0474e8f5e7c9142d730c9e52c47d9e13adbb4a7cee828e8440be6
+  .claude/rules/sonar-triage.md: sha256:ea988a493a79772bb1ddf7fba7647bc49eca01f1041c58f2388ccfac5a2bfd7e
   .claude/rules/ui-api-and-utilities.md: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
   .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
   .claude/rules/ui-core-development.md: sha256:cd27211d682f0c03809a67e30e7dbbc67c00145df56e3c0eb14c9b89ce6408d5
   .claude/rules/ui-theme-and-vscode-webview.md: sha256:b9c3fb0eb8853ff8fc98a27ac8ccbdb9f6755fd235addba7d44a5855b5b43a17
+  .claude/skills/ci-fix/SKILL.md: sha256:6ed69576b370c71e4420fb4af6d4fcdef353d21c1d639b75b0c25d6b074da9bc
   .claude/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
-  .claude/skills/ui-api-and-utilities/SKILL.md: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
-  .claude/skills/ui-component-patterns/SKILL.md: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
-  .claude/skills/ui-core-development/SKILL.md: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
-  .claude/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  .claude/skills/sonar-triage/SKILL.md: sha256:f3647ef599d587dda282fafe39f73c10f6b51bb54aaa403a46f94b53313462ff
+  .claude/skills/ui-api-and-utilities/SKILL.md: sha256:6f57d2fe204a021400dc4cf181aac1fa354427d5560109d82680043e9efc201d
+  .claude/skills/ui-component-patterns/SKILL.md: sha256:ad3a255d9aeddbe70481ae1fb45627ed12f701ae5d5b99589ba0647b78e3fb4c
+  .claude/skills/ui-core-development/SKILL.md: sha256:ac5633e7de5d3986b25c8f7a4da212cf81ef3cf290ab45a86e87deefa0194830
+  .claude/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:5bb5058c17ed309913cba9d984f076d4448a72f7ebf9ed2419d94699600745a9
   .claude/skills/update-docs/SKILL.md: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
+  .codex/agents/maven-verifier.toml: sha256:e0bdd6c95e328b48bff2087b6d1f612e65638bce64e9faee7600ed7478e99f3a
+  .codex/agents/npm-verifier.toml: sha256:73b8ee0433745039a5125040d243b101a0bf6d463887689756d9185a9e657b52
+  .cursor/agents/maven-verifier.md: sha256:bf2a2ff02b9cfeca8a1dc4e0cddfb10501cfdec81c3e685e3a59c6a37682f24d
+  .cursor/agents/npm-verifier.md: sha256:4892db0ec41ebfe7a5a7800ca4a78ab04b8ce792bc123f158cde72cbccbef22f
+  .cursor/rules/ci-fix.mdc: sha256:109a184dc1ef19e6c62f44be3405630c91130475783c9ff57392df51f5645164
   .cursor/rules/docs-authoring.mdc: sha256:35b9632cef5d6994bd10797b1790a93ac43bce7b4c1fac43d1728d43bc01f532
+  .cursor/rules/qip-working-agreements.mdc: sha256:cfefdccde4a2649021bb550ed96b1d47355d04566fdcc0f989fd5054b00f643f
+  .cursor/rules/runtime-catalog-api-testing.mdc: sha256:81df32a53ec38086c7518b12a2a8ae6b6f606bbacbb1170a35f0e0e24988ce16
+  .cursor/rules/sonar-triage.mdc: sha256:c9075401812e61d3c6d4288830692767517f83dbbf5e4c97a7a14672663d03e8
   .cursor/rules/ui-api-and-utilities.mdc: sha256:2db0434f5f2c5d22240435520b454f7da4d900795a698563570bddddaec0db34
   .cursor/rules/ui-component-patterns.mdc: sha256:76114bbb23037926ccea5110a104dcc9cb0d67f4c1002b107f9a78980ac1ff19
   .cursor/rules/ui-core-development.mdc: sha256:b5fa4e22978c0b3ad030432ba96c8a8d268337d2e6f1b88de6689bbc84d8700f

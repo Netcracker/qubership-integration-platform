@@ -1,0 +1,8 @@
+---
+paths:
+  - "runtime-catalog/**"
+---
+
+When testing, verifying, or reproducing a runtime-catalog change through its HTTP API against the
+local Docker stack — exercising import/export, chains, folders, deployment, or variables and
+checking PostgreSQL/Consul side effects — apply the `runtime-catalog-api-testing` skill.
