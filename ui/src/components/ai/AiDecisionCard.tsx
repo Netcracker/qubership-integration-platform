@@ -144,7 +144,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         </div>
       ) : null}
 
-      {isClarify && missingEvidence.length > 0 ? (
+      {isClarify && missingEvidence.length > 0 && !isFreeTextClarify ? (
         <List
           className="ai-decision-card__missing-evidence"
           size="small"
