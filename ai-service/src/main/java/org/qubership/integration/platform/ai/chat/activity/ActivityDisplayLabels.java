@@ -206,7 +206,7 @@ public final class ActivityDisplayLabels {
         Map.entry("captureConfiguredTriggerSet", "Capturing configured triggers"),
         Map.entry("captureNamingManifest", "Capturing the naming manifest"),
         Map.entry("approveCandidate", "Approving the candidate"),
-        Map.entry("repairScriptBodies", "Repairing scripts"));
+        Map.entry("repairScriptBodies", "Editing scripts"));
   }
 
   private static List<HttpTemplate> httpTemplates() {
