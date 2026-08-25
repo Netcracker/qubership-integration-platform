@@ -17,7 +17,8 @@ class DiscoveryAgentTest {
     Class<?>[] tools = annotation.tools();
 
     assertTrue(Arrays.asList(tools).contains(RequirementBriefTool.class));
-    assertTrue(Arrays.asList(tools).contains(ApiHubMcpTools.class));
+    // API resolution finishes before analysis, so this agent has no way to start a search.
+    assertFalse(Arrays.asList(tools).contains(ApiHubMcpTools.class));
     assertFalse(
         Arrays.stream(tools)
             .anyMatch(tool -> tool.getSimpleName().equals("QipKnowledgeTools")));

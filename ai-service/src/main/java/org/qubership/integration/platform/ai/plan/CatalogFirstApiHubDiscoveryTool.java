@@ -8,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchAuthorizations;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
@@ -31,6 +32,7 @@ public class CatalogFirstApiHubDiscoveryTool {
   private final ConversationCatalogCache catalogCache;
   private final ApiHubMcpTools apiHubMcpTools;
   private final ConversationApiResolutions conversationResolutions;
+  private final ApiHubSearchAuthorizations searchAuthorizations;
   private final ObjectMapper objectMapper;
 
   @Inject
@@ -40,12 +42,14 @@ public class CatalogFirstApiHubDiscoveryTool {
       ConversationCatalogCache catalogCache,
       ApiHubMcpTools apiHubMcpTools,
       ConversationApiResolutions conversationResolutions,
+      ApiHubSearchAuthorizations searchAuthorizations,
       ObjectMapper objectMapper) {
     this.catalogBindingMatcher = catalogBindingMatcher;
     this.catalogReadTool = catalogReadTool;
     this.catalogCache = catalogCache;
     this.apiHubMcpTools = apiHubMcpTools;
     this.conversationResolutions = conversationResolutions;
+    this.searchAuthorizations = searchAuthorizations;
     this.objectMapper = objectMapper;
   }
 
@@ -98,6 +102,9 @@ public class CatalogFirstApiHubDiscoveryTool {
     }
     conversationResolutions.remember(
         conversationId, ServiceCallAssessment.catalogMiss(sourceFactId, intent));
+    // The miss is what authorizes the search, and it authorizes it for this call alone.
+    searchAuthorizations.issue(
+        conversationId, sourceFactId, intent.operationQuery(), "confirmed catalog miss");
     return apiHubMcpTools.searchApiOperations(
         intent.operationQuery(), "rest", release, 0, 100, null);
   }

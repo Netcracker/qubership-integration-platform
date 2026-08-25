@@ -15,6 +15,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchAuthorizations;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
@@ -112,11 +113,12 @@ class CatalogFirstApiHubDiscoveryToolTest {
         .thenReturn(new CatalogBindingMatcher.MatchResult.None());
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     CatalogFirstApiHubDiscoveryTool tool = tool(matcher, apiHub, resolutions);
-    ToolSession.bind("conv-assessments");
-
-    tool.resolveApiOperation(
-        "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
-    tool.resolveApiOperation("Raise an invoice in Billing", "Billing", "createInvoice", "", "", "");
+    try (ToolSession.Handle ignored = ToolSession.open("conv-assessments")) {
+      tool.resolveApiOperation(
+          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
+      tool.resolveApiOperation(
+          "Raise an invoice in Billing", "Billing", "createInvoice", "", "", "");
+    }
 
     String conversationId = "conv-assessments";
     List<ServiceCallAssessment> assessments = resolutions.assessments(conversationId);
@@ -152,6 +154,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
         mock(ConversationCatalogCache.class),
         apiHub,
         resolutions,
+        new ApiHubSearchAuthorizations(),
         new ObjectMapper());
   }
 }

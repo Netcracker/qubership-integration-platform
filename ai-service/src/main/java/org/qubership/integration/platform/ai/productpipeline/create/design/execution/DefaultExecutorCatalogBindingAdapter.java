@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchAuthorizations;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchHitParser;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
@@ -40,16 +41,28 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
   private final CatalogBindingMatcher matcher;
   private final ApiHubMcpTools apiHubMcpTools;
   private final CatalogMutationGateway catalogMutationGateway;
+  private final ApiHubSearchAuthorizations searchAuthorizations;
 
   @Inject
   public DefaultExecutorCatalogBindingAdapter(
       CatalogBindingMatcher matcher,
       ApiHubMcpTools apiHubMcpTools,
-      CatalogMutationGateway catalogMutationGateway) {
+      CatalogMutationGateway catalogMutationGateway,
+      ApiHubSearchAuthorizations searchAuthorizations) {
     this.matcher = Objects.requireNonNull(matcher, "matcher");
     this.apiHubMcpTools = Objects.requireNonNull(apiHubMcpTools, "apiHubMcpTools");
     this.catalogMutationGateway =
         Objects.requireNonNull(catalogMutationGateway, "catalogMutationGateway");
+    this.searchAuthorizations =
+        Objects.requireNonNull(searchAuthorizations, "searchAuthorizations");
+  }
+
+  /** Test constructor for the paths that never reach API Hub. */
+  public DefaultExecutorCatalogBindingAdapter(
+      CatalogBindingMatcher matcher,
+      ApiHubMcpTools apiHubMcpTools,
+      CatalogMutationGateway catalogMutationGateway) {
+    this(matcher, apiHubMcpTools, catalogMutationGateway, new ApiHubSearchAuthorizations());
   }
 
   @Override
@@ -149,6 +162,9 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
 
   private BindingResolutionResult searchAndImport(
       String conversationId, NormalizedDesignFlow.Step step, String query, String release) {
+    // Execution reaches API Hub only where it established the miss itself. #692 removes this
+    // branch: a step without a binding will return to API resolution instead of searching here.
+    searchAuthorizations.issue(conversationId, step.stepId(), query, "execution catalog miss");
     String toolResult;
     try {
       toolResult =
