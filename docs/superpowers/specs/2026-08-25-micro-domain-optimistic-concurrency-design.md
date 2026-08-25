@@ -24,13 +24,22 @@ Anyone who writes one of these objects between Phase 1 and Phase 3 is silently o
 window is not small: it spans database reads, nine or more cluster round trips, YAML generation,
 and a per-document write loop.
 
-Contention is concentrated, and unevenly. The host-keyed `ServiceEntry` and `DestinationRule`
-are named from the external host alone, so they are shared by every domain targeting that host
-*and* written by the engine. The three tier HTTPRoutes are shared by every snapshot in a domain
-and also written by the engine. The Integration and Service are per-domain and collide only when
-two deploys of the same domain overlap.
+Contention is concentrated, and unevenly.
 
-The two writers are also asymmetric. The engine reads, merges, and writes with a
+The host-keyed `ServiceEntry` and `DestinationRule` are the worst case, and the only objects with
+a writer outside runtime-catalog. `EgressTarget.hostResourceName()` — duplicated verbatim in
+`engine/.../util/paths/` and `integration-build-pipeline/.../util/paths/` — derives the name from
+the external host alone. So every domain targeting a given host writes the same two objects, and
+a classic-domain engine targeting that host writes them too.
+
+Everything else is runtime-catalog's alone. The three tier HTTPRoutes are per micro-domain,
+shared by every snapshot that domain hosts; they collide only when two deploys of the same
+micro-domain overlap. The engine does not write them: `IstioRoutesRegistrationService` exists
+only in the `engine` module and serves classic domains, whose routes carry different names and
+different path prefixes, and `micro-engine` contains no HTTPRoute code at all. The Integration
+and Service are likewise per-domain.
+
+On the host resources the two writers are asymmetric. The engine reads, merges, and writes with a
 `resourceVersion` precondition, retrying up to `MAX_MERGE_ATTEMPTS` on conflict
 (`IstioRoutesRegistrationService.upsertHostResource`). Runtime-catalog force-applies with no
 precondition. So runtime-catalog silently clobbers the engine and never the reverse.
@@ -59,7 +68,8 @@ deploys never conflict with each other whatever `force` is set to.
 
 - Detect, rather than silently absorb, a concurrent write to any object the build merged against.
 - Concentrate that detection on the objects where contention actually is.
-- Make runtime-catalog and the engine symmetric, so neither silently clobbers the other.
+- Make runtime-catalog and the engine symmetric on the two objects they both write, the
+  host-keyed `ServiceEntry` and `DestinationRule`, so neither silently clobbers the other.
 - Leave a typed conflict exception for the retry step to catch.
 
 ## Non-goals
@@ -83,8 +93,8 @@ is the object's sole author.
 
 | Object | Sole author | Write mode |
 |---|---|---|
-| Public / private / egress HTTPRoute | QIP and the engine, both emitting complete specs | PUT |
-| `ServiceEntry`, `DestinationRule` | QIP and the engine | PUT |
+| Public / private / egress HTTPRoute | Runtime-catalog alone, emitting complete specs | PUT |
+| `ServiceEntry`, `DestinationRule` | Runtime-catalog and the engine, both emitting complete specs | PUT |
 | Source DSL and integrations-configuration ConfigMaps | QIP | PUT |
 | `CamelKIntegration` | No — the Camel-K operator co-authors it | Apply |
 | Service | No — the API server defaults `clusterIP` and peers | Apply |
@@ -96,7 +106,8 @@ environment, and service account. A PUT of that document would strip every annot
 and finalizer the Camel-K operator added. Today's apply leaves them alone because they belong to
 a different field manager.
 
-The split lands well: the PUT-eligible objects are exactly the contended ones, and the two that
+The split lands well: the PUT-eligible objects are exactly the contended ones — the host
+resources above all, since they are the only ones another component writes — and the two that
 must stay on apply are the two with the narrowest collision window.
 
 ### 2. Capturing versions in Phase 1
@@ -107,7 +118,8 @@ PUT-eligible object it reads, keyed by kind and name.
 Coverage differs by mode:
 
 - `putHostResourceSpecsToBuildCache` runs in both modes, so `ServiceEntry` and `DestinationRule`
-  are always covered. These are the cross-domain objects, so they are the ones that most need it.
+  are always covered. These are the cross-domain objects the engine also writes, so they are the
+  ones that most need it, and they are covered in every mode.
 - `addAppendConfigurationToContext` runs only under `APPEND`, so the tier HTTPRoutes and
   ConfigMaps are covered only there. Under `REWRITE` the build declares complete desired state
   and no Phase 1 read happened to take a version from.
@@ -213,10 +225,12 @@ Stated so the next reader does not assume more coverage than exists.
   cannot roll back Kubernetes.
 - **The Integration and Service stay last-write-wins.** By design, per section 1.
 - **`REWRITE` mode protects only the host resources.** The tier HTTPRoutes and ConfigMaps fall
-  into section 3's third branch there, which is last-write-wins. Closing this would mean reading
-  those objects during a `REWRITE` build purely to obtain versions, which is a larger change than
-  this step takes on. Worth revisiting if `REWRITE` deploys turn out to race the engine in
-  practice.
+  into section 3's third branch there, which is last-write-wins. The exposure is bounded: those
+  objects have no writer outside runtime-catalog, so the only way to lose a write is two deploys
+  of the same micro-domain overlapping. Closing it would mean reading them during a `REWRITE`
+  build purely to obtain versions, which is a larger change than this step takes on. The
+  cross-component race — the one the engine can actually lose — is on the host resources, and
+  those are covered in both modes.
 
 ### 7. Seams for the retry step
 
