@@ -1,5 +1,12 @@
 name: Release All
 
+# run-name is fixed before any job runs and can only read github/inputs/vars, so
+# it cannot carry the computed version. The number lands in each module's publish
+# job name, the run summary, and the drop release. Jobs that can be skipped keep
+# static names: a skipped job never evaluates its name, and GitHub then renders
+# the raw expression.
+run-name: Release All (${{ inputs.release-type }})
+
 on:
   workflow_dispatch:
     inputs:
@@ -21,10 +28,10 @@ on:
         description: "Maven profile"
         type: choice
         options:
-          - "central"
           - "github"
+          - "central"
         required: false
-        default: "central"
+        default: "github"
       build-docker:
         description: "Build Docker images for applicable modules"
         required: false
@@ -45,15 +52,27 @@ permissions: {}
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
+      # One number for the whole backend: the four services and the drop tag all
+      # take it, so a wave can't leave them on different lines.
+      platform-version: ${{ steps.platform.outputs.release-version }}
       release-engine: ${{ steps.check.outputs.engine }}
       release-micro-engine: ${{ steps.check.outputs.micro-engine }}
       release-integration-build-pipeline: ${{ steps.check.outputs.integration-build-pipeline }}
       release-runtime-catalog: ${{ steps.check.outputs.runtime-catalog }}
       release-sessions-management: ${{ steps.check.outputs.sessions-management }}
+      release-testing-service: ${{ steps.check.outputs.testing-service }}
       release-ui: ${{ steps.check.outputs.ui }}
       release-vscode-extension: ${{ steps.check.outputs.vscode-extension }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Determine modules to release
         id: check
         env:
@@ -61,7 +80,7 @@ jobs:
         run: |
           set -eu
           # schemas and checkstyle are released manually (rare cadence) — not part of release-all.
-          ALL_MODULES="engine micro-engine integration-build-pipeline runtime-catalog sessions-management ui vscode-extension"
+          ALL_MODULES="engine micro-engine integration-build-pipeline testing-service runtime-catalog sessions-management ui vscode-extension"
 
           # Normalise input: strip spaces, wrap with commas so we can match whole tokens.
           requested=",${MODULES// /},"
@@ -88,6 +107,29 @@ jobs:
             fi
           done
 
+      # central-publishing-maven-plugin returns at waitUntil=validated, so an
+      # artifact published earlier in the wave is not necessarily resolvable from
+      # Central when the next job needs it. Fail here rather than mid-wave, after
+      # some modules have already published and tagged.
+      - name: Reject a Central wave that cannot resolve the library
+        if: ${{ inputs.profile == 'central' }}
+        env:
+          RELEASE_LIBRARY: ${{ steps.check.outputs.integration-build-pipeline }}
+          RELEASE_RUNTIME_CATALOG: ${{ steps.check.outputs.runtime-catalog }}
+        run: |
+          set -eu
+          if [ "$RELEASE_LIBRARY" = true ] && [ "$RELEASE_RUNTIME_CATALOG" = true ]; then
+            echo "::error::profile=central cannot release integration-build-pipeline and runtime-catalog in one wave — runtime-catalog resolves the library from Central, which has not necessarily published it yet. Use profile=github, or release the library on its own first."
+            exit 1
+          fi
+
+      - name: Compute the platform version
+        id: platform
+        env:
+          ECOSYSTEM: platform
+          RELEASE_TYPE: ${{ inputs.release-type }}
+        run: bash scripts/compute-release-version.sh
+
   release-engine:
     needs: prepare
     if: needs.prepare.outputs.release-engine == 'true'
@@ -97,6 +139,7 @@ jobs:
     uses: ./.github/workflows/engine-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
+      version: ${{ needs.prepare.outputs.platform-version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
@@ -118,6 +161,7 @@ jobs:
     uses: ./.github/workflows/micro-engine-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
+      version: ${{ needs.prepare.outputs.platform-version }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -140,14 +184,17 @@ jobs:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-runtime-catalog:
-    needs: prepare
-    if: needs.prepare.outputs.release-runtime-catalog == 'true'
+    # After the library: its release moves runtime-catalog's pin, and this job
+    # must check out a tree that already carries the new one.
+    needs: [prepare, release-integration-build-pipeline]
+    if: ${{ !failure() && !cancelled() && needs.prepare.outputs.release-runtime-catalog == 'true' }}
     permissions:
       contents: write
       packages: write
     uses: ./.github/workflows/runtime-catalog-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
+      version: ${{ needs.prepare.outputs.platform-version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
@@ -166,6 +213,7 @@ jobs:
     uses: ./.github/workflows/sessions-management-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
+      version: ${{ needs.prepare.outputs.platform-version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
     secrets:
@@ -173,6 +221,21 @@ jobs:
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
       MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
+  release-testing-service:
+    needs: prepare
+    if: needs.prepare.outputs.release-testing-service == 'true'
+    permissions:
+      contents: write
+      packages: write
+    # The Go module: no artifact registry to publish to, so its release is the
+    # `testing-service/vX.Y.Z` tag plus the image. Takes no Maven inputs.
+    uses: ./.github/workflows/testing-service-release.yaml
+    with:
+      release-type: ${{ inputs.release-type }}
+      build-docker: ${{ inputs.build-docker }}
+    secrets:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-ui:
@@ -211,6 +274,7 @@ jobs:
       - release-integration-build-pipeline
       - release-runtime-catalog
       - release-sessions-management
+      - release-testing-service
       - release-ui
       - release-vscode-extension
     # Run after every release attempt, regardless of which were skipped/failed,
@@ -235,6 +299,20 @@ jobs:
           path: release-manifest.json
           if-no-files-found: error
 
+      # The run title can't carry a computed version, so the summary page does.
+      - name: Write the released versions to the run summary
+        env:
+          PLATFORM_VERSION: ${{ needs.prepare.outputs.platform-version }}
+        run: |
+          set -eu
+          {
+            echo "## Platform ${PLATFORM_VERSION}"
+            echo
+            echo "| Module | Version |"
+            echo "| --- | --- |"
+            jq -r '.modules | to_entries[] | "| \(.key) | \(.value // "—") |"' release-manifest.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # The one GitHub Release per wave (tag v<platform-version>); module jobs only tag.
   create-drop-release:
     needs:
@@ -244,6 +322,7 @@ jobs:
       - release-integration-build-pipeline
       - release-runtime-catalog
       - release-sessions-management
+      - release-testing-service
       - release-ui
       - release-vscode-extension
     # Not always(): a failed module must not still cut a drop + bump the version.
@@ -281,7 +360,28 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          RELEASE_TYPE: ${{ inputs.release-type }}
+          VERSION: ${{ needs.prepare.outputs.platform-version }}
           PRERELEASE: ${{ github.ref_name != 'main' }}
           BRANCH: ${{ github.ref_name }}
         run: bash scripts/build-drop-release.sh
+
+      # The PR gate checks what is true at rest. This is the one moment the
+      # wave's own postcondition holds, so it is the only honest place to
+      # assert it — and only for a full wave, since a partial one leaves the
+      # services apart on purpose.
+      - name: Check the wave landed one version everywhere
+        if: ${{ inputs.modules == 'all' }}
+        env:
+          VERSION: ${{ needs.prepare.outputs.platform-version }}
+        run: |
+          set -eu
+          . scripts/modules.sh
+          bash scripts/check-version-invariants.sh
+          for module in "${QIP_BACKEND[@]}"; do
+            actual="$(grep -oP '(?<=<revision>)[^<]+' "$module/pom.xml" | head -1)"
+            [ "$actual" = "$VERSION" ] || {
+              echo "::error::$module is on $actual, but the wave released $VERSION"
+              exit 1
+            }
+          done
+          echo "Wave $VERSION landed on every backend service."

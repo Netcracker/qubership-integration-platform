@@ -304,6 +304,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const isUnsupported =
     node.data.unsupported ??
     isUnsupportedCanvasElementType(node.data.elementType);
+  const isDeprecated = node.data.deprecated === true;
+  const shouldShowDeprecatedWarning = isDeprecated && !isUnsupported;
 
   const reportMissingRequiredParams = useCallback(
     (key: string, params: string[]) => {
@@ -1014,8 +1016,17 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           <Alert
             type="error"
             showIcon
-            message="Unsupported element"
+            title="Unsupported element"
             description={`Element type is not supported. Changes cannot be saved.`}
+            style={{ marginBottom: 12 }}
+          />
+        )}
+        {shouldShowDeprecatedWarning && (
+          <Alert
+            type="warning"
+            showIcon
+            title="Deprecated element"
+            description="This element is deprecated and may be removed in a future release."
             style={{ marginBottom: 12 }}
           />
         )}

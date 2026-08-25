@@ -450,7 +450,7 @@ const CustomArrayField: FC<
                     onChange(
                       formData.map((item, i) =>
                         i === selectedIndex ? { ...item, script: value } : item,
-                      ) as ArrayItem[],
+                      ),
                       fieldPathId.path,
                     );
                   }}

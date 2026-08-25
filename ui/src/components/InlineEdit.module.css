@@ -1,8 +1,15 @@
 /* Used on both a <button> and a <div>; border-box keeps min-height at the
-   control height of 32px for either. */
+   control height of 32px for either.
+
+   A small table cell pads its content by 8px. Pulling the block back by that
+   much and widening it to match spans the cell exactly: the value lines up
+   with its column header, and the border hovering draws traces the cell rather
+   than sticking out past the table. Hovering trades 1px of padding for the
+   border, so the text does not move. */
 .inlineEditValueWrap {
   box-sizing: border-box;
-  padding: 5px 12px;
+  padding: 5px 8px;
+  margin-inline: -8px;
   cursor: pointer;
   min-height: 32px;
   align-content: center;
@@ -10,11 +17,11 @@
   background: transparent;
   font: inherit;
   text-align: left;
-  width: 90%;
+  width: calc(100% + 16px);
 }
 
 .inlineEditValueWrap:hover {
-  padding: 4px 11px;
+  padding: 4px 7px;
   border: 1px solid #d9d9d9;
   border-radius: 2px;
 }
@@ -29,15 +36,42 @@
   opacity: 0.8;
 }
 
+/* Holds the editor of a plain inline edit; the offset matches the viewer's. */
+.inlineEditEditorWrap {
+  display: flex;
+  flex-direction: row;
+  width: calc(100% + 16px);
+  min-width: 0;
+  margin-inline: -8px;
+}
+
+/* antd pads a control by 11px beside its 1px border. Over the cell's own 8px
+   that would set the text 4px in from where the closed cell shows it, so the
+   controls an inline editor holds are padded to the cell instead. */
+.inlineEditEditorWrap :global(.ant-input),
+.inlineEditEditorWrap :global(.ant-input-number-input),
+.inlineEditEditorWrap :global(.ant-select-selector),
+.inlineEditFormWrap :global(.ant-input),
+.inlineEditFormWrap :global(.ant-input-number-input),
+.inlineEditFormWrap :global(.ant-select-selector) {
+  padding-inline: 7px;
+}
+
+.inlineEditEditorWrap > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .inlineEditFormWrap {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   gap: 8px;
-  width: 100%;
+  width: calc(100% + 16px);
   min-width: 0;
   border: none;
   margin: 0;
+  margin-inline: -8px;
   padding: 0;
   min-inline-size: unset;
 }

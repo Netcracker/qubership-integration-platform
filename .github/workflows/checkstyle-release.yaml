@@ -1,6 +1,8 @@
 ---
 name: Checkstyle Release
 
+run-name: Checkstyle Release (${{ inputs.release-type }})
+
 on:
   workflow_call:
     inputs:
@@ -9,11 +11,6 @@ on:
         required: false
         type: string
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
-        required: false
-        type: string
-        default: ""
       profile:
         description: "Maven profile to use"
         type: string
@@ -43,7 +40,7 @@ on:
   workflow_dispatch:
     inputs:
       release-type:
-        description: "Release type (ignored if a version override is given)"
+        description: "patch | minor | major"
         type: choice
         options:
           - "patch"
@@ -51,11 +48,6 @@ on:
           - "major"
         required: false
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
-        required: false
-        default: ""
-        type: string
       profile:
         description: "Maven profile to use"
         type: choice
@@ -86,10 +78,13 @@ jobs:
     with:
       module: checkstyle
       release-type: ${{ inputs.release-type }}
-      version: ${{ inputs.version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       mvn-args: ${{ inputs.mvn-args }}
+      # Every POM that pins the released rules moves in the same bump commit;
+      # otherwise the repo keeps compiling against the previous checkstyle.
+      sync-property: qip-checkstyle-revision
+      sync-poms: parent/pom.xml micro-engine/pom.xml schemas/pom.xml sessions-management/pom.xml
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}

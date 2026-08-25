@@ -333,6 +333,66 @@ describe("useChainGraph", () => {
       const { result } = await renderChainGraph(undefined, { chain });
       expect(result.current.nodes).toHaveLength(0);
     });
+
+    it("should preserve the latest selection when an in-flight auto-layout resolves", async () => {
+      let resolveSecondLayout!: (nodes: ChainGraphNode[]) => void;
+      const secondLayout = new Promise<ChainGraphNode[]>((resolve) => {
+        resolveSecondLayout = resolve;
+      });
+      let arrangeCallCount = 0;
+      let secondLayoutNodes: ChainGraphNode[] = [];
+
+      mockArrangeNodes.mockImplementation((nodes: unknown[]) => {
+        arrangeCallCount += 1;
+        if (arrangeCallCount === 2) {
+          secondLayoutNodes = (nodes as ChainGraphNode[]).map((node) => ({
+            ...node,
+            position: { x: 320, y: 160 },
+          }));
+          return secondLayout;
+        }
+        return Promise.resolve(nodes);
+      });
+
+      const chain = makeChain({
+        elements: [
+          {
+            id: "node-1",
+            type: "script",
+            name: "Node 1",
+            description: "",
+          } as unknown as Element,
+        ],
+      });
+      const { result } = await renderChainGraph(undefined, { chain });
+
+      await waitFor(() => {
+        expect(mockArrangeNodes).toHaveBeenCalledTimes(2);
+      });
+
+      act(() => {
+        result.current.onNodesChange([
+          { id: "node-1", type: "select", selected: true },
+        ]);
+      });
+      await waitFor(() => {
+        expect(result.current.nodes[0]?.selected).toBe(true);
+      });
+
+      await act(async () => {
+        resolveSecondLayout(secondLayoutNodes);
+        await secondLayout;
+      });
+
+      await waitFor(() => {
+        expect(result.current.nodes[0]).toEqual(
+          expect.objectContaining({
+            position: { x: 320, y: 160 },
+            selected: true,
+          }),
+        );
+      });
+    });
   });
 
   describe("chain guards", () => {
@@ -1332,6 +1392,87 @@ describe("useChainGraph", () => {
   });
 
   describe("onNodeDragStop", () => {
+    it("should preserve the latest selection when a same-parent drag stops before the node ref updates", async () => {
+      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
+        id: "container-1",
+        type: "container",
+      });
+      (getIntersectionParent as jest.Mock).mockReturnValue({
+        id: "container-1",
+        type: "container",
+      });
+
+      const { result } = await withInitialNodes();
+
+      await act(async () => {
+        result.current.onNodesChange([
+          { id: "node-1", type: "select", selected: false },
+          { id: "container-2", type: "select", selected: true },
+        ]);
+        await result.current.onNodeDragStop(
+          {} as React.MouseEvent,
+          draggedNode,
+        );
+      });
+
+      expect(
+        result.current.nodes.find((node) => node.id === "node-1")?.selected,
+      ).toBe(false);
+      expect(
+        result.current.nodes.find((node) => node.id === "container-2")
+          ?.selected,
+      ).toBe(true);
+      expect(apiMock.transferElement).not.toHaveBeenCalled();
+    });
+
+    it("should use dragged nodes as the authoritative transfer selection", async () => {
+      const additionallySelectedNode = {
+        id: "node-2",
+        type: "unit",
+        position: { x: 100, y: 50 },
+        data: {},
+        parentId: "container-1",
+        selected: true,
+      } as unknown as ChainGraphNode;
+
+      (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
+        id: "container-2",
+        type: "container",
+      });
+      (getIntersectionParent as jest.Mock).mockReturnValue({
+        id: "container-2",
+        type: "container",
+      });
+      (findUpdatedElement as jest.Mock).mockReturnValue({
+        id: "node-1",
+        parentElementId: "container-2",
+      });
+      apiMock.transferElement.mockResolvedValue({
+        updatedElements: [{ id: "node-1", parentElementId: "container-2" }],
+      });
+
+      const { result } = await withInitialNodes();
+      act(() => {
+        result.current.setNodes([...initialNodes, additionallySelectedNode]);
+      });
+      await waitFor(() => {
+        expect(result.current.nodes).toHaveLength(initialNodes.length + 1);
+      });
+
+      await act(async () => {
+        await result.current.onNodeDragStop(
+          {} as React.MouseEvent,
+          draggedNode,
+          [draggedNode],
+        );
+      });
+
+      expect(apiMock.transferElement).toHaveBeenCalledWith(
+        expect.objectContaining({ elements: ["node-1"] }),
+        "chain-1",
+      );
+    });
+
     it("calls onChainUpdate after successful transferElement", async () => {
       (getPossibleGraphIntersection as jest.Mock).mockReturnValue({
         id: "container-2",

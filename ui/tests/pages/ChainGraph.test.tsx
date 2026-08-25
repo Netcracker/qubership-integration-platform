@@ -330,6 +330,21 @@ describe("ChainGraph", () => {
     expect(lastProps.deleteKeyCode).toEqual(["Backspace", "Delete"]);
   });
 
+  it("should use the same 4 px threshold for clicks and drags", () => {
+    render(<ChainGraph />);
+
+    const lastProps = mockReactFlow.mock.calls.at(-1)?.[0] as {
+      nodeClickDistance?: number;
+      nodeDragThreshold?: number;
+    };
+    expect(lastProps).toEqual(
+      expect.objectContaining({
+        nodeClickDistance: 4,
+        nodeDragThreshold: 4,
+      }),
+    );
+  });
+
   it("keeps delete hotkeys enabled when element route is open (modal isolates via nokey)", () => {
     mockElementId = "element-1";
 
@@ -379,17 +394,41 @@ describe("ChainGraph", () => {
     }
   });
 
-  it("omits onBeforeDelete when graph is read-only", async () => {
+  it("should keep node selection enabled while mutation handlers are disabled in read-only mode", async () => {
     mockHasChainUpdatePermission = false;
 
     render(<ChainGraph />);
 
     await waitFor(() => {
       const lastProps = mockReactFlow.mock.calls.at(-1)?.[0] as {
+        onNodesChange?: unknown;
+        onEdgesChange?: unknown;
+        onNodeDragStart?: unknown;
+        onNodeDrag?: unknown;
+        onNodeDragStop?: unknown;
+        onConnect?: unknown;
+        onDelete?: unknown;
         onBeforeDelete?: unknown;
+        onDrop?: unknown;
+        onDragOver?: unknown;
+        onNodeDoubleClick?: unknown;
+        onContextMenu?: unknown;
+        onNodeContextMenu?: unknown;
         deleteKeyCode?: string[] | null;
       };
+      expect(lastProps.onNodesChange).toEqual(expect.any(Function));
+      expect(lastProps.onEdgesChange).toBeUndefined();
+      expect(lastProps.onNodeDragStart).toBeUndefined();
+      expect(lastProps.onNodeDrag).toBeUndefined();
+      expect(lastProps.onNodeDragStop).toBeUndefined();
+      expect(lastProps.onConnect).toBeUndefined();
+      expect(lastProps.onDelete).toBeUndefined();
       expect(lastProps.onBeforeDelete).toBeUndefined();
+      expect(lastProps.onDrop).toBeUndefined();
+      expect(lastProps.onDragOver).toBeUndefined();
+      expect(lastProps.onNodeDoubleClick).toBeUndefined();
+      expect(lastProps.onContextMenu).toBeUndefined();
+      expect(lastProps.onNodeContextMenu).toBeUndefined();
       expect(lastProps.deleteKeyCode).toBeNull();
     });
   });

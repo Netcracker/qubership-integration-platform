@@ -304,6 +304,17 @@ describe("getNodeFromElement", () => {
     expect(node.height).toBe(300);
   });
 
+  test("uses striped background for deprecated supported unit elements", () => {
+    const node = getNodeFromElement(
+      makeElement(),
+      makeLibraryElement({ deprecated: true }),
+    );
+
+    expect(node.data.deprecated).toBe(true);
+    expect(node.style?.background).toContain("repeating-linear-gradient");
+    expect(node.style?.backgroundColor).toBeUndefined();
+  });
+
   test("uses unsupported color and Unknown type for unsupported canvas elements", () => {
     const element = makeElement({ type: "chain-call", name: "My Chain Call" });
     const node = getNodeFromElement(

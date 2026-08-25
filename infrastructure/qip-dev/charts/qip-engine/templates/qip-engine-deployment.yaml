@@ -65,6 +65,16 @@ spec:
                 configMapKeyRef:
                   key: RUNTIME_CATALOG_SERVICE_URL
                   name: {{ .Release.Name }}-engine-env
+            - name: TESTING_SERVICE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: TESTING_SERVICE_ENABLED
+                  name: {{ .Release.Name }}-engine-env
+            - name: TESTING_SERVICE_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: TESTING_SERVICE_ADDRESS
+                  name: {{ .Release.Name }}-engine-env
             - name: NAMESPACE
               valueFrom:
                 configMapKeyRef:

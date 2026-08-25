@@ -20,6 +20,7 @@ import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { useChainFullscreenContext } from "./ChainFullscreenContext.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
+import { useTestingServiceAvailability } from "../hooks/useTestingServiceAvailability.ts";
 
 export type ChainContextData = {
   chain: Chain | undefined;
@@ -36,6 +37,7 @@ const ChainPage = () => {
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
   const [headerActions, setHeaderActions] = useState<ReactNode>(null);
   const notificationService = useNotificationService();
+  const { isAvailable: isTestingAvailable } = useTestingServiceAvailability();
   const headerActionsRegistrationRef = useRef(0);
 
   const registerHeaderActions = useCallback((actions: ReactNode) => {
@@ -143,6 +145,7 @@ const ChainPage = () => {
             key: "logging-settings",
             label: "Logging",
           },
+          ...(isTestingAvailable ? [{ key: "testing", label: "Testing" }] : []),
         ]),
     { key: "masking", label: "Masking" },
     { key: "properties", label: "Properties" },

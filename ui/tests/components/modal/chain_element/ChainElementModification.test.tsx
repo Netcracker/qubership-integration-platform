@@ -402,6 +402,58 @@ describe("ChainElementModification", () => {
     expect(saveButton).toBeInTheDocument();
   });
 
+  it("should show a warning and keep Save enabled when the element is deprecated", async () => {
+    const deprecatedNode: ChainGraphNode = {
+      ...mockNode,
+      data: { ...mockNode.data, deprecated: true },
+    };
+
+    renderWithPermissions(
+      { chain: ["update"] },
+      { ...defaultProps, node: deprecatedNode },
+    );
+
+    const alert = await screen.findByRole("alert");
+
+    expect(alert).toHaveClass("ant-alert-warning");
+    expect(within(alert).getByText("Deprecated element")).toBeInTheDocument();
+    expect(
+      within(alert).getByText(
+        "This element is deprecated and may be removed in a future release.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
+  });
+
+  it("should not show a warning when the element is not deprecated", async () => {
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Deprecated element")).not.toBeInTheDocument();
+  });
+
+  it("should show only the error when the element is deprecated and unsupported", async () => {
+    const unsupportedDeprecatedNode: ChainGraphNode = {
+      ...mockNode,
+      data: { ...mockNode.data, deprecated: true, unsupported: true },
+    };
+
+    renderWithPermissions(
+      { chain: ["update"] },
+      { ...defaultProps, node: unsupportedDeprecatedNode },
+    );
+
+    const alert = await screen.findByRole("alert");
+
+    expect(alert).toHaveClass("ant-alert-error");
+    expect(within(alert).getByText("Unsupported element")).toBeInTheDocument();
+    expect(screen.queryByText("Deprecated element")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+  });
+
   it("ElementNameInlineEdit has no Edit button when permissions empty", async () => {
     renderWithPermissions({});
 

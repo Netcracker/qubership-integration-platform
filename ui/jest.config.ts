@@ -162,6 +162,7 @@ const config: Config = {
     "<rootDir>/tests/setup/jest-dom.ts",
     "<rootDir>/tests/setup/jsdom-navigation.ts",
     "<rootDir>/tests/setup/intersection-observer.ts",
+    "<rootDir>/tests/setup/crypto-random-uuid.ts",
   ],
 
   // The number of seconds after which a test is considered as slow and reported as such in the results.

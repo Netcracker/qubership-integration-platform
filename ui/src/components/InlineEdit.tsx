@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Flex, Form } from "antd";
+import { Form } from "antd";
 import styles from "./InlineEdit.module.css";
 
 const { useForm } = Form;
@@ -62,8 +62,8 @@ export function InlineEdit<Values>({
   return (
     <InlineEditContext.Provider value={contextValue}>
       {active ? (
-        <Flex style={{ width: "100%", minWidth: 0 }} vertical={false}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div className={styles.inlineEditEditorWrap}>
+          <div>
             <Form<Values>
               form={form}
               disabled={processing}
@@ -94,7 +94,7 @@ export function InlineEdit<Values>({
               {editor}
             </Form>
           </div>
-        </Flex>
+        </div>
       ) : (
         <button
           type="button"

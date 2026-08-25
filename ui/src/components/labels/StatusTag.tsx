@@ -1,6 +1,6 @@
 import { formatSnakeCased } from "../../misc/format-utils.ts";
 import React from "react";
-import { Tag, theme, Tooltip } from "antd";
+import { Tooltip } from "antd";
 import {
   BulkDeploymentStatus,
   ImportEntityStatus,
@@ -8,7 +8,7 @@ import {
   ImportInstructionStatus,
   SystemImportStatus,
 } from "../../api/apiTypes.ts";
-import type { PresetStatusColor } from "../../types/antd.ts";
+import { StatusToneTag, type StatusTone } from "./StatusToneTag.tsx";
 
 type CombinedStatus =
   | ImportEntityStatus
@@ -17,9 +17,7 @@ type CombinedStatus =
   | ImportInstructionAction
   | BulkDeploymentStatus;
 
-type StatusColor = PresetStatusColor | "neutral";
-
-function getStatusColor(status?: CombinedStatus): StatusColor {
+function getStatusColor(status?: CombinedStatus): StatusTone {
   if (!status) return "neutral";
 
   switch (status) {
@@ -60,22 +58,10 @@ export const StatusTag: React.FC<{
   status?: CombinedStatus;
   message?: string;
 }> = ({ status, message }) => {
-  const { token } = theme.useToken();
-  const statusColor = getStatusColor(status);
-  const neutral = statusColor === "neutral";
-  const color = neutral ? undefined : statusColor;
-  const neutralStyle: React.CSSProperties | undefined = neutral
-    ? {
-        backgroundColor: token.colorFillQuaternary,
-        borderColor: token.colorBorderSecondary,
-        color: token.colorTextSecondary,
-      }
-    : undefined;
-
   const statusNode = (
-    <Tag variant="solid" color={color} style={neutralStyle}>
+    <StatusToneTag tone={getStatusColor(status)}>
       {formatSnakeCased(status ?? "")}
-    </Tag>
+    </StatusToneTag>
   );
   return message ? <Tooltip title={message}>{statusNode}</Tooltip> : statusNode;
 };
