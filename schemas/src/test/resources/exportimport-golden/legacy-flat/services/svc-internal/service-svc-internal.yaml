@@ -1,0 +1,15 @@
+id: "svc-internal"
+name: "Billing service"
+description: "Golden corpus fixture for internal services"
+activeEnvironmentId: "env-billing"
+integrationSystemType: "INTERNAL"
+internalServiceName: "billing"
+protocol: "HTTP"
+environments:
+- id: "env-billing"
+  name: "Default"
+  address: "http://billing"
+  sourceType: "MANUAL"
+labels:
+- "golden"
+migrations: "[100, 102]"

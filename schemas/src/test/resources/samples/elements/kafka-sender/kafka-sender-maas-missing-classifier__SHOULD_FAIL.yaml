@@ -1,0 +1,13 @@
+# $schema: http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml
+id: "6c7c112e-d76e-448e-b093-5b60bf07f80a"
+name: "Kafka Sender"
+type: "kafka-sender-2"
+properties:
+  connectionSourceType: "maas"
+  key: "biz"
+  keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  overrideContextParams:
+    fghfghf: "fghfghfhf"
+  propagateContext: true
+  sslProtocol: "TLS"
+  valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"

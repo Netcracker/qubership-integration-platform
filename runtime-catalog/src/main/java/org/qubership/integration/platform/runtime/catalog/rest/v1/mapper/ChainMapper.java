@@ -22,7 +22,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainResponse;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainsBySpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainsByApiGroup;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.folder.FolderItemResponse;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.qubership.integration.platform.runtime.catalog.util.StringTrimmer;
@@ -73,10 +73,10 @@ public interface ChainMapper {
     List<ChainResponse> asChainResponseLight(List<Chain> response);
 
 
-    ChainsBySpecificationGroup asChainsBySpecificationGroup(String specificationGroupId, List<Chain> chains);
+    ChainsByApiGroup asChainsByApiGroup(String specificationGroupId, List<Chain> chains);
 
-    default List<ChainsBySpecificationGroup> asChainsBySpecificationGroup(Map<String, List<Chain>> response) {
-        return response.entrySet().stream().map(e -> asChainsBySpecificationGroup(e.getKey(), e.getValue())).toList();
+    default List<ChainsByApiGroup> asChainsByApiGroup(Map<String, List<Chain>> response) {
+        return response.entrySet().stream().map(e -> asChainsByApiGroup(e.getKey(), e.getValue())).toList();
     }
 
     Chain mapRequest(ChainRequest request);

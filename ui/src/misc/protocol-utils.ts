@@ -20,8 +20,17 @@ const isAsyncProtocol = (value: string) =>
 
 const isGrpcProtocol = (value: string) => matchesProtocol(value, ["grpc"]);
 
+/**
+ * The protocol to publish into a chain element's form context. Readers match it against a transport
+ * name — `isKafkaProtocol`, the oneOf branches, the Validations tab — so a service that carries no
+ * protocol has to land on a usable default instead of the empty string.
+ */
+const protocolForContext = (value?: string): string =>
+  normalizeProtocol(value ?? "") || "http";
+
 export {
   normalizeProtocol,
+  protocolForContext,
   isKafkaProtocol,
   isAmqpProtocol,
   isHttpProtocol,

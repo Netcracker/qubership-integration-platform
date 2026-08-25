@@ -1,17 +1,13 @@
 import React from "react";
 import { Tag } from "antd";
-import { isSpecification, ServiceEntity } from "./ServicesTreeTable";
-import {
-  ContextSystem,
-  IntegrationSystem,
-  Specification,
-} from "../../api/apiTypes.ts";
+import { isApi, ServiceEntity } from "./ServicesTreeTable";
+import { ContextSystem, IntegrationSystem, Api } from "../../api/apiTypes.ts";
 import { RcFile } from "antd/es/upload";
 import { SOLID_TAG_TONES } from "../../theme/semanticColors";
 
 export type UsageStatus = "Deprecated" | "In use" | "New";
 
-export function getUsageStatus(element: Specification): UsageStatus {
+export function getUsageStatus(element: Api): UsageStatus {
   if (element.deprecated) return "Deprecated";
   if (element.chains && element.chains.length > 0) return "In use";
   return "New";
@@ -26,7 +22,7 @@ const STATUS_COLORS: Record<UsageStatus, string> = {
 export const UsageStatusTag: React.FC<{ element: ServiceEntity }> = ({
   element,
 }) => {
-  if (!isSpecification(element)) return null;
+  if (!isApi(element)) return null;
   const status = getUsageStatus(element);
   return (
     <Tag

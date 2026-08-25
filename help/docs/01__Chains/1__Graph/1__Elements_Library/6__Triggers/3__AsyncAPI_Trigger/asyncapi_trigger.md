@@ -15,7 +15,7 @@
 | Parameter         | Mandatory | Data Type | Description                                                                                                                                | Sample               |
 | ----------------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
 | Service           | M         | List      | List with all asynchronous services, available to be selected. Services without a single API specification won't be presented in the list. | kafka-service-sample |
-| API Specification | M         | List      | List with specifications, grouped by specification groups.                                                                                 | v1.0.0               |
+| API Specification | M         | List      | List with specifications, grouped by API groups.                                                                                           | v1.0.0               |
 | Operation         | M         | List      | List with all operations, available for selected API Specification.                                                                        | onTaskStartRefs      |
 
 When service is added, additional section with parameters (based on service type) will appear:

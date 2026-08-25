@@ -339,6 +339,82 @@ describe("auto-schema", () => {
       expect(names).toEqual(["broken", "first"]);
       warnSpy.mockRestore();
     });
+
+    it("imports the structure when a subschema carries an if/then constraint", () => {
+      // Shape an OpenAPI 3.1 service produces: `if`/`then` sits inside an `allOf` member and
+      // only says which instances are valid. Rejecting it discarded the whole schema, so the
+      // mapper auto-fill silently did nothing for every 3.1 operation.
+      const dataType = tryBuildDataTypeFromSchema({
+        allOf: [
+          {
+            type: "object",
+            if: { properties: { codec: { const: "av1" } } },
+            then: { required: ["frameRate"] },
+            properties: {
+              codec: { type: "string" },
+              frameRate: { type: "number" },
+            },
+          },
+        ],
+      });
+      expect(dataType?.name).toBe("object");
+      const names = (dataType as ObjectType).schema.attributes
+        .map((a) => a.name)
+        .sort();
+      expect(names).toEqual(["codec", "frameRate"]);
+    });
+
+    it("reads the type of a const-only property off its value", () => {
+      // OpenAPI 3.1 discriminators look like this. Without the value, the attribute imported as null
+      // and showed up in the mapper as an untyped leaf.
+      const dataType = tryBuildDataTypeFromSchema({
+        type: "object",
+        properties: {
+          kind: { const: "video" },
+          retries: { const: 3 },
+          enabled: { const: true },
+        },
+      });
+      const attributes = (dataType as ObjectType).schema.attributes;
+      const typeOf = (name: string) =>
+        attributes.find((a) => a.name === name)?.type.name;
+      expect(typeOf("kind")).toBe("string");
+      expect(typeOf("retries")).toBe("number");
+      expect(typeOf("enabled")).toBe("boolean");
+    });
+
+    it("reads the type of an enum without a type off its values", () => {
+      const dataType = tryBuildDataTypeFromSchema({
+        enum: ["image", "video", "audio"],
+      });
+      expect(dataType?.name).toBe("string");
+    });
+
+    it("imports an enum of mixed value types as a oneOf", () => {
+      const dataType = tryBuildDataTypeFromSchema({ enum: ["auto", 0, null] });
+      expect(dataType?.name).toBe("oneOf");
+    });
+
+    it("falls back to a null type when the enumerated values are not primitives", () => {
+      // Nothing about the shape follows from the type name alone here, so keep the old leaf type —
+      // but still import, instead of failing the whole schema.
+      const dataType = tryBuildDataTypeFromSchema({
+        type: "object",
+        properties: { preset: { enum: [{ width: 1 }, { width: 2 }] } },
+      });
+      const attributes = (dataType as ObjectType).schema.attributes;
+      expect(attributes[0].type.name).toBe("null");
+    });
+
+    it("imports the structure when a subschema carries a not constraint", () => {
+      const dataType = tryBuildDataTypeFromSchema({
+        type: "object",
+        not: { required: ["legacyField"] },
+        properties: { id: { type: "string" } },
+      });
+      expect(dataType?.name).toBe("object");
+      expect((dataType as ObjectType).schema.attributes[0].name).toBe("id");
+    });
   });
 
   describe("applySchemaToMapping", () => {

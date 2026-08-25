@@ -49,7 +49,7 @@ import {
   GetMaasRabbitMQDeclarativeRequest,
   ImportCommitResponse,
   ImportPreview,
-  ImportSpecificationGroupRequest,
+  ImportApiGroupRequest,
   ImportSpecificationResult,
   ImportStatusResponse,
   ImportSystemResult,
@@ -70,16 +70,17 @@ import {
   SessionSearchResponse,
   Snapshot,
   SpecApiFile,
-  Specification,
-  SpecificationGroup,
+  Api,
+  ApiGroup,
   SystemOperation,
   SystemRequest,
+  SystemUpdateRequest,
   TransferElementRequest,
   UsedProperty,
   UsedService,
   VariableImportPreview,
 } from "../apiTypes.ts";
-import { Api } from "../api.ts";
+import { ApiClient } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
 import { DiffDocumentType } from "../../components/chains/diff/DiffDocumentContext.tsx";
 import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
@@ -89,7 +90,7 @@ export const STARTUP_EVENT = "startup";
 export const COMPARED_DOCUMENTS_REQUEST_EVENT = "comparedDocumentsRequest";
 export const isVsCode = window.location.protocol === "vscode-webview:";
 
-export class VSCodeExtensionApi implements Api {
+export class VSCodeExtensionApi implements ApiClient {
   vscode: VSCodeApi<never>;
   responseResolvers: Record<string, MessageResolver> = {};
 
@@ -473,7 +474,7 @@ export class VSCodeExtensionApi implements Api {
       }),
     );
 
-    const request: ImportSpecificationGroupRequest = {
+    const request: ImportApiGroupRequest = {
       systemId,
       name,
       files: serializedFiles,
@@ -496,7 +497,7 @@ export class VSCodeExtensionApi implements Api {
 
   updateService = async (
     systemId: string,
-    service: Partial<IntegrationSystem>,
+    service: SystemUpdateRequest,
   ): Promise<IntegrationSystem> => {
     return <IntegrationSystem>(
       await this.sendMessageToExtension("updateService", {
@@ -575,19 +576,15 @@ export class VSCodeExtensionApi implements Api {
     );
   };
 
-  getApiSpecifications = async (
-    systemId: string,
-  ): Promise<SpecificationGroup[]> => {
-    return <SpecificationGroup[]>(
+  getApiSpecifications = async (systemId: string): Promise<ApiGroup[]> => {
+    return <ApiGroup[]>(
       (await this.sendMessageToExtension("getApiSpecifications", systemId))
         .payload
     );
   };
 
-  getLatestApiSpecification = async (
-    systemId: string,
-  ): Promise<Specification> => {
-    return <Specification>(
+  getLatestApiSpecification = async (systemId: string): Promise<Api> => {
+    return <Api>(
       (await this.sendMessageToExtension("getLatestApiSpecification", systemId))
         .payload
     );
@@ -595,9 +592,9 @@ export class VSCodeExtensionApi implements Api {
 
   updateApiSpecificationGroup = async (
     groupId: string,
-    group: Partial<SpecificationGroup>,
-  ): Promise<SpecificationGroup> => {
-    return <SpecificationGroup>(
+    group: Partial<ApiGroup>,
+  ): Promise<ApiGroup> => {
+    return <ApiGroup>(
       await this.sendMessageToExtension("updateApiSpecificationGroup", {
         id: groupId,
         group,
@@ -608,8 +605,8 @@ export class VSCodeExtensionApi implements Api {
   getSpecificationModel = async (
     systemId: string,
     groupId: string,
-  ): Promise<Specification[]> => {
-    return <Specification[]>(
+  ): Promise<Api[]> => {
+    return <Api[]>(
       await this.sendMessageToExtension("getSpecificationModel", {
         serviceId: systemId,
         groupId,
@@ -626,9 +623,9 @@ export class VSCodeExtensionApi implements Api {
 
   updateSpecificationModel = async (
     modelId: string,
-    model: Partial<Specification>,
-  ): Promise<Specification> => {
-    return <Specification>(
+    model: Partial<Api>,
+  ): Promise<Api> => {
+    return <Api>(
       await this.sendMessageToExtension("updateSpecificationModel", {
         id: modelId,
         model,
@@ -691,8 +688,8 @@ export class VSCodeExtensionApi implements Api {
     ).payload;
   };
 
-  deprecateModel = async (modelId: string): Promise<Specification> => {
-    return <Specification>(
+  deprecateModel = async (modelId: string): Promise<Api> => {
+    return <Api>(
       (await this.sendMessageToExtension("deprecateModel", modelId)).payload
     );
   };

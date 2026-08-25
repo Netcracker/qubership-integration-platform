@@ -1,0 +1,7 @@
+id: "ctx-golden"
+$schema: "http://qubership.org/schemas/product/qip/context-service.schema.yaml"
+name: "Golden context service"
+content:
+  description: "Stamped from the service migration list, so V105 revert has to reach\
+    \ it"
+  migrations: "[100, 101, 102, 103, 104]"

@@ -25,25 +25,30 @@ import org.qubership.integration.platform.runtime.catalog.context.RequestIdConte
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
+import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.ApiGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.ExtractedSchemas;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.OperationKey;
+import org.qubership.integration.platform.runtime.catalog.service.migration.TypedOperationBackfill;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -65,31 +70,37 @@ public class OperationParserService {
             new HashMap<>();
     private final OperationRepository operationRepository;
     private final SystemModelRepository systemModelRepository;
-    private final SpecificationGroupRepository specificationGroupRepository;
+    private final ApiGroupRepository apiGroupRepository;
     private final SpecificationSourceRepository specificationSourceRepository;
     private final SystemModelBaseService systemModelBaseService;
     private final ActionsLogService actionLogger;
     private final TransactionHandler transactionHandler;
     private final EnvironmentBaseService environmentBaseService;
+    private final OperationSchemaExtractor schemaExtractor;
+    private final TypedOperationBackfill typedOperationBackfill;
 
     @Autowired
     public OperationParserService(List<org.qubership.integration.platform.parsers.SpecificationParser> libraryParsers,
                                   OperationRepository operationRepository,
                                   SystemModelRepository systemModelRepository,
-                                  SpecificationGroupRepository specificationGroupRepository,
+                                  ApiGroupRepository apiGroupRepository,
                                   SpecificationSourceRepository specificationSourceRepository,
                                   SystemModelBaseService systemModelBaseService,
                                   ActionsLogService actionLogger,
                                   TransactionHandler transactionHandler,
-                                  @Lazy EnvironmentBaseService environmentBaseService) {
+                                  @Lazy EnvironmentBaseService environmentBaseService,
+                                  OperationSchemaExtractor schemaExtractor,
+                                  TypedOperationBackfill typedOperationBackfill) {
         this.operationRepository = operationRepository;
         this.systemModelRepository = systemModelRepository;
-        this.specificationGroupRepository = specificationGroupRepository;
+        this.apiGroupRepository = apiGroupRepository;
         this.specificationSourceRepository = specificationSourceRepository;
         this.systemModelBaseService = systemModelBaseService;
         this.actionLogger = actionLogger;
         this.transactionHandler = transactionHandler;
         this.environmentBaseService = environmentBaseService;
+        this.schemaExtractor = schemaExtractor;
+        this.typedOperationBackfill = typedOperationBackfill;
         for (SpecificationParser parser : libraryParsers) {
             Parser parserAnnotation = parser.getClass().getAnnotation(Parser.class);
             if (parserAnnotation != null) {
@@ -105,7 +116,7 @@ public class OperationParserService {
      * exception type. Parsing produces the model only; the caller reconciles environments.
      */
     private ParsedSystemModel parseSpecification(String parserName,
-                                                 SpecificationGroup specificationGroup,
+                                                 ApiGroup specificationGroup,
                                                  Collection<SpecificationSource> specificationSources,
                                                  Consumer<String> messageHandler) {
         SpecificationParser libraryParser =
@@ -136,7 +147,7 @@ public class OperationParserService {
      */
     private void resolveEnvironments(String parserName,
                                      ParsedSystemModel parsedSystemModel,
-                                     SpecificationGroup specificationGroup,
+                                     ApiGroup specificationGroup,
                                      Consumer<String> messageHandler) {
         IntegrationSystem system = specificationGroup.getSystem();
         try {
@@ -163,12 +174,14 @@ public class OperationParserService {
                                                 Collection<SpecificationSource> specificationSources,
                                                 boolean isDiscovered,
                                                 Set<String> oldSystemModelsIds,
+                                                String specificationType,
+                                                String specificationVersion,
                                                 Consumer<String> messageHandler) {
         String requestId = RequestIdContext.get();
         return CompletableFuture.supplyAsync(() -> {
             RequestIdContext.set(requestId);
             return transactionHandler.supplyInNewTransaction(() -> {
-                SpecificationGroup specificationGroup = specificationGroupRepository.getReferenceById(specificationGroupId);
+                ApiGroup specificationGroup = apiGroupRepository.getReferenceById(specificationGroupId);
 
                 ParsedSystemModel parsedSystemModel =
                         parseSpecification(parserName, specificationGroup, specificationSources, messageHandler);
@@ -177,6 +190,8 @@ public class OperationParserService {
 
                 SystemModel systemModel = buildSystemModel(
                         parsedSystemModel, specificationGroup, oldSystemModelsIds, messageHandler);
+                systemModel.setSpecificationType(specificationType);
+                systemModel.setSpecificationVersion(specificationVersion);
 
                 List<SpecificationSource> specSources = specificationSourceRepository.saveAll(specificationSources);
                 specSources.forEach(systemModel::addProvidedSpecificationSource);
@@ -186,6 +201,7 @@ public class OperationParserService {
                 specificationSourceRepository.saveAll(specSources);
 
                 logSystemModelAction(systemModel, specificationGroup, LogOperation.CREATE);
+                warnWhenSchemasCannotBeRebuilt(systemModel, protocolOf(specificationGroup), specSources, messageHandler);
                 return systemModel;
             });
         });
@@ -197,7 +213,7 @@ public class OperationParserService {
      * assigns their ids. The version name doubles as the model name.
      */
     private SystemModel buildSystemModel(ParsedSystemModel parsedSystemModel,
-                                         SpecificationGroup specificationGroup,
+                                         ApiGroup specificationGroup,
                                          Set<String> oldSystemModelsIds,
                                          Consumer<String> messageHandler) {
         String groupId = specificationGroup.getId();
@@ -220,8 +236,18 @@ public class OperationParserService {
         systemModel.setDescription(parsedSystemModel.getDescription());
         systemModel.setSource(SystemModelSource.MANUAL);
 
+        // Import stores structural operations only: the library parsers always build schemas, and this is
+        // where they are dropped. OperationSchemaExtractor rebuilds them from the source on read.
+        // Typing happens here too, in one place for every protocol, rather than in each parser.
+        OperationProtocol protocol = protocolOf(specificationGroup);
         List<Operation> operations = parsedSystemModel.getOperations().stream()
                 .map(SystemEntitySeam::toPersistenceOperation)
+                .peek(operation -> {
+                    operation.setRequestSchema(null);
+                    operation.setResponseSchemas(null);
+                    operation.setTyped(typedOperationBackfill.backfillTyped(
+                            operation, operation.getSpecification(), protocol));
+                })
                 .collect(Collectors.toList());
         setOperationIds(systemModelId, operations, messageHandler.andThen(log::warn));
 
@@ -278,16 +304,56 @@ public class OperationParserService {
         }
     }
 
-    private void logSystemModelAction(AbstractSystemEntity object, SpecificationGroup parent, LogOperation logOperation) {
+    private void logSystemModelAction(AbstractSystemEntity object, ApiGroup parent, LogOperation logOperation) {
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.SPECIFICATION)
                 .entityId(object.getId())
                 .entityName(object.getName())
                 .parentId(parent == null ? null : parent.getId())
                 .parentName(parent == null ? null : parent.getName())
-                .parentType(parent == null ? null : EntityType.SPECIFICATION_GROUP)
+                .parentType(parent == null ? null : EntityType.API_GROUP)
                 .operation(logOperation)
                 .build());
     }
 
+
+    // A model always hangs off a system in production; a null anywhere reads as "no protocol" and
+    // skips the validation rather than failing the import.
+    private static OperationProtocol protocolOf(ApiGroup specificationGroup) {
+        return specificationGroup == null || specificationGroup.getSystem() == null
+                ? null
+                : specificationGroup.getSystem().getProtocol();
+    }
+
+    /**
+     * Import stores structural operations only; schemas are rebuilt on read. A source whose schemas
+     * cannot be rebuilt therefore no longer fails here — it degrades to empty schemas at first read,
+     * far from the user who imported it. This pass runs the same extraction the read path will run
+     * and warns while the import is still on screen. Never a failure: the operations imported fine.
+     */
+    private void warnWhenSchemasCannotBeRebuilt(SystemModel model,
+                                                OperationProtocol protocol,
+                                                List<SpecificationSource> sources,
+                                                Consumer<String> messageHandler) {
+        if (!OperationSchemaExtractor.canExtractSchemas(protocol)) {
+            return;
+        }
+        try {
+            Map<OperationKey, ExtractedSchemas> extracted = schemaExtractor.extractAll(sources, protocol, true);
+            List<OperationKey> unmatched = model.getOperations().stream()
+                    .map(operation -> OperationKey.of(operation.getPath(), operation.getMethod()))
+                    .filter(key -> !extracted.containsKey(key))
+                    .toList();
+            if (!unmatched.isEmpty()) {
+                messageHandler.accept("Request and response schemas of "
+                        + OperationSchemaExtractor.describeKeys(unmatched)
+                        + " cannot be rebuilt from the imported source and will read as empty. ");
+            }
+        } catch (Exception exception) {
+            log.warn("Cannot rebuild operation schemas of imported specification {}", model.getId(), exception);
+            messageHandler.accept("Operation schemas cannot be rebuilt from the imported source ("
+                    + exception.getMessage()
+                    + "), so they will read as empty. The operations themselves were imported. ");
+        }
+    }
 }

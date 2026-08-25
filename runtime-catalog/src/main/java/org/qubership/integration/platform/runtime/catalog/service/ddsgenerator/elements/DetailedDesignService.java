@@ -288,7 +288,7 @@ public class DetailedDesignService {
                         if (!specs.containsKey(specificationId)) {
                             specs.put(specificationId, DDSSpecificationSource
                                     .builder()
-                                    .serviceName(spec.getSpecificationGroup().getSystem().getName())
+                                    .serviceName(spec.getApiGroup().getSystem().getName())
                                     .specificationName(spec.getName())
                                     .specificationId(specificationId)
                                     .fileExtension(specificationFileExt)

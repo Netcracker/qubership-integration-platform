@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,11 +19,12 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_GROUP_FILE_POSTFIX;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUP_FILE_POSTFIX;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
 
@@ -30,7 +32,9 @@ import static org.qubership.integration.platform.io.readers.migrations.ImportFil
 @Component
 public class ServiceConfigurationsToFilesConverter {
 
-    private static final String SPECIFICATION_FILE_NAME_FIELD_KEY = "fileName";
+    private static final String SPECIFICATION_FILE_PATH_FIELD_KEY = "filePath";
+    // Older packages still carry the pre-api field name; read both so their sources are not silently dropped.
+    private static final String LEGACY_SPECIFICATION_FILE_NAME_FIELD_KEY = "fileName";
 
     private final ObjectMapper objectMapper;
     private final String appPrefix;
@@ -66,20 +70,52 @@ public class ServiceConfigurationsToFilesConverter {
             Map<String, RolloutImportConfigurationItem> serviceConfigs,
             String serviceTypePostfix
     ) throws JsonProcessingException {
+        boolean plainService = SERVICE_YAML_NAME_POSTFIX.equals(serviceTypePostfix);
         for (Map.Entry<String, RolloutImportConfigurationItem> serviceConfig : serviceConfigs.entrySet()) {
+            String serviceId = serviceConfig.getKey();
+            // Only the plain service has a legacy flat name import discovers, so every other kind is skipped loudly
+            // rather than written under a name discovery never finds.
+            if (!statableId(serviceId, plainService)) {
+                log.error("Service {} has an id no file name states readably, so no file is written for it."
+                        + " The id has to be one dot-free segment.", serviceId);
+                continue;
+            }
+
             JsonNode contentNode = serviceConfig.getValue().getContent();
             if (contentNode instanceof ObjectNode serviceContent) {
+                // A package carries no version data, so the converter has to claim one. It claims only the versions
+                // whose migration is unsafe to re-run, leaving the rest to run on import.
                 serviceContent.putIfAbsent(
                         IMPORT_MIGRATIONS_FIELD,
-                        TextNode.valueOf(MigrationUtil.formatVersions(serviceImportFileMigrations))
+                        TextNode.valueOf(MigrationUtil.formatAppliedVersions(serviceImportFileMigrations))
                 );
             }
 
-            String serviceId = serviceConfig.getKey();
             Path serviceDirectory = Path.of(serviceId);
-            String serviceFileName = serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String serviceFileName = plainService
+                    ? plainServiceFileName(serviceId)
+                    : serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(serviceFileName), serviceConfig.getValue());
         }
+    }
+
+    /** Whether either name this converter can write for {@code serviceId} reads that id back. */
+    private static boolean statableId(String serviceId, boolean plainService) {
+        return ExportImportUtils.fitsCurrentFormatFileName(serviceId)
+                || (plainService && ExportImportUtils.fitsLegacyFlatFileName(serviceId));
+    }
+
+    /**
+     * The name states no type in either format, so nothing has to be derived to build it. The type travels in the
+     * item's {@code $schema}, which {@code putYaml} writes out whole, and in
+     * {@code content.integrationSystemType} for a package predating the per-type schemas; import reads both.
+     *
+     * <p>An id the current format cannot state falls back to the legacy flat name, which states the id whole. Both
+     * names carry the same document, so the fallback costs nothing but the name.
+     */
+    private String plainServiceFileName(String serviceId) {
+        return ExportImportUtils.generateMainSystemFileExportName(
+                serviceId, appPrefix, !ExportImportUtils.fitsCurrentFormatFileName(serviceId));
     }
 
     private void convertSpecGroups(
@@ -101,7 +137,7 @@ public class ServiceConfigurationsToFilesConverter {
             }
 
             Path serviceDirectory = Path.of(serviceId);
-            String specGroupFileName = specGroupId + SPECIFICATION_GROUP_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String specGroupFileName = specGroupId + API_GROUP_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(specGroupFileName), specGroupConfig.getValue());
         }
     }
@@ -140,11 +176,13 @@ public class ServiceConfigurationsToFilesConverter {
             }
 
             Path serviceDirectory = Path.of(serviceId);
-            String specificationFileName = specificationId + SPECIFICATION_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String specificationFileName = specificationId + API_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(specificationFileName), specificationConfig.getValue());
 
-            List<Path> specPaths = specificationConfig.getValue().getContent().findValuesAsText(SPECIFICATION_FILE_NAME_FIELD_KEY)
-                    .stream()
+            JsonNode specificationContent = specificationConfig.getValue().getContent();
+            List<Path> specPaths = Stream.concat(
+                            specificationContent.findValuesAsText(SPECIFICATION_FILE_PATH_FIELD_KEY).stream(),
+                            specificationContent.findValuesAsText(LEGACY_SPECIFICATION_FILE_NAME_FIELD_KEY).stream())
                     .map(Paths::get)
                     .toList();
             for (Path specPath : specPaths) {

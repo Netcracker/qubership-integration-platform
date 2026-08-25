@@ -39,9 +39,9 @@ import org.qubership.integration.platform.parsers.schemas.impl.StringSchemaProce
 import org.qubership.integration.platform.parsers.schemas.impl.UUIDSchemaProcessor;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.EnvironmentRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
@@ -91,7 +91,7 @@ class SwaggerSpecificationParserTest {
      * Parses the specification with the library parser, then reconciles the declared environments
      * through the catalog, mirroring how {@code OperationParserService} drives a Swagger import.
      */
-    private void parseAndReconcile(String specification, SpecificationGroup group) {
+    private void parseAndReconcile(String specification, ApiGroup group) {
         ParsedSystemModel model = libraryParser.parseSpecification(
                 "group-1",
                 List.of(new SpecificationSource("spec", specification)),
@@ -124,8 +124,8 @@ class SwaggerSpecificationParserTest {
                 .build();
     }
 
-    private SpecificationGroup group(IntegrationSystem system) {
-        SpecificationGroup group = SpecificationGroup.builder().name("orders").build();
+    private ApiGroup group(IntegrationSystem system) {
+        ApiGroup group = ApiGroup.builder().name("orders").build();
         group.setSystem(system);
         return group;
     }

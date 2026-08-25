@@ -699,7 +699,7 @@ export enum SystemCompareAction {
 export enum ImportEntityType {
   CHAIN = "CHAIN",
   SERVICE = "SERVICE",
-  SPECIFICATION_GROUP = "SPECIFICATION_GROUP",
+  API_GROUP = "API_GROUP",
   SPECIFICATION = "SPECIFICATION",
   COMMON_VARIABLE = "COMMON_VARIABLE",
 }
@@ -941,7 +941,7 @@ export enum EntityType {
   IMPLEMENTED_SERVICE = "IMPLEMENTED_SERVICE",
   ENVIRONMENT = "ENVIRONMENT",
   SPECIFICATION = "SPECIFICATION",
-  SPECIFICATION_GROUP = "SPECIFICATION_GROUP",
+  API_GROUP = "API_GROUP",
   SERVICES = "SERVICES",
   MAAS_KAFKA = "MAAS_KAFKA",
   MAAS_RABBITMQ = "MAAS_RABBITMQ",
@@ -1087,6 +1087,9 @@ export type SystemRequest = {
   labels?: EntityLabel[];
 };
 
+/** The type is set at creation through `SystemRequest` and immutable afterwards, in both frontends. */
+export type SystemUpdateRequest = Omit<Partial<IntegrationSystem>, "type">;
+
 export type Environment = {
   id: string;
   systemId: string;
@@ -1125,7 +1128,7 @@ export type EnvironmentLabel = {
   name: string;
 };
 
-export interface SpecificationGroup {
+export interface ApiGroup {
   id: string;
   name: string;
   systemId: string;
@@ -1134,14 +1137,16 @@ export interface SpecificationGroup {
   createdBy?: User;
   modifiedWhen?: number;
   modifiedBy?: User;
-  specifications: Specification[];
+  specifications: Api[];
   chains?: BaseEntity[];
   labels?: EntityLabel[];
 }
 
-export interface Specification {
+/** The `API` level in the Service → Group → API → Operation hierarchy. */
+export interface Api {
   id: string;
   name: string;
+  /** Wire field: the REST DTO still names the parent link after the old `Specification` level. */
   specificationGroupId: string;
   deprecated?: boolean;
   version: string;
@@ -1153,7 +1158,11 @@ export interface Specification {
   modifiedBy?: User;
   chains?: BaseEntity[];
   labels?: EntityLabel[];
-  operations?: SystemOperation;
+  operations?: SystemOperation[];
+  /** Protocol/format of the underlying spec source, e.g. "OpenAPI", "AsyncAPI", "gRPC". */
+  specificationType?: string;
+  /** Spec format version, e.g. "3.1", "2.6" — distinct from `version` (the API's own version label). */
+  specificationVersion?: string;
 }
 
 export interface SystemOperation {
@@ -1166,6 +1175,15 @@ export interface SystemOperation {
   chains: BaseEntity[];
   channel?: string;
   topic?: string;
+  operationType?: string;
+  binding?: string;
+  rpcMethod?: string;
+  summary?: string;
+  isDeprecated?: boolean;
+  /** Protocol discriminator: openapi, asyncapi, wsdl, graphql, or protobuf. */
+  operationKind?: string;
+  package?: string;
+  service?: string;
 }
 
 export interface OperationInfo {
@@ -1191,7 +1209,7 @@ export type SerializedFile = {
   content: ArrayBuffer;
 };
 
-export type ImportSpecificationGroupRequest = {
+export type ImportApiGroupRequest = {
   systemId: string;
   name: string;
   protocol?: string;

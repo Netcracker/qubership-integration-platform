@@ -11,7 +11,10 @@ import {
 
 import { MethodBadge } from "../../../../services/ui/MethodBadge.tsx";
 import { SelectTag } from "./SelectTag.tsx";
-import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
+import {
+  normalizeProtocol,
+  protocolForContext,
+} from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { OperationPath } from "../../../../services/ui/OperationPath.tsx";
 import styles from "./selectOptionValue.module.css";
@@ -47,10 +50,46 @@ const SystemOperationField: React.FC<
   const [operationId, setOperationId] = useState<string | undefined>(formData);
   const [navigationPath, setNavigationPath] = useState<string>("");
 
-  const protocolType = normalizeProtocol(
-    registry.formContext?.integrationOperationProtocolType as string,
-  );
+  const contextProtocol =
+    registry.formContext?.integrationOperationProtocolType;
+  const protocolType = normalizeProtocol(contextProtocol as string);
   const isGrpcOperation = protocolType === "grpc";
+
+  // The protocol belongs to the service, not to the operation: operationKind reads
+  // "asyncapi" for both kafka and amqp, and the oneOf branches, the Validations tab
+  // and isKafkaProtocol all match the service spelling.
+  //
+  // A specification import rewrites the service protocol (setSystemProtocol), so the
+  // value the modal opens with — it comes from the element's stored properties — is
+  // only a hint and gets refreshed from the service below. What ServiceField publishes
+  // during this modal session is current: the user picked the service from a list
+  // useServices had just loaded. `openedWithSystemIdRef` tells the two apart — any
+  // service id other than the one the modal opened on was picked here.
+  const openedWithSystemIdRef = useRef<string | undefined>(systemId);
+  const checkedSystemIdRef = useRef<string | undefined>(undefined);
+  const serviceProtocolRef = useRef<
+    { systemId: string; protocol: string } | undefined
+  >(undefined);
+  // Snapshotted via refs (not deps) so an unrelated context update — the parent
+  // publishes operation schemas into the same object — cannot cancel a refresh
+  // that is still in flight.
+  const contextProtocolRef = useRef<string | undefined>(contextProtocol);
+  contextProtocolRef.current = contextProtocol;
+  const updateContextRef = useRef(registry.formContext?.updateContext);
+  updateContextRef.current = registry.formContext?.updateContext;
+
+  /** The protocol to publish without asking the service again, if there is one. */
+  const getTrustedProtocol = useCallback((): string | undefined => {
+    const refreshed = serviceProtocolRef.current;
+    if (refreshed && refreshed.systemId === systemId) {
+      return refreshed.protocol;
+    }
+    // No service to ask, or the service was picked in this session.
+    return !systemId || systemId !== openedWithSystemIdRef.current
+      ? contextProtocol
+      : undefined;
+  }, [systemId, contextProtocol]);
+
   const synchronousGrpcCall = registry.formContext
     ?.synchronousGrpcCall as boolean;
 
@@ -168,6 +207,40 @@ const SystemOperationField: React.FC<
     fetchOperationsPaginated,
   ]);
 
+  // Modal opened on an existing element: re-read the protocol from the service once,
+  // and publish it when it no longer matches what the element stored.
+  useEffect(() => {
+    if (!systemId) return;
+    if (systemId !== openedWithSystemIdRef.current) return;
+    if (checkedSystemIdRef.current === systemId) return;
+
+    checkedSystemIdRef.current = systemId;
+    let cancelled = false;
+
+    void api
+      .getService(systemId)
+      .then((service) => {
+        if (cancelled) return;
+
+        const protocol = protocolForContext(service.protocol);
+        serviceProtocolRef.current = { systemId, protocol };
+
+        if (protocol !== normalizeProtocol(contextProtocolRef.current ?? "")) {
+          updateContextRef.current?.({
+            integrationOperationProtocolType: protocol,
+          });
+        }
+      })
+      .catch(() => {
+        // An unreachable service is no reason to rewrite the element: keep the
+        // stored protocol and let handleChange retry the lookup.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [systemId]);
+
   useEffect(() => {
     const operationOptions: SelectProps["options"] =
       operations?.map((operation) => ({
@@ -226,7 +299,7 @@ const SystemOperationField: React.FC<
       // `integrationOperationId` and republishes on change. We just switch
       // operation identifiers here and clear stale path/query overrides.
       const apply = (proto: string) => {
-        const protocolType = normalizeProtocol(proto) ?? "http";
+        const protocolType = protocolForContext(proto);
 
         registry.formContext.updateContext?.({
           integrationOperationId: newValue,
@@ -240,16 +313,30 @@ const SystemOperationField: React.FC<
         });
       };
 
-      if (systemId) {
+      // Only a protocol this modal session vouches for — see getTrustedProtocol —
+      // may be reused. Otherwise ask the service: the stored value can predate a
+      // specification import that changed the protocol, and the refresh above may
+      // still be in flight or have failed.
+      const trustedProtocol = getTrustedProtocol();
+
+      if (trustedProtocol) {
+        apply(trustedProtocol);
+      } else if (systemId) {
         void api
           .getService(systemId)
-          .then((s) => apply(s.protocol))
+          .then((service) => {
+            serviceProtocolRef.current = {
+              systemId,
+              protocol: protocolForContext(service.protocol),
+            };
+            apply(service.protocol);
+          })
           .catch(() => apply(""));
       } else {
         apply("");
       }
     },
-    [registry.formContext, operationsMap],
+    [registry.formContext, operationsMap, getTrustedProtocol],
   );
 
   useEffect(() => {

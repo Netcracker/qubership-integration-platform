@@ -1,0 +1,13 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml"
+id: "7f2b6d05-4c83-4915-b6e0-2a9d5c7e3f81"
+name: "Implemented service restating its type"
+content:
+  description: "The file name states the type, so the document must not carry the field"
+  integrationSystemType: "IMPLEMENTED"
+  protocol: "SOAP"
+  environments:
+    - id: "6e3a9c14-5f70-4d28-8b91-0c4d7a2e5b63"
+      name: "Default"
+      address: "http://billing-facade:8080"
+      sourceType: "MANUAL"

@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Table, Button } from "antd";
+import { Table, Button, Tooltip } from "antd";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import type {
   FilterDropdownProps,
@@ -16,6 +16,7 @@ import { tableScroll } from "../table/tableScroll.ts";
 import { formatTimestamp } from "../../misc/format-utils";
 import { UsageStatusTag } from "./utils";
 import { SourceFlagTag } from "./ui/SourceFlagTag";
+import { OperationBadges, hasOperationBadges } from "./ui/OperationBadges";
 import { EntityLabels } from "../labels/EntityLabels";
 import {
   EntityLabel,
@@ -36,11 +37,12 @@ import {
   getTextColumnFilterFn,
 } from "../table/TextColumnFilterDropdown.tsx";
 import type {
-  SpecificationGroup,
-  Specification,
+  ApiGroup,
+  Api,
   SystemOperation,
   ContextSystem,
 } from "../../api/apiTypes";
+import { parseJsonOrDefault } from "../../misc/json-helper";
 import { InlineEdit } from "../InlineEdit";
 import { LabelsEdit } from "../table/LabelsEdit";
 import { ChainColumn } from "./ui/ChainColumn";
@@ -59,8 +61,8 @@ const SERVICES_TREE_SELECTION_COLUMN_WIDTH = 48;
 
 export type ServiceEntity =
   | IntegrationSystem
-  | SpecificationGroup
-  | Specification
+  | ApiGroup
+  | Api
   | SystemOperation
   | ContextSystem;
 
@@ -70,15 +72,11 @@ export function isIntegrationSystem(
   return "type" in record && record["type"] !== IntegrationSystemType.CONTEXT;
 }
 
-export function isSpecificationGroup(
-  record: ServiceEntity,
-): record is SpecificationGroup {
+export function isApiGroup(record: ServiceEntity): record is ApiGroup {
   return "systemId" in record && "synchronization" in record;
 }
 
-export function isSpecification(
-  record: ServiceEntity,
-): record is Specification {
+export function isApi(record: ServiceEntity): record is Api {
   return (
     "specificationGroupId" in record &&
     "version" in record &&
@@ -89,7 +87,9 @@ export function isSpecification(
 export function isSystemOperation(
   record: ServiceEntity,
 ): record is SystemOperation {
-  return "method" in record && "path" in record && "modelId" in record;
+  // `modelId` is unique to an operation; test it alone so a WSDL or otherwise
+  // degraded operation with an empty or absent `path` still renders.
+  return "modelId" in record;
 }
 
 export function isContextSystem(
@@ -171,10 +171,10 @@ function getIcon(record: ServiceEntity): ReactNode {
         return <OverridableIcon name="global" style={iconStyle} />;
     }
   }
-  if (isSpecificationGroup(record)) {
+  if (isApiGroup(record)) {
     return <OverridableIcon name="inbox" style={iconStyle} />;
   }
-  if (isSpecification(record)) {
+  if (isApi(record)) {
     return <OverridableIcon name="fileText" style={iconStyle} />;
   }
   return null;
@@ -185,15 +185,35 @@ function getNavigationUrl(record: ServiceEntity): string | null {
     return `/services/systems/${record.id}/specificationGroups`;
   }
 
-  if (isSpecificationGroup(record)) {
+  if (isApiGroup(record)) {
     return `/services/systems/${record.systemId}/specificationGroups/${record.id}/specifications`;
   }
 
-  if (isSpecification(record)) {
+  if (isApi(record)) {
     return `/services/systems/${record.systemId}/specificationGroups/${record.specificationGroupId}/specifications/${record.id}/operations`;
   }
 
   return null;
+}
+
+/** Inline badges for an operation row's typed fields (protocol/rpcMethod/deprecated); each renders only when present. */
+function renderOperationBadges(record: SystemOperation): ReactNode {
+  if (!hasOperationBadges(record)) {
+    return null;
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        marginLeft: 8,
+      }}
+    >
+      <OperationBadges operation={record} />
+    </span>
+  );
 }
 
 const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
@@ -237,22 +257,32 @@ const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
     }
   }, [operationId, record.id, handleClick]);
 
+  const nameSpan = (
+    <span style={clickableStyle} onClick={() => void handleClick()}>
+      {getIcon(record)}
+      {record.name}
+      {isIntegrationSystem(record) && record.discovered && (
+        <span style={{ marginLeft: 8 }}>
+          <SourceFlagTag source={record.discovered} />
+        </span>
+      )}
+    </span>
+  );
+
   return (
     <>
-      <span style={clickableStyle} onClick={() => void handleClick()}>
-        {getIcon(record)}
-        {record.name}
-        {isIntegrationSystem(record) && record.discovered && (
-          <span style={{ marginLeft: 8 }}>
-            <SourceFlagTag source={record.discovered} />
-          </span>
-        )}
-      </span>
+      {isSystemOperation(record) && record.summary ? (
+        <Tooltip title={record.summary}>{nameSpan}</Tooltip>
+      ) : (
+        nameSpan
+      )}
+      {isSystemOperation(record) && renderOperationBadges(record)}
       {modalOpen && isSystemOperation(record) && (
         <OperationInfoModal
           visible={modalOpen}
           onClose={() => setModalOpen(false)}
           operationInfo={operationInfo}
+          operation={record}
           loading={loading}
         />
       )}
@@ -452,6 +482,20 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       },
     },
     {
+      title: "API Format",
+      dataIndex: "specificationType",
+      key: "specificationType",
+      width: 130,
+      render: (value: unknown) => (typeof value === "string" ? value : ""),
+    },
+    {
+      title: "API Format Version",
+      dataIndex: "specificationVersion",
+      key: "specificationVersion",
+      width: 150,
+      render: (value: unknown) => (typeof value === "string" ? value : ""),
+    },
+    {
       title: "Method",
       dataIndex: "method",
       key: "method",
@@ -486,6 +530,8 @@ const serviceTreeResizeWidths: Record<string, number> = {
   createdBy: 130,
   modifiedWhen: 160,
   modifiedBy: 130,
+  specificationType: 130,
+  specificationVersion: 150,
   method: 100,
   url: 200,
 };
@@ -550,6 +596,78 @@ export function getActionsColumn<T extends ServiceEntity = ServiceEntity>(
 export type { ActionConfig } from "./serviceRowActions";
 export { getServiceActions } from "./serviceRowActions";
 
+/** Reads a persisted column key list; returns null when it is absent or not an array of keys. */
+function readStoredColumnKeys(storageItemKey: string): string[] | null {
+  const stored = localStorage.getItem(storageItemKey);
+  if (stored === null) {
+    return null;
+  }
+  const parsed = parseJsonOrDefault<unknown>(stored, null);
+  if (!Array.isArray(parsed)) {
+    return null;
+  }
+  const keys: unknown[] = parsed;
+  return keys.every((key) => typeof key === "string") ? keys : null;
+}
+
+/**
+ * Keeps the user's saved order, drops keys that no longer exist, and appends columns added since the
+ * order was persisted, so a stale stored order never hides new columns from the table or its picker.
+ */
+function reconcileColumnsOrder(
+  storedOrder: string[] | null,
+  allColumnKeys: string[],
+): string[] {
+  if (!storedOrder) {
+    return allColumnKeys;
+  }
+  const known = storedOrder.filter((key) => allColumnKeys.includes(key));
+  const added = allColumnKeys.filter((key) => !known.includes(key));
+  return [...known, ...added];
+}
+
+/**
+ * The stored order doubles as the record of which columns existed when the settings were saved, so a
+ * column missing from it was added later and follows the current defaults instead of the saved list.
+ * Anything the user explicitly unchecked is in the stored order and stays hidden.
+ */
+function reconcileVisibleColumns(
+  storedVisible: string[] | null,
+  storedOrder: string[] | null,
+  allColumnKeys: string[],
+  defaultVisibleKeys: string[],
+): string[] {
+  if (!storedVisible) {
+    return defaultVisibleKeys;
+  }
+  const kept = storedVisible.filter((key) => allColumnKeys.includes(key));
+  if (!storedOrder) {
+    return kept;
+  }
+  const added = defaultVisibleKeys.filter(
+    (key) =>
+      allColumnKeys.includes(key) &&
+      !storedOrder.includes(key) &&
+      !kept.includes(key),
+  );
+  return added.length > 0 ? [...kept, ...added] : kept;
+}
+
+/** Rewrites an already persisted key list; never creates one, so untouched settings stay unset. */
+function persistReconciledColumnKeys(
+  storageItemKey: string,
+  keys: string[],
+): void {
+  const stored = localStorage.getItem(storageItemKey);
+  if (stored === null) {
+    return;
+  }
+  const next = JSON.stringify(keys);
+  if (next !== stored) {
+    localStorage.setItem(storageItemKey, next);
+  }
+}
+
 export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
   dataSource,
   rowKey,
@@ -583,18 +701,33 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
       : allColumnKeys;
   }, [defaultVisibleKeys, allColumnKeys]);
 
-  const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
-    const storedOrder = localStorage.getItem(getColumnsOrderKey(storageKey));
-    return storedOrder ? (JSON.parse(storedOrder) as string[]) : allColumnKeys;
-  });
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
-    const storedVisible = localStorage.getItem(
+  const [columnsOrder, setColumnsOrder] = useState<string[]>(() =>
+    reconcileColumnsOrder(
+      readStoredColumnKeys(getColumnsOrderKey(storageKey)),
+      allColumnKeys,
+    ),
+  );
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() =>
+    reconcileVisibleColumns(
+      readStoredColumnKeys(getColumnsVisibleKey(storageKey)),
+      readStoredColumnKeys(getColumnsOrderKey(storageKey)),
+      allColumnKeys,
+      initialKeys,
+    ),
+  );
+
+  // The picker re-reads localStorage when it opens, so write the reconciled lists back; otherwise it
+  // would re-apply the stale ones and hide the new columns again.
+  useEffect(() => {
+    if (!storageKey) {
+      return;
+    }
+    persistReconciledColumnKeys(getColumnsOrderKey(storageKey), columnsOrder);
+    persistReconciledColumnKeys(
       getColumnsVisibleKey(storageKey),
+      visibleColumns,
     );
-    return storedVisible
-      ? (JSON.parse(storedVisible) as string[])
-      : initialKeys;
-  });
+  }, [storageKey, columnsOrder, visibleColumns]);
   const [internalSelectedRowKeys, setInternalSelectedRowKeys] = useState<
     React.Key[]
   >([]);

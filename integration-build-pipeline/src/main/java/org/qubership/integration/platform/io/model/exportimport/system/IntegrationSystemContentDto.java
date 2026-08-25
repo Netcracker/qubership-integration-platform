@@ -16,8 +16,11 @@
 
 package org.qubership.integration.platform.io.model.exportimport.system;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFilter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -33,6 +36,7 @@ import java.util.*;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonFilter("baseEntityFilter")
 public class IntegrationSystemContentDto {
     private String description;
     private Timestamp createdWhen;
@@ -40,7 +44,13 @@ public class IntegrationSystemContentDto {
     private User createdBy;
     private User modifiedBy;
     private String activeEnvironmentId;
+
+    // Read on import, never written on export: the file name and the $schema state the type, and V105RevertMigration
+    // puts it back for the legacy format. WRITE_ONLY rather than @JsonIgnore, which would also stop an older archive
+    // from binding the field.
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private IntegrationSystemType integrationSystemType;
+
     private String internalServiceName;
     private OperationProtocol protocol;
 
@@ -48,8 +58,11 @@ public class IntegrationSystemContentDto {
     @JsonIgnoreProperties({"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"})
     private List<EnvironmentDto> environments = new ArrayList<>();
 
+    // Covers a document that reaches Jackson before V104 renames the field: unknown keys are ignored here, so the
+    // inline group list would otherwise be dropped in silence.
     @Builder.Default
-    private List<SpecificationGroupDto> specificationGroups = new ArrayList<>();
+    @JsonAlias("specificationGroups")
+    private List<ApiGroupDto> apiGroups = new ArrayList<>();
 
     @Builder.Default
     private List<String> labels = new ArrayList<>();

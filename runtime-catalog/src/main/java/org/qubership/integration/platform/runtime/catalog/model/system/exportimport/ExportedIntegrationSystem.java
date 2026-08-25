@@ -28,18 +28,18 @@ import java.util.zip.ZipOutputStream;
 @Getter
 @Setter
 public class ExportedIntegrationSystem extends ExportedSystemObject {
-    private List<ExportedSpecificationGroup> specificationGroups;
+    private List<ExportedApiGroup> apiGroups;
 
-    public ExportedIntegrationSystem(String id, ObjectNode objectNode, List<ExportedSpecificationGroup> specificationGroups) {
+    public ExportedIntegrationSystem(String id, ObjectNode objectNode, List<ExportedApiGroup> apiGroups) {
         super(id, objectNode);
-        this.specificationGroups = specificationGroups;
+        this.apiGroups = apiGroups;
     }
 
     @Override
     public void accept(ExportableObjectWriterVisitor visitor, ZipOutputStream zipOut, String entryPath) throws IOException {
         visitor.visit(this, zipOut, entryPath);
-        for (ExportedSpecificationGroup exportedSpecificationGroup : specificationGroups) {
-            exportedSpecificationGroup.accept(visitor, zipOut, entryPath);
+        for (ExportedApiGroup exportedApiGroup : apiGroups) {
+            exportedApiGroup.accept(visitor, zipOut, entryPath);
         }
     }
 }

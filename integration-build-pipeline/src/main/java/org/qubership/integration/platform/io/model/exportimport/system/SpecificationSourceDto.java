@@ -16,8 +16,11 @@
 
 package org.qubership.integration.platform.io.model.exportimport.system;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFilter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
@@ -31,6 +34,7 @@ import java.sql.Timestamp;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonFilter("baseEntityFilter")
 public class SpecificationSourceDto {
     private String id;
     private String name;
@@ -39,7 +43,16 @@ public class SpecificationSourceDto {
     private Timestamp modifiedWhen;
     private User createdBy;
     private User modifiedBy;
+
+    // Only pre-api archives carry this key. It is neither exported nor applied on import: the hash is recomputed
+    // from the source file the archive ships. Kept so the filter has something to suppress if a writer sets it again.
     private String sourceHash;
+
+    @JsonProperty("filePath")
+    @JsonAlias("fileName")
     private String fileName;
+
+    @JsonProperty("isRoot")
+    @JsonAlias("mainSource")
     private boolean mainSource;
 }

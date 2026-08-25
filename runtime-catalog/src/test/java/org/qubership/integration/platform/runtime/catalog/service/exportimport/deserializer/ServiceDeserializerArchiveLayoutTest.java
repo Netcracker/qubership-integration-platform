@@ -32,13 +32,17 @@ import org.qubership.integration.platform.io.readers.migrations.system.ServiceIm
 import org.qubership.integration.platform.io.readers.migrations.system.V100ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.ExtractorTestParsers;
 
 import java.io.File;
 import java.io.IOException;
@@ -87,11 +91,17 @@ class ServiceDeserializerArchiveLayoutTest {
         IntegrationSystemReader reader = new IntegrationSystemReader(
                 yamlMapper, fileMigrationService, versionsGetterService, migrations);
 
+        ServiceTypeFiles serviceTypeFiles = new ServiceTypeFiles(new ApplicationJsonSchemaProperties());
         deserializer = new ServiceDeserializer(
+                yamlMapper,
                 reader,
-                new IntegrationSystemDtoMapper(URI.create("http://qubership.org/schemas/product/qip/service"), migrations),
-                new SpecificationGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification-group")),
-                new SystemModelDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification"))
+                new IntegrationSystemDtoMapper(serviceTypeFiles, migrations),
+                new ApiGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/api-group.schema.yaml")),
+                new SystemModelDtoMapper(
+                        URI.create("http://qubership.org/schemas/product/qip/api.schema.yaml"),
+                        new ApiOperationDtoMapper()),
+                ExtractorTestParsers.extractor(),
+                serviceTypeFiles
         );
     }
 
@@ -105,9 +115,9 @@ class ServiceDeserializerArchiveLayoutTest {
 
         assertEquals(SYSTEM_ID, system.getId());
         assertEquals("Legacy Service", system.getName());
-        assertEquals(1, system.getSpecificationGroups().size());
+        assertEquals(1, system.getApiGroups().size());
 
-        SpecificationGroup group = system.getSpecificationGroups().getFirst();
+        ApiGroup group = system.getApiGroups().getFirst();
         assertEquals(GROUP_ID, group.getId());
         assertEquals("API Group", group.getName());
         assertFalse(group.isSynchronization());
@@ -136,7 +146,7 @@ class ServiceDeserializerArchiveLayoutTest {
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
-        SpecificationSource source = system.getSpecificationGroups().getFirst()
+        SpecificationSource source = system.getApiGroups().getFirst()
                 .getSystemModels().getFirst()
                 .getSpecificationSources().getFirst();
         assertEquals("legacy source body", source.getSource());
@@ -152,7 +162,7 @@ class ServiceDeserializerArchiveLayoutTest {
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
-        SpecificationSource source = system.getSpecificationGroups().getFirst()
+        SpecificationSource source = system.getApiGroups().getFirst()
                 .getSystemModels().getFirst()
                 .getSpecificationSources().getFirst();
         assertEquals("nested source body", source.getSource());
@@ -197,8 +207,8 @@ class ServiceDeserializerArchiveLayoutTest {
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
-        assertEquals(2, system.getSpecificationGroups().size());
-        SpecificationGroup groupB = system.getSpecificationGroups().stream()
+        assertEquals(2, system.getApiGroups().size());
+        ApiGroup groupB = system.getApiGroups().stream()
                 .filter(group -> "group-b".equals(group.getId()))
                 .findFirst()
                 .orElseThrow();
@@ -243,8 +253,8 @@ class ServiceDeserializerArchiveLayoutTest {
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
         assertEquals(SYSTEM_ID, system.getId());
-        assertEquals(1, system.getSpecificationGroups().size());
-        SpecificationGroup group = system.getSpecificationGroups().getFirst();
+        assertEquals(1, system.getApiGroups().size());
+        ApiGroup group = system.getApiGroups().getFirst();
         assertEquals(GROUP_ID, group.getId());
         assertTrue(group.isSynchronization());
         assertEquals(1, group.getSystemModels().size());
@@ -259,7 +269,7 @@ class ServiceDeserializerArchiveLayoutTest {
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
-        SpecificationSource source = system.getSpecificationGroups().getFirst()
+        SpecificationSource source = system.getApiGroups().getFirst()
                 .getSystemModels().getFirst()
                 .getSpecificationSources().getFirst();
         assertNotNull(source.getSource());

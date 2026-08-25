@@ -1,0 +1,7 @@
+id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+$schema: http://acme.example.com/schemas/acme/external-service
+name: Acme partners
+content:
+  description: Custom appName, custom schema URLs, type still in the name
+  protocol: HTTP
+  migrations: "[100, 101, 102, 103, 104, 105]"

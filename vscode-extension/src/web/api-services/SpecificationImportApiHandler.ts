@@ -1,7 +1,7 @@
 import { SpecificationImportService } from "./SpecificationImportService";
 import {
   ImportSpecificationResult,
-  ImportSpecificationGroupRequest,
+  ImportApiGroupRequest,
   SerializedFile,
 } from "./importApiTypes";
 import { Uri } from "vscode";
@@ -14,7 +14,7 @@ export class SpecificationImportApiHandler {
   }
 
   async handleImportSpecificationGroup(
-    request: ImportSpecificationGroupRequest,
+    request: ImportApiGroupRequest,
   ): Promise<ImportSpecificationResult> {
     try {
       const result = await this.service.importSpecificationGroup(request);

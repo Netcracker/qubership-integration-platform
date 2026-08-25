@@ -1,0 +1,19 @@
+id: "svc-external"
+$schema: "http://qubership.org/schemas/product/qip/external-service.schema.yaml"
+name: "Orders service"
+content:
+  description: "Golden corpus fixture for external services"
+  activeEnvironmentId: "env-orders-dev"
+  protocol: "HTTP"
+  environments:
+  - id: "env-orders-dev"
+    name: "Dev"
+    address: "http://orders.dev"
+    sourceType: "MANUAL"
+  - id: "env-orders-prod"
+    name: "Prod"
+    address: "http://orders.prod"
+    sourceType: "MANUAL"
+  labels:
+  - "golden"
+  migrations: "[100, 101, 102, 103, 104, 105]"

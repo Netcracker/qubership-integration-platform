@@ -2,6 +2,8 @@
 
 # Triggers on changes in vscode-extension/, ui/, or schemas/ since the
 # extension embeds @netcracker/qip-ui and consumes @netcracker/qip-schemas.
+# `schemas/**` also covers the golden export trees and the naming corpus, which the
+# integration run and the unit suite read.
 
 name: Vscode Extension Build
 
@@ -91,6 +93,12 @@ jobs:
       - name: Test with coverage
         working-directory: vscode-extension
         run: npm run test:unit:coverage
+
+      # The only suite that runs against a real VS Code host: custom-editor pattern matching, the
+      # workspace file system and the project config reader are exercised nowhere else.
+      - name: Integration tests (web host)
+        working-directory: vscode-extension
+        run: npm run test:integration:headless
 
       - name: Upload coverage report
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

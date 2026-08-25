@@ -1,0 +1,32 @@
+---
+$id: http://qubership.org/schemas/product/qip/implemented-service.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
+title: Implemented Service
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
+  # All three plain service types share one file name; the type is stated by $schema.
+  fileExtension: service.qip
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/typed-service-content.schema.yaml"
+    properties:
+      protocol:
+        title: Protocol
+        $ref: "#/definitions/Protocol"
+      environments:
+        maxItems: 1
+required:
+  - content
+definitions:
+  Protocol:
+    enum:
+      - HTTP
+      - SOAP
+      - GRAPHQL

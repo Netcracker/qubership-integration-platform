@@ -228,6 +228,10 @@ jest.mock("@rjsf/antd", () => {
     {
       schema?: unknown;
       formData?: unknown;
+      formContext?: {
+        operationRequestSchema?: unknown;
+        operationResponseSchemas?: unknown;
+      };
       onChange?: (e: { formData?: unknown }) => void;
       onClickCapture?: React.MouseEventHandler<HTMLFormElement>;
       onKeyDownCapture?: React.KeyboardEventHandler<HTMLFormElement>;
@@ -238,6 +242,7 @@ jest.mock("@rjsf/antd", () => {
       {
         schema,
         formData,
+        formContext,
         onChange,
         onClickCapture,
         onKeyDownCapture,
@@ -277,6 +282,14 @@ jest.mock("@rjsf/antd", () => {
             }
           />
           {schema && formData ? "Form" : null}
+          {/* Exposes the schemas MappingField/auto-schema.ts consume, so
+              regression tests can assert the loader populated them. */}
+          <div data-testid="operation-schemas-debug">
+            {JSON.stringify({
+              operationRequestSchema: formContext?.operationRequestSchema,
+              operationResponseSchemas: formContext?.operationResponseSchemas,
+            })}
+          </div>
         </form>
       );
     },
@@ -906,6 +919,39 @@ required: [type]`;
 
       await waitFor(() => {
         expect(mockGetOperationInfo).toHaveBeenCalledWith("op-42");
+      });
+    });
+
+    // Regression: this loader is the only path that feeds MappingField /
+    // CustomArrayField / LoadSchemaDialog / auto-schema.ts with operation
+    // schemas. De-materialization changed how the backend builds
+    // getOperationInfo's response, not its shape, so this asserts the
+    // fetched requestSchema/responseSchemas still land on formContext
+    // unchanged, which is what drives mapper auto-fill.
+    it("populates operationRequestSchema and operationResponseSchemas from the fetched OperationInfo", async () => {
+      render(
+        <UserPermissionsContext.Provider value={{ chain: ["update"] }}>
+          <ChainElementModification {...defaultProps} node={serviceCallNode} />
+        </UserPermissionsContext.Provider>,
+      );
+
+      await waitFor(() => {
+        expect(mockGetOperationInfo).toHaveBeenCalledWith("op-42");
+      });
+
+      await waitFor(() => {
+        const debug = JSON.parse(
+          screen.getByTestId("operation-schemas-debug").textContent ?? "{}",
+        ) as {
+          operationRequestSchema?: unknown;
+          operationResponseSchemas?: unknown;
+        };
+        expect(debug.operationRequestSchema).toEqual({
+          "application/json": { type: "object" },
+        });
+        expect(debug.operationResponseSchemas).toEqual({
+          "200": { "application/json": { type: "object" } },
+        });
       });
     });
 

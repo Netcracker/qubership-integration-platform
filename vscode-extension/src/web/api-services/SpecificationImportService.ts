@@ -3,18 +3,21 @@ import * as yaml from "yaml";
 import { SpecificationTypeDetector } from "../services/SpecificationTypeDetector";
 import {
   ImportSpecificationResult,
-  ImportSpecificationGroupRequest,
+  ImportApiGroupRequest,
   SerializedFile,
+  ApiSpecificationType,
+  ASYNC_SPECIFICATION_TYPES,
 } from "./importApiTypes";
 import {
-  SpecificationGroup,
+  ApiGroup,
   IntegrationSystem,
   IntegrationSystemType,
   Environment,
-  Specification,
+  Api,
+  SystemOperation,
 } from "./servicesTypes";
 import { ImportProgressTracker } from "./importProgressTracker";
-import { SpecificationGroupService } from "./SpecificationGroupService";
+import { ApiGroupService } from "./ApiGroupService";
 import {
   SpecificationProcessorService,
   EnvironmentCandidate,
@@ -22,32 +25,56 @@ import {
 import { EnvironmentService } from "./EnvironmentService";
 import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
+import { RESOURCES_FOLDER } from "../response/file/fileApiImpl";
+import {
+  API_NAMES,
+  currentExtension,
+  legacyExtension,
+} from "../response/file/namePrecedence";
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from "./parsers/ContentParser";
 import { ProjectConfigService } from "../services/ProjectConfigService";
 import { SpecificationValidator } from "./SpecificationValidator";
-import { ApiSpecificationType } from "./importApiTypes";
 import { normalizePath } from "./pathUtils";
+import { toTypedApiOperation } from "./typedApiOperation";
+import { OperationSchemaExtractor } from "./parsers/OperationSchemaExtractor";
 import type { EnvironmentRequest } from "./servicesTypes";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
 import { ProtocolDetectorService } from "../services/ProtocolDetectorService";
 import { validateAllowedSystemProtocol } from "../response";
+import { refreshQipExplorer } from "../extension";
 
 export class SpecificationImportService {
-  private progressTracker: ImportProgressTracker;
+  // Maps a QIP protocol/format to the api schema's `specificationType`
+  // discriminator (openapi / asyncapi / graphql / protobuf / wsdl). The async
+  // entries come from ASYNC_SPECIFICATION_TYPES so the subset lives in one place.
+  private static readonly SPECIFICATION_TYPE_BY_PROTOCOL: Record<
+    string,
+    string
+  > = {
+    [ApiSpecificationType.HTTP]: "openapi",
+    [ApiSpecificationType.SOAP]: "wsdl",
+    [ApiSpecificationType.GRAPHQL]: "graphql",
+    [ApiSpecificationType.GRPC]: "protobuf",
+    ...Object.fromEntries(
+      [...ASYNC_SPECIFICATION_TYPES].map((type) => [type, "asyncapi"]),
+    ),
+  };
+
+  private readonly progressTracker: ImportProgressTracker;
+  // Not readonly: an import that has to write the service protocol first converts an old-format
+  // file, and every later step reads the folder off this uri.
   private serviceFileUri?: Uri;
-  private specificationGroupService: SpecificationGroupService;
-  private specificationProcessorService: SpecificationProcessorService;
-  private environmentService: EnvironmentService;
-  private systemService: SystemService;
+  private apiGroupService: ApiGroupService;
+  private readonly specificationProcessorService: SpecificationProcessorService;
+  private readonly environmentService: EnvironmentService;
+  private readonly systemService: SystemService;
 
   constructor(serviceFileUri?: Uri) {
     this.progressTracker = ImportProgressTracker.getInstance();
     this.serviceFileUri = serviceFileUri;
-    this.specificationGroupService = new SpecificationGroupService(
-      serviceFileUri,
-    );
+    this.apiGroupService = new ApiGroupService(serviceFileUri);
     this.specificationProcessorService = new SpecificationProcessorService();
     this.environmentService = new EnvironmentService();
     this.systemService = new SystemService();
@@ -57,7 +84,7 @@ export class SpecificationImportService {
    * Import specification group
    */
   async importSpecificationGroup(
-    request: ImportSpecificationGroupRequest,
+    request: ImportApiGroupRequest,
   ): Promise<ImportSpecificationResult> {
     const validationResult = await this.validateImportRequest(request);
     if (!validationResult.isValid) {
@@ -76,11 +103,7 @@ export class SpecificationImportService {
       systemId: request.systemId,
       serializedFiles: request.files || [],
       specificationGroupResolver: async (protocolName?: string) =>
-        this.specificationGroupService.createSpecificationGroup(
-          system,
-          request.name,
-          protocolName,
-        ),
+        this.apiGroupService.createApiGroup(system, request.name, protocolName),
       afterImport: async (specificationGroup, extractedFiles) => {
         try {
           await this.createEnvironmentForSpecificationGroup(
@@ -107,11 +130,10 @@ export class SpecificationImportService {
     files: SerializedFile[],
     systemId: string,
   ): Promise<ImportSpecificationResult> {
-    const specificationGroup =
-      await this.specificationGroupService.getSpecificationGroupById(
-        specificationGroupId,
-        systemId,
-      );
+    const specificationGroup = await this.apiGroupService.getApiGroupById(
+      specificationGroupId,
+      systemId,
+    );
     if (!specificationGroup) {
       throw new Error(
         `Specification group with id ${specificationGroupId} not found`,
@@ -136,11 +158,9 @@ export class SpecificationImportService {
     system: IntegrationSystem;
     systemId: string;
     serializedFiles: SerializedFile[];
-    specificationGroupResolver: (
-      protocolName?: string,
-    ) => Promise<SpecificationGroup>;
+    specificationGroupResolver: (protocolName?: string) => Promise<ApiGroup>;
     afterImport?: (
-      specificationGroup: SpecificationGroup,
+      specificationGroup: ApiGroup,
       files: File[],
     ) => Promise<void>;
     specificationGroupIdHint?: string;
@@ -197,9 +217,14 @@ export class SpecificationImportService {
         extractedFiles,
         contentCache,
       );
-      await this.specificationGroupService.saveSpecificationGroupFile(
+      await this.apiGroupService.saveApiGroupFile(
         params.systemId,
         specificationGroup,
+      );
+      // Rebuild the group's derived `apis[]` from the API files just written.
+      await ApiGroupService.regenerateGroupApisSafely(
+        this.serviceFileUri,
+        specificationGroup.id,
       );
 
       if (params.afterImport) {
@@ -259,9 +284,7 @@ export class SpecificationImportService {
   /**
    * Validate import request
    */
-  private async validateImportRequest(
-    request: ImportSpecificationGroupRequest,
-  ): Promise<{
+  private async validateImportRequest(request: ImportApiGroupRequest): Promise<{
     isValid: boolean;
     errors: string[];
   }> {
@@ -363,7 +386,7 @@ export class SpecificationImportService {
    */
   private async saveSpecificationFiles(
     systemId: string,
-    specificationGroup: SpecificationGroup,
+    specificationGroup: ApiGroup,
     extractedFiles: File[],
     contentCache?: Map<string, Promise<string>>,
   ): Promise<void> {
@@ -373,8 +396,7 @@ export class SpecificationImportService {
         throw new Error("No base folder available");
       }
 
-      for (let i = 0; i < specificationGroup.specifications.length; i++) {
-        const specification = specificationGroup.specifications[i];
+      for (const specification of specificationGroup.specifications) {
         const sourceFile = this.resolveSpecificationSourceFile(
           specification,
           extractedFiles,
@@ -387,45 +409,73 @@ export class SpecificationImportService {
           continue;
         }
 
-        // Create specification file with operations using existing architecture
+        // Write the api-format model file. `specification.id` and the file's
+        // human-readable name share the `${systemId}-${groupName}-${version}`
+        // base; keep the name form so findFileById does not divert to the
+        // `<id><ext>` convention fast path.
         const config = ProjectConfigService.getConfig();
-        const specFileName = `${systemId}-${specificationGroup.name}-${specification.version}${config.extensions.specification}`;
-        const specFileUri = Uri.joinPath(baseFolder, specFileName);
+        const baseName = `${systemId}-${specificationGroup.name}-${specification.version}`;
+        const specFileUri = Uri.joinPath(
+          baseFolder,
+          `${baseName}${currentExtension(API_NAMES, config.extensions)}`,
+        );
+        const specificationType = this.toApiSpecificationType(
+          specification.format,
+        );
 
-        // Create QIP specification using operations from SpecificationProcessorService
-        const qipSpecification = {
+        const apiModel = {
           id: specification.id,
-          $schema: config.schemaUrls.specification,
+          $schema: config.schemaUrls.api,
           name: specification.name,
+          // Key order follows SystemModelContentDto's field declarations, which
+          // is what runtime-catalog's export emits. `specificationType` and
+          // `specifications[]` are required by api.schema.yaml; the QIP-only
+          // fields (parentId, source, deprecated, labels, format) ride
+          // alongside under the schema's open additionalProperties.
           content: {
             deprecated: specification.deprecated,
             version: specification.version,
+            specificationType,
+            ...(specification.specificationVersion
+              ? { specificationVersion: specification.specificationVersion }
+              : {}),
             source: "MANUAL",
-            operations: specification.operations || [],
-            specificationSources: await Promise.all(
-              extractedFiles.map(async (file) => ({
-                id: crypto.randomUUID(),
-                name: file.name,
-                sourceHash: this.calculateHash(
-                  await this.getFileContentCached(file, contentCache),
-                ),
-                fileName: `source-${specification.id}/${file.name}`,
-                mainSource: file === sourceFile,
-              })),
+            // Protocol hint so getOperationInfo's on-demand extractor can
+            // resolve the parser directly instead of sniffing the raw source.
+            // The backend has no such field; dropping it would cost protobuf
+            // extraction, which sniffing cannot recover.
+            format: specification.format,
+            operations: this.toApiOperations(
+              specification.operations,
+              specificationType,
+              extractedFiles.length,
             ),
             parentId: specificationGroup.id,
-            labels: specification.labels
-              ? LabelUtils.fromEntityLabels(specification.labels)
-              : [],
+            specifications: extractedFiles.map((file) => ({
+              id: crypto.randomUUID(),
+              name: file.name,
+              filePath: `source-${specification.id}/${file.name}`,
+              isRoot: file === sourceFile,
+            })),
+            ...(specification.labels?.length
+              ? { labels: LabelUtils.fromEntityLabels(specification.labels) }
+              : {}),
           },
         };
 
         // Disable anchors to avoid "Excessive alias count" error when parsing large specifications
-        const yamlContent = yaml.stringify(qipSpecification, {
+        const yamlContent = yaml.stringify(apiModel, {
           aliasDuplicateObjects: false,
         });
         const bytes = new TextEncoder().encode(yamlContent);
         await fileApi.writeFile(specFileUri, bytes);
+
+        // Migrate on write: drop the pre-rename `.specification.<app>.yaml`
+        // sibling so the two formats never linger side by side.
+        await this.deleteLegacySpecificationFile(
+          baseFolder,
+          `${baseName}${legacyExtension(API_NAMES, config.extensions)}`,
+        );
 
         // Copy source file and additional files to resources folder
         await this.copySourceFileToResources(
@@ -471,7 +521,7 @@ export class SpecificationImportService {
     contentCache?: Map<string, Promise<string>>,
   ): Promise<void> {
     try {
-      const resourcesFolder = Uri.joinPath(baseFolder, "resources");
+      const resourcesFolder = Uri.joinPath(baseFolder, RESOURCES_FOLDER);
       const sourceFolderName = `source-${specificationId}`;
       const sourceFolder = Uri.joinPath(resourcesFolder, sourceFolderName);
 
@@ -524,9 +574,26 @@ export class SpecificationImportService {
     console.log(`[SpecificationImportService] Updating system protocol`, {
       systemId: system.id,
       protocol: system.protocol,
-      extendedProtocol: system.extendedProtocol,
     });
-    await this.systemService.saveSystem(system);
+    // A service that has no protocol yet is exactly the one an older extension version wrote, so
+    // this first import is also the write that converts it. Follow the file, or every step after
+    // this one resolves its folder from a path that no longer exists.
+    this.repointServiceFile(await this.systemService.saveSystem(system));
+    // The explorer label carries the protocol, so a stale tree would keep
+    // showing the service as "Unknown" until the next unrelated refresh.
+    refreshQipExplorer();
+  }
+
+  private repointServiceFile(writtenFileUri: Uri | undefined): void {
+    if (
+      !writtenFileUri ||
+      !this.serviceFileUri ||
+      writtenFileUri.path === this.serviceFileUri.path
+    ) {
+      return;
+    }
+    this.serviceFileUri = writtenFileUri;
+    this.apiGroupService = new ApiGroupService(writtenFileUri);
   }
 
   private syncSystemProtocol(
@@ -537,16 +604,13 @@ export class SpecificationImportService {
       return false;
     }
     const normalizedProtocol = protocol.toString().toUpperCase();
-    let changed = false;
-    if (system.protocol?.toUpperCase() !== normalizedProtocol) {
-      system.protocol = normalizedProtocol;
-      changed = true;
+    if (system.protocol?.toUpperCase() === normalizedProtocol) {
+      return false;
     }
-    if (system.extendedProtocol?.toUpperCase() !== normalizedProtocol) {
-      system.extendedProtocol = normalizedProtocol;
-      changed = true;
-    }
-    return changed;
+    // extendedProtocol and specification are derived from the protocol on read
+    // and no longer persisted, so the protocol is the whole of the sync.
+    system.protocol = normalizedProtocol;
+    return true;
   }
 
   /**
@@ -568,21 +632,102 @@ export class SpecificationImportService {
     return this.serviceFileUri.with({ path: parentPath });
   }
 
+  private toApiSpecificationType(format: string | undefined): string {
+    const key = (format || "").toUpperCase();
+    return (
+      SpecificationImportService.SPECIFICATION_TYPE_BY_PROTOCOL[key] ??
+      key.toLowerCase()
+    );
+  }
+
   /**
-   * Calculate string hash
+   * Turns the parsers' in-memory operations into api-format typed operations
+   * matching the backend's per-protocol shape (see toTypedApiOperation). Drops
+   * the materialized requestSchema/responseSchemas, which `getOperationInfo`
+   * recomputes from the raw source on read.
    */
-  private calculateHash(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
+  private toApiOperations(
+    operations: SystemOperation[] | undefined,
+    specificationType: string,
+    sourceCount: number,
+  ): Array<Record<string, unknown>> {
+    // The file ships the whole specification source, so the per-operation slice
+    // is redundant whenever reading can rebuild it — the same trade the backend
+    // makes in ServiceSerializer.stripOperationSpecifications. Only with a
+    // single source, though: readMainSpecificationSource hands the extractor
+    // the root file alone, so a spec split across files (a .proto importing
+    // another, a split OpenAPI) cannot be rebuilt and keeps its slice.
+    const rebuildable =
+      sourceCount === 1 &&
+      OperationSchemaExtractor.canRebuildSpecification(specificationType);
+    return (
+      (operations || [])
+        .map((operation) => {
+          const apiOperation = toTypedApiOperation(
+            operation,
+            specificationType,
+          );
+          if (rebuildable) {
+            delete apiOperation.specification;
+          }
+          return apiOperation;
+        })
+        // SystemModel.operations is @OrderBy("id") on the backend, and an id is
+        // `<modelId>-<name>`, so the export comes out ordered by operation name.
+        // Codepoint comparison, not localeCompare: the written order must not
+        // depend on the machine's locale.
+        .sort((left, right) => {
+          const a = String(left.id);
+          const b = String(right.id);
+          if (a < b) {
+            return -1;
+          }
+          return a > b ? 1 : 0;
+        })
+    );
+  }
+
+  private async deleteLegacySpecificationFile(
+    baseFolder: Uri,
+    legacyFileName: string,
+  ): Promise<void> {
+    try {
+      await fileApi.deleteFile(Uri.joinPath(baseFolder, legacyFileName));
+    } catch (error) {
+      // A missing legacy file is the expected case — first import or already
+      // migrated. Any other failure leaves the .api and .specification siblings
+      // side by side, so surface it instead of swallowing it.
+      if (!this.isFileNotFoundError(error)) {
+        console.error(
+          `[SpecificationImportService] Failed to delete legacy specification sibling ${legacyFileName}:`,
+          error,
+        );
+      }
     }
-    return Math.abs(hash).toString(16);
+  }
+
+  private isFileNotFoundError(error: unknown): boolean {
+    if (!error) {
+      return false;
+    }
+    const code = (error as { code?: unknown }).code;
+    if (
+      code === "FileNotFound" ||
+      code === "EntryNotFound" ||
+      code === "ENOENT"
+    ) {
+      return true;
+    }
+    // A non-Error rejection is matched by its own text, not by Object's "[object Object]".
+    const message =
+      error instanceof Error ? error.message : JSON.stringify(error);
+    return /file not found|no such file|does not exist|nonexistent|entrynotfound|enoent/i.test(
+      message,
+    );
   }
 
   private resolveSpecificationSourceFile(
-    specification: Specification,
+    specification: Api,
     files: File[],
   ): File | undefined {
     if (specification.source) {
@@ -604,7 +749,7 @@ export class SpecificationImportService {
    */
   private async createEnvironmentForSpecificationGroup(
     system: IntegrationSystem,
-    specificationGroup: SpecificationGroup,
+    specificationGroup: ApiGroup,
     systemId: string,
     files: File[],
   ): Promise<void> {
@@ -702,7 +847,7 @@ export class SpecificationImportService {
    */
   private async createEnvironmentsForExternalSystem(
     candidates: EnvironmentCandidate[],
-    specificationGroup: SpecificationGroup,
+    specificationGroup: ApiGroup,
     systemId: string,
     existingAddresses: Set<string>,
   ): Promise<void> {
@@ -735,7 +880,7 @@ export class SpecificationImportService {
 
   private async ensureInternalEnvironment(
     candidates: EnvironmentCandidate[],
-    specificationGroup: SpecificationGroup,
+    specificationGroup: ApiGroup,
     systemId: string,
     existingEnvironments: Environment[],
     existingAddresses: Set<string>,
@@ -865,7 +1010,7 @@ export class SpecificationImportService {
 
   private buildGrpcFallbackCandidates(
     system: IntegrationSystem,
-    specificationGroup: SpecificationGroup,
+    specificationGroup: ApiGroup,
   ): EnvironmentCandidate[] {
     const protocol = system.protocol?.toLowerCase();
     if (protocol !== "grpc") {

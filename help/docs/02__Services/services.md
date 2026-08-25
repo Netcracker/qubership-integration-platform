@@ -23,7 +23,7 @@ There are next possible service types, supported by the system:
 ![Services data model](img/class_diagram.svg)
 
 Services consist of next entities:
-- **API Specification group** - services may have different groups of specifications, differentiated per business or technical logic. For example, one group may contain specifications, required for customer managements and another - for order managements. Not available for Context and MCP services.
+- **API group** - services may have different groups of specifications, differentiated per business or technical logic. For example, one group may contain specifications, required for customer managements and another - for order managements. Not available for Context and MCP services.
 - **API Specification** - contains standardized description of available operations. Not available for Context and MCP services.
 - **Operation** - describes exact endpoint, related to particular business operation. Not available for Context and MCP services.
 - **Environment** - Each Dev, QA or Production environment must have specific address by which service will be available for API calling. Depending on its type, service may have specific limitations for quantity of the environments:

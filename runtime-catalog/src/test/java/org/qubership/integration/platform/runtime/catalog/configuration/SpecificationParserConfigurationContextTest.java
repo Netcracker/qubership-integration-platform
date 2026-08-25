@@ -24,12 +24,14 @@ import org.qubership.integration.platform.parsers.SpecificationParser;
 import org.qubership.integration.platform.parsers.configuration.SpecificationParserConfiguration;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.ApiGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
+import org.qubership.integration.platform.runtime.catalog.service.migration.TypedOperationBackfill;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.OperationParserService;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -65,14 +67,16 @@ class SpecificationParserConfigurationContextTest {
             .withBean(graphql.parser.Parser.class, graphql.parser.Parser::new)
             .withBean(OperationRepository.class, () -> mock(OperationRepository.class))
             .withBean(SystemModelRepository.class, () -> mock(SystemModelRepository.class))
-            .withBean(SpecificationGroupRepository.class, () -> mock(SpecificationGroupRepository.class))
+            .withBean(ApiGroupRepository.class, () -> mock(ApiGroupRepository.class))
             .withBean(SpecificationSourceRepository.class, () -> mock(SpecificationSourceRepository.class))
             .withBean(SystemModelBaseService.class, () -> mock(SystemModelBaseService.class))
             .withBean(ActionsLogService.class, () -> mock(ActionsLogService.class))
             .withBean(TransactionHandler.class, () -> mock(TransactionHandler.class))
             .withBean(EnvironmentBaseService.class, () -> mock(EnvironmentBaseService.class))
             .withUserConfiguration(SpecificationParserConfiguration.class)
-            .withBean(OperationParserService.class);
+            .withBean(OperationSchemaExtractor.class, () -> mock(OperationSchemaExtractor.class))
+                .withBean(TypedOperationBackfill.class, () -> mock(TypedOperationBackfill.class))
+                .withBean(OperationParserService.class);
 
     @Test
     void contextStartsWithAllParsersAndOperationParserService() {

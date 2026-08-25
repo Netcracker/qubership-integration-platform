@@ -118,7 +118,14 @@ public class SwaggerSpecificationParser implements SpecificationParser {
      * version to 3.1. A caller may reuse the returned model for environment resolution.
      */
     public OpenAPI parseOpenApi(Collection<SpecificationSource> sources, Consumer<String> messageHandler) {
-        String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
+        // Honour the main-source flag rather than list position: a multi-source model would otherwise
+        // import one document and re-derive its schemas from another.
+        String specificationText = sources.stream()
+                .filter(SpecificationSource::isMainSource)
+                .findFirst()
+                .or(() -> sources.stream().findFirst())
+                .map(SpecificationSource::getSource)
+                .orElse("");
         JsonNode specificationNode = DeserializationUtils.deserializeIntoTree(specificationText, "file");
         String parseableText = downgradeUnsupportedOpenApiVersion(specificationNode, specificationText, messageHandler.andThen(log::warn));
         OpenAPI importedOpenAPI = getSwaggerParser(specificationNode).readContents(parseableText, null, new ParseOptions()).getOpenAPI();

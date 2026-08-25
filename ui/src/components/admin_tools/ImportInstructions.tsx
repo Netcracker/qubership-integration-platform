@@ -95,15 +95,15 @@ const ENTITY_DISPLAY: Record<InstructionEntityType, string> = {
 const UPLOAD_RESULT_ENTITY_DISPLAY: Record<ImportEntityType, string> = {
   [ImportEntityType.CHAIN]: "Chains",
   [ImportEntityType.SERVICE]: "Services",
-  [ImportEntityType.SPECIFICATION_GROUP]: "Specification Groups",
-  [ImportEntityType.SPECIFICATION]: "Specifications",
+  [ImportEntityType.API_GROUP]: "API Groups",
+  [ImportEntityType.SPECIFICATION]: "APIs",
   [ImportEntityType.COMMON_VARIABLE]: "Common Variables",
 };
 
 const UPLOAD_RESULT_ENTITY_ICON: Record<ImportEntityType, string> = {
   [ImportEntityType.CHAIN]: "link",
   [ImportEntityType.SERVICE]: "cluster",
-  [ImportEntityType.SPECIFICATION_GROUP]: "group",
+  [ImportEntityType.API_GROUP]: "group",
   [ImportEntityType.SPECIFICATION]: "fileText",
   [ImportEntityType.COMMON_VARIABLE]: "code",
 };
@@ -124,7 +124,8 @@ const ENTITY_ICON: Record<InstructionEntityType, string> = {
 function getEntityHref(row: InstructionRow): string | undefined {
   if (!row.name) return undefined;
   if (row.entityType === "Chain") return `/chains/${row.id}`;
-  if (row.entityType === "Service") return `/services/systems/${row.id}/parameters`;
+  if (row.entityType === "Service")
+    return `/services/systems/${row.id}/parameters`;
   return undefined;
 }
 

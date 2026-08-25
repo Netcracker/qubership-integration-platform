@@ -69,7 +69,13 @@ export class GraphQLSpecificationParser {
       id: `${specificationId}-${operation.name}`,
       name: operation.name,
       method,
-      path: operation.name,
+      // Backend parity (GraphqlSpecificationParser): the operation's path is
+      // the printed field signature, not the bare field name.
+      path: operation.sdl,
+      // Typed fields the api writer needs: operationType (query/mutation) and
+      // the sdl that reconstructs path on import.
+      operationType: method,
+      sdl: operation.sdl,
       specification: {
         operation: operation.sdl,
       },

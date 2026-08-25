@@ -1,0 +1,857 @@
+{
+  "openapi": "3.2.0",
+  "$self": "https://api.helix-observe.example.com/openapi.yaml",
+  "info": {
+    "title": "Helix Observability & Event Streaming API",
+    "summary": "Ingest telemetry, run streaming queries, and tail live event feeds.",
+    "description": "Helix is a streaming observability platform. This description is built\nspecifically to exercise OpenAPI 3.2 features that did not exist in 3.1:\n\n  * the `query` HTTP method for safe, idempotent search-with-body\n  * `additionalOperations` for non-standard verbs (PURGE)\n  * sequential / streaming media types via `itemSchema`\n    (Server-Sent Events `text/event-stream`, line-delimited `application/jsonl`)\n  * hierarchical, classified tags (`summary` / `parent` / `kind`)\n  * named servers (`name`)\n  * the `querystring` parameter location for opaque query syntaxes\n  * Example Objects with `dataValue` + `serializedValue`\n  * Response Objects with `summary`\n  * OAuth 2.0 device-authorization flow, `oauth2MetadataUrl`,\n    and `deprecated` security schemes\n  * cookie-style parameter serialization (`style: cookie`)\n  * positional multipart `prefixEncoding`\n  * XML `nodeType`\n\nNo top-level `webhooks` object is used.\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Helix Platform",
+      "url": "https://helix-observe.example.com",
+      "email": "api@helix-observe.example.com"
+    },
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "externalDocs": {
+    "description": "Streaming and query reference",
+    "url": "https://docs.helix-observe.example.com"
+  },
+  "servers": [
+    {
+      "url": "https://api.helix-observe.example.com/v1",
+      "name": "prod",
+      "description": "Production region (multi-tenant)."
+    },
+    {
+      "url": "https://eu.api.helix-observe.example.com/v1",
+      "name": "prod-eu",
+      "description": "EU data-residency region."
+    },
+    {
+      "url": "https://sandbox.helix-observe.example.com/v1",
+      "name": "sandbox",
+      "description": "Free sandbox with synthetic data."
+    }
+  ],
+  "security": [
+    {
+      "deviceOAuth": [
+        "telemetry.read"
+      ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "telemetry",
+      "summary": "Telemetry",
+      "description": "Logs, metrics, and traces.",
+      "kind": "nav"
+    },
+    {
+      "name": "ingest",
+      "summary": "Ingest",
+      "description": "Write paths for telemetry.",
+      "parent": "telemetry",
+      "kind": "nav"
+    },
+    {
+      "name": "query",
+      "summary": "Query",
+      "description": "Search and aggregation over stored telemetry.",
+      "parent": "telemetry",
+      "kind": "nav"
+    },
+    {
+      "name": "streams",
+      "summary": "Live Streams",
+      "description": "Long-lived streaming endpoints (SSE, JSONL).",
+      "parent": "telemetry",
+      "kind": "nav"
+    },
+    {
+      "name": "admin",
+      "summary": "Administration",
+      "description": "Datasets, retention, and cache control.",
+      "kind": "nav"
+    },
+    {
+      "name": "beta",
+      "summary": "Beta",
+      "description": "Endpoints under active development.",
+      "kind": "badge"
+    }
+  ],
+  "paths": {
+    "/datasets": {
+      "get": {
+        "operationId": "listDatasets",
+        "summary": "List datasets",
+        "tags": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionCookie"
+          }
+        ],
+        "responses": {
+          "200": {
+            "summary": "Datasets returned.",
+            "description": "A list of datasets visible to the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Dataset"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/{datasetId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DatasetId"
+        }
+      ],
+      "get": {
+        "operationId": "getDataset",
+        "summary": "Get a dataset",
+        "tags": [
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "summary": "Dataset returned.",
+            "description": "The dataset descriptor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dataset"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dataset"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "additionalOperations": {
+        "PURGE": {
+          "operationId": "purgeDatasetCache",
+          "summary": "Purge cached query results for a dataset",
+          "tags": [
+            "admin"
+          ],
+          "security": [
+            {
+              "deviceOAuth": [
+                "telemetry.admin"
+              ]
+            }
+          ],
+          "responses": {
+            "202": {
+              "summary": "Purge scheduled.",
+              "description": "Cache purge has been queued.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Acknowledgement"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/{datasetId}/events": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DatasetId"
+        }
+      ],
+      "post": {
+        "operationId": "ingestEvents",
+        "summary": "Ingest a batch of events",
+        "description": "Accepts either a JSON array or a line-delimited JSON stream. For\n`application/jsonl` the body is a sequence of items, each validated\nby `itemSchema`.\n",
+        "tags": [
+          "ingest"
+        ],
+        "security": [
+          {
+            "deviceOAuth": [
+              "telemetry.write"
+            ]
+          },
+          {
+            "ingestKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TelemetryEvent"
+                }
+              }
+            },
+            "application/jsonl": {
+              "itemSchema": {
+                "$ref": "#/components/schemas/TelemetryEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "summary": "Batch accepted.",
+            "description": "Events were accepted for asynchronous indexing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestReceipt"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/datasets/{datasetId}/query": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DatasetId"
+        }
+      ],
+      "query": {
+        "operationId": "queryDataset",
+        "summary": "Run a structured query",
+        "description": "Idempotent search with a request body, replacing the historical\npractice of overloading POST for read-only complex queries.\n",
+        "tags": [
+          "query"
+        ],
+        "security": [
+          {
+            "deviceOAuth": [
+              "telemetry.read"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              },
+              "examples": {
+                "latencyP95": {
+                  "summary": "P95 latency over 1h",
+                  "dataValue": {
+                    "select": [
+                      "p95(duration_ms)"
+                    ],
+                    "where": {
+                      "service": "checkout"
+                    },
+                    "range": {
+                      "from": "now-1h",
+                      "to": "now"
+                    }
+                  },
+                  "serializedValue": "{\"select\":[\"p95(duration_ms)\"],\"where\":{\"service\":\"checkout\"},\"range\":{\"from\":\"now-1h\",\"to\":\"now\"}}\n"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "summary": "Query result.",
+            "description": "Aggregated rows for the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/datasets/{datasetId}/search": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DatasetId"
+        }
+      ],
+      "get": {
+        "operationId": "searchDatasetOpaque",
+        "summary": "Search with an opaque query language",
+        "description": "The full query string is one opaque expression (HelixQL).",
+        "tags": [
+          "query",
+          "beta"
+        ],
+        "parameters": [
+          {
+            "name": "helixql",
+            "in": "querystring",
+            "required": true,
+            "description": "A complete HelixQL expression.",
+            "content": {
+              "text/helixql": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "errorsByService": {
+                    "summary": "Errors grouped by service",
+                    "serializedValue": "search level=error | stats count by service | sort -count"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "summary": "Search results.",
+            "description": "Rows matching the HelixQL expression.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/{datasetId}/stream": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DatasetId"
+        }
+      ],
+      "get": {
+        "operationId": "streamEvents",
+        "summary": "Tail live events (SSE)",
+        "description": "A long-lived Server-Sent Events stream. Each SSE message carries one\n`TelemetryEvent` in its `data` field, described via `itemSchema`.\n",
+        "tags": [
+          "streams"
+        ],
+        "parameters": [
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "description": "Resume the stream after this event id.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "summary": "Event stream opened.",
+            "description": "An open `text/event-stream` connection.",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "telemetry",
+                        "heartbeat"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/TelemetryEvent"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/datasets/{datasetId}/export": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/DatasetId"
+        }
+      ],
+      "get": {
+        "operationId": "exportEvents",
+        "summary": "Bulk export as line-delimited JSON",
+        "tags": [
+          "streams"
+        ],
+        "responses": {
+          "200": {
+            "summary": "Export stream.",
+            "description": "A `application/jsonl` body, one event per line.",
+            "content": {
+              "application/jsonl": {
+                "itemSchema": {
+                  "$ref": "#/components/schemas/TelemetryEvent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/attachments": {
+      "post": {
+        "operationId": "uploadAttachment",
+        "summary": "Upload an ordered multipart payload",
+        "description": "Demonstrates positional multipart parts via `prefixEncoding`: the\nfirst part is the manifest, the second is the binary blob.\n",
+        "tags": [
+          "ingest",
+          "beta"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/mixed": {
+              "schema": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "$ref": "#/components/schemas/AttachmentManifest"
+                  },
+                  {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                ]
+              },
+              "prefixEncoding": [
+                {
+                  "contentType": "application/json"
+                },
+                {
+                  "contentType": "application/octet-stream",
+                  "headers": {
+                    "Content-Disposition": {
+                      "schema": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "summary": "Attachment stored.",
+            "description": "The attachment was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Acknowledgement"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "deviceOAuth": {
+        "type": "oauth2",
+        "description": "OAuth 2.0 with device-authorization grant for CLIs and TVs.",
+        "oauth2MetadataUrl": "https://auth.helix-observe.example.com/.well-known/oauth-authorization-server",
+        "flows": {
+          "deviceAuthorization": {
+            "deviceAuthorizationUrl": "https://auth.helix-observe.example.com/device",
+            "tokenUrl": "https://auth.helix-observe.example.com/token",
+            "refreshUrl": "https://auth.helix-observe.example.com/token",
+            "scopes": {
+              "telemetry.read": "Read telemetry and run queries.",
+              "telemetry.write": "Ingest telemetry.",
+              "telemetry.admin": "Manage datasets and purge caches."
+            }
+          }
+        }
+      },
+      "ingestKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Ingest-Key",
+        "description": "High-throughput ingest key."
+      },
+      "legacyBasic": {
+        "type": "http",
+        "scheme": "basic",
+        "deprecated": true,
+        "description": "Legacy basic auth; migrate to deviceOAuth."
+      }
+    },
+    "parameters": {
+      "DatasetId": {
+        "name": "datasetId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^ds_[a-z0-9]{12}$"
+        }
+      },
+      "SessionCookie": {
+        "name": "helix_session",
+        "in": "cookie",
+        "required": false,
+        "style": "cookie",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "NotFound": {
+        "description": "Resource not found.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "summary": "Validation failed.",
+        "description": "One or more items failed schema validation.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Dataset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "retentionDays"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^ds_[a-z0-9]{12}$",
+            "xml": {
+              "nodeType": "attribute"
+            }
+          },
+          "name": {
+            "type": "string",
+            "xml": {
+              "nodeType": "element"
+            }
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "logs",
+              "metrics",
+              "traces"
+            ]
+          }
+        },
+        "xml": {
+          "name": "dataset",
+          "nodeType": "element"
+        }
+      },
+      "TelemetryEvent": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "kind"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "log",
+              "metric",
+              "span"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "trace",
+              "debug",
+              "info",
+              "warn",
+              "error",
+              null
+            ]
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "durationMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "unevaluatedProperties": false
+      },
+      "QueryRequest": {
+        "type": "object",
+        "required": [
+          "select",
+          "range"
+        ],
+        "properties": {
+          "select": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "where": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "groupBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "range": {
+            "type": "object",
+            "required": [
+              "from",
+              "to"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000
+          }
+        },
+        "additionalProperties": false
+      },
+      "QueryResult": {
+        "type": "object",
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "scanned": {
+                "type": "integer"
+              },
+              "elapsedMs": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "IngestReceipt": {
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "batchId": {
+            "type": "string"
+          }
+        }
+      },
+      "AttachmentManifest": {
+        "type": "object",
+        "required": [
+          "filename",
+          "contentType"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "Acknowledgement": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "queued",
+              "done"
+            ]
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -88,7 +88,16 @@ public final class SystemEntitySeam {
 
     public static SystemModelSource toPersistenceSource(
             org.qubership.integration.platform.io.model.exportimport.system.SystemModelSource source) {
-        return source == null ? null : SystemModelSource.valueOf(source.name());
+        if (source == null) {
+            return null;
+        }
+        // CUSTOMER_MANUAL was retired from the catalog enum but still occurs in archives written before this
+        // release, and the library model still declares it. Read it as MANUAL, the same way the @JsonAlias on
+        // SystemModelSource does for a document that states it directly.
+        return switch (source) {
+            case CUSTOMER_MANUAL, MANUAL -> SystemModelSource.MANUAL;
+            case DISCOVERED -> SystemModelSource.DISCOVERED;
+        };
     }
 
     public static org.qubership.integration.platform.io.model.exportimport.system.SystemModelSource toModelSource(
@@ -99,6 +108,26 @@ public final class SystemEntitySeam {
     }
 
     public static Environment toPersistenceEnvironment(ImportEnvironment environment) {
+        if (environment == null) {
+            return null;
+        }
+        List<EnvironmentLabel> labels = environment.getLabels() == null
+                ? null
+                : environment.getLabels().stream().map(EnvironmentLabel::valueOf).toList();
+        return Environment.builder()
+                .id(environment.getId())
+                .name(environment.getName())
+                .description(environment.getDescription())
+                .address(environment.getAddress())
+                .sourceType(environment.getSourceType())
+                .labels(labels)
+                .maasInstanceId(environment.getMaasInstanceId())
+                .properties(environment.getProperties())
+                .build();
+    }
+
+    /** Same bridge for an environment read straight off the exported document rather than the import model. */
+    public static Environment toPersistenceEnvironment(EnvironmentDto environment) {
         if (environment == null) {
             return null;
         }
@@ -210,4 +239,5 @@ public final class SystemEntitySeam {
                 .responseSchemas(operation.getResponseSchemas())
                 .build();
     }
+
 }

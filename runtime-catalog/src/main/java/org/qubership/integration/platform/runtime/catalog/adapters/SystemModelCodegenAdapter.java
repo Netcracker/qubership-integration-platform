@@ -19,8 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.adapters;
 import org.qubership.integration.platform.codegen.model.CodegenSpecificationSource;
 import org.qubership.integration.platform.codegen.model.CodegenSystemModel;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 
 import java.util.List;
@@ -56,7 +56,7 @@ public class SystemModelCodegenAdapter implements CodegenSystemModel {
 
     @Override
     public String getGroupName() {
-        return model.getSpecificationGroup().getName();
+        return model.getApiGroup().getName();
     }
 
     @Override
@@ -73,7 +73,7 @@ public class SystemModelCodegenAdapter implements CodegenSystemModel {
     }
 
     private IntegrationSystem getSystem() {
-        SpecificationGroup specificationGroup = model.getSpecificationGroup();
+        ApiGroup specificationGroup = model.getApiGroup();
         return specificationGroup.getSystem();
     }
 }

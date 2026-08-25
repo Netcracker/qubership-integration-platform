@@ -5,6 +5,7 @@ import {
 } from "./helpers/mocks";
 
 let capturedEditorProviders: Record<string, any> = {};
+const registeredCommands = new Map<string, (...args: any[]) => unknown>();
 let onDidReceiveMessageCallback: Function | null = null;
 let mockStatBehavior: "resolve" | "reject" = "resolve";
 
@@ -40,7 +41,12 @@ jest.mock(
         createWebviewPanel: jest.fn(() => mockPanel),
       },
       commands: {
-        registerCommand: jest.fn(() => ({ dispose: jest.fn() })),
+        registerCommand: jest.fn(
+          (id: string, handler: (...args: any[]) => unknown) => {
+            registeredCommands.set(id, handler);
+            return { dispose: jest.fn() };
+          },
+        ),
         executeCommand: jest.fn(),
       },
       workspace: {
@@ -76,6 +82,9 @@ jest.mock("../src/web/response/file/fileExtensions", () => ({
   getExtensionsForUri: jest.fn().mockReturnValue({
     chain: ".qip-chain.yaml",
     service: ".qip-service.yaml",
+    externalService: ".qip-external-service.yaml",
+    internalService: ".qip-internal-service.yaml",
+    implementedService: ".qip-implemented-service.yaml",
     contextService: ".qip-context-service.yaml",
     mcpService: ".qip-mcp-service.yaml",
     specificationGroup: ".qip-sg.yaml",
@@ -115,7 +124,23 @@ jest.mock("../src/web/response/navigationUtils", () => ({
   updateNavigationStateValue: jest.fn(),
 }));
 
+let fileMovedListener: ((from: any, to: any) => void) | null = null;
+const disposeFileMovedListener = jest.fn();
+jest.mock("../src/web/response/file/serviceFileWrite", () => ({
+  onServiceFileMoved: jest.fn((listener: (from: any, to: any) => void) => {
+    fileMovedListener = listener;
+    return { dispose: disposeFileMovedListener };
+  }),
+}));
+
+import * as fs from "fs";
+import * as path from "path";
+import * as vscode from "vscode";
 import { activate } from "../src/web/extension";
+
+const manifest = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"),
+);
 
 function activateAndGetProvider() {
   activate(buildMockContext());
@@ -138,9 +163,133 @@ describe("extension.ts", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     capturedEditorProviders = {};
+    registeredCommands.clear();
     onDidReceiveMessageCallback = null;
+    fileMovedListener = null;
     mockStatBehavior = "resolve";
     mockWebview.html = "";
+  });
+
+  // The first save of an old-format service deletes the file this tab was opened on. Without the
+  // re-point, every later message — a second save, adding an environment — reads a path that is
+  // gone, and the editor stays broken until the user closes and reopens it.
+  describe("a service file the conversion moved", () => {
+    const movedTo = {
+      path: "/test.external-service.qip.yaml",
+      fsPath: "/test.external-service.qip.yaml",
+    };
+
+    async function dispatch(handler: Function) {
+      mockGetApiResponse.mockResolvedValue({});
+      await handler({
+        data: { requestId: "1", type: "getService", payload: {} },
+      });
+      const calls = mockGetApiResponse.mock.calls;
+      return calls[calls.length - 1]?.[1];
+    }
+
+    test("dispatches later messages against the file it moved to", async () => {
+      const handler = await openEditorAndGetMessageHandler();
+
+      expect(await dispatch(handler)).toBe(validDocument.uri);
+
+      fileMovedListener!(validDocument.uri, movedTo);
+
+      expect(await dispatch(handler)).toBe(movedTo);
+    });
+
+    test("ignores a move of another service's file", async () => {
+      const handler = await openEditorAndGetMessageHandler();
+
+      fileMovedListener!({ path: "/other.service.qip.yaml" }, movedTo);
+
+      expect(await dispatch(handler)).toBe(validDocument.uri);
+    });
+
+    // The delayed theme push raced an editor closed inside its window, and the throw reached the
+    // host as an uncaught `Webview is disposed`.
+    test("skips the delayed theme push once the panel is disposed", async () => {
+      jest.useFakeTimers();
+      try {
+        await openEditorAndGetMessageHandler();
+        const initialPosts = mockPostMessage.mock.calls.length;
+        const disposeCalls = mockPanel.onDidDispose.mock.calls as any[];
+        (disposeCalls[disposeCalls.length - 1][0] as () => void)();
+
+        jest.advanceTimersByTime(1000);
+
+        expect(mockPostMessage.mock.calls.length).toBe(initialPosts);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test("stops listening once the panel is disposed", async () => {
+      await openEditorAndGetMessageHandler();
+      const disposeCalls = mockPanel.onDidDispose.mock.calls as any[];
+      const onDispose = disposeCalls[disposeCalls.length - 1][0] as () => void;
+
+      onDispose();
+
+      expect(disposeFileMovedListener).toHaveBeenCalled();
+    });
+  });
+
+  describe("custom editor registration", () => {
+    // Read from the manifest, not from a copy of it: a `customEditors` entry added without a
+    // matching `registerCustomEditorProvider` call opens a webview that never wires up.
+    test("registers an editor for every file kind package.json contributes", () => {
+      const contributed = (
+        manifest.contributes.customEditors as { viewType: string }[]
+      ).map((editor) => editor.viewType);
+
+      activate(buildMockContext());
+
+      expect(Object.keys(capturedEditorProviders).sort()).toEqual(
+        [...contributed].sort(),
+      );
+    });
+  });
+
+  describe("qip.revealInExplorer", () => {
+    test.each([
+      [".qip-service.yaml", "qip.serviceFile.editor"],
+      [".qip-external-service.yaml", "qip.externalServiceFile.editor"],
+      [".qip-internal-service.yaml", "qip.internalServiceFile.editor"],
+      [".qip-implemented-service.yaml", "qip.implementedServiceFile.editor"],
+      [".qip-context-service.yaml", "qip.contextServiceFile.editor"],
+      [".qip-mcp-service.yaml", "qip.mcpServiceFile.editor"],
+      [".qip-chain.yaml", "qip.chainFile.editor"],
+    ])("opens a %s file with its own editor", async (extension, viewType) => {
+      activate(buildMockContext());
+      const path = `/workspace/svc/svc${extension}`;
+      const fileUri = { path, fsPath: path };
+
+      await registeredCommands.get("qip.revealInExplorer")!({ fileUri });
+
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+        "vscode.openWith",
+        fileUri,
+        viewType,
+      );
+    });
+
+    test("falls back to the text editor for a file no custom editor claims", async () => {
+      activate(buildMockContext());
+      const fileUri = {
+        path: "/workspace/readme.txt",
+        fsPath: "/workspace/readme.txt",
+      };
+
+      await registeredCommands.get("qip.revealInExplorer")!({ fileUri });
+
+      expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith(
+        "vscode.openWith",
+        fileUri,
+        expect.anything(),
+      );
+      expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(fileUri);
+    });
   });
 
   describe("resolveCustomTextEditor - rejects invalid parameters", () => {
@@ -285,8 +434,7 @@ describe("extension.ts", () => {
       const event = {
         affectsConfiguration: (section: string) => section === affectedSetting,
       };
-      for (const call of vscode.workspace.onDidChangeConfiguration.mock
-        .calls) {
+      for (const call of vscode.workspace.onDidChangeConfiguration.mock.calls) {
         call[0](event);
       }
     }

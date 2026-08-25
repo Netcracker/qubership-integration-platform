@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.chain.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
 
 import java.util.Map;
 
@@ -38,4 +39,13 @@ public interface ImportOperation extends Entity {
     Map<String, JsonNode> getRequestSchema();
 
     Map<String, JsonNode> getResponseSchemas();
+
+    /**
+     * The exported operation as the file stated it, when the model was read from one. It carries the typed
+     * scalars — protocol, binding, SDL, package — that the structural fields above have no room for, and the
+     * catalog maps them back onto its own operation. Null for a model that was parsed rather than read.
+     */
+    default ApiOperationDto getExported() {
+        return null;
+    }
 }

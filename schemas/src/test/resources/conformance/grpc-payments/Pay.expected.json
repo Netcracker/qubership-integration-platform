@@ -1,0 +1,121 @@
+{
+  "typed": {
+    "type": "protobuf",
+    "package": "payments",
+    "service": "PaymentService",
+    "rpcMethod": "Pay",
+    "javaPackage": "payments"
+  },
+  "modelId": "grpc-payments-model",
+  "operationId": "PaymentService.Pay",
+  "path": "payments.PaymentService",
+  "method": "Pay",
+  "sourceHash": "b4c2258cc2468056e7462452f2559b8f5efd32449d8ae701a6681cc982ef4d02",
+  "specification": {
+    "operationId": "PaymentService.Pay",
+    "responses": {
+      "200": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/definitions/payments.PayResponse",
+              "$id": "http://system.catalog/schemas/responses/payments.PaymentService.Pay",
+              "$schema": "http://json-schema.org/draft-07/schema#",
+              "definitions": {
+                "payments.PayResponse": {
+                  "type": "object",
+                  "properties": {
+                    "transaction_id": {
+                      "type": "string"
+                    },
+                    "accepted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/definitions/payments.PayRequest",
+            "$id": "http://system.catalog/schemas/requests/payments.PaymentService.Pay",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "definitions": {
+              "payments.PayRequest": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "$ref": "#/definitions/int64"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "int64": {
+                "type": "number",
+                "format": "int64"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "requestSchema": {
+    "application/json": {
+      "$ref": "#/definitions/payments.PayRequest",
+      "$id": "http://system.catalog/schemas/requests/payments.PaymentService.Pay",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "definitions": {
+        "payments.PayRequest": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "string"
+            },
+            "amount": {
+              "$ref": "#/definitions/int64"
+            }
+          },
+          "additionalProperties": false
+        },
+        "int64": {
+          "type": "number",
+          "format": "int64"
+        }
+      }
+    }
+  },
+  "responseSchemas": {
+    "200": {
+      "application/json": {
+        "$ref": "#/definitions/payments.PayResponse",
+        "$id": "http://system.catalog/schemas/responses/payments.PaymentService.Pay",
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "definitions": {
+          "payments.PayResponse": {
+            "type": "object",
+            "properties": {
+              "transaction_id": {
+                "type": "string"
+              },
+              "accepted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  }
+}

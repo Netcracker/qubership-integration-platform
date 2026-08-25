@@ -30,15 +30,17 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.AMQP_BINDING_CLASS;
+import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.SPEC_PROPERTY_EXCHANGE_NAME;
+import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.SPEC_PROPERTY_MAAS_CLASSIFIER_NAME;
+import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.SPEC_PROPERTY_QUEUE_NAME;
+import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.SPEC_PROPERTY_USERNAME;
 
 
 @AsyncResolver(AMQP_BINDING_CLASS)
 public class AMQPSpecificationResolver extends AbstractAsyncApiSpecificationResolver {
 
     private static final String DEFAULT_SUMMARY = "AMQP operation";
-    private static final String PROPERTY_USERNAME = "username";
-    private static final String PROPERTY_QUEUE_NAME = "queue";
-    private static final String PROPERTY_EXCHANGE_NAME = "exchangeName";
+    // Names read out of the AsyncAPI document's amqp bindings — AsyncAPI's vocabulary, not the node we write.
     private static final String SPECIFICATION_USER_ID = "userId";
     private static final String SPECIFICATION_NAME = "name";
     private static final String SPECIFICATION_QUEUE = "queue";
@@ -75,9 +77,14 @@ public class AMQPSpecificationResolver extends AbstractAsyncApiSpecificationReso
         JsonNode allBindings = objectMapper.valueToTree(channel.getBindings());
         JsonNode amqpBindings = allBindings.path(SPECIFICATION_AMQP);
         if (!amqpBindings.isMissingNode() && !amqpBindings.isNull()) {
-            addIfNotNull(specificationNode, PROPERTY_USERNAME, amqpBindings.get(SPECIFICATION_USER_ID));
-            addIfNotNull(specificationNode, PROPERTY_QUEUE_NAME, amqpBindings.at("/" + SPECIFICATION_QUEUE + "/" + SPECIFICATION_NAME));
-            addIfNotNull(specificationNode, PROPERTY_EXCHANGE_NAME, amqpBindings.at("/" + SPECIFICATION_EXCHANGE + "/" + SPECIFICATION_NAME));
+            addIfNotNull(specificationNode, SPEC_PROPERTY_USERNAME, amqpBindings.get(SPECIFICATION_USER_ID));
+            addIfNotNull(specificationNode, SPEC_PROPERTY_QUEUE_NAME,
+                    amqpBindings.at("/" + SPECIFICATION_QUEUE + "/" + SPECIFICATION_NAME));
+            addIfNotNull(specificationNode, SPEC_PROPERTY_EXCHANGE_NAME,
+                    amqpBindings.at("/" + SPECIFICATION_EXCHANGE + "/" + SPECIFICATION_NAME));
+        }
+        if (operationObject.getMaasClassifierName() != null) {
+            specificationNode.put(SPEC_PROPERTY_MAAS_CLASSIFIER_NAME, operationObject.getMaasClassifierName());
         }
         return specificationNode;
     }

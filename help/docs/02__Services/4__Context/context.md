@@ -15,8 +15,8 @@ Context Services are being used as a temporary storage of chain contexts. Chain 
 
 Table with **Context** services is accessible by navigating to **Services** → **Context** tab. Next columns and elements are available for the table:
 
-- **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Name** - clickable name of the service or API group. When clicked, system navigates to respective entity.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
 - **Used By** - shows the chains using this service.
 - **Created At** - datetime of entity creation (hidden by default).
 - **Created By** - shows the user, who created an entity (hidden by default).
@@ -41,11 +41,13 @@ At the top of the table the following options are available:
 
 Any context service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
+Inside that folder services are grouped by type: **External**, **Internal**, **Implemented**, **Context**, **MCP**, and an **Unknown** group for a file whose type is not stated anywhere. A group with no services is not shown. The grouping is a view of the tree only — the files stay where they are on disk.
+
 ### View Parameters
 Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
 
 For <ins>Web UI</ins> there is some additional information:
 
@@ -65,6 +67,8 @@ To create any service using VS Code Extension, follow the steps outlined below:
 2. In the left bottom find QIP section and expand it.
 3. Near the "Services" folder click on appearing button "QIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
+
+Each service is stored in one file. The three plain types — external, inner cloud, and implemented — share the name `<id>.service.qip.yaml` and state their type in the document's `$schema`. A context service is stored as `<id>.context-service.qip.yaml` and an MCP service as `<id>.mcp-service.qip.yaml` — separate kinds of document, named that way from the start. Files named `<id>.external-service.qip.yaml`, `<id>.internal-service.qip.yaml`, or `<id>.implemented-service.qip.yaml` were written by earlier versions of the extension; they open and edit normally, and the first edit renames the file back to `<id>.service.qip.yaml` — git records the change as a rename. A file older than all of these keeps its type inside the document (`content.integrationSystemType`); the first edit moves the type into `$schema` without renaming the file. The editor tab keeps showing the old file name after a rename. That is cosmetic: the service stays editable, and the tab picks up the new name the next time you open it.
 
 ### Import Service(s)
 
@@ -96,3 +100,11 @@ When import is completed, system displays import result table with the following
 System allows exporting service. There are two possible ways to export service(s):
 - From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
 - From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).
+
+> ⚠️ **Warning:** A Runtime Catalog older than 1.0.4 cannot import a context service exported by 1.0.4 or later, and
+> there is no export setting that changes this. The file name and the payload are unchanged, but the document is
+> stamped with format version 105, so the older version reports the context service with the **Error** status instead
+> of importing it. `QIP_EXPORT_LEGACY_FORMAT=true` does not help here: it writes the context service as
+> `context-service-<id>.yaml`, a name no version of the import looks for, so the service is **silently missing** from
+> the result instead. The setting is a downgrade path for external, inner cloud, and implemented services only.
+> Re-create a context service by hand on the older instance.

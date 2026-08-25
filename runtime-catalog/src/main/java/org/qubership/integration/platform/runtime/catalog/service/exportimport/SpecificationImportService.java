@@ -36,7 +36,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.ApiGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ConfigParameterService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
@@ -72,7 +72,7 @@ public class SpecificationImportService {
 
     private final OperationParserService operationParserService;
     private final SpecificationSourceRepository specificationSourceRepository;
-    private final SpecificationGroupRepository specificationGroupRepository;
+    private final ApiGroupRepository apiGroupRepository;
     private final ProtocolExtractionService protocolExtractionService;
     private final ConfigParameterService configParameterService;
     private final ObjectMapper objectMapper;
@@ -82,7 +82,7 @@ public class SpecificationImportService {
 
     @Autowired
     public SpecificationImportService(OperationParserService operationParserService,
-                                      SpecificationGroupRepository specificationGroupRepository,
+                                      ApiGroupRepository apiGroupRepository,
                                       SpecificationSourceRepository specificationSourceRepository,
                                       ConfigParameterService configParameterService,
                                       ProtocolExtractionService protocolExtractionService,
@@ -92,7 +92,7 @@ public class SpecificationImportService {
                                       WsdlRootFileParser wsdlRootFileParser
     ) {
         this.operationParserService = operationParserService;
-        this.specificationGroupRepository = specificationGroupRepository;
+        this.apiGroupRepository = apiGroupRepository;
         this.specificationSourceRepository = specificationSourceRepository;
         this.protocolExtractionService = protocolExtractionService;
         this.configParameterService = configParameterService;
@@ -142,7 +142,7 @@ public class SpecificationImportService {
 
     public String importSpecification(String specificationGroupId, MultipartFile[] files) {
         deleteObsoleteImportSessionStatuses();
-        IntegrationSystem system = specificationGroupRepository.getReferenceById(specificationGroupId).getSystem();
+        IntegrationSystem system = apiGroupRepository.getReferenceById(specificationGroupId).getSystem();
 
         Collection<MultipartFile> extractedFiles;
         try {
@@ -151,7 +151,9 @@ public class SpecificationImportService {
             throw new SpecificationImportException(ExportImportConstants.INVALID_INPUT_FILE_ERROR_MESSAGE, exception);
         }
 
-        OperationProtocol importingFilesProtocol = protocolExtractionService.getOperationProtocol(extractedFiles);
+        ProtocolExtractionService.SpecificationInfo specificationInfo =
+                protocolExtractionService.extractSpecificationInfo(extractedFiles);
+        OperationProtocol importingFilesProtocol = specificationInfo.protocol();
 
         systemBaseService.validateSpecificationProtocol(system, importingFilesProtocol);
 
@@ -176,6 +178,8 @@ public class SpecificationImportService {
                     specificationSources,
                     false,
                     Collections.emptySet(),
+                    specificationInfo.specificationType(),
+                    specificationInfo.specificationVersion(),
                     message::append
             ).thenApply(model -> compileModelLibraryOrDeleteModel(requestId, model));
 
@@ -207,6 +211,10 @@ public class SpecificationImportService {
         specificationSourceRepository.save(source);
         Collection<SpecificationSource> sources = Collections.singletonList(source);
 
+        OperationProtocol protocol = OperationProtocol.fromType(specificationType.toLowerCase());
+        String apiSpecificationType = ProtocolExtractionService.mapSpecificationType(protocol);
+        String apiSpecificationVersion = protocolExtractionService.extractSpecificationVersion(protocol, content);
+
         String requestId = RequestIdContext.get();
         return operationParserService.parse(
                         specificationType.toLowerCase(),
@@ -214,6 +222,8 @@ public class SpecificationImportService {
                         sources,
                         true,
                         oldSystemModelsIds,
+                        apiSpecificationType,
+                        apiSpecificationVersion,
                         messageHandler)
                 .thenApply(model -> compileModelLibraryOrDeleteModel(requestId, model));
     }
@@ -275,7 +285,9 @@ public class SpecificationImportService {
         if (mainSourceCount > 1) {
             log.error(ExportImportConstants.MULTIPLE_MAIN_SOURCES_ERROR_MESSAGE);
         } else if (mainSourceCount == 0) {
-            log.error(ExportImportConstants.NO_MAIN_SOURCE_ERROR_MESSAGE);
+            // No file flags itself main (a gRPC .proto never does), so promote the first — a handled fallback, not
+            // an error. Logged at WARN so a normal gRPC import does not surface a red herring.
+            log.warn(ExportImportConstants.NO_MAIN_SOURCE_ERROR_MESSAGE);
             specificationSources.get(0).setMainSource(true);
         }
         specificationSourceRepository.saveAll(specificationSources);

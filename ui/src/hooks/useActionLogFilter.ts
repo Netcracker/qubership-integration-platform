@@ -9,6 +9,7 @@ import {
 } from "../components/table/filter/filterTypes";
 import { useFilter } from "../components/table/filter/useFilter";
 import { capitalize, formatSnakeCased } from "../misc/format-utils";
+import { formatEntityType } from "../misc/entityTypeLabels";
 import { EntityType, LogOperation } from "../api/apiTypes";
 
 const operationFilterOptions = Object.values(LogOperation).map((value) => ({
@@ -17,7 +18,7 @@ const operationFilterOptions = Object.values(LogOperation).map((value) => ({
 }));
 
 const entityTypeFilterOptions = Object.values(EntityType).map((value) => ({
-  label: formatSnakeCased(capitalize(value)),
+  label: formatEntityType(value),
   value,
 }));
 

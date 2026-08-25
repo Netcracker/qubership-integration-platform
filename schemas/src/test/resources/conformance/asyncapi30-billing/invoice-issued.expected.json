@@ -1,0 +1,43 @@
+{
+    "typed": {
+        "type": "asyncapi",
+        "summary": null,
+        "channel": "invoice.issued",
+        "method": "receive"
+    },
+    "path": "invoice.issued",
+    "method": "receive",
+    "modelId": "c155ed16-f900-4e88-b412-b7e09aafc0de-Billing Events-2.0.0",
+    "sourceHash": "d961f71ec3412338a1f380855c82e3263d7ce4aa7e4e52d02749d2e568c87d9c",
+    "operationId": "invoice.issued",
+    "requestSchema": {
+    },
+    "specification": {
+        "maasClassifierName": "billing-invoices"
+    },
+    "responseSchemas": {
+        "InvoiceIssued": {
+            "$id": "http://system.catalog/schemas/InvoiceIssued",
+            "type": "object",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "required": [
+                "invoiceId",
+                "amount"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "format": "double"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "invoiceId": {
+                    "type": "string"
+                }
+            },
+            "definitions": {
+            }
+        }
+    }
+}

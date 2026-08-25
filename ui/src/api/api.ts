@@ -43,10 +43,11 @@ import type {
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
+  SystemUpdateRequest,
   EnvironmentRequest,
   Environment,
-  SpecificationGroup,
-  Specification,
+  ApiGroup,
+  Api,
   OperationInfo,
   ImportSystemResult,
   ImportSpecificationResult,
@@ -100,7 +101,7 @@ import type {
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
 
-export interface Api {
+export interface ApiClient {
   getChains(): Promise<Chain[]>;
 
   getChain(id: string): Promise<Chain>;
@@ -393,7 +394,7 @@ export interface Api {
 
   updateService(
     id: string,
-    data: Partial<IntegrationSystem>,
+    data: SystemUpdateRequest,
   ): Promise<IntegrationSystem>;
 
   getContextServices(): Promise<ContextSystem[]>;
@@ -421,24 +422,21 @@ export interface Api {
 
   getEnvironments(systemId: string): Promise<Environment[]>;
 
-  getApiSpecifications(systemId: string): Promise<SpecificationGroup[]>;
+  getApiSpecifications(systemId: string): Promise<ApiGroup[]>;
 
-  getLatestApiSpecification(systemId: string): Promise<Specification>;
+  getLatestApiSpecification(systemId: string): Promise<Api>;
 
   updateApiSpecificationGroup(
     id: string,
-    data: Partial<SpecificationGroup>,
-  ): Promise<SpecificationGroup>;
+    data: Partial<ApiGroup>,
+  ): Promise<ApiGroup>;
 
   getSpecificationModel(
     systemId?: string,
     specificationGroupId?: string,
-  ): Promise<Specification[]>;
+  ): Promise<Api[]>;
 
-  updateSpecificationModel(
-    id: string,
-    data: Partial<Specification>,
-  ): Promise<Specification>;
+  updateSpecificationModel(id: string, data: Partial<Api>): Promise<Api>;
 
   getOperations(
     modelId: string,
@@ -447,7 +445,7 @@ export interface Api {
 
   getOperationInfo(operationId: string): Promise<OperationInfo>;
 
-  deprecateModel(modelId: string): Promise<Specification>;
+  deprecateModel(modelId: string): Promise<Api>;
 
   deleteSpecificationModel(id: string): Promise<void>;
 
@@ -670,4 +668,6 @@ export interface Api {
   extractChain(archive: File, chainId: string): Promise<Chain>;
 }
 
-export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();
+export const api: ApiClient = isVsCode
+  ? new VSCodeExtensionApi()
+  : new RestApi();

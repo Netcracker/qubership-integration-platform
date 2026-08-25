@@ -5,9 +5,10 @@ import * as yaml from "yaml";
 import * as path from "path";
 import { LibraryData } from "@netcracker/qip-ui";
 import { QipFileType } from "../serviceApiUtils";
-import { FileFilter } from "../fileFilteringUtils";
+import { FileFilter, UnreadableFileError } from "../fileFilteringUtils";
 import {
   getExtensionsForFile,
+  getExtensionsForUri,
   extractFilename,
   FileExtensionsConfig,
 } from "./fileExtensions";
@@ -21,9 +22,48 @@ import {
   CONTEXT_SERVICE_ROUTES,
   MCP_SERVICE_ROUTES,
   SERVICE_ROUTES,
-} from "../apiRouter";
+} from "../navigationRoutes";
+import {
+  noMatchError,
+  refuseUnreadableSibling,
+  resolveFirstCandidate,
+} from "./lookupOutcome";
 import { extractEntityId } from "../navigationUtils";
-const RESOURCES_FOLDER = "resources";
+import { shapeServiceFile, ServiceFileKind } from "./serviceFileShape";
+import {
+  allServiceExtensions,
+  isAnyServiceFile,
+  plainServiceExtensions,
+  serviceExtensionForType,
+  serviceSchemaUrlForType,
+} from "./serviceFileType";
+import {
+  API_GROUP_NAMES,
+  API_NAMES,
+  CandidateOrder,
+  candidateExtensions,
+  combineCandidates,
+  NAME_SETS,
+} from "./namePrecedence";
+import {
+  CHAIN_MIGRATIONS,
+  MCP_SERVICE_MIGRATIONS,
+  repairMigrationsClaim,
+  SERVICE_MIGRATIONS,
+} from "../../services/importMigrationVersions";
+export const RESOURCES_FOLDER = "resources";
+
+/** Picks the key order to write with; the three kinds have different export DTOs. */
+function serviceFileKind(fileUri: Uri): ServiceFileKind {
+  const ext = getExtensionsForUri(fileUri);
+  if (fileUri.path.endsWith(ext.mcpService)) {
+    return "mcpService";
+  }
+  if (fileUri.path.endsWith(ext.contextService)) {
+    return "contextService";
+  }
+  return "service";
+}
 
 export class VSCodeFileApi implements FileApi {
   context: ExtensionContext;
@@ -49,39 +89,61 @@ export class VSCodeFileApi implements FileApi {
 
   async findFileByNavigationPath(path: string): Promise<Uri> {
     const extensions = this.getExtensionsForContext();
-    let extension: string | undefined = undefined;
+    // A service route names no type, so every plain-service name is a candidate; the other
+    // routes resolve to exactly one. The current `.service.` name is scanned first, so a converted
+    // service that still has its per-type sibling resolves to the file the next write lands on.
+    let candidates: CandidateOrder | undefined = undefined;
 
     for (const regexp of SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.service;
+        candidates = plainServiceExtensions(extensions);
       }
     }
 
     for (const regexp of CHAIN_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.chain;
+        candidates = candidateExtensions(NAME_SETS.chain, extensions);
       }
     }
 
     for (const regexp of CONTEXT_SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.contextService;
+        candidates = candidateExtensions(NAME_SETS.contextService, extensions);
       }
     }
 
     for (const regexp of MCP_SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.mcpService;
+        candidates = candidateExtensions(NAME_SETS.mcpService, extensions);
       }
     }
 
-    if (!extension) {
+    if (!candidates) {
       throw new Error(`Invalid navigation path: ${path}`);
     }
 
     const entityId = extractEntityId(path);
+    const names = candidates;
 
-    return await this.findFileById(entityId, extension);
+    return await resolveFirstCandidate(
+      names,
+      (extension) => this.findFileById(entityId, extension),
+      {
+        // Navigation opens an editor on the file it picks, so it obeys the same rule the read and
+        // write lookups do rather than falling through to a name of lower precedence.
+        onUnreadable: (unreadable, resolved) =>
+          refuseUnreadableSibling(entityId, resolved, unreadable, names),
+        onNoMatch: (failures) =>
+          noMatchError(failures, () => {
+            const lastError = failures.causes[failures.causes.length - 1];
+            return lastError instanceof Error
+              ? lastError
+              : new Error(
+                  `File with id ${entityId} not found for path: ${path}`,
+                );
+          }),
+      },
+    );
   }
 
   private isWindowsPath(p: string): boolean {
@@ -138,10 +200,19 @@ export class VSCodeFileApi implements FileApi {
     directoryUri: Uri,
     extension: string,
   ): Promise<string[]> {
+    return this.getFilesByExtensionsInDirectory(directoryUri, [extension]);
+  }
+
+  private async getFilesByExtensionsInDirectory(
+    directoryUri: Uri,
+    extensions: readonly string[],
+  ): Promise<string[]> {
     const entries = await readDirectory(directoryUri);
     return entries
       .filter(([, type]: [string, number]) => type === 1)
-      .filter(([name]: [string, number]) => name.endsWith(extension))
+      .filter(([name]: [string, number]) =>
+        extensions.some((extension) => name.endsWith(extension)),
+      )
       .map(([name]: [string, number]) => name);
   }
 
@@ -204,7 +275,13 @@ export class VSCodeFileApi implements FileApi {
     const cacheService = FileCacheService.getInstance();
 
     const cachedUri = cacheService.getFileUri(id, extension);
-    if (cachedUri) {
+    // The group extensions share one cache entry per id, and so do the four plain-service ones, so a
+    // hit may be a file of another extension. Honour the requested extension and rescan instead, or
+    // the caller's precedence order means nothing.
+    if (
+      cachedUri &&
+      (!extension || extractFilename(cachedUri).endsWith(extension))
+    ) {
       try {
         await vscode.workspace.fs.stat(cachedUri);
         return cachedUri;
@@ -214,47 +291,87 @@ export class VSCodeFileApi implements FileApi {
     }
 
     if (extension) {
-      const rootDir = this.getRootDirectory();
-      const conventionUri = Uri.joinPath(rootDir, id, `${id}${extension}`);
-      try {
-        await vscode.workspace.fs.stat(conventionUri);
-        const content = await this.parseFile(conventionUri);
-        if (content?.id === id) {
-          cacheService.setFileUri(id, extension, conventionUri);
-          return conventionUri;
-        }
-      } catch {}
-
-      const uri = await this.findFile(extension, (fileContent: any) => {
-        return fileContent?.id === id;
-      });
+      const uri = await this.findFileWithExtension(id, extension);
       cacheService.setFileUri(id, extension, uri);
       return uri;
     }
 
     const extensions = getExtensionsForFile();
-    const typesToTry = [
-      extensions.mcpService,
-      extensions.contextService,
-      extensions.service,
-      extensions.chain,
-      extensions.specificationGroup,
-      extensions.specification,
-    ];
+    // Every kind of file, one declared order after another. Each set keeps its own order, so the
+    // current `.service.` name still sits ahead of the three per-type ones it superseded.
+    const typesToTry = combineCandidates(
+      allServiceExtensions(extensions),
+      candidateExtensions(NAME_SETS.chain, extensions),
+      candidateExtensions(API_GROUP_NAMES, extensions),
+      candidateExtensions(API_NAMES, extensions),
+    );
 
-    for (const ext of typesToTry) {
-      try {
-        const uri = await this.findFile(ext, (fileContent: any) => {
-          return fileContent?.id === id;
-        });
+    return await resolveFirstCandidate(
+      typesToTry,
+      async (ext) => {
+        const uri = await this.findFileWithExtension(id, ext);
         cacheService.setFileUri(id, ext, uri);
         return uri;
-      } catch (e) {
-        continue;
+      },
+      {
+        // The same rule the typed lookups apply: a name of lower precedence may answer, unless the
+        // file it names could be the sibling of one the scan could not read.
+        onUnreadable: (unreadable, resolved) =>
+          refuseUnreadableSibling(id, resolved, unreadable, typesToTry),
+        onNoMatch: (failures) =>
+          noMatchError(
+            failures,
+            () =>
+              new Error(
+                `File with id ${id} not found with any known extension`,
+              ),
+          ),
+      },
+    );
+  }
+
+  /**
+   * The file carrying the id under one extension. The convention path `<root>/<id>/<id><ext>` is
+   * tried first and the tree scanned second; a convention file the parser rejects is reported, not
+   * swallowed, so a caller that goes on to another extension still sees the outstanding file.
+   */
+  private async findFileWithExtension(
+    id: string,
+    extension: string,
+  ): Promise<Uri> {
+    const rootDir = this.getRootDirectory();
+    const conventionUri = Uri.joinPath(rootDir, id, `${id}${extension}`);
+    let conventionUnreadable = false;
+    try {
+      await vscode.workspace.fs.stat(conventionUri);
+    } catch {
+      // No file at the convention path — an absence, and the scan below answers.
+      return await this.findFile(
+        extension,
+        (fileContent: any) => fileContent?.id === id,
+      );
+    }
+    try {
+      const content = await this.parseFile(conventionUri);
+      if (content?.id === id) {
+        return conventionUri;
       }
+    } catch {
+      conventionUnreadable = true;
     }
 
-    throw new Error(`File with id ${id} not found with any known extension`);
+    try {
+      return await this.findFile(
+        extension,
+        (fileContent: any) => fileContent?.id === id,
+      );
+    } catch (error) {
+      // The scan walks the convention path too and reports it, so this only matters when the scan
+      // never reached it. Either way the outcome stays "unreadable" rather than "not found".
+      throw conventionUnreadable && !(error instanceof UnreadableFileError)
+        ? new UnreadableFileError(extension, [conventionUri])
+        : error;
+    }
   }
 
   async findFile(
@@ -262,41 +379,66 @@ export class VSCodeFileApi implements FileApi {
     filterPredicate?: (fileContent: any) => boolean,
   ): Promise<Uri> {
     const result: Uri[] = [];
+    const unreadable: Uri[] = [];
     const folderUri = this.getRootDirectory();
 
     await this.collectFiles(
       folderUri,
       { extension: extension, predicate: filterPredicate, findFirst: true },
       result,
+      unreadable,
     );
 
-    if (result.length === 0) {
-      throw Error(`Unable to find file with extension: ${extension}`);
-    } else {
+    if (result.length > 0) {
       return result[0];
     }
+    // A file the parser choked on may be the one asked for, so no match is a miss only when every
+    // candidate was readable. Reporting it as a plain miss let a caller that tries one name after
+    // another move on and answer from a file that lost the precedence race.
+    if (unreadable.length > 0) {
+      throw new UnreadableFileError(extension, unreadable);
+    }
+    throw Error(`Unable to find file with extension: ${extension}`);
   }
 
+  /**
+   * Every file carrying the extension. No caller passes a predicate — this is a listing by name,
+   * and each one re-reads the file it picks — so nothing here parses and an unreadable file is
+   * listed like any other. A predicate has to parse, and a file it could not be answered for would
+   * drop out of the listing silently, which is the same collapse at list level: the listing reports
+   * it instead, the way `findFile` does.
+   */
   async findFiles(
     extension: string,
     filterPredicate?: (fileContent: any) => boolean,
   ): Promise<Uri[]> {
     const result: Uri[] = [];
+    const unreadable: Uri[] = [];
     const folderUri = this.getRootDirectory();
 
     await this.collectFiles(
       folderUri,
       { extension: extension, predicate: filterPredicate, findFirst: false },
       result,
+      unreadable,
     );
 
+    if (unreadable.length > 0) {
+      throw new UnreadableFileError(extension, unreadable);
+    }
     return result;
   }
 
+  /**
+   * Walks the tree for files carrying the extension. `unreadable` collects the ones a predicate
+   * had to parse and the parser rejected: they are neither a match nor a miss, and only `findFile`
+   * can say which of the two the caller may treat them as.
+   */
   private async collectFiles(
     folderUri: Uri,
     fileFilter: FileFilter,
     result: Uri[],
+    unreadable: Uri[] = [],
   ): Promise<void> {
     const entries = await readDirectory(folderUri);
 
@@ -306,16 +448,28 @@ export class VSCodeFileApi implements FileApi {
         name.endsWith(fileFilter.extension)
       ) {
         const fileUri = vscode.Uri.joinPath(folderUri, name);
-        const contentYaml = await this.parseFile(fileUri);
-        if (!fileFilter.predicate || fileFilter.predicate(contentYaml)) {
-          result.push(fileUri);
-          if (fileFilter.findFirst) {
-            return;
+        // Only a predicate needs the content. Letting a parse failure throw aborted the whole
+        // scan; swallowing it made the file invisible. Both end the same way — the lookup answers
+        // from another name — so the file is recorded and the decision left to `findFile`.
+        if (fileFilter.predicate) {
+          let contentYaml;
+          try {
+            contentYaml = await this.parseFile(fileUri);
+          } catch {
+            unreadable.push(fileUri);
+            continue;
           }
+          if (!fileFilter.predicate(contentYaml)) {
+            continue;
+          }
+        }
+        result.push(fileUri);
+        if (fileFilter.findFirst) {
+          return;
         }
       } else if (type === vscode.FileType.Directory) {
         const subFolderUri = vscode.Uri.joinPath(folderUri, name);
-        await this.collectFiles(subFolderUri, fileFilter, result);
+        await this.collectFiles(subFolderUri, fileFilter, result, unreadable);
       }
     }
   }
@@ -327,6 +481,9 @@ export class VSCodeFileApi implements FileApi {
       const parsed = await ContentParser.parseContentFromFile(fileUri);
 
       if (parsed && parsed.name) {
+        // A chain authored before the claim was written would be unimportable;
+        // the next save carries the repair into the file.
+        repairMigrationsClaim(parsed.content, CHAIN_MIGRATIONS);
         return parsed;
       }
       throw Error("Invalid chain file content");
@@ -469,6 +626,8 @@ export class VSCodeFileApi implements FileApi {
       const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
       if (parsed && parsed.id === serviceId) {
+        // Context services run through the service migration list.
+        repairMigrationsClaim(parsed.content, SERVICE_MIGRATIONS);
         return parsed;
       }
       throw Error("Invalid service file content or service ID mismatch");
@@ -486,6 +645,7 @@ export class VSCodeFileApi implements FileApi {
       const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
       if (parsed && parsed.id === serviceId) {
+        repairMigrationsClaim(parsed.content, MCP_SERVICE_MIGRATIONS);
         return parsed;
       }
       throw Error("Invalid service file content or service ID mismatch");
@@ -504,7 +664,8 @@ export class VSCodeFileApi implements FileApi {
   }
 
   async writeServiceFile(fileUri: Uri, serviceData: any): Promise<void> {
-    const yamlString = yaml.stringify(serviceData);
+    const shaped = shapeServiceFile(serviceData, serviceFileKind(fileUri));
+    const yamlString = yaml.stringify(shaped);
     const bytes = new TextEncoder().encode(yamlString);
 
     try {
@@ -603,7 +764,9 @@ export class VSCodeFileApi implements FileApi {
         $schema: config.schemaUrls.chain,
         id: chainId,
         name: chainName,
-        content: {},
+        content: {
+          migrations: CHAIN_MIGRATIONS,
+        },
       };
       const bytes = new TextEncoder().encode(yaml.stringify(chain));
 
@@ -703,6 +866,12 @@ export class VSCodeFileApi implements FileApi {
             })
           : "";
 
+      // Dismissing the prompt leaves the identifier empty, and the MCP schema
+      // requires it — cancel instead of writing a file that fails validation.
+      if (serviceType.value === "MCP" && !identifier?.trim()) {
+        return null;
+      }
+
       const serviceDescription = await vscode.window.showInputBox({
         prompt: "Enter service description (optional)",
         placeHolder: "Description of the service",
@@ -714,56 +883,64 @@ export class VSCodeFileApi implements FileApi {
         },
       });
 
+      // `crypto.randomUUID()` is dot-free, which the backend requires of an id it has to state in
+      // a file name: it reads the id up to the first dot, so a dotted id names another service.
       const serviceId = crypto.randomUUID();
 
       const config = ProjectConfigService.getConfig();
 
-      const service =
-        serviceType.value === "CONTEXT"
-          ? {
-              $schema: config.schemaUrls.contextService,
-              id: serviceId,
-              name: serviceName.trim(),
-              content: {
-                description: serviceDescription?.trim() || "",
-                migrations: [],
-              },
-            }
-          : serviceType.value === "MCP"
-            ? {
-                $schema: config.schemaUrls.mcpService,
-                id: serviceId,
-                name: serviceName.trim(),
-                content: {
-                  identifier: identifier?.trim() || "",
-                  instructions: "",
-                  description: serviceDescription?.trim() || "",
-                  migrations: [],
-                },
-              }
-            : {
-                $schema: config.schemaUrls.service,
-                id: serviceId,
-                name: serviceName.trim(),
-                content: {
-                  description: serviceDescription?.trim() || "",
-                  activeEnvironmentId: "",
-                  integrationSystemType: serviceType.value,
-                  protocol: "",
-                  extendedProtocol: "",
-                  specification: "",
-                  environments: [],
-                  labels: [],
-                  migrations: [],
-                },
-              };
+      // Only what the prompts collected: a service created here has no
+      // protocol, environments or labels yet, and writeServiceFile prunes an
+      // empty description rather than writing a blank line into the file.
+      const service = ((): object => {
+        if (serviceType.value === "CONTEXT") {
+          return {
+            $schema: serviceSchemaUrlForType(
+              serviceType.value,
+              config.schemaUrls,
+            ),
+            id: serviceId,
+            name: serviceName.trim(),
+            content: {
+              description: serviceDescription?.trim(),
+              migrations: SERVICE_MIGRATIONS,
+            },
+          };
+        }
+        if (serviceType.value === "MCP") {
+          return {
+            $schema: serviceSchemaUrlForType(
+              serviceType.value,
+              config.schemaUrls,
+            ),
+            id: serviceId,
+            name: serviceName.trim(),
+            content: {
+              identifier: identifier?.trim(),
+              description: serviceDescription?.trim(),
+              migrations: MCP_SERVICE_MIGRATIONS,
+            },
+          };
+        }
+        // The $schema states the type, so the content does not.
+        return {
+          $schema: serviceSchemaUrlForType(
+            serviceType.value,
+            config.schemaUrls,
+          ),
+          id: serviceId,
+          name: serviceName.trim(),
+          content: {
+            description: serviceDescription?.trim(),
+            migrations: SERVICE_MIGRATIONS,
+          },
+        };
+      })();
 
-      const extension =
-        serviceType.value === "CONTEXT"
-          ? config.extensions.contextService
-          : serviceType.value === "MCP"
-            ? config.extensions.mcpService
-            : config.extensions.service;
+      const extension = serviceExtensionForType(
+        serviceType.value,
+        config.extensions,
+      );
 
       // Create service file (folder will be created automatically)
       const serviceFolderUri = vscode.Uri.joinPath(
@@ -798,7 +975,7 @@ export class VSCodeFileApi implements FileApi {
         if (name.endsWith(extensions.contextService)) {
           return QipFileType.CONTEXT_SERVICE;
         }
-        if (name.endsWith(extensions.service)) {
+        if (isAnyServiceFile(name, extensions)) {
           return QipFileType.SERVICE;
         }
         if (name.endsWith(extensions.chain)) {
@@ -810,9 +987,8 @@ export class VSCodeFileApi implements FileApi {
       // Directory: infer by contents
       const entries = await this.readDirectoryInternal(fileUri);
       const hasChainFile = this.hasFileWithExtension(entries, extensions.chain);
-      const hasServiceFile = this.hasFileWithExtension(
-        entries,
-        extensions.service,
+      const hasServiceFile = plainServiceExtensions(extensions).some(
+        (extension) => this.hasFileWithExtension(entries, extension),
       );
 
       if (hasServiceFile) {
@@ -833,6 +1009,16 @@ export class VSCodeFileApi implements FileApi {
     }
   }
 
+  /** `getFileType` answers `UNKNOWN` for a path that is gone, so existence is asked of `stat`. */
+  async fileExists(fileUri: Uri): Promise<boolean> {
+    try {
+      await vscode.workspace.fs.stat(fileUri);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async getFileCreatedWhen(fileUri: Uri): Promise<number> {
     const fileStat = await vscode.workspace.fs.stat(fileUri);
     return fileStat.ctime;
@@ -848,30 +1034,25 @@ export class VSCodeFileApi implements FileApi {
     return await readDirectory(mainFolderUri);
   }
 
-  private async getFilesByExtension(
-    serviceFileUri: Uri,
-    extension: string,
-  ): Promise<string[]> {
-    const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
-    return await this.getFilesByExtensionInDirectory(
-      serviceFolderUri,
-      extension,
-    );
-  }
-
   async getSpecificationGroupFiles(serviceFileUri: Uri): Promise<string[]> {
     const extensions = this.getExtensionsForContext(serviceFileUri);
-    return await this.getFilesByExtension(
-      serviceFileUri,
-      extensions.specificationGroup,
+    const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
+    // A project may store the group file as `.specification-group.<app>.yaml` (pre-rename)
+    // or `.api-group.<app>.yaml`, both at the same depth. Scan for either.
+    return await this.getFilesByExtensionsInDirectory(
+      serviceFolderUri,
+      candidateExtensions(API_GROUP_NAMES, extensions),
     );
   }
 
   async getSpecificationFiles(serviceFileUri: Uri): Promise<string[]> {
     const extensions = this.getExtensionsForContext(serviceFileUri);
-    return await this.getFilesByExtension(
-      serviceFileUri,
-      extensions.specification,
+    const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
+    // A project may store the API file as `.specification.<app>.yaml` (pre-rename)
+    // or `.api.<app>.yaml`, both at the same depth. Scan for either.
+    return await this.getFilesByExtensionsInDirectory(
+      serviceFolderUri,
+      candidateExtensions(API_NAMES, extensions),
     );
   }
 

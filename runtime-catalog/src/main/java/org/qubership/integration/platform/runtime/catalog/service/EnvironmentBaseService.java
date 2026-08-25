@@ -29,9 +29,9 @@ import org.qubership.integration.platform.runtime.catalog.model.system.Operation
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.EnvironmentRepository;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -200,7 +200,7 @@ public class EnvironmentBaseService {
      * @param specificationGroup carries both the owning system and the fallback name
      */
     public void resolveSwaggerEnvironments(List<ParsedEnvironment> parsedEnvironments,
-                                           SpecificationGroup specificationGroup) {
+                                           ApiGroup specificationGroup) {
         if (parsedEnvironments == null || parsedEnvironments.isEmpty()) {
             return;
         }
@@ -234,14 +234,14 @@ public class EnvironmentBaseService {
         }
     }
 
-    private String swaggerEnvironmentName(ParsedEnvironment parsedEnvironment, SpecificationGroup specificationGroup) {
+    private String swaggerEnvironmentName(ParsedEnvironment parsedEnvironment, ApiGroup specificationGroup) {
         if (parsedEnvironment.getName() != null) {
             return parsedEnvironment.getName();
         }
         return "Environment for " + specificationGroup.getName() + " specification group";
     }
 
-    private Environment setSwaggerDefaultProperties(SpecificationGroup specificationGroup) {
+    private Environment setSwaggerDefaultProperties(ApiGroup specificationGroup) {
         Environment environment = specificationGroup.getSystem().getEnvironments().get(0);
         setDefaultProperties(environment);
         return environment;

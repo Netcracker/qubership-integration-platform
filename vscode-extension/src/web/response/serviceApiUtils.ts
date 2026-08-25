@@ -240,17 +240,52 @@ export const ALLOWED_PROTOCOL_MAP: ReadonlyMap<
   ],
 ]);
 
+// The protocol is whatever the request carried, so it is checked by membership rather than trusted
+// to be an `ApiSpecificationType` already.
 export function validateAllowedSystemProtocol(
   systemType?: IntegrationSystemType,
-  protocol?: ApiSpecificationType,
+  protocol?: string,
 ) {
   if (!systemType || !protocol) {
     return;
   }
 
-  const allowedProtocols = ALLOWED_PROTOCOL_MAP.get(systemType);
+  const allowedProtocols: ReadonlySet<string> | undefined =
+    ALLOWED_PROTOCOL_MAP.get(systemType);
   if (allowedProtocols && !allowedProtocols.has(protocol)) {
     const errorMessage = `Specification type is not allowed for ${systemType.toLowerCase()} system: ${protocol}`;
     throw new Error(errorMessage);
   }
+}
+
+// Mirrors the backend's OperationProtocol.type, which SystemMapper maps onto
+// SystemDTO.specification.
+const SPECIFICATION_TYPE_BY_PROTOCOL: ReadonlyMap<string, string> = new Map([
+  ["HTTP", "swagger"],
+  ["AMQP", "asyncapi"],
+  ["KAFKA", "asyncapi"],
+  ["SOAP", "soap"],
+  ["GRAPHQL", "graphqlschema"],
+  ["METAMODEL", "metamodel"],
+  ["GRPC", "protobuf"],
+]);
+
+/**
+ * The `specification` field of a service API response. It is derived from the
+ * protocol, so the service file does not store it.
+ */
+export function getSpecificationType(protocol?: string): string {
+  return (
+    SPECIFICATION_TYPE_BY_PROTOCOL.get((protocol ?? "").toUpperCase()) ?? ""
+  );
+}
+
+/**
+ * The `extendedProtocol` field of a service API response — the protocol sub-type.
+ * `SystemMapper` derives it from the same protocol it derives `protocol` from,
+ * so the service file does not store it either. The two differ only for SOAP,
+ * where the transport is HTTP and the sub-type is SOAP.
+ */
+export function getExtendedProtocol(protocol?: string): string {
+  return (protocol ?? "").toLowerCase();
 }

@@ -30,6 +30,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.KAFKA_BINDING_CLASS;
+import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.SPEC_PROPERTY_MAAS_CLASSIFIER_NAME;
+import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.SPEC_PROPERTY_TOPIC;
 
 
 @Slf4j
@@ -60,9 +62,9 @@ public class KafkaSpecificationResolver extends AbstractAsyncApiSpecificationRes
     @Override
     public JsonNode getSpecificationJsonNode(String channelName, Channel channel, OperationObject operationObject) {
         ObjectNode specificationNode = objectMapper.createObjectNode();
-        specificationNode.put(PROPERTY_TOPIC, channelName);
+        specificationNode.put(SPEC_PROPERTY_TOPIC, channelName);
         if (operationObject.getMaasClassifierName() != null) {
-            specificationNode.put(PROPERTY_MAAS_CLASSIFIER_NAME, operationObject.getMaasClassifierName());
+            specificationNode.put(SPEC_PROPERTY_MAAS_CLASSIFIER_NAME, operationObject.getMaasClassifierName());
         }
         return specificationNode;
     }

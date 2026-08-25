@@ -1,0 +1,15 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/service.schema.yaml"
+id: "8f1c2a3e-4b5d-4e6f-8a9b-0c1d2e3f4a5d"
+name: "MaaS classifier service"
+content:
+  integrationSystemType: "EXTERNAL"
+  protocol: "KAFKA"
+  environments:
+    - id: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5f"
+      name: "MaaS classifier environment"
+      sourceType: "MAAS_BY_CLASSIFIER"
+      properties:
+        maas.classifier.namespace: "my-namespace"
+        maas.classifier.tenantId: "tenant-1"
+        maas.classifier.tenantEnabled: true

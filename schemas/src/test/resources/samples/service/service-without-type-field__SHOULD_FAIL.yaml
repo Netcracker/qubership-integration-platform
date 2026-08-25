@@ -1,0 +1,14 @@
+---
+# The plain service schema describes the pre-#553 format, where the document is the only place a type is stated.
+# Keeping integrationSystemType required is what V105RevertMigration's legacy output relies on.
+$schema: "http://qubership.org/schemas/product/qip/service.schema.yaml"
+id: "9b4e0d63-1a75-42c8-93f0-6d5c8a7b2e14"
+name: "Service stating no type"
+content:
+  description: "A plain service document must state its type"
+  protocol: "HTTP"
+  environments:
+    - id: "3f8c5a21-6d09-4b74-82e5-1c7b0d9a4e36"
+      name: "Default"
+      address: "http://service:8080"
+      sourceType: "MANUAL"

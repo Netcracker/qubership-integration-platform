@@ -4,10 +4,7 @@ import { SelectProps } from "antd";
 import { FormContext } from "../../ChainElementModificationContext.ts";
 import { api } from "../../../../../api/api.ts";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
-import {
-  Specification,
-  SpecificationGroup,
-} from "../../../../../api/apiTypes.ts";
+import { Api, ApiGroup } from "../../../../../api/apiTypes.ts";
 import { JSONSchema7 } from "json-schema";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { SelectTag } from "./SelectTag.tsx";
@@ -36,7 +33,7 @@ const SpecificationField: React.FC<
 
   const buildSpecificationOptions = (
     groupName: string,
-    specifications: Specification[] | undefined,
+    specifications: Api[] | undefined,
   ): SelectProps["options"] => {
     return (
       specifications?.map((spec) => ({
@@ -52,9 +49,7 @@ const SpecificationField: React.FC<
     );
   };
 
-  const buildSpecToGroupMap = (
-    groups: SpecificationGroup[],
-  ): Map<string, string> => {
+  const buildSpecToGroupMap = (groups: ApiGroup[]): Map<string, string> => {
     const result: Map<string, string> = new Map();
     for (const group of groups) {
       for (const spec of group.specifications) {
@@ -90,8 +85,7 @@ const SpecificationField: React.FC<
 
     const loadLatestSpecification = async () => {
       if (systemId && !props.formData) {
-        const latestSpec: Specification =
-          await api.getLatestApiSpecification(systemId);
+        const latestSpec: Api = await api.getLatestApiSpecification(systemId);
         handleChange(latestSpec.id);
       }
     };
@@ -123,10 +117,7 @@ const SpecificationField: React.FC<
       } catch (error) {
         setSpecIdToGroupIdMap(new Map());
         setOptions([]);
-        notificationService.requestFailed(
-          "Failed to load specification groups",
-          error,
-        );
+        notificationService.requestFailed("Failed to load API groups", error);
       } finally {
         setIsLoading(false);
       }
@@ -153,7 +144,7 @@ const SpecificationField: React.FC<
       selectOnChange={handleChange}
       selectDisabled={isLoading}
       selectOptionLabelProp="selectedLabel"
-      buttonTitle="Go to specification"
+      buttonTitle="Go to API"
       buttonDisabled={!(specificationGroupId && specificationId)}
       buttonOnClick={navigationPath}
     />

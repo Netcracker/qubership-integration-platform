@@ -19,8 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.adapters;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.codegen.model.CodegenSpecificationSource;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 
@@ -40,7 +40,7 @@ class SystemModelCodegenAdapterTest {
                 .name("Orders System")
                 .protocol(org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol.HTTP)
                 .build();
-        SpecificationGroup group = SpecificationGroup.builder().id("grp-1").build();
+        ApiGroup group = ApiGroup.builder().id("grp-1").build();
         group.setName("Orders Group");
         group.setSystem(system);
         SpecificationSource source = SpecificationSource.builder().id("src-1").build();
@@ -48,7 +48,7 @@ class SystemModelCodegenAdapterTest {
         SystemModel model = SystemModel.builder()
                 .id("model-1")
                 .name("v1")
-                .specificationGroup(group)
+                .apiGroup(group)
                 .build();
         model.getSpecificationSources().add(source);
 
@@ -67,9 +67,9 @@ class SystemModelCodegenAdapterTest {
     @Test
     void getProtocolReturnsNullWhenTheSystemHasNoProtocol() {
         IntegrationSystem system = IntegrationSystem.builder().id("sys-1").name("Orders System").build();
-        SpecificationGroup group = SpecificationGroup.builder().id("grp-1").build();
+        ApiGroup group = ApiGroup.builder().id("grp-1").build();
         group.setSystem(system);
-        SystemModel model = SystemModel.builder().id("model-1").specificationGroup(group).build();
+        SystemModel model = SystemModel.builder().id("model-1").apiGroup(group).build();
 
         SystemModelCodegenAdapter adapter = new SystemModelCodegenAdapter(model);
 

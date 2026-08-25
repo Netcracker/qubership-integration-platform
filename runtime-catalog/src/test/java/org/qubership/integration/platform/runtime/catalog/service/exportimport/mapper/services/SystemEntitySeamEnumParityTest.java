@@ -23,6 +23,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Guards the enum name parity {@link SystemEntitySeam} relies on.
@@ -49,11 +51,26 @@ class SystemEntitySeamEnumParityTest {
                 org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol.class);
     }
 
+    /**
+     * The one enum the seam does not map by name. {@code CUSTOMER_MANUAL} was retired from the catalog but
+     * archives written before this release still state it, so the library keeps accepting it and
+     * {@link SystemEntitySeam#toPersistenceSource} folds it into {@code MANUAL}. What has to hold is that every
+     * catalog constant still exists on the library side, and that the seam answers for every library constant.
+     */
     @Test
-    void systemModelSourceNamesMatchAcrossSeam() {
-        assertNamesMatch(
-                org.qubership.integration.platform.io.model.exportimport.system.SystemModelSource.class,
+    void systemModelSourceIsMappedForEveryLibraryConstant() {
+        Set<String> library = names(
+                org.qubership.integration.platform.io.model.exportimport.system.SystemModelSource.class);
+        Set<String> catalog = names(
                 org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource.class);
+
+        assertTrue(library.containsAll(catalog),
+                "the library has to accept every source the catalog can store, got " + library + " vs " + catalog);
+        for (org.qubership.integration.platform.io.model.exportimport.system.SystemModelSource source
+                : org.qubership.integration.platform.io.model.exportimport.system.SystemModelSource.values()) {
+            assertNotNull(SystemEntitySeam.toPersistenceSource(source),
+                    "the seam leaves " + source + " unmapped, so an archive stating it fails to import");
+        }
     }
 
     private static void assertNamesMatch(Class<? extends Enum<?>> libraryEnum, Class<? extends Enum<?>> catalogEnum) {

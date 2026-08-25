@@ -19,7 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.model.exportimport.in
 public enum ImportEntityType {
     CHAIN,
     SERVICE,
-    SPECIFICATION_GROUP,
+    API_GROUP,
     SPECIFICATION,
     COMMON_VARIABLE
 }

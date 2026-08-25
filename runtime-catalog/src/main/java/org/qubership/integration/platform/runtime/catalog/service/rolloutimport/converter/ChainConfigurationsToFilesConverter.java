@@ -57,7 +57,7 @@ public class ChainConfigurationsToFilesConverter {
             if (contentNode instanceof ObjectNode chainContent) {
                 chainContent.putIfAbsent(
                         IMPORT_MIGRATIONS_FIELD,
-                        TextNode.valueOf(MigrationUtil.formatVersions(chainImportFileMigrations))
+                        TextNode.valueOf(MigrationUtil.formatAppliedVersions(chainImportFileMigrations))
                 );
             }
 

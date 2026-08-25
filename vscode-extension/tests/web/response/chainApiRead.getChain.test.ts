@@ -21,9 +21,9 @@ describe("getChain", () => {
   test("throws when parsed chain id does not match requested id", async () => {
     parseFile.mockResolvedValueOnce({ id: "other-chain" });
 
-    await expect(getChain(workspaceUri, "chain-1", explicitUri)).rejects.toThrow(
-      "ChainId mismatch",
-    );
+    await expect(
+      getChain(workspaceUri, "chain-1", explicitUri),
+    ).rejects.toThrow("ChainId mismatch");
     expect(parseFile).toHaveBeenCalledWith(explicitUri);
   });
 });

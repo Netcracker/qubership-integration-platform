@@ -1,4 +1,4 @@
-import type { Api } from "../../api/api.ts";
+import type { ApiClient } from "../../api/api.ts";
 import type { Chain } from "../../api/apiTypes.ts";
 import type { ChainModificationProposal } from "./ChainModificationConfirmation.tsx";
 import type { ChainContext } from "./useChainContext.ts";
@@ -8,7 +8,7 @@ import type { ChainContext } from "./useChainContext.ts";
  */
 export async function applyChainModificationProposal(
   proposal: ChainModificationProposal,
-  api: Api,
+  api: ApiClient,
   chainContext: ChainContext,
 ): Promise<void> {
   const chainId = proposal.chainId || chainContext.chain.id;

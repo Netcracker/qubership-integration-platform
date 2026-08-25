@@ -1,0 +1,12 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml"
+id: "3b8c1d47-2f95-4e60-87a3-9d0e5c6b2a71"
+name: "Implemented service on the KAFKA protocol"
+content:
+  description: "An implemented service speaks HTTP, SOAP, or GRAPHQL"
+  protocol: "KAFKA"
+  environments:
+    - id: "2a4e7c90-8d61-4b35-9f07-1c8b3d5a6e42"
+      name: "Default"
+      address: "kafka://billing-facade:9092"
+      sourceType: "MANUAL"

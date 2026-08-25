@@ -34,7 +34,13 @@ public class ExportImportConstants {
     public static final String CHAIN_YAML_NAME_POSTFIX = ".chain.";
     @Deprecated
     public static final String SERVICE_YAML_NAME_PREFIX = "service-";
+    // Export writes this postfix for every plain service; the type is stated in the $schema, not in the name.
     public static final String SERVICE_YAML_NAME_POSTFIX = ".service.";
+    // Per-type postfixes: read-only legacy from #553, still discovered because archives exported then carry them. The
+    // "-service" suffix keeps them from matching ".service." under endsWith and contains, as ".context-service." does.
+    public static final String EXTERNAL_SERVICE_YAML_NAME_POSTFIX = ".external-service.";
+    public static final String INTERNAL_SERVICE_YAML_NAME_POSTFIX = ".internal-service.";
+    public static final String IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX = ".implemented-service.";
     @Deprecated
     public static final String CONTEXT_SERVICE_YAML_NAME_PREFIX = "context-service-";
     public static final String CONTEXT_SERVICE_YAML_NAME_POSTFIX = ".context-service.";
@@ -43,12 +49,16 @@ public class ExportImportConstants {
     public static final String MCP_SERVICE_YAML_NAME_POSTFIX = ".mcp-service.";
     public static final String SOURCE_YAML_NAME_PREFIX =  "source-";
     public static final String EXPORT_FILE_NAME_PREFIX = "export-";
+    // The legacy (isLegacyExport) writer keeps this flat prefix: renaming it would break pre-rename importers.
     @Deprecated
     public static final String SPECIFICATION_GROUP_FILE_PREFIX = "specGroup-";
+    // Export writes the api-group postfix; import still reads both.
     public static final String SPECIFICATION_GROUP_FILE_POSTFIX = ".specification-group.";
+    public static final String API_GROUP_FILE_POSTFIX = ".api-group.";
     @Deprecated
     public static final String SPECIFICATION_FILE_PREFIX = "specification-";
     public static final String SPECIFICATION_FILE_POSTFIX = ".specification.";
+    public static final String API_FILE_POSTFIX = ".api.";
     public static final String YAML_FILE_NAME_POSTFIX = ".yaml";
     public static final String JSON_FILE_NAME_POSTFIX = ".json";
     public static final String API_SPECIFICATION_SUFFIX = "-specification-";
@@ -117,5 +127,17 @@ public class ExportImportConstants {
     public static final String ASSUMPTIONS = "assumptions";
     public static final String OUT_OF_SCOPE = "outOfScope";
     public static final String CONTENT = "content";
+    public static final String INTEGRATION_SYSTEM_TYPE = "integrationSystemType";
     public static final String PARENT_ID = "parentId";
+    public static final String SPECIFICATION_TYPE = "specificationType";
+    public static final String API_GROUPS = "apiGroups";
+    // The pre-V104 name of the same field. Not deprecated for callers: the import reads it and the
+    // legacy export writes it back, so both uses are current. Drop it once neither format is read.
+    public static final String SPECIFICATION_GROUPS = "specificationGroups";
+    public static final String SYSTEM_MODELS = "systemModels";
+    public static final String SYNCHRONIZATION = "synchronization";
+
+    // Scratch field the deserializer stamps on a model node so V103 can type its operations. It never appears on a
+    // service or specification-group document, so its presence is what tells V103 the node is a model.
+    public static final String MIGRATION_PROTOCOL = "migrationProtocol";
 }

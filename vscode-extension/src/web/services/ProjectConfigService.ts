@@ -12,16 +12,26 @@ export interface ProjectConfig {
     contextService: string;
     mcpService: string;
     service: string;
+    externalService: string;
+    internalService: string;
+    implementedService: string;
     specificationGroup: string;
+    apiGroup: string;
     specification: string;
+    api: string;
   };
   schemaUrls: {
     contextService: string;
     mcpService: string;
     service: string;
+    externalService: string;
+    internalService: string;
+    implementedService: string;
     chain: string;
     specification: string;
     specificationGroup: string;
+    apiGroup: string;
+    api: string;
   };
   cache?: {
     ttl?: number;
@@ -37,16 +47,26 @@ export interface ProjectConfigFile {
         contextService: string;
         mcpService: string;
         service: string;
+        externalService: string;
+        internalService: string;
+        implementedService: string;
         specificationGroup: string;
+        apiGroup: string;
         specification: string;
+        api: string;
       };
       schemaUrls: {
         contextService: string;
         mcpService: string;
         service: string;
+        externalService: string;
+        internalService: string;
+        implementedService: string;
         chain: string;
         specification: string;
         specificationGroup: string;
+        apiGroup: string;
+        api: string;
       };
     };
   };
@@ -55,14 +75,29 @@ export interface ProjectConfigFile {
   };
 }
 
-const DEFAULT_SCHEMA_URLS = {
-  contextService: "http://qubership.org/schemas/product/qip/context-service",
-  mcpService: "http://qubership.org/schemas/product/qip/mcp-service",
-  service: "http://qubership.org/schemas/product/qip/service",
-  chain: "http://qubership.org/schemas/product/qip/chain",
-  specification: "http://qubership.org/schemas/product/qip/specification",
+// Full schema `$id` form (with the `.schema.yaml` suffix), matching what the
+// backend exporter writes. These are the values stamped on files this extension
+// creates; a file carrying the older truncated URL is read by its file
+// extension, not by its `$schema`.
+export const DEFAULT_SCHEMA_URLS: ProjectConfig["schemaUrls"] = {
+  contextService:
+    "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
+  mcpService:
+    "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
+  service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
+  externalService:
+    "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+  internalService:
+    "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
+  implementedService:
+    "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
+  chain: "http://qubership.org/schemas/product/qip/chain.schema.yaml",
+  specification:
+    "http://qubership.org/schemas/product/qip/specification.schema.yaml",
   specificationGroup:
-    "http://qubership.org/schemas/product/qip/specification-group",
+    "http://qubership.org/schemas/product/qip/specification-group.schema.yaml",
+  apiGroup: "http://qubership.org/schemas/product/qip/api-group.schema.yaml",
+  api: "http://qubership.org/schemas/product/qip/api.schema.yaml",
 };
 
 export const CONFIG_FILENAME = ".config.qip.yaml";
@@ -254,11 +289,14 @@ export class ProjectConfigService {
     version: string,
     cache?: ProjectConfigFile["cache"],
   ): ProjectConfig {
+    // Layer the loaded values over the defaults so keys added later (for
+    // example `api`) stay defined for configs written before they existed.
+    const defaults = this.buildDefaultConfig(appName);
     const config: ProjectConfig = {
       version,
       appName,
-      extensions: configData.extensions,
-      schemaUrls: configData.schemaUrls,
+      extensions: { ...defaults.extensions, ...configData.extensions },
+      schemaUrls: { ...defaults.schemaUrls, ...configData.schemaUrls },
       cache,
     };
 
@@ -473,8 +511,13 @@ export class ProjectConfigService {
         contextService: `.context-service.${appName}.yaml`,
         mcpService: `.mcp-service.${appName}.yaml`,
         service: `.service.${appName}.yaml`,
+        externalService: `.external-service.${appName}.yaml`,
+        internalService: `.internal-service.${appName}.yaml`,
+        implementedService: `.implemented-service.${appName}.yaml`,
         specificationGroup: `.specification-group.${appName}.yaml`,
+        apiGroup: `.api-group.${appName}.yaml`,
         specification: `.specification.${appName}.yaml`,
+        api: `.api.${appName}.yaml`,
       },
       schemaUrls: DEFAULT_SCHEMA_URLS,
       cache: {

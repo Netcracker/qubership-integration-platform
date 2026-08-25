@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemUsageResponse;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -107,43 +109,42 @@ public class SystemController {
     }
 
     @PutMapping(value = "/{systemId}", produces = "application/json")
-    @Operation(description = "Modify specified service")
+    @Operation(description = "Modify specified service."
+            + " Answers 404 if the id is unknown. Use POST /v1/systems to create a service.")
     public ResponseEntity<SystemDTO> updateSystem(@PathVariable @Parameter(description = "Service id") String systemId,
                                                   @RequestBody @Parameter(description = "Service modifying request object") SystemRequestDTO systemDto) {
         log.info("Request to update system {}", systemId);
-        IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        if (system != null) {
-            String name = system.getName();
-            systemMapper.mergeWithoutLabels(systemDto, system);
-            systemService.replaceLabels(system, systemMapper.asLabelRequests(systemDto.getLabels()));
-            system = systemService.save(system);
-            if (!system.getName().equals(name)) {
-                systemService.updateSystemModelCompiledLibraryAsync(system);
-            }
-            return ResponseEntity.ok(systemMapper.toDTO(system));
-        } else {
-            return createSystem(systemDto);
-        }
+        return applyUpdate(systemId, systemDto, systemMapper::mergeWithoutLabels);
     }
 
     @PatchMapping(value = "/{systemId}", produces = "application/json")
-    @Operation(description = "Partially update service")
+    @Operation(description = "Partially update service."
+            + " Answers 404 if the id is unknown. Use POST /v1/systems to create a service.")
     public ResponseEntity<SystemDTO> updateSyncStatus(@PathVariable @Parameter(description = "Service id") String systemId,
                                                       @RequestBody @Parameter(description = "Service modifying request object") SystemRequestDTO systemDto) {
         log.info("Request to update system sync status {}", systemId);
+        return applyUpdate(systemId, systemDto, systemMapper::patchMergeWithoutLabels);
+    }
+
+    /**
+     * The body PUT and PATCH share; only the merge differs. An unknown id used to create the service, which let the
+     * caller pick its type, so both doors now report it instead. Neither merge maps the type.
+     */
+    private ResponseEntity<SystemDTO> applyUpdate(
+            String systemId, SystemRequestDTO systemDto, BiConsumer<SystemRequestDTO, IntegrationSystem> merge) {
         IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        if (system != null) {
-            String name = system.getName();
-            systemMapper.patchMergeWithoutLabels(systemDto, system);
-            systemService.replaceLabels(system, systemMapper.asLabelRequests(systemDto.getLabels()));
-            system = systemService.save(system);
-            if (!system.getName().equals(name)) {
-                systemService.updateSystemModelCompiledLibraryAsync(system);
-            }
-            return ResponseEntity.ok(systemMapper.toDTO(system));
-        } else {
-            return ResponseEntity.badRequest().build();
+        if (system == null) {
+            throw new EntityNotFoundException(SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId
+                    + ". Create the service with POST /v1/systems. Nothing was updated.");
         }
+        String name = system.getName();
+        merge.accept(systemDto, system);
+        systemService.replaceLabels(system, systemMapper.asLabelRequests(systemDto.getLabels()));
+        system = systemService.save(system);
+        if (!system.getName().equals(name)) {
+            systemService.updateSystemModelCompiledLibraryAsync(system);
+        }
+        return ResponseEntity.ok(systemMapper.toDTO(system));
     }
 
     @DeleteMapping(value = "/{systemId}")

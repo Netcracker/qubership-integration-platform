@@ -1,0 +1,8 @@
+id: 55555555-5555-4555-8555-555555555555
+$schema: http://qubership.org/schemas/product/qip/mcp-service.schema.yaml
+name: Catalog tools
+content:
+  description: MCP service exposing catalog tools
+  identifier: catalog-tools
+  instructions: Use the catalog tools to look up products.
+  migrations: "[100]"

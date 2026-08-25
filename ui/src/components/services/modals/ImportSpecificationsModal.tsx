@@ -390,9 +390,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
 
   return (
     <Modal
-      title={
-        isGroupMode ? "Import Specification Group" : "Import Specification"
-      }
+      title={isGroupMode ? "Import API Group" : "Import API"}
       open={true}
       onCancel={handleCancel}
       footer={null}

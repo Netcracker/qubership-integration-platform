@@ -1,0 +1,23 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/external-service.schema.yaml"
+id: "2d73a4b6-6499-47d5-864f-0c0f86654d90"
+name: "Petstore"
+content:
+  description: "An external service with two environments"
+  activeEnvironmentId: "d3939eba-78d3-495b-bd32-e23e3e39c744"
+  protocol: "HTTP"
+  environments:
+    - id: "59e4691f-38e6-42b9-a784-46d1a013b363"
+      name: "Staging"
+      address: "http://petstore.swagger.io/v2"
+      sourceType: "MANUAL"
+      labels: []
+    - id: "d3939eba-78d3-495b-bd32-e23e3e39c744"
+      name: "Production"
+      address: "https://petstore.swagger.io/v2"
+      sourceType: "MANUAL"
+      labels: []
+      properties:
+        connectTimeout: "120000"
+        responseTimeout: "120000"
+  migrations: "[100, 101]"

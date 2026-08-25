@@ -19,17 +19,18 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.EnvironmentDTO;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.EnvironmentRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EnvironmentMapper;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
+import org.qubership.integration.platform.runtime.catalog.util.EnvironmentLimitUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -46,7 +47,6 @@ import java.util.List;
 @Tag(name = "environment-controller", description = "Environment Controller")
 public class EnvironmentController {
 
-    private static final String INTERNAL_SYSTEM_ENVIRONMENT_UNIQUE_MESSAGE = "Can't put more than one environment to 'internal' system";
     private static final String UNIQUE_LABEL_WITHIN_SINGLE_SYSTEM_MESSAGE = "Label should be unique within single system: ";
     private final EnvironmentService environmentService;
     private final SystemService systemService;
@@ -91,11 +91,12 @@ public class EnvironmentController {
         }
         Environment environment = environmentMapper.toEnvironment(environmentRequestDTO);
         IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        if (IntegrationSystemType.INTERNAL.equals(system.getIntegrationSystemType())) {
-            if (!system.getEnvironments().isEmpty()) {
-                throw new BadRequestException(INTERNAL_SYSTEM_ENVIRONMENT_UNIQUE_MESSAGE);
-            }
+        // An unknown id used to reach the next line and answer 500. PUT /v1/systems/{id} reports the same case as 404.
+        if (system == null) {
+            throw new EntityNotFoundException(SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId
+                    + ". Create the service with POST /v1/systems. No environment was created.");
         }
+        EnvironmentLimitUtils.validate(system, system.getEnvironments().size() + 1);
         environment = environmentService.create(environment, system);
         return new ResponseEntity<>(environmentMapper.toDTO(environment), HttpStatus.CREATED);
     }
@@ -114,6 +115,8 @@ public class EnvironmentController {
             environment = environmentService.update(environment);
             return ResponseEntity.ok(environmentMapper.toDTO(environment));
         } else {
+            // Unlike PUT /v1/systems/{id}, an unknown environment id creates one. The service is known, the caller
+            // picks its id, and nothing immutable is being chosen here; the environment limit still applies.
             return createEnvironment(systemId, environmentRequestDTO);
         }
     }

@@ -1,0 +1,6 @@
+id: "mcp-golden"
+name: "Golden MCP service"
+description: "Discovered by its own postfix, next to the plain services"
+identifier: "golden-mcp"
+instructions: "Answer with the order status"
+migrations: "[100]"

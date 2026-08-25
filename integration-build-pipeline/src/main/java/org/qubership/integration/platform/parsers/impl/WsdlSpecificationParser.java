@@ -16,10 +16,13 @@
 
 package org.qubership.integration.platform.parsers.impl;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.predic8.schema.Import;
 import com.predic8.schema.Include;
 import com.predic8.soamodel.WrongGrammarException;
 import com.predic8.wsdl.Definitions;
+import com.predic8.wsdl.Port;
 import com.predic8.wsdl.WSDLParser;
 import com.predic8.wsdl.WSDLParserContext;
 import com.predic8.xml.util.ExternalResolver;
@@ -271,13 +274,17 @@ public class WsdlSpecificationParser implements SpecificationParser {
                 .getServices()
                 .stream()
                 .flatMap(service -> service.getPorts().stream())
-                .flatMap(port -> port.getBinding().getOperations().stream())
-                .map(bindingOperation -> (ParsedOperation) ParsedOperationImpl.builder()
-                        .name(bindingOperation.getName())
-                        .method(POST_VERB_NAME)
-                        .path(DEFAULT_PATH)
-                        .build()
-                )
+                .map(Port::getBinding)
+                .flatMap(binding -> binding.getOperations().stream()
+                        .map(bindingOperation -> (ParsedOperation) ParsedOperationImpl.builder()
+                                .name(bindingOperation.getName())
+                                .method(POST_VERB_NAME)
+                                .path(DEFAULT_PATH)
+                                .specification(soapBindingNode(
+                                        binding == null ? null : asText(binding.getProtocol()),
+                                        binding == null ? null : binding.getName()))
+                                .build()
+                        ))
                 .collect(Collectors.toList());
     }
 
@@ -285,14 +292,17 @@ public class WsdlSpecificationParser implements SpecificationParser {
         return Arrays.stream(description.getServices())
                 .flatMap(service -> Arrays.stream(service.getEndpoints()))
                 .map(Endpoint::getBinding)
-                .flatMap(binding -> Arrays.stream(binding.getBindingOperations()))
-                .map(BindingOperation::toElement)
-                .map(bindingOperationElement -> (ParsedOperation) ParsedOperationImpl.builder()
-                        .name(bindingOperationElement.getRef().getLocalPart())
-                        .method(POST_VERB_NAME)
-                        .path(DEFAULT_PATH)
-                        .build()
-                )
+                .flatMap(binding -> Arrays.stream(binding.getBindingOperations())
+                        .map(BindingOperation::toElement)
+                        .map(bindingOperationElement -> (ParsedOperation) ParsedOperationImpl.builder()
+                                .name(bindingOperationElement.getRef().getLocalPart())
+                                .method(POST_VERB_NAME)
+                                .path(DEFAULT_PATH)
+                                .specification(soapBindingNode(
+                                        binding.getType() == null ? null : binding.getType().toString(),
+                                        binding.getName() == null ? null : binding.getName().getLocalPart()))
+                                .build()
+                        ))
                 .collect(Collectors.toList());
     }
 
@@ -338,5 +348,34 @@ public class WsdlSpecificationParser implements SpecificationParser {
         } catch (IOException e) {
             log.warn("Failed to clean up temporary WSDL directory {}", directory, e);
         }
+    }
+
+    /**
+     * Records the SOAP binding of an operation so the catalog can type it without reparsing the WSDL.
+     * WSDL 1.1 (predic8) states the protocol as a SOAP11/SOAP12/HTTP token and the binding as its name;
+     * WSDL 2.0 (woden) states the protocol as the binding type URI and the binding as its QName local part.
+     */
+    private static ObjectNode soapBindingNode(String rawProtocol, String binding) {
+        ObjectNode node = JsonNodeFactory.instance.objectNode();
+        node.put("protocol", normalizeProtocol(rawProtocol));
+        node.put("binding", binding);
+        return node;
+    }
+
+    private static String asText(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    private static String normalizeProtocol(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (StringUtils.containsIgnoreCase(raw, "soap")) {
+            return "SOAP";
+        }
+        if (StringUtils.containsIgnoreCase(raw, "http")) {
+            return "HTTP";
+        }
+        return raw;
     }
 }

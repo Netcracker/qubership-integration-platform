@@ -29,9 +29,9 @@ import org.qubership.integration.platform.parsers.model.ParsedEnvironmentImpl;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentDefaultParameters;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.EnvironmentRepository;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 
@@ -135,7 +135,7 @@ class EnvironmentDefaultPropertiesTest {
     @DisplayName("Swagger: an EXTERNAL HTTP system persists an environment with the HTTP defaults")
     void swaggerPersistsHttpDefaults() {
         IntegrationSystem system = system(IntegrationSystemType.EXTERNAL, OperationProtocol.HTTP);
-        SpecificationGroup specificationGroup = SpecificationGroup.builder()
+        ApiGroup specificationGroup = ApiGroup.builder()
                 .id("group-1")
                 .name("group")
                 .system(system)

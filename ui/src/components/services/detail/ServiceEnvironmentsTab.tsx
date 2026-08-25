@@ -171,7 +171,6 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
             await api.updateService(systemId, {
               activeEnvironmentId: env.id,
               name: system?.name,
-              type: system?.type,
             });
             delete cacheRef.current[systemId];
             setLoading(true);

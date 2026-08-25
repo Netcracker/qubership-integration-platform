@@ -1,0 +1,60 @@
+asyncapi: 3.0.0
+info:
+  title: Billing Events
+  version: 2.0.0
+servers:
+  prod:
+    host: rabbit.example.com:5672
+    protocol: amqp
+channels:
+  invoice.issued:
+    address: invoice.issued
+    messages:
+      InvoiceIssued:
+        $ref: "#/components/messages/InvoiceIssued"
+  payment.requests:
+    address: payment.requests
+    messages:
+      PaymentRequest:
+        $ref: "#/components/messages/PaymentRequest"
+operations:
+  receiveInvoiceIssued:
+    action: receive
+    channel:
+      $ref: "#/channels/invoice.issued"
+    summary: Consume invoice issued events
+    x-maas-classifier-name: billing-invoices
+  sendPaymentRequest:
+    action: send
+    channel:
+      $ref: "#/channels/payment.requests"
+    summary: Publish payment requests
+    x-maas-classifier-name: billing-payments
+components:
+  messages:
+    InvoiceIssued:
+      name: InvoiceIssued
+      contentType: application/json
+      payload:
+        type: object
+        required: [invoiceId, amount]
+        properties:
+          invoiceId:
+            type: string
+          amount:
+            type: number
+            format: double
+          currency:
+            type: string
+    PaymentRequest:
+      name: PaymentRequest
+      contentType: application/json
+      payload:
+        type: object
+        required: [invoiceId, method]
+        properties:
+          invoiceId:
+            type: string
+          method:
+            type: string
+            enum: [CARD, TRANSFER]

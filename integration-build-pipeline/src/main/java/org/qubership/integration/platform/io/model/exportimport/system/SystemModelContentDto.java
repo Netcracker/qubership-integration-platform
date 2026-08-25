@@ -32,6 +32,7 @@ import java.util.*;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonFilter("baseEntityFilter")
 public class SystemModelContentDto {
     private String description;
     private Timestamp createdWhen;
@@ -40,15 +41,19 @@ public class SystemModelContentDto {
     private User modifiedBy;
     private boolean deprecated;
     private String version;
+    private String specificationType;
+    private String specificationVersion;
     private SystemModelSource source;
 
+    // ApiOperationDto carries only the exported operation shape, so audit and de-materialized schema fields cannot leak.
     @Builder.Default
-    @JsonIgnoreProperties({"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"})
-    private List<OperationDto> operations = new ArrayList<>();
+    private List<ApiOperationDto> operations = new ArrayList<>();
 
     @JsonProperty("parentId")
     private String parentId;
 
+    @JsonProperty("specifications")
+    @JsonAlias("specificationSources")
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @Builder.Default
     private List<SpecificationSourceDto> specificationSources = new ArrayList<>();

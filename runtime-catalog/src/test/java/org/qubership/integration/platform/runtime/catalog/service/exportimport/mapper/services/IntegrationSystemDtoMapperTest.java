@@ -22,11 +22,13 @@ import org.qubership.integration.platform.chain.impl.ImportEnvironmentImpl;
 import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystemLabel;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 
 import java.net.URI;
 import java.sql.Timestamp;
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -50,7 +53,7 @@ class IntegrationSystemDtoMapperTest {
     void setUp() {
         ServiceImportFileMigration migration = mock(ServiceImportFileMigration.class);
         when(migration.getVersion()).thenReturn(102);
-        mapper = new IntegrationSystemDtoMapper(SCHEMA_URI, List.of(migration));
+        mapper = new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), List.of(migration));
     }
 
     @Test
@@ -141,13 +144,17 @@ class IntegrationSystemDtoMapperTest {
         assertNotNull(result);
         assertEquals("sys-2", result.getId());
         assertEquals("Order System", result.getName());
-        assertEquals(SCHEMA_URI, result.getSchema());
+        // The $schema states the type: an internal service exports under the internal-service schema, not the
+        // generic one. That is the whole point of the per-type documents.
+        assertEquals(URI.create(new ApplicationJsonSchemaProperties().getInternalService()), result.getSchema());
         assertNotNull(result.getContent());
         assertEquals("Order desc", result.getContent().getDescription());
         assertEquals("env-9", result.getContent().getActiveEnvironmentId());
-        assertEquals(
-                org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType.INTERNAL,
-                result.getContent().getIntegrationSystemType());
+        // Not integrationSystemType: the field is write-only in the current format, so the mapper leaves it
+        // unset and the $schema asserted above is what states the type. V105RevertMigration puts it back for
+        // a legacy export.
+        assertNull(result.getContent().getIntegrationSystemType(),
+                "the current document states its type through $schema, not through this field");
         assertEquals("orders", result.getContent().getInternalServiceName());
         assertEquals(
                 org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol.KAFKA,

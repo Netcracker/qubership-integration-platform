@@ -484,7 +484,15 @@ public class ApiSpecificationExportService {
     private Operation buildOperationForImplementedServiceTrigger(Element element) {
         String modelId = getImplementedServiceTriggerSpecificationId(element);
         String operationId = getImplementedServiceTriggerOperationId(element);
-        String operationSpecificationText = findOperation(operationId).getSpecification().toString();
+        // The operation body is the whole point of this path, so there is no degraded document to fall back to.
+        JsonNode operationSpecification = findOperation(operationId).getSpecification();
+        if (isNull(operationSpecification)) {
+            throw new ApiSpecificationExportException(
+                    "Operation " + operationId + " of specification " + modelId + " has no stored specification, so"
+                            + " trigger element " + element.getId() + " cannot be exported. Re-import the"
+                            + " specification source of that service, then export again.");
+        }
+        String operationSpecificationText = operationSpecification.toString();
         ApiSpecificationFormat format = guessFormat(operationSpecificationText);
         ObjectMapper mapper = getSpecificationMapper(format);
         try {

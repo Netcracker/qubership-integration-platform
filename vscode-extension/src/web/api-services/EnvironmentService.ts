@@ -1,6 +1,7 @@
 import { Environment, EnvironmentRequest } from "./servicesTypes";
-import { fileApi } from "../response/file/fileApiProvider";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
+import { findServiceFileById } from "../response/file/serviceFileLookup";
+import { UnreadableOutcomeError } from "../response/file/lookupOutcome";
+import { writeServiceInCurrentFormat } from "../response/file/serviceFileWrite";
 import { SystemService } from "./SystemService";
 import { LabelUtils } from "./LabelUtils";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
@@ -28,6 +29,10 @@ export class EnvironmentService {
 
       return system.content?.environments || [];
     } catch (error) {
+      // A refusal names the file to fix; an empty list would read as "this system has none".
+      if (error instanceof UnreadableOutcomeError) {
+        throw error;
+      }
       return [];
     }
   }
@@ -58,13 +63,15 @@ export class EnvironmentService {
         ? { ...defaultProperties, ...requestedProperties }
         : defaultProperties;
 
+      // No systemId: the environment is stored inside its own service file, so
+      // the back-reference is implicit. The backend does not export one either
+      // (Environment.system is @JsonBackReference).
       const environment: Environment = {
         id: crypto.randomUUID(),
         name: request.name,
         address: request.address,
         description: request.description || "",
         sourceType: requestedSourceType as any,
-        systemId,
         properties: mergedProperties,
         labels: LabelUtils.toEntityLabels([]),
       };
@@ -110,7 +117,7 @@ export class EnvironmentService {
       const environmentIndex =
         system.content.environments?.findIndex(
           (env: Environment) => env.id === environmentId,
-        ) || -1;
+        ) ?? -1;
       if (environmentIndex === -1) {
         return null;
       }
@@ -154,7 +161,7 @@ export class EnvironmentService {
       const environmentIndex =
         system.content.environments?.findIndex(
           (env: Environment) => env.id === environmentId,
-        ) || -1;
+        ) ?? -1;
       if (environmentIndex === -1) {
         return false;
       }
@@ -184,12 +191,7 @@ export class EnvironmentService {
    * Save system data
    */
   private async saveSystem(system: any): Promise<void> {
-    try {
-      const ext = getExtensionsForFile();
-      const serviceFileUri = await fileApi.findFileById(system.id, ext.service);
-      await fileApi.writeMainService(serviceFileUri, system);
-    } catch (error) {
-      throw error;
-    }
+    const serviceFileUri = await findServiceFileById(system.id);
+    await writeServiceInCurrentFormat(serviceFileUri, system);
   }
 }

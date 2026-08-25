@@ -38,9 +38,9 @@ public interface SystemRepository extends JpaRepository<IntegrationSystem, Strin
     @Query(value =
             """
                     SELECT DISTINCT systems, systems.name
-                    FROM SpecificationGroup spec_group
+                    FROM ApiGroup spec_group
                     JOIN IntegrationSystem systems ON spec_group.system.id = systems.id
-                    JOIN SystemModel models ON spec_group.id = models.specificationGroup.id
+                    JOIN SystemModel models ON spec_group.id = models.apiGroup.id
                     WHERE models.deprecated = false
                     ORDER BY systems.name""")
     List<IntegrationSystem> findAllByNotDeprecatedAndWithSpecs();
@@ -48,9 +48,9 @@ public interface SystemRepository extends JpaRepository<IntegrationSystem, Strin
     @Query(value =
             """
                     SELECT DISTINCT systems, systems.name
-                    FROM SpecificationGroup spec_group
+                    FROM ApiGroup spec_group
                     JOIN IntegrationSystem systems ON spec_group.system.id = systems.id
-                    JOIN SystemModel models ON spec_group.id = models.specificationGroup.id
+                    JOIN SystemModel models ON spec_group.id = models.apiGroup.id
                     WHERE models.deprecated = false AND systems.protocol IN (:modelType)
                     ORDER BY systems.name""")
     List<IntegrationSystem> findAllByNotDeprecatedAndWithSpecsAndModelType(List<OperationProtocol> modelType);

@@ -1,0 +1,16 @@
+id: "svc-internal"
+$schema: "http://qubership.org/schemas/product/qip/internal-service.schema.yaml"
+name: "Billing service"
+content:
+  description: "Golden corpus fixture for internal services"
+  activeEnvironmentId: "env-billing"
+  internalServiceName: "billing"
+  protocol: "HTTP"
+  environments:
+  - id: "env-billing"
+    name: "Default"
+    address: "http://billing"
+    sourceType: "MANUAL"
+  labels:
+  - "golden"
+  migrations: "[100, 101, 102, 103, 104, 105]"

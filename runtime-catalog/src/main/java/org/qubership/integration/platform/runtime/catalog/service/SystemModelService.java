@@ -63,17 +63,17 @@ public class SystemModelService extends SystemModelBaseService {
     }
 
     public void checkSystemModelUniqueness(IntegrationSystem system) {
-        for (SpecificationGroup specGroup : CollectionUtils.emptyIfNull(system.getSpecificationGroups())) {
+        for (ApiGroup specGroup : CollectionUtils.emptyIfNull(system.getApiGroups())) {
             Set<String> modelIds = CollectionUtils.emptyIfNull(specGroup.getSystemModels()).stream()
                     .map(SystemModel::getId)
                     .collect(Collectors.toSet());
-            SystemModel modelDuplicate = systemModelRepository.findByIdInAndSpecificationGroupIdNot(modelIds,
+            SystemModel modelDuplicate = systemModelRepository.findByIdInAndApiGroupIdNot(modelIds,
                     specGroup.getId());
 
             if (modelDuplicate != null) {
                 throw new DuplicateKeyException(
                         String.format("Specification with id=%s already exists on another specification group %s",
-                                modelDuplicate.getId(), modelDuplicate.getSpecificationGroup().getId()));
+                                modelDuplicate.getId(), modelDuplicate.getApiGroup().getId()));
             }
         }
     }
@@ -83,16 +83,16 @@ public class SystemModelService extends SystemModelBaseService {
     }
 
     public SystemModel getLatestSystemModel(String systemId) {
-        return systemModelRepository.findFirstBySpecificationGroupSystemIdOrderByCreatedWhenDesc(systemId);
+        return systemModelRepository.findFirstByApiGroupSystemIdOrderByCreatedWhenDesc(systemId);
     }
 
     public SystemModel getLastDiscoveredSystemModelInGroup(String specificationGroupId) {
-        return systemModelRepository.findFirstBySpecificationGroupIdAndSourceEqualsOrderByCreatedWhenDesc(
+        return systemModelRepository.findFirstByApiGroupIdAndSourceEqualsOrderByCreatedWhenDesc(
                 specificationGroupId, DISCOVERED);
     }
 
     public List<SystemModel> getSystemModelsBySystemId(String systemId) {
-        return systemModelRepository.findSystemModelsBySpecificationGroupSystemId(systemId).stream()
+        return systemModelRepository.findSystemModelsByApiGroupSystemId(systemId).stream()
                 .peek(this::enrichSystemModelWithChains)
                 .collect(Collectors.toList());
     }
@@ -105,7 +105,7 @@ public class SystemModelService extends SystemModelBaseService {
     }
 
     public SystemModel getSystemModelByVersionAndSpecificationGroupId(String specificationGroupId, String version) {
-        return systemModelRepository.findFirstBySpecificationGroupIdAndVersion(specificationGroupId,
+        return systemModelRepository.findFirstByApiGroupIdAndVersion(specificationGroupId,
                 version);
     }
 
@@ -130,7 +130,7 @@ public class SystemModelService extends SystemModelBaseService {
 
             SystemModel specification = specificationOptional.get();
             systemModelRepository.delete(specification);
-            logModelAction(specification, specification.getSpecificationGroup(), LogOperation.DELETE);
+            logModelAction(specification, specification.getApiGroup(), LogOperation.DELETE);
         }
 
         return specificationOptional;
@@ -152,7 +152,7 @@ public class SystemModelService extends SystemModelBaseService {
         }
         replaceLabels(persistedModel, newModel.getLabels());
         SystemModel model = systemModelRepository.save(persistedModel);
-        logModelAction(model, model.getSpecificationGroup(), LogOperation.UPDATE);
+        logModelAction(model, model.getApiGroup(), LogOperation.UPDATE);
         return model;
     }
 
@@ -182,7 +182,7 @@ public class SystemModelService extends SystemModelBaseService {
             throw new SpecificationDeleteException("Specification used by one or more chains");
         }
 
-        SpecificationGroup specificationGroup = model.getSpecificationGroup();
+        ApiGroup specificationGroup = model.getApiGroup();
         specificationGroup.removeSystemModel(model);
         systemModelRepository.delete(model);
         logModelAction(model, specificationGroup, LogOperation.DELETE);

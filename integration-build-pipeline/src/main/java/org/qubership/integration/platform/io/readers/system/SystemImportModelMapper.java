@@ -28,12 +28,13 @@ import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
 import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.chain.model.ImportSystemModel;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
 import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
@@ -72,17 +73,17 @@ public final class SystemImportModelMapper {
             model.setProtocol(content.getProtocol());
             model.setEnvironments(toEnvironments(content.getEnvironments()));
             model.setLabels(content.getLabels());
-            model.setSpecificationGroups(toSpecificationGroups(content.getSpecificationGroups()));
+            model.setSpecificationGroups(toSpecificationGroups(content.getApiGroups()));
         }
         return model;
     }
 
-    public static ImportSpecificationGroup toModel(SpecificationGroupDto dto) {
+    public static ImportSpecificationGroup toModel(ApiGroupDto dto) {
         ImportSpecificationGroupImpl model = new ImportSpecificationGroupImpl();
         model.setId(dto.getId());
         model.setName(dto.getName());
 
-        SpecificationGroupContentDto content = dto.getContent();
+        ApiGroupContentDto content = dto.getContent();
         if (content != null) {
             model.setDescription(content.getDescription());
             model.setCreatedBy(content.getCreatedBy());
@@ -111,6 +112,8 @@ public final class SystemImportModelMapper {
             model.setModifiedWhen(content.getModifiedWhen());
             model.setDeprecated(content.isDeprecated());
             model.setVersion(content.getVersion());
+            model.setSpecificationType(content.getSpecificationType());
+            model.setSpecificationVersion(content.getSpecificationVersion());
             model.setSource(content.getSource());
             model.setOperations(toOperations(content.getOperations()));
             model.setParentId(content.getParentId());
@@ -148,6 +151,23 @@ public final class SystemImportModelMapper {
         return model;
     }
 
+    /**
+     * Maps an exported operation. Request and response schemas are absent from the current file format —
+     * they are re-derived from the specification source on demand — so the model carries the structural
+     * fields only.
+     */
+    public static ImportOperation toModel(ApiOperationDto dto) {
+        ImportOperationImpl model = new ImportOperationImpl();
+        model.setId(dto.getId());
+        model.setName(dto.getName());
+        model.setDescription(dto.getDescription());
+        model.setMethod(dto.getMethod());
+        model.setPath(dto.getPath());
+        model.setSpecification(dto.getSpecification());
+        model.setExported(dto);
+        return model;
+    }
+
     public static ImportOperation toModel(OperationDto dto) {
         ImportOperationImpl model = new ImportOperationImpl();
         model.setId(dto.getId());
@@ -165,11 +185,11 @@ public final class SystemImportModelMapper {
         return dtos == null ? List.of() : dtos.stream().map(SystemImportModelMapper::toModel).toList();
     }
 
-    private static List<ImportSpecificationGroup> toSpecificationGroups(List<SpecificationGroupDto> dtos) {
+    private static List<ImportSpecificationGroup> toSpecificationGroups(List<ApiGroupDto> dtos) {
         return dtos == null ? List.of() : dtos.stream().map(SystemImportModelMapper::toModel).toList();
     }
 
-    private static List<ImportOperation> toOperations(List<OperationDto> dtos) {
+    private static List<ImportOperation> toOperations(List<ApiOperationDto> dtos) {
         return dtos == null ? List.of() : dtos.stream().map(SystemImportModelMapper::toModel).toList();
     }
 

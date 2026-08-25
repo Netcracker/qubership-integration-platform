@@ -9,7 +9,9 @@ import { fileApi } from "../../../src/web/response/file";
 const mockShowWarningMessage = jest.fn();
 const mockShowErrorMessage = jest.fn();
 const mockProgressReport = jest.fn();
-const mockWorkspaceFolders = [{ uri: { path: "/workspace", fsPath: "/workspace" } }];
+const mockWorkspaceFolders = [
+  { uri: { path: "/workspace", fsPath: "/workspace" } },
+];
 
 jest.mock("vscode", () => {
   const uriModule = jest.requireActual("../../__mocks__/vscode");
@@ -202,11 +204,7 @@ describe("apiRouter export image handlers", () => {
 
   test.each([
     ["string payload", "layout timeout", "layout timeout"],
-    [
-      "message payload",
-      { message: "Chain is empty" },
-      "Chain is empty",
-    ],
+    ["message payload", { message: "Chain is empty" }, "Chain is empty"],
     [
       "target payload",
       { target: { outputName: "alpha", chainId: "id-1" } },

@@ -41,7 +41,7 @@ public enum EntityType {
     IMPLEMENTED_SERVICE,
     ENVIRONMENT,
     SPECIFICATION,
-    SPECIFICATION_GROUP,
+    API_GROUP,
     SERVICES,
     SECURED_VARIABLE,
     COMMON_VARIABLE,
@@ -58,7 +58,6 @@ public enum EntityType {
             case INTERNAL -> INNER_CLOUD_SERVICE;
             case EXTERNAL -> EXTERNAL_SERVICE;
             case IMPLEMENTED -> IMPLEMENTED_SERVICE;
-            default -> EXTERNAL_SERVICE;
         };
     }
 }

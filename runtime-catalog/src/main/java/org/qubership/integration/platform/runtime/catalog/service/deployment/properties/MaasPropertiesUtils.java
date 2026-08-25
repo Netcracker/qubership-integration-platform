@@ -29,6 +29,20 @@ public class MaasPropertiesUtils {
         this.msInfoProvider = msInfoProvider;
     }
 
+    /** Reads a MaaS classifier key from the element's active environment. */
+    public static String envScopeValue(Element element, String key, String defaultValue) {
+        return scopeValue(element.getEnvironment().map(environment -> (Map<String, Object>) environment.getProperties()).orElse(null), key, defaultValue);
+    }
+
+    /**
+     * Reads a MaaS classifier key from whichever property scope the caller resolved: the environment's
+     * properties for async elements, the element's own properties for standalone Kafka and AMQP elements.
+     */
+    public static String scopeValue(Map<String, Object> props, String key, String defaultValue) {
+        Object value = props == null ? null : props.get(key);
+        return value == null ? defaultValue : value.toString();
+    }
+
     public void enrichWithMaasEnvProperties(Element element, @NotNull Map<String, String> elementProperties) {
         String maasClassifierNamespace = ElementUtils.getPropertyAsString(element, CamelOptions.MAAS_CLASSIFIER_NAMESPACE_PROP);
         String maasTenantTopicEnabled = ElementUtils.getPropertyAsString(element, MAAS_CLASSIFIER_TENANT_ENABLED_PROP);

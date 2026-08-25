@@ -41,6 +41,8 @@ At the top of the table the following options are available:
 
 Any MCP service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
+Inside that folder services are grouped by type: **External**, **Internal**, **Implemented**, **Context**, **MCP**, and an **Unknown** group for a file whose type is not stated anywhere. A group with no services is not shown. The grouping is a view of the tree only — the files stay where they are on disk.
+
 ### Add MCP Service
 <ins>Web UI</ins>
 
@@ -61,11 +63,13 @@ To create any service using VS Code Extension, follow the steps outlined below:
 3. Near the "Services" folder click on appearing button "QIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter the identifier, enter some description and click Enter. Next, it opens "Common Parameters" tab of the created service.
 
+Each service is stored in one file. The three plain types — external, inner cloud, and implemented — share the name `<id>.service.qip.yaml` and state their type in the document's `$schema`. A context service is stored as `<id>.context-service.qip.yaml` and an MCP service as `<id>.mcp-service.qip.yaml` — separate kinds of document, named that way from the start. Files named `<id>.external-service.qip.yaml`, `<id>.internal-service.qip.yaml`, or `<id>.implemented-service.qip.yaml` were written by earlier versions of the extension; they open and edit normally, and the first edit renames the file back to `<id>.service.qip.yaml` — git records the change as a rename. A file older than all of these keeps its type inside the document (`content.integrationSystemType`); the first edit moves the type into `$schema` without renaming the file. The editor tab keeps showing the old file name after a rename. That is cosmetic: the service stays editable, and the tab picks up the new name the next time you open it.
+
 ### View Common Parameters
 Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
@@ -102,6 +106,12 @@ When import is completed, system displays import result table with the following
 **`⛔ Not available via VS Code extension`**
 
 System allows to export MCP service with its metadata, labels, identifier, and instructions. From **"MCP Services"** page, mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **"Export"**. Or simply click this button to export all services at once after confirmation.
+
+> ⚠️ **Warning:** Do not set `QIP_EXPORT_LEGACY_FORMAT=true` when the archive has to carry MCP services: the flag
+> writes them as `mcp-service-<id>.yaml`, a name no version of the import looks for, so they are **silently missing**
+> from the result. An MCP service needs no legacy format in the first place — its file claims format version 100,
+> which any Runtime Catalog with MCP support imports. When exporting for an older instance, export MCP services in a
+> separate archive without the flag.
 
 ### Constraints
 

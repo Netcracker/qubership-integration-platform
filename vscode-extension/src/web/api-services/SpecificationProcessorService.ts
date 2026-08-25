@@ -1,4 +1,4 @@
-import { SpecificationGroup, Specification } from "./servicesTypes";
+import { ApiGroup, Api } from "./servicesTypes";
 import { ApiSpecificationType } from "./importApiTypes";
 import {
   SoapSpecificationParser,
@@ -25,7 +25,7 @@ export class SpecificationProcessorService {
    * Process specification files
    */
   async processSpecificationFiles(
-    specificationGroup: SpecificationGroup,
+    specificationGroup: ApiGroup,
     files: File[],
     systemId?: string,
     contentCache?: Map<string, Promise<string>>,
@@ -50,7 +50,7 @@ export class SpecificationProcessorService {
    */
   private async processSpecificationFile(
     file: File,
-    specificationGroup: SpecificationGroup,
+    specificationGroup: ApiGroup,
     systemId?: string,
     allFiles?: File[],
     contentCache?: Map<string, Promise<string>>,
@@ -172,8 +172,8 @@ export class SpecificationProcessorService {
     specificationId: string,
     version: string,
     specificationType: ApiSpecificationType,
-    operations: Specification["operations"],
-  ): Specification {
+    operations: Api["operations"],
+  ): Api {
     return {
       id: specificationId,
       name: version,

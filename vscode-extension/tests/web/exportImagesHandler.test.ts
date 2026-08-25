@@ -60,7 +60,9 @@ describe("exportImagesHandler", () => {
 
     test("falls back to filePath argument", () => {
       expect(
-        resolveExportPaths("file:///workspace/chain.yaml", { outputDir: "/tmp" }),
+        resolveExportPaths("file:///workspace/chain.yaml", {
+          outputDir: "/tmp",
+        }),
       ).toEqual(["file:///workspace/chain.yaml"]);
     });
 

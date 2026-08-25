@@ -12,6 +12,7 @@ import {
 import { useActionLog } from "../../../src/hooks/useActionLog.tsx";
 import { exportActionsLogAsExcel } from "../../../src/misc/log-export-utils.ts";
 import { ActionsLog } from "../../../src/components/admin_tools/ActionsLog.tsx";
+import { formatEntityType } from "../../../src/misc/entityTypeLabels.ts";
 
 // src/components/admin_tools/ActionsLog.integration.test.tsx
 // ====== MOCKS ======
@@ -350,6 +351,19 @@ describe("ActionsLog() ActionsLog method", () => {
 
       // Should render "—" (em dash) when name is empty
       expect(screen.getByText("—")).toBeInTheDocument();
+    });
+  });
+
+  // The default formatting lowercases everything after the first letter, which turns an acronym into "Api group".
+  describe("Entity type labels", () => {
+    it("renders API_GROUP with its acronym intact", () => {
+      expect(formatEntityType(EntityType.API_GROUP)).toBe("API group");
+    });
+
+    it("still snake-formats an entity type with no override", () => {
+      expect(formatEntityType(EntityType.COMMON_VARIABLE)).toBe(
+        "Common variable",
+      );
     });
   });
 

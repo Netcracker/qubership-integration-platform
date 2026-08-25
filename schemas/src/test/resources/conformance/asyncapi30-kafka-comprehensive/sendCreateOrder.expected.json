@@ -1,0 +1,56 @@
+{
+    "typed": {
+        "type": "asyncapi",
+        "summary": null,
+        "channel": "orders.commands",
+        "method": "send"
+    },
+    "path": "orders.commands",
+    "method": "send",
+    "modelId": "bb9ab025-a7ec-4092-9780-650d44b52120-kafka-v3-comprehensive-2.0.0",
+    "sourceHash": "4f470ec36a5e0b4771a7c76c901610c2988d19c39bb99d5d846da8c088c186c3",
+    "operationId": "sendCreateOrder",
+    "requestSchema": {
+    },
+    "specification": {
+        "topic": "orders.commands",
+        "maasClassifierName": "order-commands"
+    },
+    "responseSchemas": {
+        "payload": {
+            "type": "object",
+            "required": [
+                "customerId",
+                "items"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "productId",
+                            "quantity"
+                        ],
+                        "properties": {
+                            "quantity": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "productId": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "customerId": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        }
+    }
+}

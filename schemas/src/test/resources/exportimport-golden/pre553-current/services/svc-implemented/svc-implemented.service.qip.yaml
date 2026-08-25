@@ -1,0 +1,16 @@
+id: "svc-implemented"
+$schema: "http://qubership.org/schemas/product/qip/service.schema.yaml"
+name: "Shipping service"
+content:
+  description: "Golden corpus fixture for implemented services"
+  activeEnvironmentId: "env-shipping"
+  integrationSystemType: "IMPLEMENTED"
+  protocol: "HTTP"
+  environments:
+  - id: "env-shipping"
+    name: "Default"
+    address: "http://shipping"
+    sourceType: "MANUAL"
+  labels:
+  - "golden"
+  migrations: "[100, 101, 102, 103, 104]"

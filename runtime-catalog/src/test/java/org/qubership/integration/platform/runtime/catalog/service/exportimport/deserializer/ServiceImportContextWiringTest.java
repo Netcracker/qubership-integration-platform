@@ -21,12 +21,17 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
  * Verifies that the service-import bean graph wires without a full application context.
@@ -50,7 +55,11 @@ class ServiceImportContextWiringTest {
             .withBean(FileMigrationService.class)
             .withBean(IntegrationSystemReader.class)
             .withBean(IntegrationSystemDtoMapper.class)
-            .withBean(SpecificationGroupDtoMapper.class)
+            .withBean(ApplicationJsonSchemaProperties.class)
+            .withBean(ServiceTypeFiles.class)
+            .withBean(OperationSchemaExtractor.class, () -> mock(OperationSchemaExtractor.class))
+            .withBean(ApiOperationDtoMapper.class)
+            .withBean(ApiGroupDtoMapper.class)
             .withBean(SystemModelDtoMapper.class)
             .withBean(ServiceDeserializer.class);
 
@@ -61,7 +70,7 @@ class ServiceImportContextWiringTest {
             assertThat(context).hasSingleBean(ServiceDeserializer.class);
             assertThat(context).hasSingleBean(IntegrationSystemReader.class);
             assertThat(context).hasSingleBean(IntegrationSystemDtoMapper.class);
-            assertThat(context).hasSingleBean(SpecificationGroupDtoMapper.class);
+            assertThat(context).hasSingleBean(ApiGroupDtoMapper.class);
             assertThat(context).hasSingleBean(SystemModelDtoMapper.class);
         });
     }

@@ -24,14 +24,14 @@ import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
 import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.chain.model.ImportSystemModel;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
 import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType;
-import org.qubership.integration.platform.io.model.exportimport.system.OperationDto;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
@@ -96,14 +96,14 @@ class SystemImportModelMapperTest {
     @DisplayName("specification-group DTO flattens its content block onto the model")
     @Test
     void mapsSpecificationGroup() {
-        SpecificationGroupContentDto content = SpecificationGroupContentDto.builder()
+        ApiGroupContentDto content = ApiGroupContentDto.builder()
                 .description("Group desc")
                 .url("http://example.org/spec")
                 .synchronization(true)
                 .parentId("sys-1")
                 .labels(List.of("prod"))
                 .build();
-        SpecificationGroupDto dto = SpecificationGroupDto.builder()
+        ApiGroupDto dto = ApiGroupDto.builder()
                 .id("group-1")
                 .name("Group")
                 .content(content)
@@ -122,7 +122,7 @@ class SystemImportModelMapperTest {
     @DisplayName("system-model DTO maps its operations and leaves specification-source text empty")
     @Test
     void mapsSystemModelAndSources() {
-        OperationDto operation = OperationDto.builder()
+        ApiOperationDto operation = ApiOperationDto.builder()
                 .id("op-1")
                 .name("getThing")
                 .method("GET")

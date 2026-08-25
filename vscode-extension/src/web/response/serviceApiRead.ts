@@ -1,8 +1,8 @@
 import {
   IntegrationSystem,
   Environment,
-  SpecificationGroup,
-  Specification,
+  ApiGroup,
+  Api,
   SystemOperation,
   OperationInfo,
   BaseEntity,
@@ -11,16 +11,52 @@ import {
 import { Uri } from "vscode";
 import * as vscode from "vscode";
 import { fileApi } from "./file/fileApiProvider";
+import { RESOURCES_FOLDER } from "./file/fileApiImpl";
+import { isSafeResourcePath } from "./file/resourcePath";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { getExtensionsForUri } from "./file/fileExtensions";
+import {
+  extractFilename,
+  getExtensionsForUri,
+  FileExtensionsConfig,
+} from "./file/fileExtensions";
+import {
+  isAnyServiceFile,
+  resolveServiceType,
+  serviceIdFromFileName,
+} from "./file/serviceFileType";
+import {
+  findServiceFileById,
+  findServiceFiles,
+  ListedServices,
+  readListedServices,
+  UnreadableServiceFileError,
+} from "./file/serviceFileLookup";
+import {
+  noMatchError,
+  refuseUnreadableSibling,
+  resolveFirstCandidate,
+  scanMissRefusal,
+  UnreadableResolvedFileError,
+} from "./file/lookupOutcome";
+import { resolveApiFiles, resolveGroupFiles } from "./file/entityFiles";
+import { API_NAMES, candidateExtensions } from "./file/namePrecedence";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
-import { ContentParser } from "../api-services/parsers/ContentParser";
+import { OperationSchemaExtractor } from "../api-services/parsers/OperationSchemaExtractor";
+import {
+  deriveMethod,
+  derivePath,
+  isTypedOperation,
+} from "../api-services/parsers/deriveTypedMethodPath";
+import { getExtendedProtocol, getSpecificationType } from "./serviceApiUtils";
 
 export async function getCurrentServiceId(
   serviceFileUri: Uri,
 ): Promise<string> {
-  const service: any = await getMainService(serviceFileUri);
-  return service.id;
+  const { serviceId } = await readServiceIdentity(serviceFileUri);
+  if (!serviceId) {
+    throw Error(`No service id in ${serviceFileUri.path}`);
+  }
+  return serviceId;
 }
 
 export async function getMainServiceFileUri(serviceFileUri: Uri): Promise<Uri> {
@@ -31,37 +67,125 @@ export async function getMainService(serviceFileUri: Uri): Promise<any> {
   return await fileApi.getMainService(serviceFileUri);
 }
 
+/**
+ * The service document, read from the file the id resolves to rather than from whichever uri the
+ * caller holds. A conversion leaves the legacy sibling behind whenever the delete fails, and both
+ * `getServices` and the explorer list such a service from the typed file. A read that trusted the
+ * held uri would show the document that lost that precedence race. A document carrying another id
+ * is a failure, not a silent read of the wrong service.
+ *
+ * The write sites read through this too: the file the id owns is the one every read and both lists
+ * already show, so an edit applies to what the user is looking at.
+ */
+export async function readServiceFile(
+  serviceFileUri: Uri,
+  serviceId: string,
+): Promise<{ fileUri: Uri; service: any }> {
+  const fileUri = await resolveServiceFileUri(serviceFileUri, serviceId);
+  const service = await getMainService(fileUri);
+  if (service?.id !== serviceId) {
+    console.error(
+      `ServiceId mismatch: expected "${serviceId}", got "${service?.id}" in ${fileUri.path}`,
+    );
+    throw Error(
+      `ServiceId mismatch: expected "${serviceId}", got "${service?.id}"`,
+    );
+  }
+  return { fileUri, service };
+}
+
+/**
+ * What a read that holds no id learns from the uri: the id the document states, and the document
+ * itself when it read. A conversion changes the extension alone, so a path it deleted is recovered
+ * through the id the name kept. The document decides over the name, so a hand-authored file whose
+ * name and id disagree still reads as the service it states.
+ */
+async function readServiceIdentity(
+  serviceFileUri: Uri,
+): Promise<{ serviceId?: string; service?: any }> {
+  try {
+    const service: any = await getMainService(serviceFileUri);
+    return { serviceId: service?.id, service };
+  } catch (error) {
+    const serviceId = serviceIdFromFileName(
+      serviceFileUri,
+      getExtensionsForUri(serviceFileUri),
+    );
+    if (!serviceId) {
+      throw error;
+    }
+    console.warn(
+      `Could not read ${serviceFileUri.path}; taking service ${serviceId} from the file name`,
+      error,
+    );
+    return { serviceId };
+  }
+}
+
+/**
+ * The service file a read works from. The uri a caller holds is a hint: the id resolves through the
+ * current-name-wins lookup, so a uri handed out before a conversion reads neither the document that lost
+ * the precedence race nor a path the conversion deleted. An id nothing resolves falls back to the
+ * uri, which is how a read that starts from a file of another kind still lands in the folder it came
+ * from. The fallback holds only while that uri still points at something: handing back a path that
+ * is gone turns the lookup failure into a misleading read error further down.
+ */
+async function resolveServiceFileUri(
+  currentFile: Uri,
+  serviceId: string,
+): Promise<Uri> {
+  try {
+    return await findServiceFileById(
+      serviceId,
+      getExtensionsForUri(currentFile),
+    );
+  } catch (error) {
+    // The uri is no fallback for a file the lookup could not read: it is the sibling that lost the
+    // precedence race, so reading it serves a superseded body and saving it destroys the file
+    // nobody could read.
+    if (
+      error instanceof UnreadableServiceFileError ||
+      !(await fileApi.fileExists(currentFile))
+    ) {
+      throw error;
+    }
+    console.warn(
+      `Could not resolve service ${serviceId} by id; using ${currentFile.path}`,
+      error,
+    );
+    return currentFile;
+  }
+}
+
+/** The service id a group, api or operation id is prefixed with — a uuid's five parts. */
+function serviceIdFromEntityId(entityId: string): string | undefined {
+  const parts = entityId.split("-");
+  return parts.length >= 5 ? parts.slice(0, 5).join("-") : undefined;
+}
+
 export async function getService(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<IntegrationSystem> {
-  let actualServiceFileUri = serviceFileUri;
-  let service: any = await getMainService(serviceFileUri);
-  if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
-    service = await getMainService(actualServiceFileUri);
+  const { fileUri, service } = await readServiceFile(serviceFileUri, serviceId);
 
-    if (service.id !== serviceId) {
-      console.error(
-        `ServiceId mismatch: expected "${serviceId}", got "${service.id}" even after finding file by ID`,
-      );
-      throw Error(
-        `ServiceId mismatch: expected "${serviceId}", got "${service.id}"`,
-      );
-    }
-  }
+  return toIntegrationSystem(fileUri, service);
+}
+
+/** The wire shape of a service document already read from the file that owns it. */
+function toIntegrationSystem(fileUri: Uri, service: any): IntegrationSystem {
+  const type = resolveServiceType(fileUri, service);
 
   return {
     id: service.id,
     name: service.name,
     description: service.content?.description || "",
     activeEnvironmentId: service.content?.activeEnvironmentId || "",
-    integrationSystemType: service.content?.integrationSystemType || "",
-    type: service.content?.integrationSystemType || "",
+    integrationSystemType: type,
+    type,
     protocol: (service.content?.protocol || "").toLowerCase(),
-    extendedProtocol: service.content?.extendedProtocol || "",
-    specification: service.content?.specification || "",
+    extendedProtocol: getExtendedProtocol(service.content?.protocol),
+    specification: getSpecificationType(service.content?.protocol),
     environments: service.content?.environments || [],
     labels: LabelUtils.toEntityLabels(service.content?.labels || []),
   };
@@ -94,10 +218,13 @@ export async function getContextServices(
     return [await getContextService(serviceFileUri, service.id)];
   } else {
     const result: ContextSystem[] = [];
-    const serviceFiles = await fileApi.findFiles(ext.contextService);
-    for (const serviceFile of serviceFiles) {
-      const service: any = await getMainService(serviceFile);
-      result.push(await getContextService(serviceFile, service.id));
+    const listed = await readListedServices(
+      await fileApi.findFiles(ext.contextService),
+      ext,
+    );
+    reportUnreadableListing(listed);
+    for (const { fileUri, service } of listed.services) {
+      result.push(await getContextService(fileUri, service.id));
     }
 
     return result;
@@ -117,10 +244,13 @@ export async function getMcpServices(
     return [await getMcpService(serviceFileUri, service.id)];
   } else {
     const result: MCPSystem[] = [];
-    const serviceFiles = await fileApi.findFiles(ext.mcpService);
-    for (const serviceFile of serviceFiles) {
-      const service: any = await getMainService(serviceFile);
-      result.push(await getMcpService(serviceFile, service.id));
+    const listed = await readListedServices(
+      await fileApi.findFiles(ext.mcpService),
+      ext,
+    );
+    reportUnreadableListing(listed);
+    for (const { fileUri, service } of listed.services) {
+      result.push(await getMcpService(fileUri, service.id));
     }
 
     return result;
@@ -148,21 +278,7 @@ export async function getEnvironment(
   serviceId: string,
   environmentId: string,
 ): Promise<Environment> {
-  let actualServiceFileUri = serviceFileUri;
-  let service: any = await getMainService(serviceFileUri);
-
-  if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
-    service = await getMainService(actualServiceFileUri);
-
-    if (service.id !== serviceId) {
-      console.error(
-        `ServiceId mismatch: expected "${serviceId}", got "${service.id}"`,
-      );
-      throw Error("ServiceId mismatch");
-    }
-  }
+  const { service } = await readServiceFile(serviceFileUri, serviceId);
 
   return findEnvironmentById(service.content?.environments, environmentId);
 }
@@ -171,21 +287,7 @@ export async function getEnvironments(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<Environment[]> {
-  let actualServiceFileUri = serviceFileUri;
-  let service: any = await getMainService(serviceFileUri);
-
-  if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
-    service = await getMainService(actualServiceFileUri);
-
-    if (service.id !== serviceId) {
-      console.error(
-        `ServiceId mismatch: expected "${serviceId}", got "${service.id}"`,
-      );
-      throw Error("ServiceId mismatch");
-    }
-  }
+  const { service } = await readServiceFile(serviceFileUri, serviceId);
 
   return parseEnvironments(service.content?.environments || []);
 }
@@ -226,61 +328,46 @@ function parseEnvironments(environments: any[]): Environment[] {
   return result;
 }
 
+// Reads the Service → Group level. Each group's `specifications[]` wire field
+// holds its APIs (see getSpecificationModel).
 export async function getApiSpecifications(
   currentFile: Uri,
   serviceId: string,
-): Promise<SpecificationGroup[]> {
-  const ext = getExtensionsForUri(currentFile);
-  const serviceFileUri = currentFile.path.endsWith(ext.service)
-    ? currentFile
-    : await fileApi.findFileById(serviceId, ext.service);
+): Promise<ApiGroup[]> {
+  const { fileUri: serviceFileUri } = await readServiceFile(
+    currentFile,
+    serviceId,
+  );
 
-  const service: any = await getMainService(serviceFileUri);
+  // A group may have a file under both extensions. List it once, from the same file
+  // ApiGroupService.resolveGroupFile picks, so the tree and the editor never disagree — and refuse
+  // rather than list the sibling of a file the scan could not read.
+  const groupFiles = await resolveGroupFiles(serviceFileUri);
+  const result: ApiGroup[] = [];
 
-  if (service.id !== serviceId) {
-    console.error(
-      `ServiceId mismatch: expected ${serviceId}, got ${service.id}`,
-    );
-    throw Error("ServiceId mismatch");
-  }
-
-  const specGroupFiles =
-    await fileApi.getSpecificationGroupFiles(serviceFileUri);
-  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-  const result: SpecificationGroup[] = [];
-
-  for (const fileName of specGroupFiles) {
-    try {
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await fileApi.parseFile(fileUri);
-
-      if (parsed && parsed.content && parsed.content.parentId === serviceId) {
-        const specifications = await getSpecificationModel(
-          serviceFileUri,
-          serviceId,
-          parsed.id,
-        );
-        const chains = await getChainsUsingSpecificationGroup(
-          serviceId,
-          parsed.id,
-        );
-
-        const group = {
-          id: parsed.id,
-          name: parsed.name,
-          description: parsed.content.description || "",
-          specifications: specifications,
-          synchronization: parsed.content.synchronization || false,
-          parentId: parsed.content.parentId,
-          labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
-          chains: chains,
-          systemId: parsed.content.parentId,
-        };
-        result.push(group);
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification group file ${fileName}`, e);
+  for (const { parsed } of groupFiles.byId.values()) {
+    if (parsed?.content?.parentId !== serviceId) {
+      continue;
     }
+    const specifications = await getSpecificationModel(
+      serviceFileUri,
+      serviceId,
+      parsed.id,
+    );
+    const chains = await getChainsUsingSpecificationGroup(serviceId, parsed.id);
+
+    const group = {
+      id: parsed.id,
+      name: parsed.name,
+      description: parsed.content.description || "",
+      specifications: specifications,
+      synchronization: parsed.content.synchronization || false,
+      parentId: parsed.content.parentId,
+      labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
+      chains: chains,
+      systemId: parsed.content.parentId,
+    };
+    result.push(group);
   }
 
   return result;
@@ -289,8 +376,8 @@ export async function getApiSpecifications(
 export async function getLatestApiSpecification(
   currentFile: Uri,
   serviceId: string,
-): Promise<Specification | undefined> {
-  const specGroups: SpecificationGroup[] = await getApiSpecifications(
+): Promise<Api | undefined> {
+  const specGroups: ApiGroup[] = await getApiSpecifications(
     currentFile,
     serviceId,
   );
@@ -307,169 +394,292 @@ export async function getLatestApiSpecification(
   return result;
 }
 
+// Reads the API level under a group: files whose parentId === groupId.
 export async function getSpecificationModel(
   serviceFileUri: Uri,
   serviceId: string,
   groupId: string,
-): Promise<Specification[]> {
-  let actualServiceFileUri = serviceFileUri;
-  const ext = getExtensionsForUri(serviceFileUri);
+): Promise<Api[]> {
+  const actualServiceFileUri = await resolveServiceFileUri(
+    serviceFileUri,
+    serviceId,
+  );
 
-  if (!serviceFileUri.path.endsWith(ext.service)) {
-    try {
-      actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
-    } catch (e) {
-      console.warn(
-        `Could not find service file for ${serviceId}, using original URI`,
-      );
+  // An API may have a file under both extensions. List it once, from the newer
+  // `.api.` one, the same rule the group level above follows.
+  const apiFiles = await resolveApiFiles(actualServiceFileUri);
+  const result: Api[] = [];
+
+  for (const { fileUri, parsed } of apiFiles.byId.values()) {
+    if (parsed?.content?.parentId !== groupId) {
+      continue;
     }
-  }
+    const operations = await parseOperations(
+      parsed.content.operations,
+      parsed.id,
+    );
+    const chains = await getChainsUsingSpecification(serviceId, parsed.id);
 
-  const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
-  const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
-  const result: Specification[] = [];
-
-  for (const fileName of specFiles) {
-    try {
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await fileApi.parseFile(fileUri);
-
-      if (parsed && parsed.content && parsed.content.parentId === groupId) {
-        const operations = await parseOperations(
-          parsed.content.operations,
-          parsed.id,
-        );
-        const chains = await getChainsUsingSpecification(serviceId, parsed.id);
-
-        const spec = {
-          id: parsed.id,
-          name: parsed.name,
-          description: parsed.content.description || "",
-          version: parsed.content.version || "",
-          format: parsed.content.format || "",
-          content: parsed.content.content || "",
-          deprecated: parsed.content.deprecated || false,
-          parentId: parsed.content.parentId,
-          labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
-          specificationGroupId: parsed.content.parentId,
-          source: parsed.content.content || "",
-          systemId: serviceId,
-          operations: operations,
-          chains: chains,
-          createdWhen: await fileApi.getFileCreatedWhen(fileUri),
-        };
-        result.push(spec);
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification file ${fileName}`, e);
-    }
+    const spec = {
+      id: parsed.id,
+      name: parsed.name,
+      description: parsed.content.description || "",
+      version: parsed.content.version || "",
+      format: parsed.content.format || "",
+      content: parsed.content.content || "",
+      deprecated: parsed.content.deprecated || false,
+      parentId: parsed.content.parentId,
+      labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
+      specificationGroupId: parsed.content.parentId,
+      source: parsed.content.content || "",
+      systemId: serviceId,
+      operations: operations,
+      chains: chains,
+      createdWhen: await fileApi.getFileCreatedWhen(fileUri),
+      specificationType: parsed.content.specificationType,
+      specificationVersion: parsed.content.specificationVersion,
+    };
+    result.push(spec);
   }
 
   return result;
 }
 
+// Reads operations for an API (`modelId` is the API's id, same as the former
+// specification/model id).
 export async function getOperations(
   serviceFileUri: Uri,
   modelId: string,
 ): Promise<SystemOperation[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
-  let actualServiceFileUri = serviceFileUri;
+  const serviceId = serviceIdFromEntityId(modelId);
+  const actualServiceFileUri = serviceId
+    ? await resolveServiceFileUri(serviceFileUri, serviceId)
+    : serviceFileUri;
+  const ext = getExtensionsForUri(actualServiceFileUri);
 
-  const parts = modelId.split("-");
-  if (parts.length >= 5 && !serviceFileUri.path.endsWith(ext.service)) {
-    const serviceId = parts.slice(0, 5).join("-");
-    try {
-      actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
-    } catch (e) {
-      console.warn(
-        `Could not find service file for ${serviceId}, using original URI`,
+  if (isAnyServiceFile(actualServiceFileUri, ext)) {
+    // The api file wins over its `.specification.` sibling here too, and a sibling the scan could
+    // not read refuses rather than letting the other name answer for the model.
+    const apiFiles = await resolveApiFiles(actualServiceFileUri);
+    const model = apiFiles.byId.get(modelId);
+
+    if (model) {
+      return await parseOperations(
+        model.parsed.content?.operations,
+        model.parsed.id,
       );
     }
-  }
-
-  if (actualServiceFileUri.path.endsWith(ext.service)) {
-    const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
-    const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
-
-    for (const fileName of specFiles) {
-      try {
-        const specFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-        const parsed = await fileApi.parseFile(specFileUri);
-
-        if (parsed && parsed.id === modelId) {
-          return await parseOperations(parsed.content.operations, parsed.id);
-        }
-      } catch (e) {
-        console.error(`Failed to parse specification file ${fileName}`, e);
-      }
+    // No file read carries the id, and the id is inside the file: one the scan could not read may
+    // be this model's, so "no operations" is not an answer this can give.
+    const refusal = scanMissRefusal(modelId, apiFiles.unreadable, "API ");
+    if (refusal) {
+      throw refusal;
     }
   } else {
-    const specFileUri = await fileApi.findFileById(modelId, ext.specification);
+    const specFileUri = await findModelFileById(ext, modelId);
+    let parsed: any;
     try {
-      const parsed = await fileApi.parseFile(specFileUri);
-
-      return await parseOperations(parsed.content.operations, parsed.id);
-    } catch (e) {
-      console.error(`Failed to parse specification file ${specFileUri}`, e);
+      parsed = await fileApi.parseFile(specFileUri);
+    } catch (error) {
+      // The other branch refuses for the same file, and for the same reason: "no operations" is a
+      // content answer, and nobody could read the content. A resolved uri can come from the cache,
+      // where only `stat` vouched for it, so this is reachable without the lookup ever parsing.
+      console.error(`Failed to parse API file ${specFileUri.path}`, error);
+      throw new UnreadableResolvedFileError(modelId, specFileUri, "API ");
     }
+    return await parseOperations(parsed?.content?.operations, parsed?.id);
   }
 
   return [];
+}
+
+// The model file may be stored as `.api.<app>.yaml`, the renamed model level, or as the
+// `.specification.<app>.yaml` file a conversion has not reached yet. `API_NAMES` decides which one
+// wins — the current name, as everywhere else — and the scan does not fall past a file it could not
+// read that the next candidate may be the sibling of, which is the pair the conversion leaves behind.
+async function findModelFileById(
+  ext: FileExtensionsConfig,
+  modelId: string,
+): Promise<Uri> {
+  const names = candidateExtensions(API_NAMES, ext);
+  return await resolveFirstCandidate(
+    names,
+    (extension) => fileApi.findFileById(modelId, extension),
+    {
+      onUnreadable: (unreadable, resolved) =>
+        refuseUnreadableSibling(modelId, resolved, unreadable, names),
+      onNoMatch: (failures) =>
+        noMatchError(failures, () => {
+          const lastError = failures.causes[failures.causes.length - 1];
+          return lastError instanceof Error
+            ? lastError
+            : new Error(`No API file carries id ${modelId}`);
+        }),
+    },
+  );
 }
 
 export async function getOperationInfo(
   serviceFileUri: Uri,
   operationId: string,
 ): Promise<OperationInfo> {
-  let actualServiceFileUri = serviceFileUri;
+  const serviceId = serviceIdFromEntityId(operationId);
+  const actualServiceFileUri = serviceId
+    ? await resolveServiceFileUri(serviceFileUri, serviceId)
+    : serviceFileUri;
 
-  const parts = operationId.split("-");
-  if (parts.length >= 5) {
-    const serviceId = parts.slice(0, 5).join("-");
-    const service: any = await getMainService(serviceFileUri);
-
-    if (service.id !== serviceId) {
-      const ext = getExtensionsForUri(serviceFileUri);
-      try {
-        actualServiceFileUri = await fileApi.findFileById(
-          serviceId,
-          ext.service,
-        );
-      } catch (e) {
-        console.warn(
-          `Could not find service file for ${serviceId}, using original URI`,
-        );
-      }
-    }
-  }
-
-  const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
   const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
+  // One file per API — the `.api.` one where both names exist — so an operation is read from the
+  // same file `getOperations` and `getSpecificationModel` answer from, never from a sibling that
+  // lost the precedence race or stood in for a file the scan could not read.
+  const apiFiles = await resolveApiFiles(actualServiceFileUri);
 
-  for (const fileName of specFiles) {
-    try {
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await ContentParser.parseContentFromFile(fileUri);
-
-      if (parsed && parsed.content && parsed.content.operations) {
-        const operation = parsed.content.operations.find((op: any) => {
-          return op.id === operationId || operationId.endsWith(`-${op.id}`);
-        });
-        if (operation) {
-          return {
-            id: operation.id,
-            specification: operation.specification || {},
-            requestSchema: operation.requestSchema || {},
-            responseSchemas: operation.responseSchemas || {},
-          };
-        }
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification file ${fileName}`, e);
+  for (const { parsed } of apiFiles.byId.values()) {
+    const operations = parsed?.content?.operations;
+    if (!operations) {
+      continue;
     }
+    const operation = operations.find((op: any) => {
+      return op.id === operationId || operationId.endsWith(`-${op.id}`);
+    });
+    if (!operation) {
+      continue;
+    }
+    const {
+      specification: derivedSpecification,
+      requestSchema,
+      responseSchemas,
+    } = await extractOperationSchemas(
+      serviceFolderUri,
+      parsed.content,
+      operation,
+    );
+    return {
+      id: operation.id,
+      // The stored node wins, even when it is an empty object; derivation
+      // only fills a value the file does not carry (backend parity, see
+      // ServiceDeserializer.fillMissingOperationSpecifications).
+      specification: operation.specification ?? derivedSpecification,
+      requestSchema,
+      responseSchemas,
+    };
   }
 
-  throw new Error(`Operation with id ${operationId} not found`);
+  // The operation lives inside an API file, so a file the scan could not read may hold it.
+  throw (
+    scanMissRefusal(operationId, apiFiles.unreadable, "operation ") ??
+    new Error(`Operation with id ${operationId} not found`)
+  );
+}
+
+// Recomputes an operation's request/response schemas and its `specification`
+// slice on demand from the raw specification source rather than trusting
+// whatever was materialized onto the operation at import time (see
+// OperationSchemaExtractor). A backend-exported `.api` file no longer carries
+// `specification`, so without this the async MaaS classifier and the HTTP
+// parameters the UI auto-fills from are lost.
+//
+// The extractor matches by (path, method). A backend-exported `.api` file
+// carries only the typed fields for non-openapi protocols, so path/method must
+// be derived the same way parseOperations derives them, or the match — and
+// everything it returns — comes back empty for AsyncAPI/gRPC operations.
+async function extractOperationSchemas(
+  serviceFolderUri: Uri,
+  specificationContent: any,
+  operation: any,
+): Promise<{
+  specification: Record<string, unknown>;
+  requestSchema: Record<string, unknown>;
+  responseSchemas: Record<string, unknown>;
+}> {
+  try {
+    const rawSource = await readMainSpecificationSource(
+      serviceFolderUri,
+      specificationContent,
+    );
+    return await OperationSchemaExtractor.extract(
+      rawSource,
+      specificationContent?.format,
+      resolveOperationPath(operation),
+      resolveOperationMethod(operation),
+    );
+  } catch (e) {
+    console.warn(`Failed to extract schemas for operation ${operation.id}`, e);
+    return { specification: {}, requestSchema: {}, responseSchemas: {} };
+  }
+}
+
+// The main raw source file lives at `<serviceFolder>/resources/<filePath>`.
+// The api format lists sources in `specifications[]` with `filePath`/`isRoot`;
+// the legacy specification format used `specificationSources[]` with
+// `fileName`/`mainSource`. Both formats are read.
+async function readMainSpecificationSource(
+  serviceFolderUri: Uri,
+  specificationContent: any,
+): Promise<string | null> {
+  const fileName =
+    resolveMainSourcePath(specificationContent) ??
+    resolveLegacyMainSourcePath(specificationContent);
+  // Reject `..` segments so a crafted source path cannot escape the service's
+  // resources folder.
+  if (!isSafeResourcePath(fileName)) {
+    return null;
+  }
+
+  const sourceUri = vscode.Uri.joinPath(
+    serviceFolderUri,
+    RESOURCES_FOLDER,
+    fileName,
+  );
+  return await fileApi.readFileContent(sourceUri);
+}
+
+// api format: `specifications[]` with `filePath`, root marked by `isRoot`.
+function resolveMainSourcePath(content: any): string | undefined {
+  const sources = content?.specifications;
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return undefined;
+  }
+  const mainSource = sources.find((s: any) => s.isRoot) ?? sources[0];
+  return mainSource?.filePath;
+}
+
+/**
+ * Reads the legacy specification format: `specificationSources[]` with `fileName`, root
+ * marked by `mainSource`. Superseded by the api format's `specifications[]` / `filePath` /
+ * `isRoot`, and needed only while both formats are read. Drop it once every file is written
+ * in the api format.
+ */
+function resolveLegacyMainSourcePath(content: any): string | undefined {
+  const sources = content?.specificationSources;
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return undefined;
+  }
+  const mainSource = sources.find((s: any) => s.mainSource) ?? sources[0];
+  return mainSource?.fileName;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function resolveOperationMethod(op: any): string {
+  // A typed operation derives its method the backend's way (openapi uppercases its lowercase schema value), so a
+  // backend `.api` file's raw `method: "get"` must not win over the derived "GET". Legacy ops carry no `type` and
+  // keep their flat field.
+  return (
+    (isTypedOperation(op) ? deriveMethod(op) : undefined) ??
+    nonEmptyString(op.method) ??
+    ""
+  );
+}
+
+function resolveOperationPath(op: any): string {
+  return (
+    nonEmptyString(op.path) ??
+    (isTypedOperation(op) ? (derivePath(op) ?? undefined) : undefined) ??
+    ""
+  );
 }
 
 async function parseOperations(
@@ -480,14 +690,35 @@ async function parseOperations(
 
   if (operations && Array.isArray(operations)) {
     for (const op of operations) {
+      // A backend-exported `.api` file carries only the typed discriminated
+      // fields for non-openapi protocols (asyncapi has no `path`;
+      // protobuf/graphql/wsdl have neither `method` nor `path`). Derive the
+      // missing ones the same way the backend derives its columns, or the
+      // Kafka/AMQP URL fallback and every element's `integrationOperationPath`
+      // read empty. Extension-written files fill the flat fields, so the
+      // derivation only fires when they are absent.
       const operation: SystemOperation = {
         id: op.id,
         name: op.name,
         description: op.description || "",
-        method: op.method || "",
-        path: op.path || "",
+        method: resolveOperationMethod(op),
+        path: resolveOperationPath(op),
         modelId: modelId,
         chains: await getChainsUsingOperation(modelId, op.id),
+        channel: op.channel,
+        operationType: op.operationType,
+        binding: op.binding,
+        protocol: op.protocol,
+        rpcMethod: op.rpcMethod,
+        summary: op.summary,
+        isDeprecated: op.isDeprecated,
+        // In the api file each operation is discriminated by `type`; the flat
+        // read surface names that field `operationKind` (matches the REST DTO).
+        operationKind: op.type,
+        package: op.package,
+        service: op.service,
+        sdl: op.sdl,
+        javaPackage: op.javaPackage,
       };
       result.push(operation);
     }
@@ -584,21 +815,60 @@ export async function getServices(
   serviceFileUri: Uri,
 ): Promise<IntegrationSystem[]> {
   const ext = getExtensionsForUri(serviceFileUri);
-  if (serviceFileUri.path.endsWith(ext.service)) {
-    const service: any = await getMainService(serviceFileUri);
-    if (!service) {
+  if (isAnyServiceFile(serviceFileUri, ext)) {
+    // The id decides the file here too. The document already in hand answers for it whenever the id
+    // resolves back to the same path, which is every service that has one file.
+    const { serviceId, service } = await readServiceIdentity(serviceFileUri);
+    if (!serviceId) {
       return [];
     }
-
-    return [await getService(serviceFileUri, service.id)];
-  } else {
-    const result: IntegrationSystem[] = [];
-    const serviceFiles = await fileApi.findFiles(ext.service);
-    for (const serviceFile of serviceFiles) {
-      const service: any = await getMainService(serviceFile);
-      result.push(await getService(serviceFile, service.id));
-    }
-
-    return result;
+    const fileUri = await resolveServiceFileUri(serviceFileUri, serviceId);
+    return [
+      toIntegrationSystem(
+        fileUri,
+        fileUri.path === serviceFileUri.path && service
+          ? service
+          : await getMainService(fileUri),
+      ),
+    ];
   }
+
+  // A converted service keeps its per-type sibling until the delete lands, so list each id once,
+  // from the file findServiceFileById would resolve — the rule ApiGroupService.resolveGroupFile
+  // applies to a group. findServiceFiles yields the current `.service.` name first, so first seen
+  // wins, and the document in hand is already the winning one: resolving each id again would
+  // rescan per service.
+  // A file the listing cannot read takes its possible siblings with it rather than letting one of
+  // them be listed in its place, and is named to the user; see `readListedServices`.
+  const listed = await readListedServices(await findServiceFiles(ext), ext);
+  reportUnreadableListing(listed);
+
+  const listedIds = new Set<string>();
+  const result: IntegrationSystem[] = [];
+  for (const { fileUri, service } of listed.services) {
+    if (!service?.id || listedIds.has(service.id)) {
+      continue;
+    }
+    listedIds.add(service.id);
+    result.push(toIntegrationSystem(fileUri, service));
+  }
+
+  return result;
+}
+
+/**
+ * The listing kept going without the files it could not read, so the user is told which they are.
+ * Failing the whole listing instead would have named them too, and taken every other service off
+ * the screen with them — a one-file problem turned into a workspace-wide one, which is the blast
+ * radius `refuseUnreadableSibling` is scoped to avoid. A lookup by id still refuses: there a wrong
+ * answer becomes a write.
+ */
+function reportUnreadableListing({ unreadable }: ListedServices): void {
+  if (unreadable.length === 0) {
+    return;
+  }
+  vscode.window.showWarningMessage(
+    `${unreadable.map((fileUri) => extractFilename(fileUri)).join(", ")} could not be read,` +
+      " so the services they describe are not listed. Fix or delete them.",
+  );
 }

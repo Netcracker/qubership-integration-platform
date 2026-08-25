@@ -1,0 +1,278 @@
+---
+# The service file naming rule, stated once for both implementations. See README.md in this
+# directory before editing anything here.
+
+# How a name is built. Both sides are measured against this, never against each other's output.
+rule:
+  # Shape: <id><postfix><appName>.yaml
+  #
+  # A name states which KIND of document the file holds, and nothing else. The three plain kinds
+  # therefore share one name and are told apart by `types` below. That is deliberate: they had a
+  # name of their own for the length of #553 alone, and the type moved into `$schema` because a
+  # name is a poor place to carry it.
+  #
+  # An id spanning more than one segment cannot be stated: import reads the id up to the first dot,
+  # so a name built from it would come back under another id. Refused, per side in its own spelling.
+  current:
+    postfixes:
+      EXTERNAL: ".service."
+      INTERNAL: ".service."
+      IMPLEMENTED: ".service."
+      CONTEXT: ".context-service."
+      MCP: ".mcp-service."
+
+  # Written only by the versions between #553 and the move of the type into `$schema`. Both sides
+  # READ these names and neither writes one; a file wearing one is typed by its `$schema` like any
+  # other. Dropping them from discovery loses every archive exported in that window.
+  perType:
+    postfixes:
+      EXTERNAL: ".external-service."
+      INTERNAL: ".internal-service."
+      IMPLEMENTED: ".implemented-service."
+
+  # Java only, under QIP_EXPORT_LEGACY_FORMAT. The extension has no notion of these names.
+  # service-<id>.yaml, context-service-<id>.yaml, mcp-service-<id>.yaml. Only the first is
+  # discovered by any import, in this version or any older one.
+  flat:
+    plain:
+      discoverable: true
+    context:
+      discoverable: false
+    mcp:
+      discoverable: false
+
+# How a plain service states its type: through `$schema`, and nowhere else in the current format.
+#
+# Both sides match in two layers, because the URI is configurable on both — `qip.json.schemas.*` in
+# Runtime Catalog, `schemaUrls` in the extension's `.config.qip.yaml`. The configured value is tried
+# first, so an installation that rehosts its schemas types its own files; failing that, the schema's
+# own file name decides, which is what carries a document between two installations configured
+# differently. A project that renames the schema file itself resolves no type, and both sides say so
+# rather than guessing.
+types:
+  # The second layer. This is the part that has to agree across implementations and across hosts.
+  schemaFileStems:
+    EXTERNAL: external-service
+    INTERNAL: internal-service
+    IMPLEMENTED: implemented-service
+  # The first layer as shipped. Each side reads its own configuration; these are the defaults both
+  # ship with, and the two layers must agree on them.
+  defaultSchemaUris:
+    EXTERNAL: "http://qubership.org/schemas/product/qip/external-service.schema.yaml"
+    INTERNAL: "http://qubership.org/schemas/product/qip/internal-service.schema.yaml"
+    IMPLEMENTED: "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml"
+  # URIs that must state no PLAIN type. The plain service schema is the pre-#553 format, whose
+  # type lives in `content.integrationSystemType`; the context and MCP URIs are separate kinds,
+  # and the two sides read them differently — so each entry records an outcome per side, and a
+  # disagreement carries a written `divergence`, the same discipline `classify` enforces.
+  #
+  # Outcomes: `no-type`, or the kind the side resolves.
+  statingNoPlainType:
+    - uri: "http://qubership.org/schemas/product/qip/service.schema.yaml"
+      java: no-type
+      ts: no-type
+      reason: the pre-#553 plain format; the type lives in the document body, not in the $schema
+    - uri: "http://qubership.org/schemas/product/qip/context-service.schema.yaml"
+      java: no-type
+      ts: CONTEXT
+      divergence: >
+        Java's IntegrationSystemType holds the three plain types alone, and it claims a context or
+        MCP document by exact configured URI plus the file's own name
+        (ServiceTypeFiles.isContextOrMCPServiceFile) — a loose two-layer match there would hand a
+        file to the wrong import, so Java loses a service rather than mistyping one. The
+        extension's enum holds all five kinds and resolves both layers, which is what keeps a
+        context document on its own name at write time. Its family gate (serviceFileNameForType)
+        refuses to rename a plain-named file on this answer, so the divergence cannot move a file
+        between families. One Java surface does match this URI loosely: rollout routing
+        (ImportConfigFactory), where a package item carries no file name to pair the URI with and
+        the only alternative to the bucket is dropping the item.
+    - uri: "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml"
+      java: no-type
+      ts: MCP
+      divergence: same as the context URI, for the MCP kind
+
+  # The stems behind that divergence: the extension alone stems the two typeless kinds; Java
+  # deliberately does not. The three plain stems above are the cross-implementation contract.
+  extensionOnlySchemaFileStems:
+    CONTEXT: context-service
+    MCP: mcp-service
+
+alphabet:
+  # Hostile on purpose: an id wearing the flat prefix, an id spelling a postfix, and two dotted ids.
+  serviceIds:
+    - svc-external
+    - service-orders
+    - internal-service
+    - a.b
+    - x.internal-service.y
+  appNames:
+    - qip
+    - internal-service.acme
+  kinds:
+    - EXTERNAL
+    - INTERNAL
+    - IMPLEMENTED
+    - CONTEXT
+    - MCP
+  # The three a plain service document can state. Context and MCP are separate kinds with their own
+  # generators, their own import scans and their own legacy names. Declared here because both sides
+  # need the split and neither should spell it itself.
+  plainKinds:
+    - EXTERNAL
+    - INTERNAL
+    - IMPLEMENTED
+
+# Names both sides must READ. This is where a position anchor and an end anchor can drift, so each
+# entry states its appName explicitly and records an outcome per side. A disagreement is allowed
+# only with a written `divergence`.
+#
+# Outcomes:
+#   service        the name is a service file of some kind
+#   not-a-service  the name is not a service file
+classify:
+  # Names both sides must READ, each with the outcome recorded per side.
+  #
+  # `directory` is the archive folder the file sits in, which every export names after the service.
+  # It is Java-only context and the extension ignores it: Java's discovery reads the postfix either
+  # right after the id OR right after the directory name (ExportImportUtils.statesPostfix(File,
+  # String)), and that second anchor is what #553 added so a pre-#553 archive holding
+  # services/a.b/a.b.service.qip.yaml is not walked past in silence. The extension compares the
+  # whole extension end-anchored and has no such rule.
+  #
+  # Outcomes:
+  #   service        an import of some kind discovers this file
+  #   not-a-service  no import discovers it
+  #
+  # A disagreement between the two sides is allowed only with a written `divergence`; an undeclared
+  # one fails on both sides.
+
+  - name: plain-name-under-the-default-app
+    fileName: "svc-external.service.qip.yaml"
+    directory: svc-external
+    appName: qip
+    java: service
+    ts: service
+    reason: the plain shape both writers produce
+
+  - name: per-type-name-both-sides-still-read
+    fileName: "svc-external.external-service.qip.yaml"
+    directory: svc-external
+    appName: qip
+    java: service
+    ts: service
+    reason: >
+      The name the #553 versions wrote. Neither side writes it any more and both still discover it,
+      which is the whole of the read-only compatibility: drop it and every archive exported in that
+      window imports as an empty result, in silence.
+
+  - name: flat-plain-name
+    fileName: "service-svc-external.yaml"
+    directory: svc-external
+    appName: qip
+    java: service
+    ts: not-a-service
+    divergence: >
+      Java discovers the flat name it writes under QIP_EXPORT_LEGACY_FORMAT; the extension has no
+      notion of it and never sees such a file, because it opens exported trees, not archives. By
+      design, not a defect.
+
+  - name: id-wearing-the-flat-prefix
+    fileName: "service-orders.internal-service.qip.yaml"
+    directory: service-orders
+    appName: qip
+    java: service
+    ts: service
+    reason: >
+      DiscoveryService takes the id from the Kubernetes service name, so an id starting with
+      "service-" is ordinary. A postfix right after the id makes the name current-format whatever
+      the id starts with.
+
+  # --- the directory anchor, which only Java has -------------------------------------------------
+
+  - name: dotted-id-read-back-through-its-directory
+    fileName: "a.b.service.qip.yaml"
+    directory: a.b
+    appName: qip
+    java: service
+    ts: service
+    reason: >
+      A pre-#553 QIP wrote this for a dotted id. The two sides agree, for different reasons, and
+      Java's is the one worth pinning: reading the postfix at the first dot alone lands on ".b.",
+      states nothing, and walks past a file every earlier version imported. Only the directory
+      anchor finds it.
+
+  - name: dotted-name-in-a-directory-that-does-not-match
+    fileName: "a.b.service.qip.yaml"
+    directory: other
+    appName: qip
+    java: not-a-service
+    ts: service
+    divergence: >
+      The same name one folder over. Java has neither anchor left — the first dot lands on ".b." and
+      the directory is not "a.b" — so nothing discovers it; the extension still sees a name ending
+      in ".service.qip.yaml". No export produces this, and it is here to prove the row above depends
+      on the directory rather than on the name: move the file and Java's answer changes.
+
+  # --- names no writer produces ------------------------------------------------------------------
+
+  - name: dotted-api-id-is-not-a-service
+    fileName: "u1-helix-observe-3.2.api-group.qip.yaml"
+    directory: svc-external
+    appName: qip
+    java: not-a-service
+    ts: not-a-service
+    reason: >
+      The shape real exports produce. Crosses Java's split between statesPostfix, which anchors on
+      the first dot, and the endsWith the group and api scans use.
+
+  - name: api-group-under-a-plain-app-name
+    # The app name has to be a plain one here. Under "internal-service.acme" the extension becomes
+    # ".internal-service.internal-service.acme.yaml", which this name does not end with, and the
+    # two sides would agree for an uninteresting reason.
+    fileName: "grp-orders.api-group.external-service.acme.yaml"
+    directory: svc-orders
+    appName: acme
+    java: not-a-service
+    ts: service
+    divergence: >
+      The anchors disagree, and neither writer can produce this name: a group file is
+      "<groupId>.api-group.<app>.yaml", so its first dot lands on ".api-group.", which Java reads as
+      no service postfix; the extension compares the whole extension end-anchored and the name does
+      end with ".external-service.acme.yaml". Recorded as hostile input rather than as a defect.
+      Raise it only if a writer is ever found that can emit it.
+
+  # --- the other two kinds -----------------------------------------------------------------------
+
+  - name: context-name-under-the-default-app
+    fileName: "ctx-golden.context-service.qip.yaml"
+    directory: ctx-golden
+    appName: qip
+    java: service
+    ts: service
+    reason: a context document is a service file of its own kind on both sides
+
+  - name: mcp-name-under-the-default-app
+    fileName: "mcp-golden.mcp-service.qip.yaml"
+    directory: mcp-golden
+    appName: qip
+    java: service
+    ts: service
+    reason: same, for MCP
+
+  - name: flat-context-name
+    fileName: "context-service-ctx-golden.yaml"
+    directory: ctx-golden
+    appName: qip
+    java: not-a-service
+    ts: not-a-service
+    reason: >
+      Written by Java under the legacy flag and discovered by nothing, in this version or any older
+      one. That is why the flag is not a downgrade path for a context service.
+
+  - name: chain-file-is-not-a-service
+    fileName: "chn-1.chain.qip.yaml"
+    directory: chn-1
+    appName: qip
+    java: not-a-service
+    ts: not-a-service
+    reason: the control case; without it "not-a-service" could be the answer to everything

@@ -1,0 +1,18 @@
+id: "svc-external"
+name: "Orders service"
+description: "Golden corpus fixture for external services"
+activeEnvironmentId: "env-orders-dev"
+integrationSystemType: "EXTERNAL"
+protocol: "HTTP"
+environments:
+- id: "env-orders-dev"
+  name: "Dev"
+  address: "http://orders.dev"
+  sourceType: "MANUAL"
+- id: "env-orders-prod"
+  name: "Prod"
+  address: "http://orders.prod"
+  sourceType: "MANUAL"
+labels:
+- "golden"
+migrations: "[100, 102]"

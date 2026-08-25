@@ -1,0 +1,60 @@
+asyncapi: 2.6.0
+info:
+  title: Shipping Events
+  version: 1.0.0
+servers:
+  production:
+    url: kafka.example.com:9092
+    protocol: kafka
+channels:
+  shipping.dispatched:
+    subscribe:
+      operationId: onShipmentDispatched
+      summary: Shipment dispatched event
+      message:
+        $ref: "#/components/messages/ShipmentDispatched"
+  shipping.commands:
+    publish:
+      operationId: sendShippingCommand
+      summary: Send a shipping command
+      message:
+        $ref: "#/components/messages/ShippingCommand"
+components:
+  messages:
+    ShipmentDispatched:
+      name: ShipmentDispatched
+      contentType: application/json
+      payload:
+        type: object
+        required: [shipmentId, dispatchedAt]
+        properties:
+          shipmentId:
+            type: string
+            format: uuid
+          dispatchedAt:
+            type: string
+            format: date-time
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/LineItem"
+    ShippingCommand:
+      name: ShippingCommand
+      contentType: application/json
+      payload:
+        type: object
+        required: [command, orderId]
+        properties:
+          command:
+            type: string
+            enum: [DISPATCH, HOLD, CANCEL]
+          orderId:
+            type: string
+  schemas:
+    LineItem:
+      type: object
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer

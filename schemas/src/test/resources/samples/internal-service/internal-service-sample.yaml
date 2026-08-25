@@ -1,0 +1,15 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/internal-service.schema.yaml"
+id: "b18c4d0a-3f52-4c71-9d84-6a2e5b7c1f03"
+name: "Order manager"
+content:
+  description: "An internal service with a single environment"
+  activeEnvironmentId: "7c5f9e21-4a83-4b60-8d17-2e6f0a9b3c48"
+  protocol: "METAMODEL"
+  environments:
+    - id: "7c5f9e21-4a83-4b60-8d17-2e6f0a9b3c48"
+      name: "Default"
+      address: "http://order-manager:8080"
+      sourceType: "MANUAL"
+      labels: []
+  migrations: "[100, 101]"

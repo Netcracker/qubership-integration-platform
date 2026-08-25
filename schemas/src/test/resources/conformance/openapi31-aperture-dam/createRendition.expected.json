@@ -1,0 +1,168 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Request a derived rendition",
+        "path": "/assets/{assetId}/renditions",
+        "method": "post",
+        "isDeprecated": null
+    },
+    "path": "/assets/{assetId}/renditions",
+    "method": "POST",
+    "modelId": "dc4cc3d4-83bc-46da-b536-7f5d41ba67c0-01-aperture-dam-3.1-2.4.0",
+    "sourceHash": "899ecc3509273442ff0718c33f3ca2c3f5c227c1109eafdc985d64c535596514",
+    "operationId": "createRendition",
+    "requestSchema": {
+        "application/json": {
+            "$id": "http://system.catalog/schemas/#/components/schemas/RenditionRequest",
+            "type": "object",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "required": [
+                "preset"
+            ],
+            "properties": {
+                "preset": {
+                    "enum": [
+                        "thumbnail",
+                        "web-optimized",
+                        "print",
+                        "hls-stream"
+                    ],
+                    "type": "string"
+                },
+                "overrides": {
+                    "type": "object",
+                    "properties": {
+                        "format": {
+                            "enum": [
+                                "webp",
+                                "avif",
+                                "jpeg",
+                                "png"
+                            ],
+                            "type": "string"
+                        },
+                        "quality": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        },
+                        "maxWidth": {
+                            "type": "integer",
+                            "minimum": 16
+                        }
+                    },
+                    "dependentSchemas": {
+                        "quality": {
+                            "properties": {
+                                "format": {
+                                    "enum": [
+                                        "webp",
+                                        "avif",
+                                        "jpeg"
+                                    ],
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "definitions": {
+            },
+            "additionalProperties": false
+        }
+    },
+    "specification": {
+        "tags": [
+            "Renditions"
+        ],
+        "summary": "Request a derived rendition",
+        "security": [
+            {
+                "oauth2ClientCreds": [
+                    "assets.write"
+                ]
+            }
+        ],
+        "responses": {
+            "202": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/RenditionJob"
+                        }
+                    }
+                },
+                "headers": {
+                    "Retry-After": {
+                        "style": "simple",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "explode": false
+                    }
+                },
+                "description": "Rendition job accepted."
+            }
+        },
+        "parameters": [
+            {
+                "$ref": "#/components/parameters/AssetId"
+            }
+        ],
+        "operationId": "createRendition",
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/RenditionRequest"
+                    }
+                }
+            },
+            "required": true
+        }
+    },
+    "responseSchemas": {
+        "202": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/RenditionJob",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "jobId",
+                    "state"
+                ],
+                "properties": {
+                    "jobId": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "enum": [
+                            "queued",
+                            "running",
+                            "done",
+                            "error"
+                        ],
+                        "type": "string"
+                    },
+                    "progress": {
+                        "type": "number",
+                        "maximum": 1,
+                        "minimum": 0
+                    },
+                    "resultUrl": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "uri"
+                    }
+                },
+                "definitions": {
+                }
+            }
+        }
+    }
+}

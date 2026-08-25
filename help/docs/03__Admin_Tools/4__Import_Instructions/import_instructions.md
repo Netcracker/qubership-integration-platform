@@ -8,7 +8,7 @@
 
 This page allows managing Import Instructions, which are intended to extend the existing import logic. An Import Instruction is a configuration that contains a pair of an entity and its action during import. These instructions can be used for the following purposes:
 
-- Removal of unnecessary entities such as chains, services, specification groups and specifications and common variables.
+- Removal of unnecessary entities such as chains, services, API groups and specifications and common variables.
 - Ignore of specific entities desired to be taken from import process completely.
 - Override chains with their new versions without removal of old ones. In this case overridden chain will be undeployed and whole processing logic will be transferred to the new chain.
 
@@ -43,6 +43,8 @@ At the top of the table the following options are available:
   - ![20](img/cloud-upload.svg) - opens pop-up, that allows to upload import instructions.
   - ![20](img/plus.svg)**Add** button - allows to create a new import instruction manually.
 
+> ℹ️ **Note:** The entity type value for API groups is now **API_GROUP**. Saved filters and API requests that still send **SPECIFICATION_GROUP** keep working.
+
 ### Create Import Instruction
 To add new import instruction, click "**Add**" button, set up data accordingly and confirm operation with "**Add**" button. As a result of operation, a new record will be created under appropriate section.
 
@@ -70,9 +72,9 @@ services:
     - "886e6f89-b744-4899-8f2d-060355c3e6b5"                 #service_id1
   ignore:
     - "opportunity-management-core-service2"                 #service_id2
-specificationGroups:
+apiGroups:
   delete:
-    - "abe2dc0d-bca3-40b4-b95d-1ce2f4c9c82c"                 #specification_group_id1
+    - "abe2dc0d-bca3-40b4-b95d-1ce2f4c9c82c"                 #api_group_id1
 specifications:
   delete:
     - "46e85173-2440-4237-ba66-4fc9c00e370e"                 #specification_id1
@@ -82,6 +84,8 @@ commonVariables:
   ignore:
     - "RETAIL_PARTNER_ID"                                    #variable_name2
 ```
+
+> ℹ️ **Note:** The **apiGroups** section was called **specificationGroups** in earlier releases. Files that still use the old name load as before, so existing instruction files need no update.
 
 Before further processing, the system shows a confirmation dialog. When the operation is confirmed, the system performs the following steps:
 
@@ -93,7 +97,7 @@ Before further processing, the system shows a confirmation dialog. When the oper
 - Removes all the entities according to the delete instructions, specified in the uploaded file in the next order:
   - Chains.
   - Specifications.
-  - Specifications Groups.
+  - API Groups.
   - Services.
   - Variables.
 - Verify that override and ignore instructions, that are going to be uploaded, already exist in QIP:
@@ -105,7 +109,7 @@ After all validations are done, system opens a new pop-up with the table, that c
 - **Id** - identifies the particular entity. It might contain the next data depending on the section:
   - **Chains** - unique identifier of the chain.
   - **Services** - unique identifier of the service.
-  - **Specification Groups** - unique identifier of the specification group.
+  - **API Groups** - unique identifier of the API group.
   - **Specifications** - unique identifier of the specification.
   - **Common Variables** - unique name of the common variable.
 - **Status** - shows delete instruction status. Possible values:  
@@ -126,6 +130,6 @@ Please consider next constraints:
 
 - Delete import instructions **will not be stored** in QIP, hence they are not presented in Import Instruction table.
 - During deployment process it is not possible to remove already existing import instructions in Database by uploading Import Instructions file. It can only be done manually via UI or respective API.
-- System prohibits to delete services, specification groups and specifications while import process if desired entities have a reference to any chain in "**Used By**" list.
+- System prohibits to delete services, API groups and specifications while import process if desired entities have a reference to any chain in "**Used By**" list.
 - System doesn't consider specification status, hence it can remove the specification that has not been moved to deprecated.
 - When system applies override logic, it undeploys overridden chain even if a new chain has not been deployed.

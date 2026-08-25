@@ -88,6 +88,18 @@ public class ElementHelperService {
         ));
     }
 
+    public List<ChainElement> findByOperationIdIn(Collection<String> operationIds) {
+        if (operationIds.isEmpty()) {
+            return List.of();
+        }
+        return elementRepository.findAll((root, query, builder) -> builder.and(
+                builder.isNotNull(root.get("chain")),
+                builder.function("jsonb_extract_path_text", String.class,
+                                root.<String>get("properties"), builder.literal(CamelOptions.OPERATION_ID))
+                        .in(operationIds)
+        ));
+    }
+
     public List<ChainElement> findBySystemIdAndSpecificationGroupId(String systemId, String specificationGroupId) {
         return elementRepository.findAll((root, query, builder) -> builder.and(
                 builder.isNotNull(root.get("chain")),
@@ -132,6 +144,25 @@ public class ElementHelperService {
     public List<Chain> findBySystemAndOperationId(String systemId, String operationId) {
         List<ChainElement> elements = findBySystemIdAndOperationId(systemId, operationId);
         return getElementsChains(elements);
+    }
+
+    /**
+     * Batch form of {@link #findBySystemAndOperationId} for a whole page of operations: one query for the
+     * id set, grouped in memory. Operations with no usage are absent from the map.
+     */
+    public Map<String, List<Chain>> findChainsGroupedByOperationId(Collection<String> operationIds) {
+        Map<String, List<ChainElement>> elementsByOperation = new HashMap<>();
+        for (ChainElement element : findByOperationIdIn(operationIds)) {
+            String operationId = element.getPropertyAsString(CamelOptions.OPERATION_ID);
+            if (operationId == null) {
+                continue;
+            }
+            elementsByOperation.computeIfAbsent(operationId, key -> new ArrayList<>()).add(element);
+        }
+        Map<String, List<Chain>> chainsByOperation = new HashMap<>();
+        elementsByOperation.forEach((operationId, elements) ->
+                chainsByOperation.put(operationId, getElementsChains(elements)));
+        return chainsByOperation;
     }
 
     public List<Chain> findBySystemAndGroupId(String systemId, String specificationGroupId) {

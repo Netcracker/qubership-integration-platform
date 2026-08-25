@@ -2,7 +2,7 @@ export { SpecificationImportService } from "./SpecificationImportService";
 export { SpecificationImportApiHandler } from "./SpecificationImportApiHandler";
 export { EnvironmentService } from "./EnvironmentService";
 export { SpecificationParserService } from "./SpecificationParserService";
-export { SpecificationGroupService } from "./SpecificationGroupService";
+export { ApiGroupService } from "./ApiGroupService";
 export { SpecificationProcessorService } from "./SpecificationProcessorService";
 export { SpecificationValidator } from "./SpecificationValidator";
 export { SystemService } from "./SystemService";

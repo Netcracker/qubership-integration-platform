@@ -38,6 +38,7 @@ import { matchesByFields } from "../table/tableSearch.ts";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
 import { useActionLogFilter } from "../../hooks/useActionLogFilter.ts";
+import { formatEntityType } from "../../misc/entityTypeLabels.ts";
 
 export enum OperationType {
   READ = "read",
@@ -71,7 +72,7 @@ export const EntityTypeIconsMap: { [key: string]: React.ReactNode } = {
   [EntityType.IMPLEMENTED_SERVICE]: <OverridableIcon name="cluster" />,
   [EntityType.ENVIRONMENT]: <OverridableIcon name="api" />,
   [EntityType.SPECIFICATION]: <OverridableIcon name="fileDone" />,
-  [EntityType.SPECIFICATION_GROUP]: <OverridableIcon name="group" />,
+  [EntityType.API_GROUP]: <OverridableIcon name="group" />,
 
   [EntityType.SECRET]: <OverridableIcon name="fileUnknown" />,
   [EntityType.SECURED_VARIABLE]: <OverridableIcon name="unorderedList" />,
@@ -123,8 +124,7 @@ const entityLinkMap: Partial<
   [EntityType.INNER_CLOUD_SERVICE]: (/*entityId*/) => `/not-implemented`,
   [EntityType.IMPLEMENTED_SERVICE]: (/*entityId*/) => `/not-implemented`,
   [EntityType.ENVIRONMENT]: (/*parentId*/) => `/not-implemented`,
-  [EntityType.SPECIFICATION_GROUP]: (/*entityId, parentId*/) =>
-    `/not-implemented`,
+  [EntityType.API_GROUP]: (/*entityId, parentId*/) => `/not-implemented`,
   [EntityType.SPECIFICATION]: () => "/not-implemented",
   //TODO end
   [EntityType.SECRET]: (_entityId, _parentId, entityName) =>
@@ -345,7 +345,7 @@ export const ActionsLog: React.FC = () => {
         render: (_, actionLog) => (
           <>
             {getIconByEntityType(actionLog.entityType)}
-            {formatSnakeCased(capitalize(actionLog.entityType))}
+            {formatEntityType(actionLog.entityType)}
           </>
         ),
       },
@@ -518,7 +518,7 @@ export const ActionsLog: React.FC = () => {
                 {currentActionLog.entityId}
               </Descriptions.Item>
               <Descriptions.Item label="Entity Type">
-                {capitalize(currentActionLog.entityType)}
+                {formatEntityType(currentActionLog.entityType)}
               </Descriptions.Item>
               <Descriptions.Item label="Entity Name">
                 {renderEntityLink(currentActionLog)}

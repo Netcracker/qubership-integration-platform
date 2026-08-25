@@ -30,15 +30,17 @@ import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.ApiGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
+import org.qubership.integration.platform.runtime.catalog.service.migration.TypedOperationBackfill;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -53,6 +55,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyIterable;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -86,7 +89,7 @@ class OperationParserServiceSystemModelIdentityTest {
     @Mock
     private SystemModelRepository systemModelRepository;
     @Mock
-    private SpecificationGroupRepository specificationGroupRepository;
+    private ApiGroupRepository specificationGroupRepository;
     @Mock
     private SpecificationSourceRepository specificationSourceRepository;
     @Mock
@@ -100,11 +103,11 @@ class OperationParserServiceSystemModelIdentityTest {
     private final Map<String, SystemModel> persistenceContext = new HashMap<>();
 
     private OperationParserService service;
-    private SpecificationGroup specificationGroup;
+    private ApiGroup specificationGroup;
 
     @BeforeEach
     void setUp() {
-        specificationGroup = SpecificationGroup.builder().id(GROUP_ID).build();
+        specificationGroup = ApiGroup.builder().id(GROUP_ID).build();
         specificationGroup.setName("petstore");
 
         service = new OperationParserService(
@@ -116,7 +119,9 @@ class OperationParserServiceSystemModelIdentityTest {
                 systemModelBaseService,
                 actionLogger,
                 transactionHandler,
-                environmentBaseService);
+                environmentBaseService,
+                mock(OperationSchemaExtractor.class),
+                mock(TypedOperationBackfill.class));
     }
 
     @Test
@@ -129,7 +134,7 @@ class OperationParserServiceSystemModelIdentityTest {
         modelSpringDataSaveAsMerge();
 
         CompletableFuture<SystemModel> future = service.parse(
-                PARSER_NAME, GROUP_ID, List.of(), false, Set.of(), message -> { });
+                PARSER_NAME, GROUP_ID, List.of(), false, Set.of(), null, null, message -> { });
         SystemModel persisted = future.get();
 
         List<SystemModel> modelsInGroup = specificationGroup.getSystemModels();
@@ -150,7 +155,7 @@ class OperationParserServiceSystemModelIdentityTest {
                 .thenReturn(1L);
 
         CompletableFuture<SystemModel> future = service.parse(
-                PARSER_NAME, GROUP_ID, List.of(), false, Set.of(), message -> { });
+                PARSER_NAME, GROUP_ID, List.of(), false, Set.of(), null, null, message -> { });
 
         assertThatThrownBy(future::get)
                 .hasCauseInstanceOf(SpecificationSimilarVersionException.class);
@@ -165,7 +170,7 @@ class OperationParserServiceSystemModelIdentityTest {
                 .thenReturn(0L);
 
         CompletableFuture<SystemModel> future = service.parse(
-                PARSER_NAME, GROUP_ID, List.of(), false, Set.of(SYSTEM_MODEL_ID), message -> { });
+                PARSER_NAME, GROUP_ID, List.of(), false, Set.of(SYSTEM_MODEL_ID), null, null, message -> { });
 
         assertThatThrownBy(future::get)
                 .hasCauseInstanceOf(SpecificationSimilarIdException.class);

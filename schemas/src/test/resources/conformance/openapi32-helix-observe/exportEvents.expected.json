@@ -1,0 +1,43 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Bulk export as line-delimited JSON",
+        "path": "/datasets/{datasetId}/export",
+        "method": "get",
+        "isDeprecated": null
+    },
+    "path": "/datasets/{datasetId}/export",
+    "method": "GET",
+    "modelId": "27c9cb1e-d917-4301-8851-569ce18c0c8e-helix-observe-3.2-1.0.0",
+    "sourceHash": "79d17d02e6ec0ddce8ebb6f4190126aac57649bccf70d07b944a59d602b4c686",
+    "operationId": "exportEvents",
+    "requestSchema": {
+    },
+    "specification": {
+        "tags": [
+            "streams"
+        ],
+        "summary": "Bulk export as line-delimited JSON",
+        "responses": {
+            "200": {
+                "content": {
+                    "application/jsonl": {
+                    }
+                },
+                "description": "A `application/jsonl` body, one event per line."
+            }
+        },
+        "parameters": [
+            {
+                "$ref": "#/components/parameters/DatasetId"
+            }
+        ],
+        "operationId": "exportEvents"
+    },
+    "responseSchemas": {
+        "200": {
+            "application/jsonl": {
+            }
+        }
+    }
+}

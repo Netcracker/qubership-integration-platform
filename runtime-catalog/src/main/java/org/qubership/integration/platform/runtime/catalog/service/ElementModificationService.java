@@ -18,8 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,17 +31,17 @@ import java.util.Map;
 @Slf4j
 @Service
 public class ElementModificationService {
-    private final SpecificationGroupService specificationGroupService;
+    private final ApiGroupService apiGroupService;
     private final ElementService elementService;
 
     @Autowired
-    public ElementModificationService(SpecificationGroupService specificationGroupService, ElementService elementService) {
-        this.specificationGroupService = specificationGroupService;
+    public ElementModificationService(ApiGroupService apiGroupService, ElementService elementService) {
+        this.apiGroupService = apiGroupService;
         this.elementService = elementService;
     }
 
     public void makeHttpTriggersTypeImplemented(List<String> httpTriggerIds, String specificationGroupId) {
-        SpecificationGroup specificationGroup = this.specificationGroupService.getById(specificationGroupId);
+        ApiGroup specificationGroup = this.apiGroupService.getById(specificationGroupId);
         List<ChainElement> chainElements = httpTriggerIds.stream().map(this.elementService::findById).toList();
 
         if (specificationGroup != null) {

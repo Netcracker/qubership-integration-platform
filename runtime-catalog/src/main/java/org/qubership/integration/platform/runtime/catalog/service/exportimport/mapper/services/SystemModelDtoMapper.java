@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.chain.model.ImportSystemModel;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelContentDto;
@@ -30,21 +31,54 @@ import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toModelSource;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceSource;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceUser;
 
+@Slf4j
 @Component
 public class SystemModelDtoMapper {
     private final URI schemaUri;
+    private final ApiOperationDtoMapper apiOperationDtoMapper;
 
     @Autowired
     public SystemModelDtoMapper(
-            @Value("${qip.json.schemas.specification:http://qubership.org/schemas/product/qip/specification}") URI schemaUri
+            @Value("${qip.json.schemas.api:http://qubership.org/schemas/product/qip/api.schema.yaml}") URI schemaUri,
+            ApiOperationDtoMapper apiOperationDtoMapper
     ) {
         this.schemaUri = schemaUri;
+        this.apiOperationDtoMapper = apiOperationDtoMapper;
+    }
+
+
+    public SystemModel toInternalEntity(SystemModelDto systemModelDto) {
+        SystemModel systemModel = SystemModel.builder()
+                .id(systemModelDto.getId())
+                .name(systemModelDto.getName())
+                .description(systemModelDto.getContent().getDescription())
+                .createdBy(SystemEntitySeam.toPersistenceUser(systemModelDto.getContent().getCreatedBy()))
+                .createdWhen(systemModelDto.getContent().getCreatedWhen())
+                .modifiedBy(SystemEntitySeam.toPersistenceUser(systemModelDto.getContent().getModifiedBy()))
+                .modifiedWhen(systemModelDto.getContent().getModifiedWhen())
+                .deprecated(systemModelDto.getContent().isDeprecated())
+                .version(systemModelDto.getContent().getVersion())
+                .specificationType(systemModelDto.getContent().getSpecificationType())
+                .specificationVersion(systemModelDto.getContent().getSpecificationVersion())
+                .source(SystemEntitySeam.toPersistenceSource(systemModelDto.getContent().getSource()))
+                .operations(apiOperationDtoMapper.toEntities(systemModelDto.getContent().getOperations()))
+                .build();
+        systemModel.getOperations().forEach(operation -> operation.setSystemModel(systemModel));
+        systemModel.getSpecificationSources().forEach(specificationSource -> specificationSource.setSystemModel(systemModel));
+        systemModel.setLabels(systemModelDto
+                .getContent()
+                .getLabels()
+                .stream()
+                .map(name -> new SystemModelLabel(name, systemModel))
+                .collect(Collectors.toSet()));
+        return systemModel;
     }
 
     public SystemModel toInternalEntity(ImportSystemModel importSystemModel) {
@@ -58,9 +92,16 @@ public class SystemModelDtoMapper {
                 .modifiedWhen(importSystemModel.getModifiedWhen())
                 .deprecated(importSystemModel.isDeprecated())
                 .version(importSystemModel.getVersion())
+                .specificationType(importSystemModel.getSpecificationType())
+                .specificationVersion(importSystemModel.getSpecificationVersion())
                 .source(toPersistenceSource(importSystemModel.getSource()))
+                // An operation read from a file carries the typed scalars the structural model has no room
+                // for, so map through ApiOperationDtoMapper when they are there and fall back to the
+                // structural seam for a model that was parsed rather than read.
                 .operations(importSystemModel.getOperations().stream()
-                        .map(SystemEntitySeam::toPersistenceOperation)
+                        .map(operation -> operation.getExported() != null
+                                ? apiOperationDtoMapper.toEntity(operation.getExported())
+                                : SystemEntitySeam.toPersistenceOperation(operation))
                         .collect(Collectors.toCollection(LinkedList::new)))
                 .build();
         systemModel.getOperations().forEach(operation -> operation.setSystemModel(systemModel));
@@ -74,6 +115,16 @@ public class SystemModelDtoMapper {
     }
 
     public SystemModelDto toExternalEntity(SystemModel systemModel) {
+        List<SpecificationSourceDto> specificationSources = systemModel.getSpecificationSources()
+                .stream()
+                .filter(source -> source.getSource() != null)
+                .map(this::toSpecificationSourceDto)
+                .toList();
+        if (specificationSources.isEmpty()) {
+            log.warn("Model {} has no specification source with content, so it exports an empty specifications list "
+                    + "that the api schema rejects (minItems: 1). Re-import the model with its source files to repair it.",
+                    systemModel.getId());
+        }
         return SystemModelDto.builder()
                 .id(systemModel.getId())
                 .name(systemModel.getName())
@@ -82,17 +133,13 @@ public class SystemModelDtoMapper {
                         .description(systemModel.getDescription())
                         .deprecated(systemModel.isDeprecated())
                         .version(systemModel.getVersion())
+                        .specificationType(systemModel.getSpecificationType())
+                        .specificationVersion(systemModel.getSpecificationVersion())
                         .source(toModelSource(systemModel.getSource()))
-                        .operations(systemModel.getOperations().stream()
-                                .map(SystemEntitySeam::toModelOperation)
-                                .toList())
-                        .parentId(systemModel.getSpecificationGroup().getId())
+                        .operations(apiOperationDtoMapper.toDtos(systemModel.getOperations()))
+                        .parentId(systemModel.getApiGroup().getId())
                         .labels(systemModel.getLabels().stream().map(SystemModelLabel::getName).toList())
-                        .specificationSources(systemModel.getSpecificationSources()
-                                .stream()
-                                .filter(model -> model.getSource() != null)
-                                .map(this::toSpecificationSourceDto)
-                                .toList())
+                        .specificationSources(specificationSources)
                         .build())
                 .build();
     }
@@ -101,7 +148,7 @@ public class SystemModelDtoMapper {
         return SpecificationSourceDto.builder()
                 .id(specificationSource.getId())
                 .name(specificationSource.getName())
-                .sourceHash(specificationSource.getSourceHash())
+                // No sourceHash: it is a storage detail of this instance, not part of the exported document.
                 .mainSource(specificationSource.isMainSource())
                 .fileName(ExportImportUtils.getFullSpecificationFileName(specificationSource))
                 .build();

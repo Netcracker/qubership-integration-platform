@@ -1,0 +1,1492 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://spec.openapis.org/oas/3.1/dialect/base",
+  "info": {
+    "title": "Aperture Digital Asset Management API",
+    "summary": "Ingest, transform, version, and distribute rich-media assets at scale.",
+    "description": "The Aperture DAM API manages the full lifecycle of digital assets\n(images, video, audio, documents). It demonstrates the JSON Schema\n2020-12 features available in OpenAPI 3.1: heterogeneous `type` arrays,\n`prefixItems`, `contains`/`minContains`, `if`/`then`/`else`,\n`dependentRequired`, `dependentSchemas`, `patternProperties`,\n`unevaluatedProperties`, `contentMediaType`/`contentEncoding`, and\npolymorphism via `discriminator`.\n\nAsynchronous transcode results are delivered via an operation-level\n`callback` (note: this is a callback, not a top-level webhook).\n",
+    "version": "2.4.0",
+    "termsOfService": "https://aperture.example.com/legal/terms",
+    "contact": {
+      "name": "Aperture Platform Team",
+      "url": "https://aperture.example.com/support",
+      "email": "api@aperture.example.com"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "externalDocs": {
+    "description": "Developer guide and SDK references",
+    "url": "https://docs.aperture.example.com"
+  },
+  "servers": [
+    {
+      "url": "https://api.aperture.example.com/{version}",
+      "description": "Production",
+      "variables": {
+        "version": {
+          "default": "v2",
+          "enum": [
+            "v2",
+            "v2-preview"
+          ],
+          "description": "API major version channel."
+        }
+      }
+    },
+    {
+      "url": "https://{tenant}.sandbox.aperture.example.com/v2",
+      "description": "Per-tenant sandbox",
+      "variables": {
+        "tenant": {
+          "default": "demo",
+          "description": "Your tenant slug."
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "oauth2ClientCreds": [
+        "assets.read"
+      ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Assets",
+      "description": "Core asset records and metadata."
+    },
+    {
+      "name": "Renditions",
+      "description": "Derived files (thumbnails, transcodes, crops)."
+    },
+    {
+      "name": "Collections",
+      "description": "Logical groupings and smart collections."
+    },
+    {
+      "name": "Uploads",
+      "description": "Multipart and resumable ingestion."
+    },
+    {
+      "name": "Search",
+      "description": "Faceted asset search."
+    }
+  ],
+  "paths": {
+    "/assets": {
+      "get": {
+        "operationId": "listAssets",
+        "summary": "List assets",
+        "tags": [
+          "Assets"
+        ],
+        "security": [
+          {
+            "oauth2ClientCreds": [
+              "assets.read"
+            ]
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageCursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by one or more asset kinds.",
+            "required": false,
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/components/schemas/AssetKind"
+              }
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Deep-object tag filters, e.g. tags[color]=red.",
+            "style": "deepObject",
+            "explode": true,
+            "schema": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "createdAfter",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of assets.",
+            "headers": {
+              "X-Total-Count": {
+                "$ref": "#/components/headers/XTotalCount"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/XRateLimitRemaining"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetPage"
+                },
+                "examples": {
+                  "mixedPage": {
+                    "$ref": "#/components/examples/MixedAssetPage"
+                  }
+                }
+              },
+              "application/vnd.aperture.compact+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetPage"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "$ref": "#/components/responses/ClientError"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAsset",
+        "summary": "Register a new asset",
+        "description": "Creates an asset record. The body is polymorphic by `kind`.",
+        "tags": [
+          "Assets"
+        ],
+        "security": [
+          {
+            "oauth2ClientCreds": [
+              "assets.write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Asset"
+              },
+              "examples": {
+                "image": {
+                  "$ref": "#/components/examples/ImageAssetExample"
+                },
+                "video": {
+                  "$ref": "#/components/examples/VideoAssetExample"
+                }
+              }
+            }
+          }
+        },
+        "callbacks": {
+          "transcodeComplete": {
+            "{$request.body#/notificationUrl}": {
+              "post": {
+                "summary": "Delivered when async processing finishes.",
+                "operationId": "onTranscodeComplete",
+                "requestBody": {
+                  "required": true,
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/ProcessingEvent"
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "204": {
+                    "description": "Acknowledged."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset created.",
+            "headers": {
+              "Location": {
+                "description": "Canonical URL of the new asset.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            },
+            "links": {
+              "GetAssetById": {
+                "$ref": "#/components/links/GetAssetById"
+              },
+              "CreateRendition": {
+                "operationId": "createRendition",
+                "parameters": {
+                  "assetId": "$response.body#/id"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "default": {
+            "$ref": "#/components/responses/ClientError"
+          }
+        }
+      }
+    },
+    "/assets/{assetId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/AssetId"
+        }
+      ],
+      "get": {
+        "operationId": "getAssetById",
+        "summary": "Fetch a single asset",
+        "tags": [
+          "Assets"
+        ],
+        "parameters": [
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Embed related resources.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "renditions",
+                  "collections",
+                  "lineage"
+                ]
+              }
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The asset.",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            },
+            "links": {
+              "CreateRendition": {
+                "operationId": "createRendition",
+                "parameters": {
+                  "assetId": "$request.path.assetId"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchAsset",
+        "summary": "Partially update an asset",
+        "tags": [
+          "Assets"
+        ],
+        "security": [
+          {
+            "oauth2ClientCreds": [
+              "assets.write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetMetadataPatch"
+              }
+            },
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonPatchDocument"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated asset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAsset",
+        "summary": "Delete an asset",
+        "tags": [
+          "Assets"
+        ],
+        "security": [
+          {
+            "oauth2ClientCreds": [
+              "assets.delete"
+            ]
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/assets/{assetId}/renditions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/AssetId"
+        }
+      ],
+      "post": {
+        "operationId": "createRendition",
+        "summary": "Request a derived rendition",
+        "tags": [
+          "Renditions"
+        ],
+        "security": [
+          {
+            "oauth2ClientCreds": [
+              "assets.write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenditionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Rendition job accepted.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenditionJob"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads": {
+      "post": {
+        "operationId": "uploadAsset",
+        "summary": "Direct multipart upload",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "oauth2ClientCreds": [
+              "assets.write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "metadata"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "metadata": {
+                    "$ref": "#/components/schemas/UploadMetadata"
+                  },
+                  "checksum": {
+                    "type": "string",
+                    "pattern": "^sha256:[A-Fa-f0-9]{64}$"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "contentType": "application/octet-stream",
+                  "headers": {
+                    "X-Content-Sha256": {
+                      "schema": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "metadata": {
+                  "contentType": "application/json"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Uploaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "operationId": "searchAssets",
+        "summary": "Faceted search",
+        "tags": [
+          "Search"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "facets",
+            "in": "query",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results with facet counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "results",
+                    "facets"
+                  ],
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Asset"
+                      }
+                    },
+                    "facets": {
+                      "type": "object",
+                      "patternProperties": {
+                        "^[a-z][a-z0-9_]*$": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "oauth2ClientCreds": {
+        "type": "oauth2",
+        "description": "OAuth 2.0 client credentials flow.",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://auth.aperture.example.com/oauth/token",
+            "refreshUrl": "https://auth.aperture.example.com/oauth/token",
+            "scopes": {
+              "assets.read": "Read assets and metadata.",
+              "assets.write": "Create and modify assets.",
+              "assets.delete": "Delete assets."
+            }
+          }
+        }
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key"
+      },
+      "oidc": {
+        "type": "openIdConnect",
+        "openIdConnectUrl": "https://auth.aperture.example.com/.well-known/openid-configuration"
+      }
+    },
+    "parameters": {
+      "AssetId": {
+        "name": "assetId",
+        "in": "path",
+        "required": true,
+        "description": "ULID of the asset.",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+        }
+      },
+      "PageCursor": {
+        "name": "cursor",
+        "in": "query",
+        "schema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "PageLimit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      },
+      "IfNoneMatch": {
+        "name": "If-None-Match",
+        "in": "header",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "headers": {
+      "ETag": {
+        "description": "Entity tag for optimistic concurrency.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "XTotalCount": {
+        "description": "Total matching records.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "XRateLimitRemaining": {
+        "description": "Remaining requests in the window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "links": {
+      "GetAssetById": {
+        "operationId": "getAssetById",
+        "parameters": {
+          "assetId": "$response.body#/id"
+        },
+        "description": "Retrieve the asset that was just created."
+      }
+    },
+    "responses": {
+      "NotFound": {
+        "description": "Resource not found.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Version conflict.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Body failed validation.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "pointer": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "ClientError": {
+        "description": "Generic 4xx error.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Generic 5xx error.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "AssetKind": {
+        "type": "string",
+        "enum": [
+          "image",
+          "video",
+          "audio",
+          "document"
+        ]
+      },
+      "Asset": {
+        "type": "object",
+        "description": "Polymorphic asset; concrete shape selected by `kind`.",
+        "required": [
+          "kind"
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "image": "#/components/schemas/ImageAsset",
+            "video": "#/components/schemas/VideoAsset",
+            "audio": "#/components/schemas/AudioAsset",
+            "document": "#/components/schemas/DocumentAsset"
+          }
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ImageAsset"
+          },
+          {
+            "$ref": "#/components/schemas/VideoAsset"
+          },
+          {
+            "$ref": "#/components/schemas/AudioAsset"
+          },
+          {
+            "$ref": "#/components/schemas/DocumentAsset"
+          }
+        ]
+      },
+      "AssetBase": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "readOnly": true,
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssetKind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processing",
+              "ready",
+              "failed"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "readOnly": true
+          },
+          "checksums": {
+            "type": "object",
+            "propertyNames": {
+              "enum": [
+                "sha256",
+                "md5",
+                "crc32"
+              ]
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "custom": {
+            "type": "object",
+            "description": "Arbitrary tenant metadata.",
+            "additionalProperties": true
+          },
+          "notificationUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "Where async callbacks are delivered."
+          }
+        },
+        "unevaluatedProperties": false
+      },
+      "ImageAsset": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AssetBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "dimensions",
+              "colorSpace"
+            ],
+            "properties": {
+              "kind": {
+                "const": "image"
+              },
+              "dimensions": {
+                "$ref": "#/components/schemas/Dimensions"
+              },
+              "colorSpace": {
+                "type": "string",
+                "enum": [
+                  "srgb",
+                  "display-p3",
+                  "adobe-rgb",
+                  "cmyk"
+                ]
+              },
+              "hasAlpha": {
+                "type": "boolean",
+                "default": false
+              },
+              "dominantColors": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "string",
+                  "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$"
+                }
+              }
+            },
+            "dependentRequired": {
+              "hasAlpha": [
+                "colorSpace"
+              ]
+            },
+            "unevaluatedProperties": false
+          }
+        ]
+      },
+      "VideoAsset": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AssetBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "dimensions",
+              "durationSeconds",
+              "codec"
+            ],
+            "properties": {
+              "kind": {
+                "const": "video"
+              },
+              "dimensions": {
+                "$ref": "#/components/schemas/Dimensions"
+              },
+              "durationSeconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "codec": {
+                "type": "string",
+                "enum": [
+                  "h264",
+                  "h265",
+                  "av1",
+                  "vp9"
+                ]
+              },
+              "frameRate": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 240
+              },
+              "audioTracks": {
+                "type": "array",
+                "contains": {
+                  "$ref": "#/components/schemas/AudioTrack"
+                },
+                "minContains": 0,
+                "items": {
+                  "$ref": "#/components/schemas/AudioTrack"
+                }
+              }
+            },
+            "if": {
+              "properties": {
+                "codec": {
+                  "const": "av1"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "frameRate"
+              ]
+            },
+            "unevaluatedProperties": false
+          }
+        ]
+      },
+      "AudioAsset": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AssetBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "durationSeconds",
+              "sampleRateHz"
+            ],
+            "properties": {
+              "kind": {
+                "const": "audio"
+              },
+              "durationSeconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "sampleRateHz": {
+                "type": "integer",
+                "enum": [
+                  44100,
+                  48000,
+                  96000,
+                  192000
+                ]
+              },
+              "channels": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8
+              }
+            },
+            "unevaluatedProperties": false
+          }
+        ]
+      },
+      "DocumentAsset": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AssetBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "pageCount",
+              "mimeType"
+            ],
+            "properties": {
+              "kind": {
+                "const": "document"
+              },
+              "pageCount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "mimeType": {
+                "type": "string"
+              },
+              "extractedText": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "contentMediaType": "text/plain"
+              }
+            },
+            "unevaluatedProperties": false
+          }
+        ]
+      },
+      "Dimensions": {
+        "type": "object",
+        "description": "Width/height pair plus optional aspect ratio (prefixItems tuple).",
+        "required": [
+          "width",
+          "height"
+        ],
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "aspectRatio": {
+            "type": "array",
+            "description": "Tuple of [horizontal, vertical].",
+            "prefixItems": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "integer",
+                "minimum": 1
+              }
+            ],
+            "items": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "AudioTrack": {
+        "type": "object",
+        "required": [
+          "language",
+          "codec"
+        ],
+        "properties": {
+          "language": {
+            "type": "string",
+            "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+          },
+          "codec": {
+            "type": "string",
+            "enum": [
+              "aac",
+              "opus",
+              "mp3",
+              "flac"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetPage": {
+        "type": "object",
+        "required": [
+          "data",
+          "page"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            }
+          },
+          "page": {
+            "type": "object",
+            "required": [
+              "limit"
+            ],
+            "properties": {
+              "limit": {
+                "type": "integer"
+              },
+              "nextCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "prevCursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenditionRequest": {
+        "type": "object",
+        "required": [
+          "preset"
+        ],
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "thumbnail",
+              "web-optimized",
+              "print",
+              "hls-stream"
+            ]
+          },
+          "overrides": {
+            "type": "object",
+            "properties": {
+              "maxWidth": {
+                "type": "integer",
+                "minimum": 16
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "webp",
+                  "avif",
+                  "jpeg",
+                  "png"
+                ]
+              },
+              "quality": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            "dependentSchemas": {
+              "quality": {
+                "properties": {
+                  "format": {
+                    "enum": [
+                      "webp",
+                      "avif",
+                      "jpeg"
+                    ]
+                  }
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenditionJob": {
+        "type": "object",
+        "required": [
+          "jobId",
+          "state"
+        ],
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "error"
+            ]
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "resultUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          }
+        }
+      },
+      "UploadMetadata": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AssetKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetMetadataPatch": {
+        "type": "object",
+        "description": "RFC 7386 merge patch; null clears a field.",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "custom": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "JsonPatchDocument": {
+        "type": "array",
+        "description": "RFC 6902 JSON Patch.",
+        "items": {
+          "type": "object",
+          "required": [
+            "op",
+            "path"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "add",
+                "remove",
+                "replace",
+                "move",
+                "copy",
+                "test"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "value": true
+          },
+          "dependentRequired": {
+            "from": [
+              "path"
+            ]
+          }
+        }
+      },
+      "ProcessingEvent": {
+        "type": "object",
+        "required": [
+          "assetId",
+          "event",
+          "occurredAt"
+        ],
+        "properties": {
+          "assetId": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "transcode.completed",
+              "transcode.failed"
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rendition": {
+            "$ref": "#/components/schemas/RenditionJob"
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "description": "RFC 9457 problem details.",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "examples": {
+      "ImageAssetExample": {
+        "summary": "An image asset",
+        "value": {
+          "kind": "image",
+          "title": "Sunset over Lisbon",
+          "status": "ready",
+          "dimensions": {
+            "width": 4000,
+            "height": 2667,
+            "aspectRatio": [
+              3,
+              2
+            ]
+          },
+          "colorSpace": "display-p3",
+          "hasAlpha": false,
+          "dominantColors": [
+            "#ff8a3d",
+            "#2b2b40"
+          ]
+        }
+      },
+      "VideoAssetExample": {
+        "summary": "A video asset",
+        "value": {
+          "kind": "video",
+          "title": "Product launch teaser",
+          "status": "processing",
+          "dimensions": {
+            "width": 1920,
+            "height": 1080
+          },
+          "durationSeconds": 42.5,
+          "codec": "av1",
+          "frameRate": 30,
+          "audioTracks": [
+            {
+              "language": "en-US",
+              "codec": "aac",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "MixedAssetPage": {
+        "summary": "A page mixing asset kinds",
+        "value": {
+          "data": [
+            {
+              "id": "01HZX9Q7N2K3M4P5R6S7T8V9W0",
+              "kind": "audio",
+              "status": "ready",
+              "durationSeconds": 180,
+              "sampleRateHz": 48000,
+              "channels": 2,
+              "createdAt": "2026-01-10T08:00:00Z"
+            }
+          ],
+          "page": {
+            "limit": 50,
+            "nextCursor": "eyJvZmZzZXQiOjUwfQ",
+            "prevCursor": null
+          }
+        }
+      }
+    }
+  }
+}

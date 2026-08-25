@@ -15,8 +15,8 @@ import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
 } from "./response/apiRouter";
-import { setFileApi } from "./response/file";
-import { VSCodeFileApi } from "./response/file/fileApiImpl";
+import { fileApi, setFileApi } from "./response/file";
+import { RESOURCES_FOLDER, VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
   getExtensionsForUri,
   initializeContextFromFile,
@@ -34,7 +34,10 @@ import {
   CONFIG_FILENAME,
   ProjectConfig,
 } from "./services/ProjectConfigService";
-import { ConfigApiProvider } from "./services/ConfigApiProvider";
+import {
+  ConfigApiProvider,
+  ExternalConfigData,
+} from "./services/ConfigApiProvider";
 import {
   getAndClearNavigationStateValue,
   initNavigationState,
@@ -46,7 +49,16 @@ import {
   resolveExportPaths,
 } from "./exportImagesHandler";
 import {registerChainDiffMessageHandlers} from "./chainDiffEditor";
-import {openDocumentInEditor} from "./editorViewTypes";
+import {
+  DEFAULT_EDITOR_VIEW_TYPES,
+  getEditorViewTypeForUri,
+  openDocumentInEditor,
+} from "./editorViewTypes";
+import {
+  isAnyServiceFile,
+  isServiceFileOfAnyKind,
+} from "./response/file/serviceFileType";
+import { onServiceFileMoved } from "./response/file/serviceFileWrite";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -56,23 +68,7 @@ type VSCodeMessageWrapper = {
 export interface QipExtensionAPI {
   loadConfigFromPath(configUri: Uri): Promise<void>;
 
-  registerConfig(
-    appName: string,
-    configData: {
-      extensions?: {
-        chain?: string;
-        service?: string;
-        specificationGroup?: string;
-        specification?: string;
-      };
-      schemaUrls?: {
-        service?: string;
-        chain?: string;
-        specification?: string;
-        specificationGroup?: string;
-      };
-    },
-  ): void;
+  registerConfig(appName: string, configData: ExternalConfigData): void;
 
   unregisterConfig(appName: string): void;
 
@@ -226,10 +222,16 @@ function getThemeData(): ThemePayload {
 
 function sendThemeToWebview(panel: WebviewPanel) {
   const themeData = getThemeData();
-  panel.webview.postMessage({
-    type: "theme-update",
-    payload: themeData,
-  });
+  try {
+    panel.webview.postMessage({
+      type: "theme-update",
+      payload: themeData,
+    });
+  } catch (error) {
+    // A disposed panel throws on `.webview`. `enrichWebview` tracks disposal for the delayed send,
+    // so anything reaching here is worth a line in the log rather than silence.
+    console.error("Failed to send the theme to a webview:", error);
+  }
 }
 
 function broadcastThemeToAllWebviews() {
@@ -482,10 +484,26 @@ async function enrichWebview(
   const panelId = crypto.randomUUID();
   activeWebviewPanels.set(panelId, panel);
 
+  // The first save of an old-format service converts it, which deletes the file this panel was
+  // opened on. Follow the rename, or every later message from this tab reads a path that is gone.
+  let currentFileUri = fileUri;
+  const fileMoved = onServiceFileMoved((from, to) => {
+    if (currentFileUri?.path === from.path) {
+      currentFileUri = to;
+    }
+  });
+
+  let disposed = false;
   sendThemeToWebview(panel);
-  setTimeout(() => sendThemeToWebview(panel), 300);
+  setTimeout(() => {
+    if (!disposed) {
+      sendThemeToWebview(panel);
+    }
+  }, 300);
 
   panel.onDidDispose(() => {
+    disposed = true;
+    fileMoved.dispose();
     activeWebviewPanels.delete(panelId);
   });
 
@@ -503,7 +521,7 @@ async function enrichWebview(
     try {
       response.payload = await getApiResponse(
         message.data,
-        fileUri,
+        currentFileUri,
         context,
         panel,
       );
@@ -542,52 +560,135 @@ async function deleteServiceWithRelatedFiles(
   const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
   const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
   const cacheService = FileCacheService.getInstance();
+  const ext = getExtensionsForUri(serviceFileUri);
 
-  try {
-    const entries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
-    const ext = getExtensionsForUri(serviceFileUri);
+  for (const fileUri of await collectServiceOwnedFiles(serviceFileUri)) {
+    await vscode.workspace.fs.delete(fileUri, { recursive: true });
+    cacheService.invalidateByUri(fileUri);
+  }
 
-    const filesToDelete: Uri[] = [];
+  let remainingEntries =
+    await vscode.workspace.fs.readDirectory(serviceFolderUri);
 
-    for (const [fileName, fileType] of entries) {
-      if (fileType === vscode.FileType.File) {
-        if (
-          fileName.endsWith(ext.specificationGroup) ||
-          fileName.endsWith(ext.specification) ||
-          fileName.endsWith(ext.service) ||
-          fileName.endsWith(ext.contextService) ||
-          fileName.endsWith(ext.mcpService)
-        ) {
-          filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-        }
-      } else if (
-        fileType === vscode.FileType.Directory &&
-        fileName === "resources"
-      ) {
-        filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-      }
-    }
-
-    for (const fileUri of filesToDelete) {
-      await vscode.workspace.fs.delete(fileUri, { recursive: true });
-      cacheService.invalidateByUri(fileUri);
-    }
-
-    const isRootFolder = rootUri && serviceFolderUri.fsPath === rootUri.fsPath;
-
-    if (!isRootFolder) {
-      const remainingEntries =
-        await vscode.workspace.fs.readDirectory(serviceFolderUri);
-      if (remainingEntries.length === 0) {
-        await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
-      }
-    }
-
-    vscode.window.showInformationMessage(
-      `Service "${serviceName}" and all related files deleted successfully`,
+  // A flat layout shares one `resources/` folder between the services of a folder, and a resource
+  // file carries no owner, so drop the folder only once no other service is left to read it.
+  const otherServiceLeft = remainingEntries.some(
+    ([fileName, fileType]) =>
+      fileType === vscode.FileType.File &&
+      isServiceFileOfAnyKind(fileName, ext),
+  );
+  const resourcesEntry = remainingEntries.find(
+    ([fileName, fileType]) =>
+      fileType === vscode.FileType.Directory && fileName === RESOURCES_FOLDER,
+  );
+  if (!otherServiceLeft && resourcesEntry) {
+    const resourcesUri = vscode.Uri.joinPath(
+      serviceFolderUri,
+      RESOURCES_FOLDER,
     );
+    await vscode.workspace.fs.delete(resourcesUri, { recursive: true });
+    cacheService.invalidateByUri(resourcesUri);
+    remainingEntries = remainingEntries.filter(
+      (entry) => entry !== resourcesEntry,
+    );
+  }
+
+  const isRootFolder = rootUri && serviceFolderUri.fsPath === rootUri.fsPath;
+  if (!isRootFolder && remainingEntries.length === 0) {
+    await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
+  }
+
+  vscode.window.showInformationMessage(
+    `Service "${serviceName}" and all related files deleted successfully`,
+  );
+}
+
+// The files the deleted service owns: its own file, the sibling that carries the same id under
+// another service extension, the groups whose parentId is the service, and the APIs whose parentId
+// is one of those groups. A folder may hold several services (the flat layout the explorer
+// supports, the workspace root included), so anything else in it belongs to a sibling service.
+// A group with a file under both group extensions yields both, or the deleted group resurrects.
+async function collectServiceOwnedFiles(serviceFileUri: Uri): Promise<Uri[]> {
+  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
+  const ownedFiles: Uri[] = [serviceFileUri];
+
+  const service = await parseFileOrUndefined(serviceFileUri);
+  const serviceId = service?.id;
+  if (!serviceId) {
+    return ownedFiles;
+  }
+
+  ownedFiles.push(
+    ...(await collectServiceFileSiblings(serviceFileUri, serviceId)),
+  );
+
+  const groupIds = new Set<string>();
+  const groupFileNames =
+    await fileApi.getSpecificationGroupFiles(serviceFileUri);
+  for (const fileName of groupFileNames) {
+    const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+    const parsed = await parseFileOrUndefined(groupFileUri);
+    if (parsed?.id && parsed.content?.parentId === serviceId) {
+      groupIds.add(parsed.id);
+      ownedFiles.push(groupFileUri);
+    }
+  }
+
+  if (groupIds.size === 0) {
+    return ownedFiles;
+  }
+
+  const apiFileNames = await fileApi.getSpecificationFiles(serviceFileUri);
+  for (const fileName of apiFileNames) {
+    const apiFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+    const parsed = await parseFileOrUndefined(apiFileUri);
+    const parentId = parsed?.content?.parentId;
+    if (typeof parentId === "string" && groupIds.has(parentId)) {
+      ownedFiles.push(apiFileUri);
+    }
+  }
+
+  return ownedFiles;
+}
+
+// A service converted from the legacy name keeps its old file until that write deletes it, and a
+// failed delete leaves both behind. Take every plain-service file in the folder that carries the
+// same id, or deleting the service resurrects it from the one left in place.
+async function collectServiceFileSiblings(
+  serviceFileUri: Uri,
+  serviceId: string,
+): Promise<Uri[]> {
+  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
+  const ext = getExtensionsForUri(serviceFileUri);
+  const currentFileName = serviceFileUri.path.split("/").pop();
+  const siblings: Uri[] = [];
+
+  const entries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
+  for (const [fileName, fileType] of entries) {
+    if (
+      fileType !== vscode.FileType.File ||
+      fileName === currentFileName ||
+      !isAnyServiceFile(fileName, ext)
+    ) {
+      continue;
+    }
+    const siblingUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+    const parsed = await parseFileOrUndefined(siblingUri);
+    if (parsed?.id === serviceId) {
+      siblings.push(siblingUri);
+    }
+  }
+
+  return siblings;
+}
+
+// An unreadable file cannot be claimed by the service, so it is left in place.
+async function parseFileOrUndefined(fileUri: Uri): Promise<any> {
+  try {
+    return await fileApi.parseFile(fileUri);
   } catch (error) {
-    throw error;
+    console.error(`Failed to parse file ${fileUri.path}`, error);
+    return undefined;
   }
 }
 
@@ -699,37 +800,21 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
     supportsDiffEditor: true,
   };
 
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.chainFile.editor",
-      new ChainFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.serviceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.contextServiceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.mcpServiceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
+  // One registration per view type the resolver knows, so a new file kind is added in one place.
+  // Miss one and its `contributes.customEditors` entry opens a webview that never wires up.
+  for (const [kind, viewType] of Object.entries(DEFAULT_EDITOR_VIEW_TYPES)) {
+    const provider =
+      kind === "chain"
+        ? new ChainFileEditorProvider(context)
+        : new BaseFileEditorProvider(context);
+    context.subscriptions.push(
+      vscode.window.registerCustomEditorProvider(
+        viewType,
+        provider,
+        editorParams,
+      ),
+    );
+  }
 
   context.subscriptions.push(
     vscode.commands.registerCommand("qip.open", function () {
@@ -898,16 +983,8 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       async (item: any) => {
         if (item && item.fileUri) {
           try {
-            // Determine the correct editor based on file type
-            const fileName = item.fileUri.fsPath;
-            let editorType = "qip.chainFile.editor"; // default
-
-            const fileExtensions = getExtensionsForUri({ path: fileName });
-            if (fileName.endsWith(fileExtensions.service)) {
-              editorType = "qip.serviceFile.editor";
-            } else if (fileName.endsWith(fileExtensions.chain)) {
-              editorType = "qip.chainFile.editor";
-            }
+            // A file with no custom editor throws, and the catch below opens it as text.
+            const editorType = getEditorViewTypeForUri(item.fileUri);
 
             // Open the file with custom editor
             await vscode.commands.executeCommand(

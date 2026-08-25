@@ -1,0 +1,11 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/internal-service.schema.yaml"
+id: "6c2b0f38-9a54-4d17-8e63-0b7d1a5c4e29"
+name: "Internal service with an address-less manual environment"
+content:
+  description: "Pins the cross-document Environment reference: an unresolved $ref would validate anything"
+  protocol: "HTTP"
+  environments:
+    - id: "9e5a3c71-0d86-4b29-8f14-7c2b6d0a3e58"
+      name: "Manual environment without an address"
+      sourceType: "MANUAL"

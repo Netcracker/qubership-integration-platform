@@ -33,13 +33,17 @@ function getCSSVariable(name: string, fallback: string = ""): string {
   return value || fallback;
 }
 
-// `--vscode-border` is our own variable, defined only by the browser fallbacks in
-// theme-variables.css. The webview host injects `--vscode-editorGroup-border`
-// instead, so prefer it and keep the browser variable as the fallback.
+/**
+ * VS Code registers no `border` color, so `--vscode-border` exists only in the
+ * browser fallbacks and reads empty inside the webview — which sent every
+ * bordered antd component (Select above all, since it has no CSS override) to
+ * the hard-coded default while `.ant-input` followed the IDE. Read the real
+ * variable the inputs use first.
+ */
 function getBorderColor(isDark: boolean): string {
-  return getCSSVariable(
-    "--vscode-editorGroup-border",
-    getCSSVariable("--vscode-border", isDark ? "#303030" : "#d9d9d9"),
+  return (
+    getCSSVariable("--vscode-editorGroup-border") ||
+    getCSSVariable("--vscode-border", isDark ? "#303030" : "#d9d9d9")
   );
 }
 
@@ -228,10 +232,7 @@ export function getAntdThemeConfig(
           "--vscode-list-hoverBackground",
           isDark ? "#262626" : "#f5f5f5",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-editorGroup-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
         colorBorderSecondary: getBorderColor(isDark),
         colorBgContainer: getCSSVariable(
           "--vscode-editor-background",
@@ -260,10 +261,7 @@ export function getAntdThemeConfig(
           "--vscode-editor-background",
           isDark ? "#141414" : "#ffffff",
         ),
-        defaultBorderColor: getCSSVariable(
-          "--vscode-editorGroup-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        defaultBorderColor: getBorderColor(isDark),
         defaultColor: getCSSVariable(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",

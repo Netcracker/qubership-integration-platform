@@ -1,0 +1,36 @@
+id: "api-helix-observe-3.2-1.0.0"
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+name: "Orders API"
+content:
+  deprecated: false
+  version: "v1"
+  specificationType: "openapi"
+  specificationVersion: "3.0.0"
+  operations:
+  - id: "op-list-orders"
+    name: "listOrders"
+    type: "openapi"
+    summary: "listOrders"
+    path: "/orders"
+    method: "get"
+    isDeprecated: false
+  - id: "op-create-order"
+    name: "createOrder"
+    type: "openapi"
+    summary: "createOrder"
+    path: "/orders"
+    method: "post"
+    isDeprecated: false
+  - id: "op-get-order"
+    name: "getOrder"
+    type: "openapi"
+    summary: "getOrder"
+    path: "/orders/{orderId}"
+    method: "get"
+    isDeprecated: false
+  parentId: "grp-helix-observe-3.2"
+  specifications:
+  - id: "src-orders"
+    name: "orders.yaml"
+    filePath: "source-api-helix-observe-3.2-1.0.0/orders.yaml"
+    isRoot: true

@@ -36,7 +36,7 @@ public class ContextServiceDtoMapper {
 
     @Autowired
     public ContextServiceDtoMapper(
-            @Value("${qip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service}") URI schemaUri,
+            @Value("${qip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service.schema.yaml}") URI schemaUri,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
         this.schemaUri = schemaUri;

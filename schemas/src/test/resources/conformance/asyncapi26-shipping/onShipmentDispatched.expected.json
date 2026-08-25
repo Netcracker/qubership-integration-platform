@@ -1,0 +1,58 @@
+{
+    "typed": {
+        "type": "asyncapi",
+        "summary": null,
+        "channel": "shipping.dispatched",
+        "method": "subscribe"
+    },
+    "path": "shipping.dispatched",
+    "method": "subscribe",
+    "modelId": "ae9ca927-e960-46bc-b09a-cf2333aff89d-Shipping Events-1.0.0",
+    "sourceHash": "720d140c6cffdb62aca7261804a1b9aec2ab5bef17e54340f9fc7323baa22f71",
+    "operationId": "onShipmentDispatched",
+    "requestSchema": {
+    },
+    "specification": {
+        "topic": "shipping.dispatched"
+    },
+    "responseSchemas": {
+        "ShipmentDispatched": {
+            "$id": "http://system.catalog/schemas/ShipmentDispatched",
+            "type": "object",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "required": [
+                "shipmentId",
+                "dispatchedAt"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/LineItem"
+                    }
+                },
+                "shipmentId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "dispatchedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            },
+            "definitions": {
+                "LineItem": {
+                    "type": "object",
+                    "properties": {
+                        "quantity": {
+                            "type": "integer"
+                        },
+                        "productId": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

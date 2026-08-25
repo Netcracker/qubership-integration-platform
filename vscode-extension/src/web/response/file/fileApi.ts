@@ -69,6 +69,12 @@ export interface FileApi {
 
   getFileType(fileUri: Uri): Promise<string>;
 
+  /**
+   * Whether the path is there at all. `getFileType` answers `UNKNOWN` for a missing path rather
+   * than failing, so it cannot be read as an existence check.
+   */
+  fileExists(fileUri: Uri): Promise<boolean>;
+
   getFileCreatedWhen(fileUri: Uri): Promise<number>;
 
   getSpecApiFiles(): Promise<Uri[]>;

@@ -23,16 +23,19 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.chain.impl.ImportSpecificationGroupImpl;
 import org.qubership.integration.platform.chain.impl.ImportSpecificationSourceImpl;
 import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
+import org.qubership.integration.platform.chain.impl.ImportSystemModelImpl;
 import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
 import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.chain.model.ImportSystemModel;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiGroupDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
@@ -48,13 +51,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.API_GROUP_FILE_POSTFIX;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.MIGRATION_PROTOCOL;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.PARENT_ID;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
@@ -80,8 +87,10 @@ import static org.qubership.integration.platform.io.model.exportimport.ExportImp
 @Component
 public class IntegrationSystemReader {
 
+    private static final String API_GROUPS_FIELD = "apiGroups";
     private static final String SPECIFICATION_GROUPS_FIELD = "specificationGroups";
     private static final String SYSTEM_MODELS_FIELD = "systemModels";
+    private static final String SPECIFICATION_TYPE_FIELD = "specificationType";
     private static final String SYNCHRONIZATION_FIELD = "synchronization";
     private static final String OPERATIONS_FIELD = "operations";
     private static final String SPECIFICATION_SOURCES_FIELD = "specificationSources";
@@ -129,7 +138,8 @@ public class IntegrationSystemReader {
                         model, dto, migratedSystemNode, new Versions(originalSystemNode), archiveDirectory));
             } else {
                 model.setSpecificationGroups(
-                        readSeparateGroupsAndModels(archiveDirectory, model.getId(), originalSystemNode));
+                        readSeparateGroupsAndModels(archiveDirectory, model.getId(), model.getProtocol(),
+                                originalSystemNode));
             }
             return model;
         } catch (RuntimeException e) {
@@ -152,8 +162,8 @@ public class IntegrationSystemReader {
 
     private static boolean hasEmbeddedGroups(IntegrationSystemDto dto) {
         IntegrationSystemContentDto content = dto.getContent();
-        return content != null && content.getSpecificationGroups() != null
-                && !content.getSpecificationGroups().isEmpty();
+        return content != null && content.getApiGroups() != null
+                && !content.getApiGroups().isEmpty();
     }
 
     /**
@@ -171,27 +181,43 @@ public class IntegrationSystemReader {
             File archiveDirectory
     ) {
         List<ImportSpecificationGroup> groups = new ArrayList<>();
-        List<SpecificationGroupDto> groupDtos = dto.getContent().getSpecificationGroups();
-        JsonNode groupsArray = migratedSystemNode.path(CONTENT).path(SPECIFICATION_GROUPS_FIELD);
-        for (SpecificationGroupDto groupDto : groupDtos) {
+        List<ApiGroupDto> groupDtos = dto.getContent().getApiGroups();
+        // The migrations rename the inline list, so the migrated document states `apiGroups` where the
+        // document as written states `specificationGroups`. Reading only one of the two loses every inline
+        // group of the other generation, in silence.
+        JsonNode content = migratedSystemNode.path(CONTENT);
+        JsonNode groupsArray = content.hasNonNull(API_GROUPS_FIELD)
+                ? content.path(API_GROUPS_FIELD)
+                : content.path(SPECIFICATION_GROUPS_FIELD);
+        for (ApiGroupDto groupDto : groupDtos) {
             JsonNode groupNode = findSpecificationGroup(groupsArray, groupDto.getId());
             if (groupNode.isMissingNode() || groupNode.isNull()) {
                 continue;
             }
-            setGroupParentId(groupDto, model.getId());
-            applySynchronization(groupDto, groupNode);
-
-            ImportSpecificationGroup group = buildGroup((ObjectNode) yamlMapper.valueToTree(groupDto), versions);
+            // Migrate the raw node, not the DTO parsed from it: in a pre-V101 archive a group's own fields sit at
+            // its root, so binding first leaves the DTO with no content and the group is dropped on the parent-id
+            // check below.
+            ObjectNode rawGroupNode = ((ObjectNode) groupNode).deepCopy();
+            ImportSpecificationGroup group = buildGroup(rawGroupNode, versions);
+            if (group.getParentId() == null && model.getId() != null) {
+                ((ImportSpecificationGroupImpl) group).setParentId(model.getId());
+            }
+            applySynchronization(group, groupNode);
             if (!Objects.equals(group.getParentId(), model.getId())) {
                 continue;
             }
             groups.add(group);
 
-            JsonNode systemModelsArray = groupNode.path(SYSTEM_MODELS_FIELD);
+            // Before V101 a group's models sit at its root, after it they live under content. Reading only one
+            // place imports the group and loses every model it declares.
+            JsonNode systemModelsArray = groupNode.hasNonNull(SYSTEM_MODELS_FIELD)
+                    ? groupNode.path(SYSTEM_MODELS_FIELD)
+                    : groupNode.path(CONTENT).path(SYSTEM_MODELS_FIELD);
             if (systemModelsArray.isMissingNode() || systemModelsArray.isNull()) {
                 continue;
             }
-            readLegacySystemModels(systemModelsArray, groupDto.getId(), versions, archiveDirectory, groups);
+            readLegacySystemModels(systemModelsArray, groupDto.getId(), model.getProtocol(), versions,
+                    archiveDirectory, groups);
         }
         return groups;
     }
@@ -212,9 +238,9 @@ public class IntegrationSystemReader {
         return MissingNode.getInstance();
     }
 
-    private static void setGroupParentId(SpecificationGroupDto group, String systemId) {
+    private static void setGroupParentId(ApiGroupDto group, String systemId) {
         if (group.getContent() == null) {
-            group.setContent(SpecificationGroupContentDto.builder().build());
+            group.setContent(ApiGroupContentDto.builder().build());
         }
         if (systemId != null) {
             group.getContent().setParentId(systemId);
@@ -222,47 +248,62 @@ public class IntegrationSystemReader {
     }
 
     /**
-     * Carries the synchronization flag over from the raw node, which holds it either under
-     * {@code content} or, in the oldest layout, directly on the group.
+     * Carries the synchronization flag over from the raw node: before V101 it sits at the group's root, after it
+     * under {@code content}, and a document states one of the two.
      */
-    private static void applySynchronization(SpecificationGroupDto group, JsonNode groupNode) {
+    private static void applySynchronization(ImportSpecificationGroup group, JsonNode groupNode) {
         JsonNode synchronization = groupNode.path(CONTENT).path(SYNCHRONIZATION_FIELD);
         if (synchronization.isMissingNode() || synchronization.isNull()) {
             synchronization = groupNode.path(SYNCHRONIZATION_FIELD);
         }
         if (!synchronization.isMissingNode() && !synchronization.isNull()) {
-            group.getContent().setSynchronization(synchronization.asBoolean());
+            ((ImportSpecificationGroupImpl) group).setSynchronization(synchronization.asBoolean());
         }
     }
 
     private void readLegacySystemModels(
             JsonNode systemModelsArray,
             String groupId,
+            OperationProtocol protocol,
             Versions versions,
             File archiveDirectory,
             List<ImportSpecificationGroup> groups
     ) {
         if (!systemModelsArray.isArray()) {
-            readLegacySystemModel(systemModelsArray, groupId, versions, archiveDirectory, groups);
+            readLegacySystemModel(systemModelsArray, groupId, protocol, versions, archiveDirectory, groups);
             return;
         }
         for (JsonNode systemModelNode : systemModelsArray) {
-            readLegacySystemModel(systemModelNode, groupId, versions, archiveDirectory, groups);
+            readLegacySystemModel(systemModelNode, groupId, protocol, versions, archiveDirectory, groups);
         }
     }
 
     private void readLegacySystemModel(
             JsonNode systemModelNode,
             String groupId,
+            OperationProtocol protocol,
             Versions versions,
             File archiveDirectory,
             List<ImportSpecificationGroup> groups
     ) {
-        if (systemModelNode.isMissingNode() || systemModelNode.isNull() || !systemModelNode.isObject()) {
+        if (systemModelNode.isMissingNode() || systemModelNode.isNull()) {
+            log.warn("Skipping an empty system model entry of specification group {}", groupId);
             return;
         }
-        ImportSystemModel systemModel =
-                buildModel(prepareSystemModelNode(systemModelNode, groupId), versions, archiveDirectory);
+        if (!systemModelNode.isObject()) {
+            // Not a silent skip: an entry that is neither an object nor empty means the archive is malformed, and
+            // dropping it would import a group short of a model with nothing said about it.
+            throw new IllegalArgumentException("Expected object node for an inline system model of specification"
+                    + " group " + groupId + " but got " + systemModelNode.getNodeType().name());
+        }
+        // Do not pre-move the fields here: buildModel migrates, and V101 moves them itself. Doing it twice
+        // nests the content one level too deep and the model loses the parent that attaches it to its group.
+        ImportSystemModel systemModel = buildModel(
+                withMigrationProtocol(prepareSystemModelNode(systemModelNode, groupId), protocol),
+                versions, archiveDirectory);
+        if (systemModel.getParentId() == null) {
+            ((ImportSystemModelImpl) systemModel).setParentId(groupId);
+        }
         groups.stream()
                 .filter(group -> Objects.equals(group.getId(), systemModel.getParentId()))
                 .findFirst()
@@ -270,9 +311,27 @@ public class IntegrationSystemReader {
     }
 
     /**
-     * Normalizes one inline system model to the shape {@link #buildModel} expects: fields under
-     * {@code content}, a parent id pointing at the owning group, and the operations and
-     * specification sources the oldest layout keeps beside {@code content} rather than inside it.
+     * The protocol the service states, written onto a model node before it is migrated. V103 reads it to type the
+     * model's operations, and a node that reaches the migration without it leaves them untyped.
+     */
+    private static ObjectNode withMigrationProtocol(ObjectNode node, OperationProtocol protocol) {
+        if (protocol == null) {
+            return node;
+        }
+        // Into content when the node is already in the post-V101 shape: at the root it would read as one more
+        // field to move, and the move would nest the content a second time.
+        if (node.path(CONTENT) instanceof ObjectNode content) {
+            content.put(MIGRATION_PROTOCOL, protocol.name());
+        } else {
+            node.put(MIGRATION_PROTOCOL, protocol.name());
+        }
+        return node;
+    }
+
+    /**
+     * Shapes an inline model node the way V101 would. Doing it here rather than leaving it to the migration keeps
+     * a model readable even when the caller supplies no migrations. The move is idempotent, so the chain's own
+     * V101 passing over the same node changes nothing and V102 and later still run.
      */
     private ObjectNode prepareSystemModelNode(JsonNode systemModelNode, String groupId) {
         ObjectNode result = systemModelNode.has(CONTENT)
@@ -283,6 +342,7 @@ public class IntegrationSystemReader {
         mergeLegacyFieldsIntoContent(result, systemModelNode, SPECIFICATION_SOURCES_FIELD);
         return result;
     }
+
 
     private static void mergeLegacyFieldsIntoContent(ObjectNode model, JsonNode source, String fieldName) {
         JsonNode legacyField = source.path(fieldName);
@@ -309,6 +369,7 @@ public class IntegrationSystemReader {
     private List<ImportSpecificationGroup> readSeparateGroupsAndModels(
             File archiveDirectory,
             String systemId,
+            OperationProtocol protocol,
             JsonNode originalSystemNode
     ) {
         Collection<File> files = listFiles(archiveDirectory);
@@ -317,7 +378,7 @@ public class IntegrationSystemReader {
         List<ImportSpecificationGroup> groups = new ArrayList<>();
         Stream.concat(
                         getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
-                        getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX))
+                        getFilesData(files, API_GROUP_FILE_POSTFIX, SPECIFICATION_GROUP_FILE_POSTFIX))
                 .forEach(node -> {
                     ImportSpecificationGroup group = buildGroup(node, versions);
                     if (Objects.equals(group.getParentId(), systemId)) {
@@ -327,9 +388,10 @@ public class IntegrationSystemReader {
 
         Stream.concat(
                         getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
-                        getFilesData(files, SPECIFICATION_FILE_POSTFIX))
+                        getFilesData(files, API_FILE_POSTFIX, SPECIFICATION_FILE_POSTFIX))
                 .forEach(node -> {
-                    ImportSystemModel systemModel = buildModel(node, versions, archiveDirectory);
+                    ImportSystemModel systemModel =
+                            buildModel(withMigrationProtocol(node, protocol), versions, archiveDirectory);
                     groups.stream()
                             .filter(group -> Objects.equals(group.getId(), systemModel.getParentId()))
                             .findFirst()
@@ -340,8 +402,8 @@ public class IntegrationSystemReader {
 
     private ImportSpecificationGroup buildGroup(ObjectNode node, Versions versions) {
         try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions.get());
-            SpecificationGroupDto dto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
+            ObjectNode migratedNode = migrateUnlessCurrent(node, versions.get());
+            ApiGroupDto dto = yamlMapper.treeToValue(migratedNode, ApiGroupDto.class);
             return SystemImportModelMapper.toModel(dto);
         } catch (MigrationException exception) {
             throw new RuntimeException("Failed to migrate specification group data", exception);
@@ -351,8 +413,13 @@ public class IntegrationSystemReader {
     }
 
     private ImportSystemModel buildModel(ObjectNode node, Versions versions, File archiveDirectory) {
+        return buildModel(node, versions, archiveDirectory, versions.get());
+    }
+
+    private ImportSystemModel buildModel(
+            ObjectNode node, Versions versions, File archiveDirectory, Collection<Integer> appliedVersions) {
         try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions.get());
+            ObjectNode migratedNode = migrateUnlessCurrent(node, versions.get());
             SystemModelDto dto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
             ImportSystemModel systemModel = SystemImportModelMapper.toModel(dto);
             for (ImportSpecificationSource source : systemModel.getSpecificationSources()) {
@@ -365,6 +432,15 @@ public class IntegrationSystemReader {
         } catch (Exception exception) {
             throw new RuntimeException("Failed to construct specification from YAML", exception);
         }
+    }
+
+    /**
+     * Migrates every document except one already in the api format. The presence of a {@code content} node is not
+     * the test: a pre-V102 document has one too, and skipping on it alone leaves its operations unnamed and
+     * untyped. {@code content.specificationType} is required in the api format and absent from every earlier one.
+     */
+    private ObjectNode migrateUnlessCurrent(ObjectNode node, Collection<Integer> versions) throws MigrationException {
+        return node.path(CONTENT).hasNonNull(SPECIFICATION_TYPE_FIELD) ? node : migrate(node, versions);
     }
 
     private ObjectNode migrate(ObjectNode node, Collection<Integer> versions) throws MigrationException {
@@ -384,9 +460,16 @@ public class IntegrationSystemReader {
      */
     private String readSpecificationSource(ImportSpecificationSource source, File archiveDirectory) {
         String fileName = extractSpecSourceFileName(source);
-        Path sourcePath = archiveDirectory.toPath().resolve(fileName);
+        Path archiveRoot = archiveDirectory.toPath().normalize();
+        Path sourcePath = archiveRoot.resolve(fileName).normalize();
         if (!Files.exists(sourcePath) && !fileName.contains(RESOURCES_FOLDER_PREFIX)) {
-            sourcePath = archiveDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + fileName);
+            sourcePath = archiveRoot.resolve(RESOURCES_FOLDER_PREFIX + fileName).normalize();
+        }
+        // The file name comes straight from the imported archive, so an absolute path or a `..` segment would
+        // read a file outside the archive. Such a source is treated as missing rather than followed.
+        if (!sourcePath.startsWith(archiveRoot)) {
+            log.warn("Specification source file escapes the archive directory and is ignored: {}", fileName);
+            return null;
         }
         if (!Files.exists(sourcePath)) {
             log.warn("Specification source file not found: {}", fileName);
@@ -419,10 +502,11 @@ public class IntegrationSystemReader {
                 .map(getFileObjectNode());
     }
 
-    private Stream<ObjectNode> getFilesData(Collection<File> files, String nameInfix) {
+    // The first infix is the generation the exporter writes; the rest are older names that stay readable.
+    private Stream<ObjectNode> getFilesData(Collection<File> files, String... nameInfixes) {
         return files.stream()
-                .filter(file -> file.getName().contains(nameInfix)
-                        && (file.getName().endsWith(".yaml") || file.getName().endsWith(".yml")))
+                .filter(file -> (file.getName().endsWith(".yaml") || file.getName().endsWith(".yml"))
+                        && Arrays.stream(nameInfixes).anyMatch(infix -> file.getName().contains(infix)))
                 .map(getFileObjectNode());
     }
 

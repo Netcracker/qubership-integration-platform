@@ -22,6 +22,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersion;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersionParser;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
@@ -61,14 +64,113 @@ public class ProtocolExtractionService {
     private static final String METAMODEL_STATIC_METADATA = "staticMetadata";
     private static final String METAMODEL_VALIDATIONS = "validations";
 
+    // OperationProtocol.type values that api.schema.yaml spells differently as its specificationType enum.
+    private static final String SOAP_TYPE = "soap";
+    private static final String GRAPHQL_SCHEMA_TYPE = "graphqlschema";
+    private static final String PROTOBUF_TYPE = "protobuf";
+    private static final String SPEC_TYPE_WSDL = "wsdl";
+    private static final String SPEC_TYPE_GRAPHQL = "graphql";
+    private static final String WSDL_VERSION_1_1 = "1.1";
+    private static final String WSDL_VERSION_2_0 = "2.0";
+
 
     private final ObjectMapper objectMapper;
     private final YAMLMapper yamlExportImportMapper;
+    private final WsdlVersionParser wsdlVersionParser;
 
     @Autowired
-    public ProtocolExtractionService(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper, YAMLMapper yamlExportImportMapper) {
+    public ProtocolExtractionService(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
+                                     YAMLMapper yamlExportImportMapper,
+                                     WsdlVersionParser wsdlVersionParser) {
         this.objectMapper = objectMapper;
         this.yamlExportImportMapper = yamlExportImportMapper;
+        this.wsdlVersionParser = wsdlVersionParser;
+    }
+
+    /**
+     * API-level specification metadata carried on {@code models}: the api.schema.yaml specificationType,
+     * the specification standard version, and the resolved transport protocol.
+     */
+    public record SpecificationInfo(
+            String specificationType,
+            String specificationVersion,
+            OperationProtocol protocol) {
+    }
+
+    /**
+     * Resolves the protocol plus the API-level specificationType and specificationVersion from the imported
+     * source files.
+     */
+    public SpecificationInfo extractSpecificationInfo(Collection<MultipartFile> files) {
+        OperationProtocol protocol = getOperationProtocol(files);
+        String version = extractSpecificationVersion(protocol, readFirstSource(files));
+        return new SpecificationInfo(mapSpecificationType(protocol), version, protocol);
+    }
+
+    /**
+     * Maps an {@link OperationProtocol} onto the api.schema.yaml specificationType enum. METAMODEL has no
+     * counterpart and never reaches the API level, so it and any unknown type yield null.
+     */
+    public static String mapSpecificationType(OperationProtocol protocol) {
+        if (protocol == null) {
+            return null;
+        }
+        return switch (protocol.type) {
+            case SWAGGER -> OPENAPI;
+            case ASYNCAPI -> ASYNCAPI;
+            case SOAP_TYPE -> SPEC_TYPE_WSDL;
+            case GRAPHQL_SCHEMA_TYPE -> SPEC_TYPE_GRAPHQL;
+            case PROTOBUF_TYPE -> PROTOBUF_TYPE;
+            default -> null;
+        };
+    }
+
+    /**
+     * Reads the specification standard version from a root source document: the {@code openapi}/{@code swagger}
+     * or {@code asyncapi} field for HTTP and AsyncAPI, the WSDL version for SOAP. GraphQL and gRPC carry no
+     * such marker and yield null. A source that cannot be read degrades to null rather than failing the import.
+     */
+    public String extractSpecificationVersion(OperationProtocol protocol, String source) {
+        if (protocol == null || source == null) {
+            return null;
+        }
+        try {
+            return switch (protocol) {
+                case HTTP -> readDocumentVersion(source, SWAGGER, OPENAPI);
+                case KAFKA, AMQP -> readDocumentVersion(source, ASYNCAPI);
+                case SOAP -> WsdlVersion.WSDL_2.equals(wsdlVersionParser.getWSDLVersion(source))
+                        ? WSDL_VERSION_2_0 : WSDL_VERSION_1_1;
+                default -> null;
+            };
+        } catch (Exception e) {
+            log.warn("Unable to read specification version", e);
+            return null;
+        }
+    }
+
+    private String readDocumentVersion(String source, String... versionKeys) throws IOException {
+        JsonNode root = yamlExportImportMapper.readTree(source);
+        if (root == null) {
+            return null;
+        }
+        for (String key : versionKeys) {
+            JsonNode value = root.get(key);
+            if (value != null && !value.isNull()) {
+                return value.asText();
+            }
+        }
+        return null;
+    }
+
+    private String readFirstSource(Collection<MultipartFile> files) {
+        if (files.isEmpty()) {
+            throw new SpecificationImportException(FILE_LIST_IS_EMPTY_ERROR_MESSAGE);
+        }
+        try {
+            return new String(files.iterator().next().getBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+        }
     }
 
     public OperationProtocol getOperationProtocol(Collection<MultipartFile> files) {

@@ -1,0 +1,49 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Delete an asset",
+        "path": "/assets/{assetId}",
+        "method": "delete",
+        "isDeprecated": null
+    },
+    "path": "/assets/{assetId}",
+    "method": "DELETE",
+    "modelId": "dc4cc3d4-83bc-46da-b536-7f5d41ba67c0-01-aperture-dam-3.1-2.4.0",
+    "sourceHash": "899ecc3509273442ff0718c33f3ca2c3f5c227c1109eafdc985d64c535596514",
+    "operationId": "deleteAsset",
+    "requestSchema": {
+    },
+    "specification": {
+        "tags": [
+            "Assets"
+        ],
+        "summary": "Delete an asset",
+        "security": [
+            {
+                "oauth2ClientCreds": [
+                    "assets.delete"
+                ]
+            }
+        ],
+        "responses": {
+            "204": {
+                "description": "Deleted."
+            },
+            "404": {
+                "$ref": "#/components/responses/NotFound"
+            }
+        },
+        "parameters": [
+            {
+                "$ref": "#/components/parameters/AssetId"
+            }
+        ],
+        "operationId": "deleteAsset"
+    },
+    "responseSchemas": {
+        "204": {
+        },
+        "404": {
+        }
+    }
+}

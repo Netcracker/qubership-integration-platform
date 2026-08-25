@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -50,8 +51,9 @@ public class GeneralImportInstructionsConfig {
     private ImportInstructionsConfig mcpServices = new ImportInstructionsConfig();
     @Valid
     @Builder.Default
+    @JsonAlias("specificationGroups")
     @JsonIgnoreProperties(value = "ignore")
-    private ImportInstructionsConfig specificationGroups = new ImportInstructionsConfig();
+    private ImportInstructionsConfig apiGroups = new ImportInstructionsConfig();
     @Valid
     @Builder.Default
     @JsonIgnoreProperties(value = "ignore")

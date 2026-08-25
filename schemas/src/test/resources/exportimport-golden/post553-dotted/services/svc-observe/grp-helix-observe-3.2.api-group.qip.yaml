@@ -1,0 +1,8 @@
+id: "grp-helix-observe-3.2"
+$schema: "http://qubership.org/schemas/product/qip/api-group.schema.yaml"
+name: "Orders"
+content:
+  synchronization: false
+  parentId: "svc-observe"
+  apis:
+  - "api-helix-observe-3.2-1.0.0"

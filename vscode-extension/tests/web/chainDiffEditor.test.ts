@@ -99,7 +99,9 @@ describe("registerChainDiffMessageHandlers", () => {
       openDocumentInEditor: mockOpenDocumentInEditor,
     });
 
-    await (panel as WebviewPanel & { __triggerMessage: Function }).__triggerMessage({
+    await (
+      panel as WebviewPanel & { __triggerMessage: Function }
+    ).__triggerMessage({
       command: "apiCall",
       data: {
         requestId: "req-1",

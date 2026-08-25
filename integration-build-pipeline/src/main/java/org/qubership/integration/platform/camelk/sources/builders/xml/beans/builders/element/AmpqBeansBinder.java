@@ -8,12 +8,14 @@ import org.qubership.integration.platform.camelk.sources.builders.xml.beans.Elem
 import org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.element.helpers.MaasClassifierHelper;
 import org.qubership.integration.platform.chain.model.Chain;
 import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.ServiceEnvironment;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.xml.stream.XMLStreamException;
@@ -103,15 +105,14 @@ public class AmpqBeansBinder implements ElementBeansBuilder {
             tenantEnabled = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_TENANT_ENABLED))
                     .map(Object::toString).orElse("false");
         } else { // Async API Trigger and Service Call elements
-            namespace = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP))
-                    .map(Object::toString).orElse(null);
-            tenantId = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME))
-                    .map(Object::toString).orElse(null);
-            tenantEnabled = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME))
-                    .map(Object::toString).orElse("false");
+            // The element's own async properties decide; the active environment fills in what they leave unset,
+            // which is where the scope around an async classifier actually lives.
+            Map<String, Object> own = ElementUtils.extractOperationAsyncProperties(element.getProperties());
+            Map<String, Object> environment = element.getEnvironment()
+                    .map(ServiceEnvironment::getProperties).orElseGet(Map::of);
+            namespace = asyncScope(own, environment, CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP, null);
+            tenantId = asyncScope(own, environment, CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME, null);
+            tenantEnabled = asyncScope(own, environment, CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME, "false");
         }
         maasClassifierHelper.addMaasClassifierInfoBean(
                 streamWriter,
@@ -129,5 +130,13 @@ public class AmpqBeansBinder implements ElementBeansBuilder {
             ? maasClassifierHelper.getMaasClassifierForAmpqElement(element)
             : maasClassifierHelper.getMaasClassifierForServiceCallOrAsyncApiElement(
                     element, context.getIntegrationServiceCatalog());
+    }
+
+    private static String asyncScope(Map<String, Object> own, Map<String, Object> environment, String key, String fallback) {
+        Object value = own.get(key);
+        if (value == null) {
+            value = environment.get(key);
+        }
+        return value == null ? fallback : value.toString();
     }
 }

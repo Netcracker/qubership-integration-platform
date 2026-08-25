@@ -1,0 +1,6 @@
+id: 44444444-4444-4444-8444-444444444444
+$schema: http://qubership.org/schemas/product/qip/context-service.schema.yaml
+name: Customer context
+content:
+  description: Context service for customer lookups
+  migrations: "[100, 101, 102, 103, 104, 105]"

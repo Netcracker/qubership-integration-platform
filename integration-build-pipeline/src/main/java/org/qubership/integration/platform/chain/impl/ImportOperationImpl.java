@@ -19,6 +19,7 @@ package org.qubership.integration.platform.chain.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import org.qubership.integration.platform.chain.model.ImportOperation;
+import org.qubership.integration.platform.io.model.exportimport.system.ApiOperationDto;
 
 import java.util.Map;
 
@@ -32,4 +33,5 @@ public class ImportOperationImpl implements ImportOperation {
     private JsonNode specification;
     private Map<String, JsonNode> requestSchema;
     private Map<String, JsonNode> responseSchemas;
+    private ApiOperationDto exported;
 }

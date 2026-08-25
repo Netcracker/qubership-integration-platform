@@ -1,0 +1,8 @@
+id: "grp-orders"
+$schema: "http://qubership.org/schemas/product/qip/api-group.schema.yaml"
+name: "Orders"
+content:
+  synchronization: false
+  parentId: "svc-external"
+  apis:
+  - "api-orders"

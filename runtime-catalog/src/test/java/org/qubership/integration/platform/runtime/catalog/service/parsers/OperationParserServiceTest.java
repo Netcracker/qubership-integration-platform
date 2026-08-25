@@ -32,17 +32,19 @@ import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.ApiGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
+import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
+import org.qubership.integration.platform.runtime.catalog.service.migration.TypedOperationBackfill;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,6 +58,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -77,7 +80,7 @@ class OperationParserServiceTest {
     @Mock
     private SystemModelRepository systemModelRepository;
     @Mock
-    private SpecificationGroupRepository specificationGroupRepository;
+    private ApiGroupRepository specificationGroupRepository;
     @Mock
     private SpecificationSourceRepository specificationSourceRepository;
     @Mock
@@ -90,13 +93,13 @@ class OperationParserServiceTest {
     private final TransactionHandler transactionHandler = new TransactionHandler();
     private final List<String> messages = new ArrayList<>();
 
-    private SpecificationGroup specificationGroup;
+    private ApiGroup specificationGroup;
     private IntegrationSystem system;
 
     @BeforeEach
     void setUp() {
         system = IntegrationSystem.builder().id("system-1").protocol(OperationProtocol.AMQP).build();
-        specificationGroup = SpecificationGroup.builder().id(GROUP_ID).build();
+        specificationGroup = ApiGroup.builder().id(GROUP_ID).build();
         specificationGroup.setName("orders");
         specificationGroup.setSystem(system);
     }
@@ -111,7 +114,9 @@ class OperationParserServiceTest {
                 systemModelBaseService,
                 actionLogger,
                 transactionHandler,
-                environmentBaseService);
+                environmentBaseService,
+                mock(OperationSchemaExtractor.class),
+                mock(TypedOperationBackfill.class));
     }
 
     /** Lets the parse flow reach the end: the group is resolvable, no version clashes, saves echo. */
@@ -123,7 +128,7 @@ class OperationParserServiceTest {
     }
 
     private SystemModel parse(SpecificationParser parser, String parserName) throws Exception {
-        return serviceWith(parser).parse(parserName, GROUP_ID, List.of(), false, Set.of(), messages::add).get();
+        return serviceWith(parser).parse(parserName, GROUP_ID, List.of(), false, Set.of(), null, null, messages::add).get();
     }
 
     @Test
@@ -132,7 +137,7 @@ class OperationParserServiceTest {
         OperationParserService service = serviceWith(new SwaggerParser(ParsedSystemModelImpl.builder().build()));
 
         assertThatThrownBy(() ->
-                service.parse("unknown", GROUP_ID, List.of(), false, Set.of(), messages::add).get())
+                service.parse("unknown", GROUP_ID, List.of(), false, Set.of(), null, null, messages::add).get())
                 .cause()
                 .isInstanceOf(SpecificationImportException.class)
                 .hasMessageContaining("No specification parser is registered for protocol 'unknown'");
@@ -146,7 +151,7 @@ class OperationParserServiceTest {
                 serviceWith(new SwaggerParser(new SpecificationParserException("malformed schema")));
 
         assertThatThrownBy(() ->
-                service.parse("swagger", GROUP_ID, List.of(), false, Set.of(), messages::add).get())
+                service.parse("swagger", GROUP_ID, List.of(), false, Set.of(), null, null, messages::add).get())
                 .cause()
                 .isInstanceOf(SpecificationImportException.class)
                 .hasMessageContaining("malformed schema");

@@ -1,6 +1,9 @@
 import { Uri } from "vscode";
 import { changeFolder } from "../../../src/web/response/chainApiModify";
-import { getMainChain, schemaToChain } from "../../../src/web/response/chainApiRead";
+import {
+  getMainChain,
+  schemaToChain,
+} from "../../../src/web/response/chainApiRead";
 import { fileApi } from "../../../src/web/response/file";
 
 // Keep the real schemaToChain, mock only the file access getMainChain needs.

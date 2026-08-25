@@ -34,12 +34,14 @@ public class SystemModelBaseDTO {
     private String name;
     @Schema(description = "Specification group id")
     private String specificationGroupId;
-    @Schema(description = "Whether specification is active")
-    private Boolean active;
     @Schema(description = "Whether specification is deprecated")
     private Boolean deprecated;
     @Schema(description = "Specification version")
     private String version;
+    @Schema(description = "Specification type: openapi, asyncapi, wsdl, graphql or protobuf")
+    private String specificationType;
+    @Schema(description = "Version of the specification standard")
+    private String specificationVersion;
     @Schema(description = "Raw contents of specification source file")
     private String source;
     @Schema(description = "Service id")

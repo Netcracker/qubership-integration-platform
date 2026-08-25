@@ -37,8 +37,12 @@ public class CatalogRuntimeException extends RuntimeException {
         super(errorMessage, cause);
     }
 
+    /**
+     * Keeps {@code originalException} available to the REST error handlers and chains it as the standard
+     * {@link Throwable#getCause() cause}, so the root failure survives into logs and stack traces.
+     */
     public CatalogRuntimeException(String errorMessage, Exception originalException) {
-        super(errorMessage);
+        super(errorMessage, originalException);
         this.originalException = originalException;
     }
 }

@@ -39,6 +39,8 @@ public class ImportSystemModelImpl implements ImportSystemModel {
     private boolean deprecated;
     private String version;
     private SystemModelSource source;
+    private String specificationType;
+    private String specificationVersion;
     private List<ImportOperation> operations = new ArrayList<>();
     private String parentId;
     private List<String> labels = new ArrayList<>();

@@ -47,6 +47,10 @@ public interface ImportSystemModel extends Entity {
 
     SystemModelSource getSource();
 
+    String getSpecificationType();
+
+    String getSpecificationVersion();
+
     List<ImportOperation> getOperations();
 
     String getParentId();

@@ -1,0 +1,7 @@
+id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+$schema: http://acme.example.com/schemas/acme/internal-service
+name: Acme ledger
+content:
+  description: Custom appName, custom schema URLs, type still in the name
+  protocol: HTTP
+  migrations: "[100, 101, 102, 103, 104, 105]"

@@ -31,7 +31,7 @@ public class GeneralInstructionsMapper implements ImportInstructionsMapper<Gener
 
     private final ChainInstructionsMapper chainInstructionsMapper;
     private final ServiceInstructionsMapper serviceInstructionsMapper;
-    private final SpecificationGroupInstructionsMapper specificationGroupInstructionsMapper;
+    private final ApiGroupInstructionsMapper apiGroupInstructionsMapper;
     private final SpecificationInstructionsMapper specificationInstructionsMapper;
     private final CommonVariablesInstructionsMapper commonVariablesInstructionsMapper;
 
@@ -39,13 +39,13 @@ public class GeneralInstructionsMapper implements ImportInstructionsMapper<Gener
     public GeneralInstructionsMapper(
             ChainInstructionsMapper chainInstructionsMapper,
             ServiceInstructionsMapper serviceInstructionsMapper,
-            SpecificationGroupInstructionsMapper specificationGroupInstructionsMapper,
+            ApiGroupInstructionsMapper apiGroupInstructionsMapper,
             SpecificationInstructionsMapper specificationInstructionsMapper,
             CommonVariablesInstructionsMapper commonVariablesInstructionsMapper
     ) {
         this.chainInstructionsMapper = chainInstructionsMapper;
         this.serviceInstructionsMapper = serviceInstructionsMapper;
-        this.specificationGroupInstructionsMapper = specificationGroupInstructionsMapper;
+        this.apiGroupInstructionsMapper = apiGroupInstructionsMapper;
         this.specificationInstructionsMapper = specificationInstructionsMapper;
         this.commonVariablesInstructionsMapper = commonVariablesInstructionsMapper;
     }
@@ -63,7 +63,7 @@ public class GeneralInstructionsMapper implements ImportInstructionsMapper<Gener
         List<ImportInstruction> importInstructions = new ArrayList<>();
         importInstructions.addAll(chainInstructionsMapper.asEntitiesIncludingDeletes(generalImportInstructionsConfig));
         importInstructions.addAll(serviceInstructionsMapper.asEntitiesIncludingDeletes(generalImportInstructionsConfig));
-        importInstructions.addAll(specificationGroupInstructionsMapper.asEntitiesIncludingDeletes(generalImportInstructionsConfig));
+        importInstructions.addAll(apiGroupInstructionsMapper.asEntitiesIncludingDeletes(generalImportInstructionsConfig));
         importInstructions.addAll(specificationInstructionsMapper.asEntitiesIncludingDeletes(generalImportInstructionsConfig));
         importInstructions.addAll(commonVariablesInstructionsMapper.asEntitiesIncludingDeletes(generalImportInstructionsConfig));
         return importInstructions;
@@ -74,7 +74,7 @@ public class GeneralInstructionsMapper implements ImportInstructionsMapper<Gener
         return GeneralImportInstructionsConfig.builder()
                 .chains(chainInstructionsMapper.asConfig(importInstructions))
                 .services(serviceInstructionsMapper.asConfig(importInstructions))
-                .specificationGroups(specificationGroupInstructionsMapper.asConfig(importInstructions))
+                .apiGroups(apiGroupInstructionsMapper.asConfig(importInstructions))
                 .specifications(specificationInstructionsMapper.asConfig(importInstructions))
                 .commonVariables(commonVariablesInstructionsMapper.asConfig(importInstructions))
                 .build();
@@ -85,7 +85,7 @@ public class GeneralInstructionsMapper implements ImportInstructionsMapper<Gener
         return GeneralImportInstructionsDTO.builder()
                 .chains(chainInstructionsMapper.asDTO(importInstructions))
                 .services(serviceInstructionsMapper.asDTO(importInstructions))
-                .specificationGroups(specificationGroupInstructionsMapper.asDTO(importInstructions))
+                .specificationGroups(apiGroupInstructionsMapper.asDTO(importInstructions))
                 .specifications(specificationInstructionsMapper.asDTO(importInstructions))
                 .commonVariables(commonVariablesInstructionsMapper.asDTO(importInstructions))
                 .build();

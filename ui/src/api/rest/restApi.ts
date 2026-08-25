@@ -49,10 +49,11 @@ import {
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
+  SystemUpdateRequest,
   EnvironmentRequest,
   Environment,
-  Specification,
-  SpecificationGroup,
+  Api,
+  ApiGroup,
   OperationInfo,
   ImportSystemResult,
   ImportSpecificationResult,
@@ -99,7 +100,7 @@ import {
   type MCPSystemUpdateRequest,
   ChainSnapshot,
 } from "../apiTypes.ts";
-import { Api } from "../api.ts";
+import { ApiClient } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
 import qs from "qs";
 import { getAppName, getConfig } from "../../appConfig.ts";
@@ -114,7 +115,7 @@ import type {
   Variable,
 } from "../apiTypes.ts";
 
-export class RestApi implements Api {
+export class RestApi implements ApiClient {
   instance: AxiosInstance;
 
   constructor() {
@@ -1585,7 +1586,7 @@ export class RestApi implements Api {
 
   updateService = async (
     id: string,
-    data: Partial<IntegrationSystem>,
+    data: SystemUpdateRequest,
   ): Promise<IntegrationSystem> => {
     const response = await this.instance.put<IntegrationSystem>(
       `${this.v1()}/systems-catalog/systems/${id}`,
@@ -1611,10 +1612,8 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  getApiSpecifications = async (
-    systemId: string,
-  ): Promise<SpecificationGroup[]> => {
-    const response = await this.instance.get<SpecificationGroup[]>(
+  getApiSpecifications = async (systemId: string): Promise<ApiGroup[]> => {
+    const response = await this.instance.get<ApiGroup[]>(
       `${this.v1()}/systems-catalog/specificationGroups`,
       {
         params: {
@@ -1625,10 +1624,8 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  getLatestApiSpecification = async (
-    systemId: string,
-  ): Promise<Specification> => {
-    const response = await this.instance.get<Specification>(
+  getLatestApiSpecification = async (systemId: string): Promise<Api> => {
+    const response = await this.instance.get<Api>(
       `${this.v1()}/systems-catalog/models/latest`,
       {
         params: {
@@ -1641,9 +1638,9 @@ export class RestApi implements Api {
 
   updateApiSpecificationGroup = async (
     id: string,
-    data: Partial<SpecificationGroup>,
-  ): Promise<SpecificationGroup> => {
-    const response = await this.instance.patch<SpecificationGroup>(
+    data: Partial<ApiGroup>,
+  ): Promise<ApiGroup> => {
+    const response = await this.instance.patch<ApiGroup>(
       `${this.v1()}/systems-catalog/specificationGroups/${id}`,
       data,
     );
@@ -1651,16 +1648,16 @@ export class RestApi implements Api {
   };
 
   deleteSpecificationGroup = async (id: string): Promise<void> => {
-    await this.instance.delete<SpecificationGroup>(
+    await this.instance.delete<ApiGroup>(
       `${this.v1()}/systems-catalog/specificationGroups/${id}`,
     );
   };
 
   updateSpecificationModel = async (
     id: string,
-    data: Partial<Specification>,
-  ): Promise<Specification> => {
-    const response = await this.instance.patch<Specification>(
+    data: Partial<Api>,
+  ): Promise<Api> => {
+    const response = await this.instance.patch<Api>(
       `${this.v1()}/systems-catalog/models/${id}`,
       data,
     );
@@ -1681,8 +1678,8 @@ export class RestApi implements Api {
   getSpecificationModel = async (
     systemId?: string,
     specificationGroupId?: string,
-  ): Promise<Specification[]> => {
-    const response = await this.instance.get<Specification[]>(
+  ): Promise<Api[]> => {
+    const response = await this.instance.get<Api[]>(
       `${this.v1()}/systems-catalog/models`,
       {
         params: {
@@ -1694,8 +1691,8 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  deprecateModel = async (modelId: string): Promise<Specification> => {
-    const response = await this.instance.post<Specification>(
+  deprecateModel = async (modelId: string): Promise<Api> => {
+    const response = await this.instance.post<Api>(
       `${this.v1()}/systems-catalog/models/deprecated`,
       modelId,
       {

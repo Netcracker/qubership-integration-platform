@@ -19,11 +19,14 @@ export enum IntegrationSystemType {
   INTERNAL = "INTERNAL",
   IMPLEMENTED = "IMPLEMENTED",
   CONTEXT = "CONTEXT",
+  MCP = "MCP",
 }
 
 export type IntegrationSystem = BaseEntity & {
   activeEnvironmentId: string;
-  integrationSystemType: IntegrationSystemType;
+  // Absent when neither the file name nor the document states a type — a legacy file the backend
+  // would refuse. The extension still lists such a service rather than hiding it.
+  integrationSystemType?: IntegrationSystemType;
   protocol: string;
   extendedProtocol: string;
   specification: string;
@@ -41,15 +44,15 @@ export type Environment = BaseEntity & {
   systemId?: string;
 };
 
-export type SpecificationGroup = BaseEntity & {
-  specifications: Specification[];
+export type ApiGroup = BaseEntity & {
+  specifications: Api[];
   synchronization: boolean;
   parentId?: string;
   systemId?: string;
   labels?: EntityLabel[];
 };
 
-export type Specification = BaseEntity & {
+export type Api = BaseEntity & {
   version: string;
   format?: string;
   content?: string;
@@ -64,6 +67,10 @@ export type Specification = BaseEntity & {
   metadata?: Record<string, any>;
   labels?: EntityLabel[];
   createdWhen?: number;
+  /** Protocol/format of the underlying spec source, e.g. "OpenAPI", "AsyncAPI", "gRPC". */
+  specificationType?: string;
+  /** Spec format version, e.g. "3.1", "2.6" — distinct from `version` (the API's own version label). */
+  specificationVersion?: string;
 };
 
 export type SystemRequest = {
@@ -95,6 +102,21 @@ export interface SystemOperation {
   path: string;
   modelId: string;
   chains: BaseEntity[];
+  channel?: string;
+  operationType?: string;
+  binding?: string;
+  protocol?: string;
+  rpcMethod?: string;
+  summary?: string;
+  isDeprecated?: boolean;
+  /** Protocol discriminator from the api file's typed operation: openapi, asyncapi, wsdl, graphql, or protobuf. */
+  operationKind?: string;
+  package?: string;
+  service?: string;
+  /** Printed field AST that reconstructs a graphql operation's path. */
+  sdl?: string;
+  /** java_package option that reconstructs a protobuf operation's path when it differs from the proto package. */
+  javaPackage?: string;
 }
 
 export interface OperationInfo {

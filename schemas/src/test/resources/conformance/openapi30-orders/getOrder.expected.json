@@ -1,0 +1,187 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Get an order by id",
+        "path": "/orders/{orderId}",
+        "method": "get",
+        "isDeprecated": null
+    },
+    "path": "/orders/{orderId}",
+    "method": "GET",
+    "modelId": "3c51d3e1-a68f-4cfd-869e-2232c3af8612-Orders API-2.1.0",
+    "sourceHash": "c5111456a17d28c5dc64f46c2b26b0250a91622219a5d8ee9ffa87af3f58d0f6",
+    "operationId": "getOrder",
+    "requestSchema": {
+        "parameters": [
+            {
+                "in": "path",
+                "name": "orderId",
+                "style": "simple",
+                "schema": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "explode": false,
+                "required": true
+            }
+        ]
+    },
+    "specification": {
+        "summary": "Get an order by id",
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Order"
+                        }
+                    }
+                },
+                "description": "The order"
+            },
+            "404": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                },
+                "description": "Not found"
+            }
+        },
+        "parameters": [
+            {
+                "in": "path",
+                "name": "orderId",
+                "style": "simple",
+                "schema": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "explode": false,
+                "required": true
+            }
+        ],
+        "operationId": "getOrder"
+    },
+    "responseSchemas": {
+        "200": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/Order",
+                "allOf": [
+                    {
+                        "$ref": "#/definitions/OrderBase"
+                    },
+                    {
+                        "type": "object",
+                        "required": [
+                            "id",
+                            "status",
+                            "total"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "format": "uuid"
+                            },
+                            "total": {
+                                "$ref": "#/definitions/Money"
+                            },
+                            "status": {
+                                "enum": [
+                                    "NEW",
+                                    "PAID",
+                                    "SHIPPED",
+                                    "CANCELLED"
+                                ],
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "definitions": {
+                    "Money": {
+                        "type": "object",
+                        "required": [
+                            "amount",
+                            "currency"
+                        ],
+                        "properties": {
+                            "amount": {
+                                "type": "number",
+                                "format": "double"
+                            },
+                            "currency": {
+                                "type": "string",
+                                "maxLength": 3,
+                                "minLength": 3
+                            }
+                        }
+                    },
+                    "OrderBase": {
+                        "type": "object",
+                        "required": [
+                            "customerId",
+                            "items"
+                        ],
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/OrderItem"
+                                },
+                                "minItems": 1
+                            },
+                            "customerId": {
+                                "type": "string",
+                                "format": "uuid"
+                            }
+                        }
+                    },
+                    "OrderItem": {
+                        "type": "object",
+                        "required": [
+                            "productId",
+                            "quantity"
+                        ],
+                        "properties": {
+                            "price": {
+                                "$ref": "#/definitions/Money"
+                            },
+                            "quantity": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "productId": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "404": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/Error",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "code",
+                    "message"
+                ],
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "definitions": {
+                }
+            }
+        }
+    }
+}

@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModelLabel;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.SystemModelBaseDTO;
@@ -26,18 +27,21 @@ import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 
 import java.util.List;
 
+// unmappedTargetPolicy = ERROR: specificationType and specificationVersion must resolve to a getter or the build fails.
 @Mapper(componentModel = "spring", uses = {
         MapperUtils.class,
         ChainBaseMapper.class
-})
+}, unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface SystemModelBaseMapper {
 
-    @Mapping(target = "specificationGroupId", source = "systemModel.specificationGroup.id")
-    @Mapping(target = "systemId", source = "systemModel.specificationGroup.system.id")
+    @Mapping(target = "specificationGroupId", source = "systemModel.apiGroup.id")
+    @Mapping(target = "systemId", source = "systemModel.apiGroup.system.id")
     SystemModelBaseDTO toDTO(SystemModel systemModel);
 
     List<SystemModelBaseDTO> toDTOs(List<SystemModel> systemModels);
 
+    @Mapping(target = "id", ignore = true) // generated on persist
+    @Mapping(target = "specification", ignore = true) // back-reference set by the owning model
     SystemModelLabel asLabelRequest(SystemModelLabelDTO snapshotLabel);
 
     List<SystemModelLabel> asLabelRequests(List<SystemModelLabelDTO> snapshotLabel);

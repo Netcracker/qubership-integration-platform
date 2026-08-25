@@ -50,6 +50,9 @@ import static java.util.Objects.nonNull;
 @Parser("protobuf")
 public class ProtobufSpecificationParser implements SpecificationParser {
     private static final String JAVA_PACKAGE_OPTION_NAME = "java_package";
+    private static final String PROTOBUF_PACKAGE_MISSING_ERROR =
+            "Protobuf specification '%s' declares no package. Add a `package` statement to the .proto file; "
+                    + "QIP identifies gRPC operations by their package-qualified service name.";
     private static final Pattern MAP_TYPE_REGEX =
             Pattern.compile("^map<\\s*([a-zA-Z0-9_\\-.]+)\\s*,\\s*([a-zA-Z0-9_\\-.]+)\\s*>$");
 
@@ -70,6 +73,9 @@ public class ProtobufSpecificationParser implements SpecificationParser {
             Consumer<String> messageHandler
     ) {
         try {
+            // Import-only guard: a package-less .proto would leak a "null." namespace or NPE downstream.
+            validatePackagesDeclared(sources);
+
             List<ProtoFileElement> protoFiles = parseProtoFiles(sources);
             ObjectNode typeDefinitions = buildTypeDefinitions(protoFiles);
             List<ParsedOperation> operations = getOperations(protoFiles, typeDefinitions);
@@ -79,6 +85,20 @@ public class ProtobufSpecificationParser implements SpecificationParser {
                     .build();
         } catch (Exception e) {
             throw new SpecificationParserException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+        }
+    }
+
+    // Rejects a package-less .proto at import. Parses each source once more (cheap for spec-sized files) so the
+    // offending file name can be named; a malformed .proto still falls through to the generic parse-error wrap.
+    private void validatePackagesDeclared(Collection<SpecificationSource> sources) {
+        for (SpecificationSource source : sources) {
+            if (!isProtobufFile(source)) {
+                continue;
+            }
+            ProtoFileElement protoFile = parseProtobuf(source);
+            if (StringUtils.isBlank(protoFile.getPackageName())) {
+                throw new SpecificationParserException(String.format(PROTOBUF_PACKAGE_MISSING_ERROR, source.getName()));
+            }
         }
     }
 

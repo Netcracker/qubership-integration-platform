@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Form, Input, Button, Select, Descriptions, Skeleton } from "antd";
-import { IntegrationSystem } from "../../../api/apiTypes";
+import { IntegrationSystem, SystemUpdateRequest } from "../../../api/apiTypes";
 import { api } from "../../../api/api";
+import { capitalize } from "../../../misc/format-utils.ts";
 import { useAsyncRequest } from "../useAsyncRequest";
 import { SourceFlagTag } from "../ui/SourceFlagTag";
 import { prepareFile, serviceCache } from "../utils.tsx";
@@ -16,7 +17,6 @@ import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { ContextServiceTag } from "../ServiceLabel.tsx";
 import { useLabelsForm } from "../useLabelsForm.ts";
 import { useUnsavedChangesWithModal } from "../useUnsavedChangesWithModal.tsx";
-import { formatSnakeCased } from "../../../misc/format-utils.ts";
 
 export interface ServiceParametersTabProps {
   systemId: string;
@@ -92,11 +92,12 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   } = useAsyncRequest(async () => {
     if (!system || !systemId) throw new Error("No system");
     const values = (await form.validateFields()) as ServiceFormValues;
-    const payload = {
-      ...system,
+    // The type is immutable, so it is dropped rather than echoed back.
+    const { type: _type, ...current } = system;
+    const payload: SystemUpdateRequest = {
+      ...current,
       name: values.name,
       description: values.description,
-      type: system.type,
       labels: [
         ...technicalLabels.map((name) => ({ name, technical: true })),
         ...userLabels.map((name) => ({ name, technical: false })),
@@ -171,7 +172,11 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
         <Form.Item label="Description" name="description">
           <Input.TextArea maxLength={512} />
         </Form.Item>
+        {/* The type is fixed at creation, so it is shown here rather than edited. */}
         <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="Type">
+            {system.type ? capitalize(system.type) : "-"}
+          </Descriptions.Item>
           <Descriptions.Item label="Protocol">
             {system.protocol ? (
               <SourceFlagTag source={system.protocol} kind="protocol" />
@@ -179,11 +184,6 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
               "-"
             )}
           </Descriptions.Item>
-          {isVsCode && (
-            <Descriptions.Item label="Type">
-              {formatSnakeCased(system.type)}
-            </Descriptions.Item>
-          )}
         </Descriptions>
         <Form.Item label="Labels" name="labels">
           <Select

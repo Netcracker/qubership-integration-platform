@@ -1,4 +1,14 @@
 ---
+# The pre-#553 service document, where the type sits in the body rather than in the file name.
+#
+# Superseded by the per-type schemas, one per value of the integrationSystemType enum below:
+#   EXTERNAL     -> external-service.schema.yaml
+#   INTERNAL     -> internal-service.schema.yaml
+#   IMPLEMENTED  -> implemented-service.schema.yaml
+# Their shared content is common-properties/typed-service-content.schema.yaml.
+#
+# Frozen, not dead: every archive older than #553 uses this format, and V105RevertMigration restores it under
+# qip.export.legacy-format.
 $id: http://qubership.org/schemas/product/qip/service.schema.yaml
 $schema: http://json-schema.org/draft-07/schema
 type: object
@@ -31,7 +41,7 @@ properties:
         type: array
         title: Environments
         items:
-          $ref: "#/definitions/Environment"
+          $ref: "http://qubership.org/schemas/product/qip/common-properties/environment.schema.yaml"
     required:
       - integrationSystemType
 required:
@@ -46,37 +56,3 @@ definitions:
       - GRAPHQL
       - METAMODEL
       - GRPC
-  SourceType:
-    enum:
-      - MANUAL
-      - MAAS_BY_CLASSIFIER
-  Environment:
-    type: object
-    allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
-    properties:
-      id:
-        type: string
-        title: Identifier
-      name:
-        type: string
-        title: Name
-      address:
-        type: string
-      sourceType:
-        $ref: "#/definitions/SourceType"
-      properties:
-        type: object
-      additionalProperties: true
-    required:
-      - id
-      - name
-      - sourceType
-    if:
-      properties:
-        sourceType:
-          const: MANUAL
-    then:
-      required:
-        - address

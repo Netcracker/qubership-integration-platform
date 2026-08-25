@@ -27,7 +27,8 @@
   --vscode-foreground: rgb(0 0 0 / 88%);
   --vscode-descriptionForeground: #9ca3af;
 
-  /* Border Colors */
+  /* Border Colors. `--vscode-border` is our own name — VS Code registers no
+     `border` color — so alias the real variable and keep a literal fallback. */
   --vscode-border: var(--vscode-editorGroup-border, #d9d9d9);
   --vscode-editorGroup-border: #d9d9d9;
   --vscode-focusBorder: #007acc;
@@ -168,6 +169,8 @@
   --vscode-foreground: #fff;
   --vscode-descriptionForeground: #fff;
   --vscode-border: var(--vscode-editorGroup-border, #fff);
+
+  /* Without this the inputs keep the light-theme border inherited from :root. */
   --vscode-editorGroup-border: #fff;
   --vscode-focusBorder: #ff0;
   --vscode-errorForeground: #f00;
@@ -229,6 +232,10 @@
 
 /* In VS Code webview prefer live VS Code theme variables. */
 :root.vscode-webview {
+  /* VS Code has no `border` color id, so the host never injects this one and
+     every consumer (antd's colorBorder token included) would fall back to a
+     hard-coded grey. Alias the border the inputs already use. */
+  --vscode-border: var(--vscode-editorGroup-border);
   --doc-bg: var(--vscode-editor-background, #fff);
   --doc-fg: var(--vscode-foreground, rgb(0 0 0 / 88%));
 

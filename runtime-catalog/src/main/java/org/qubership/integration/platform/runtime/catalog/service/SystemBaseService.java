@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -31,7 +32,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 
@@ -39,18 +39,6 @@ import static java.util.Objects.isNull;
 public class SystemBaseService {
 
     private static final String SYSTEM_WITH_ID_NOT_FOUND = "Can't find system with id: ";
-
-    private static final Map<IntegrationSystemType, Collection<OperationProtocol>> ALLOWED_PROTOCOL_MAP = Map.of(
-            IntegrationSystemType.EXTERNAL, Arrays.stream(OperationProtocol.values())
-                    .filter(protocol -> !OperationProtocol.METAMODEL.equals(protocol))
-                    .collect(Collectors.toSet()),
-            IntegrationSystemType.INTERNAL, Set.of(OperationProtocol.values()),
-            IntegrationSystemType.IMPLEMENTED, Set.of(
-                    OperationProtocol.HTTP,
-                    OperationProtocol.SOAP,
-                    OperationProtocol.GRAPHQL
-            )
-    );
 
     protected final SystemRepository systemRepository;
     protected final ActionsLogService actionsLogger;
@@ -125,10 +113,15 @@ public class SystemBaseService {
             return;
         }
         IntegrationSystemType systemType = system.getIntegrationSystemType();
-        if (!ALLOWED_PROTOCOL_MAP.getOrDefault(systemType, Collections.emptyList()).contains(protocol)) {
+        if (isNull(systemType)) {
+            throw new BadRequestException(String.format(
+                    "Service %s has no type, so specification type %s can't be validated",
+                    system.getId(), protocol.getType()));
+        }
+        if (!systemType.allowedProtocols().contains(protocol)) {
             String message = String.format("Specification type is not allowed for %s system: %s",
                     systemType.name().toLowerCase(), protocol.getType());
-            throw new RuntimeException(message);
+            throw new BadRequestException(message);
         }
     }
 

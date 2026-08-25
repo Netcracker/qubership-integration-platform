@@ -6,22 +6,35 @@ import {
   buildServiceRecord,
 } from "../helpers/mocks";
 
-jest.mock("vscode", () => createVscodeMock(), { virtual: true });
+jest.mock(
+  "vscode",
+  () => {
+    // serviceApiModify uses both the default (`vscode.Uri` / `vscode.window`)
+    // and named (`Uri`) imports, so expose the mock as both.
+    const api = createVscodeMock();
+    return { __esModule: true, default: api, ...api };
+  },
+  { virtual: true },
+);
 jest.mock("yaml", () => ({ stringify: jest.fn(), parse: jest.fn() }));
 jest.mock("../../src/web/response/file/fileApiProvider", () => stubFileApi());
-jest.mock("../../src/web/response/serviceApiRead", () => ({
-  getMainService: jest.fn(),
-  getService: jest.fn(),
-  getContextService: jest.fn(),
-}));
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-  getExtensionsForUri: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-}));
+jest.mock("../../src/web/response/serviceApiRead", () => {
+  const getMainService = jest.fn();
+  return {
+    getMainService,
+    // The real one falls back to the file the id resolves to when the uri no longer reads; every
+    // case here holds a live uri, so it answers with the file it was handed.
+    readServiceFile: async (fileUri: any) => ({
+      fileUri,
+      service: await getMainService(fileUri),
+    }),
+    getService: jest.fn(),
+    getContextService: jest.fn(),
+  };
+});
+jest.mock("../../src/web/response/file/fileExtensions", () =>
+  jest.requireActual("../helpers/mocks").fileExtensionsMock(),
+);
 jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
 jest.mock("../../src/web/services/ProjectConfigService", () =>
@@ -29,6 +42,11 @@ jest.mock("../../src/web/services/ProjectConfigService", () =>
 );
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },
+}));
+const regenerateGroupApisSafely = jest.fn();
+const resolveGroupFile = jest.fn();
+jest.mock("../../src/web/api-services/ApiGroupService", () => ({
+  ApiGroupService: { regenerateGroupApisSafely, resolveGroupFile },
 }));
 jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 
@@ -47,52 +65,85 @@ import {
   IntegrationSystem,
 } from "../../src/web/api-services/servicesTypes";
 import { ApiSpecificationType } from "../../src/web/api-services/importApiTypes";
-import { updateService } from "../../src/web/response/serviceApiModify";
+import {
+  updateService,
+  updateSpecificationModel,
+  deprecateModel,
+  deleteSpecificationGroup,
+} from "../../src/web/response/serviceApiModify";
 import {
   getMainService,
   getService,
 } from "../../src/web/response/serviceApiRead";
 import { validateAllowedSystemProtocol } from "../../src/web/response/serviceApiUtils";
+import { fileApi } from "../../src/web/response/file/fileApiProvider";
+import { ContentParser } from "../../src/web/api-services/parsers/ContentParser";
 
+// The type is immutable, so the protocol is the side that can change. Before #553 the validation
+// ran only on the type branch, which left a protocol change unchecked.
 describe("updateService – validateAllowedSystemProtocol integration", () => {
-  const serviceFileUri = {} as any;
   const serviceId = "svc-1";
+  const fileUri = {
+    path: `/svc-1/${serviceId}.service.qip.yaml`,
+  } as any;
+
+  /** The current format: the type is stated by `$schema` and nowhere else. */
+  function implementedRecord() {
+    return {
+      ...buildServiceRecord(serviceId, { protocol: ApiSpecificationType.HTTP }),
+      $schema: "urn:implemented",
+    };
+  }
 
   beforeEach(() => jest.clearAllMocks());
 
-  test("calls validateAllowedSystemProtocol with (type, existing protocol) when type is set", async () => {
-    (getMainService as jest.Mock).mockResolvedValue(
-      buildServiceRecord(serviceId, { protocol: ApiSpecificationType.HTTP }),
-    );
+  test("calls validateAllowedSystemProtocol with the $schema's type and the new protocol", async () => {
+    (getMainService as jest.Mock).mockResolvedValue(implementedRecord());
     (getService as jest.Mock).mockResolvedValue({
       id: serviceId,
     } as IntegrationSystem);
 
-    await updateService(serviceFileUri, serviceId, {
-      type: IntegrationSystemType.EXTERNAL,
+    await updateService(fileUri, serviceId, {
+      protocol: "graphql",
     } as Partial<IntegrationSystem>);
 
     expect(validateAllowedSystemProtocol).toHaveBeenCalledWith(
-      IntegrationSystemType.EXTERNAL,
-      ApiSpecificationType.HTTP,
+      IntegrationSystemType.IMPLEMENTED,
+      ApiSpecificationType.GRAPHQL,
     );
   });
 
-  test("throws when type is IMPLEMENTED but stored protocol is GRPC", async () => {
+  test("throws when the new protocol is not allowed for the type the $schema states", async () => {
+    (getMainService as jest.Mock).mockResolvedValue(implementedRecord());
+
+    await expect(
+      updateService(fileUri, serviceId, {
+        protocol: ApiSpecificationType.GRPC,
+      } as Partial<IntegrationSystem>),
+    ).rejects.toThrow(
+      "Specification type is not allowed for implemented system: GRPC",
+    );
+    expect(fileApi.writeMainService).not.toHaveBeenCalled();
+  });
+
+  test("takes the type from the content when $schema states none", async () => {
     (getMainService as jest.Mock).mockResolvedValue(
-      buildServiceRecord(serviceId, { protocol: ApiSpecificationType.GRPC }),
+      buildServiceRecord(serviceId, {
+        protocol: ApiSpecificationType.HTTP,
+        integrationSystemType: IntegrationSystemType.IMPLEMENTED,
+      }),
     );
 
     await expect(
-      updateService(serviceFileUri, serviceId, {
-        type: IntegrationSystemType.IMPLEMENTED,
+      updateService(fileUri, serviceId, {
+        protocol: ApiSpecificationType.GRPC,
       } as Partial<IntegrationSystem>),
     ).rejects.toThrow(
       "Specification type is not allowed for implemented system: GRPC",
     );
   });
 
-  test("skips validation entirely when type is not provided", async () => {
+  test("skips validation entirely when protocol is not provided", async () => {
     (getMainService as jest.Mock).mockResolvedValue(
       buildServiceRecord(serviceId),
     );
@@ -100,10 +151,91 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
       id: serviceId,
     } as IntegrationSystem);
 
-    await updateService(serviceFileUri, serviceId, {
+    await updateService(fileUri, serviceId, {
       name: "Updated Name",
     } as Partial<IntegrationSystem>);
 
     expect(validateAllowedSystemProtocol).not.toHaveBeenCalled();
+  });
+});
+
+// apis[] is derived from each API file's parentId. Every writer must rebuild it
+// so a stale or hand-edited list is corrected on the next write. Removing any of
+// these hooks must fail a test.
+describe("apis[] regeneration wiring after a model write", () => {
+  const serviceFileUri = { path: "/svc/service.qip.yaml" } as any;
+  const MODEL_ID = "model-1";
+  const GROUP_ID = "group-1";
+  const SPEC_FILE = "model-1.api.qip.yaml";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (fileApi.getSpecificationFiles as jest.Mock).mockResolvedValue([SPEC_FILE]);
+    (fileApi.parseFile as jest.Mock).mockResolvedValue({
+      id: MODEL_ID,
+      name: "Model One",
+      content: { parentId: GROUP_ID },
+    });
+    (fileApi.writeFile as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  test("updateSpecificationModel rebuilds the group apis[]", async () => {
+    await updateSpecificationModel(serviceFileUri, MODEL_ID, {
+      description: "updated",
+    });
+
+    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(
+      serviceFileUri,
+      GROUP_ID,
+    );
+  });
+
+  test("deprecateModel rebuilds the group apis[]", async () => {
+    await deprecateModel(serviceFileUri, MODEL_ID);
+
+    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(
+      serviceFileUri,
+      GROUP_ID,
+    );
+  });
+});
+
+// A group can have a file under both group extensions. Leaving one behind resurrects the group on the next
+// read, with its APIs already deleted.
+describe("deleteSpecificationGroup removes every file carrying the group id", () => {
+  const serviceFileUri = { path: "/svc/service.qip.yaml" } as any;
+  const GROUP_ID = "group-1";
+  const GROUP_FILE = "group-1.api-group.qip.yaml";
+  const LEGACY_GROUP_FILE = "group-1.specification-group.qip.yaml";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getMainService as jest.Mock).mockResolvedValue(
+      buildServiceRecord("svc-1"),
+    );
+    (fileApi.getSpecificationFiles as jest.Mock).mockResolvedValue([]);
+    (fileApi.deleteFile as jest.Mock).mockResolvedValue(undefined);
+    resolveGroupFile.mockResolvedValue({
+      fileName: GROUP_FILE,
+      info: { id: GROUP_ID, name: "Group One" },
+      duplicates: [LEGACY_GROUP_FILE],
+    });
+  });
+
+  test("deletes the resolved file and its pre-rename sibling", async () => {
+    await deleteSpecificationGroup(serviceFileUri, GROUP_ID);
+
+    const deleted = (fileApi.deleteFile as jest.Mock).mock.calls.map(
+      ([uri]) => uri.path,
+    );
+    expect(deleted).toEqual([GROUP_FILE, LEGACY_GROUP_FILE]);
+  });
+
+  test("throws when no file carries the group id", async () => {
+    resolveGroupFile.mockResolvedValue(null);
+
+    await expect(
+      deleteSpecificationGroup(serviceFileUri, GROUP_ID),
+    ).rejects.toThrow(GROUP_ID);
   });
 });

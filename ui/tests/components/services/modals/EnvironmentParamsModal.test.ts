@@ -421,4 +421,73 @@ describe("EnvironmentParamsModal", () => {
     expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("reads the classifier scope sub-form from raw env properties for a MAAS_BY_CLASSIFIER environment", async () => {
+    renderModal("kafka", {
+      sourceType: EnvironmentSourceType.MAAS_BY_CLASSIFIER,
+      properties: {
+        "maas.classifier.namespace": "ns1",
+        "maas.classifier.tenantId": "tenant-1",
+        "maas.classifier.tenantEnabled": "true",
+        "other.prop": "value",
+      },
+    });
+
+    const scopeForm = screen.getByTestId("maas-classifier-scope-form");
+    expect(within(scopeForm).getByLabelText("Namespace")).toHaveValue("ns1");
+    expect(within(scopeForm).getByLabelText("Tenant ID")).toHaveValue(
+      "tenant-1",
+    );
+    expect(within(scopeForm).getByRole("switch")).toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("Expand properties"));
+    const panel = await screen.findByTestId("environment-properties-panel");
+    expect(within(panel).getByText("other.prop")).toBeInTheDocument();
+    expect(within(panel).queryByText("maas.classifier.namespace")).toBeNull();
+    expect(within(panel).queryByText("maas.classifier.tenantId")).toBeNull();
+    expect(
+      within(panel).queryByText("maas.classifier.tenantEnabled"),
+    ).toBeNull();
+  });
+
+  it("does not render the classifier scope sub-form for a MANUAL environment", () => {
+    renderModal("kafka", { sourceType: EnvironmentSourceType.MANUAL });
+
+    expect(
+      screen.queryByTestId("maas-classifier-scope-form"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("writes the classifier scope into raw env properties on save", async () => {
+    const { onSave } = renderModal("kafka", {
+      sourceType: EnvironmentSourceType.MAAS_BY_CLASSIFIER,
+      properties: {
+        "maas.classifier.namespace": "ns1",
+        "maas.classifier.tenantId": "tenant-1",
+        "maas.classifier.tenantEnabled": "false",
+        "other.prop": "value",
+      },
+    });
+
+    const scopeForm = screen.getByTestId("maas-classifier-scope-form");
+    fireEvent.change(within(scopeForm).getByLabelText("Namespace"), {
+      target: { value: "ns2" },
+    });
+    fireEvent.click(within(scopeForm).getByRole("switch"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const savedRequest = onSave.mock.calls[0][0] as {
+      maasClassifier?: unknown;
+      properties: Record<string, string>;
+    };
+    expect(savedRequest.maasClassifier).toBeUndefined();
+    expect(savedRequest.properties).toEqual({
+      "other.prop": "value",
+      "maas.classifier.namespace": "ns2",
+      "maas.classifier.tenantId": "tenant-1",
+      "maas.classifier.tenantEnabled": "true",
+    });
+  });
 });

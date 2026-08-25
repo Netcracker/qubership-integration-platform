@@ -64,7 +64,12 @@ public class GraphqlSpecificationParser implements SpecificationParser {
             Consumer<String> messageHandler
     ) {
         try {
-            String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
+            String specificationText = sources.stream()
+                    .filter(SpecificationSource::isMainSource)
+                    .findFirst()
+                    .or(() -> sources.stream().findFirst())
+                    .map(SpecificationSource::getSource)
+                    .orElse("");
             List<ParsedOperation> operationList = getParsedOperations(specificationText);
             return ParsedSystemModelImpl.builder()
                     .operations(operationList)
