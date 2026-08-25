@@ -19,7 +19,7 @@ mvn install -DskipTests                    # Build without tests
 mvn spring-boot:run                        # Run locally (uses 'development' profile, debug port 18085)
 ```
 
-Checkstyle is enforced at compile phase with zero violations allowed. Config from `qip-checkstyle` artifact (v0.0.3); local copy at `.github/linters/checkstyle.xml`. Key rules: no star imports, no Cyrillic in code, no tab characters, custom import ordering (THIRD_PARTY, STANDARD_JAVA, STATIC).
+Checkstyle is enforced at compile phase with zero violations allowed. Config from `qip-checkstyle` artifact (v0.0.3); rules also kept in-repo at `checkstyle/src/main/resources/checkstyle.xml`. Key rules: no star imports, no Cyrillic in code, no tab characters, custom import ordering (THIRD_PARTY, STANDARD_JAVA, STATIC).
 
 ### Architecture
 

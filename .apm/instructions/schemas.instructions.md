@@ -32,30 +32,6 @@ mvn -pl schemas test                           # JUnit 5 + networknt json-schema
 
 ### Project Structure
 
-```text
-schemas/
-├── src/main/resources/qip-model/      — authoritative YAML schema sources ($id under http://qubership.org/schemas/product/qip/)
-│   ├── *.schema.yaml                   — top-level entities: chain, external-service, internal-service, implemented-service, service, context-service, mcp-service, api, api-operation, api-group, specification (specification-group is the pre-rename `$id`, kept because runtime-catalog's revert migration still stamps it on old-format archives)
-│   ├── element/                        — 72 element schemas (http-trigger, service-call, mapper-2, script, split-*, try-catch-finally, …)
-│   │   └── properties/                 — shared element building blocks ($ref'd: common-element-properties, headers, idempotency, …)
-│   └── common-properties/              — shared entity props ($ref'd: description, labels, parent, service-type, environment, typed-service-content, migrations, top-level-entity)
-├── src/main/scripts/                  — TypeScript build pipeline
-│   ├── build.ts                        — entrypoint; clean(), resolve schemas, generate types, write dist/index.{mjs,d.ts}
-│   ├── schemaResolver.ts               — dereferences element/*.schema.yaml, inlines nested $refs, strips nested $ids → writes assets/
-│   └── generateTypes.ts                — json-schema-to-typescript → types/**/*.d.ts + types/index.d.ts re-export barrel
-├── src/test/resources/samples/        — valid/invalid YAML samples (files ending __SHOULD_FAIL.yaml are expected to fail)
-├── src/test/resources/conformance/    — SHARED: operation-schema parity oracle (recorded output; runtime-catalog + UI)
-├── src/test/resources/exportimport-golden/ — SHARED: four service archive trees (recorded output; runtime-catalog + vscode-extension)
-├── src/test/resources/naming/         — SHARED: the service file naming rule (declaration; runtime-catalog + vscode-extension)
-├── src/test/java/.../schemas/         — JUnit conformance tests (Conformance/JsonSchemaFormat/SchemaOnSamples)
-├── src/main/assembly/zip-pack.xml     — Maven ZIP assembly descriptor (qip-model → models artifact)
-├── assets/                            — GENERATED: flattened/dereferenced element schemas (npm `./assets/*` export)
-├── types/                             — GENERATED: per-schema `.d.ts` + index barrel
-├── dist/                              — GENERATED: index.mjs (runtime map) + index.d.ts (types entrypoint)
-├── pom.xml                            — Maven publishing (Central + GitHub Packages profiles)
-└── jest.config.ts / package.json / tsconfig.json
-```
-
 #### Build pipeline (`build.ts`)
 
 1. **clean** — removes `assets/`, `types/`, `dist/`.
@@ -91,32 +67,10 @@ schemas/
     `activeEnvironmentId` for both, which forced the `not` guard into a separate file because `service.schema.yaml`
     requires the very field the typed schemas forbid. Splitting `environment` out dissolved that conflict: the shared
     part is now exactly the part both formats agree on.
-  - **Do not delete `service.schema.yaml`.** It describes the format every pre-#553 archive uses, keeps
-    `integrationSystemType` required, and is what runtime-catalog's `V105RevertMigration` restores under
-    `qip.export.legacy-format=true`.
   - `common-properties/*` `$id`s never reach a document as `$schema`; only top-level entity schemas do. So these
     files can be merged, renamed, or moved freely, while a top-level `$id` cannot change without migrating every
     document that carries it — the resolver maps a `$id` URI onto a file path by string replacement
     (`schemaResolver.ts`), so the URI *is* the path.
-  - The constraints are a second statement of rules the backend enforces, and nothing links the two builds —
-    runtime-catalog has no Maven dependency on `qip-schemas`. Its `ServiceTypeFilesTest` reads these three files off its
-    test classpath and compares each `Protocol` enum and `maxItems` against `IntegrationSystemType.allowedProtocols()`
-    and `maxEnvironments()`, so change one side and that test names the file that disagrees.
-- **`src/test/resources/` hosts three corpora two other modules read**, and they are not the same kind of thing.
-  `conformance/` and `exportimport-golden/` are **recorded output** — one implementation produced them, and a
-  regeneration that follows a drift would bless it, which is why each has a pin test comparing a fresh run against the
-  record. `naming/` is a **declaration** — nothing generates it, and both implementations are measured against it.
-  Read the README in each before editing. Only runtime-catalog can produce the two output corpora, so a capture writes
-  across the module boundary; that is deliberate and documented at `GoldenServiceCorpus.sourceSet`.
-- **`src/test/resources/naming/` is a contract, not a schema.** `service-file-names.yaml` states how a service file is
-  named — the per-kind postfixes, the one pre-#553 name both sides read, the three flat legacy names — plus a hostile
-  alphabet and a `classify` section of names both implementations must *read*. Runtime Catalog reads it through a
-  `<testResource>` (`ServiceNameCorpusTest`), the VS Code extension by relative path (`serviceNameCorpus.test.ts`).
-  Both are measured against the declared rule, never against each other's output, so agreement follows and no captured
-  snapshot can bless a drift. A `classify` entry needs an explicit `appName` (the extension is parameterized by it, the
-  backend ignores it) and a per-side outcome; a disagreement is allowed only with a written `divergence`, and both
-  readers fail an undeclared one. Neither implementation authors the file — a red case asks which side broke the rule.
-  See the README beside it.
 - The npm package version (`package.json`) and the Maven version (`pom.xml`) are independent and bumped separately.
 
 ### Platform Context

@@ -140,6 +140,7 @@ that no CI job runs goes stale within a release.
 
 ## Maintaining this skill
 
-This skill is APM-managed. Edit the source under `.apm/skills/runtime-catalog-api-testing/` and
-`.apm/instructions/runtime-catalog-api-testing.instructions.md`, then run `apm compile`, which
-regenerates the mirrors under `.claude/` and `.agents/`. Do not hand-edit the mirrored copies.
+This skill is APM-managed. Edit the source under `.apm/skills/runtime-catalog-api-testing/`; its
+trigger lives in `.apm/instructions/runtime-catalog.instructions.md`. Run `apm install` to refresh
+the mirrors under `.claude/` and `.agents/`, then `apm compile` for the `AGENTS.md` files. Do not
+hand-edit the mirrored copies.

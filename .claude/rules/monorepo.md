@@ -16,6 +16,7 @@ module, scoped by `applyTo` to that module's path:
 - `schemas` — JSON Schema sources + ts-node build/codegen pipeline (npm + Maven publish)
 - `vscode-extension` — offline web extension, embeds `@netcracker/qip-ui`
 - `infrastructure` — Docker Compose + Helm for the local stack
+- `integration-build-pipeline` — `qip-integration-build-pipeline`, the chain-compilation library runtime-catalog depends on (codegen, parsers, mapper, library, chain, io). No instruction of its own yet.
 
 The `ui` module is covered by the four `ui-*` skills rather than an instruction, because its
 guidance is long enough to be worth loading on demand. Two directories carry shared build
@@ -29,14 +30,14 @@ Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
 #### Maven aggregator (`pom.xml`, `groupId: org.qubership.integration.platform`, `artifactId: qip-monorepo`)
 
 ```bash
-mvn clean install -Dgpg.skip=true              # Build all Java modules (parent, checkstyle, engine, micro-engine, runtime-catalog, sessions-management)
+mvn clean install -Dgpg.skip=true              # Build all Java modules (see <modules> in the root pom.xml)
 mvn -pl engine -am clean install -Dgpg.skip=true   # Single module + its dependencies
 ```
 
 `-Dgpg.skip=true` is required locally (GPG signing is configured in `parent/pom.xml` for release publishing).
 
 Published Maven artifacts retain their original coordinates — the monorepo did not rename them:
-`qip-engine`, `qip-runtime-catalog`, `qip-sessions-management`, `qip-micro-engine`, `qip-checkstyle` (all under `org.qubership.integration.platform`).
+`qip-engine`, `qip-runtime-catalog`, `qip-sessions-management`, `qip-micro-engine`, `qip-checkstyle`, `qip-integration-build-pipeline` (all under `org.qubership.integration.platform`).
 
 #### npm workspaces (root `package.json`)
 
@@ -72,7 +73,7 @@ Shortcut: `npm -w @netcracker/qip-vscode-extension run build` runs all three ste
 
 ### Branch model
 
-- `main` — all 10 modules at HEAD
+- `main` — every module at HEAD
 - `release/0.1` … `release/0.5` — historical release snapshots (renamed from the old `v0.X` tags/branches), each with the module set that existed at release time
 - `feature/#173-core-adaptation` (engine), `feature/#109-core-adaptation` (runtime-catalog), `feature/#33` (sessions-management) — single-module feature branches that still depend on private `com.netcracker.cloud` artifacts. Building these requires `~/.m2/settings.xml` with a GitHub PAT authorized for `maven.pkg.github.com/Netcracker/*`.
 
