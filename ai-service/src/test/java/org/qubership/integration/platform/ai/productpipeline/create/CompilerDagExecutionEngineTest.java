@@ -7,18 +7,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -26,6 +33,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
@@ -153,6 +161,7 @@ class CompilerDagExecutionEngineTest {
     assertNotNull(result.validationBundle());
     assertTrue(result.validationBundle().approvalEligible());
     assertTrue(progressEvents.get() >= 2);
+    assertEquals(List.of(), result.degradationFindings());
 
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     assertTrue(workspace.get(SkillArtifactType.REQUIREMENT_BRIEF).isPresent());
@@ -195,6 +204,111 @@ class CompilerDagExecutionEngineTest {
   @Test
   void engineImplementsSharedInterface() {
     assertTrue(engine instanceof CompilerDagExecutionEngine);
+  }
+
+  @Test
+  void skipsLlmWhenManifestMarksGeneratorSkipped() {
+    String conversationId = "conv-manifest-skipped";
+    ResolvedCompilerDag dag = dagWithXsltGenerator();
+    CountingXsltExecutor xslt = new CountingXsltExecutor();
+    when(skillRegistry.require(XSLT_SKILL)).thenReturn(xslt);
+    stubAssemblyAndValidator(dag);
+    CompilerExecutionSeed seed = seedChainStructure(conversationId);
+    workspaceStore.putArtifact(
+        conversationId, generatorPlanManifest(GeneratorPlanStatus.SKIPPED));
+
+    List<String> progress = new ArrayList<>();
+    CompilerDagExecutionRequest request =
+        new CompilerDagExecutionRequest(
+            "run-1",
+            conversationId,
+            manifestFor(dag),
+            brief(),
+            null,
+            dag,
+            List.of(),
+            List.of(),
+            List.of(),
+            seed);
+
+    CompilerDagExecutionResult result =
+        engine
+            .execute(
+                request,
+                (skillId, status) -> progress.add(skillId + ":" + status))
+            .await()
+            .indefinitely();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertEquals(
+        List.of(XSLT_SKILL, "cip-chain-assembler", "cip-structural-validator"),
+        result.executedSkillIds());
+    assertEquals(0, xslt.runCount());
+    verify(skillRegistry, never()).require(XSLT_SKILL);
+    assertTrue(
+        progress.stream().noneMatch(event -> event.startsWith(XSLT_SKILL + ":")),
+        "skipped generator must not emit activity progress");
+  }
+
+  @Test
+  void runsGeneratorWhenManifestIsMissing() {
+    String conversationId = "conv-manifest-missing";
+    ResolvedCompilerDag dag = dagWithXsltGenerator();
+    CountingXsltExecutor xslt = new CountingXsltExecutor();
+    when(skillRegistry.require(XSLT_SKILL)).thenReturn(xslt);
+    stubAssemblyAndValidator(dag);
+    CompilerExecutionSeed seed = seedChainStructure(conversationId);
+
+    CompilerDagExecutionRequest request =
+        new CompilerDagExecutionRequest(
+            "run-1",
+            conversationId,
+            manifestFor(dag),
+            brief(),
+            null,
+            dag,
+            List.of(),
+            List.of(),
+            List.of(),
+            seed);
+
+    CompilerDagExecutionResult result =
+        engine.execute(request, (skillId, status) -> {}).await().indefinitely();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertEquals(1, xslt.runCount());
+    assertTrue(result.executedSkillIds().contains(XSLT_SKILL));
+  }
+
+  @Test
+  void runsGeneratorWhenManifestMarksReady() {
+    String conversationId = "conv-manifest-ready";
+    ResolvedCompilerDag dag = dagWithXsltGenerator();
+    CountingXsltExecutor xslt = new CountingXsltExecutor();
+    when(skillRegistry.require(XSLT_SKILL)).thenReturn(xslt);
+    stubAssemblyAndValidator(dag);
+    CompilerExecutionSeed seed = seedChainStructure(conversationId);
+    workspaceStore.putArtifact(
+        conversationId, generatorPlanManifest(GeneratorPlanStatus.READY));
+
+    CompilerDagExecutionRequest request =
+        new CompilerDagExecutionRequest(
+            "run-1",
+            conversationId,
+            manifestFor(dag),
+            brief(),
+            null,
+            dag,
+            List.of(),
+            List.of(),
+            List.of(),
+            seed);
+
+    CompilerDagExecutionResult result =
+        engine.execute(request, (skillId, status) -> {}).await().indefinitely();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertEquals(1, xslt.runCount());
   }
 
   private static RequirementBrief brief() {
@@ -306,6 +420,109 @@ class CompilerDagExecutionEngineTest {
         "dag");
   }
 
+  private static final String XSLT_SKILL = "cip-xslt-generator";
+
+  private static ResolvedCompilerDag dagWithXsltGenerator() {
+    return new ResolvedCompilerDag(
+        List.of(
+            new ResolvedCompilerNode(
+                XSLT_SKILL,
+                "Generation",
+                "GEN-XSLT",
+                List.of(SkillArtifactType.REQUIREMENT_BRIEF.name()),
+                List.of(),
+                List.of("cip-requirement-analyzer"),
+                "captureGraphPatch",
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                0,
+                0,
+                true,
+                CompilerNodeExecutionMode.LLM_SKILL,
+                null),
+            new ResolvedCompilerNode(
+                "cip-chain-assembler",
+                "Assembly",
+                null,
+                List.of(SkillArtifactType.CHAIN_STRUCTURE.name()),
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(XSLT_SKILL),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                1,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "graph-assembly"),
+            new ResolvedCompilerNode(
+                "cip-structural-validator",
+                "Validation",
+                null,
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(SkillArtifactType.PRE_BUILD_VALIDATION.name()),
+                List.of("cip-chain-assembler"),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                2,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "structural-validation")),
+        List.of(),
+        "dag-xslt");
+  }
+
+  private CompilerExecutionSeed seedChainStructure(String conversationId) {
+    return CompilerExecutionSeed.forCreate(conversationId, brief())
+        .with(
+            SkillArtifact.of(
+                SkillArtifactType.CHAIN_STRUCTURE,
+                "seed",
+                new SkillArtifactPayload.ChainStructurePayload(
+                    new ChainStructure(graphForAssembly(), List.of(), List.of()))));
+  }
+
+  private void stubAssemblyAndValidator(ResolvedCompilerDag dag) {
+    CompilerNodeExecutionAdapter assemblyAdapter = mock(CompilerNodeExecutionAdapter.class);
+    when(javaAdapterRegistry.require("graph-assembly")).thenReturn(assemblyAdapter);
+    when(assemblyAdapter.execute(eq(node(dag, "cip-chain-assembler")), org.mockito.Mockito.any()))
+        .thenReturn(new CompilerNodeExecutionResult(List.of(), List.of()));
+
+    CompilerNodeExecutionAdapter validatorAdapter = mock(CompilerNodeExecutionAdapter.class);
+    when(javaAdapterRegistry.require("structural-validation")).thenReturn(validatorAdapter);
+    when(validatorAdapter.execute(
+            eq(node(dag, "cip-structural-validator")), org.mockito.Mockito.any()))
+        .thenReturn(
+            new CompilerNodeExecutionResult(
+                List.of(
+                    SkillArtifact.of(
+                        SkillArtifactType.PRE_BUILD_VALIDATION,
+                        "cip-structural-validator",
+                        new SkillArtifactPayload.ValidationResultPayload(
+                            new ValidationResult(true, List.of(), "ok")))),
+                List.of()));
+  }
+
+  private static SkillArtifact generatorPlanManifest(GeneratorPlanStatus xsltStatus) {
+    return SkillArtifact.of(
+        SkillArtifactType.GENERATOR_PLAN_MANIFEST,
+        "generator-plan-manifest",
+        new SkillArtifactPayload.GeneratorPlanManifestPayload(
+            new GeneratorPlanManifest(
+                "v1",
+                List.of(
+                    new GeneratorPlan(
+                        "GEN-XSLT", XSLT_SKILL, xsltStatus, List.of(), List.of())))));
+  }
+
   private static ResolvedCompilerDag dagWithStructureGenerator() {
     return new ResolvedCompilerDag(
         List.of(
@@ -356,6 +573,40 @@ class CompilerDagExecutionEngineTest {
                     new org.qubership.integration.platform.ai.plan.model.PlanProperty(
                         "externalRoute", "false")))),
         List.of());
+  }
+
+  private static final class CountingXsltExecutor implements SkillExecutor {
+    private final AtomicInteger runs = new AtomicInteger();
+
+    @Override
+    public String skillId() {
+      return XSLT_SKILL;
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.REQUIREMENT_BRIEF);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of();
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      runs.incrementAndGet();
+      return Uni.createFrom().item(SkillExecutionResult.completed(List.of(), "xslt"));
+    }
+
+    int runCount() {
+      return runs.get();
+    }
   }
 
   private static final class FailingStructureExecutor implements SkillExecutor {
@@ -419,6 +670,168 @@ class CompilerDagExecutionEngineTest {
                               new SelectedPattern(
                                   "GP-01", "Pattern", "reason", null, List.of(), "summary")))),
                   "ok"));
+    }
+  }
+
+  @Test
+  void aSkippedGeneratorAndTheManifestItFellBackOnAreRecordedAsNonBlockerFindings() {
+    String conversationId = "conv-naming-fallback-findings";
+    ResolvedCompilerDag dag = dagWithNamingGenerator();
+    when(skillRegistry.require(NAMING_SKILL)).thenReturn(new FailingNamingExecutor());
+    stubAssemblyAndValidator(dag);
+    seedStructure(conversationId);
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.NAMING_MANIFEST,
+            "prior-run",
+            new SkillArtifactPayload.NamingManifestPayload(
+                new NamingManifest(1, "Prior.Internal.Chain", Map.of(), List.of(), List.of()))));
+
+    CompilerDagExecutionResult result = executeDag(conversationId, dag);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertEquals(
+        List.of(PlanningDegradations.GENERATOR_SKIPPED, PlanningDegradations.FALLBACK_SUBSTITUTED),
+        result.degradationFindings().stream().map(PlanValidationFinding::code).toList());
+    assertTrue(result.degradationFindings().stream().noneMatch(PlanValidationFinding::blocker));
+    assertTrue(
+        result.degradationFindings().get(1).message().contains(NAMING_SKILL),
+        result.degradationFindings().get(1).message());
+  }
+
+  @Test
+  void aNamingGeneratorThatLeavesNothingBehindRecordsTheSoftDefaultChainName() {
+    String conversationId = "conv-naming-default-findings";
+    ResolvedCompilerDag dag = dagWithNamingGenerator();
+    when(skillRegistry.require(NAMING_SKILL)).thenReturn(new FailingNamingExecutor());
+    stubAssemblyAndValidator(dag);
+    seedStructure(conversationId);
+
+    CompilerDagExecutionResult result = executeDag(conversationId, dag);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertEquals(
+        List.of(PlanningDegradations.GENERATOR_SKIPPED, PlanningDegradations.DEFAULT_CHAIN_NAME),
+        result.degradationFindings().stream().map(PlanValidationFinding::code).toList());
+    assertTrue(result.degradationFindings().stream().noneMatch(PlanValidationFinding::blocker));
+    assertTrue(
+        result.degradationFindings().get(1).message().contains("Generated.Internal.Chain"),
+        result.degradationFindings().get(1).message());
+  }
+
+  private CompilerDagExecutionResult executeDag(String conversationId, ResolvedCompilerDag dag) {
+    return engine
+        .execute(
+            new CompilerDagExecutionRequest(
+                "run-1",
+                conversationId,
+                manifestFor(dag),
+                brief(),
+                null,
+                dag,
+                List.of(),
+                List.of(),
+                List.of()),
+            (skillId, status) -> {})
+        .await()
+        .indefinitely();
+  }
+
+  private void seedStructure(String conversationId) {
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_STRUCTURE,
+            "seed",
+            new SkillArtifactPayload.ChainStructurePayload(
+                new ChainStructure(graphForAssembly(), List.of(), List.of()))));
+  }
+
+  private static final String NAMING_SKILL = "cip-naming-generator";
+
+  private static ResolvedCompilerDag dagWithNamingGenerator() {
+    return new ResolvedCompilerDag(
+        List.of(
+            new ResolvedCompilerNode(
+                NAMING_SKILL,
+                "Planning",
+                "GEN-NAMING",
+                List.of(SkillArtifactType.REQUIREMENT_BRIEF.name()),
+                List.of(SkillArtifactType.NAMING_MANIFEST.name()),
+                List.of("cip-requirement-analyzer"),
+                "captureNamingManifest",
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                0,
+                0,
+                true,
+                CompilerNodeExecutionMode.LLM_SKILL,
+                null),
+            new ResolvedCompilerNode(
+                "cip-chain-assembler",
+                "Assembly",
+                null,
+                List.of(SkillArtifactType.NAMING_MANIFEST.name()),
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(NAMING_SKILL),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                1,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "graph-assembly"),
+            new ResolvedCompilerNode(
+                "cip-structural-validator",
+                "Validation",
+                null,
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(SkillArtifactType.PRE_BUILD_VALIDATION.name()),
+                List.of("cip-chain-assembler"),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                2,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "structural-validation")),
+        List.of(),
+        "dag-naming");
+  }
+
+  private static final class FailingNamingExecutor implements SkillExecutor {
+    @Override
+    public String skillId() {
+      return NAMING_SKILL;
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.REQUIREMENT_BRIEF);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.NAMING_MANIFEST);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      return Uni.createFrom().item(SkillExecutionResult.failed("naming capture rejected"));
     }
   }
 }

@@ -12,6 +12,8 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.ImplementationPlanRenderer;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -81,6 +83,12 @@ public class CompilerDerivedPlanningRunner {
               } catch (PlanningSkillArtifactUnavailableException failure) {
                 return missingArtifactOutcome(failure);
               } catch (RuntimeException ex) {
+                if (TransientFailures.isTransient(ex)) {
+                  return transientOutcome(ex);
+                }
+                if (ToolArgumentsFailures.isToolArgumentsFailure(ex)) {
+                  return toolArgumentsOutcome(ex);
+                }
                 if (isContractFailure(ex)) {
                   return StageOutcome.of(
                       StageOutcomeClass.CONTRACT_FAILURE,
@@ -112,7 +120,13 @@ public class CompilerDerivedPlanningRunner {
                         missingArtifactOutcome(failure)));
                 emitter.complete();
               } catch (RuntimeException ex) {
-                if (isContractFailure(ex)) {
+                if (TransientFailures.isTransient(ex)) {
+                  emitter.emit(new CapabilitySignal.Completed(transientOutcome(ex)));
+                  emitter.complete();
+                } else if (ToolArgumentsFailures.isToolArgumentsFailure(ex)) {
+                  emitter.emit(new CapabilitySignal.Completed(toolArgumentsOutcome(ex)));
+                  emitter.complete();
+                } else if (isContractFailure(ex)) {
                   emitter.emit(
                       new CapabilitySignal.Completed(
                           StageOutcome.of(
@@ -137,6 +151,21 @@ public class CompilerDerivedPlanningRunner {
     return StageOutcome.of(
         StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
         failure.getMessage());
+  }
+
+  private static StageOutcome toolArgumentsOutcome(Throwable failure) {
+    String message = ToolArgumentsFailures.message(failure);
+    if (message == null || message.isBlank()) {
+      message = "invalid tool arguments";
+    }
+    return StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, message);
+  }
+
+  private static StageOutcome transientOutcome(Throwable failure) {
+    String message = failure.getMessage();
+    return StageOutcome.of(
+        StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+        message == null || message.isBlank() ? failure.toString() : message);
   }
 
   private static DerivedPlanningResult collectFromSpine(
@@ -185,8 +214,10 @@ public class CompilerDerivedPlanningRunner {
 
     ValidationResult planValidation = planValidator.validate(new PlanGraphValidationInput(graph));
     PlanValidationResult planValidationResult =
-        mergeCompilerBundleFindings(
-            CompilerPlanningRunner.buildValidationResult(planValidation, List.of()), bundle);
+        withDegradations(
+            mergeCompilerBundleFindings(
+                CompilerPlanningRunner.buildValidationResult(planValidation, List.of()), bundle),
+            spineOutcome);
 
     PlanPresentationFacts presentationFacts = presentationFactsService.build(workspace);
     ImplementationPlan plan =
@@ -210,6 +241,21 @@ public class CompilerDerivedPlanningRunner {
         assembly,
         bundle,
         spineOutcome == null ? List.of() : spineOutcome.executedSkillIds());
+  }
+
+  /**
+   * Carry the fail-open skips and substitutions the spine reported onto the candidate plan. They are
+   * non-blockers, so the plan still reaches approval and the author reads what was degraded.
+   */
+  private static PlanValidationResult withDegradations(
+      PlanValidationResult base, PlanningSpineOutcome spineOutcome) {
+    if (spineOutcome == null || spineOutcome.degradationFindings().isEmpty()) {
+      return base;
+    }
+    List<PlanValidationFinding> findings =
+        new ArrayList<>(base == null ? List.of() : base.findings());
+    findings.addAll(spineOutcome.degradationFindings());
+    return new PlanValidationResult(findings);
   }
 
   /**

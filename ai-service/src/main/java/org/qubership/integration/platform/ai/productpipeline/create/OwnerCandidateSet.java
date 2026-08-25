@@ -3,7 +3,11 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
@@ -13,6 +17,36 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStag
  * Deepen once to those producers' producers when the first layer cannot pick an owner.
  */
 public final class OwnerCandidateSet {
+
+  private static final Set<String> PLAN_ARTIFACT_TYPES =
+      Set.of("implementation-plan", "design-execution-plan", "design-plan-report");
+
+  private static final Set<String> BRIEF_ARTIFACT_TYPES = Set.of("requirement-brief");
+
+  private static final Pattern GO_BACK_TO_TARGET =
+      Pattern.compile(
+          "(go\\s+back|back|return|reopen)\\s+to\\s+\\S+", Pattern.CANON_EQ);
+
+  /**
+   * Closed finding-owner categories for remapping. Extend only by adding a category, not by growing
+   * product-word lists. Driven by finding codes and a few structural cues.
+   *
+   * <ul>
+   *   <li>{@link FindingOwnerCategory#POLICY_OR_BRIEF} — access policy, auth, scope, or constraints
+   *       owned by the requirement brief
+   *   <li>{@link FindingOwnerCategory#PLAN_FILL} — plan structure, bindings, or step properties when
+   *       policy already allows them
+   *   <li>{@link FindingOwnerCategory#EXECUTION} — transient compile/runtime with good upstream
+   *       inputs
+   *   <li>{@link FindingOwnerCategory#UNSPECIFIED} — no automatic remap preference
+   * </ul>
+   */
+  enum FindingOwnerCategory {
+    POLICY_OR_BRIEF,
+    PLAN_FILL,
+    EXECUTION,
+    UNSPECIFIED
+  }
 
   private OwnerCandidateSet() {}
 
@@ -76,6 +110,322 @@ public final class OwnerCandidateSet {
       }
     }
     return List.copyOf(ids);
+  }
+
+  /**
+   * Remap a self, empty, or insufficient owner to the earliest sufficient producer for the finding
+   * category. Ambiguous diagnoses stay asks. User-named owners are applied after this via {@link
+   * #preferNamedOwner}.
+   */
+  public static OwnerDiagnosis preferEarliestSufficientOwner(
+      OwnerDiagnosis diagnosis,
+      List<OwnerCandidate> candidates,
+      String failedStageId,
+      String findings,
+      String evidence) {
+    OwnerDiagnosis current = diagnosis == null ? OwnerDiagnosis.none("") : diagnosis;
+    if (current.ambiguous()) {
+      return current;
+    }
+    Optional<String> preferred =
+        preferredProducer(classifyFinding(findings, evidence), candidates, failedStageId);
+    if (preferred.isEmpty()) {
+      return current;
+    }
+    String owner = current.owner().orElse("");
+    if (owner.isBlank() || owner.equals(failedStageId) || !owner.equals(preferred.get())) {
+      return OwnerDiagnosis.of(current.narrative(), preferred.get());
+    }
+    return current;
+  }
+
+  /**
+   * When the follow-up names exactly one stage in {@code candidates}, that owner replaces the
+   * automatic diagnosis. Two matches become an ask. No named stage keeps {@code diagnosis}.
+   */
+  public static OwnerDiagnosis preferNamedOwner(
+      OwnerDiagnosis diagnosis,
+      List<OwnerCandidate> candidates,
+      String followUpText) {
+    OwnerDiagnosis current = diagnosis == null ? OwnerDiagnosis.none("") : diagnosis;
+    List<String> named = namedStages(followUpText, candidates);
+    if (named.size() == 1) {
+      return OwnerDiagnosis.of(current.narrative(), named.get(0));
+    }
+    if (named.size() > 1) {
+      return OwnerDiagnosis.ask(current.narrative());
+    }
+    return current;
+  }
+
+  /**
+   * Stage ids from {@code candidates} that the follow-up names. Exact stage ids match always; fuzzy
+   * labels such as "requirements gathering" match only on an explicit go-back request.
+   */
+  public static List<String> namedStages(String followUpText, List<OwnerCandidate> candidates) {
+    if (followUpText == null || followUpText.isBlank() || candidates == null) {
+      return List.of();
+    }
+    String haystack = normalize(followUpText);
+    boolean goBack = requestsNamedStage(followUpText);
+    List<String> matched = new ArrayList<>();
+    for (OwnerCandidate candidate : candidates) {
+      if (candidate == null || candidate.stageId().isBlank()) {
+        continue;
+      }
+      if (namesCandidate(haystack, candidate, goBack)) {
+        matched.add(candidate.stageId());
+      }
+    }
+    return List.copyOf(matched);
+  }
+
+  /**
+   * True when the follow-up asks to go back, with or without naming a stage. Matches English
+   * aliases including a bare {@code back}.
+   */
+  public static boolean requestsNamedStage(String followUpText) {
+    String haystack = normalize(followUpText);
+    return containsPhrase(haystack, "go back")
+        || containsPhrase(haystack, "back to")
+        || containsPhrase(haystack, "return to")
+        || containsPhrase(haystack, "reopen")
+        || containsPhrase(haystack, "back");
+  }
+
+  /**
+   * True when the follow-up asks to go back without naming a stage ({@code to} plus a token).
+   */
+  public static boolean isBareGoBack(String followUpText) {
+    return requestsNamedStage(followUpText) && !hasExplicitStageTarget(followUpText);
+  }
+
+  /**
+   * Owner for a bare go-back: the diagnosed owner when it is already an earlier stage; otherwise
+   * the earliest upstream producer (brief, then plan) when the failed stage is {@code
+   * design-execution}.
+   */
+  public static Optional<String> ownerForBareGoBack(
+      String diagnosedOwner, List<OwnerCandidate> candidates, String failedStageId) {
+    String owner = diagnosedOwner == null ? "" : diagnosedOwner.trim();
+    if (!owner.isBlank() && !owner.equals(failedStageId)) {
+      return Optional.of(owner);
+    }
+    if ("design-execution".equals(failedStageId)) {
+      Optional<String> brief = briefProducerStageId(candidates, failedStageId);
+      if (brief.isPresent()) {
+        return brief;
+      }
+      Optional<String> producer = planProducerStageId(candidates, failedStageId);
+      if (producer.isPresent()) {
+        return producer;
+      }
+    }
+    return owner.isBlank() ? Optional.empty() : Optional.of(owner);
+  }
+
+  /** Short role for halt prose: {@code the plan} / {@code requirements}, not the stage id. */
+  public static String clarifyRole(OwnerCandidate candidate) {
+    if (candidate == null) {
+      return "";
+    }
+    String type = candidate.artifactType();
+    if (PLAN_ARTIFACT_TYPES.contains(type)) {
+      return "the plan";
+    }
+    if (type.contains("requirement")) {
+      return "requirements";
+    }
+    return type.replace('-', ' ').trim();
+  }
+
+  /** Compact {@code stageId:role} list the diagnosis turn receives. */
+  public static String formatClarifyRoles(List<OwnerCandidate> candidates) {
+    if (candidates == null || candidates.isEmpty()) {
+      return "";
+    }
+    List<String> lines = new ArrayList<>();
+    for (OwnerCandidate candidate : candidates) {
+      if (candidate == null || candidate.stageId().isBlank()) {
+        continue;
+      }
+      String role = clarifyRole(candidate);
+      if (role.isBlank()) {
+        continue;
+      }
+      lines.add(candidate.stageId() + ":" + role);
+    }
+    return String.join(",", lines);
+  }
+
+  private static boolean hasExplicitStageTarget(String followUpText) {
+    return GO_BACK_TO_TARGET.matcher(normalize(followUpText)).find();
+  }
+
+  private static boolean namesCandidate(
+      String haystack, OwnerCandidate candidate, boolean goBack) {
+    String stageId = candidate.stageId();
+    if (containsPhrase(haystack, stageId) || containsPhrase(haystack, stageId.replace('-', ' '))) {
+      return true;
+    }
+    String type = candidate.artifactType();
+    if (!type.isBlank()
+        && (containsPhrase(haystack, type) || containsPhrase(haystack, type.replace('-', ' ')))) {
+      return true;
+    }
+    return goBack && fuzzyStageMatch(haystack, stageId);
+  }
+
+  private static boolean fuzzyStageMatch(String haystack, String stageId) {
+    for (String token : stageId.split("-")) {
+      if (token.isBlank()) {
+        continue;
+      }
+      if (tokenRelated(haystack, token)) {
+        return true;
+      }
+      if ("discovery".equals(token) && tokenRelated(haystack, "gathering")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean tokenRelated(String haystack, String token) {
+    String needle = normalize(token);
+    if (needle.isBlank()) {
+      return false;
+    }
+    for (String part : haystack.split("[^a-z0-9]+")) {
+      if (part.isBlank()) {
+        continue;
+      }
+      if (part.equals(needle) || part.startsWith(needle)) {
+        return true;
+      }
+      if (part.length() >= 4 && needle.startsWith(part)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean containsPhrase(String haystack, String phrase) {
+    String needle = normalize(phrase);
+    if (needle.isBlank()) {
+      return false;
+    }
+    int from = 0;
+    while (from <= haystack.length() - needle.length()) {
+      int at = haystack.indexOf(needle, from);
+      if (at < 0) {
+        return false;
+      }
+      boolean startOk = at == 0 || !isTokenChar(haystack.charAt(at - 1));
+      int end = at + needle.length();
+      boolean endOk = end == haystack.length() || !isTokenChar(haystack.charAt(end));
+      if (startOk && endOk) {
+        return true;
+      }
+      from = at + 1;
+    }
+    return false;
+  }
+
+  private static boolean isTokenChar(char value) {
+    return Character.isLetterOrDigit(value);
+  }
+
+  static Optional<String> preferredProducer(
+      FindingOwnerCategory category, List<OwnerCandidate> candidates, String failedStageId) {
+    if (category == null) {
+      return Optional.empty();
+    }
+    return switch (category) {
+      case POLICY_OR_BRIEF ->
+          briefProducerStageId(candidates, failedStageId)
+              .or(() -> planProducerStageId(candidates, failedStageId));
+      case PLAN_FILL -> planProducerStageId(candidates, failedStageId);
+      case EXECUTION, UNSPECIFIED -> Optional.empty();
+    };
+  }
+
+  static Optional<String> planProducerStageId(
+      List<OwnerCandidate> candidates, String failedStageId) {
+    return producerStageId(candidates, failedStageId, PLAN_ARTIFACT_TYPES);
+  }
+
+  static Optional<String> briefProducerStageId(
+      List<OwnerCandidate> candidates, String failedStageId) {
+    return producerStageId(candidates, failedStageId, BRIEF_ARTIFACT_TYPES);
+  }
+
+  private static Optional<String> producerStageId(
+      List<OwnerCandidate> candidates, String failedStageId, Set<String> artifactTypes) {
+    if (candidates == null || candidates.isEmpty() || artifactTypes == null) {
+      return Optional.empty();
+    }
+    String found = null;
+    for (OwnerCandidate candidate : candidates) {
+      if (candidate != null
+          && !candidate.stageId().isBlank()
+          && !candidate.stageId().equals(failedStageId)
+          && artifactTypes.contains(candidate.artifactType())) {
+        found = candidate.stageId();
+      }
+    }
+    return Optional.ofNullable(found);
+  }
+
+  static FindingOwnerCategory classifyFinding(String findings, String evidence) {
+    if (hasFindingCodePrefix(findings, "security-")
+        || hasFindingCodePrefix(evidence, "security-")
+        || containsSecurityCodeToken(findings, evidence)) {
+      return FindingOwnerCategory.POLICY_OR_BRIEF;
+    }
+    String haystack = normalize(findings) + " " + normalize(evidence);
+    if (haystack.contains("required")
+        && (haystack.contains("setting") || haystack.contains("property"))) {
+      return FindingOwnerCategory.PLAN_FILL;
+    }
+    return FindingOwnerCategory.UNSPECIFIED;
+  }
+
+  /**
+   * True when {@code security-N} appears mid-string (Phase 5 exception text embeds findings after
+   * {@code Findings:}, so {@link #hasFindingCodePrefix} alone misses it).
+   */
+  private static boolean containsSecurityCodeToken(String findings, String evidence) {
+    String haystack = normalize(findings) + " " + normalize(evidence);
+    return haystack.contains("security-");
+  }
+
+  /** True when formatted findings contain a line whose code starts with {@code prefix}. */
+  static boolean hasFindingCodePrefix(String findings, String prefix) {
+    if (findings == null || findings.isBlank() || prefix == null || prefix.isBlank()) {
+      return false;
+    }
+    String needle = prefix.toLowerCase(Locale.ROOT);
+    for (String line : findings.split("\\R")) {
+      String code = findingCode(line);
+      if (!code.isBlank() && code.startsWith(needle)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String findingCode(String line) {
+    if (line == null || line.isBlank()) {
+      return "";
+    }
+    int colon = line.indexOf(':');
+    String raw = colon < 0 ? line.trim() : line.substring(0, colon).trim();
+    return raw.toLowerCase(Locale.ROOT);
+  }
+
+  private static String normalize(String value) {
+    return value == null ? "" : value.toLowerCase(Locale.ROOT);
   }
 
   /** Compact list the diagnosis turn receives: {@code stageId:artifactType}, comma-separated. */

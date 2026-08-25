@@ -109,6 +109,85 @@ class CompilerDerivedPlanningRunnerTest {
   }
 
   @Test
+  void degradationsReportedByTheSpineReachTheCandidateAsNonBlockerFindings() {
+    InMemorySkillWorkspaceStore workspaceStore =
+        new InMemorySkillWorkspaceStore(new ChainPlanStore());
+    ChainPlanGraph graph = graph();
+    seedPlanningWorkspace(workspaceStore, graph);
+
+    CompilerDerivedPlanningSpine spine = mock(CompilerDerivedPlanningSpine.class);
+    when(spine.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new CompilerPlanningRunner.PlanningSpineOutcome(
+                        List.of("cip-chain-assembler"),
+                        graph,
+                        new ValidationResult(true, List.of(), "ok"),
+                        "GP-01",
+                        "http-trigger",
+                        List.of(),
+                        List.of(
+                            PlanningDegradations.generatorSkipped("cip-naming-generator"),
+                            PlanningDegradations.defaultChainName(
+                                "cip-naming-generator", "Generated.Internal.Chain")))));
+    CompilerPlanValidator planValidator = mock(CompilerPlanValidator.class);
+    when(planValidator.validate(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(new ValidationResult(true, List.of(), "ok"));
+
+    StageOutcome outcome =
+        new CompilerDerivedPlanningRunner(
+                spine, workspaceStore, new PlanPresentationFactsService(), planValidator)
+            .plan(request())
+            .await()
+            .indefinitely();
+
+    assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass());
+    PlanValidationResult validation =
+        (PlanValidationResult)
+            outcome.candidates().stream()
+                .filter(candidate -> candidate.kind() == Kind.PLAN_VALIDATION_RESULT)
+                .findFirst()
+                .orElseThrow()
+                .payload();
+    assertTrue(validation.approvalEligible());
+    assertEquals(
+        List.of(PlanningDegradations.GENERATOR_SKIPPED, PlanningDegradations.DEFAULT_CHAIN_NAME),
+        validation.findings().stream().map(PlanValidationFinding::code).toList());
+    assertTrue(validation.findings().stream().noneMatch(PlanValidationFinding::blocker));
+  }
+
+  private static void seedPlanningWorkspace(
+      InMemorySkillWorkspaceStore workspaceStore, ChainPlanGraph graph) {
+    workspaceStore.putArtifact(
+        "conv-1",
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_PLAN_GRAPH,
+            "cip-chain-assembler",
+            new SkillArtifactPayload.ChainPlanGraphPayload(graph)));
+    workspaceStore.putArtifact(
+        "conv-1",
+        SkillArtifact.of(
+            SkillArtifactType.GRAPH_ASSEMBLY_RESULT,
+            "cip-chain-assembler",
+            new SkillArtifactPayload.GraphAssemblyResultPayload(
+                new GraphAssemblyResult(1, graph, "digest-1", List.of(), List.of(), List.of()))));
+    workspaceStore.putArtifact(
+        "conv-1",
+        SkillArtifact.of(
+            SkillArtifactType.COMPILER_VALIDATION_BUNDLE,
+            "cip-element-validator",
+            new SkillArtifactPayload.CompilerValidationBundlePayload(
+                new CompilerValidationBundle(1, "digest-1", List.of()))));
+    workspaceStore.putArtifact(
+        "conv-1",
+        SkillArtifact.of(
+            SkillArtifactType.RAW_USER_REQUEST,
+            "planning-seed",
+            new SkillArtifactPayload.RawUserRequestPayload("Create sales flow", List.of())));
+  }
+
+  @Test
   void candidateContainsEveryMaterializationInput() {
     CompilerDerivedPlanningRunner runner =
         CompilerDerivedPlanningRunner.forTests(
@@ -305,6 +384,42 @@ class CompilerDerivedPlanningRunnerTest {
     StageOutcome outcome = runner.plan(request()).await().indefinitely();
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
     assertTrue(outcome.message().contains("invocationKey conflict"));
+  }
+
+  @Test
+  void toolArgumentsFailureCompletesAsRetryableTechnical() {
+    CompilerDerivedPlanningRunner runner =
+        CompilerDerivedPlanningRunner.forTests(
+            (request, progress) -> {
+              throw new RuntimeException(
+                  new dev.langchain4j.exception.ToolArgumentsException(
+                      "Cannot deserialize value of type `NamingManifest`"));
+            });
+    StageOutcome outcome = runner.plan(request()).await().indefinitely();
+    assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, outcome.outcomeClass());
+    assertTrue(outcome.message().contains("NamingManifest"));
+  }
+
+  @Test
+  void planWithProgressMapsToolArgumentsFailureToRetryableTechnical() {
+    CompilerDerivedPlanningRunner runner =
+        CompilerDerivedPlanningRunner.forTests(
+            (request, progress) -> {
+              throw new RuntimeException(
+                  "QuarkusToolExecutor ToolArgumentsException: Unexpected token");
+            });
+
+    List<CapabilitySignal> signals =
+        runner.planWithProgress(request()).collect().asList().await().indefinitely();
+
+    CapabilitySignal.Completed completed =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("ToolArgumentsException"));
   }
 
   @Test

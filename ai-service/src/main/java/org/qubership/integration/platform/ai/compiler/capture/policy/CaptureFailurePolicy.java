@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.ai.compiler.capture.policy;
 
 /**
- * Pure failure matrix (ADR 0003): class × attempt state → decision.
+ * Pure failure matrix (ADR 0005): class × attempt state → decision.
  *
  * <p>Adapters classify only; this type owns soft / CVE / outerAllowed.
  */

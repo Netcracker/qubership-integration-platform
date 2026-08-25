@@ -48,6 +48,13 @@ public final class ProductPipelineProfileValidator {
       if (stage.retry() == null) {
         throw fail(profileId, stageId, "retry policy is required");
       }
+      RetryPolicy retry = stage.retry();
+      if (retry.maxTechnicalRetries() < 0
+          || retry.defaultDelayMs() < 0
+          || retry.backoffCoefficient() < 1
+          || retry.maximumDelayMs() < retry.defaultDelayMs()) {
+        throw fail(profileId, stageId, "retry policy has invalid delay limits");
+      }
 
       boolean hasCapability = stage.capabilityId() != null && !stage.capabilityId().isBlank();
       boolean hasBypass = stage.bypass() != null;

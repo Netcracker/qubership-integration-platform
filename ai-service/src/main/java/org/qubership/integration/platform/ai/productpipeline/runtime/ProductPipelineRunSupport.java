@@ -1,19 +1,26 @@
 package org.qubership.integration.platform.ai.productpipeline.runtime;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -25,9 +32,10 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
-import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
+import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
@@ -39,6 +47,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.Implementat
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutionResult;
@@ -80,16 +89,31 @@ public final class ProductPipelineRunSupport {
   /** Outcome class stored with {@link #STAGE_ERROR_CONTEXT_ATTR}. */
   public static final String STAGE_ERROR_OUTCOME_ATTR = "stageErrorOutcomeClass";
 
+  /** Stage id that produced the halt; kept when a causal reopen moves currentStageId. */
+  public static final String STAGE_ERROR_FAILED_STAGE_ATTR = "stageErrorFailedStageId";
+
+  /** Formatted validation findings from the halt, when present. */
+  public static final String STAGE_ERROR_FINDINGS_ATTR = "stageErrorFindings";
+
   /**
    * Content hash of the owner's last approved candidate. Set when that stage is re-entered after a
    * causal reopen.
    */
   public static final String PRIOR_CANDIDATE_ATTR = "priorCandidate";
 
+  /**
+   * Approval CTA when requirement-analysis reopens with halt evidence and emits a repaired brief.
+   */
+  public static final String BRIEF_REPAIR_APPROVAL_PROMPT =
+      "Approve this updated brief to rebuild the plan, or describe what to change.";
+
   private static final String CAUSAL_REOPEN_REASON_PREFIX = "causal reopen of ";
+  private static final String NON_TECHNICAL_FAILURE_EVIDENCE_PREFIX = "\u0000non-technical:";
   private static final int MAX_CAUSAL_REOPENS = 2;
 
   private static final String HALT_FOLLOW_UP_INPUT_PREFIX = "halt-follow-up-";
+  private static final ObjectMapper HALT_EVIDENCE_JSON = new ObjectMapper();
+  private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
 
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
@@ -101,10 +125,10 @@ public final class ProductPipelineRunSupport {
   private final ApprovalPrompts approvalPrompts;
   /** Optional; when present, IDS approval also offers a storage download link. */
   private final S3Service s3Service;
-  private final Map<String, ProductPipelineProfile> profilesByRun = new ConcurrentHashMap<>();
-  private final Map<String, RunManifest> manifestsByRun = new ConcurrentHashMap<>();
-  private final Map<String, Map<String, Object>> attributesByRun = new ConcurrentHashMap<>();
-  private final Map<String, Integer> technicalRetriesByStage = new ConcurrentHashMap<>();
+  private final Map<String, ProductPipelineProfile> profilesByRun;
+  private final Map<String, RunManifest> manifestsByRun;
+  private final Map<String, Map<String, Object>> attributesByRun;
+  private final Map<String, Integer> technicalRetriesByStage;
   private final StageExecutor stageExecutor;
 
   public ProductPipelineRunSupport(
@@ -216,6 +240,32 @@ public final class ProductPipelineRunSupport {
       ApprovalPrompts approvalPrompts,
       S3Service s3Service,
       FailureNarrative failureNarrative) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        profileCatalog,
+        compilerRunPinResolver,
+        clock,
+        idsPathPrompts,
+        approvalPrompts,
+        s3Service,
+        failureNarrative,
+        DEFAULT_CACHE_IDLE_TIMEOUT);
+  }
+
+  public ProductPipelineRunSupport(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      ProductPipelineProfileCatalog profileCatalog,
+      CompilerRunPinResolver compilerRunPinResolver,
+      Clock clock,
+      DesignInputIdsPathPrompts idsPathPrompts,
+      ApprovalPrompts approvalPrompts,
+      S3Service s3Service,
+      FailureNarrative failureNarrative,
+      Duration cacheIdleTimeout) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -226,6 +276,10 @@ public final class ProductPipelineRunSupport {
         idsPathPrompts == null ? new DesignInputIdsPathPrompts() : idsPathPrompts;
     this.approvalPrompts = approvalPrompts == null ? new ApprovalPrompts() : approvalPrompts;
     this.s3Service = s3Service;
+    this.profilesByRun = idleCache(cacheIdleTimeout);
+    this.manifestsByRun = idleCache(cacheIdleTimeout);
+    this.attributesByRun = idleCache(cacheIdleTimeout);
+    this.technicalRetriesByStage = idleCache(cacheIdleTimeout);
     this.stageExecutor =
         new ProductPipelineStageExecutor(
             runStore,
@@ -258,6 +312,19 @@ public final class ProductPipelineRunSupport {
     } else {
       technicalRetriesByStage.put(key, used);
     }
+  }
+
+  /** Returns the retry policy pinned for the current stage of a run. */
+  public RetryPolicy retryPolicy(String runId, String stageId) {
+    ProductPipelineProfile profile = profilesByRun.get(runId);
+    if (profile == null) {
+      throw new IllegalStateException("no profile pinned for run " + runId);
+    }
+    return profile.stages().stream()
+        .filter(stage -> stage.stageId().equals(stageId))
+        .findFirst()
+        .map(ProfileStage::retry)
+        .orElseThrow(() -> new IllegalStateException("no stage " + stageId + " in profile " + profile.profileId()));
   }
 
   /**
@@ -378,14 +445,6 @@ public final class ProductPipelineRunSupport {
                             doc.run().currentStageId(),
                             approvedPlanContentHash(doc.run().runId()).orElse("")));
               }
-              if (doc.run().status() == RunStatus.FAILED) {
-                return Multi.createFrom()
-                    .item(
-                        new PipelineSignal.Failed(
-                            doc.run().currentStageId(),
-                            StageOutcomeClass.DOMAIN_FAILURE,
-                            "run is failed; use retry"));
-              }
               return Multi.createFrom().empty();
             });
   }
@@ -489,7 +548,11 @@ public final class ProductPipelineRunSupport {
 
   /**
    * Typed message at a recoverable halt: same run, original requirements unchanged, Retry still
-   * open. The next diagnosis turn reads {@link #HALT_FOLLOW_UP_TEXT_ATTR}.
+   * open. When the text names one stage in the closed candidate set, that owner is used and the
+   * run follows the same Revise path (causal reopen counts against the run budget). Ambiguous
+   * names become an owner-choice card. A named stage outside the set stays halted and lists the
+   * allowed stage ids. A bare go-back reopens the diagnosed owner. The next diagnosis turn reads
+   * {@link #HALT_FOLLOW_UP_TEXT_ATTR}.
    */
   private Multi<PipelineSignal> recordHaltFollowUp(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
@@ -513,7 +576,41 @@ public final class ProductPipelineRunSupport {
                 currentStage(doc).capabilityId())));
     Map<String, Object> attributes =
         attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
-    attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text() == null ? "" : command.text());
+    String followUp = command.text() == null ? "" : command.text();
+    // Bare go-back confirms reopen; keep a prior correction such as "add rbac".
+    if (!OwnerCandidateSet.isBareGoBack(followUp)
+        || !(attributes.get(HALT_FOLLOW_UP_TEXT_ATTR) instanceof String prior)
+        || prior.isBlank()) {
+      attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, followUp);
+    }
+    List<OwnerCandidate> closed = haltOwnerCandidates(doc);
+    List<String> named = OwnerCandidateSet.namedStages(command.text(), closed);
+    if (named.size() == 1) {
+      attributes.put(DIAGNOSED_OWNER_STAGE_ATTR, named.get(0));
+      return applyDiagnosedOwner(doc, command);
+    }
+    if (named.size() > 1) {
+      attributes.put(DIAGNOSED_OWNER_STAGE_ATTR, "");
+      String body = PipelineGates.strip(latestWaitingForInputPrompt(doc));
+      String prompt = PipelineGates.tagOwnerChoice(body, named);
+      commitStatus(
+          doc,
+          RunStatus.WAITING_FOR_INPUT,
+          StageStatus.WAITING_FOR_INPUT,
+          doc.run().stages(),
+          prompt,
+          null,
+          command.commandId(),
+          command.commandPayloadHash());
+      return Multi.createFrom()
+          .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+    }
+    if (OwnerCandidateSet.isBareGoBack(command.text())) {
+      return applyBareGoBack(doc, command, closed);
+    }
+    if (OwnerCandidateSet.requestsNamedStage(command.text())) {
+      return stayWaitingListingAllowed(doc, command, closed);
+    }
     String prompt = latestWaitingForInputPrompt(doc);
     commitStatus(
         doc,
@@ -528,7 +625,62 @@ public final class ProductPipelineRunSupport {
         .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
   }
 
+  private Multi<PipelineSignal> applyBareGoBack(
+      ProductPipelineRunDocument doc,
+      AcceptInputCommand command,
+      List<OwnerCandidate> closed) {
+    String currentPrompt = latestWaitingForInputPrompt(doc);
+    if (PipelineGates.OWNER_CHOICE.equals(PipelineGates.gateOf(currentPrompt).orElse(""))) {
+      return stayWaitingForInput(doc, command);
+    }
+    Optional<String> owner =
+        OwnerCandidateSet.ownerForBareGoBack(
+            diagnosedOwnerOf(command.runId()), closed, doc.run().currentStageId());
+    if (owner.isEmpty()) {
+      return stayWaitingForInput(doc, command);
+    }
+    attributesByRun
+        .computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>())
+        .put(DIAGNOSED_OWNER_STAGE_ATTR, owner.get());
+    return applyDiagnosedOwner(doc, command);
+  }
+
+  private List<OwnerCandidate> haltOwnerCandidates(ProductPipelineRunDocument doc) {
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    List<OwnerCandidate> first =
+        OwnerCandidateSet.firstLayer(profile, doc.run().currentStageId());
+    return OwnerCandidateSet.deepen(profile, first);
+  }
+
+  private Multi<PipelineSignal> stayWaitingListingAllowed(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, List<OwnerCandidate> closed) {
+    String previous = latestWaitingForInputPrompt(doc);
+    String gate = PipelineGates.gateOf(previous).orElse(PipelineGates.STAGE_RETRY);
+    String body = PipelineGates.strip(previous);
+    String allowed = String.join(", ", OwnerCandidateSet.stageIds(closed));
+    if (!allowed.isBlank() && !body.contains(allowed)) {
+      body = body.isBlank() ? allowed : body + " " + allowed;
+    }
+    String prompt = PipelineGates.retag(gate, body);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        doc.run().stages(),
+        prompt,
+        null,
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom()
+        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+  }
+
   private Multi<PipelineSignal> recordRevise(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    return applyDiagnosedOwner(doc, command);
+  }
+
+  private Multi<PipelineSignal> applyDiagnosedOwner(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
     String owner = diagnosedOwnerOf(command.runId());
     if (isCurrentUnapprovedOwner(doc, owner)) {
@@ -559,7 +711,7 @@ public final class ProductPipelineRunSupport {
     if (causalReopenCount(doc) >= MAX_CAUSAL_REOPENS) {
       return false;
     }
-    return !ownerAlreadyHadCausalReopen(doc, owner);
+    return !ownerAlreadyHadCausalReopen(doc, owner, causalReopenFailureSignature(doc.run().runId()));
   }
 
   private static boolean isEarlierApprovedOwner(ProductPipelineRunDocument doc, String owner) {
@@ -592,9 +744,19 @@ public final class ProductPipelineRunSupport {
   }
 
   private static boolean ownerAlreadyHadCausalReopen(
-      ProductPipelineRunDocument doc, String owner) {
-    String reason = CAUSAL_REOPEN_REASON_PREFIX + owner;
+      ProductPipelineRunDocument doc, String owner, String failureSignature) {
+    String reason = causalReopenReason(owner, failureSignature);
     return doc.transitions().stream().anyMatch(transition -> reason.equals(transition.reason()));
+  }
+
+  private String causalReopenFailureSignature(String runId) {
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    Object evidence = attributes == null ? null : attributes.get(STAGE_ERROR_CONTEXT_ATTR);
+    return ToolCallFingerprints.failureSignature(evidence instanceof String text ? text : "");
+  }
+
+  private static String causalReopenReason(String owner, String failureSignature) {
+    return CAUSAL_REOPEN_REASON_PREFIX + owner + '\u0000' + failureSignature;
   }
 
   private Multi<PipelineSignal> causalReopenOwner(
@@ -643,7 +805,8 @@ public final class ProductPipelineRunSupport {
         doc,
         owner,
         updated,
-        CAUSAL_REOPEN_REASON_PREFIX + owner,
+        causalReopenReason(owner, causalReopenFailureSignature(command.runId())),
+        haltEvidence(attributesByRun.get(command.runId()), prior.contentHash()),
         command.commandId(),
         command.commandPayloadHash());
     return Multi.createFrom().empty();
@@ -1015,8 +1178,6 @@ public final class ProductPipelineRunSupport {
       case StageDecision.Continue continueDecision ->
           applyContinue(runId, continueDecision, result.signals());
       case StageDecision.Retry ignored -> Multi.createFrom().iterable(result.signals());
-      case StageDecision.ReopenApproval reopen ->
-          applyReopenApproval(runId, reopen, result.signals());
       case StageDecision.WaitForApproval wait ->
           applyWaitForApproval(runId, wait, result.signals());
       case StageDecision.WaitForInput ignored -> Multi.createFrom().iterable(result.signals());
@@ -1034,22 +1195,6 @@ public final class ProductPipelineRunSupport {
     String next = nextStageId(profile, decision.stageId());
     commitMove(doc, next, markStageRunning(doc, next), "advance after success");
     return Multi.createFrom().iterable(signals);
-  }
-
-  private Multi<PipelineSignal> applyReopenApproval(
-      String runId, StageDecision.ReopenApproval reopen, List<PipelineSignal> live) {
-    ProductPipelineRunDocument doc = requireRun(runId);
-    ProductPipelineProfile profile = profilesByRun.get(runId);
-    ProfileStage failedStage = currentStage(doc);
-    List<PipelineSignal> emitted = new ArrayList<>(live);
-    return reopenPreviousApprovalAfterValidationFailure(
-        doc,
-        profile,
-        failedStage,
-        reopen.evidenceRefs(),
-        reopen.approvalStageId(),
-        reopen.message(),
-        emitted);
   }
 
   private Multi<PipelineSignal> applyWaitForApproval(
@@ -1144,7 +1289,17 @@ public final class ProductPipelineRunSupport {
       String nextStageId,
       List<StageSnapshot> stages,
       String reason) {
-    commitMove(doc, nextStageId, stages, reason, null, null);
+    commitMove(doc, nextStageId, stages, reason, null, null, null);
+  }
+
+  private void commitMove(
+      ProductPipelineRunDocument doc,
+      String nextStageId,
+      List<StageSnapshot> stages,
+      String reason,
+      String commandId,
+      String commandPayloadHash) {
+    commitMove(doc, nextStageId, stages, reason, null, commandId, commandPayloadHash);
   }
 
   /**
@@ -1156,6 +1311,7 @@ public final class ProductPipelineRunSupport {
       String nextStageId,
       List<StageSnapshot> stages,
       String reason,
+      String failureEvidence,
       String commandId,
       String commandPayloadHash) {
     long expected = doc.run().runRevision();
@@ -1175,7 +1331,7 @@ public final class ProductPipelineRunSupport {
                 clock.instant(),
                 clock.instant(),
                 List.of(),
-                null),
+                failureEvidence),
             new RunTransition(
                 expected,
                 expected + 1L,
@@ -1186,30 +1342,6 @@ public final class ProductPipelineRunSupport {
                 reason,
                 commandId,
                 commandPayloadHash)));
-  }
-
-  private static List<StageSnapshot> markStageOutputs(
-      ProductPipelineRunDocument doc,
-      String stageId,
-      List<Reference> refs,
-      StageStatus status) {
-    List<StageSnapshot> updated = new ArrayList<>();
-    for (StageSnapshot snapshot : doc.run().stages()) {
-      if (snapshot.stageId().equals(stageId)) {
-        updated.add(
-            new StageSnapshot(
-                stageId,
-                status,
-                refs,
-                snapshot.approvedArtifactId(),
-                snapshot.candidateReferences(),
-                snapshot.approvableReference(),
-                snapshot.candidateRevision()));
-      } else {
-        updated.add(snapshot);
-      }
-    }
-    return updated;
   }
 
   private static List<StageSnapshot> markStageRunning(
@@ -1270,128 +1402,6 @@ public final class ProductPipelineRunSupport {
     throw new IllegalStateException("no next stage after " + currentStageId);
   }
 
-  private Multi<PipelineSignal> reopenPreviousApprovalAfterValidationFailure(
-      ProductPipelineRunDocument doc,
-      ProductPipelineProfile profile,
-      ProfileStage failedStage,
-      List<Reference> failedStageRefs,
-      String reopenStageId,
-      String failureMessage,
-      List<PipelineSignal> emitted) {
-    StageSnapshot reopenSnapshot =
-        doc.run().stages().stream()
-            .filter(snapshot -> reopenStageId.equals(snapshot.stageId()))
-            .findFirst()
-            .orElse(null);
-    if (reopenSnapshot == null) {
-      return terminalValidationFailure(doc, failedStage, failedStageRefs, failureMessage, emitted);
-    }
-    Reference approvable = resolveReopenApprovable(reopenSnapshot);
-    if (approvable == null) {
-      return terminalValidationFailure(doc, failedStage, failedStageRefs, failureMessage, emitted);
-    }
-
-    Set<String> stagesAfterReopen = stageIdsAfter(profile, reopenStageId);
-    List<StageSnapshot> updated = new ArrayList<>();
-    for (StageSnapshot snapshot : doc.run().stages()) {
-      if (reopenStageId.equals(snapshot.stageId())) {
-        List<Reference> candidates =
-            snapshot.candidateReferences().isEmpty()
-                ? List.of(approvable)
-                : snapshot.candidateReferences();
-        List<Reference> outputs =
-            snapshot.outputRefs().stream()
-                .filter(ref -> ref.kind() != Kind.APPROVAL_RECORD)
-                .toList();
-        updated.add(
-            new StageSnapshot(
-                snapshot.stageId(),
-                StageStatus.WAITING_FOR_APPROVAL,
-                outputs,
-                null,
-                candidates,
-                approvable,
-                snapshot.candidateRevision()));
-      } else if (failedStage.stageId().equals(snapshot.stageId())) {
-        updated.add(
-            new StageSnapshot(
-                snapshot.stageId(),
-                StageStatus.PENDING,
-                failedStageRefs,
-                null,
-                List.of(),
-                null,
-                null));
-      } else if (stagesAfterReopen.contains(snapshot.stageId())) {
-        updated.add(
-            new StageSnapshot(
-                snapshot.stageId(), StageStatus.PENDING, List.of(), null, List.of(), null, null));
-      } else {
-        updated.add(snapshot);
-      }
-    }
-
-    String evidence = StageOutcomeClass.VALIDATION_FAILURE.name() + ": " + failureMessage;
-    long expected = doc.run().runRevision();
-    runStore.commit(
-        expected,
-        new LogicalCommit(
-            doc.run().runId(),
-            expected,
-            RunStatus.WAITING_FOR_APPROVAL,
-            reopenStageId,
-            updated,
-            new StageAttempt(
-                UUID.randomUUID().toString(),
-                failedStage.stageId(),
-                expected + 1L,
-                StageStatus.FAILED,
-                clock.instant(),
-                clock.instant(),
-                failedStageRefs,
-                evidence),
-            new RunTransition(
-                expected,
-                expected + 1L,
-                doc.run().status(),
-                RunStatus.WAITING_FOR_APPROVAL,
-                reopenStageId,
-                clock.instant(),
-                "reopen previous approval after validation failure")));
-
-    String chatMessage =
-        failureMessage
-            + " Rolled back to approval of stage "
-            + reopenStageId
-            + ". Revise the brief if needed, then reply Agree to retry planning.";
-    emitted.add(
-        new PipelineSignal.Failed(
-            failedStage.stageId(), StageOutcomeClass.VALIDATION_FAILURE, chatMessage));
-    emitted.add(
-        new PipelineSignal.WaitingForApproval(
-            reopenStageId, approvable, approvalPromptFor(doc.run().runId(), reopenStageId)));
-    return Multi.createFrom().iterable(emitted);
-  }
-
-  private Multi<PipelineSignal> terminalValidationFailure(
-      ProductPipelineRunDocument doc,
-      ProfileStage failedStage,
-      List<Reference> failedStageRefs,
-      String failureMessage,
-      List<PipelineSignal> emitted) {
-    List<StageSnapshot> failedStages =
-        failedStageRefs.isEmpty()
-            ? doc.run().stages()
-            : markStageOutputs(doc, failedStage.stageId(), failedStageRefs, StageStatus.FAILED);
-    String evidence = StageOutcomeClass.VALIDATION_FAILURE.name() + ": " + failureMessage;
-    commitStatus(
-        doc, RunStatus.FAILED, StageStatus.FAILED, failedStages, evidence, evidence);
-    emitted.add(
-        new PipelineSignal.Failed(
-            failedStage.stageId(), StageOutcomeClass.VALIDATION_FAILURE, failureMessage));
-    return Multi.createFrom().iterable(emitted);
-  }
-
   private static Reference resolveReopenApprovable(StageSnapshot snapshot) {
     if (snapshot.approvableReference() != null) {
       return snapshot.approvableReference();
@@ -1425,7 +1435,9 @@ public final class ProductPipelineRunSupport {
   /** Reloads profile and manifest pins from durable evidence after a process restart. */
   public void ensureDurablePinsLoaded(String runId) {
     Objects.requireNonNull(runId, "runId");
-    if (profilesByRun.containsKey(runId) && manifestsByRun.containsKey(runId)) {
+    if (profilesByRun.containsKey(runId)
+        && manifestsByRun.containsKey(runId)
+        && attributesByRun.containsKey(runId)) {
       return;
     }
     hydrateCaches(requireRun(runId), null);
@@ -1494,11 +1506,90 @@ public final class ProductPipelineRunSupport {
     // Rehydrate only this run's counters. Clearing the whole map would drop retries for
     // other in-memory runs that share the same runtime bean.
     technicalRetriesByStage.keySet().removeIf(key -> key.startsWith(runId + ":"));
-    for (StageAttempt attempt : doc.attempts()) {
-      if (attempt.outcome() == StageStatus.FAILED) {
-        String key = stageRetryKey(runId, attempt.stageId());
-        technicalRetriesByStage.put(key, technicalRetriesByStage.getOrDefault(key, 0) + 1);
+    technicalRetriesByStage.putAll(consecutiveTechnicalRetries(runId, doc.attempts()));
+    restoreHaltEvidence(doc, attributes);
+  }
+
+  static Map<String, Integer> consecutiveTechnicalRetries(
+      String runId, List<StageAttempt> attempts) {
+    Map<String, Integer> consecutiveFailures = new LinkedHashMap<>();
+    for (StageAttempt attempt : attempts) {
+      String key = stageRetryKey(runId, attempt.stageId());
+      if (attempt.outcome() == StageStatus.SUCCEEDED) {
+        consecutiveFailures.remove(key);
+      } else if (isTechnicalRetryFailure(attempt)) {
+        consecutiveFailures.merge(key, 1, Integer::sum);
       }
+    }
+    return consecutiveFailures;
+  }
+
+  /** Tags a failed attempt that represents a terminal halt rather than a technical retry. */
+  public static String nonTechnicalFailureEvidence(String evidence) {
+    return NON_TECHNICAL_FAILURE_EVIDENCE_PREFIX + (evidence == null ? "" : evidence);
+  }
+
+  private static boolean isTechnicalRetryFailure(StageAttempt attempt) {
+    return attempt.outcome() == StageStatus.FAILED
+        && (attempt.failureEvidence() == null
+            || !attempt.failureEvidence().startsWith(NON_TECHNICAL_FAILURE_EVIDENCE_PREFIX));
+  }
+
+  /** Encodes halt attributes in the failure-evidence field of the matching stage attempt. */
+  public static String haltEvidence(Map<String, Object> attributes, String priorCandidate) {
+    Map<String, String> evidence = new LinkedHashMap<>();
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_CONTEXT_ATTR);
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_OUTCOME_ATTR);
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_FAILED_STAGE_ATTR);
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_FINDINGS_ATTR);
+    copyHaltAttribute(attributes, evidence, DIAGNOSED_OWNER_STAGE_ATTR);
+    if (priorCandidate != null && !priorCandidate.isBlank()) {
+      evidence.put(PRIOR_CANDIDATE_ATTR, priorCandidate);
+    }
+    try {
+      return HALT_EVIDENCE_JSON.writeValueAsString(evidence);
+    } catch (Exception e) {
+      throw new IllegalStateException("cannot write halt evidence", e);
+    }
+  }
+
+  private static void copyHaltAttribute(
+      Map<String, Object> attributes, Map<String, String> evidence, String key) {
+    Object value = attributes == null ? null : attributes.get(key);
+    evidence.put(key, value instanceof String text ? text : "");
+  }
+
+  private static void restoreHaltEvidence(
+      ProductPipelineRunDocument doc, Map<String, Object> attributes) {
+    for (String key : List.of(
+        STAGE_ERROR_CONTEXT_ATTR,
+        STAGE_ERROR_OUTCOME_ATTR,
+        STAGE_ERROR_FAILED_STAGE_ATTR,
+        STAGE_ERROR_FINDINGS_ATTR,
+        DIAGNOSED_OWNER_STAGE_ATTR,
+        PRIOR_CANDIDATE_ATTR)) {
+      attributes.remove(key);
+    }
+    doc.attempts().stream()
+        .filter(attempt -> doc.run().currentStageId().equals(attempt.stageId()))
+        .map(StageAttempt::failureEvidence)
+        .filter(Objects::nonNull)
+        .map(ProductPipelineRunSupport::readHaltEvidence)
+        .filter(evidence -> !evidence.isEmpty())
+        .reduce((first, second) -> second)
+        .ifPresent(attributes::putAll);
+  }
+
+  private static Map<String, Object> readHaltEvidence(String evidence) {
+    try {
+      Map<String, String> values =
+          HALT_EVIDENCE_JSON.readValue(evidence, new TypeReference<Map<String, String>>() {});
+      if (!values.containsKey(STAGE_ERROR_CONTEXT_ATTR)) {
+        return Map.of();
+      }
+      return new LinkedHashMap<>(values);
+    } catch (Exception ignored) {
+      return Map.of();
     }
   }
 
@@ -1531,6 +1622,13 @@ public final class ProductPipelineRunSupport {
     return runId + ":" + stageId;
   }
 
+  private static <K, V> ConcurrentMap<K, V> idleCache(Duration idleTimeout) {
+    return Caffeine.newBuilder()
+        .expireAfterAccess(Objects.requireNonNull(idleTimeout, "cacheIdleTimeout"))
+        .<K, V>build()
+        .asMap();
+  }
+
   /** Last durable WAITING_FOR_INPUT transition reason, used when re-emitting a wait on resume. */
   private static String latestWaitingForInputPrompt(ProductPipelineRunDocument doc) {
     return doc.transitions().stream()
@@ -1550,9 +1648,24 @@ public final class ProductPipelineRunSupport {
   }
 
   private String approvalPromptFor(String runId, String stageId) {
+    if (isBriefRepairApproval(runId, stageId)) {
+      return BRIEF_REPAIR_APPROVAL_PROMPT;
+    }
     RunManifest manifest = manifestsByRun.get(runId);
     String responseLocale = manifest == null ? "en" : manifest.responseLocale();
     return approvalPrompts.stageApprovalPrompt(stageId, responseLocale, languageReferenceFor(runId));
+  }
+
+  private boolean isBriefRepairApproval(String runId, String stageId) {
+    if (stageId == null || !stageId.contains("analysis")) {
+      return false;
+    }
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes == null) {
+      return false;
+    }
+    Object error = attributes.get(STAGE_ERROR_CONTEXT_ATTR);
+    return error instanceof String text && !text.isBlank();
   }
 
   private String languageReferenceFor(String runId) {

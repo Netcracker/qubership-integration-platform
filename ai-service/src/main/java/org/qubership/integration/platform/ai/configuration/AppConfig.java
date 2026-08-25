@@ -130,9 +130,39 @@ public interface AppConfig {
     @WithName("flow")
     FlowConfig flow();
 
+    /** Bounds the model calls a run spends explaining its halts. */
+    @WithName("failure-narrative")
+    FailureNarrativeConfig failureNarrative();
+
+    @WithName("run-cache-idle-timeout")
+    @WithDefault("PT1H")
+    java.time.Duration runCacheIdleTimeout();
+
+    @WithName("flow-cache-idle-timeout")
+    @WithDefault("PT1H")
+    java.time.Duration flowCacheIdleTimeout();
+
     interface FlowConfig {
       @WithDefault("false")
       boolean enabled();
+    }
+
+    interface FailureNarrativeConfig {
+      /**
+       * Wall-clock bound on one narrative or owner-diagnosis turn. A turn that outlives it is
+       * abandoned and the halt card carries the raw evidence instead.
+       */
+      @WithName("timeout")
+      @WithDefault("PT20S")
+      java.time.Duration timeout();
+
+      /**
+       * Model calls one run may spend on halt narration, counted across every halt it reaches. Once
+       * spent, later halts carry the raw evidence and keep their actions.
+       */
+      @WithName("max-calls-per-run")
+      @WithDefault("12")
+      int maxCallsPerRun();
     }
   }
 
@@ -190,6 +220,10 @@ public interface AppConfig {
     @WithName("max-repair-attempts")
     @WithDefault("2")
     int maxRepairAttempts();
+
+    @WithName("feedback-cache-idle-timeout")
+    @WithDefault("PT1H")
+    java.time.Duration feedbackCacheIdleTimeout();
   }
 
   interface PatternSelectorConfig {

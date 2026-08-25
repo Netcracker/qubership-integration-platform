@@ -6,8 +6,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 /**
  * Authors the halt-card explanation from structured failure evidence. The diagnosis turn also
- * picks an owner from the closed candidate set. The runtime supplies fields, not user-facing
- * prose; Retry and Revise stay typed actions.
+ * picks an owner from the closed candidate set and offers a go-back. The runtime supplies fields,
+ * not user-facing prose; Retry and Revise stay typed actions.
  */
 @RegisterAiService(
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
@@ -26,13 +26,16 @@ Structured evidence (do not invent facts beyond this):
 - exception: {exceptionMessage}
 - validationFindings: {validationFindings}
 - followUp: {followUpText}
+- clarifyRoles: {clarifyRoles}
 
 Rules:
-- Two or three short sentences. Name the failed stage in ordinary language.
-- Do not tell the reader which button to click or which word to type.
-- Do not pick a plan owner, do not suggest revising an earlier stage, and do not propose a repair.
-- If outcomeClass is RETRYABLE_TECHNICAL_FAILURE, keep the narration to one or two sentences and \
-do not blame the plan.
+- Two or three short sentences. Name the failed step in ordinary language.
+- Say whether validation failed or a generator/compiler step failed, using outcomeClass and \
+findings or skill ids. Do not invent names.
+- State the root cause from validationFindings.
+- Do not tell the reader which button to click or which word to type. Do not mention Revise.
+- If outcomeClass is RETRYABLE_TECHNICAL_FAILURE, keep the narration to one or two sentences, \
+do not blame the plan, and do not offer to go back or clarify the plan.
 - Reply with only the user-facing explanation. No markdown fences, no quotes, no preamble.\
 """)
   String narrate(
@@ -41,7 +44,8 @@ do not blame the plan.
       String outcomeClass,
       String exceptionMessage,
       String validationFindings,
-      String followUpText);
+      String followUpText,
+      String clarifyRoles);
 
   @UserMessage(
       """
@@ -57,15 +61,32 @@ Structured evidence (do not invent facts beyond this):
 - validationFindings: {validationFindings}
 - followUp: {followUpText}
 - candidateSet: {candidateSet}
+- clarifyRoles: {clarifyRoles}
 
 Rules:
-- Narrative: two or three short sentences. Name the failed stage in ordinary language.
-- Do not tell the reader which button to click or which word to type.
+- Narrative: two or three short sentences, then a go-back offer. Name the failed step in \
+ordinary language.
+- Say whether validation failed or a generator/compiler step failed, using outcomeClass and \
+findings or skill ids. Do not invent names.
+- State the root cause from validationFindings.
+- Offer to go back to clarify that place in the plan. Use the clarifyRoles entry for the owner \
+you pick when present; otherwise a short role such as "the plan" or "requirements", not only \
+the stage id.
+- When ownerStageId is non-empty, tell the reader they can type go back or click Revise. When \
+responseLocale is English, keep that English typed-command wording; otherwise phrase the \
+offer in the response locale. They do not write YAML or a brief. When ownerStageId is empty \
+or ambiguous is true, do not mention Revise.
 - ownerStageId must be empty or exactly one stage id from candidateSet. Never name a stage \
 outside that set.
 - Set ambiguous to true when two candidates in the set stay equally plausible; then leave \
-ownerStageId empty.
+ownerStageId empty and do not guess a go-back target.
 - If the consumed inputs look fine, the owner is the failed stage itself.
+- Pick the earliest sufficient owner from candidateSet: policy, auth, scope, or constraint \
+findings belong to the requirement-brief producer when that candidate is present; plan \
+structure, binding, or step-fill findings belong to the plan producer when the brief already \
+covers the constraint; execution-only failures stay on the failed stage.
+- Do not pick the failed stage when an earlier producer in candidateSet owns the artifact that \
+must change.
 - Reply with narrative, ownerStageId, and ambiguous only.\
 """)
   OwnerDiagnosisDraft diagnose(
@@ -75,5 +96,6 @@ ownerStageId empty.
       String exceptionMessage,
       String validationFindings,
       String candidateSet,
-      String followUpText);
+      String followUpText,
+      String clarifyRoles);
 }

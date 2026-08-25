@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRu
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationPass;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
@@ -50,6 +52,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningPatchLedger;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
@@ -58,7 +61,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 
 class DesignExecutionCapabilityTest {
 
@@ -258,6 +263,31 @@ class DesignExecutionCapabilityTest {
   }
 
   @Test
+  void toolArgumentsFailureIsRetryableTechnicalNotContract() {
+    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(flow), anyList(), any()))
+        .thenThrow(
+            new RuntimeException(
+                new dev.langchain4j.exception.ToolArgumentsException(
+                    "Cannot deserialize value of type `NamingManifest`")));
+
+    StageOutcome outcome =
+        execute(
+            List.of(
+                idsRef,
+                flowRef,
+                reportRef,
+                planRef,
+                implementationRef,
+                manifestRef,
+                idsApprovalRef,
+                implementationApprovalRef));
+
+    assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, outcome.outcomeClass());
+    assertTrue(outcome.message().contains("NamingManifest"));
+    verifyNoInteractions(runner);
+  }
+
+  @Test
   void approvedPlanInvokesRunnerAndCheckpointsWaitingForMaterialization() {
     StageOutcome outcome =
         execute(
@@ -297,6 +327,32 @@ class DesignExecutionCapabilityTest {
         outcome.candidates().stream()
             .noneMatch(candidate -> candidate.kind() == Kind.DESIGN_EXECUTION_RESULT),
         "Phase 6 DESIGN_EXECUTION_RESULT is owned by materialization, not design-execution");
+  }
+
+  @Test
+  void ineligibleCompilerBundlePutsMergedFindingsOnStageOutcome() {
+    when(runner.execute(
+            eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any()))
+        .thenReturn(ineligibleCompilerEngineResult());
+
+    StageOutcome outcome = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, outcome.outcomeClass());
+    PlanValidationResult validation =
+        outcome.candidates().stream()
+            .filter(candidate -> candidate.kind() == Kind.PLAN_VALIDATION_RESULT)
+            .map(candidate -> (PlanValidationResult) candidate.payload())
+            .findFirst()
+            .orElseThrow();
+    assertFalse(validation.approvalEligible());
+    assertTrue(
+        validation.findings().stream()
+            .anyMatch(
+                finding ->
+                    finding.message() != null && finding.message().contains("http-trigger")));
+    String findingsText = FailureNarrative.findingsText(outcome.candidates());
+    assertFalse(findingsText.isBlank());
+    assertTrue(findingsText.contains("http-trigger"));
   }
 
   @Test
@@ -418,6 +474,34 @@ class DesignExecutionCapabilityTest {
   }
 
   private static CompilerDagExecutionResult successfulEngineResult() {
+    return engineResult(
+        new CompilerValidationBundle(
+            1,
+            "graph-digest",
+            List.of(new CompilerValidationPass("graph", new ValidationResult(true, List.of(), "ok")))));
+  }
+
+  private static CompilerDagExecutionResult ineligibleCompilerEngineResult() {
+    var issue =
+        new ValidationIssue(
+            "element-1",
+            ValidationSeverity.BLOCKER,
+            "Element properties violate schema for 'http-trigger'",
+            "cip-element-validator",
+            List.of("http-trigger-1"),
+            List.of(),
+            "Fix node properties according to schema");
+    return engineResult(
+        new CompilerValidationBundle(
+            1,
+            "graph-digest",
+            List.of(
+                new CompilerValidationPass(
+                    "cip-element-validator",
+                    new ValidationResult(false, List.of(issue), "element validation failed")))));
+  }
+
+  private static CompilerDagExecutionResult engineResult(CompilerValidationBundle bundle) {
     ChainPlanGraph graph =
         new ChainPlanGraph(
             "1.0",
@@ -431,12 +515,7 @@ class DesignExecutionCapabilityTest {
         new PlanningPatchLedger(List.of(), List.of()),
         graph,
         new GraphAssemblyResult(1, graph, "graph-digest", List.of(), List.of(), List.of()),
-        new CompilerValidationBundle(
-            1,
-            "graph-digest",
-            List.of(
-                new CompilerValidationPass(
-                    "graph", new ValidationResult(true, List.of(), "ok")))));
+        bundle);
   }
 
   private static CatalogBindingResolution sampleBinding() {

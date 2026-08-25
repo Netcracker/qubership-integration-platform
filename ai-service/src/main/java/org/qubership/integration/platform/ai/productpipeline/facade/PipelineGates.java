@@ -93,7 +93,7 @@ public final class PipelineGates {
    * #OWNER_CANDIDATES_MARKER}.
    */
   public static String tagOwnerChoice(String prompt, List<String> stageIds) {
-    String tagged = tag(OWNER_CHOICE, prompt);
+    String tagged = retag(OWNER_CHOICE, prompt);
     if (stageIds == null || stageIds.isEmpty()) {
       return tagged;
     }

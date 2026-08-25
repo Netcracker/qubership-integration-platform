@@ -6,7 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 /**
- * Micrometer counters for ADR 0003 capture / tool-failure outcomes.
+ * Micrometer counters for ADR 0005 capture / tool-failure outcomes.
  *
  * <p>Metric: {@code ai.capture.failure} with tags {@code outcome} and {@code capability}.
  */
@@ -68,7 +68,7 @@ public class CaptureFailureMetrics {
 
   private void increment(String outcome, String capabilityId) {
     Counter.builder(METRIC_NAME)
-        .description("Capture tool-failure policy outcomes (ADR 0003)")
+        .description("Capture tool-failure policy outcomes (ADR 0005)")
         .tag(TAG_OUTCOME, outcome)
         .tag(TAG_CAPABILITY, normalizeCapability(capabilityId))
         .register(meterRegistry)

@@ -1,11 +1,15 @@
 package org.qubership.integration.platform.ai.compiler.capture;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 
@@ -13,19 +17,29 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 @ApplicationScoped
 public class CaptureAttemptFeedbackStore {
 
-  private final ConcurrentHashMap<String, CaptureAttemptFeedback> planFailures =
-      new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<String, String> planFailureFingerprints =
-      new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>>
-      patchFailures = new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>>
-      validationFailures = new ConcurrentHashMap<>();
+  private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
+
+  private final ConcurrentMap<String, CaptureAttemptFeedback> planFailures;
+  private final ConcurrentMap<String, String> planFailureFingerprints;
+  private final ConcurrentMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>> patchFailures;
+  private final ConcurrentMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>> validationFailures;
   private final ToolCallFingerprintStore fingerprintStore;
 
   @Inject
+  public CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore, AppConfig appConfig) {
+    this(fingerprintStore, appConfig.capture().feedbackCacheIdleTimeout());
+  }
+
   public CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore) {
+    this(fingerprintStore, DEFAULT_CACHE_IDLE_TIMEOUT);
+  }
+
+  CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore, Duration cacheIdleTimeout) {
     this.fingerprintStore = fingerprintStore;
+    this.planFailures = idleCache(cacheIdleTimeout);
+    this.planFailureFingerprints = idleCache(cacheIdleTimeout);
+    this.patchFailures = idleCache(cacheIdleTimeout);
+    this.validationFailures = idleCache(cacheIdleTimeout);
   }
 
   /** Test helper without CDI. */
@@ -306,5 +320,12 @@ public class CaptureAttemptFeedbackStore {
 
   public ToolCallFingerprintStore fingerprintStore() {
     return fingerprintStore;
+  }
+
+  private static <K, V> ConcurrentMap<K, V> idleCache(Duration idleTimeout) {
+    return Caffeine.newBuilder()
+        .expireAfterAccess(Objects.requireNonNull(idleTimeout, "cacheIdleTimeout"))
+        .<K, V>build()
+        .asMap();
   }
 }

@@ -9,7 +9,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureFieldHint;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 
 /**
- * Sole adapter exit for capture validation failures (ADR 0003).
+ * Sole adapter exit for capture validation failures (ADR 0005).
  *
  * <p>Adapters classify into {@link CaptureFailureClass}; this gateway owns soft budgets,
  * IDENTICAL_SPAM escalation, feedback recording, and CVE. Callers must not also write to {@link

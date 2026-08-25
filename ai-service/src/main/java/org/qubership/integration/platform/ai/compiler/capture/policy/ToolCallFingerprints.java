@@ -21,7 +21,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * Canonical fingerprint for capture tool arguments (ADR 0003).
+ * Canonical fingerprint for capture tool arguments (ADR 0005).
  *
  * <p>Identity: {@code tool + NUL + capabilityOrEmpty + NUL + sha256Hex(canonicalJson)}.
  * Drops {@code rationale}/{@code explanation}/{@code comment}; sorts object keys; preserves
@@ -63,12 +63,12 @@ public final class ToolCallFingerprints {
       throw new IllegalArgumentException("tool is required");
     }
     String capabilityOrEmpty = capability == null || capability.isBlank() ? "" : capability;
-    String hash = sha256Hex(signature(message).getBytes(StandardCharsets.UTF_8));
+    String hash = sha256Hex(failureSignature(message).getBytes(StandardCharsets.UTF_8));
     return tool + '\u0000' + capabilityOrEmpty + '\u0000' + hash;
   }
 
-  /** Normalized rejection text: identifiers and counts masked, case and spacing flattened. */
-  static String signature(String message) {
+  /** Normalizes rejection text to recognize the same failure across attempts. */
+  public static String failureSignature(String message) {
     if (message == null || message.isBlank()) {
       return "";
     }

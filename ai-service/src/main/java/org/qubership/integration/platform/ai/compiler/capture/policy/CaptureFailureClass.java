@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.ai.compiler.capture.policy;
 
 /**
- * Failure classification for capture tool outcomes (ADR 0003).
+ * Failure classification for capture tool outcomes (ADR 0005).
  *
  * <p>Adapters classify domain failures into {@link #CORRECTABLE} or {@link #PERMANENT}. The
  * gateway escalates a CORRECTABLE failure to {@link #IDENTICAL_SPAM} when the same rejection

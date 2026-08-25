@@ -366,6 +366,84 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
+  void mismatchedApprovedDraftTextIsContractFailureNotNeedsInput() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-draft-mismatch", approved);
+    RequirementBriefTool briefTool =
+        new RequirementBriefTool(
+            captureSession,
+            new ObjectMapper(),
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+    AppConfig appConfig = mock(AppConfig.class);
+    AppConfig.CaptureConfig captureConfig = mock(AppConfig.CaptureConfig.class);
+    when(appConfig.capture()).thenReturn(captureConfig);
+    when(captureConfig.maxRepairAttempts()).thenReturn(1);
+    CaptureRepairRunner repairRunner =
+        new CaptureRepairRunner(
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)),
+            feedbackStore,
+            appConfig);
+    AtomicInteger calls = new AtomicInteger();
+    String originalUserText = "Create Greetings with the approved draft";
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              calls.incrementAndGet();
+              org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+              try {
+                briefTool.captureRequirementBrief(
+                    new RequirementBriefCapture(
+                        "Greetings",
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        "Greetings",
+                        null,
+                        "paraphrased draft that is not the pinned planning text",
+                        approved.facts(),
+                        List.of()));
+                return Multi.createFrom().item(ChatEvent.token("captured"));
+              } catch (CaptureValidationException e) {
+                return Multi.createFrom().failure(e);
+              }
+            },
+            null,
+            draftStore,
+            repairRunner,
+            mock(ChatMemorySanitizer.class));
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, "conv-draft-mismatch", originalUserText);
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(
+        completed.outcome().message().contains("approvedDraftText does not match"),
+        completed.outcome().message());
+    assertEquals(1, calls.get());
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, "conv-draft-mismatch"),
+                RequirementBrief.class)
+            .isEmpty());
+    assertEquals(
+        approved.planningText(),
+        draftStore.get("conv-draft-mismatch").orElseThrow().planningText());
+  }
+
+  @Test
   void terminalValidationFailureRepairsMemoryAndRetriesAnalysisOnce() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     CaptureSession captureSession = new CaptureSession();
@@ -536,6 +614,200 @@ class RequirementAnalysisCapabilityTest {
             .findFirst()
             .orElseThrow();
     assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+  }
+
+  @Test
+  void repairTurnInjectsFindingsAndPriorBriefIntoAnalyzerPrompt() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief prior = coveringBrief(approved, "Greetings without RBAC");
+    RequirementBrief repaired =
+        coveringBrief(approved, "Greetings with RBAC access control");
+    AtomicReference<String> seenMessage = new AtomicReference<>();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    AppConfig appConfig = mock(AppConfig.class);
+    AppConfig.CaptureConfig captureConfig = mock(AppConfig.CaptureConfig.class);
+    when(appConfig.capture()).thenReturn(captureConfig);
+    when(captureConfig.maxRepairAttempts()).thenReturn(0);
+    CaptureRepairRunner repairRunner =
+        new CaptureRepairRunner(
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)),
+            feedbackStore,
+            appConfig);
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            null,
+            (conversationId, userMessage) -> {
+              seenMessage.set(userMessage);
+              captureSession.accept(
+                  CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
+                  repaired,
+                  "captured",
+                  "duplicate");
+              return Multi.createFrom().item(ChatEvent.token("repaired"));
+            },
+            null,
+            null,
+            repairRunner,
+            mock(ChatMemorySanitizer.class));
+
+    ProductPipelineProfile profile;
+    try (java.io.InputStream in =
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+      profile = ProductPipelineProfileParser.parse(in);
+    }
+
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_CONTEXT_ATTR,
+        "Phase 5 plan validation failed. Findings: security-1: External route requires"
+            + " accessControlType=RBAC");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_OUTCOME_ATTR,
+        "VALIDATION_FAILURE");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FAILED_STAGE_ATTR,
+        "design-execution");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FINDINGS_ATTR,
+        "security-1: External route requires accessControlType=RBAC (blocker)");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .HALT_FOLLOW_UP_TEXT_ATTR,
+        "add rbac");
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-repair",
+            "conv-repair",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            profile,
+            null,
+            List.of(),
+            attributes);
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+
+    String prompt = seenMessage.get();
+    assertTrue(prompt.contains("Repair the previously approved requirement brief"), prompt);
+    assertTrue(prompt.contains("VALIDATION_FAILURE"), prompt);
+    assertTrue(prompt.contains("design-execution"), prompt);
+    assertTrue(prompt.contains("accessControlType=RBAC"), prompt);
+    assertTrue(prompt.contains("add rbac"), prompt);
+    assertTrue(prompt.contains("Greetings without RBAC"), prompt);
+    assertTrue(prompt.contains("Do not restart discovery"), prompt);
+
+    CapabilitySignal.Completed completed =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+    RequirementBrief candidate =
+        (RequirementBrief) completed.outcome().candidates().get(0).payload();
+    assertEquals("Greetings with RBAC access control", candidate.goal());
+    assertTrue(completed.outcome().message().contains("Approve to rebuild the plan"));
+  }
+
+  @Test
+  void repairTurnWithBriefProducerEmitsChangeSummaryMessage() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief prior = coveringBrief(approved, "Greetings without RBAC");
+    RequirementBrief repaired = coveringBrief(approved, "Greetings with RBAC");
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> repaired);
+
+    ProductPipelineProfile profile;
+    try (java.io.InputStream in =
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+      profile = ProductPipelineProfileParser.parse(in);
+    }
+
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_CONTEXT_ATTR,
+        "External route requires accessControlType=RBAC");
+    attributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FINDINGS_ATTR,
+        "security-1: External route requires accessControlType=RBAC (blocker)");
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-repair-producer",
+            "conv-repair-producer",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            profile,
+            null,
+            List.of(),
+            attributes);
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+
+    assertTrue(
+        signals.stream()
+            .anyMatch(
+                s ->
+                    s instanceof CapabilitySignal.Message message
+                        && message.text().contains("I updated the requirement brief")
+                        && message.text().contains("plan will be rebuilt")));
+    CapabilitySignal.Completed completed =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+  }
+
+  @Test
+  void buildAnalysisUserMessageAppendsRepairEvidenceBlock() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String message =
+        RequirementAnalysisCapability.buildAnalysisUserMessage(
+            approved,
+            null,
+            "en",
+            new RequirementAnalysisCapability.BriefRepairEvidence(
+                "VALIDATION_FAILURE",
+                "design-execution",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                "Phase 5 plan validation failed",
+                "add rbac",
+                "Goal: prior brief"));
+    assertTrue(message.contains("Repair the previously approved requirement brief"));
+    assertTrue(message.contains("outcomeClass: VALIDATION_FAILURE"));
+    assertTrue(message.contains("failedStageId: design-execution"));
+    assertTrue(message.contains("accessControlType=RBAC"));
+    assertTrue(message.contains("Prior requirement brief:"));
+    assertTrue(message.contains("Goal: prior brief"));
   }
 
   private static CapabilitySignal.Completed run(

@@ -453,7 +453,7 @@ public class DesignInputCapability implements StageCapability {
     }
     return StageOutcome.of(
         StageOutcomeClass.NEEDS_INPUT,
-        PipelineGates.tag(
+        PipelineGates.retag(
             PipelineGates.MAPPING_GAP,
             DesignInputIdsPathPrompts.encodeMappingGapWait(
                 idsPathPrompts.mappingGapPrompt(
@@ -464,7 +464,7 @@ public class DesignInputCapability implements StageCapability {
   private StageOutcome mappingAnswerError(RequirementBrief brief, String message) {
     return StageOutcome.of(
         StageOutcomeClass.NEEDS_INPUT,
-        PipelineGates.tag(
+        PipelineGates.retag(
             PipelineGates.MAPPING_GAP,
             DesignInputIdsPathPrompts.encodeMappingGapWait(
                 userFacingAuthoringWait(message),
@@ -507,7 +507,7 @@ public class DesignInputCapability implements StageCapability {
       RequirementBrief brief, String userText, String discoveryText, String responseLocale) {
     return StageOutcome.of(
         StageOutcomeClass.NEEDS_INPUT,
-        PipelineGates.tag(
+        PipelineGates.retag(
             PipelineGates.IDS_PATH_CHOICE,
             idsPathPrompts.idsPathChoicePrompt(responseLocale, brief, userText, discoveryText)));
   }

@@ -3,6 +3,13 @@ package org.qubership.integration.platform.ai.integration.catalog.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.http.HttpTimeoutException;
+import java.time.temporal.ChronoUnit;
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
+import org.eclipse.microprofile.faulttolerance.Retry;
+import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto;
@@ -31,8 +38,23 @@ import java.util.Map;
  */
 @RegisterRestClient(configKey = "catalog-api")
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
+@RegisterProvider(CatalogResponseExceptionMapper.class)
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
+@Timeout(value = 2, unit = ChronoUnit.SECONDS)
+@Retry(
+    maxRetries = 2,
+    delay = 200,
+    delayUnit = ChronoUnit.MILLIS,
+    retryOn = {
+      ProcessingException.class,
+      ConnectException.class,
+      SocketTimeoutException.class,
+      HttpTimeoutException.class,
+      WebApplicationException.class
+    },
+    abortOn = CatalogNonRetryableResponseException.class)
+@CircuitBreaker(requestVolumeThreshold = 4, failureRatio = 0.5, delay = 2, delayUnit = ChronoUnit.SECONDS)
 public interface CatalogRestClient {
 
   // ── Chains ───────────────────────────────────────────────────────────────
