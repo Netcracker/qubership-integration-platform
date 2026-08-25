@@ -1,0 +1,410 @@
+---
+paths:
+  - "vscode-extension/**"
+---
+
+### Project Overview
+
+QIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code extension for visually editing QIP chains and services stored as local `*.qip.yaml` files. It embeds `@netcracker/qip-ui` (`^1.0.0`) as a webview bundle and validates against `@netcracker/qip-schemas`. Built as a **web extension** (runs in the `webworker` extension host — no Node runtime, no network). Stack: TypeScript `^5.9.3`, VS Code Extension API (`engines.vscode: ^1.120.0`), Webpack `^5.99.7`, Jest `^29.7.0`. Ships as an npm package to GitHub Packages (`@netcracker:registry=https://npm.pkg.github.com/`); it is NOT published to the VS Code Marketplace.
+
+### Build & Test Commands
+
+```bash
+# Full build (run from repo root or vscode-extension/): builds upstream deps then webpack
+npm run build               # = prepare-deps + compile-web
+
+# Upstream workspace artifacts the webpack build copies in (run automatically by build):
+npm run prepare-deps        # build @netcracker/qip-schemas + qip-ui build:lib:bundled & build:lib:types
+
+# Webpack (web extension bundle + node library bundle)
+npm run compile-web         # webpack (dev)
+npm run watch-web           # webpack --watch
+npm run package-web         # webpack --mode production (used by vscode:prepublish)
+
+# Tests
+npm test                    # = test:unit
+npm run test:unit           # jest -c jest.config.cjs (mocks `vscode` via tests/__mocks__)
+npm run test:unit:coverage  # jest --coverage  → coverage/
+npm run test:integration    # @vscode/test-web in chromium (compiles web first); mounts tests/fixtures/service-projects
+npm run test:integration:headless   # xvfb-run wrapper for CI
+
+# Lint / types
+npm run lint                # eslint --fix src
+npm run check-types         # tsc --noEmit
+
+# Manual smoke run in browser host
+npm run run-in-browser      # vscode-test-web --browserType=chromium
+```
+
+The webpack config fails fast if `ui/dist-lib/index.bundled.es.js` or `schemas/assets/` are missing — build the upstream workspaces first (`prepare-deps` does this).
+
+### Architecture
+
+Two webpack outputs (`webpack.config.js` exports an array):
+
+1. **Web extension** — entry `src/web/extension.ts` → `dist/web/extension.js` (`target: webworker`, single chunk; `vscode` external; `assert`/`process` polyfilled). Also bundles the integration test entry `src/web/test/suite/index.ts`.
+2. **Node library** — entry `src/web/index.ts` → `dist/node/index.js` (`commonjs2`), re-exporting the response/services/api-services modules and `QipExtensionAPI` for programmatic embedding.
+
+**Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
+
+**Custom editors & commands:** `package.json` registers seven custom text editors, one per file pattern — `*.chain.qip.yaml`, `*.service.qip.yaml`, `*.external-service.qip.yaml`, `*.internal-service.qip.yaml`, `*.implemented-service.qip.yaml`, `*.context-service.qip.yaml`, `*.mcp-service.qip.yaml` — plus a `qip-main` explorer tree view and commands (`qip.open`, `qip.createChain`, `qip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff view (proposed `customEditorDiffs` API). `editorViewTypes.ts:getEditorViewTypeForUri` is the single uri → view type resolver; `qip.revealInExplorer` goes through it too, so a new editor type needs no second suffix chain. A slash-free `filenamePattern` matches within one name segment, so `*.service.qip.yaml` does not claim `x.external-service.qip.yaml` — the same reason `.context-service.` has always been safe.
+
+**Offline schema extraction (`.api.qip.yaml`):** `API` is the renamed `Specification`/model level in the `parentId`
+chain — same depth as before, read by `getApiSpecifications` / `getSpecificationModel` / `getOperations`
+(`serviceApiRead.ts`). Operations carry no materialized schemas; `getOperationInfo` recomputes
+`{ specification, requestSchema, responseSchemas }` on demand via `OperationSchemaExtractor`, which parses the raw
+source under `<serviceFolder>/resources/` with the existing `api-services/parsers/*`. The source path comes from
+`specifications[].filePath` in the api format, or `specificationSources[].fileName` in the legacy one. A backend-exported
+`.api` file no longer writes the per-operation `specification`, so it is derived like the schemas — but a value the file
+does carry wins, matching the backend's import-side "fill only when null" guard
+(`ServiceDeserializer.fillMissingOperationSpecifications`).
+`SpecificationImportService.saveSpecificationFiles` strips schemas only at the persistence boundary — the parsers
+still generate them in memory, and the extractor reuses that same code path. Mirrors the backend's on-demand model
+(`docs/api-abstraction-refactor.md` in the monorepo root).
+
+**Dual-format read, single-format write.** The extension reads both `.specification.<app>.yaml` (legacy
+`specificationSources[]` with `fileName`/`mainSource`) and `.api.<app>.yaml` (current `specifications[]` with
+`filePath`/`isRoot`, plus typed operations), and writes only `.api.<app>.yaml`. The first write of a model converts it:
+it creates the `.api.<app>.yaml` file and deletes the `.specification.<app>.yaml` sibling, so a project migrates as its
+files are edited, with no migration command. Git records the change as a rename. `parentId` stays the source of truth
+for the API-to-group link; the group's `apis[]` is derived and rewritten by scanning the service folder after any API
+write or delete.
+
+**A plain service is stored as `<id>.service.<app>.yaml`**, whatever its type, beside the two special kinds
+`.context-service.` and `.mcp-service.`. The type is in `$schema`, never in the name — see _A file name states a kind,
+never a type_ below. The backend decides a context or an MCP document by name **and** `$schema`
+(`ServiceTypeFiles.isContextOrMCPServiceFile`), so every write keeps stamping `$schema` from the config.
+
+`response/file/serviceFileType.ts` is the resolver every read site routes through: `serviceTypeFromSchema` (the type
+carrier), `isAnyServiceFile` (**the four plain names only** — a context or an MCP file answers `false`, so a caller that
+wants every kind uses `allServiceExtensions`, or `isServiceFileOfAnyKind` for the predicate), `resolveServiceType`
+(`$schema` wins, `content.integrationSystemType` is the pre-#553 fallback, `undefined` when neither states a **known**
+type — a body holding an unrecognized string reads as untyped), `isCurrentFormatServiceName` / `isPlainServiceType` /
+`serviceExtensionForType` / `serviceSchemaUrlForType` / `serviceFileNameForType` for writes, and
+`plainServiceExtensions` / `allServiceExtensions` for the scan order — the current names ahead of the per-type ones, so
+a project that configures `service: .svc.qip.yaml` alongside `externalService: .external.svc.qip.yaml` cannot have the
+shorter name swallow the longer. `serviceFileLookup.ts` is the `findFileById` counterpart, searching every plain name.
+
+**A file name states a kind, never a type.** The three plain types share `.service.${appName}.yaml`; the type is in
+`$schema`, matched in two layers — the configured `schemaUrls` value first, then the schema's own file name with every
+extension off (`SCHEMA_FILE_STEMS`). The second layer is what types a document written by an installation configured
+differently, and Runtime Catalog matches it identically (`ServiceTypeFiles.typeFromSchemaUri`);
+`schemas/src/test/resources/naming` declares the rule for both sides. The per-type names
+(`.external-service.`, `.internal-service.`, `.implemented-service.`) are the format the #553 versions wrote: read,
+never written, and **not** a type source — a file wearing one carries the matching `$schema` anyway.
+
+Two sites keep their own list rather than calling in, both deliberately: `services/FileCacheService.ts` keys the four
+plain names onto one cache entry through its own `isPlainServiceExtension`, and `editorViewTypes.ts` maps each name to
+its own view type. Add a sixth service kind and both need editing by hand, or the file never caches (stale content after
+an edit) and opens in no custom editor.
+
+**Every match compares the whole extension** (`.external-service.${appName}.yaml`), end-anchored and app name included,
+longest match first. Do not rewrite it as a scan for a bare postfix: that position-anchored rule belongs to the backend,
+which needs it because it does not know the app prefix, and porting it here reopens the shadowing the whole-extension
+compare closes. Two enum-keyed `Record`s carry the compile-time guard: `EXTENSION_KEY_BY_TYPE`
+(`Record<IntegrationSystemType, TypedServiceExtensionKey>`, in `namePrecedence.ts`) for the extension, and `qipExplorer.ts:SERVICE_ICONS`
+(`Record<ServiceGroupType, string>`) for the tree icon and, next to it, the group. `FileCacheService`'s helper,
+`EditorViewTypes` and the `contributes.customEditors` patterns in `package.json` are three surfaces with no
+compile-time link to either; `activate()` is no longer a fourth, because it loops over `DEFAULT_EDITOR_VIEW_TYPES`
+rather than repeating a `registerCustomEditorProvider` call per view type.
+
+**Which of two names is the current one is declared once, in `response/file/namePrecedence.ts`.** Three entities live
+under two generations of names — a service, an API (`.specification.` → `.api.`) and an API group
+(`.specification-group.` → `.api-group.`) — and `NAME_SETS` states, per set, the names a write emits (`current`) and
+the ones kept for reading alone (`legacy`). The write paths read the same declaration, which is what makes it
+self-checking — inverting `NAME_SETS.api` makes every import write `.specification.` and the conversion cases fail on
+their own.
+
+**Two private brands are what keep the order there,** rather than review. A name set carries one, so `NAME_SETS` is the
+only source of a set and `candidateExtensions` cannot be handed one with the generations swapped. A scan order carries
+the other: `candidateExtensions` and `combineCandidates` are its only producers, `resolveFirstCandidate` takes nothing
+else, and transforming an order (`[...order]`, `.map`, `.reverse`) yields a plain array no lookup accepts. So a lookup
+runs an order this module states, whatever the call site assembled. A cast, or a spread of a declared value, still
+compiles; both are deliberate. Three sets exist only so a lookup can state its order at all — `chain`,
+`contextService`, `mcpService` have one generation and no precedence to declare. `PairedNames<C, L>` is the stronger
+shape for a true rename: one name on each side, and `L` cannot be `C`, so `currentExtension` / `legacyExtension` answer
+for an API and a group and fail `check-types` for a service, which has five current names and picks between them by
+type.
+
+`tests/web/response/namePrecedenceGuard.test.ts` is the guard, in four rules. Every extension key belongs to a declared
+set; the declaration agrees with what the write paths emit; the bypasses in `fixtures/precedenceBypass/attempts.ts`
+still fail to compile (each under a `@ts-expect-error`, so an unused directive is the failure); and no array literal
+under `src/web` puts a legacy name ahead of a current one. That last rule reads syntax, and only array literals whose
+elements name a key through a property or an identifier — it does not see a spread, `concat`, `map`, a helper call, or
+a variable, and does not need to, because the type does. Two order-free membership helpers in `FileCacheService` are
+outside all of it, and they still spell the current name first so the guard needs no allowlist.
+
+The refusal around an unreadable candidate is **directional**, and follows from that order: only a file of higher
+precedence blocks — it is the only one a write would land on. An unreadable legacy sibling blocks nothing, for a
+service, an API and a group alike, and on every surface: `resolveFirstCandidate` gets it by construction (it collects
+unreadable candidates from _earlier_ names alone), and the folder scan and the two listings get it from the rule
+itself. `blockingSibling` is where the direction is stated — same folder, same base name, _and_ a rank ahead of the
+resolved file in the extension order the caller scanned in — and `refuseUnreadableSibling`, `readListedServices` and
+`qipExplorer.dropUnreadableSiblings` all ask it. For a while only the first of those was directional, and one corrupt
+legacy `.specification.` file took down the whole API and group surface of a service whose `.api.` file was fine.
+
+**Conversion on first write**, the same rule as `.specification.` → `.api.` above: reads accept both formats, writes emit
+the current name wherever one can be spelled, and git records the change as a rename.
+`serviceFileWrite.ts:writeServiceInCurrentFormat` is the conversion, and it returns the uri the service landed in rather
+than the one it came from, so a caller that re-reads must use the return value. Three call sites hang off it, not one:
+`serviceApiModify`'s local `writeMainService` (every update, environment edits included), `SystemService.saveSystem`, and
+`EnvironmentService.saveSystem`. Leaving any out migrates a service or not depending on which screen edited it.
+
+What converts is usually the **carrier**, not the name: a pre-#553 document keeps its `.service.` name and trades
+`content.integrationSystemType` for the type's own `$schema` (`typed-service-content.schema.yaml` forbids the field).
+The one rename left is a per-type name going back to the plain one.
+
+Two documents are left exactly as they are:
+
+- one whose type neither `$schema` nor `content.integrationSystemType` states — nothing to stamp, and a guess would
+  hand the backend a type nobody wrote;
+- one whose id contains a dot. The backend reads the id up to the first dot (`ExportImportUtils.statesPostfix`), so any
+  name built from `a.b` states the id `a`. `serviceFileNameForType` returns such a name unchanged, and the carrier
+  still converts — `$schema` no longer depends on the name, so the file imports like every other one.
+
+`$schema` wins whenever it states a kind, so a write never moves a file out of the family it is in: a
+`.context-service.` or `.mcp-service.` document is written back where it is. Only a **body**-stated type may promote a
+document that states none, and `isPlainServiceType` gates that to the three plain types, so a plain file whose stale
+body claims `CONTEXT` or `MCP` stays where it is rather than being renamed into that family. `serviceFileNameForType`
+carries the same guard from the other side: an **unresolved** type leaves the name alone, or a context document
+carrying no `$schema` would be renamed to `.service.` and its original deleted.
+
+`$schema` is stamped only when it did not already state the type — a document carrying a url this project configures
+nowhere still resolves through the schema file name, and rewriting it would hand a file of one installation the url of
+another. When it is stamped, it comes from the config of the app the _file_ belongs to
+(`extensions.appName`), not from whichever app the last opened document made current — otherwise a multi-app workspace
+gets another app's URL stamped on its files. The service folder keeps its name: the backend finds a converted dotted-id
+service through that folder alone (`ExportImportUtils.statesPostfix(File, String)`), and a service it cannot find is
+silently absent from an import rather than reported. A delete collects the same-id sibling under the other service
+extension as well (`collectServiceOwnedFiles`), so a half-converted service cannot resurrect. A failed delete leaves
+both files and warns, because from then on an import reads a duplicate id; `getServices` and the explorer tree both
+dedup by id with the current-format file winning (`isCurrentFormatServiceName`).
+
+Known behavior: after a conversion the editor tab still points at the deleted legacy file, because VS Code does not
+follow the rename. That is cosmetic, and two mechanisms keep it from becoming functional. `onServiceFileMoved`
+(`serviceFileWrite.ts`) fires on every conversion, and `enrichWebview` subscribes so the panel dispatches later messages
+against the file the service moved to. Independently, **every read resolves the service by id rather than trusting the
+uri it was handed**. One rule, one helper: `resolveServiceFileUri` takes the uri as a hint and the id as the answer —
+`findServiceFileById`'s current-name-wins order decides, and the uri is the fallback for an id nothing resolves, which is how a
+read that starts from a chain or an api file stays in the folder it came from. `readServiceFile` is that lookup plus
+the id check, and `getService`, `getEnvironment`, `getEnvironments` and `getApiSpecifications` share it;
+`getSpecificationModel`, `getOperations` and `getOperationInfo` call the resolver directly. The half-measure this
+replaced — read the uri first, resolve by id only when that read fails — recovers a **deleted** per-type file but not one
+that is still there, which is the state a failed `deleteLegacySibling` leaves for good. Do not reintroduce it, and do
+not reintroduce a fast path for a uri that already looks like a service file: `isAnyServiceFile` answers `true` for a
+superseded per-type name too, which is the shape of the bug.
+
+**A write resolves the file the same way**, through the same `readServiceFile`. `updateService` and the three
+environment writes edit the file the id owns, which is the one every read and both lists already show. Following the
+held uri instead read the superseded body of a per-type sibling, applied the edit to it and wrote that over the current
+file, reverting every save since the conversion — the conversion recomputes the name from the type, so the write landed
+on the current file either way and only the content differed. What this accepts: an editor opened on the superseded file
+saves into the current one, and a half-converted service is no longer cleaned up by the delete a later save through the
+superseded uri used to retry. The user was already told to delete that file by hand.
+
+Two reads start without an id — `getCurrentServiceId` and the single-file branch of `getServices` — and learn it from
+the document. `readServiceIdentity` is that read: the document states the id, and a path the conversion deleted falls
+back to `serviceIdFromFileName`, the id the name states (a conversion changes the extension alone, so that id survives
+it). `getCurrentServiceId` stops there — both files of one service carry one id, which is what makes them siblings, so
+there is nothing for a lookup to decide, and it is handed context and MCP uris too, which no plain-service scan should
+touch. `getServices` resolves that id and reuses the document already in hand when the id resolves back to the same
+path. Its enumeration branch builds from the file `findServiceFiles` handed it, because that scan already applied the
+current-name-wins order — resolving each id again would rescan the workspace once per service.
+
+`findServiceFileById` reports a miss as `ServiceFileNotFoundError` naming every extension it tried and what each one
+said. `FileApi` reports "no such file" and "a file matched but broke the parser" as different types now, and only that
+one distinction is drawn: the aggregate keeps the real reason visible behind a later miss, and `resolveServiceFileUri`
+only falls back to the held uri while that uri still resolves. It asks `fileApi.fileExists`, which is `stat` alone —
+`getFileType` catches everything and answers `UNKNOWN`, so a guard written on top of it answers "still there" for every
+path, including one a conversion deleted.
+
+**A file the scan cannot read is neither a match nor a miss.** `response/file/lookupOutcome.ts` is the whole contract,
+stated at the top of that file: three outcomes, and one rule allowed to narrow the third. `collectFiles` parses only to
+answer a predicate, and a parse failure there lands in the `unreadable` list rather than aborting the scan (which handed
+the lookup to the legacy sibling) or counting as no match (which handed it there just as silently). `findFile` and
+`findFiles` report it as `UnreadableFileError` naming the files. `refuseUnreadableSibling` is the single narrowing rule:
+a lookup may answer with another name only when that name cannot be the unreadable file's sibling — same folder, same
+name once the entity extension is stripped, which is what a conversion leaves and, because a write recomputes the target
+name in the folder of the file it resolved, the only pair a write can destroy. An unreadable file anywhere else blocks
+nothing.
+
+A file can also go unreadable _after_ a lookup resolved it — `findFileById` answers from a cache validated by `stat`
+alone — so the resolved file is the third place the outcome is raised: `getOperations` throws
+`UnreadableResolvedFileError` rather than answering `[]`, which is what the other branch of that same function already
+did for a scan-time failure. The contract guard cannot see this one: its first rule reads a lookup inside a `catch`,
+and here the lookup sits outside the `try`.
+
+Five lookups share that rule, each with the extension set it scans: `findServiceFileById` (which reports it as
+`UnreadableServiceFileError`), `findFileByNavigationPath`, the extension-less `findFileById`,
+`serviceApiRead.findModelFileById` (`.specification.` versus `.api.`) and `ApiGroupService.findGroupFileById`
+(`.specification-group.` versus `.api-group.`). None of them hand-rolls its candidate loop: `resolveFirstCandidate` runs
+it, and its `onUnreadable` handler is **required**, so a new lookup cannot compile without saying what an outstanding
+unreadable file means for it. `findServiceFileById` narrows a second time — a total miss stays a miss, because with
+nothing resolved there is no sibling for a write to land beside — and names the unreadable files among its causes.
+
+**A folder scan resolves the same pair, and obeys the same rule.** A lookup by id is one shape of the problem; the other
+is a scan of the service folder that groups what it parsed by id and keeps the file under the current name. That _is_ a
+resolution across `.specification.` versus `.api.` and `.specification-group.` versus `.api-group.` — the same pairs a
+re-save overwrites — so skipping the file it could not parse answered those ids from the sibling that lost the
+precedence race. `resolveScannedEntities` (in `lookupOutcome.ts`) runs that scan, with the same required `onUnreadable`
+handler, and `response/file/entityFiles.ts` states it once per level: `resolveGroupFiles` and `resolveApiFiles`, one
+entry per id, the current name winning, same-id losers reported as `duplicates`. Every read, write, list and delete of a
+group or an API goes through those two — `getApiSpecifications`, `getSpecificationModel`, `getOperations`,
+`getOperationInfo`, `ApiGroupService.resolveGroupFile` / `regenerateGroupApis` and
+`serviceApiModify.findSpecificationFileById` — so the write lands on the file every read already shows, whatever order
+the directory listed the names in. `onUnreadable` runs with every file the listing could not read, not with a
+pre-filtered set: which of them is this entity's, and which of them outranks the file the scan resolved, is the one
+rule's decision. `ApiGroupService.getApiGroupById` rethrows the refusal and keeps answering `null` only for a plain
+miss.
+
+**A delete removes every name of the entity, a write only the one that answers.** `duplicates` is what the scan hands
+back for that: `deleteSpecificationGroup` takes the group file plus its duplicates, `deleteSpecificationModel` takes the
+API file plus its duplicates _and the source files each of them references_, and `collectServiceOwnedFiles` takes the
+service's sibling along with the groups and APIs it owns. Leaving one behind resurrects the entity on the next read,
+with its sources and its group link already gone. A write is the opposite rule and deliberately so: the edit belongs in
+the file every read answers from, and the sibling is superseded content nobody should be writing to.
+
+**A scan that resolved nothing for an id still owes the caller the files it could not read.** `resolveScannedEntities`
+answers `{ byId, unreadable }`: an entity whose only file is unreadable is in neither, because its id was inside that
+file. `scanMissRefusal` is what a by-id caller turns that into — `UnreadableCandidateError` naming the files, rather
+than "not found". `UnreadableOutcomeError` is the base of every shape the outcome takes — `UnreadableFileError`,
+`UnreadableResolvedFileError`, `UnreadableSiblingError` and `UnreadableCandidateError` — which is what the four
+accessors that rethrow "the refusal" and answer `null` only for a plain miss check against. It has to be the base of
+all four: while `UnreadableFileError` extended plain `Error`, `getApiGroupById` answered "no such group" for a group
+whose only file could not be parsed.
+
+`resolveServiceFileUri` does not fall back to the held uri for that error: the held uri _is_ the sibling whose content
+the write would put over the file nobody could read. A **workspace-wide listing** drops and names instead of refusing:
+`readListedServices` takes the file it could not read off the list together with every entry it outranks (so a
+superseded sibling still cannot be listed in its place), and `getServices`, `getContextServices` and `getMcpServices`
+name those files in a warning. A converted service whose _legacy_ file is the broken one stays listed, on the tree as
+well: the current file is what the list hands out and what every write lands on, and hiding it takes a healthy service
+off the only two screens it is browsable from while the warning tells the user to delete the file that is left.
+Failing the whole listing named them too and took every other service off the screen with them. The API and group listings inside one service folder still fail whole, because they are scoped to the service the
+user already has open — the same blast-radius rule that scopes `refuseUnreadableSibling`.
+
+`SystemService.getSystemById` / `getRawServiceById` and `EnvironmentService.getEnvironmentsForSystem`
+rethrow the refusal and keep answering `null` or `[]` only for a plain miss. `SpecificationImportService` re-points
+itself the same way, from the uri `SystemService.saveSystem` returns, because its own protocol write is what converts
+the file mid-import. `src/web/test/suite/serviceTypes.test.ts` pins the stale tab, a second operation issued through the
+stale uri, and a read **and a write** handed the legacy uri while both files sit on disk.
+
+`tests/web/response/lookupOutcomeContract.test.ts` is the guard, and it is the reason this stopped drifting. It builds a
+`ts.Program` over `src/web` and fails on two shapes: a lookup call inside a `catch` that can answer, and a loop that
+reads candidate files and swallows what it cannot read. Each has its own allowlist of `<file>#<function>` entries
+stating why catching there does not collapse the outcome.
+
+Three things make it hard to spell around. Every callee resolves through the type checker to the declaration it reaches,
+so an alias, a renamed import, a destructured binding, a computed property and a call through a variable all land on the
+same key. A wrapper is no hiding place either: the rules close over the call graph, so a function that passes a lookup
+on counts as a lookup, and one that swallows a parse counts as a parse wherever it is called. And `.catch(...)` and
+`.then(onFulfilled, onRejected)` count as `catch`, while a `catch` that always rethrows does not — it answers with
+nothing, which is why the reporting handlers around a save or an import need no entry. Handing the callee to something
+else to invoke is no hiding place either: `f.call`, `f.apply`, `f.bind` and `Reflect.apply(f, …)` are unwrapped back to
+`f`, and a bound function is followed through the variable it sits in. `tests/web/response/fixtures/indirectLookup/`
+holds one swallowing site per spelling, and the guard analyzes that folder as a second root to prove it names them.
+What it cannot see: a callee typed `any` (the last case in the suite is the canary, failing if that share grows), a
+lookup passed as a value and invoked through a parameter elsewhere, and anything outside `src/web`.
+
+The type is set at creation and never again, matching the backend. Both create paths — `serviceApiModify.createService`
+(webview) and `fileApiImpl.createEmptyService` (command palette) — mint a `crypto.randomUUID()` id, which is dot-free as
+the backend requires of an id it has to state in a file name, and build the name through `serviceExtensionForType`.
+`updateService` has no type write path left, and `validateAllowedSystemProtocol` sits on the protocol branch, checking
+the incoming protocol against the type the file states. `SERVICE_MIGRATIONS` claims `[100, 101, 102, 103, 104, 105]` and
+has to mirror the backend's migration registry exactly — `FileMigrationService` throws on a version its registry does not
+hold. **An MCP document has a registry of its own**, holding version 100 alone
+(`V100MCPServiceImportFileMigration`), so it claims `MCP_SERVICE_MIGRATIONS` and is read through `fileApi.getMcpService`.
+Reading one through `getContextService` — context documents do run through the service list — stamps the service claim
+on it and makes the file unimportable.
+
+**The explorer groups services by type.** `qipExplorer.ts` puts a `"service-group"` node between `Services` and the
+services themselves, in the fixed order of `SERVICE_GROUPS`: External, Internal, Implemented, Context, MCP, Unknown. The
+grouping is virtual — files stay where they are on disk. An empty group is omitted, so the tree usually shows fewer than
+six. A group reuses the icon of the services it holds, `Unknown` carrying its own `question` so the bucket is not
+mistaken for `Context`. A group carries no `fileUri`, so `getTreeItem` attaches no reveal command, and `getChildren` returns
+`element.children ?? []` for it. A file the walk cannot read is the one thing the tree does drop:
+`dropUnreadableSiblings` keeps every service whose file may be that file's sibling off the tree, because listing the
+sibling would put the superseded document there as the current one. `Unknown` is the tolerant half of a deliberate
+pairing: a file whose type neither its name nor its body states stays visible here, while the backend refuses it — an
+error row in the import preview as well as on commit — and refuses a name and a field that disagree outright
+(`ServiceDeserializer.resolveServiceType`). Dropping the bucket makes a broken file vanish from the tree instead of
+showing up.
+
+**Messaging model (webview ↔ extension host):** the embedded qip-ui's `vscodeExtensionApi` posts `VSCodeMessage<T>` over `webview.postMessage`. The host's `onDidReceiveMessage` handler dispatches into `getApiResponse` (`src/web/response/apiRouter.ts`), a large `switch` over message `type` (`getChain`, `getElements`, `updateElement`, `createService`, `importSpecification`, `chooseImageSavePath`, etc.), and replies with a `VSCodeResponse<T>` carrying the same `requestId`. Theme/editor settings are pushed to webviews via `theme-update` messages. `enrichWebview` repeats the push after 300 ms and skips the repeat once the panel is disposed, because an editor closed inside that window otherwise reaches the host as an uncaught `Webview is disposed`. `sendThemeToWebview` still catches and logs, for a panel disposed on any other path.
+
+### Project Structure
+
+```
+src/web/
+  extension.ts            # activate(): custom editors, commands, tree view, webview wiring, theme bridge
+  editorViewTypes.ts      # the single uri → custom-editor view type resolver
+  index.ts                # node library entry — re-exports public surface
+  qipExplorer.ts          # QIP explorer TreeDataProvider (services grouped by type)
+  response/               # message handlers (the "backend" the webview talks to)
+    apiRouter.ts          # getApiResponse() — dispatch by message type
+    chainApiRead.ts / chainApiModify.ts / chainApiUtils.ts
+    serviceApiRead.ts / serviceApiModify.ts / serviceApiUtils.ts
+    imageExportApi.ts     # chain graph image export (save path + write file)
+    navigationUtils.ts, swimlaneUtils.ts, fileFilteringUtils.ts
+    file/                 # FileApi abstraction over vscode.workspace.fs (read/write local YAML)
+      fileApi.ts, fileApiImpl.ts (VSCodeFileApi), fileApiProvider.ts, fileExtensions.ts
+      serviceFileType.ts    # the single "is this a service file, of what type" resolver
+      serviceFileLookup.ts  # find a service file by id / list them, across every service extension
+      lookupOutcome.ts      # the three-outcome contract every lookup and folder scan obeys
+      entityFiles.ts        # resolve a group or an API across its two names, one file per id
+      serviceFileWrite.ts   # the current-format write, and the conversion into it
+  services/               # ProjectConfigService, FileCacheService, FileConversionService,
+                          # FileParserService, ProtocolDetectorService, ConfigApiProvider, qipSchemas
+  api-services/           # spec import + parsing (OpenAPI/AsyncAPI/GraphQL/Proto/SOAP-WSDL)
+    parsers/              # per-format parsers (async/, proto/, soap/)
+  test/suite/             # @vscode/test-web integration tests
+tests/                    # jest unit tests + __mocks__/vscode.ts
+configs/                  # default.config.qip.yaml (file-extension & schema-URL map)
+media/library.json        # bundled element library catalog
+```
+
+Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions and schema URLs are configurable per app via a `.config.qip.yaml` (see `.config.qip.yaml.example`; defaults to the `qip` app).
+
+### Conventions
+
+- **Conventional Commits** required (enforced in CI on PR titles and commit messages).
+- **Apache License 2.0** — existing source files carry the NetCracker copyright header; new files do not need it.
+- `tsconfig.json`: `strict`, `module/moduleResolution: Node16`, target `ES2020`, libs `ES2020`+`WebWorker`.
+- Jest mocks the `vscode` module (`tests/__mocks__/vscode.ts`); unit tests live beside `api-services/` (`*.test.ts`) and under `tests/`. Integration tests under `src/web/test/` run in a real chromium web host and are excluded from jest. Both suites run in CI (`vscode-extension-build.yaml`).
+- The integration run mounts `tests/fixtures/service-projects` as its single workspace, and `serviceTypes.test.ts` asserts the **full** set of service ids and their group membership. Adding a fixture project, or a service to one, is an assertion change — the suite is workspace-wide, and its cases run in order (the conversion case writes the state the two after it read).
+- **Two of those projects are backend-written and are not in git.** `pretest:integration` runs `scripts/copy-backend-fixtures.mjs`, which copies the golden export sets `post553` and `post553-dotted` out of `schemas/src/test/resources/exportimport-golden` into `from-backend` and `from-backend-dotted` (both `.gitignore`d). The trees sit in `schemas` beside the other shared corpora, but only runtime-catalog can produce them. One tree, two consumers: it is the only place the extension is checked against bytes the backend actually wrote, rather than against fixtures authored to match it. The copy `rmSync`es first, because `cpSync` merges and a leftover renamed file would put one id under two names. `post553-dotted` carries an api group and an api whose ids contain dots — the shape every real export produces, and the one the end-anchored whole-extension compare exists for.
+- The CI `paths:` filter in `vscode-extension-build.yaml` needs no special entry for them: `schemas/**` already covers the golden trees and the naming corpus.
+- **The coupling only bites through a regeneration.** Changing the backend's file-name generator alone leaves this suite green — measured. What catches the drift is runtime-catalog's `ServiceExportFormatTest.currentExportMatchesTheRecordedFormat`, which forces the tree to be re-captured, at which point this suite goes red. Both halves are needed.
+- **`tests/helpers/serviceDisk.ts` is the harness for a disk-state suite.** Four suites share it —
+  `currentNameWins`, `unreadableCanonicalFile`, `unreadableApiFiles`, `deleteEntityFiles` — and each runs the real
+  `VSCodeFileApi`, the real lookups and the real write and delete paths over an in-memory workspace, so the only thing
+  stubbed is `vscode.workspace.fs`. Mock it as `jest.mock("vscode", () => require("../../helpers/serviceDisk").vscodeApi(), { virtual: true })`:
+  the `require` is what keeps it order-independent, because a factory runs during the suite's own imports, before its
+  consts exist. Only the `vscode` factory body lives in the helper — the other eight `jest.mock` calls resolve paths
+  relative to the calling file and stay put. The delete raises the errors the real fs raises (`Directory not empty`,
+  `EntryNotFound`) for every suite, not only the one that asserts on them — a delete that silently succeeds on a
+  missing path is the same infidelity as a stub that cannot fail, and all four suites are measured green under it.
+  **`fileApiImpl.brokenScan.test.ts` stays outside on purpose**: it has no disk, only `jest.fn()` pairs over a static
+  tree.
+- **`tests/response/file/serviceNameCorpus.test.ts` measures this extension against the shared naming corpus** in
+  `schemas/src/test/resources/naming`, which runtime-catalog reads too. Every other name test here is single sided.
+  Generation is asserted for the three plain kinds only — `isPlainServiceType` gates the production call site, so
+  driving a context or MCP type through `serviceFileNameForType` would test a mode production never uses; reading is
+  not gated and covers all five. A refusal assertion must first prove its seed parses: an unchanged name is also the
+  answer for a name that was never a service name.
+- The rule against mocking the file API in a disk-state test is about **faithfulness, not layering**. Modelling an
+  unreadable file as a rejection from `parseFile` is fine — the real one logs and rethrows. Stubbing `getFileType` to
+  reject was not, because the real one catches everything and answers `UNKNOWN`.
+- Node `>=22` (root monorepo `engines`).
+
+### Platform Context
+
+This module is the offline visual editor for QIP chains and services — a standalone VS Code web extension with no server side. See `README.md` for the repository layout.
+
+Unlike the backend services, this extension performs **no backend or network communication**: it operates entirely on local `*.qip.yaml` files via `vscode.workspace.fs`. It consumes/embeds:
+
+- **`@netcracker/qip-ui`** — the React visual editor, loaded as a library bundle into the webview (`dist/web/qip-ui/`); the webview and extension host communicate only via `postMessage`.
+- **`@netcracker/qip-schemas`** — JSON Schema definitions used for validation; `assets/` copied into `dist/web/qip-schemas/`.
+- **Local YAML files** — chains, services (`.service.`, plus the superseded per-type `.external-service.`/`.internal-service.`/`.implemented-service.`), context/MCP services, API groups, and APIs (`.api.qip.yaml`), plus an optional `.config.qip.yaml` for extension/schema configuration (see `.config.qip.yaml.example`). Under both `extensions:` and `schemaUrls:` that config carries `specificationGroup` and `apiGroup` side by side, and all six service extension keys — the three kinds a name states plus the three superseded per-type ones. Both files list every key, and `.config.qip.yaml.example` has **two** blocks (`qip` and `pip`) — miss one and a project with a custom config silently falls back to defaults. `ApiGroupService.resolveGroupFile` is the single precedence rule for a group that has a file under both extensions: the current `.api-group.` one wins, the sibling comes back as a duplicate. Read, list, write, and delete all follow it: the services tree lists such a group once, a save lands on the file the next read picks, and a delete removes both files so the group cannot resurrect. A group stored only under `.specification-group.` keeps that file, so a re-save never creates a second one. `plainServiceExtensions` and `findServiceFileById` apply the same precedence to a service that has both a current and a per-type file.
+
+Build order across workspaces matters: `schemas` build → `qip-ui` `build:lib:bundled`/`build:lib:types` → this extension's `compile-web` (the `build` script chains all three).
