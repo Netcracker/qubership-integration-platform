@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/*"
+  - "**"
 ---
 
 When the user points at SonarCloud — a `sonarcloud.io` link, a quality gate, a

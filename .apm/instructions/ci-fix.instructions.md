@@ -1,6 +1,6 @@
 ---
 description: Trigger for the CI failure diagnosis skill.
-applyTo: "**/*"
+applyTo: "**"
 ---
 
 When the user points at a failing GitHub Actions run — a run URL, a job name, or

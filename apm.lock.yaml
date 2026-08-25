@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-08-25T15:15:13.373542+00:00'
+generated_at: '2026-08-25T15:55:00.821768+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
@@ -67,8 +67,8 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-us-developer-style
   host: github.com
-  resolved_commit: cb31b6ce4d9457d2638b40590500a5229c230d99
-  resolved_ref: cb31b6ce4d9457d2638b40590500a5229c230d99
+  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
+  resolved_ref: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
   version: 2.0.0
   virtual_path: agent-packages/english-us-developer-style
   is_virtual: true
@@ -331,7 +331,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c2ddc26141c02593bc0e9be4e0ebe0f64567eb35ec5e6c22d87f882e7fe4fbaa
+  content_hash: sha256:4de31150e369c45093fbfe099209e95118d30f19e3a8c23fd91d0b1cd332f559
 - kind: project-relative
   target: claude
   value: .claude/rules/docs-authoring.md
@@ -394,7 +394,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c6fe89b98f677d7da01bc8c96bfe23f34decbe184110b4da89588c2220e31e87
+  content_hash: sha256:032b8293f253cad9698c6ce79844732a6d7ca632dd4a3c6b79e494372e84a62c
 - kind: project-relative
   target: claude
   value: .claude/rules/runtime-catalog.md
@@ -430,7 +430,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:ea988a493a79772bb1ddf7fba7647bc49eca01f1041c58f2388ccfac5a2bfd7e
+  content_hash: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
 - kind: project-relative
   target: claude
   value: .claude/rules/ui-api-and-utilities.md
@@ -781,7 +781,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:109a184dc1ef19e6c62f44be3405630c91130475783c9ff57392df51f5645164
+  content_hash: sha256:8cbb34acb5dd3cc1e79c42655bf24efdc57993c5ec52ddc6c61b4163b00a1efa
 - kind: project-relative
   target: cursor
   value: .cursor/rules/docs-authoring.mdc
@@ -844,7 +844,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:837d01e331fc572599434b7d700c1c057fab10b2647b6aab54bb889ae42f52c9
+  content_hash: sha256:0f536347592d1f0d9b4c3f9b42f4085ca510a9f294b9190684c06036e031e656
 - kind: project-relative
   target: cursor
   value: .cursor/rules/runtime-catalog.mdc
@@ -880,7 +880,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c9075401812e61d3c6d4288830692767517f83dbbf5e4c97a7a14672663d03e8
+  content_hash: sha256:63252e4db42c848cf96d30d5e0a1b822b217131f0daa03f9977c114e996b9015
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ui-api-and-utilities.mdc
@@ -1021,17 +1021,17 @@ local_deployed_file_hashes:
   .agents/skills/update-docs/SKILL.md: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
   .claude/agents/maven-verifier.md: sha256:bf2a2ff02b9cfeca8a1dc4e0cddfb10501cfdec81c3e685e3a59c6a37682f24d
   .claude/agents/npm-verifier.md: sha256:4892db0ec41ebfe7a5a7800ca4a78ab04b8ce792bc123f158cde72cbccbef22f
-  .claude/rules/ci-fix.md: sha256:c2ddc26141c02593bc0e9be4e0ebe0f64567eb35ec5e6c22d87f882e7fe4fbaa
+  .claude/rules/ci-fix.md: sha256:4de31150e369c45093fbfe099209e95118d30f19e3a8c23fd91d0b1cd332f559
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
   .claude/rules/engine.md: sha256:2c9cb271a8d0e172d03ab74c173aa3526e37a380acf83eaf838f33115e4d8b4b
   .claude/rules/infrastructure.md: sha256:21ac69f73c4296662b11ca2469618868c85db5b18faf03a5a7c8a8e90c287fca
   .claude/rules/micro-engine.md: sha256:ce7d4334de951be97e8b7d251f3d07a9e9524f1de148cebbbcb69dd6c9b2c517
   .claude/rules/monorepo.md: sha256:34657796ffbfa000c78509b13d7e9422b70574c6dec58761a25a0bf85347f87a
-  .claude/rules/qip-working-agreements.md: sha256:c6fe89b98f677d7da01bc8c96bfe23f34decbe184110b4da89588c2220e31e87
+  .claude/rules/qip-working-agreements.md: sha256:032b8293f253cad9698c6ce79844732a6d7ca632dd4a3c6b79e494372e84a62c
   .claude/rules/runtime-catalog.md: sha256:0c4de76ad01e55b45f6d6c5b0329f7342619570109bb787378e280f1c803aa0b
   .claude/rules/schemas.md: sha256:14305d448c560ae19cc62d44e131f8a8037ac2de024fe0c9d94ec570dc80a558
   .claude/rules/sessions-management.md: sha256:e79f811548dabf5918082d9ea7488c027560cc9a50aca8577ae91d472d2bc7ae
-  .claude/rules/sonar-triage.md: sha256:ea988a493a79772bb1ddf7fba7647bc49eca01f1041c58f2388ccfac5a2bfd7e
+  .claude/rules/sonar-triage.md: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
   .claude/rules/ui-api-and-utilities.md: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
   .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
   .claude/rules/ui-core-development.md: sha256:cd27211d682f0c03809a67e30e7dbbc67c00145df56e3c0eb14c9b89ce6408d5
@@ -1049,17 +1049,17 @@ local_deployed_file_hashes:
   .codex/agents/npm-verifier.toml: sha256:73b8ee0433745039a5125040d243b101a0bf6d463887689756d9185a9e657b52
   .cursor/agents/maven-verifier.md: sha256:bf2a2ff02b9cfeca8a1dc4e0cddfb10501cfdec81c3e685e3a59c6a37682f24d
   .cursor/agents/npm-verifier.md: sha256:4892db0ec41ebfe7a5a7800ca4a78ab04b8ce792bc123f158cde72cbccbef22f
-  .cursor/rules/ci-fix.mdc: sha256:109a184dc1ef19e6c62f44be3405630c91130475783c9ff57392df51f5645164
+  .cursor/rules/ci-fix.mdc: sha256:8cbb34acb5dd3cc1e79c42655bf24efdc57993c5ec52ddc6c61b4163b00a1efa
   .cursor/rules/docs-authoring.mdc: sha256:35b9632cef5d6994bd10797b1790a93ac43bce7b4c1fac43d1728d43bc01f532
   .cursor/rules/engine.mdc: sha256:39f90cd1c9117fbb7e1e253e0558d961bd1ab6e056bd64a14e19b7401bdff681
   .cursor/rules/infrastructure.mdc: sha256:78e416f9e68b178d9e252c57f6c581a606f3869336e50c1d7b2987002f8733f4
   .cursor/rules/micro-engine.mdc: sha256:e57c563bc2861cef3a252a8c1a9e1cfc79d1a993d3ed51837ae54f26a23e645d
   .cursor/rules/monorepo.mdc: sha256:8cb1d126a9209d8c77ccee869389e6db00499e4041ed2ce5c246282043863c84
-  .cursor/rules/qip-working-agreements.mdc: sha256:837d01e331fc572599434b7d700c1c057fab10b2647b6aab54bb889ae42f52c9
+  .cursor/rules/qip-working-agreements.mdc: sha256:0f536347592d1f0d9b4c3f9b42f4085ca510a9f294b9190684c06036e031e656
   .cursor/rules/runtime-catalog.mdc: sha256:d22b0ddf8ce52097474b87f99f39faa8340efa507893c5460223b4474d296532
   .cursor/rules/schemas.mdc: sha256:e1549e0890d1da96e969a8f4642199cd908022c7738eb2a6f6cf00613279fd1a
   .cursor/rules/sessions-management.mdc: sha256:dde1a5f52e3fe17e7ca23e362128f680287b3b4c31d47c4527493a4338be6118
-  .cursor/rules/sonar-triage.mdc: sha256:c9075401812e61d3c6d4288830692767517f83dbbf5e4c97a7a14672663d03e8
+  .cursor/rules/sonar-triage.mdc: sha256:63252e4db42c848cf96d30d5e0a1b822b217131f0daa03f9977c114e996b9015
   .cursor/rules/ui-api-and-utilities.mdc: sha256:2db0434f5f2c5d22240435520b454f7da4d900795a698563570bddddaec0db34
   .cursor/rules/ui-component-patterns.mdc: sha256:76114bbb23037926ccea5110a104dcc9cb0d67f4c1002b107f9a78980ac1ff19
   .cursor/rules/ui-core-development.mdc: sha256:b5fa4e22978c0b3ad030432ba96c8a8d268337d2e6f1b88de6689bbc84d8700f

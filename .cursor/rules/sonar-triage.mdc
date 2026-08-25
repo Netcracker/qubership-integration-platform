@@ -1,6 +1,6 @@
 ---
 description: Trigger for the SonarCloud triage skill.
-globs: "**/*"
+globs: "**"
 ---
 
 When the user points at SonarCloud — a `sonarcloud.io` link, a quality gate, a

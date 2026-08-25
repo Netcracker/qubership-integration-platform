@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/*"
+  - "**"
 ---
 
 Add a defensive mechanism — an advisory lock, a cache, a size limit, a null guard, a data

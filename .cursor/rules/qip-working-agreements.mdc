@@ -1,6 +1,6 @@
 ---
 description: Working agreements for how changes are proposed and scoped in this repository.
-globs: "**/*"
+globs: "**"
 ---
 
 Add a defensive mechanism — an advisory lock, a cache, a size limit, a null guard, a data
