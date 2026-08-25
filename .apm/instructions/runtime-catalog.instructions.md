@@ -1,6 +1,6 @@
 ---
 description: "Runtime catalog service: layers, mapper DSL, build and test commands, conventions."
-applyTo: "runtime-catalog/**"
+applyTo: "runtime-catalog/src/**"
 ---
 
 ### Build & Test Commands

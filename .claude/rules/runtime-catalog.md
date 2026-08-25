@@ -1,6 +1,6 @@
 ---
 paths:
-  - "runtime-catalog/**"
+  - "runtime-catalog/src/**"
 ---
 
 ### Build & Test Commands

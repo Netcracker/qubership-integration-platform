@@ -403,7 +403,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2c497285ce179975b0d931ce7cd9ff0145efc151668e50b71ce0810e213149be
+  content_hash: sha256:0c4de76ad01e55b45f6d6c5b0329f7342619570109bb787378e280f1c803aa0b
 - kind: project-relative
   target: claude
   value: .claude/rules/schemas.md
@@ -853,7 +853,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:0879f91b30c554b31625e1bc4159dd8aa97b4fc027285a94a8ad1b3fd66368ef
+  content_hash: sha256:d22b0ddf8ce52097474b87f99f39faa8340efa507893c5460223b4474d296532
 - kind: project-relative
   target: cursor
   value: .cursor/rules/schemas.mdc
@@ -1028,7 +1028,7 @@ local_deployed_file_hashes:
   .claude/rules/micro-engine.md: sha256:ce7d4334de951be97e8b7d251f3d07a9e9524f1de148cebbbcb69dd6c9b2c517
   .claude/rules/monorepo.md: sha256:34657796ffbfa000c78509b13d7e9422b70574c6dec58761a25a0bf85347f87a
   .claude/rules/qip-working-agreements.md: sha256:c6fe89b98f677d7da01bc8c96bfe23f34decbe184110b4da89588c2220e31e87
-  .claude/rules/runtime-catalog.md: sha256:2c497285ce179975b0d931ce7cd9ff0145efc151668e50b71ce0810e213149be
+  .claude/rules/runtime-catalog.md: sha256:0c4de76ad01e55b45f6d6c5b0329f7342619570109bb787378e280f1c803aa0b
   .claude/rules/schemas.md: sha256:14305d448c560ae19cc62d44e131f8a8037ac2de024fe0c9d94ec570dc80a558
   .claude/rules/sessions-management.md: sha256:e79f811548dabf5918082d9ea7488c027560cc9a50aca8577ae91d472d2bc7ae
   .claude/rules/sonar-triage.md: sha256:ea988a493a79772bb1ddf7fba7647bc49eca01f1041c58f2388ccfac5a2bfd7e
@@ -1056,7 +1056,7 @@ local_deployed_file_hashes:
   .cursor/rules/micro-engine.mdc: sha256:e57c563bc2861cef3a252a8c1a9e1cfc79d1a993d3ed51837ae54f26a23e645d
   .cursor/rules/monorepo.mdc: sha256:8cb1d126a9209d8c77ccee869389e6db00499e4041ed2ce5c246282043863c84
   .cursor/rules/qip-working-agreements.mdc: sha256:837d01e331fc572599434b7d700c1c057fab10b2647b6aab54bb889ae42f52c9
-  .cursor/rules/runtime-catalog.mdc: sha256:0879f91b30c554b31625e1bc4159dd8aa97b4fc027285a94a8ad1b3fd66368ef
+  .cursor/rules/runtime-catalog.mdc: sha256:d22b0ddf8ce52097474b87f99f39faa8340efa507893c5460223b4474d296532
   .cursor/rules/schemas.mdc: sha256:e1549e0890d1da96e969a8f4642199cd908022c7738eb2a6f6cf00613279fd1a
   .cursor/rules/sessions-management.mdc: sha256:dde1a5f52e3fe17e7ca23e362128f680287b3b4c31d47c4527493a4338be6118
   .cursor/rules/sonar-triage.mdc: sha256:c9075401812e61d3c6d4288830692767517f83dbbf5e4c97a7a14672663d03e8
