@@ -8,8 +8,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 /**
  * Post-approval catalog-first binding resolution for outbound service-call steps.
  *
- * <p>Must not resolve bindings before implementation approval. Local catalog matches are preferred;
- * APIHub search and {@code CatalogMutationGateway} import run only on a catalog miss.
+ * <p>Must not resolve bindings before implementation approval, and must not reopen API discovery:
+ * the bindings come from requirement gathering, and a step without one is missing input.
  */
 public interface ExecutorCatalogBindingAdapter {
 
