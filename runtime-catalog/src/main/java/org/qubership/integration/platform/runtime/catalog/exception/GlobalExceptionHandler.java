@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.exception;
 
-import com.github.jknack.handlebars.internal.lang3.StringUtils;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplateInstantiationException;

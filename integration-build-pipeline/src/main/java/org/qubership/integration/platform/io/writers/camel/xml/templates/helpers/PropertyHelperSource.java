@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.io.writers.camel.xml.templates.helpers;
 
 import com.github.jknack.handlebars.Options;
-import com.github.jknack.handlebars.internal.text.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplatesHelper;
 import org.qubership.integration.platform.io.writers.camel.xml.templates.constants.ConfigConstants;
 
