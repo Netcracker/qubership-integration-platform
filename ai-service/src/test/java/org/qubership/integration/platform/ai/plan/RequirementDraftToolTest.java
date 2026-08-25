@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.integration.apihub.ConversationApiH
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsReadCache;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
@@ -356,6 +357,96 @@ class RequirementDraftToolTest {
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
     assertEquals(List.of(RequirementDraftTool.BINDING_REQUIRED_OPEN_QUESTION), draft.openQuestions());
+  }
+
+  @Test
+  void captureNamesTheServiceCallThatIsStillUnresolved() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact inventory =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Petstore Ext",
+            "GET /store/inventory");
+    RequirementFact invoice =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Billing",
+            "POST /invoices");
+    resolutions.remember("draft-conv", assessment(inventory));
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Read stock, then raise an invoice",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(inventory, invoice)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    String question = draft.openQuestions().getFirst();
+    assertTrue(question.contains("POST /invoices"), question);
+    assertFalse(question.contains("/store/inventory"), question);
+  }
+
+  @Test
+  void captureIsReadyWhenEveryServiceCallHasItsOwnResolution() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact inventory =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Petstore Ext",
+            "GET /store/inventory");
+    RequirementFact invoice =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Billing",
+            "POST /invoices");
+    resolutions.remember("draft-conv", assessment(inventory));
+    resolutions.remember("draft-conv", assessment(invoice));
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Read stock, then raise an invoice",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(inventory, invoice)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.openQuestions().isEmpty());
+  }
+
+  private static ServiceCallAssessment assessment(RequirementFact call) {
+    return ServiceCallAssessment.resolved(
+        call.sourceFactId(),
+        new ServiceCallAssessment.Intent(call.text(), call.capabilityKey(), null, null, null),
+        new CatalogBindingMatcher.CatalogMatch(
+            "sys-" + call.sourceFactId().substring(0, 4),
+            "group-1",
+            "spec-1",
+            "op-" + call.sourceFactId().substring(0, 4),
+            call.capabilityKey(),
+            "http",
+            "GET",
+            "/probe",
+            "probe",
+            "catalog-read:probe"));
   }
 
   @Test
