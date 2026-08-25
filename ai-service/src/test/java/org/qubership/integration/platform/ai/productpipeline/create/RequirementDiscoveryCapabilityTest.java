@@ -32,7 +32,7 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
-import org.qubership.integration.platform.ai.plan.ConversationCatalogBindings;
+import org.qubership.integration.platform.ai.plan.ConversationApiResolutions;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
@@ -41,6 +41,7 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
+import org.qubership.integration.platform.ai.plan.ServiceCallAssessment;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -738,17 +739,7 @@ class RequirementDiscoveryCapabilityTest {
   @Test
   void discoveryPairsEveryServiceCallWithItsOwnResolvedBinding() {
     CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
-    ConversationCatalogBindings bindings = new ConversationCatalogBindings();
-    bindings.remember(
-        "conv-two-services",
-        new CatalogBindingMatcher.CatalogMatch(
-            "sys-pet", "sg-pet", "spec-pet", "op-inventory", "Petstore Ext", "http", "GET",
-            "/store/inventory", "getInventory", "catalog-read:pet"));
-    bindings.remember(
-        "conv-two-services",
-        new CatalogBindingMatcher.CatalogMatch(
-            "sys-bill", "sg-bill", "spec-bill", "op-invoice", "Billing", "http", "POST",
-            "/invoices", "createInvoice", "catalog-read:bill"));
+    ConversationApiResolutions bindings = new ConversationApiResolutions();
 
     RequirementFact inventoryCall =
         RequirementFact.of(
@@ -762,6 +753,24 @@ class RequirementDiscoveryCapabilityTest {
             RequirementFactKind.SERVICE_CALL,
             "Billing",
             "Then post the invoice through Billing using POST /invoices.");
+    bindings.remember(
+        "conv-two-services",
+        ServiceCallAssessment.resolved(
+            inventoryCall.sourceFactId(),
+            new ServiceCallAssessment.Intent(
+                inventoryCall.text(), "Petstore Ext", "getInventory", "GET", "/store/inventory"),
+            new CatalogBindingMatcher.CatalogMatch(
+                "sys-pet", "sg-pet", "spec-pet", "op-inventory", "Petstore Ext", "http", "GET",
+                "/store/inventory", "getInventory", "catalog-read:pet")));
+    bindings.remember(
+        "conv-two-services",
+        ServiceCallAssessment.resolved(
+            invoiceCall.sourceFactId(),
+            new ServiceCallAssessment.Intent(
+                invoiceCall.text(), "Billing", "createInvoice", "POST", "/invoices"),
+            new CatalogBindingMatcher.CatalogMatch(
+                "sys-bill", "sg-bill", "spec-bill", "op-invoice", "Billing", "http", "POST",
+                "/invoices", "createInvoice", "catalog-read:bill")));
 
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft approved =

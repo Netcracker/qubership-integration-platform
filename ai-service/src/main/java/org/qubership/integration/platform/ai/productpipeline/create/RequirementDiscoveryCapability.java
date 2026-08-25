@@ -19,7 +19,7 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsAgentCall;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
-import org.qubership.integration.platform.ai.plan.ConversationCatalogBindings;
+import org.qubership.integration.platform.ai.plan.ConversationApiResolutions;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
+import org.qubership.integration.platform.ai.plan.ServiceCallAssessment;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -54,7 +55,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final GatherRequirementsPromptBuilder promptBuilder;
   private final BiFunction<String, String, Multi<ChatEvent>> gatherRunner;
   private final CatalogBindingMatcher catalogBindingMatcher;
-  private final ConversationCatalogBindings conversationBindings;
+  private final ConversationApiResolutions conversationResolutions;
 
   @Inject
   public RequirementDiscoveryCapability(
@@ -62,14 +63,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder,
       CatalogBindingMatcher catalogBindingMatcher,
-      ConversationCatalogBindings conversationBindings) {
+      ConversationApiResolutions conversationResolutions) {
     this(
         gatherRequirementsAgent,
         draftStore,
         promptBuilder,
         null,
         catalogBindingMatcher,
-        conversationBindings);
+        conversationResolutions);
   }
 
   /** Test helper without catalog binding matcher. */
@@ -116,13 +117,13 @@ public class RequirementDiscoveryCapability implements StageCapability {
       GatherRequirementsPromptBuilder promptBuilder,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner,
       CatalogBindingMatcher catalogBindingMatcher,
-      ConversationCatalogBindings conversationBindings) {
+      ConversationApiResolutions conversationResolutions) {
     this.gatherRequirementsAgent = gatherRequirementsAgent;
     this.draftStore = Objects.requireNonNull(draftStore, "draftStore");
     this.promptBuilder = promptBuilder;
     this.gatherRunner = gatherRunner;
     this.catalogBindingMatcher = catalogBindingMatcher;
-    this.conversationBindings = conversationBindings;
+    this.conversationResolutions = conversationResolutions;
   }
 
   @Override
@@ -324,10 +325,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return List.of();
     }
     List<CatalogBindingMatcher.CatalogMatch> resolved =
-        conversationBindings == null ? List.of() : conversationBindings.resolved(conversationId);
+        conversationResolutions == null ? List.of() : conversationResolutions.resolved(conversationId);
     List<ArtifactCandidate> hints = new ArrayList<>();
     for (RequirementFact call : calls) {
-      ArtifactCandidate hint = hintForCall(call, calls.size(), resolved, draft.catalogBinding());
+      ArtifactCandidate hint =
+          hintForCall(call, calls.size(), conversationId, resolved, draft.catalogBinding());
       if (hint != null) {
         hints.add(hint);
       }
@@ -338,8 +340,21 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private ArtifactCandidate hintForCall(
       RequirementFact call,
       int callCount,
+      String conversationId,
       List<CatalogBindingMatcher.CatalogMatch> resolved,
       ResolvedCatalogBinding draftBinding) {
+    // The assessment this fact owns is the answer. Everything below it reads identity out of the
+    // fact sentence, which only works while the sentence happens to name the operation.
+    CatalogBindingMatcher.CatalogMatch assessed = assessedBinding(conversationId, call);
+    if (assessed != null) {
+      return hintCandidate(
+          call,
+          assessed.systemId(),
+          assessed.specificationGroupId(),
+          assessed.specificationId(),
+          assessed.integrationOperationId(),
+          assessed.evidenceRef());
+    }
     CatalogBindingMatcher.CatalogMatch named = onlyResolutionNamedBy(call, resolved);
     if (named != null) {
       return hintCandidate(
@@ -357,6 +372,19 @@ public class RequirementDiscoveryCapability implements StageCapability {
       }
     }
     return probedHint(call);
+  }
+
+  /** The binding this fact's own assessment resolved to, or null when it has none. */
+  private CatalogBindingMatcher.CatalogMatch assessedBinding(
+      String conversationId, RequirementFact call) {
+    if (conversationResolutions == null) {
+      return null;
+    }
+    return conversationResolutions
+        .forFact(conversationId, call.sourceFactId())
+        .filter(ServiceCallAssessment::isResolved)
+        .map(ServiceCallAssessment::binding)
+        .orElse(null);
   }
 
   /**

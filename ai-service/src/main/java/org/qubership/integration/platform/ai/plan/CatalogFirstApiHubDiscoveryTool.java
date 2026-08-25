@@ -18,6 +18,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 /**
  * Requirement-stage API resolver that makes a local catalog check a hard prerequisite for API Hub
  * discovery.
+ *
+ * <p>Every call is about one outbound service call, named by the fact text the caller will capture
+ * for it. The answer is stored as that fact's assessment, so a chain with several outbound calls
+ * ends up with one outcome per call rather than one binding for the whole draft.
  */
 @ApplicationScoped
 public class CatalogFirstApiHubDiscoveryTool {
@@ -26,7 +30,7 @@ public class CatalogFirstApiHubDiscoveryTool {
   private final CatalogSystemReadTool catalogReadTool;
   private final ConversationCatalogCache catalogCache;
   private final ApiHubMcpTools apiHubMcpTools;
-  private final ConversationCatalogBindings conversationBindings;
+  private final ConversationApiResolutions conversationResolutions;
   private final ObjectMapper objectMapper;
 
   @Inject
@@ -35,48 +39,72 @@ public class CatalogFirstApiHubDiscoveryTool {
       CatalogSystemReadTool catalogReadTool,
       ConversationCatalogCache catalogCache,
       ApiHubMcpTools apiHubMcpTools,
-      ConversationCatalogBindings conversationBindings,
+      ConversationApiResolutions conversationResolutions,
       ObjectMapper objectMapper) {
     this.catalogBindingMatcher = catalogBindingMatcher;
     this.catalogReadTool = catalogReadTool;
     this.catalogCache = catalogCache;
     this.apiHubMcpTools = apiHubMcpTools;
-    this.conversationBindings = conversationBindings;
+    this.conversationResolutions = conversationResolutions;
     this.objectMapper = objectMapper;
   }
 
   @Tool("""
-      Resolve one required service operation. This tool always checks the local runtime catalog
-      first. It calls API Hub only when the catalog has no matching service and operation.
-      Give the best known service name (or an empty string when unknown) and the required operation
-      name or HTTP method/path. If status is CATALOG_BOUND, use its IDs as catalogBinding in the
-      next captureRequirementDraft call. If status is APIHUB_CANDIDATES, select one result with
+      Resolve one required outbound service operation. This tool always checks the local runtime
+      catalog first. It calls API Hub only when the catalog has no matching service and operation.
+      Pass serviceCallFact as the exact SERVICE_CALL fact text you will capture for this call, so
+      the answer stays attached to that call. Give the operation name, or the HTTP method and path,
+      whenever you know them. If status is CATALOG_BOUND, use its IDs as catalogBinding in the next
+      captureRequirementDraft call. If status is APIHUB_CANDIDATES, select one result with
       selectApiHubCandidate. If status is AMBIGUOUS, ask the reader to choose; never search API Hub
-      for an ambiguous local catalog match. On a catalog miss, the result is the API Hub search
-      response and may contain multiple candidates.
+      for an ambiguous local catalog match. If status is INCOMPLETE, ask the reader for the fields
+      listed in missingFields; do not guess them. On a catalog miss, the result is the API Hub
+      search response and may contain multiple candidates.
       """)
   public String resolveApiOperation(
-      @P("Best known catalog service name, or empty when unknown") String serviceName,
-      @P("Required operation name or HTTP method/path") String operationQuery,
+      @P("Exact SERVICE_CALL fact text for this outbound call") String serviceCallFact,
+      @P("Best known catalog service name, or empty when unknown") String systemHint,
+      @P("Required operation name, or empty when only method and path are known")
+          String operationHint,
+      @P("HTTP method, or empty when unknown") String method,
+      @P("HTTP path, or empty when unknown") String path,
       @P("Optional target release, for example 2024.4") String release) {
-    String service = CatalogStrings.blankToNull(serviceName);
-    String query = CatalogStrings.blankToNull(operationQuery);
-    if (query == null) {
-      return error("operationQuery is required");
+    String factText = CatalogStrings.blankToNull(serviceCallFact);
+    if (factText == null) {
+      return error("serviceCallFact is required");
     }
-    NormalizedDesignFlow flow = probeFlow(service, query, release);
+    String sourceFactId =
+        RequirementFact.deriveSourceFactId(RequirementFactPolarity.POSITIVE, factText);
+    ServiceCallAssessment.Intent intent =
+        new ServiceCallAssessment.Intent(factText, systemHint, operationHint, method, path);
+    String conversationId = ChainPlanTool.resolveConversationId();
+
+    if (!intent.missingFields().isEmpty()) {
+      return remember(conversationId, ServiceCallAssessment.incomplete(sourceFactId, intent));
+    }
+
+    NormalizedDesignFlow flow = probeFlow(intent, release);
     NormalizedDesignFlow.Step step = flow.steps().getFirst();
     CatalogBindingMatcher.MatchResult result = catalogBindingMatcher.match(flow, step);
     if (result instanceof CatalogBindingMatcher.MatchResult.Exact exact) {
-      String conversationId = ChainPlanTool.resolveConversationId();
-      rememberCatalogEvidence(conversationId, service, exact.match());
-      conversationBindings.remember(conversationId, exact.match());
-      return catalogBound(exact.match());
+      rememberCatalogEvidence(conversationId, intent.systemHint(), exact.match());
+      return remember(
+          conversationId, ServiceCallAssessment.resolved(sourceFactId, intent, exact.match()));
     }
     if (result instanceof CatalogBindingMatcher.MatchResult.Ambiguous ambiguous) {
-      return ambiguous(ambiguous.candidateIds());
+      return remember(
+          conversationId,
+          ServiceCallAssessment.ambiguous(sourceFactId, intent, ambiguous.candidateIds()));
     }
-    return apiHubMcpTools.searchApiOperations(query, "rest", release, 0, 100, null);
+    conversationResolutions.remember(
+        conversationId, ServiceCallAssessment.catalogMiss(sourceFactId, intent));
+    return apiHubMcpTools.searchApiOperations(
+        intent.operationQuery(), "rest", release, 0, 100, null);
+  }
+
+  private String remember(String conversationId, ServiceCallAssessment assessment) {
+    conversationResolutions.remember(conversationId, assessment);
+    return encode(assessment);
   }
 
   private void rememberCatalogEvidence(
@@ -99,31 +127,35 @@ public class CatalogFirstApiHubDiscoveryTool {
     }
   }
 
-  private String catalogBound(CatalogBindingMatcher.CatalogMatch match) {
+  private String encode(ServiceCallAssessment assessment) {
     try {
       ObjectNode root = objectMapper.createObjectNode();
-      root.put("status", "CATALOG_BOUND");
-      ObjectNode binding = root.putObject("catalogBinding");
-      binding.put("systemId", match.systemId());
-      binding.put("specificationId", match.specificationId());
-      binding.put("specificationGroupId", match.specificationGroupId());
-      binding.put("integrationOperationId", match.integrationOperationId());
-      binding.put("systemName", match.systemName());
-      binding.put("evidenceRef", match.evidenceRef());
+      root.put("sourceFactId", assessment.sourceFactId());
+      switch (assessment.outcome()) {
+        case RESOLVED -> {
+          root.put("status", "CATALOG_BOUND");
+          CatalogBindingMatcher.CatalogMatch match = assessment.binding();
+          ObjectNode binding = root.putObject("catalogBinding");
+          binding.put("systemId", match.systemId());
+          binding.put("specificationId", match.specificationId());
+          binding.put("specificationGroupId", match.specificationGroupId());
+          binding.put("integrationOperationId", match.integrationOperationId());
+          binding.put("systemName", match.systemName());
+          binding.put("evidenceRef", match.evidenceRef());
+        }
+        case AMBIGUOUS -> {
+          root.put("status", "AMBIGUOUS");
+          root.putPOJO("candidateOperationIds", assessment.candidateOperationIds());
+        }
+        case INCOMPLETE -> {
+          root.put("status", "INCOMPLETE");
+          root.putPOJO("missingFields", assessment.missingIntentFields());
+        }
+        case CATALOG_MISS -> root.put("status", "CATALOG_MISS");
+      }
       return objectMapper.writeValueAsString(root);
     } catch (Exception exception) {
-      return error("could not encode catalog binding: " + exception.getMessage());
-    }
-  }
-
-  private String ambiguous(List<String> candidateIds) {
-    try {
-      ObjectNode root = objectMapper.createObjectNode();
-      root.put("status", "AMBIGUOUS");
-      root.putPOJO("candidateOperationIds", candidateIds == null ? List.of() : candidateIds);
-      return objectMapper.writeValueAsString(root);
-    } catch (Exception exception) {
-      return error("could not encode catalog candidates: " + exception.getMessage());
+      return error("could not encode resolution outcome: " + exception.getMessage());
     }
   }
 
@@ -139,8 +171,8 @@ public class CatalogFirstApiHubDiscoveryTool {
   }
 
   private static NormalizedDesignFlow probeFlow(
-      String serviceName, String operationQuery, String release) {
-    String service = serviceName == null ? "service" : serviceName;
+      ServiceCallAssessment.Intent intent, String release) {
+    String service = intent.systemHint() == null ? "service" : intent.systemHint();
     List<String> constraints =
         CatalogStrings.blankToNull(release) == null ? List.of() : List.of("release: " + release);
     return new NormalizedDesignFlow(
@@ -154,7 +186,13 @@ public class CatalogFirstApiHubDiscoveryTool {
             new NormalizedDesignFlow.Participant("service", service, "EXTERNAL", List.of())),
         List.of(
             new NormalizedDesignFlow.Step(
-                "service-call", "service-call", "client", "service", operationQuery, "", List.of())),
+                "service-call",
+                "service-call",
+                "client",
+                "service",
+                intent.operationQuery(),
+                "",
+                List.of())),
         List.of(),
         List.of(),
         List.of(),
