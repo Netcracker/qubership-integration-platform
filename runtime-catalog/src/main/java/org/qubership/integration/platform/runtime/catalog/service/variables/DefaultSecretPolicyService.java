@@ -61,6 +61,9 @@ public class DefaultSecretPolicyService {
         if (!secretService.isDefaultSecret(secretName)) {
             return;
         }
+        if (defaultSecretEnabled) {
+            return;
+        }
         boolean hasNewVariable = newVariables.keySet().stream()
                 .anyMatch(name -> !existingVariables.containsKey(name));
         if (hasNewVariable) {
