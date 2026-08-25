@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 
 import java.nio.charset.StandardCharsets;
@@ -65,6 +66,7 @@ public class ApiHubMcpTools {
   private final AppConfig appConfig;
   private final ConversationApiHubCache conversationApiHubCache;
   private final RequirementDraftStore draftStore;
+  private final ApiHubSearchAuthorizations searchAuthorizations;
 
   @Inject
   ApiHubMcpTools(
@@ -72,18 +74,20 @@ public class ApiHubMcpTools {
       ObjectMapper objectMapper,
       AppConfig appConfig,
       ConversationApiHubCache conversationApiHubCache,
-      RequirementDraftStore draftStore) {
+      RequirementDraftStore draftStore,
+      ApiHubSearchAuthorizations searchAuthorizations) {
     this.apiHubMcpClient = apiHubMcpClient;
     this.objectMapper = objectMapper;
     this.appConfig = appConfig;
     this.conversationApiHubCache = conversationApiHubCache;
     this.draftStore = draftStore;
+    this.searchAuthorizations = searchAuthorizations;
   }
 
   /** Test / no-cache constructor. */
   ApiHubMcpTools(
       @RestClient ApiHubMcpClient apiHubMcpClient, ObjectMapper objectMapper, AppConfig appConfig) {
-    this(apiHubMcpClient, objectMapper, appConfig, null, null);
+    this(apiHubMcpClient, objectMapper, appConfig, null, null, null);
   }
 
   /** Test constructor with conversation API Hub cache. */
@@ -92,7 +96,7 @@ public class ApiHubMcpTools {
       ObjectMapper objectMapper,
       AppConfig appConfig,
       ConversationApiHubCache conversationApiHubCache) {
-    this(apiHubMcpClient, objectMapper, appConfig, conversationApiHubCache, null);
+    this(apiHubMcpClient, objectMapper, appConfig, conversationApiHubCache, null, null);
   }
 
   void logApiHubMcpConnectivityOnStartup(@Observes StartupEvent event) {
@@ -155,6 +159,10 @@ public class ApiHubMcpTools {
       @P("Optional page number, default 0") Integer page,
       @P("Optional result limit 10-100, default 100") Integer limit,
       @P("Optional packageId filter (group)") String group) {
+    String refusal = refuseUnauthorizedSearch();
+    if (refusal != null) {
+      return refusal;
+    }
     String resolvedGroup = CatalogStrings.blankToNull(group);
     if (resolvedGroup == null) {
       resolvedGroup = resolvePackageIdFromDraft();
@@ -180,6 +188,27 @@ public class ApiHubMcpTools {
     }
     rememberClearSearchHit(result, apiType, resolvedGroup);
     return result;
+  }
+
+  /**
+   * Refuses a search that no authorization covers, or null when one query was spent.
+   *
+   * <p>The tool description cannot enforce this. An authorization exists only where the server
+   * established that the local catalog cannot answer, so its absence means the search would be
+   * improvised.
+   */
+  private String refuseUnauthorizedSearch() {
+    if (searchAuthorizations == null) {
+      return null;
+    }
+    String conversationId = ToolSession.resolveConversationId();
+    if (searchAuthorizations.consume(conversationId).isPresent()) {
+      return null;
+    }
+    LOG.warnf("searchApiOperations refused: no API Hub authorization conversationId=%s", conversationId);
+    return "API Hub search is not authorized for this conversation, or its query budget is spent."
+        + " Resolve the service call with resolveApiOperation first: a confirmed catalog miss"
+        + " authorizes one scoped search. No search was performed.";
   }
 
   @Tool("Get operation-level specification from APIHUB (OpenAPI or AsyncAPI). "
