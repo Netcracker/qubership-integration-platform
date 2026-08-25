@@ -228,6 +228,20 @@ public class DesignInputCapability implements StageCapability {
     DesignMode pending = pendingDesignMode(context);
     DesignMode mode = chosen != null ? chosen : pending;
 
+    // If no choice from user reply or prior stage, check if the requirement brief/discovery text
+    // itself explicitly states an IDS preference (e.g., "do not create IDS"). Classify the text
+    // to avoid asking the gate when intent is already stated in the requirements.
+    if (mode == null) {
+      String briefText = brief == null ? "" : (brief.goal() + " " + brief.summary());
+      String contextText = (briefText + " " + discoveryText).trim();
+      if (!contextText.isBlank()) {
+        DesignMode fromContext = idsPathPrompts.resolveIdsPathChoice(contextText);
+        if (fromContext != null) {
+          mode = fromContext;
+        }
+      }
+    }
+
     if (mode == null) {
       return waitingForIdsChoice(brief, userText, discoveryText, responseLocale);
     }
@@ -361,13 +375,19 @@ public class DesignInputCapability implements StageCapability {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT, "GENERATE requires RequirementBrief");
     }
+    // If user provided HTTP trigger details in response, add them to brief as ENDPOINT fact
+    // before design authoring so the authored design can incorporate them.
+    RequirementBrief briefWithUserFacts = brief;
+    if (userText != null && !userText.isBlank()) {
+      briefWithUserFacts = briefFlowExtractor.enrichWithUserFacts(brief, userText);
+    }
     StageOutcome mappingWait =
         mappingCoverageOrWait(brief, pendingMode, userText, discoveryText, responseLocale);
     if (mappingWait != null) {
       return mappingWait;
     }
     try {
-      AuthoredDesign authored = authorDesign(brief);
+      AuthoredDesign authored = authorDesign(briefWithUserFacts);
       String markdown = authored.markdown();
       NormalizedDesignFlow flow = authored.flow();
       flowValidator.validate(flow);
@@ -402,13 +422,19 @@ public class DesignInputCapability implements StageCapability {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT, "DERIVE requires RequirementBrief");
     }
+    // If user provided HTTP trigger details in response, add them to brief as ENDPOINT fact
+    // before extraction so the flow extractor can find them.
+    RequirementBrief briefWithUserFacts = brief;
+    if (userText != null && !userText.isBlank()) {
+      briefWithUserFacts = briefFlowExtractor.enrichWithUserFacts(brief, userText);
+    }
     StageOutcome mappingWait =
         mappingCoverageOrWait(brief, pendingMode, userText, discoveryText, responseLocale);
     if (mappingWait != null) {
       return mappingWait;
     }
     try {
-      BriefFlowExtractor.ExtractionResult extracted = briefFlowExtractor.extract(brief);
+      BriefFlowExtractor.ExtractionResult extracted = briefFlowExtractor.extract(briefWithUserFacts);
       if (extracted instanceof BriefFlowExtractor.ExtractionResult.NeedsInput needsInput) {
         return StageOutcome.of(
             StageOutcomeClass.NEEDS_INPUT,

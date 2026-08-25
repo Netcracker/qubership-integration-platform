@@ -616,6 +616,54 @@ public final class BriefFlowExtractor {
     return trimmed.isEmpty() ? null : trimmed;
   }
 
+  /**
+   * Enrich the requirement brief with facts extracted from user-provided text (e.g., trigger path
+   * details given in response to design questions). Extracts HTTP identity and adds it as an
+   * ENDPOINT fact if not already present.
+   */
+  public RequirementBrief enrichWithUserFacts(RequirementBrief brief, String userText) {
+    if (brief == null || userText == null || userText.isBlank()) {
+      return brief;
+    }
+    Optional<HttpIdentity> httpId = parseHttpIdentity(userText);
+    if (httpId.isEmpty()) {
+      return brief;
+    }
+    // Check if an ENDPOINT fact already exists; if so, use the existing brief
+    for (RequirementFact fact : brief.facts()) {
+      if (fact != null && fact.kind() == RequirementFactKind.ENDPOINT) {
+        return brief;
+      }
+    }
+    // Create a new ENDPOINT fact from the parsed HTTP identity
+    String endpointText =
+        httpId.get().method() + " " + httpId.get().path();
+    if (httpId.get().operationId() != null) {
+      endpointText += " " + httpId.get().operationId();
+    }
+    RequirementFact endpointFact =
+        new RequirementFact(
+            "user-provided-trigger",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.ENDPOINT,
+            null,
+            endpointText);
+    // Add the new fact to the brief's facts list
+    List<RequirementFact> newFacts = new ArrayList<>(brief.facts());
+    newFacts.add(endpointFact);
+    return new RequirementBrief(
+        brief.goal(),
+        brief.inputs(),
+        brief.constraints(),
+        brief.assumptions(),
+        brief.citations(),
+        brief.summary(),
+        brief.approvedDraftReference(),
+        brief.approvedDraftText(),
+        newFacts,
+        brief.dataMappings());
+  }
+
   private record HttpIdentity(String method, String path, String operationId) {}
 
   private record ServiceCallIdentity(String participantDisplayName, String operationQuery) {}
