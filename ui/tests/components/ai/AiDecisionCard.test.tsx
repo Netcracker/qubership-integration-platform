@@ -28,7 +28,11 @@ jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
           return;
         }
         body.push(
-          R.createElement("ol", { key: `ol-${body.length}` }, listItems.splice(0)),
+          R.createElement(
+            "ol",
+            { key: `ol-${body.length}` },
+            listItems.splice(0),
+          ),
         );
       };
       for (const line of String(children).split("\n")) {
@@ -182,6 +186,22 @@ describe("AiDecisionCard", () => {
     expect(
       screen.getByText("Which environment should this target?"),
     ).toBeInTheDocument();
+  });
+
+  it("should not list missing-evidence items that already appear as the clarify reason", () => {
+    const onAnswer = jest.fn();
+    const question =
+      "What should the new integration chain do? Please provide its trigger (for example, HTTP method and path), expected response or business outcome, and any downstream service calls.";
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: question,
+      question,
+      missingEvidence: [question],
+      actions: [],
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getAllByText(question)).toHaveLength(1);
   });
 
   it("should keep the submit button disabled until text is typed for a clarify card", () => {
@@ -416,7 +436,7 @@ describe("AiDecisionCard", () => {
       <AiDecisionCard
         decision={buildDecision({
           question:
-            'Add an if branch to the Available pets decision.\n\n1. **Adds** Available is at least ten (if)\n\n2. **Adds** Log healthy inventory (log-record)\n\nApply this to the chain?',
+            "Add an if branch to the Available pets decision.\n\n1. **Adds** Available is at least ten (if)\n\n2. **Adds** Log healthy inventory (log-record)\n\nApply this to the chain?",
           actions: ["apply-chain-patch", "request-changes"],
         })}
         onAnswer={jest.fn()}
@@ -426,12 +446,12 @@ describe("AiDecisionCard", () => {
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent("Adds Available is at least ten (if)");
-    expect(items[1]).toHaveTextContent("Adds Log healthy inventory (log-record)");
+    expect(items[1]).toHaveTextContent(
+      "Adds Log healthy inventory (log-record)",
+    );
     expect(items[0].querySelector("strong")).toHaveTextContent("Adds");
     expect(items[1].querySelector("strong")).toHaveTextContent("Adds");
-    expect(
-      screen.getByRole("button", { name: "Apply" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
   });
 
   it("should freeze the clarify card and hide the text area once submitted", () => {

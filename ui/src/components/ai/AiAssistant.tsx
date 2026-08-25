@@ -59,6 +59,7 @@ import {
   markDecisionAnswered,
   reconcileDecisionMessages,
   removeDecision,
+  visibleDecisionNarrative,
 } from "./chatDecisionUtils.ts";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import {
@@ -1482,8 +1483,11 @@ export const AiAssistant: React.FC = () => {
                     const isErrorBubble = message.variant === "error";
                     const narrativeContent =
                       message.role === "assistant" && !isErrorBubble
-                        ? replaceChainModificationProposalForDisplay(
-                            message.content,
+                        ? visibleDecisionNarrative(
+                            replaceChainModificationProposalForDisplay(
+                              message.content,
+                            ),
+                            message.decision,
                           )
                         : message.content;
                     const showThinkingInBubble =
