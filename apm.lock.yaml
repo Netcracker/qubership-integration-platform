@@ -1,22 +1,22 @@
 lockfile_version: '1'
-generated_at: '2026-08-25T10:09:40.279275+00:00'
+generated_at: '2026-08-25T15:15:13.373542+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
   materialization_repo_url: Netcracker/qubership-ai-agent-telemetry
   name: ai-agent-telemetry
   host: github.com
-  resolved_commit: 6ec9a71177fd9dd1a9d0dc134fdccbf255d26a55
+  resolved_commit: 7d82ecce6ce34d5abb2ab000e51302e7d82fb4e9
   version: 1.1.0
   virtual_path: agent-packages/ai-agent-telemetry
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:900bb9fe3c6dee45ea5f0f32bc08d1962a21f0dc1f1dbefd2bf3279b33c93bf0
+  content_hash: sha256:e40337f8e5ede88e72fc1e6673b358d9d278c8d4f0e748c644d3600f014cf626
 - repo_url: netcracker/qubership-ai-packages
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: apm-authoring
   host: github.com
-  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
+  resolved_commit: ebbc567f900e00ea4ec6260536bb75c0d46ddd73
   version: 1.0.0
   virtual_path: agent-packages/apm-authoring
   is_virtual: true
@@ -39,7 +39,7 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: codex-review
   host: github.com
-  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
+  resolved_commit: ebbc567f900e00ea4ec6260536bb75c0d46ddd73
   version: 1.0.0
   virtual_path: agent-packages/codex-review
   is_virtual: true
@@ -57,12 +57,12 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-developer-style
   host: github.com
-  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
+  resolved_commit: ebbc567f900e00ea4ec6260536bb75c0d46ddd73
   version: 2.0.1
   virtual_path: agent-packages/english-developer-style
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:c7a28df93a78f7f9beb609e1ea6cfaa59e818d73b6b017e949c71b45806a065f
+  content_hash: sha256:76349301bd35d442b1d38b476846bcaa6d76a8ae83ab593d5fff19bf7d4c6372
 - repo_url: netcracker/qubership-ai-packages
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-us-developer-style
