@@ -432,6 +432,77 @@ class RequirementDraftToolTest {
     assertTrue(draft.openQuestions().isEmpty());
   }
 
+  @Test
+  void captureAsksForTheFieldsAnIncompleteIntentLacks() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact call =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Billing",
+            "Raise an invoice somewhere in Billing");
+    resolutions.remember(
+        "draft-conv",
+        ServiceCallAssessment.incomplete(
+            call.sourceFactId(),
+            new ServiceCallAssessment.Intent(call.text(), "Billing", null, null, null)));
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Raise an invoice",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(call)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    String question = draft.openQuestions().getFirst();
+    assertTrue(question.contains("operationHint"), question);
+    assertTrue(question.contains("method"), question);
+  }
+
+  @Test
+  void captureAsksWhichCandidateAnAmbiguousMatchMeant() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact call =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Petstore Ext",
+            "GET /store/inventory");
+    resolutions.remember(
+        "draft-conv",
+        ServiceCallAssessment.ambiguous(
+            call.sourceFactId(),
+            new ServiceCallAssessment.Intent(call.text(), "Petstore", null, "GET", "/store/inventory"),
+            List.of("op-v1", "op-v2")));
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Read stock levels",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(call)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    String question = draft.openQuestions().getFirst();
+    assertTrue(question.contains("op-v1"), question);
+    assertTrue(question.contains("op-v2"), question);
+  }
+
   private static ServiceCallAssessment assessment(RequirementFact call) {
     return ServiceCallAssessment.resolved(
         call.sourceFactId(),

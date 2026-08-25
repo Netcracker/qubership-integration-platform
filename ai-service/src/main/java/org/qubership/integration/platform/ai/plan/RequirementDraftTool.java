@@ -5,7 +5,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -306,7 +305,7 @@ public class RequirementDraftTool {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
-          openQuestions = List.of(bindingOpenQuestion(unresolvedCalls));
+          openQuestions = List.of(bindingOpenQuestion(unresolvedCalls, conversationId));
         }
         LOG.warnf(
             "captureRequirementDraft: soft-downgraded READY_FOR_PLAN with %d unresolved service"
@@ -483,15 +482,50 @@ public class RequirementDraftTool {
         .toList();
   }
 
-  private static String bindingOpenQuestion(List<RequirementFact> unresolvedCalls) {
+  /**
+   * What to ask about the calls that are not resolved yet.
+   *
+   * <p>The question follows the outcome: a call whose intent is incomplete needs the fields it
+   * lacks, and an ambiguous one needs a choice between candidates the catalog already returned.
+   * Asking "which operation" for either of those wastes the turn the reader spends answering it.
+   */
+  private String bindingOpenQuestion(List<RequirementFact> unresolvedCalls, String conversationId) {
     if (unresolvedCalls.isEmpty()) {
       return BINDING_REQUIRED_OPEN_QUESTION;
     }
-    String calls =
-        unresolvedCalls.stream().map(RequirementFact::text).collect(Collectors.joining("; "));
-    return "Which catalog operation should this chain call for: "
-        + calls
-        + "? Resolve each one in the local catalog before searching API Hub.";
+    List<String> clarifications =
+        unresolvedCalls.stream().map(call -> clarification(call, conversationId)).toList();
+    return String.join(" ", clarifications);
+  }
+
+  private String clarification(RequirementFact call, String conversationId) {
+    ServiceCallAssessment assessment =
+        resolutions == null
+            ? null
+            : resolutions.forFact(conversationId, call.sourceFactId()).orElse(null);
+    if (assessment == null) {
+      return "Which catalog operation should this chain call for \""
+          + call.text()
+          + "\"? Resolve it in the local catalog before searching API Hub.";
+    }
+    return switch (assessment.outcome()) {
+      case INCOMPLETE ->
+          "For \""
+              + call.text()
+              + "\", which "
+              + String.join(", ", assessment.missingIntentFields())
+              + " should the chain use?";
+      case AMBIGUOUS ->
+          "For \""
+              + call.text()
+              + "\", which catalog operation is meant: "
+              + String.join(", ", assessment.candidateOperationIds())
+              + "?";
+      default ->
+          "Which catalog operation should this chain call for \""
+              + call.text()
+              + "\"? Resolve it in the local catalog before searching API Hub.";
+    };
   }
 
   private static boolean requiresResolvedCatalogBinding(
