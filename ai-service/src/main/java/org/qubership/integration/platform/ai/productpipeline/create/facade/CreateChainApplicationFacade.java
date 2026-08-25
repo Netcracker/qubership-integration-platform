@@ -1115,7 +1115,7 @@ public class CreateChainApplicationFacade {
             : draftStore.get(taskId);
     if (draft.isPresent() && !draft.get().openQuestions().isEmpty()) {
       List<String> questions = draft.get().openQuestions();
-      return new CreateChainPendingAction.Clarify("", questions);
+      return new CreateChainPendingAction.Clarify(String.join("\n", questions), questions);
     }
     return new CreateChainPendingAction.Clarify(DEFAULT_CLARIFY_REASON, List.of());
   }
