@@ -23,7 +23,7 @@
   </parent>
 
   <properties>
-    <revision>1.2.1</revision>
+    <revision>1.2.2</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <!-- Released version of the in-repo library. Kept equal to integration-build-pipeline's <revision> so a
