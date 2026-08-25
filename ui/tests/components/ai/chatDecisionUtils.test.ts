@@ -4,11 +4,14 @@
 import { beforeEach, describe, expect, it } from "@jest/globals";
 import {
   appendDecision,
+  decisionCardText,
   findDecision,
   isDecisionMessage,
   markDecisionAnswered,
   reconcileDecisionMessages,
   removeDecision,
+  visibleDecisionNarrative,
+  visibleMissingEvidence,
 } from "../../../src/components/ai/chatDecisionUtils.ts";
 import type {
   ChatDecision,
@@ -247,6 +250,67 @@ describe("reconcileDecisionMessages", () => {
 
     expect(result.filter(isDecisionMessage)).toHaveLength(1);
     expect(result).toEqual(messages);
+  });
+});
+
+describe("decision card display helpers", () => {
+  const question =
+    "What should the new integration chain do? Please provide its trigger.";
+
+  it("should prefer the clarify reason as the card text", () => {
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "fallback question",
+      reason: question,
+      missingEvidence: [question],
+      actions: [],
+    });
+
+    expect(decisionCardText(decision)).toBe(question);
+  });
+
+  it("should hide missing-evidence rows that already appear as the card text", () => {
+    const decision = buildDecision({
+      kind: "clarify",
+      question,
+      reason: question,
+      missingEvidence: [question],
+      actions: [],
+    });
+
+    expect(visibleMissingEvidence(decision)).toEqual([]);
+  });
+
+  it("should keep missing-evidence rows that add detail beyond the card text", () => {
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "Some data mappings are still missing.",
+      reason: "Some data mappings are still missing.",
+      missingEvidence: [
+        'INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
+      ],
+      actions: ["pass_through", "describe_mappings"],
+    });
+
+    expect(visibleMissingEvidence(decision)).toEqual(decision.missingEvidence);
+  });
+
+  it("should hide assistant prose that only repeats the decision card text", () => {
+    const decision = buildDecision({
+      kind: "clarify",
+      question,
+      reason: question,
+      missingEvidence: [question],
+      actions: [],
+    });
+
+    expect(visibleDecisionNarrative(`\n\n${question}\n`, decision)).toBe("");
+    expect(
+      visibleDecisionNarrative("Here is extra context.\n" + question, decision),
+    ).toBe("Here is extra context.\n" + question);
+    expect(visibleDecisionNarrative("Working on it", undefined)).toBe(
+      "Working on it",
+    );
   });
 });
 

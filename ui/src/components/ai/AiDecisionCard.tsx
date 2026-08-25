@@ -2,6 +2,10 @@ import { Button, Input, List, Space, Typography } from "antd";
 import React, { useRef, useState } from "react";
 import type { ChatDecision } from "../../ai/modelProviders/types.ts";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
+import {
+  decisionCardText,
+  visibleMissingEvidence,
+} from "./chatDecisionUtils.ts";
 
 /**
  * Action labels live here rather than on the wire: the question is server-authored in the language
@@ -133,10 +137,8 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
     onSubmitClarification?.(trimmed);
   };
 
-  const cardText = isClarify
-    ? decision.reason?.trim() || decision.question.trim()
-    : decision.question.trim();
-  const missingEvidence = decision.missingEvidence ?? [];
+  const cardText = decisionCardText(decision);
+  const missingEvidence = visibleMissingEvidence(decision);
   const showTextArea = isFreeTextClarify || isMappingGapClarify || !isClarify;
 
   return (

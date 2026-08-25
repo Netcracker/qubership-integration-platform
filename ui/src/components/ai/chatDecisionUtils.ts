@@ -99,3 +99,56 @@ export function reconcileDecisionMessages(
   }
   return serverDecision ? appendDecision(result, serverDecision) : result;
 }
+
+/** Question shown on the card: clarify prefers `reason`, otherwise `question`. */
+export function decisionCardText(decision: ChatDecision): string {
+  if (decision.kind === "clarify") {
+    return decision.reason?.trim() || decision.question.trim();
+  }
+  return decision.question.trim();
+}
+
+/**
+ * Missing-evidence rows that are not already the card question. Discovery often
+ * repeats the same open question in `reason` and `missingEvidence`.
+ */
+export function visibleMissingEvidence(decision: ChatDecision): string[] {
+  const items = decision.missingEvidence ?? [];
+  if (items.length === 0) {
+    return items;
+  }
+  const cardText = decisionCardText(decision);
+  const trimmedItems = items.map((item) => item.trim());
+  if (trimmedItems.join("\n") === cardText) {
+    return [];
+  }
+  return items.filter((item) => item.trim() !== cardText);
+}
+
+/**
+ * Assistant prose to show above a decision card. Empty when the prose only
+ * repeats the card question, so the transcript does not print it twice.
+ */
+export function visibleDecisionNarrative(
+  content: string,
+  decision: ChatDecision | undefined,
+): string {
+  if (!decision) {
+    return content;
+  }
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return content;
+  }
+  const cardText = decisionCardText(decision);
+  const question = decision.question.trim();
+  const reason = decision.reason?.trim() ?? "";
+  if (
+    trimmed === cardText ||
+    trimmed === question ||
+    (reason !== "" && trimmed === reason)
+  ) {
+    return "";
+  }
+  return content;
+}
