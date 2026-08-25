@@ -88,6 +88,30 @@ rg -q -- '-f "\$\{COMPOSE_FILE\}" -f "\$\{COMPOSE_OVERLAY\}"' "${GATE_SH}" \
   || fail "run-quality-gate.sh must pass a second -f when COMPOSE_OVERLAY is set"
 pass "compose overlay contract"
 
+echo "=== recovery scenario must prove causal plan repair before materialization ==="
+jq -e '
+  .["product-create-chain-recovery-revise-plan"] as $s
+  | $s.status == "active"
+    and $s.uniqueChainNamePrefix == "AiRecoveryRevise"
+    and $s.recovery.faultStage == "design-execution"
+    and $s.recovery.ownerStage == "design-planning"
+    and (($s.recovery.followUp | type) == "string" and ($s.recovery.followUp | length) > 0)
+' "${DIR}/scenarios.json" >/dev/null \
+  || fail "recovery scenario must define the injected fault and causal owner"
+rg -q 'QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX' "${GATE_SH}" \
+  || fail "quality gate must scope the recovery fault to the selected chain prefix"
+[[ "$(rg -c 'path: \.env\.local' "${ROOT:-${DIR}/../../..}/infrastructure/docker-compose.yml")" -ge 2 ]] \
+  || fail "AI service and evaluator must load the documented optional .env.local overrides"
+rg -q -- '--scenario' "${GATE_SH}" \
+  || fail "quality gate must support running the recovery scenario in isolation"
+rg -q 'action:"revise"' "${SCENARIO_SH}" \
+  || fail "product runner must send a typed revise decision"
+rg -q 'causal reopen of' "${SCENARIO_SH}" \
+  || fail "product runner must assert the causal reopen transition"
+rg -q 'MATERIALIZATION_REQUEST.*MATERIALIZATION_RESULT.*CATALOG_CHAIN_SNAPSHOT' "${SCENARIO_SH}" \
+  || fail "product runner must reject materialization artifacts before revision"
+pass "recovery scenario contract"
+
 echo "=== live reports must be built from evidence ==="
 [[ -f "${BUILD_PY}" ]] || fail "build-report-from-evidence.py is required"
 rg -q 'build-report-from-evidence\.py' "${SCENARIO_SH}" \
@@ -785,7 +809,7 @@ rg -q 'profileId|create-chain' "${GATE_SH}" \
   || fail "gate must read scenario profileId including create-chain"
 jq -e '
   [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
-  | length == 7
+  | length == 8
   and all(
     .value.pipeline == "create-chain-v1"
     and .value.profileId == "create-chain"
@@ -794,7 +818,7 @@ jq -e '
     and .value.retainCatalogChain == true
   )
 ' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "exactly seven active create-chain@2 CHAIN_MATERIALIZED retain scenarios required"
+  || fail "exactly eight active create-chain@2 CHAIN_MATERIALIZED retain scenarios required"
 legacy_create_plan="$(printf '%s-%s' create plan-v1)"
 for legacy in "${legacy_create_plan}" design-first structure-e2e; do
   if jq -e --arg p "${legacy}" '[.. | strings] | index($p) != null' "${SCENARIOS_FILE}" >/dev/null; then

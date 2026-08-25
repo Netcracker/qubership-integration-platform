@@ -17,6 +17,7 @@ REPORT_DIR=""
 BASE_URL="${BASE_URL:-http://localhost:8094}"
 EVALUATOR_URL="${EVALUATOR_URL:-}"
 SKIP_DEPLOY=0
+SELECTED_SCENARIO=""
 
 usage() {
   cat >&2 <<'EOF'
@@ -26,6 +27,7 @@ Usage: run-quality-gate.sh \
   --base-url <URL> \
   [--knowledge-package <directory>] \
   [--evaluator-url <URL>] \
+  [--scenario <id>] \
   [--compose-overlay <path>] \
   [--skip-deploy]
 EOF
@@ -61,6 +63,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --evaluator-url)
       EVALUATOR_URL="${2:?}"
+      shift 2
+      ;;
+    --scenario)
+      SELECTED_SCENARIO="${2:?}"
       shift 2
       ;;
     --compose-overlay)
@@ -129,7 +135,33 @@ while IFS= read -r scenario; do
   PATCH_SCENARIO_IDS+=("${scenario}")
 done < <(active_entries "compare-and-patch")
 
-SCENARIO_IDS=("${CREATE_SCENARIO_IDS[@]}" "${PATCH_SCENARIO_IDS[@]}")
+if [[ -n "${SELECTED_SCENARIO}" ]]; then
+  jq -e --arg s "${SELECTED_SCENARIO}" '
+    .[$s].tier == "product-pipeline" and (.[$s].status // "active") == "active"
+  ' "${SCENARIOS_FILE}" >/dev/null || {
+    echo "FAIL: --scenario must name an active product-pipeline scenario" >&2
+    exit 2
+  }
+  selected_pipeline="$(jq -r --arg s "${SELECTED_SCENARIO}" '.[$s].pipeline' "${SCENARIOS_FILE}")"
+  CREATE_SCENARIO_IDS=()
+  PATCH_SCENARIO_IDS=()
+  if [[ "${selected_pipeline}" == "create-chain-v1" ]]; then
+    CREATE_SCENARIO_IDS=("${SELECTED_SCENARIO}")
+  elif [[ "${selected_pipeline}" == "compare-and-patch" ]]; then
+    PATCH_SCENARIO_IDS=("${SELECTED_SCENARIO}")
+  else
+    echo "FAIL: selected scenario uses unsupported pipeline ${selected_pipeline}" >&2
+    exit 2
+  fi
+fi
+
+SCENARIO_IDS=()
+for scenario in "${CREATE_SCENARIO_IDS[@]:-}"; do
+  [[ -n "${scenario}" ]] && SCENARIO_IDS+=("${scenario}")
+done
+for scenario in "${PATCH_SCENARIO_IDS[@]:-}"; do
+  [[ -n "${scenario}" ]] && SCENARIO_IDS+=("${scenario}")
+done
 [[ "${#SCENARIO_IDS[@]}" -gt 0 ]] || {
   echo "FAIL: no active product-pipeline scenarios selected" >&2
   exit 1
@@ -147,6 +179,17 @@ if [[ "${#CREATE_SCENARIO_IDS[@]}" -gt 0 ]]; then
       echo "FAIL: active scenario ${scenario} must pin create-chain@2 CHAIN_MATERIALIZED retain=true" >&2
       exit 1
     }
+    if jq -e --arg s "${scenario}" '.[$s].recovery != null' "${SCENARIOS_FILE}" >/dev/null; then
+      jq -e --arg s "${scenario}" '
+        .[$s].recovery.faultStage == "design-execution"
+        and .[$s].recovery.ownerStage == "design-planning"
+        and ((.[$s].recovery.followUp | type) == "string" and (.[$s].recovery.followUp | length) > 0)
+        and ((.[$s].uniqueChainNamePrefix | type) == "string" and (.[$s].uniqueChainNamePrefix | length) > 0)
+      ' "${SCENARIOS_FILE}" >/dev/null || {
+        echo "FAIL: recovery scenario ${scenario} must define fault stage, owner, follow-up, and prefix" >&2
+        exit 1
+      }
+    fi
   done
 fi
 
@@ -180,6 +223,22 @@ trap 'rm -f "${reliability_file}" "${score_list_file}"' EXIT
 if [[ -n "${KNOWLEDGE_PACKAGE}" ]]; then
   export QIP_KNOWLEDGE_HOST_PATH
   QIP_KNOWLEDGE_HOST_PATH="$(cd "${KNOWLEDGE_PACKAGE}" && pwd)"
+fi
+
+recovery_fault_prefixes="$(
+  for scenario in "${CREATE_SCENARIO_IDS[@]:-}"; do
+    [[ -n "${scenario}" ]] || continue
+    jq -r --arg s "${scenario}" 'select(.[$s].recovery != null) | .[$s].uniqueChainNamePrefix' \
+      "${SCENARIOS_FILE}"
+  done | awk 'NF' | sort -u
+)"
+recovery_fault_prefix_count="$(printf '%s\n' "${recovery_fault_prefixes}" | awk 'NF' | wc -l | tr -d ' ')"
+if [[ "${recovery_fault_prefix_count}" -gt 1 ]]; then
+  echo "FAIL: live gate supports one recovery fault chain prefix per deployment" >&2
+  exit 1
+fi
+if [[ "${recovery_fault_prefix_count}" -eq 1 ]]; then
+  export QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX="${recovery_fault_prefixes}"
 fi
 
 wait_for_health() {

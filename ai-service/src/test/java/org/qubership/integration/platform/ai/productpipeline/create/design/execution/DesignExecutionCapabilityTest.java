@@ -74,6 +74,7 @@ class DesignExecutionCapabilityTest {
   private ProductPipelineArtifactStore artifactStore;
   private ApprovedCompilerExecutionRunner runner;
   private ExecutorCatalogBindingAdapter bindingAdapter;
+  private CipDesignExecutorJavaAdapter adapter;
   private DesignExecutionCapability capability;
 
   private Reference idsRef;
@@ -149,7 +150,7 @@ class DesignExecutionCapabilityTest {
         .thenReturn(
             new org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult(
                 true, List.of(), "ok"));
-    CipDesignExecutorJavaAdapter adapter =
+    adapter =
         new CipDesignExecutorJavaAdapter(runner, bindingAdapter, artifactStore, planValidator);
     capability = new DesignExecutionCapability(artifactStore, adapter);
 
@@ -327,6 +328,22 @@ class DesignExecutionCapabilityTest {
         outcome.candidates().stream()
             .noneMatch(candidate -> candidate.kind() == Kind.DESIGN_EXECUTION_RESULT),
         "Phase 6 DESIGN_EXECUTION_RESULT is owned by materialization, not design-execution");
+  }
+
+  @Test
+  void configuredRecoveryFaultFailsOnlyTheFirstMatchingRunAttempt() {
+    capability = new DesignExecutionCapability(artifactStore, adapter, "Pets");
+
+    StageOutcome first = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, first.outcomeClass());
+    assertTrue(first.message().contains("required setting"));
+    verifyNoInteractions(bindingAdapter, runner);
+
+    StageOutcome second = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, second.outcomeClass());
+    verify(runner).execute(any(), any(), anyList(), any(), eq("attempt-1"), any());
   }
 
   @Test

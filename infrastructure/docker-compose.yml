@@ -179,7 +179,9 @@ services:
     ports:
       - "8099:8099"
     env_file:
-      - ai-service-dev.env
+      - path: ai-service-dev.env
+      - path: .env.local
+        required: false
     healthcheck:
       test:
         [
@@ -204,9 +206,12 @@ services:
     ports:
       - "8094:8080"
     env_file:
-      - ai-service-dev.env
+      - path: ai-service-dev.env
+      - path: .env.local
+        required: false
     environment:
       QIP_AI_A2A_PUBLIC_BASE_URL: ${QIP_AI_A2A_PUBLIC_BASE_URL:-http://localhost:8094}
+      QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX: ${QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX:-}
       QIP_KNOWLEDGE_SIDECAR_URL: http://knowledge-sidecar:8095
       QUARKUS_DATASOURCE_JDBC_URL: ${QUARKUS_DATASOURCE_JDBC_URL:-jdbc:postgresql://postgres:5432/ai_a2a}
       QUARKUS_DATASOURCE_USERNAME: ${QUARKUS_DATASOURCE_USERNAME:-postgres}

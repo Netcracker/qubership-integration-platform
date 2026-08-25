@@ -10,8 +10,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -46,12 +49,24 @@ public class DesignExecutionCapability implements StageCapability {
 
   private final ProductPipelineArtifactStore artifactStore;
   private final CipDesignExecutorJavaAdapter adapter;
+  private final String recoveryFaultChainPrefix;
+  private final Set<String> recoveryFaultedRuns = ConcurrentHashMap.newKeySet();
 
   @Inject
   public DesignExecutionCapability(
-      ProductPipelineArtifactStore artifactStore, CipDesignExecutorJavaAdapter adapter) {
+      ProductPipelineArtifactStore artifactStore,
+      CipDesignExecutorJavaAdapter adapter,
+      @ConfigProperty(name = "qip.ai.e2e.recovery-fault-chain-prefix", defaultValue = "")
+          String recoveryFaultChainPrefix) {
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.adapter = Objects.requireNonNull(adapter, "adapter");
+    this.recoveryFaultChainPrefix =
+        recoveryFaultChainPrefix == null ? "" : recoveryFaultChainPrefix.trim();
+  }
+
+  public DesignExecutionCapability(
+      ProductPipelineArtifactStore artifactStore, CipDesignExecutorJavaAdapter adapter) {
+    this(artifactStore, adapter, "");
   }
 
   @Override
@@ -125,6 +140,13 @@ public class DesignExecutionCapability implements StageCapability {
       if (resolved.error() != null) {
         return completedSignal(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error()));
       }
+      if (injectRecoveryFault(context.runId(), resolved.inputs().flow().chainName())) {
+        return completedSignal(
+            StageOutcome.of(
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "E2E recovery fault: the implementation plan is missing required setting "
+                    + "'recovery-check'. Revise design-planning before materialization."));
+      }
       ExecutionResult result =
           adapter.executeAfterApproval(resolved.inputs(), context.attemptId(), skillProgress);
       // Adapter uses CANDIDATE to mean Phase 5 checkpoint (WAITING_FOR_MATERIALIZATION). The
@@ -158,6 +180,13 @@ public class DesignExecutionCapability implements StageCapability {
       }
       return completedSignal(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, message));
     }
+  }
+
+  private boolean injectRecoveryFault(String runId, String chainName) {
+    return !recoveryFaultChainPrefix.isBlank()
+        && chainName != null
+        && chainName.startsWith(recoveryFaultChainPrefix)
+        && recoveryFaultedRuns.add(runId);
   }
 
   private ResolvedInputs resolveInputs(StageExecutionContext context) {
