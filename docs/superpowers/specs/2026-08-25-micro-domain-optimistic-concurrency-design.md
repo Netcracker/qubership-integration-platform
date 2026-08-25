@@ -44,6 +44,31 @@ On the host resources the two writers are asymmetric. The engine reads, merges, 
 (`IstioRoutesRegistrationService.upsertHostResource`). Runtime-catalog force-applies with no
 precondition. So runtime-catalog silently clobbers the engine and never the reverse.
 
+### Merging does not make the precondition unnecessary
+
+Both writers merge rather than overwrite, and it is worth being precise about what that buys,
+because it is easy to read as "the race is already handled."
+
+Both are add-or-replace-by-port-number against the object's existing content.
+`EgressRouteResourceBuilder:295` folds this build's ports into `existingSpec.path("ports")` keyed
+on `number`, and `:332` does the same for `trafficPolicy.portLevelSettings` keyed on
+`port.number`; `mergedEntries:368-382` keeps every existing entry whose key is not in the new set,
+then appends the new ones. The engine's `upsertServiceEntry:353` and `upsertDestinationRule:372`
+use the identical shape through their own `mergedEntries:385-402`. The two implementations are
+duplicated per the `GatewayPathMatch` precedent, and they agree.
+
+What that protects is *intra-build* clobbering: one chain's port cannot erase another chain's port
+for the same host. What it does not touch is the Phase 1 to Phase 3 window, because
+runtime-catalog merges against the spec seeded into the build cache during Phase 1. If the engine
+adds port 8443 after that read, the catalog writes `stale_existing ∪ new`, and 8443 is gone. The
+merge downgrades the failure from total loss to subset loss; it does not prevent it.
+
+The engine does not have this problem, because its merge sits *inside* the retry loop: on conflict
+`upsertHostResource` re-reads and re-merges against fresh state. Runtime-catalog merges once, in
+Phase 2, against data that is already many round trips old by the time it writes. That asymmetry
+is the reason a precondition is needed here at all, and section 7 explains why it also forces the
+retry to rebuild rather than re-send.
+
 ### Two API facts this design rests on
 
 Both were verified against the apiserver source rather than assumed, because the obvious
@@ -249,6 +274,16 @@ it, and nothing more:
 
 The retry itself — bounded rounds around `doDeployResource`, rebuilding the context each round —
 is out of scope here.
+
+It must rebuild, never re-send. The merge described earlier runs in Phase 2 against Phase 1 data,
+so a built document carries a port list that is a snapshot of the world as it was before the
+conflict. Re-applying it would send both the stale `resourceVersion` and the stale union: with the
+precondition it 409s forever, and without one it would drop precisely the port whose arrival
+caused the conflict. Only re-entering Phase 1 re-merges against what is actually in the cluster.
+
+This is also why the retry belongs around `doDeployResource` rather than around
+`MicroDomainService.deploy`. By the time control reaches `deploy`, the merge has already happened
+and the stale data is baked into the YAML.
 
 ## Testing
 
