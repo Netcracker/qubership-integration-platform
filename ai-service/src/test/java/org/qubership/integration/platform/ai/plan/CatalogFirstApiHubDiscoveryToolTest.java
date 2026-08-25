@@ -1,11 +1,13 @@
 package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -135,6 +137,105 @@ class CatalogFirstApiHubDiscoveryToolTest {
             .orElseThrow()
             .binding()
             .integrationOperationId());
+  }
+
+  @Test
+  void apiHubSearchesOnlyForTheCallTheCatalogCouldNotAnswer() {
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    when(matcher.match(any(), any()))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(petstoreMatch()))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.None());
+    CatalogFirstApiHubDiscoveryTool tool = tool(matcher, apiHub);
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-mixed")) {
+      tool.resolveApiOperation(
+          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
+      tool.resolveApiOperation("Raise an invoice in Billing", "Billing", "createInvoice", "", "", "");
+    }
+
+    verify(apiHub, times(1)).searchApiOperations(eq("createInvoice"), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void noApiHubCallWhenEveryOperationIsInTheCatalog() {
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    when(matcher.match(any(), any()))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(petstoreMatch()));
+    CatalogFirstApiHubDiscoveryTool tool = tool(matcher, apiHub);
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-all-local")) {
+      tool.resolveApiOperation(
+          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
+      tool.resolveApiOperation(
+          "Read stock levels again", "Petstore Ext", "getInventory", "", "", "");
+    }
+
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void anApiHubFailureLeavesResolvedCallsAlone() {
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    when(matcher.match(any(), any()))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(petstoreMatch()))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.None());
+    when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any()))
+        .thenThrow(new IllegalStateException("API Hub MCP timed out"));
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    CatalogFirstApiHubDiscoveryTool tool = tool(matcher, apiHub, resolutions);
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-timeout")) {
+      tool.resolveApiOperation(
+          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
+      assertThrows(
+          IllegalStateException.class,
+          () ->
+              tool.resolveApiOperation(
+                  "Raise an invoice in Billing", "Billing", "createInvoice", "", "", ""));
+    }
+
+    List<ServiceCallAssessment> assessments = resolutions.assessments("conv-timeout");
+    assertEquals(2, assessments.size());
+    assertEquals(ServiceCallAssessment.Outcome.RESOLVED, assessments.get(0).outcome());
+    assertEquals("operation-1", assessments.get(0).binding().integrationOperationId());
+  }
+
+  @Test
+  void vagueCapabilitySearchesByTheOperationHintNotTheSentence() {
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    when(matcher.match(any(), any())).thenReturn(new CatalogBindingMatcher.MatchResult.None());
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-vague")) {
+      tool(matcher, apiHub)
+          .resolveApiOperation(
+              "The chain has to find out how many pets are left in stock before it answers",
+              "",
+              "retrieve inventory levels",
+              "",
+              "",
+              "");
+    }
+
+    verify(apiHub)
+        .searchApiOperations(eq("retrieve inventory levels"), eq("rest"), any(), any(), any(), any());
+  }
+
+  private static CatalogBindingMatcher.CatalogMatch petstoreMatch() {
+    return new CatalogBindingMatcher.CatalogMatch(
+        "system-1",
+        "group-1",
+        "spec-1",
+        "operation-1",
+        "Petstore Ext",
+        "http",
+        "GET",
+        "/store/inventory",
+        "getInventory",
+        "catalog-read:system-1/spec-1/operation-1");
   }
 
   private static CatalogFirstApiHubDiscoveryTool tool(
