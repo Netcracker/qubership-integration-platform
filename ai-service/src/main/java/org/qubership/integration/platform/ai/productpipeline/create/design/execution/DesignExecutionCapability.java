@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -56,17 +56,24 @@ public class DesignExecutionCapability implements StageCapability {
   public DesignExecutionCapability(
       ProductPipelineArtifactStore artifactStore,
       CipDesignExecutorJavaAdapter adapter,
-      @ConfigProperty(name = "qip.ai.e2e.recovery-fault-chain-prefix", defaultValue = "")
-          String recoveryFaultChainPrefix) {
-    this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
-    this.adapter = Objects.requireNonNull(adapter, "adapter");
-    this.recoveryFaultChainPrefix =
-        recoveryFaultChainPrefix == null ? "" : recoveryFaultChainPrefix.trim();
+      AppConfig appConfig) {
+    this(artifactStore, adapter, appConfig.e2e().recoveryFaultChainPrefix().orElse(""));
   }
 
   public DesignExecutionCapability(
       ProductPipelineArtifactStore artifactStore, CipDesignExecutorJavaAdapter adapter) {
     this(artifactStore, adapter, "");
+  }
+
+  /** Test constructor: sets the recovery-fault chain-name prefix directly. */
+  DesignExecutionCapability(
+      ProductPipelineArtifactStore artifactStore,
+      CipDesignExecutorJavaAdapter adapter,
+      String recoveryFaultChainPrefix) {
+    this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
+    this.adapter = Objects.requireNonNull(adapter, "adapter");
+    this.recoveryFaultChainPrefix =
+        recoveryFaultChainPrefix == null ? "" : recoveryFaultChainPrefix.trim();
   }
 
   @Override
