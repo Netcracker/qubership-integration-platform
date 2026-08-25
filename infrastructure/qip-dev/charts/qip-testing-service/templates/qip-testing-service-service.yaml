@@ -3,13 +3,13 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: {{ .Release.Name }}-testing-service
-  name: {{ .Release.Name }}-testing-service
+    app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
+  name: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
 spec:
   ports:
     - name: "8080"
       port: 8080
       targetPort: 8080
   selector:
-    app: {{ .Release.Name }}-testing-service
+    app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
 {{- end }}
