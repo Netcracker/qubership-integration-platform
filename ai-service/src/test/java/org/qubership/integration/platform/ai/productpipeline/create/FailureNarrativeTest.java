@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -12,6 +14,9 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 
 class FailureNarrativeTest {
 
@@ -24,6 +29,7 @@ class FailureNarrativeTest {
     Optional<String> narrated =
         new FailureNarrative(agent)
             .narrate(
+                "run-1",
                 "en",
                 "work",
                 StageOutcomeClass.DOMAIN_FAILURE,
@@ -40,11 +46,11 @@ class FailureNarrativeTest {
   void emptyWhenTheTurnFailsSoTheCallerKeepsRawEvidence() {
     assertTrue(
         new FailureNarrative(FakeFailureNarrativeAgent.boom())
-            .narrate("en", "work", StageOutcomeClass.DOMAIN_FAILURE, "bad domain", "")
+            .narrate("run-1", "en", "work", StageOutcomeClass.DOMAIN_FAILURE, "bad domain", "")
             .isEmpty());
     assertTrue(
         new FailureNarrative()
-            .narrate("en", "work", StageOutcomeClass.DOMAIN_FAILURE, "bad domain", "")
+            .narrate("run-1", "en", "work", StageOutcomeClass.DOMAIN_FAILURE, "bad domain", "")
             .isEmpty());
   }
 
@@ -52,8 +58,78 @@ class FailureNarrativeTest {
   void emptyWhenTheModelReturnsBlank() {
     assertTrue(
         new FailureNarrative(FakeFailureNarrativeAgent.narrates("  "))
-            .narrate("en", "work", StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, "timeout", "")
+            .narrate(
+                "run-1",
+                "en",
+                "work",
+                StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+                "timeout",
+                "")
             .isEmpty());
+  }
+
+  @Test
+  void narrateStopsCallingTheModelOnceTheRunSpendsItsBudget() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("The catalog timed out.");
+    FailureNarrative narrative = new FailureNarrative(agent, 1, null);
+
+    Optional<String> first = narrate(narrative, "run-1");
+    Optional<String> afterTheBudget = narrate(narrative, "run-1");
+
+    assertEquals("The catalog timed out.", first.orElseThrow());
+    assertTrue(afterTheBudget.isEmpty());
+    assertEquals(1, agent.calls.get());
+  }
+
+  @Test
+  void theNarrativeBudgetIsCountedPerRun() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("The catalog timed out.");
+    FailureNarrative narrative = new FailureNarrative(agent, 1, null);
+
+    narrate(narrative, "run-1");
+    narrate(narrative, "run-1");
+    Optional<String> secondRun = narrate(narrative, "run-2");
+
+    assertEquals("The catalog timed out.", secondRun.orElseThrow());
+    assertEquals(2, agent.calls.get());
+  }
+
+  @Test
+  void narrateIsEmptyWhenTheTurnOutlivesItsTimeout() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.slow("Too late for the card.", Duration.ofSeconds(30));
+
+    Optional<String> narrated =
+        narrate(new FailureNarrative(agent, 12, Duration.ofMillis(50)), "run-1");
+
+    assertTrue(narrated.isEmpty());
+    assertEquals(1, agent.calls.get());
+  }
+
+  @Test
+  void diagnoseKeepsRawEvidenceOnceTheRunSpendsItsBudget() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis");
+    FailureNarrative narrative = new FailureNarrative(agent, 1, null);
+
+    OwnerDiagnosis first = diagnose(narrative, "run-1");
+    OwnerDiagnosis afterTheBudget = diagnose(narrative, "run-1");
+
+    assertEquals("The brief omitted the scheduler.", first.narrative());
+    assertEquals("", afterTheBudget.narrative());
+    assertEquals(1, agent.calls.get());
+  }
+
+  @Test
+  void diagnoseKeepsRawEvidenceWhenTheTurnOutlivesItsTimeout() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.slow("Too late for the card.", Duration.ofSeconds(30));
+
+    OwnerDiagnosis diagnosis =
+        diagnose(new FailureNarrative(agent, 12, Duration.ofMillis(50)), "run-1");
+
+    assertEquals("", diagnosis.narrative());
+    assertEquals(1, agent.calls.get());
   }
 
   @Test
@@ -68,6 +144,7 @@ class FailureNarrativeTest {
     OwnerDiagnosis diagnosis =
         new FailureNarrative(agent)
             .diagnose(
+                "run-1",
                 "en",
                 "planning",
                 StageOutcomeClass.VALIDATION_FAILURE,
@@ -92,6 +169,7 @@ class FailureNarrativeTest {
     OwnerDiagnosis diagnosis =
         new FailureNarrative(agent)
             .diagnose(
+                "run-1",
                 "en",
                 "planning",
                 StageOutcomeClass.VALIDATION_FAILURE,
@@ -111,6 +189,7 @@ class FailureNarrativeTest {
     OwnerDiagnosis diagnosis =
         new FailureNarrative(agent)
             .diagnose(
+                "run-1",
                 "en",
                 "planning",
                 StageOutcomeClass.DOMAIN_FAILURE,
@@ -131,6 +210,7 @@ class FailureNarrativeTest {
     OwnerDiagnosis diagnosis =
         new FailureNarrative(FakeFailureNarrativeAgent.boom())
             .diagnose(
+                "run-1",
                 "en",
                 "work",
                 StageOutcomeClass.DOMAIN_FAILURE,
@@ -140,6 +220,226 @@ class FailureNarrativeTest {
                 "");
     assertEquals("", diagnosis.narrative());
     assertTrue(diagnosis.owner().isEmpty());
+  }
+
+  @Test
+  void diagnoseRemapsASelfOwnerToTheBriefProducerForPolicyFindings() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"));
+
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                candidates,
+                "add rbac");
+
+    assertEquals("Design execution could not complete.", diagnosis.narrative());
+    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertFalse(diagnosis.ambiguous());
+    assertEquals("add rbac", agent.lastFollowUp.get());
+  }
+
+  @Test
+  void diagnoseRemapsASelfOwnerToThePlanProducerWhenBriefIsAbsent() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"));
+
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                candidates,
+                "add rbac");
+
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+  }
+
+  @Test
+  void diagnoseRemapsASelfOwnerToThePlanProducerForPlanFillFindings() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
+
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed",
+                "plan-1: Missing required property on http-trigger (blocker)",
+                List.of(
+                    new OwnerCandidate("design-execution", "plan-validation-result"),
+                    new OwnerCandidate("design-planning", "implementation-plan"),
+                    new OwnerCandidate("requirement-analysis", "requirement-brief")),
+                "");
+
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+  }
+
+  @Test
+  void diagnoseKeepsAnEarlierOwnerWhenFindingsArePolicyAndOwnerIsBrief() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("The brief omitted RBAC.", "requirement-analysis");
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                List.of(
+                    new OwnerCandidate("design-execution", "plan-validation-result"),
+                    new OwnerCandidate("design-planning", "implementation-plan"),
+                    new OwnerCandidate("requirement-analysis", "requirement-brief")),
+                "");
+
+    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+  }
+
+  @Test
+  void diagnosePassesClarifyRolesAndFakeOffersGoBack() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.offeringGoBack(
+            "Validation failed: the external route needs RBAC.", "design-planning");
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"));
+
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                candidates,
+                "");
+
+    assertTrue(diagnosis.narrative().contains(FakeFailureNarrativeAgent.GO_BACK_OFFER));
+    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertEquals("VALIDATION_FAILURE", agent.lastOutcome.get());
+    assertTrue(agent.lastFindings.get().toLowerCase(Locale.ROOT).contains("rbac"));
+    assertTrue(agent.lastClarifyRoles.get().contains("design-planning:the plan"));
+    assertTrue(agent.lastClarifyRoles.get().contains("requirement-analysis:requirements"));
+  }
+
+  @Test
+  void diagnosePrefersAUserNamedOwnerOverTheEarliestSufficientRemap() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"));
+
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                candidates,
+                "go back to requirements gathering and add that we need RBAC");
+
+    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertFalse(diagnosis.ambiguous());
+  }
+
+  @Test
+  void diagnoseKeepsAmbiguousWhenTwoProducersStayPlausible() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.ask("Either the brief or the plan could be wrong.");
+
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
+                List.of(
+                    new OwnerCandidate("design-execution", "plan-validation-result"),
+                    new OwnerCandidate("design-planning", "implementation-plan"),
+                    new OwnerCandidate("requirement-analysis", "requirement-brief")),
+                "");
+
+    assertTrue(diagnosis.ambiguous());
+    assertTrue(diagnosis.owner().isEmpty());
+  }
+
+  @Test
+  void diagnoseRemapsEmptyOwnerUsingSecurityIssueIdFromBuildValidationResult() {
+    var issue =
+        new ValidationIssue(
+            "security-1",
+            ValidationSeverity.BLOCKER,
+            "External route RBAC requires a non-empty roles list",
+            "cip-security-validator",
+            List.of("http-trigger-1"),
+            List.of(),
+            "Configure one or more explicit RBAC roles");
+    PlanValidationResult planValidation =
+        CompilerPlanningRunner.buildValidationResult(
+            new ValidationResult(
+                false, List.of(issue), "security validation failed with 1 blocker(s)"),
+            List.of());
+    String findings =
+        FailureNarrative.findingsText(
+            List.of(
+                new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, planValidation, List.of())));
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Validation failed during Phase 5.", "");
+
+    OwnerDiagnosis diagnosis =
+        new FailureNarrative(agent)
+            .diagnose(
+                "run-1",
+                "en",
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                "Phase 5 plan validation failed. Findings: " + findings,
+                findings,
+                List.of(
+                    new OwnerCandidate("design-execution", "plan-validation-result"),
+                    new OwnerCandidate("design-planning", "implementation-plan"),
+                    new OwnerCandidate("requirement-analysis", "requirement-brief")),
+                "");
+
+    assertTrue(findings.toLowerCase(Locale.ROOT).startsWith("security-1:"));
+    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -153,5 +453,24 @@ class FailureNarrativeTest {
                         List.of(new PlanValidationFinding("PLAN_BLOCKER", "missing quartz", true))),
                     List.of())));
     assertEquals("PLAN_BLOCKER: missing quartz (blocker)", text);
+  }
+
+  private static Optional<String> narrate(FailureNarrative narrative, String runId) {
+    return narrative.narrate(
+        runId, "en", "planning", StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, "timeout", "");
+  }
+
+  private static OwnerDiagnosis diagnose(FailureNarrative narrative, String runId) {
+    return narrative.diagnose(
+        runId,
+        "en",
+        "planning",
+        StageOutcomeClass.VALIDATION_FAILURE,
+        "planning validation failed",
+        "",
+        List.of(
+            new OwnerCandidate("planning", "plan-validation-result"),
+            new OwnerCandidate("analysis", "requirement-brief")),
+        "");
   }
 }

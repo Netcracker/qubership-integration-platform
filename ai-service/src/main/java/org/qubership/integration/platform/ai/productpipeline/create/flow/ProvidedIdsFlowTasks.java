@@ -1,19 +1,22 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.serverlessworkflow.impl.WorkflowModel;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
@@ -26,19 +29,32 @@ public class ProvidedIdsFlowTasks {
   private static final ObjectMapper JSON = new ObjectMapper();
   private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {};
   private static final String CONTINUE = "CONTINUE";
+  private static final double JITTER_RATIO = 0.2;
+  private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
 
   private final ProductPipelineRunSupport runSupport;
-  private final Map<String, List<PipelineSignal>> signalsByRun = new ConcurrentHashMap<>();
-  private final Map<String, ProvidedIdsFlow.RunContext> contextByRun = new ConcurrentHashMap<>();
-  private final Set<String> settledRuns = ConcurrentHashMap.newKeySet();
+  private final Map<String, List<PipelineSignal>> signalsByRun;
+  private final Map<String, ProvidedIdsFlow.RunContext> contextByRun;
+  private final Map<String, Boolean> settledRuns;
 
   @Inject
+  public ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport, AppConfig appConfig) {
+    this(runSupport, appConfig.create().flowCacheIdleTimeout());
+  }
+
   public ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport) {
+    this(runSupport, DEFAULT_CACHE_IDLE_TIMEOUT);
+  }
+
+  ProvidedIdsFlowTasks(ProductPipelineRunSupport runSupport, Duration cacheIdleTimeout) {
     this.runSupport = Objects.requireNonNull(runSupport, "runSupport");
+    this.signalsByRun = idleCache(cacheIdleTimeout);
+    this.contextByRun = idleCache(cacheIdleTimeout);
+    this.settledRuns = idleCache(cacheIdleTimeout);
   }
 
   ProvidedIdsFlow.RunContext begin(String runId) {
-    signalsByRun.put(runId, new CopyOnWriteArrayList<>());
+    signalsByRun.put(runId, new java.util.concurrent.CopyOnWriteArrayList<>());
     ProvidedIdsFlow.RunContext context =
         new ProvidedIdsFlow.RunContext(runId, null, null, null, null);
     contextByRun.put(runId, context);
@@ -51,17 +67,28 @@ public class ProvidedIdsFlowTasks {
     String stageId = runSupport.currentStageId(input.runId());
     int used = input.technicalRetriesUsed() == null ? 0 : input.technicalRetriesUsed();
     runSupport.restoreTechnicalRetryCount(input.runId(), stageId, used);
-    StageExecutionResult result =
-        runSupport.stageExecutor().execute(input.runId(), stageId).await().indefinitely();
-    List<PipelineSignal> lifecycle =
-        runSupport.applyStageLifecycle(input.runId(), result).collect().asList().await().indefinitely();
+    StageExecutionResult result;
+    List<PipelineSignal> lifecycle;
+    try {
+      result = runSupport.stageExecutor().execute(input.runId(), stageId).await().indefinitely();
+      lifecycle =
+          runSupport.applyStageLifecycle(input.runId(), result).collect().asList().await().indefinitely();
+    } catch (RuntimeException failure) {
+      // A throwable reaching the workflow engine aborts the instance: no attempt, no status, and a
+      // run that stays RUNNING with nothing for the author to click.
+      result = runSupport.stageExecutor().haltOnEscapedFailure(input.runId(), failure);
+      lifecycle = List.of();
+    }
     // Lifecycle already includes stage signals plus review text inserted in front of a wait.
     // Appending those extras onto result.signals() puts the review after WaitingForApproval,
     // and chat then replaces the narrative with the compact Goal/Facts block.
     List<PipelineSignal> combined =
         lifecycle.isEmpty() ? result.signals() : lifecycle;
-    signalsByRun.computeIfAbsent(input.runId(), ignored -> new CopyOnWriteArrayList<>()).addAll(combined);
-    ProvidedIdsFlow.RunContext next = nextContext(input, result.decision(), used);
+    signalsByRun
+        .computeIfAbsent(input.runId(), ignored -> new java.util.concurrent.CopyOnWriteArrayList<>())
+        .addAll(combined);
+    ProvidedIdsFlow.RunContext next =
+        nextContext(input, result.decision(), used, runSupport.retryPolicy(input.runId(), stageId));
     contextByRun.put(input.runId(), next);
     markSettled(input.runId(), next.decision());
     return next;
@@ -104,14 +131,14 @@ public class ProvidedIdsFlowTasks {
   }
 
   boolean settled(String runId) {
-    return settledRuns.contains(runId);
+    return settledRuns.containsKey(runId);
   }
 
   private void markSettled(String runId, String decision) {
     if (reenters(decision)) {
       settledRuns.remove(runId);
     } else {
-      settledRuns.add(runId);
+      settledRuns.put(runId, true);
     }
   }
 
@@ -205,11 +232,22 @@ public class ProvidedIdsFlowTasks {
   }
 
   private static ProvidedIdsFlow.RunContext nextContext(
-      ProvidedIdsFlow.RunContext input, StageDecision decision, int usedBeforeAttempt) {
+      ProvidedIdsFlow.RunContext input,
+      StageDecision decision,
+      int usedBeforeAttempt,
+      RetryPolicy retryPolicy) {
     if (decision instanceof StageDecision.Retry retry) {
-      return input.withRetry(retry.delay(), usedBeforeAttempt + 1);
+      return input.withRetry(
+          Duration.ofMillis(nextDelayMs(retry.delay().toMillis(), retryPolicy, usedBeforeAttempt)),
+          usedBeforeAttempt + 1);
     }
     return input.withDecision(decisionName(decision));
+  }
+
+  private static long nextDelayMs(long baseDelayMs, RetryPolicy policy, int retriesUsed) {
+    double grown = Math.max(baseDelayMs, 0L) * Math.pow(policy.backoffCoefficient(), retriesUsed);
+    double jitter = ThreadLocalRandom.current().nextDouble(1 - JITTER_RATIO, 1 + JITTER_RATIO);
+    return Math.min(Math.round(grown * jitter), policy.maximumDelayMs());
   }
 
   private static String decisionName(StageDecision decision) {
@@ -218,7 +256,6 @@ public class ProvidedIdsFlowTasks {
       case StageDecision.WaitForApproval wait -> approvalDecision(wait.stageId());
       case StageDecision.WaitForImplementation ignored -> "WAIT_FOR_IMPLEMENTATION";
       case StageDecision.Retry ignored -> "RETRY";
-      case StageDecision.ReopenApproval reopen -> approvalDecision(reopen.approvalStageId());
       case StageDecision.Continue ignored -> CONTINUE;
       default -> "STOP";
     };
@@ -257,6 +294,13 @@ public class ProvidedIdsFlowTasks {
     } catch (NumberFormatException ignored) {
       return null;
     }
+  }
+
+  private static <K, V> ConcurrentMap<K, V> idleCache(Duration idleTimeout) {
+    return Caffeine.newBuilder()
+        .expireAfterAccess(Objects.requireNonNull(idleTimeout, "cacheIdleTimeout"))
+        .<K, V>build()
+        .asMap();
   }
 
   record Result(List<PipelineSignal> signals) {}

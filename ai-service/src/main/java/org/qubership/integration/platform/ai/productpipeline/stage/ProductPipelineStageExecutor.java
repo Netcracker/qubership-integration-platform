@@ -18,6 +18,8 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -282,7 +284,51 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .invoke(signal -> forwardLiveSkillProgress(runId, signal))
         .collect()
         .asList()
+        .onFailure()
+        .recoverWithItem(
+            failure -> {
+              recordNonRetryableEscapedFailure(doc, failure);
+              return List.<CapabilitySignal>of(new CapabilitySignal.Completed(outcomeOf(failure)));
+            })
         .map(signals -> handleCapabilitySignals(runId, stage, signals));
+  }
+
+  /**
+   * Records a throwable that escaped {@link #execute} as a halt on the run's current stage. Flow
+   * calls this so an unexpected error still reaches the outcome matrix instead of aborting the
+   * workflow instance and leaving the run RUNNING with no card.
+   */
+  @Override
+  public StageExecutionResult haltOnEscapedFailure(String runId, Throwable failure) {
+    Objects.requireNonNull(runId, "runId");
+    ProductPipelineRunDocument doc = requireRun(runId);
+    recordNonRetryableEscapedFailure(doc, failure);
+    return handleOutcome(runId, currentStage(doc), outcomeOf(failure), List.of());
+  }
+
+  /**
+   * Classifies a throwable that ended a capability without an outcome. A failure the capability did
+   * not recognize is a contract failure; a capability that recognizes one completes with its own,
+   * better message instead of reaching here.
+   */
+  private static StageOutcome outcomeOf(Throwable failure) {
+    if (TransientFailures.isTransient(failure)) {
+      return StageOutcome.of(
+          StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, failureMessage(failure));
+    }
+    if (ToolArgumentsFailures.isToolArgumentsFailure(failure)) {
+      return StageOutcome.of(
+          StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, ToolArgumentsFailures.message(failure));
+    }
+    String message = failure == null ? null : failure.getMessage();
+    return StageOutcome.of(
+        StageOutcomeClass.CONTRACT_FAILURE,
+        message == null || message.isBlank() ? String.valueOf(failure) : message);
+  }
+
+  private static String failureMessage(Throwable failure) {
+    String message = failure == null ? null : failure.getMessage();
+    return message == null || message.isBlank() ? String.valueOf(failure) : message;
   }
 
   /**
@@ -457,6 +503,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             new StageDecision.WaitForApproval(stage.stageId(), approvable, prompt), emitted);
       }
       case SUCCEEDED -> {
+        technicalRetriesByStage.remove(stageRetryKey(runId, stage.stageId()));
         List<Reference> refs =
             appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates()));
         List<StageSnapshot> updated =
@@ -473,6 +520,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         yield new StageExecutionResult(new StageDecision.Continue(stage.stageId()), emitted);
       }
       case RETRYABLE_TECHNICAL_FAILURE -> {
+        recordRetryableFailure(doc, outcome.message());
+        doc = requireRun(doc.run().runId());
         String key = stageRetryKey(runId, stage.stageId());
         int used = technicalRetriesByStage.getOrDefault(key, 0);
         int max = stage.retry().maxTechnicalRetries();
@@ -546,26 +595,33 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String body;
     String gate = PipelineGates.STAGE_RETRY;
     List<String> choiceIds = List.of();
+    putRunAttribute(
+        doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, evidence);
+    putRunAttribute(
+        doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR, outcomeClass.name());
+    putRunAttribute(
+        doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, stage.stageId());
+    putRunAttribute(
+        doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, findings);
+    putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
     if (diagnoseOwner) {
       ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
       List<OwnerCandidate> closed = OwnerCandidateSet.firstLayer(profile, stage.stageId());
+      List<OwnerCandidate> deeper = OwnerCandidateSet.deepen(profile, closed);
+      if (deeper.size() > closed.size()) {
+        closed = deeper;
+      }
       OwnerDiagnosis diagnosis =
           failureNarrative.diagnose(
-              locale, stage.stageId(), outcomeClass, evidence, findings, closed, followUp);
-      List<OwnerCandidate> deeper = OwnerCandidateSet.deepen(profile, closed);
-      if ((diagnosis.ambiguous() || diagnosis.owner().isEmpty()) && deeper.size() > closed.size()) {
-        closed = deeper;
-        diagnosis =
-            failureNarrative.diagnose(
-                locale, stage.stageId(), outcomeClass, evidence, findings, closed, followUp);
-      }
+              doc.run().runId(),
+              locale,
+              stage.stageId(),
+              outcomeClass,
+              evidence,
+              findings,
+              closed,
+              followUp);
       body = diagnosis.narrative().isBlank() ? evidence : diagnosis.narrative();
-      putRunAttribute(
-          doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, evidence);
-      putRunAttribute(
-          doc.run().runId(),
-          ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR,
-          outcomeClass.name());
       if (diagnosis.ambiguous()) {
         gate = PipelineGates.OWNER_CHOICE;
         choiceIds = OwnerCandidateSet.stageIds(closed);
@@ -582,13 +638,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     } else {
       body =
           failureNarrative
-              .narrate(locale, stage.stageId(), outcomeClass, evidence, findings, followUp)
+              .narrate(
+                  doc.run().runId(),
+                  locale,
+                  stage.stageId(),
+                  outcomeClass,
+                  evidence,
+                  findings,
+                  followUp)
               .orElse(evidence);
     }
     String prompt =
         PipelineGates.OWNER_CHOICE.equals(gate)
             ? PipelineGates.tagOwnerChoice(body, choiceIds)
-            : PipelineGates.tag(gate, body);
+            : PipelineGates.retag(gate, body);
     List<StageSnapshot> stages =
         refs.isEmpty()
             ? doc.run().stages()
@@ -598,7 +661,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         RunStatus.WAITING_FOR_INPUT,
         StageStatus.WAITING_FOR_INPUT,
         stages,
-        prompt);
+        prompt,
+        ProductPipelineRunSupport.haltEvidence(
+            attributesByRun.get(doc.run().runId()), null));
     emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
     return new StageExecutionResult(
         new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
@@ -998,6 +1063,21 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       List<StageSnapshot> stages,
       String reason,
       String failureEvidence) {
+    commitStatus(doc, nextStatus, stageStatus, stages, reason, failureEvidence, stageStatus);
+  }
+
+  /**
+   * Persists an attempt outcome independently from the current stage snapshot. A retried
+   * capability failure leaves the run and stage runnable but must still be visible in the journal.
+   */
+  private void commitStatus(
+      ProductPipelineRunDocument doc,
+      RunStatus nextStatus,
+      StageStatus stageStatus,
+      List<StageSnapshot> stages,
+      String reason,
+      String failureEvidence,
+      StageStatus attemptOutcome) {
     List<StageSnapshot> nextStages = new ArrayList<>();
     for (StageSnapshot snapshot : stages) {
       if (snapshot.stageId().equals(doc.run().currentStageId())) {
@@ -1027,7 +1107,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 UUID.randomUUID().toString(),
                 doc.run().currentStageId(),
                 expected + 1L,
-                stageStatus,
+                attemptOutcome,
                 clock.instant(),
                 clock.instant(),
                 nextStages.stream()
@@ -1046,6 +1126,37 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 reason,
                 null,
                 null)));
+  }
+
+  private void recordRetryableFailure(ProductPipelineRunDocument doc, String evidence) {
+    commitStatus(
+        doc,
+        RunStatus.RUNNING,
+        StageStatus.RUNNING,
+        doc.run().stages(),
+        evidence == null || evidence.isBlank() ? "retryable technical failure" : evidence,
+        evidence,
+        StageStatus.FAILED);
+  }
+
+  /**
+   * Failed streams that are not technical retries still need one durable failure attempt before
+   * their halt card. Technical failures use {@link #recordRetryableFailure} in the outcome matrix
+   * so they are never counted twice.
+   */
+  private void recordNonRetryableEscapedFailure(ProductPipelineRunDocument doc, Throwable failure) {
+    if (TransientFailures.isTransient(failure) || ToolArgumentsFailures.isToolArgumentsFailure(failure)) {
+      return;
+    }
+    String evidence = failureMessage(failure);
+    commitStatus(
+        doc,
+        RunStatus.RUNNING,
+        StageStatus.RUNNING,
+        doc.run().stages(),
+        evidence,
+        ProductPipelineRunSupport.nonTechnicalFailureEvidence(evidence),
+        StageStatus.FAILED);
   }
 
   private static List<StageSnapshot> markStageOutputs(
@@ -1091,23 +1202,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .orElseThrow();
   }
 
-  public static Optional<String> previousApprovalStageId(
-      ProductPipelineProfile profile, String failedStageId) {
-    if (profile == null || profile.stages() == null || failedStageId == null) {
-      return Optional.empty();
-    }
-    String previous = null;
-    for (ProfileStage stage : profile.stages()) {
-      if (failedStageId.equals(stage.stageId())) {
-        return Optional.ofNullable(previous);
-      }
-      if (stage.approval() != null) {
-        previous = stage.stageId();
-      }
-    }
-    return Optional.empty();
-  }
-
   private ProductPipelineRunDocument requireRun(String runId) {
     return runStore
         .load(runId)
@@ -1143,9 +1237,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private String approvalPromptFor(String runId, String stageId) {
+    if (isBriefRepairApproval(runId, stageId)) {
+      return ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT;
+    }
     RunManifest manifest = manifestsByRun.get(runId);
     String responseLocale = manifest == null ? "en" : manifest.responseLocale();
     return approvalPrompts.stageApprovalPrompt(stageId, responseLocale, languageReferenceFor(runId));
+  }
+
+  private boolean isBriefRepairApproval(String runId, String stageId) {
+    if (stageId == null || !stageId.contains("analysis")) {
+      return false;
+    }
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes == null) {
+      return false;
+    }
+    Object error = attributes.get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR);
+    return error instanceof String text && !text.isBlank();
   }
 
   private String languageReferenceFor(String runId) {

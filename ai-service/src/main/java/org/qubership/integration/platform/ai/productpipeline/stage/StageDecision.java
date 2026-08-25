@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.stage;
 
 import java.time.Duration;
-import java.util.List;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -44,19 +43,6 @@ public sealed interface StageDecision {
 
     public Retry {
       delay = delay == null ? Duration.ZERO : delay;
-    }
-  }
-
-  record ReopenApproval(
-      String stageId,
-      String approvalStageId,
-      String message,
-      List<CompilationArtifacts.Reference> evidenceRefs)
-      implements StageDecision {
-
-    public ReopenApproval {
-      message = message == null ? "" : message;
-      evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
     }
   }
 

@@ -12,7 +12,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Queue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +37,6 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
-import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
@@ -61,13 +59,6 @@ class ProductPipelineValidationRollbackTest {
         new CompilationArtifacts(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     runStore = new ProductPipelineRunStore(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     artifactStore = new ProductPipelineArtifactStore(artifacts);
-  }
-
-  @Test
-  void previousApprovalStageIdPicksLastApprovalBeforeFailedStage() {
-    Optional<String> reopen =
-        ProductPipelineStageExecutor.previousApprovalStageId(twoStageProfile(), "planning");
-    assertEquals(Optional.of("requirement-analysis"), reopen);
   }
 
   @Test

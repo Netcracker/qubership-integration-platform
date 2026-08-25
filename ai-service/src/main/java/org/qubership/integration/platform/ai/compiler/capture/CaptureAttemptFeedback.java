@@ -5,7 +5,7 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFail
 
 /**
  * Last capture failure for a conversation, used to build repair user messages and gate outer
- * repair (ADR 0003).
+ * repair (ADR 0005).
  *
  * <p>{@link #kind()} remains the wording channel for {@link CaptureRepairMessageBuilder}. {@link
  * #failureClass()} and {@link #outerAllowed()} own outer budgets: PERMANENT, TOOL_ARGUMENTS, and

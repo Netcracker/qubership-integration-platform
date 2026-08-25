@@ -850,7 +850,7 @@ public class CompilerSkillRuntime {
                 memoryId, () -> feedbackStore.lastPlanFailure(conversationId)));
       }
       case CAPTURE_CHAIN_PLAN -> {
-        // ADR 0003 P4 PARTIAL: ChainPlanTool / ChainPlanRepairTool use CaptureToolOutcomeGateway
+        // ADR 0005 PARTIAL: ChainPlanTool / ChainPlanRepairTool use CaptureToolOutcomeGateway
         // for soft→IDENTICAL_SPAM. Still special: retryValidationFailures=false + dedicated
         // runPlanRepairIfNeeded outer (not CaptureRepairRunner validation outer).
         chatMemorySanitizer.repairDanglingToolCalls(memoryId);

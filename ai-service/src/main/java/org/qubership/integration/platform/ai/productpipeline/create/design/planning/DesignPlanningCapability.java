@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -142,7 +143,11 @@ public class DesignPlanningCapability implements StageCapability {
               ex.getMessage()));
     } catch (RuntimeException ex) {
       return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, ex.getMessage()));
+          StageOutcome.of(
+              TransientFailures.isTransient(ex)
+                  ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
+                  : StageOutcomeClass.CONTRACT_FAILURE,
+              ex.getMessage()));
     }
   }
 

@@ -147,6 +147,33 @@ class CompilerPlanningRunnerTest {
   }
 
   @Test
+  void buildValidationResultKeepsSecurityIssueIdAsFindingCode() {
+    var issue =
+        new org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue(
+            "security-1",
+            org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity
+                .BLOCKER,
+            "External route RBAC requires a non-empty roles list",
+            "cip-security-validator",
+            List.of("http-trigger-1"),
+            List.of(),
+            "Configure one or more explicit RBAC roles");
+    var result =
+        CompilerPlanningRunner.buildValidationResult(
+            new ValidationResult(false, List.of(issue), "security validation failed with 1 blocker(s)"),
+            List.of());
+
+    assertFalse(result.approvalEligible());
+    assertTrue(
+        result.findings().stream()
+            .anyMatch(
+                finding ->
+                    "security-1".equals(finding.code())
+                        && finding.blocker()
+                        && finding.message().contains("RBAC")));
+  }
+
+  @Test
   void applyForcedElseConditionInjectsPropertyWhenSeedRequestsIt() {
     ChainPlanGraph graph =
         new ChainPlanGraph(

@@ -453,10 +453,6 @@ public class CipDesignExecutorJavaAdapter {
           StageOutcomeClass.VALIDATION_FAILURE,
           "compiler validation bundle is required for Phase 5 validation");
     }
-    if (!compilerBundle.approvalEligible()) {
-      return ExecutionResult.failure(
-          StageOutcomeClass.VALIDATION_FAILURE, "compiler validation bundle did not pass");
-    }
 
     ValidationResult freshPlanValidation =
         planValidator.validate(new PlanGraphValidationInput(graph));
@@ -464,10 +460,15 @@ public class CipDesignExecutorJavaAdapter {
         mergeCompilerBundleFindings(
             CompilerPlanningRunner.buildValidationResult(freshPlanValidation, List.of()),
             compilerBundle);
-    if (!planValidation.approvalEligible()) {
-      return ExecutionResult.failure(
+    if (!compilerBundle.approvalEligible() || !planValidation.approvalEligible()) {
+      return new ExecutionResult(
           StageOutcomeClass.VALIDATION_FAILURE,
-          formatValidationFailureMessage(planValidation));
+          formatValidationFailureMessage(planValidation),
+          null,
+          List.of(
+              new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, planValidation, List.of()),
+              new ArtifactCandidate(
+                  Kind.COMPILER_VALIDATION_BUNDLE, compilerBundle, List.of())));
     }
     // One fresh CompilerPlanValidator pass covers graph structure and plan rules.
     PlanValidationResult graphValidation = planValidation;

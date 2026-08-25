@@ -22,7 +22,7 @@ public final class ToolArgumentsFailures {
     return false;
   }
 
-  static String message(Throwable error) {
+  public static String message(Throwable error) {
     Throwable current = error;
     while (current != null) {
       if (current instanceof ToolArgumentsException) {

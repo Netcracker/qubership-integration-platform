@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineCompatibilityAnalyzer;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
@@ -170,7 +171,10 @@ public class ProductPipelineRuntimeProducers {
       DesignInputPromptAgent designInputPromptAgent,
       ApprovalPromptAgent approvalPromptAgent,
       FailureNarrativeAgent failureNarrativeAgent,
-      S3Service s3Service) {
+      S3Service s3Service,
+      AppConfig appConfig) {
+    AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
+        appConfig.create().failureNarrative();
     return new ProductPipelineRunSupport(
         runs,
         artifacts,
@@ -180,8 +184,13 @@ public class ProductPipelineRuntimeProducers {
         Clock.systemUTC(),
         new DesignInputIdsPathPrompts(designInputPromptAgent),
         new ApprovalPrompts(approvalPromptAgent),
-        s3Service,
-        new FailureNarrative(failureNarrativeAgent));
+            s3Service,
+            new FailureNarrative(
+                failureNarrativeAgent,
+                narrativeConfig.maxCallsPerRun(),
+                narrativeConfig.timeout(),
+                appConfig.create().runCacheIdleTimeout()),
+            appConfig.create().runCacheIdleTimeout());
   }
 
   @Produces

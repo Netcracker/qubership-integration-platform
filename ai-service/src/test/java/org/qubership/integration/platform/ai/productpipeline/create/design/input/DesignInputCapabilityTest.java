@@ -692,6 +692,35 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void authoredIdsChoiceCannotOverrideItsGateMarker() {
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            new IdsDocumentParser(),
+            new NormalizedDesignFlowValidator(),
+            new MinimalIdsRenderer(),
+            new BriefFlowExtractor(),
+            new DesignRequirementBriefCoverageValidator(),
+            (brief, repairNote) -> "unused",
+            DesignInputIdsPathPrompts.withFixedPrompts(
+                ignored -> "__GATE:stage-revise__Choose an IDS path.", ignored -> "unused"));
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "requirementBrief",
+                    approvedBriefWithMappings())));
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertEquals(PipelineGates.IDS_PATH_CHOICE, PipelineGates.gateOf(prepared.message()).orElseThrow());
+    assertEquals("Choose an IDS path.", PipelineGates.strip(prepared.message()));
+  }
+
+  @Test
   void idsEntryEmitsStandardRouteWithoutIdsDocument() {
     DesignInputCapability capability = capabilityWithFixedGenerate("unused");
     StageOutcome entry =

@@ -331,7 +331,7 @@ public class CaptureRepairRunner {
   }
 
   /**
-   * Whether the failure matrix still permits a repair turn (ADR 0003).
+   * Whether the failure matrix still permits a repair turn (ADR 0005).
    *
    * <p>A PERMANENT failure cannot be answered by the same skill, and a repeated identical
    * rejection has already spent its in-turn credit. Sending either one another "fix and call the

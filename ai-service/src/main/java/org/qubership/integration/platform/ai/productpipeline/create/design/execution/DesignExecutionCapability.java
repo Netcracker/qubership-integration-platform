@@ -15,6 +15,8 @@ import java.util.function.BiConsumer;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -128,17 +130,28 @@ public class DesignExecutionCapability implements StageCapability {
       // Adapter uses CANDIDATE to mean Phase 5 checkpoint (WAITING_FOR_MATERIALIZATION). The
       // create-chain@2 design-execution stage has no approval gate, so map that to SUCCEEDED so
       // Flow continues into materialization with the Phase 5 candidates.
-      if (result.outcomeClass() == StageOutcomeClass.CANDIDATE
-          || result.outcomeClass() == StageOutcomeClass.SUCCEEDED) {
-        return completedSignal(
-            new StageOutcome(
-                StageOutcomeClass.SUCCEEDED,
-                result.candidates() == null ? List.of() : result.candidates(),
-                result.message(),
-                null));
-      }
-      return completedSignal(StageOutcome.of(result.outcomeClass(), result.message()));
+      StageOutcomeClass mapped =
+          result.outcomeClass() == StageOutcomeClass.CANDIDATE
+                  || result.outcomeClass() == StageOutcomeClass.SUCCEEDED
+              ? StageOutcomeClass.SUCCEEDED
+              : result.outcomeClass();
+      return completedSignal(
+          new StageOutcome(
+              mapped,
+              result.candidates() == null ? List.of() : result.candidates(),
+              result.message(),
+              null));
     } catch (RuntimeException ex) {
+      if (TransientFailures.isTransient(ex)) {
+        return completedSignal(
+            StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, ex.getMessage()));
+      }
+      if (ToolArgumentsFailures.isToolArgumentsFailure(ex)) {
+        return completedSignal(
+            StageOutcome.of(
+                StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+                ToolArgumentsFailures.message(ex)));
+      }
       String message = ex.getMessage();
       if (message == null || message.isBlank()) {
         message = "design execution failed: " + ex.getClass().getSimpleName();

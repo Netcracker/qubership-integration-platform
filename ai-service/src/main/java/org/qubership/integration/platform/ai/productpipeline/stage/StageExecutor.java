@@ -12,4 +12,10 @@ import io.smallrye.mutiny.Uni;
 public interface StageExecutor {
 
   Uni<StageExecutionResult> execute(String runId, String expectedStageId);
+
+  /**
+   * Records a throwable that escaped {@link #execute} as a halt on the run's current stage, so that
+   * the caller driving the executor never has to turn an error into a decision of its own.
+   */
+  StageExecutionResult haltOnEscapedFailure(String runId, Throwable failure);
 }

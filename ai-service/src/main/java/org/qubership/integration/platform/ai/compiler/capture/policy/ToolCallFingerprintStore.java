@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Per-conversation soft-credit ledger keyed by fingerprint identity (ADR 0003). */
+/** Per-conversation soft-credit ledger keyed by fingerprint identity (ADR 0005). */
 @ApplicationScoped
 public class ToolCallFingerprintStore {
 

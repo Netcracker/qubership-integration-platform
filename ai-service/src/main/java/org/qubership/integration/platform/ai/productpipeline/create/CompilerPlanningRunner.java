@@ -262,16 +262,24 @@ public class CompilerPlanningRunner {
           if (issue == null || issue.severity() != ValidationSeverity.BLOCKER) {
             continue;
           }
-          String code = propertyFindingCode(issue.message());
+          // Prefer structural property codes; otherwise keep the validator issueId (e.g. security-1)
+          // so owner remapping can classify policy findings.
+          String propertyCode = propertyFindingCode(issue.message());
+          String issueId = issue.issueId() == null ? "" : issue.issueId().trim();
+          String code =
+              propertyCode != null
+                  ? propertyCode
+                  : (!issueId.isBlank() ? issueId : "COMPILER_BLOCKER");
           String message =
-              code != null
-                  ? code
+              propertyCode != null
+                  ? propertyCode
                       + (issue.message() == null || issue.message().isBlank()
                           ? ""
                           : ": " + issue.message())
-                  : issue.message() == null ? "compiler validation blocker" : issue.message();
-          findings.add(
-              new PlanValidationFinding(code != null ? code : "COMPILER_BLOCKER", message, true));
+                  : issue.message() == null || issue.message().isBlank()
+                      ? "compiler validation blocker"
+                      : issue.message();
+          findings.add(new PlanValidationFinding(code, message, true));
         }
       }
       if (!compilerValidation.valid()
@@ -471,17 +479,43 @@ public class CompilerPlanningRunner {
   }
 
   /** Outcome produced by the compiler-derived planning spine (or test double). */
+  /**
+   * What one planning spine pass produced. {@code degradationFindings} carries the fail-open skips
+   * and substitutions, which belong on the candidate the author approves rather than only in the
+   * transcript.
+   */
   public record PlanningSpineOutcome(
       List<String> executedSkillIds,
       ChainPlanGraph graph,
       ValidationResult validationResult,
       String selectedPatternId,
       String selectedPatternSummary,
-      List<String> ownerSkills) {
+      List<String> ownerSkills,
+      List<PlanValidationFinding> degradationFindings) {
 
     public PlanningSpineOutcome {
       executedSkillIds = executedSkillIds == null ? List.of() : List.copyOf(executedSkillIds);
       ownerSkills = ownerSkills == null ? List.of() : List.copyOf(ownerSkills);
+      degradationFindings =
+          degradationFindings == null ? List.of() : List.copyOf(degradationFindings);
+    }
+
+    /** Outcome of a pass that degraded nothing. */
+    public PlanningSpineOutcome(
+        List<String> executedSkillIds,
+        ChainPlanGraph graph,
+        ValidationResult validationResult,
+        String selectedPatternId,
+        String selectedPatternSummary,
+        List<String> ownerSkills) {
+      this(
+          executedSkillIds,
+          graph,
+          validationResult,
+          selectedPatternId,
+          selectedPatternSummary,
+          ownerSkills,
+          List.of());
     }
 
     public static PlanningSpineOutcome empty(List<String> skillOrder) {

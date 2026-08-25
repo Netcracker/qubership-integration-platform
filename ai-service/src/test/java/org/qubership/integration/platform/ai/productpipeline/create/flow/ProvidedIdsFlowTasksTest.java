@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
@@ -35,6 +37,7 @@ class ProvidedIdsFlowTasksTest {
     runtime = mock(ProductPipelineRunSupport.class);
     executor = mock(StageExecutor.class);
     when(runtime.stageExecutor()).thenReturn(executor);
+    when(runtime.retryPolicy(RUN_ID, "work")).thenReturn(new RetryPolicy(3, 100L, 2.0, 250L));
     when(runtime.applyStageLifecycle(eq(RUN_ID), any())).thenReturn(Multi.createFrom().empty());
     tasks = new ProvidedIdsFlowTasks(runtime);
   }
@@ -105,21 +108,68 @@ class ProvidedIdsFlowTasksTest {
   }
 
   @Test
-  void retryDecisionPersistsDelayAndIncrementedRetryCount() {
+  void retryDecisionsGrowWithinJitterBoundsAndClampAtTheMaximum() {
     when(runtime.currentStageId(RUN_ID)).thenReturn("work");
     when(executor.execute(RUN_ID, "work"))
         .thenReturn(
             Uni.createFrom()
                 .item(
                     new StageExecutionResult(
-                        new StageDecision.Retry("work", Duration.ofMillis(50L)), List.of())));
+                        new StageDecision.Retry("work", Duration.ofMillis(100L)), List.of())),
+            Uni.createFrom()
+                .item(
+                    new StageExecutionResult(
+                        new StageDecision.Retry("work", Duration.ofMillis(100L)), List.of())),
+            Uni.createFrom()
+                .item(
+                    new StageExecutionResult(
+                        new StageDecision.Retry("work", Duration.ofMillis(100L)), List.of())));
+
+    ProvidedIdsFlow.RunContext first = tasks.executeCurrentStage(context());
+    ProvidedIdsFlow.RunContext second = tasks.executeCurrentStage(first);
+    ProvidedIdsFlow.RunContext third = tasks.executeCurrentStage(second);
+
+    assertEquals("RETRY", first.decision());
+    assertEquals(1, first.technicalRetriesUsed());
+    assertTrue(delayMs(first) >= 80 && delayMs(first) <= 120);
+    assertTrue(delayMs(second) >= 160 && delayMs(second) <= 240);
+    assertEquals(250L, delayMs(third));
+  }
+
+  @Test
+  void nonRetryDecisionResetsTheUsedAttemptCount() {
+    when(runtime.currentStageId(RUN_ID)).thenReturn("work");
+    when(executor.execute(RUN_ID, "work"))
+        .thenReturn(
+            Uni.createFrom().item(new StageExecutionResult(new StageDecision.Continue("work"), List.of())));
+
+    ProvidedIdsFlow.RunContext next =
+        tasks.executeCurrentStage(
+            new ProvidedIdsFlow.RunContext(
+                RUN_ID, "create-chain", "2", "manifest-sha", "RETRY", 2, "PT0.2S"));
+
+    assertEquals("CONTINUE", next.decision());
+    assertEquals(null, next.technicalRetriesUsed());
+  }
+
+  @Test
+  void aStageExecutionThatFailsSettlesTheContextInsteadOfPropagating() {
+    String prompt = PipelineGates.tag(PipelineGates.STAGE_RETRY, "catalog lookup broke");
+    when(runtime.currentStageId(RUN_ID)).thenReturn("work");
+    when(executor.execute(RUN_ID, "work"))
+        .thenReturn(Uni.createFrom().failure(new IllegalStateException("catalog lookup broke")));
+    when(executor.haltOnEscapedFailure(eq(RUN_ID), any()))
+        .thenReturn(
+            new StageExecutionResult(
+                new StageDecision.WaitForInput("work", prompt),
+                List.of(new PipelineSignal.WaitingForInput("work", prompt))));
 
     ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(context());
 
-    assertEquals("RETRY", next.decision());
-    assertEquals("PT0.05S", next.retryDelay());
-    assertEquals(1, next.technicalRetriesUsed());
-    assertTrue(next.waitForRetry());
+    assertEquals("WAIT_FOR_INPUT", next.decision());
+    assertTrue(tasks.settled(RUN_ID));
+    assertEquals(
+        List.of(new PipelineSignal.WaitingForInput("work", prompt)), tasks.drainSignals(RUN_ID));
   }
 
   @Test
@@ -155,47 +205,12 @@ class ProvidedIdsFlowTasksTest {
     org.mockito.Mockito.verify(runtime).restoreTechnicalRetryCount(RUN_ID, "work", 1);
   }
 
-  @Test
-  void reopenApprovalMapsToTheOwningRequirementApprovalWait() {
-    when(runtime.currentStageId(RUN_ID)).thenReturn("design-input");
-    when(executor.execute(RUN_ID, "design-input"))
-        .thenReturn(Uni.createFrom().item(reopen("design-input", "requirement-analysis")));
-
-    ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(context());
-
-    assertEquals("WAIT_FOR_REQUIREMENT_APPROVAL", next.decision());
-    assertTrue(next.waitForRequirementApproval());
-    assertFalse(next.reenterStage());
-  }
-
-  @Test
-  void reopenApprovalMapsToTheOwningIdsApprovalWait() {
-    when(runtime.currentStageId(RUN_ID)).thenReturn("design-planning");
-    when(executor.execute(RUN_ID, "design-planning"))
-        .thenReturn(Uni.createFrom().item(reopen("design-planning", "design-input")));
-
-    ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(context());
-
-    assertEquals("WAIT_FOR_IDS_APPROVAL", next.decision());
-    assertTrue(next.waitForIdsApproval());
-    assertFalse(next.reenterStage());
-  }
-
-  @Test
-  void reopenApprovalMapsToTheOwningPlanApprovalWait() {
-    when(runtime.currentStageId(RUN_ID)).thenReturn("design-execution");
-    when(executor.execute(RUN_ID, "design-execution"))
-        .thenReturn(Uni.createFrom().item(reopen("design-execution", "design-planning")));
-
-    ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(context());
-
-    assertEquals("WAIT_FOR_PLAN_APPROVAL", next.decision());
-    assertTrue(next.waitForPlanApproval());
-    assertFalse(next.reenterStage());
-  }
-
   private static ProvidedIdsFlow.RunContext context() {
     return new ProvidedIdsFlow.RunContext(RUN_ID, "create-chain", "2", "manifest-sha", null);
+  }
+
+  private static long delayMs(ProvidedIdsFlow.RunContext context) {
+    return Duration.parse(context.retryDelay()).toMillis();
   }
 
   private static StageExecutionResult approval(String stageId) {
@@ -204,13 +219,6 @@ class ProvidedIdsFlowTasksTest {
             stageId,
             new CompilationArtifacts.Reference(Kind.REQUIREMENT_BRIEF, "brief-1", "hash-1"),
             "approve"),
-        List.of());
-  }
-
-  private static StageExecutionResult reopen(String failedStageId, String approvalStageId) {
-    return new StageExecutionResult(
-        new StageDecision.ReopenApproval(
-            failedStageId, approvalStageId, "planning validation failed", List.of()),
         List.of());
   }
 }

@@ -180,7 +180,8 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
         validation,
         patternId,
         patternSummary,
-        List.of());
+        List.of(),
+        result.degradationFindings());
   }
 
   private record PinnedRunContext(

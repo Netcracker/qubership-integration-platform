@@ -29,6 +29,8 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecut
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
 import org.qubership.integration.platform.ai.compiler.ChainEditSkillContext;
+import org.qubership.integration.platform.ai.compiler.plan.CompilerOrchestrationService;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
@@ -39,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssem
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphOwnershipFact;
 import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PatchApplicability;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
@@ -73,6 +76,7 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
 public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEngine {
 
   private static final Logger LOG = Logger.getLogger(DefaultCompilerDagExecutionEngine.class);
+  private final CompilerOrchestrationService orchestration = new CompilerOrchestrationService();
   private static final String REQUIREMENT_ANALYZER_SKILL = "cip-requirement-analyzer";
   private static final String PLANNING_STAGE_ID = "planning";
   private static final String PRODUCER_VERSION = "1";
@@ -229,6 +233,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     Map<String, ValidationResult> validatorPasses = new HashMap<>();
     SkillWorkspace workspace = workspaceStore.getOrCreate(workspaceId);
     PlanningPatchLedger.Builder patchLedger = new PlanningPatchLedger.Builder();
+    List<PlanValidationFinding> degradations = new ArrayList<>();
 
     boolean running = true;
     while (running) {
@@ -246,6 +251,12 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           PlanningSchedulerState previous = state;
           state = scheduler.executeNext(state);
           appendNewCompletions(executed, previous, state);
+        } else if (shouldSkipGenerator(node, workspace)) {
+          LOG.infof(
+              "Skipping generator skillId=%s reason=manifest SKIPPED",
+              node.skillId());
+          state = applyCompletion(state, node, List.of());
+          executed.add(node.skillId());
         } else {
           skillProgress.accept(node.skillId(), "running");
           Optional<String> previousParent = ToolInvocationSink.currentParentSkillId();
@@ -272,7 +283,9 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
                   node.skillId(),
                   node.executionMode());
               skillProgress.accept(node.skillId(), "error");
-              List<SkillArtifact> fallback = fallbackOutputsAfterSkillFailure(workspaceId, node);
+              degradations.add(PlanningDegradations.generatorSkipped(node.skillId()));
+              List<SkillArtifact> fallback =
+                  fallbackOutputsAfterSkillFailure(workspaceId, node, degradations);
               fallback = requireChainStructureFallback(workspaceId, node, fallback, ex);
               state = applyCompletion(state, node, fallback);
               executed.add(node.skillId());
@@ -294,7 +307,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     if (!stopAfterAssemblyAndMandatoryValidators(dag, state)) {
       throw new IllegalStateException("contract failure: planner stopped before mandatory nodes completed");
     }
-    return toResult(workspaceId, executed, patchLedger.build());
+    return toResult(workspaceId, executed, patchLedger.build(), degradations);
   }
 
   private static CompilerPlanningRequest toPlanningRequest(
@@ -327,13 +340,46 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return !node.mandatory();
   }
 
+  private static boolean isGeneratorNode(ResolvedCompilerNode node) {
+    if (node == null || node.executionMode() != CompilerNodeExecutionMode.LLM_SKILL) {
+      return false;
+    }
+    String generatorId = node.generatorId();
+    return generatorId != null && !generatorId.isBlank() && generatorId.startsWith("GEN-");
+  }
+
+  private boolean shouldSkipGenerator(ResolvedCompilerNode node, SkillWorkspace workspace) {
+    if (!isGeneratorNode(node) || workspace == null) {
+      return false;
+    }
+    try {
+      return workspace
+          .get(SkillArtifactType.GENERATOR_PLAN_MANIFEST)
+          .map(
+              artifact ->
+                  ((SkillArtifactPayload.GeneratorPlanManifestPayload) artifact.payload())
+                      .manifest())
+          .map(
+              manifest ->
+                  orchestration.statusForSkill(manifest, node.skillId())
+                      == GeneratorPlanStatus.SKIPPED)
+          .orElse(false);
+    } catch (RuntimeException ex) {
+      LOG.warnf(
+          ex,
+          "Generator plan manifest unreadable skillId=%s — fail-open",
+        node.skillId());
+      return false;
+    }
+  }
+
   /**
    * When an LLM skill fails without outputs, keep any already-captured artifacts it was supposed to
    * produce (for example a prior naming manifest on replan). If naming produced nothing yet, emit a
    * soft default so downstream planning can continue.
    */
   private List<SkillArtifact> fallbackOutputsAfterSkillFailure(
-      String conversationId, ResolvedCompilerNode node) {
+      String conversationId, ResolvedCompilerNode node, List<PlanValidationFinding> degradations) {
     if (node.executionMode() != CompilerNodeExecutionMode.LLM_SKILL) {
       return List.of();
     }
@@ -354,7 +400,12 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       } catch (IllegalArgumentException ignored) {
         continue;
       }
-      workspace.get(type).ifPresent(fallback::add);
+      Optional<SkillArtifact> carried = workspace.get(type);
+      if (carried.isPresent()) {
+        fallback.add(carried.get());
+        degradations.add(
+            PlanningDegradations.fallbackSubstituted(node.skillId(), type.name()));
+      }
     }
     if (expectsNaming
         && fallback.stream().noneMatch(a -> a.type() == SkillArtifactType.NAMING_MANIFEST)) {
@@ -367,6 +418,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               new SkillArtifactPayload.NamingManifestPayload(softDefault));
       fallback.add(naming);
       workspaceStore.putArtifact(conversationId, naming);
+      degradations.add(
+          PlanningDegradations.defaultChainName(node.skillId(), softDefault.chainName()));
       LOG.warnf(
           "Using soft-default naming manifest conversationId=%s skillId=%s chainName=%s",
           conversationId, node.skillId(), softDefault.chainName());
@@ -976,7 +1029,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   }
 
   private CompilerDagExecutionResult toResult(
-      String conversationId, List<String> executedSkillIds, PlanningPatchLedger patchLedger) {
+      String conversationId,
+      List<String> executedSkillIds,
+      PlanningPatchLedger patchLedger,
+      List<PlanValidationFinding> degradations) {
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     ChainPlanGraph graph =
         workspace
@@ -1003,7 +1059,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         patchLedger,
         graph,
         assemblyResult,
-        validationBundle);
+        validationBundle,
+        List.copyOf(degradations));
   }
 
   private record PinnedRunContext(RunManifest manifest, CompilerRunPin pin) {

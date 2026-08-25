@@ -12,12 +12,15 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessageBuilder;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
@@ -124,6 +127,48 @@ class RequirementBriefToolTest {
     assertTrue(thrown.getMessage().contains("already captured"));
     assertTrue(thrown.getMessage().contains("finish this turn"));
     assertTrue(getBrief("conv-brief").isPresent());
+  }
+
+  @Test
+  void mismatchedApprovedDraftTextFailsFastWithoutStoringBrief() {
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    RequirementDraft approved =
+        org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures
+            .greetingsApprovedDraft();
+    draftStore.put("conv-brief", approved);
+    tool =
+        new RequirementBriefTool(
+            captureSession,
+            draftStore,
+            new ObjectMapper(),
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
+
+    CaptureValidationException thrown =
+        assertThrows(
+            CaptureValidationException.class,
+            () ->
+                tool.captureRequirementBrief(
+                    new RequirementBriefCapture(
+                        "Greeting endpoint",
+                        java.util.List.of(),
+                        java.util.List.of(),
+                        java.util.List.of(),
+                        "summary only",
+                        null,
+                        "paraphrased draft that is not the pinned planning text",
+                        approved.facts(),
+                        java.util.List.of())));
+
+    assertTrue(thrown.getMessage().contains("approvedDraftText does not match"), thrown.getMessage());
+    assertFalse(getBrief("conv-brief").isPresent());
+    CaptureAttemptFeedback failure = feedbackStore.lastPlanFailure("conv-brief").orElseThrow();
+    assertEquals(CaptureFailureKind.VALIDATION, failure.kind());
+    assertEquals(CaptureFailureClass.PERMANENT, failure.failureClass());
+    assertFalse(failure.outerAllowed());
   }
 
   @Test

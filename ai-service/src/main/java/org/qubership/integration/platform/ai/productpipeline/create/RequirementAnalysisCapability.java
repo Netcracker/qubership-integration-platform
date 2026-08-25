@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairRunner;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
@@ -42,7 +43,9 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextRequest;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeFailureKind;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
@@ -266,12 +269,18 @@ public class RequirementAnalysisCapability implements StageCapability {
     if (briefProducer != null) {
       try {
         SkillActivitySupport.bindParents(SKILL_ID);
+        RequirementBrief produced = briefProducer.apply(context);
         CapabilitySignal.Completed completed =
-            completeWithBrief(context, approved, workspace, briefProducer.apply(context));
+            completeWithBrief(context, approved, workspace, produced);
+        List<CapabilitySignal> terminal = new java.util.ArrayList<>();
+        if (isRepairTurn(context) && completed.outcome().outcomeClass() == StageOutcomeClass.CANDIDATE) {
+          terminal.add(new CapabilitySignal.Message(repairChangeSummary(context, produced)));
+        }
+        terminal.add(completed);
         return Multi.createFrom()
             .iterable(
                 prependRunning(
-                    SKILL_ID, SkillActivitySupport.wrapTerminal(SKILL_ID, List.of(completed))));
+                    SKILL_ID, SkillActivitySupport.wrapTerminal(SKILL_ID, List.copyOf(terminal))));
       } finally {
         SkillActivitySupport.clearParents();
         ProductCapabilityCaptureContext.unbind();
@@ -384,6 +393,13 @@ public class RequirementAnalysisCapability implements StageCapability {
       SkillWorkspace workspace,
       RequirementBrief brief) {
     if (brief == null) {
+      if (feedbackStore != null) {
+        var lastFailure = feedbackStore.lastPlanFailure(context.conversationId());
+        if (lastFailure.isPresent() && lastFailure.get().kind() == CaptureFailureKind.VALIDATION) {
+          return new CapabilitySignal.Completed(
+              StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, lastFailure.get().summary()));
+        }
+      }
       return new CapabilitySignal.Completed(
           StageOutcome.of(
               StageOutcomeClass.NEEDS_INPUT,
@@ -416,9 +432,12 @@ public class RequirementAnalysisCapability implements StageCapability {
         stageRequiresApproval(context)
             ? StageOutcomeClass.CANDIDATE
             : StageOutcomeClass.SUCCEEDED;
+    String message =
+        isRepairTurn(context)
+            ? "Requirement brief updated. Approve to rebuild the plan."
+            : "Requirement brief ready";
     return new CapabilitySignal.Completed(
-        new StageOutcome(
-            outcomeClass, List.of(candidate), "Requirement brief ready", null));
+        new StageOutcome(outcomeClass, List.of(candidate), message, null));
   }
 
   /** True when the active profile stage declares an approval gate for this capability run. */
@@ -458,7 +477,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         buildAnalysisUserMessage(
                 approved,
                 context.attributeAsString("userText"),
-                responseLocale(context))
+                responseLocale(context),
+                repairEvidence(context))
             + "\n\n"
             + contextPackage.renderMarkdown();
     if (evidenceEmitter != null) {
@@ -528,19 +548,43 @@ public class RequirementAnalysisCapability implements StageCapability {
   }
 
   static String buildAnalysisUserMessage(RequirementDraft approved, String changeRequestText) {
-    return buildAnalysisUserMessage(approved, changeRequestText, "en");
+    return buildAnalysisUserMessage(approved, changeRequestText, "en", null);
   }
 
   static String buildAnalysisUserMessage(
       RequirementDraft approved, String changeRequestText, String responseLocale) {
+    return buildAnalysisUserMessage(approved, changeRequestText, responseLocale, null);
+  }
+
+  static String buildAnalysisUserMessage(
+      RequirementDraft approved,
+      String changeRequestText,
+      String responseLocale,
+      BriefRepairEvidence repair) {
     String planning = approved.planningText() == null ? "" : approved.planningText();
     StringBuilder sb = new StringBuilder();
-    sb.append("Analyze the approved requirement draft and call captureRequirementBrief now.\n\n");
-    sb.append(
-        "Response language rule: after capture, summarize in pinned response locale "
-            + normalizedLocale(responseLocale)
-            + ". This locale is authoritative; do not infer another language from Planning text, "
-            + "conversation history, approval controls, tool output, or this English instruction.\n\n");
+    if (repair != null && repair.hasEvidence()) {
+      sb.append(
+          "Repair the previously approved requirement brief so it addresses the halt findings. "
+              + "Call captureRequirementBrief with the updated brief. Do not restart discovery "
+              + "from scratch.\n\n");
+      sb.append(
+          "Response language rule: after capture, summarize the changes you made in pinned "
+              + "response locale "
+              + normalizedLocale(responseLocale)
+              + ". Start with what you added or updated. Mention that approving rebuilds the "
+              + "plan. This locale is authoritative; do not infer another language from Planning "
+              + "text, conversation history, approval controls, tool output, or this English "
+              + "instruction.\n\n");
+      appendRepairEvidence(sb, repair);
+    } else {
+      sb.append("Analyze the approved requirement draft and call captureRequirementBrief now.\n\n");
+      sb.append(
+          "Response language rule: after capture, summarize in pinned response locale "
+              + normalizedLocale(responseLocale)
+              + ". This locale is authoritative; do not infer another language from Planning text, "
+              + "conversation history, approval controls, tool output, or this English instruction.\n\n");
+    }
     if (hasPositiveServiceCall(approved)) {
       sb.append(
           "Capture typed dataMappings for every required edge around positive SERVICE_CALL facts. "
@@ -577,6 +621,105 @@ public class RequirementAnalysisCapability implements StageCapability {
           .append('\n');
     }
     return sb.toString();
+  }
+
+  private static void appendRepairEvidence(StringBuilder sb, BriefRepairEvidence repair) {
+    sb.append("Halt repair evidence:\n");
+    if (repair.outcomeClass() != null && !repair.outcomeClass().isBlank()) {
+      sb.append("- outcomeClass: ").append(repair.outcomeClass().trim()).append('\n');
+    }
+    if (repair.failedStageId() != null && !repair.failedStageId().isBlank()) {
+      sb.append("- failedStageId: ").append(repair.failedStageId().trim()).append('\n');
+    }
+    if (repair.findings() != null && !repair.findings().isBlank()) {
+      sb.append("- validationFindings:\n").append(repair.findings().trim()).append('\n');
+    }
+    if (repair.errorEvidence() != null && !repair.errorEvidence().isBlank()) {
+      sb.append("- errorEvidence:\n").append(repair.errorEvidence().trim()).append('\n');
+    }
+    if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
+      sb.append("- haltFollowUpText: ").append(repair.haltFollowUpText().trim()).append('\n');
+    }
+    if (repair.priorBriefText() != null && !repair.priorBriefText().isBlank()) {
+      sb.append("\nPrior requirement brief:\n")
+          .append(repair.priorBriefText().trim())
+          .append("\n\n");
+    } else {
+      sb.append('\n');
+    }
+  }
+
+  static boolean isRepairTurn(StageExecutionContext context) {
+    if (context == null) {
+      return false;
+    }
+    String error = context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR);
+    return error != null && !error.isBlank();
+  }
+
+  static BriefRepairEvidence repairEvidence(StageExecutionContext context) {
+    if (!isRepairTurn(context)) {
+      return null;
+    }
+    RequirementBrief prior = priorBrief(context);
+    return new BriefRepairEvidence(
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR),
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR),
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR),
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR),
+        context.attributeAsString(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR),
+        prior == null ? "" : RequirementBriefText.format(prior));
+  }
+
+  private static RequirementBrief priorBrief(StageExecutionContext context) {
+    Object attribute = context.attributes().get("requirementBrief");
+    if (attribute instanceof RequirementBrief brief) {
+      return brief;
+    }
+    return null;
+  }
+
+  static String repairChangeSummary(StageExecutionContext context, RequirementBrief repaired) {
+    BriefRepairEvidence evidence = repairEvidence(context);
+    StringBuilder sb = new StringBuilder();
+    sb.append("I updated the requirement brief to address the earlier failure");
+    if (evidence != null
+        && evidence.findings() != null
+        && !evidence.findings().isBlank()) {
+      sb.append(" (").append(firstFindingHint(evidence.findings())).append(')');
+    } else if (evidence != null
+        && evidence.errorEvidence() != null
+        && !evidence.errorEvidence().isBlank()) {
+      sb.append(" (").append(firstFindingHint(evidence.errorEvidence())).append(')');
+    }
+    sb.append('.');
+    if (repaired != null && repaired.goal() != null && !repaired.goal().isBlank()) {
+      sb.append(" Updated goal: ").append(repaired.goal().trim()).append('.');
+    }
+    sb.append(" If you approve, the plan will be rebuilt.");
+    return sb.toString();
+  }
+
+  private static String firstFindingHint(String text) {
+    String trimmed = text.trim();
+    int newline = trimmed.indexOf('\n');
+    String first = newline < 0 ? trimmed : trimmed.substring(0, newline).trim();
+    return first.length() <= 160 ? first : first.substring(0, 160);
+  }
+
+  /** Structured halt evidence injected into the analysis repair turn. */
+  record BriefRepairEvidence(
+      String outcomeClass,
+      String failedStageId,
+      String findings,
+      String errorEvidence,
+      String haltFollowUpText,
+      String priorBriefText) {
+
+    boolean hasEvidence() {
+      return (errorEvidence != null && !errorEvidence.isBlank())
+          || (findings != null && !findings.isBlank());
+    }
   }
 
   private static String normalizedLocale(String responseLocale) {
