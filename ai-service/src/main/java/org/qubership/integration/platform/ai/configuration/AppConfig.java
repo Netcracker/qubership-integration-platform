@@ -49,6 +49,9 @@ public interface AppConfig {
   @WithName("qipknowledge")
   QipKnowledgeConfig qipknowledge();
 
+  @WithName("e2e")
+  E2eConfig e2e();
+
   interface A2aConfig {
     @WithDefault("false")
     boolean enabled();
@@ -174,6 +177,13 @@ public interface AppConfig {
       @WithDefault("false")
       boolean skip();
     }
+  }
+
+  interface E2eConfig {
+    // Empty String would collide with SmallRye's built-in String converter (SRCFG00040 treats
+    // "" as null for a plain String); Optional is the documented way around it.
+    @WithName("recovery-fault-chain-prefix")
+    java.util.Optional<String> recoveryFaultChainPrefix();
   }
 
   interface ApihubConfig {
