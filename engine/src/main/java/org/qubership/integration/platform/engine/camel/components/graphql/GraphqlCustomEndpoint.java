@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.camel.components.graphql;
 
 import org.apache.camel.Category;
 import org.apache.camel.Component;
+import org.apache.camel.Producer;
 import org.apache.camel.component.graphql.GraphqlEndpoint;
 import org.apache.camel.component.http.HttpClientConfigurer;
 import org.apache.camel.spi.UriEndpoint;
@@ -52,6 +53,11 @@ public class GraphqlCustomEndpoint extends GraphqlEndpoint {
 
     public void setHttpClientConfigurer(HttpClientConfigurer httpClientConfigurer) {
         this.httpClientConfigurer = httpClientConfigurer;
+    }
+
+    @Override
+    public Producer createProducer() throws Exception {
+        return new GraphqlCustomProducer(this);
     }
 
     @Override
