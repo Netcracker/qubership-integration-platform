@@ -5,32 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.DOMAIN_FAILURE;
-import static org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE;
 import static org.qubership.integration.platform.ai.productpipeline.create.design.execution.BindingResolutionResult.WAITING_FOR_INPUT;
 
-import io.smallrye.mutiny.Uni;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
-import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
-import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -44,18 +30,12 @@ class ExecutorCatalogBindingAdapterTest {
   private static final Instant FIXED = Instant.parse("2026-07-30T09:00:00Z");
 
   private CatalogSystemReadTool catalogReadTool;
-  private ApiHubMcpTools apiHubMcpTools;
-  private CatalogMutationGateway catalogMutationGateway;
   private ExecutorCatalogBindingAdapter adapter;
 
   @BeforeEach
   void setUp() {
     catalogReadTool = mock(CatalogSystemReadTool.class);
-    apiHubMcpTools = mock(ApiHubMcpTools.class);
-    catalogMutationGateway = mock(CatalogMutationGateway.class);
-    adapter =
-        new DefaultExecutorCatalogBindingAdapter(
-            new CatalogBindingMatcher(catalogReadTool), apiHubMcpTools, catalogMutationGateway);
+    adapter = new DefaultExecutorCatalogBindingAdapter(new CatalogBindingMatcher(catalogReadTool));
   }
 
   @Test
@@ -72,40 +52,19 @@ class ExecutorCatalogBindingAdapterTest {
     assertEquals("sg-1", resolved.binding().specificationGroupId());
     assertEquals("spec-1", resolved.binding().specificationId());
     assertEquals("op-1", resolved.binding().integrationOperationId());
-    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
   }
 
   @Test
-  void catalogMissImportsViaApiHubAfterApproval() {
+  void catalogMissStopsInsteadOfImporting() {
     when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-    when(apiHubMcpTools.searchApiOperations(
-            eq("GET /pets"), eq("rest"), isNull(), eq(0), eq(100), isNull()))
-        .thenReturn(singleApiHubHitJson());
-    when(catalogMutationGateway.importApiHubSpecification(eq(CONVERSATION_ID), any()))
-        .thenReturn(
-            Uni.createFrom()
-                .item(
-                    new ApiHubSpecificationImportResult(
-                        "sys-imported",
-                        "spec-imported",
-                        "sg-imported",
-                        "import-1",
-                        "Petstore",
-                        Optional.of("op-imported"))));
 
     List<BindingResolutionResult> results =
         adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
 
-    BindingResolutionResult.Resolved resolved =
-        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
-    assertEquals(CatalogBindingResolution.Source.APIHUB_IMPORT, resolved.binding().source());
-    assertEquals("sys-imported", resolved.binding().systemId());
-    assertEquals("pkg.petstore", resolved.binding().packageId());
-    assertEquals("2024.4", resolved.binding().release());
-    assertTrue(resolved.binding().evidenceRef().contains("apihub-import"));
-    verify(catalogMutationGateway).importApiHubSpecification(eq(CONVERSATION_ID), any());
-    verify(apiHubMcpTools, times(1))
-        .searchApiOperations(eq("GET /pets"), eq("rest"), isNull(), eq(0), eq(100), isNull());
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
+    assertTrue(failed.reason().contains("requirement gathering"), failed.reason());
   }
 
   @Test
@@ -118,8 +77,7 @@ class ExecutorCatalogBindingAdapterTest {
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
     assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
-    assertTrue(failed.reason().contains("local catalog"), failed.reason());
-    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
+    assertTrue(failed.reason().contains("no catalog binding"), failed.reason());
   }
 
   @Test
@@ -142,7 +100,6 @@ class ExecutorCatalogBindingAdapterTest {
         assertInstanceOf(BindingResolutionResult.NeedsInput.class, results.getFirst());
     assertEquals(WAITING_FOR_INPUT, needsInput.outcomeClass());
     assertEquals(List.of("op-a", "op-b"), needsInput.candidateIds());
-    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
   }
 
   @Test
@@ -180,11 +137,10 @@ class ExecutorCatalogBindingAdapterTest {
     assertEquals("sys-o", first.binding().systemId());
     assertEquals("call-billing", second.binding().serviceCallStepId());
     assertEquals("sys-b", second.binding().systemId());
-    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
   }
 
   @Test
-  void staleHintReReadsCatalogInsteadOfTrustingHint() {
+  void staleHintStopsInsteadOfSelectingAnotherOperation() {
     CatalogBindingHint stale =
         new CatalogBindingHint(
             "1",
@@ -197,7 +153,7 @@ class ExecutorCatalogBindingAdapterTest {
             "2024.4",
             FIXED,
             "hint-stale");
-    // Hint IDs are gone; live catalog has the real match.
+    // The approved operation is gone; another operation answers the same query.
     when(catalogReadTool.searchCatalogSystems(anyString()))
         .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
     when(catalogReadTool.getApiSpecifications("sys-1"))
@@ -210,96 +166,10 @@ class ExecutorCatalogBindingAdapterTest {
     List<BindingResolutionResult> results =
         adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(stale), approved());
 
-    BindingResolutionResult.Resolved resolved =
-        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
-    assertEquals("sys-1", resolved.binding().systemId());
-    assertEquals("op-1", resolved.binding().integrationOperationId());
-    verify(catalogReadTool, org.mockito.Mockito.atLeastOnce()).searchCatalogSystems(anyString());
-    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
-  }
-
-  @Test
-  void transientApiHubFailureRetriesOnceThenExhausts() {
-    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-    AtomicInteger searches = new AtomicInteger();
-    when(apiHubMcpTools.searchApiOperations(
-            anyString(), anyString(), any(), anyInt(), anyInt(), any()))
-        .thenAnswer(
-            invocation -> {
-              searches.incrementAndGet();
-              throw new IllegalStateException("API Hub MCP rejected session (Invalid session ID)");
-            });
-
-    List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
-
-    BindingResolutionResult.Failed failed =
-        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
-    assertEquals(RETRYABLE_TECHNICAL_FAILURE, failed.outcomeClass());
-    assertEquals(2, searches.get());
-    verify(catalogMutationGateway, never()).importApiHubSpecification(anyString(), any());
-  }
-
-  @Test
-  void operationNotFoundIsDomainFailureWithoutRetry() {
-    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-    when(apiHubMcpTools.searchApiOperations(
-            anyString(), anyString(), any(), anyInt(), anyInt(), any()))
-        .thenReturn("{\"operations\":[]}");
-
-    List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
-
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
     assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
-    verify(apiHubMcpTools, times(1))
-        .searchApiOperations(anyString(), anyString(), any(), anyInt(), anyInt(), any());
-    verifyNoInteractions(catalogMutationGateway);
-  }
-
-  @Test
-  void ambiguousApiHubMatchIsWaitingForInputWithoutRetry() {
-    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-    when(apiHubMcpTools.searchApiOperations(
-            anyString(), anyString(), any(), anyInt(), anyInt(), any()))
-        .thenReturn(
-            """
-            {"operations":[
-              {"packageId":"pkg.a","version":"2024.4","operationId":"op-a","documentId":"api","apiType":"rest"},
-              {"packageId":"pkg.b","version":"2024.4","operationId":"op-b","documentId":"api","apiType":"rest"}
-            ]}
-            """);
-
-    List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
-
-    BindingResolutionResult.NeedsInput needsInput =
-        assertInstanceOf(BindingResolutionResult.NeedsInput.class, results.getFirst());
-    assertEquals(WAITING_FOR_INPUT, needsInput.outcomeClass());
-    verify(apiHubMcpTools, times(1))
-        .searchApiOperations(anyString(), anyString(), any(), anyInt(), anyInt(), any());
-    verifyNoInteractions(catalogMutationGateway);
-  }
-
-  @Test
-  void importRejectionIsDomainFailureWithoutRetry() {
-    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-    when(apiHubMcpTools.searchApiOperations(
-            anyString(), anyString(), any(), anyInt(), anyInt(), any()))
-        .thenReturn(singleApiHubHitJson());
-    when(catalogMutationGateway.importApiHubSpecification(eq(CONVERSATION_ID), any()))
-        .thenReturn(Uni.createFrom().failure(new IllegalStateException("import rejected by catalog")));
-
-    List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
-
-    BindingResolutionResult.Failed failed =
-        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
-    assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
-    verify(catalogMutationGateway, times(1)).importApiHubSpecification(eq(CONVERSATION_ID), any());
-    verify(apiHubMcpTools, times(1))
-        .searchApiOperations(anyString(), anyString(), any(), anyInt(), anyInt(), any());
+    assertTrue(failed.reason().contains("op-stale"), failed.reason());
   }
 
   @Test
@@ -322,7 +192,6 @@ class ExecutorCatalogBindingAdapterTest {
                     "tester",
                     "ok",
                     FIXED)));
-    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
   }
 
   private void stubExactCatalogHit(
@@ -439,11 +308,4 @@ class ExecutorCatalogBindingAdapterTest {
         NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY);
   }
 
-  private static String singleApiHubHitJson() {
-    return """
-        {"operations":[
-          {"packageId":"pkg.petstore","version":"2024.4","operationId":"findPets","documentId":"api","apiType":"rest","packageName":"Petstore","title":"Petstore"}
-        ]}
-        """;
-  }
 }

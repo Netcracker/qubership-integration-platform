@@ -419,22 +419,8 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  void catalogMissCallOrderIsCatalogThenApiHubThenImportThenRunnerThenMaterialization() {
+  void catalogMissAtExecutionStopsWithoutSearchingOrImporting() {
     when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-    when(apiHubMcpTools.searchApiOperations(
-            eq("GET /pets"), eq("rest"), isNull(), eq(0), eq(100), isNull()))
-        .thenReturn(singleApiHubHitJson());
-    when(catalogMutationGateway.importApiHubSpecification(eq(CONVERSATION_ID), any()))
-        .thenReturn(
-            Uni.createFrom()
-                .item(
-                    new ApiHubSpecificationImportResult(
-                        "sys-imported",
-                        "spec-imported",
-                        "sg-imported",
-                        "import-1",
-                        "Petstore",
-                        Optional.of("op-imported"))));
     when(approvedCompilerExecutionRunner.execute(any(), any(), anyList(), any(), any(), any()))
         .thenReturn(successfulEngineResult());
 
@@ -442,22 +428,13 @@ class CreateChainSharedDesignRuntimeIT {
     seedApprovedImplementationWaiting(runtime);
     implementApprovedPlan(runtime);
 
-    InOrder inOrder =
-        inOrder(
-            catalogReadTool,
-            apiHubMcpTools,
-            catalogMutationGateway,
-            approvedCompilerExecutionRunner,
-            materializationCapability);
-    // Typed matcher uses searchCatalogSystems (plan snippet named searchCatalogSystemsJson).
-    inOrder.verify(catalogReadTool, org.mockito.Mockito.atLeastOnce()).searchCatalogSystems(anyString());
-    inOrder.verify(apiHubMcpTools)
-        .searchApiOperations(anyString(), eq("rest"), any(), eq(0), eq(100), isNull());
-    inOrder.verify(catalogMutationGateway).importApiHubSpecification(eq(CONVERSATION_ID), any());
-    inOrder
-        .verify(approvedCompilerExecutionRunner)
+    // API resolution belongs to briefing. A call that reaches execution without a binding is
+    // missing input, not a reason to search API Hub and import a specification here.
+    verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
+    verify(approvedCompilerExecutionRunner, never())
         .execute(any(), any(), anyList(), any(), any(), any());
-    inOrder.verify(materializationCapability).execute(any());
+    verify(materializationCapability, never()).execute(any());
+    assertFalse(hasKind(Kind.DESIGN_EXECUTION_RESULT));
   }
 
   @Test
@@ -734,10 +711,9 @@ class CreateChainSharedDesignRuntimeIT {
     seedApprovedImplementationWaiting(runtime);
     implementApprovedPlan(runtime);
 
-    // Validation failure reopens the previous approval gate; materialization must not run.
-    assertTrue(
-        loadRun().run().status() == RunStatus.WAITING_FOR_APPROVAL
-            || loadRun().run().status() == RunStatus.FAILED);
+    // A validation failure is recoverable: the run halts at WAITING_FOR_INPUT so the owner can
+    // diagnose and retry. Materialization must not run before that gate clears.
+    assertEquals(RunStatus.WAITING_FOR_INPUT, loadRun().run().status());
     verify(materializationCapability, never()).execute(any());
     assertFalse(hasKind(Kind.DESIGN_EXECUTION_RESULT));
   }
@@ -774,9 +750,9 @@ class CreateChainSharedDesignRuntimeIT {
     seedApprovedImplementationWaiting(runtime);
     implementApprovedPlan(runtime);
 
-    assertTrue(
-        loadRun().run().status() == RunStatus.WAITING_FOR_APPROVAL
-            || loadRun().run().status() == RunStatus.FAILED);
+    // The readback mismatch is a recoverable validation failure, so the run halts at
+    // WAITING_FOR_INPUT rather than recording a design-execution result.
+    assertEquals(RunStatus.WAITING_FOR_INPUT, loadRun().run().status());
     assertFalse(hasKind(Kind.DESIGN_EXECUTION_RESULT));
   }
 
@@ -901,10 +877,7 @@ class CreateChainSharedDesignRuntimeIT {
     CipDesignExecutorJavaAdapter adapter =
         new CipDesignExecutorJavaAdapter(
             approvedCompilerExecutionRunner,
-            new DefaultExecutorCatalogBindingAdapter(
-                new CatalogBindingMatcher(catalogReadTool),
-                apiHubMcpTools,
-                catalogMutationGateway),
+            new DefaultExecutorCatalogBindingAdapter(new CatalogBindingMatcher(catalogReadTool)),
             artifactStore,
             planValidator);
     return new DesignExecutionCapability(artifactStore, adapter);
