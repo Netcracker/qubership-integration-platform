@@ -35,6 +35,23 @@ Live execution requires LLM credentials in the local, ignored
 `infrastructure/.env.local` file. The knowledge package directory is mounted read-only into the
 sidecar. Created and patched catalog chains are retained intentionally for inspection.
 
+The active `product-create-chain-recovery-revise-plan` scenario injects one validation failure at
+`design-execution`, before catalog materialization. The runner submits the resulting feedback,
+selects the typed `revise` action, verifies the causal reopen of `design-planning`, approves the
+repaired plan, and then verifies catalog materialization and reconciliation. The quality gate
+automatically scopes the disabled-by-default fault to this scenario's chain-name prefix.
+
+Run only that recovery scenario:
+
+```bash
+ai-service/e2e/product-pipeline/run-quality-gate.sh \
+  --scenario product-create-chain-recovery-revise-plan \
+  --runs 1 \
+  --knowledge-package integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export \
+  --report-dir /tmp/ai-service-recovery-gate \
+  --base-url http://localhost:8094
+```
+
 Run only COMPARE_AND_PATCH after the stack is up:
 
 ```bash
