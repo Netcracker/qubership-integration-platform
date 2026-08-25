@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -88,37 +89,45 @@ public class RequirementDraftTool {
   private final ConversationCatalogCache catalogCache;
   private final org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache
       apiHubCache;
+  private final ConversationApiResolutions resolutions;
 
   @Inject
   RequirementDraftTool(
       RequirementDraftStore store,
       QipKnowledgePackRepository repository,
       ConversationCatalogCache catalogCache,
-      org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache) {
+      org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
+      ConversationApiResolutions resolutions) {
     this.store = store;
     this.repository = repository;
     this.catalogCache = catalogCache;
     this.apiHubCache = apiHubCache;
+    this.resolutions = resolutions;
   }
 
   RequirementDraftTool(RequirementDraftStore store) {
-    this(store, null, null, null);
+    this(store, null, null, null, null);
   }
 
   RequirementDraftTool(RequirementDraftStore store, QipKnowledgePackRepository repository) {
-    this(store, repository, null, null);
+    this(store, repository, null, null, null);
   }
 
   static RequirementDraftTool withCache(
       RequirementDraftStore store, ConversationCatalogCache catalogCache) {
-    return new RequirementDraftTool(store, null, catalogCache, null);
+    return new RequirementDraftTool(store, null, catalogCache, null, null);
   }
 
   static RequirementDraftTool withCaches(
       RequirementDraftStore store,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache) {
-    return new RequirementDraftTool(store, null, catalogCache, apiHubCache);
+    return new RequirementDraftTool(store, null, catalogCache, apiHubCache, null);
+  }
+
+  static RequirementDraftTool withResolutions(
+      RequirementDraftStore store, ConversationApiResolutions resolutions) {
+    return new RequirementDraftTool(store, null, null, null, resolutions);
   }
 
   @Tool("""
@@ -280,17 +289,29 @@ public class RequirementDraftTool {
             candidate.packageId());
       }
 
+      List<RequirementFact> serviceCalls = positiveServiceCalls(facts);
+      List<RequirementFact> unresolvedCalls =
+          unresolvedServiceCalls(serviceCalls, binding, conversationId);
+      // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
+      // below stays for drafts whose facts carry no SERVICE_CALL kind at all.
+      boolean bindingMissing =
+          serviceCalls.isEmpty() && resolutions != null
+              ? binding == null
+                  && requiresResolvedCatalogBinding(facts, catalogCache, conversationId)
+              : resolutions == null
+                  && binding == null
+                  && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
       if (decision == DraftDecision.READY_FOR_PLAN
-          && binding == null
-          && requiresResolvedCatalogBinding(facts, catalogCache, conversationId)) {
+          && (!unresolvedCalls.isEmpty() || bindingMissing)) {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
-          openQuestions = List.of(BINDING_REQUIRED_OPEN_QUESTION);
+          openQuestions = List.of(bindingOpenQuestion(unresolvedCalls));
         }
         LOG.warnf(
-            "captureRequirementDraft: soft-downgraded READY_FOR_PLAN without catalogBinding"
-                + " for required service call conversationId=%s",
+            "captureRequirementDraft: soft-downgraded READY_FOR_PLAN with %d unresolved service"
+                + " call(s) conversationId=%s",
+            unresolvedCalls.size(),
             conversationId);
       }
 
@@ -423,6 +444,54 @@ public class RequirementDraftTool {
           + " use NEEDS_INPUT until the user imports the specification";
     }
     return null;
+  }
+
+  /**
+   * Positive service-call facts this conversation has not resolved to a catalog operation.
+   *
+   * <p>Readiness is set equality: an approved brief means every outbound call has a binding, not
+   * that some call somewhere produced one. A single-call draft that carries its binding directly —
+   * an import promotion, for instance — still counts as resolved, because that binding can only
+   * belong to the one call.
+   */
+  private List<RequirementFact> unresolvedServiceCalls(
+      List<RequirementFact> calls, ResolvedCatalogBinding binding, String conversationId) {
+    if (resolutions == null || calls.isEmpty()) {
+      return List.of();
+    }
+    if (calls.size() == 1 && binding != null) {
+      return List.of();
+    }
+    return calls.stream()
+        .filter(
+            call ->
+                resolutions
+                    .forFact(conversationId, call.sourceFactId())
+                    .filter(ServiceCallAssessment::isResolved)
+                    .isEmpty())
+        .toList();
+  }
+
+  private static List<RequirementFact> positiveServiceCalls(List<RequirementFact> facts) {
+    if (facts == null) {
+      return List.of();
+    }
+    return facts.stream()
+        .filter(Objects::nonNull)
+        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .filter(fact -> fact.kind() == RequirementFactKind.SERVICE_CALL)
+        .toList();
+  }
+
+  private static String bindingOpenQuestion(List<RequirementFact> unresolvedCalls) {
+    if (unresolvedCalls.isEmpty()) {
+      return BINDING_REQUIRED_OPEN_QUESTION;
+    }
+    String calls =
+        unresolvedCalls.stream().map(RequirementFact::text).collect(Collectors.joining("; "));
+    return "Which catalog operation should this chain call for: "
+        + calls
+        + "? Resolve each one in the local catalog before searching API Hub.";
   }
 
   private static boolean requiresResolvedCatalogBinding(
