@@ -127,6 +127,24 @@ deployments:
   content_hash: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
 - kind: project-relative
   target: agents
+  value: .agents/skills/fix-issue
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/fix-issue/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:a53a9b248ec75cb2e7ce5ce6f918a0370661ff76695b04e377ad570663aba961
+- kind: project-relative
+  target: agents
   value: .agents/skills/runtime-catalog-api-testing
   runtime: null
   scope: project
@@ -568,6 +586,24 @@ deployments:
   content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
 - kind: project-relative
   target: claude
+  value: .claude/skills/fix-issue
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/fix-issue/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:a53a9b248ec75cb2e7ce5ce6f918a0370661ff76695b04e377ad570663aba961
+- kind: project-relative
+  target: claude
   value: .claude/skills/sonar-triage
   runtime: null
   scope: project
@@ -931,6 +967,8 @@ local_deployed_files:
 - .agents/skills/ci-fix/SKILL.md
 - .agents/skills/docs-authoring
 - .agents/skills/docs-authoring/SKILL.md
+- .agents/skills/fix-issue
+- .agents/skills/fix-issue/SKILL.md
 - .agents/skills/runtime-catalog-api-testing
 - .agents/skills/runtime-catalog-api-testing/SKILL.md
 - .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc
@@ -972,6 +1010,8 @@ local_deployed_files:
 - .claude/skills/ci-fix/SKILL.md
 - .claude/skills/docs-authoring
 - .claude/skills/docs-authoring/SKILL.md
+- .claude/skills/fix-issue
+- .claude/skills/fix-issue/SKILL.md
 - .claude/skills/sonar-triage
 - .claude/skills/sonar-triage/SKILL.md
 - .claude/skills/ui-api-and-utilities
@@ -1007,6 +1047,7 @@ local_deployed_files:
 local_deployed_file_hashes:
   .agents/skills/ci-fix/SKILL.md: sha256:6ed69576b370c71e4420fb4af6d4fcdef353d21c1d639b75b0c25d6b074da9bc
   .agents/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
+  .agents/skills/fix-issue/SKILL.md: sha256:a53a9b248ec75cb2e7ce5ce6f918a0370661ff76695b04e377ad570663aba961
   .agents/skills/runtime-catalog-api-testing/SKILL.md: sha256:1ad7ed023a0b6693be4156f7e2d124295cd798608bc03d973671f6648a8996d2
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
@@ -1039,6 +1080,7 @@ local_deployed_file_hashes:
   .claude/rules/vscode-extension.md: sha256:500b51b124bb7841157f7e6d49bc09331fa80142ac51fc21556f75670b903724
   .claude/skills/ci-fix/SKILL.md: sha256:6ed69576b370c71e4420fb4af6d4fcdef353d21c1d639b75b0c25d6b074da9bc
   .claude/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
+  .claude/skills/fix-issue/SKILL.md: sha256:a53a9b248ec75cb2e7ce5ce6f918a0370661ff76695b04e377ad570663aba961
   .claude/skills/sonar-triage/SKILL.md: sha256:f3647ef599d587dda282fafe39f73c10f6b51bb54aaa403a46f94b53313462ff
   .claude/skills/ui-api-and-utilities/SKILL.md: sha256:6f57d2fe204a021400dc4cf181aac1fa354427d5560109d82680043e9efc201d
   .claude/skills/ui-component-patterns/SKILL.md: sha256:ad3a255d9aeddbe70481ae1fb45627ed12f701ae5d5b99589ba0647b78e3fb4c
