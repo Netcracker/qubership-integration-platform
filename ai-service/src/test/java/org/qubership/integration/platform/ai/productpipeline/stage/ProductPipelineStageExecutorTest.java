@@ -1486,6 +1486,58 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void missingApprovedBriefFactsReopenRequirementAnalysisWithTheFollowUp() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Design input needs more information.", "design-input");
+    AtomicReference<String> seenError = new AtomicReference<>();
+    AtomicReference<String> seenFollowUp = new AtomicReference<>();
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    StageCapability designInput =
+        capability(
+            "design-input-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.VALIDATION_FAILURE,
+                                "The approved requirement brief is missing required facts: "
+                                    + "SERVICE_CALL participant and operation query"))));
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisRepairCandidate(seenError, seenFollowUp),
+            designInput);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "requirement-analysis");
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-input").decision());
+    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals("requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, "Petstore Ext: getPetById"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    runtime
+        .acceptInput(new AcceptInputCommand(RUN_ID, "go back"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-input").status());
+    assertFalse(seenError.get().isBlank());
+    assertEquals("Petstore Ext: getPetById", seenFollowUp.get());
+  }
+
+  @Test
   void rbacValidationOnExecutionHaltsWithReviseOwnedByPlanningNotSelf() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
@@ -2621,6 +2673,35 @@ class ProductPipelineStageExecutorTest {
                 new RetryPolicy(0, 1L))),
         new TerminalPolicy("design-execution", "PLAN_APPROVED"),
         List.of("planning-cap", "execution-cap"));
+  }
+
+  private static ProductPipelineProfile analysisThenDesignInputProfile() {
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef flow = new ArtifactTypeRef("normalized-design-flow", 1);
+    return new ProductPipelineProfile(
+        1,
+        "analysis-then-design-input",
+        "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "requirement-analysis",
+                "analysis-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-input",
+                "design-input-cap",
+                List.of(brief),
+                List.of(flow),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-input", "PLAN_APPROVED"),
+        List.of("analysis-cap", "design-input-cap"));
   }
 
   private static ProductPipelineProfile analysisThenPlanningThenExecutionProfile() {

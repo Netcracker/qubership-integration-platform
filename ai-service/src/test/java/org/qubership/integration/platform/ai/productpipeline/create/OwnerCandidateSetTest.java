@@ -235,6 +235,21 @@ class OwnerCandidateSetTest {
   }
 
   @Test
+  void preferEarliestSufficientOwnerMapsMissingApprovedBriefFactsToTheBriefProducer() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.preferEarliestSufficientOwner(
+            OwnerDiagnosis.of("Design input needs more information.", "design-input"),
+            List.of(
+                new OwnerCandidate("design-input", "normalized-design-flow"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-input",
+            "",
+            "The approved requirement brief is missing required facts: SERVICE_CALL participant");
+
+    assertEquals("requirement-analysis", remapped.owner().orElseThrow());
+  }
+
+  @Test
   void preferEarliestSufficientOwnerMapsEmbeddedSecurityCodesInEvidence() {
     OwnerDiagnosis remapped =
         OwnerCandidateSet.preferEarliestSufficientOwner(

@@ -840,6 +840,59 @@ class DesignInputCapabilityTest {
     assertTrue(idsPayload(prepared).markdown().contains("create order"));
   }
 
+  @Test
+  void deriveTreatsMissingApprovedBriefFactsAsARecoverableValidationFailure() {
+    DesignInputCapability capability = capabilityWithFixedGenerate("unused");
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Pets",
+            List.of("HTTP GET /pets"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "List pets",
+            "draft-1",
+            "draft",
+            List.of(
+                fact(
+                    "trigger-1",
+                    RequirementFactKind.ENDPOINT,
+                    "http-trigger",
+                    "HTTP GET /pets"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    null,
+                    "Call Petstore Ext operation getPetById using petId mapped from Kafka userId")),
+            List.of(
+                mapping(
+                    "map-init",
+                    RequirementDataMapping.Stage.INITIALIZATION,
+                    "trigger-1",
+                    "call-1",
+                    RequirementDataMapping.Mode.PASS_THROUGH,
+                    List.of("fact-map"))));
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR,
+                    DesignMode.DERIVE,
+                    "userText",
+                    "Derive minimal IDS",
+                    "requirementBrief",
+                    brief)));
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("approved requirement brief"), prepared.message());
+    assertTrue(prepared.message().contains("SERVICE_CALL participant"), prepared.message());
+  }
+
   /**
    * A document the parser cannot read is repaired, not surfaced to the caller.
    *
@@ -1236,7 +1289,7 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void unusableAuthoredDesignAsksInsteadOfFailingTheStage() {
+  void deriveTreatsMissingApprovedTriggerIdentityAsARecoverableValidationFailure() {
     DesignInputCapability capability = capabilityWithFixedGenerate("unused");
     RequirementBrief briefMissingPath =
         new RequirementBrief(
@@ -1279,11 +1332,9 @@ class DesignInputCapabilityTest {
                     "Derive minimal IDS",
                     "requirementBrief",
                     briefMissingPath)));
-    // The authored document cannot be turned into a valid flow. Asking beats failing: a
-    // VALIDATION_FAILURE reopens the previous approval and drops the caller back onto the
-    // requirement brief, losing the turn over something one more fact would settle.
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
-    assertFalse(prepared.message() == null || prepared.message().isBlank(), "must say what is missing");
+    // The approved brief owns the missing trigger identity, so recovery must reopen its producer.
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("approved requirement brief"), prepared.message());
   }
 
   private static RequirementFact fact(

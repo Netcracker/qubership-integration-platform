@@ -384,6 +384,10 @@ public final class OwnerCandidateSet {
       return FindingOwnerCategory.POLICY_OR_BRIEF;
     }
     String haystack = normalize(findings) + " " + normalize(evidence);
+    if (haystack.contains("approved requirement brief")
+        && haystack.contains("missing required facts")) {
+      return FindingOwnerCategory.POLICY_OR_BRIEF;
+    }
     if (haystack.contains("required")
         && (haystack.contains("setting") || haystack.contains("property"))) {
       return FindingOwnerCategory.PLAN_FILL;
