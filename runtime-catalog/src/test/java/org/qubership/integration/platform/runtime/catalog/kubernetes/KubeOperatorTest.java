@@ -147,12 +147,10 @@ class KubeOperatorTest {
         Object resource = parsed.get(0);
         assertTrue(resource instanceof KubeCustomObject);
 
-        CustomObjectsApi.APIlistNamespacedCustomObjectRequest listRequest =
-                mock(CustomObjectsApi.APIlistNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.listNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL)).thenReturn(listRequest);
-        Map<String, Object> emptyList = new LinkedHashMap<>();
-        emptyList.put("items", List.of());
-        when(listRequest.execute()).thenReturn(emptyList);
+        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
+                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME)).thenReturn(getRequest);
+        when(getRequest.execute()).thenThrow(new ApiException(404, "Not Found"));
 
         CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
                 mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
@@ -190,12 +188,10 @@ class KubeOperatorTest {
         Object resource = parsed.get(0);
         assertTrue(resource instanceof KubeCustomObject);
 
-        CustomObjectsApi.APIlistNamespacedCustomObjectRequest listRequest =
-                mock(CustomObjectsApi.APIlistNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.listNamespacedCustomObject(istioGroup, istioVersion, NAMESPACE, plural)).thenReturn(listRequest);
-        Map<String, Object> emptyList = new LinkedHashMap<>();
-        emptyList.put("items", List.of());
-        when(listRequest.execute()).thenReturn(emptyList);
+        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
+                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.getNamespacedCustomObject(istioGroup, istioVersion, NAMESPACE, plural, name)).thenReturn(getRequest);
+        when(getRequest.execute()).thenThrow(new ApiException(404, "Not Found"));
 
         CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
                 mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
@@ -233,12 +229,10 @@ class KubeOperatorTest {
         Object resource = parsed.get(0);
         assertTrue(resource instanceof KubeCustomObject);
 
-        CustomObjectsApi.APIlistNamespacedCustomObjectRequest listRequest =
-                mock(CustomObjectsApi.APIlistNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.listNamespacedCustomObject(istioGroup, istioVersion, NAMESPACE, plural)).thenReturn(listRequest);
-        Map<String, Object> emptyList = new LinkedHashMap<>();
-        emptyList.put("items", List.of());
-        when(listRequest.execute()).thenReturn(emptyList);
+        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
+                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.getNamespacedCustomObject(istioGroup, istioVersion, NAMESPACE, plural, name)).thenReturn(getRequest);
+        when(getRequest.execute()).thenThrow(new ApiException(404, "Not Found"));
 
         CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
                 mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
