@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
 /**
@@ -36,12 +37,20 @@ class BrowserCreateChainRegressionIT {
 
   @InjectMock CreateChainApplicationFacade facade;
 
+  /**
+   * A decision command asks whether the open card is a clarify card before it routes, and that
+   * lookup falls back to the requirement draft. The real store reads a blob, which the test profile
+   * points at a dead S3 endpoint.
+   */
+  @InjectMock RequirementDraftStore draftStore;
+
   private final AtomicInteger turns = new AtomicInteger();
 
   @BeforeEach
   void stubCreateChainBrowserTurns() {
     turns.set(0);
     when(runStore.loadByConversation(anyString())).thenReturn(Optional.empty());
+    when(draftStore.get(anyString())).thenReturn(Optional.empty());
     when(router.route(any(ChatRequest.class), anyString()))
         .thenAnswer(
             invocation -> {
