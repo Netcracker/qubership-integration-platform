@@ -41,6 +41,7 @@ import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperato
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -355,6 +356,52 @@ class MicroDomainServiceTest {
         verify(kubeOperator).createOrUpdateResource(cfg);
 
         verify(kubeOperator).deleteConfigMap("src-s1");
+    }
+
+    @DisplayName("Writes the Integration back with its operator-owned metadata intact")
+    @Test
+    void deleteChainSnapshotPreservesOperatorMetadataOnTheIntegration() {
+        stubNamingStrategies();
+
+        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
+                new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
+        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x", "configmap:keep/y")));
+        CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
+        traits.setMount(mount);
+        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
+        spec.setTraits(traits);
+        CamelKIntegration integration = new CamelKIntegration();
+        integration.setSpec(spec);
+        // The operator sets this annotation outside QIP's own Handlebars template. A PUT that drops
+        // unmodeled metadata would silently strip it; V1ObjectMeta models every field, so it survives
+        // the CamelKIntegration round trip even though CamelKIntegration.IntegrationSpec does not.
+        integration.setMetadata(new V1ObjectMeta()
+                .name(INTEGRATION_RESOURCE_NAME)
+                .annotations(new LinkedHashMap<>(Map.of("camel.apache.org/operator.id", "camel-k"))));
+
+        V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
+        V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
+        when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
+        when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(cfg, source));
+
+        IntegrationsConfiguration configuration = IntegrationsConfiguration.builder()
+                .sources(new ArrayList<>(List.of(
+                        SourceDefinition.builder().id("s1").build(),
+                        SourceDefinition.builder().id("s2").build())))
+                .build();
+        when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
+        when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
+                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+
+        MicroDomainService service = newService(false);
+        service.deleteChainSnapshot(DOMAIN, "s1");
+
+        verify(kubeOperator).createOrUpdateResource(integration);
+        assertEquals("camel-k",
+                integration.getMetadata().getAnnotations().get("camel.apache.org/operator.id"),
+                "V1ObjectMeta is fully modeled, so a POJO round trip must not lose annotations");
     }
 
     @DisplayName("Skips HTTPRoute cleanup when the domain has no integrations-configuration config map")
