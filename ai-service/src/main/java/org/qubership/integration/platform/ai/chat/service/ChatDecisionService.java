@@ -169,6 +169,9 @@ public class ChatDecisionService {
     if (pending instanceof PendingAction.Approve approve) {
       return approvalQuestions.find(conversationId, approve.artifactHash()).orElse("");
     }
+    if (pending instanceof PendingAction.Clarify clarify) {
+      return clarify.reason();
+    }
     return "";
   }
 

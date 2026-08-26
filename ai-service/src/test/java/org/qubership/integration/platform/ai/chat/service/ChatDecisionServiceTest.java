@@ -589,6 +589,7 @@ class ChatDecisionServiceTest {
             .openDecision("conv-1")
             .orElseThrow();
 
+    assertEquals("Which system?", decision.question());
     assertTrue(decision.actions().isEmpty());
   }
 
