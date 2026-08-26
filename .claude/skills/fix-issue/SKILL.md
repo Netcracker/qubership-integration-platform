@@ -17,6 +17,7 @@ you apply at the end is a function of the gate you reached, never of how the wor
 | 4 | Verify | a criterion or a static check is red |
 | 4.5 | Review | — |
 | 5 | Deliver | — |
+| 6 | Green checks | a required check stays red |
 
 Stop at any gate: `ai:needs-human`, full report on the issue, then offer in chat to finish the
 work together. Reach gate 5: `ai:processed`. Never apply `human:ai-failed` — that label is the
@@ -201,7 +202,60 @@ It returns `{"url": "https://github.com/user-attachments/assets/<uuid>"}` for a 
 tag. The endpoint is undocumented, so treat a failure as expected: fall back to the numbers and
 the reproduction script, and say in the report that images could not be attached.
 
-Then comment the short report on the issue, link the pull request, and apply the label.
+### Link the issue in the description, not only in the commit
+
+`pr-linked-issue` reads GitHub's `closingIssuesReferences`, which a keyword in a **commit
+message never fills**. Put `Closes #<N>` in the pull request body, or name the issue in the title
+as `fix: #<N> ...` or `... (#<N>)` and let the workflow write the keyword for you.
+
+`gh pr edit --body-file` can report success and change nothing. Read the body back, and fall back
+to the API:
+
+```bash
+gh pr edit <PR> --body-file body.md
+gh pr view <PR> --json body --jq '.body' | tail -3          # confirm, do not assume
+gh api -X PATCH repos/{owner}/{repo}/pulls/<PR> -f body="$(cat body.md)"
+gh api graphql -f query='query{repository(owner:"O",name:"R"){pullRequest(number:<PR>){closingIssuesReferences(first:1){totalCount}}}}'
+```
+
+Once the issue is linked, move it to **In Review** on the board. That needs a token carrying the
+`project` scope; `gh auth refresh -s project` grants it. Without the scope the query fails with
+`INSUFFICIENT_SCOPES` — report that you could not move it rather than passing over it in silence.
+
+Then comment the short report on the issue and link the pull request.
+
+## Gate 6 — the checks, before the label
+
+A pull request is not delivered while CI is red, so the label waits for the checks.
+
+```bash
+gh pr checks <PR> --watch
+gh run view <run-id> --log-failed | tail -40
+```
+
+**Sonar reports a status, not a reason.** Ask the API which condition failed:
+
+```bash
+curl -s "https://sonarcloud.io/api/qualitygates/project_status?projectKey=<key>&pullRequest=<PR>" \
+  | jq '.projectStatus.conditions[] | select(.status=="ERROR")'
+```
+
+The condition that catches this pipeline is `new_coverage`, threshold 80. A UI behavior fix adds
+lines that no jsdom suite reaches, so the gate fails on a correct change. Cover the new lines with
+a unit test rather than arguing with the gate — and hold that test to the bar below.
+
+> **A new test must fail when the fix is reverted.** Assert it by actually reverting.
+
+Today a blur test passed against deliberately broken code, because antd validates asynchronously
+and the synchronous `expect(...).not.toHaveBeenCalled()` ran before the submit could happen. It
+was green by coincidence. Two mutations — restore the defect, drop the guard — are cheap and are
+the only thing that separates a test from a decoration.
+
+`super-linter` reaches past the module you touched: CSS, EditorConfig, gitleaks, and Trivy all
+report separately. Read the job that failed, not the workflow name.
+
+Reach green: `ai:processed`. Red after two attempts, or red for a reason outside the change:
+`ai:needs-human`, and say which check and why.
 
 ## Stop rules
 
@@ -230,7 +284,7 @@ stop there is no pull request, so the full report goes to the issue.
 3. **Contract** — the criteria, as written before the code.
 4. **Evidence** — before/after images first, measurements second.
 5. **Change** — files touched, one line each, and why.
-6. **Gates** — pass or fail per gate.
+6. **Gates** — pass or fail per gate, including the CI checks by name.
 7. **Left undone** — remainder, adjacent findings, unverified review claims marked as such, and
    the exact question for the human.
 
