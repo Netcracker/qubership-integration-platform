@@ -143,6 +143,31 @@ class CatalogElementWriteToolsTest {
   }
 
   @Test
+  void updateElement_coercesHttpMethodRestrictStringToCatalogObject() throws Exception {
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.id = "el-1";
+    current.name = "HTTP Trigger";
+    current.properties = Map.of("accessControlType", "NONE");
+    when(catalogRestClient.getElement("chain-1", "el-1")).thenReturn(current);
+    when(catalogRestClient.updateElement(eq("chain-1"), eq("el-1"), any()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    String patchJson =
+        """
+        {"properties":{"httpMethodRestrict":"GET","contextPath":"/api"}}
+        """;
+    tools.updateElement("chain-1", "el-1", patchJson);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> properties = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(Map.of("httpMethods", List.of("GET")), properties.get("httpMethodRestrict"));
+    assertEquals("/api", properties.get("contextPath"));
+  }
+
+  @Test
   void updateElement_nameOnlyKeepsExistingProperties() throws Exception {
     CatalogElementResponseDto current = new CatalogElementResponseDto();
     current.id = "el-1";

@@ -86,6 +86,47 @@ class ChainReconcileServiceTest {
   }
 
   @Test
+  void matchesPlanHttpMethodRestrictStringAgainstCatalogObject() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode(
+                    "http-trigger-1",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    null,
+                    List.of(new PlanProperty("httpMethodRestrict", "GET")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("http-trigger-1", "el-trigger"));
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "demo",
+            "",
+            1,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement(
+                    "el-trigger",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    Map.of("httpMethodRestrict", Map.of("httpMethods", List.of("GET"))))),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches());
+    assertTrue(result.propertyMismatches().isEmpty());
+  }
+
+  @Test
   void reportsElementLabelMismatch() {
     ReconcileResult result = service.compare(planLabelled("Handler"), map(), factsLabelled("Script"));
     assertEquals(List.of("script-1"), result.labelMismatches());

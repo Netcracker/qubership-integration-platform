@@ -217,6 +217,16 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void acceptsHttpMethodRestrictCatalogObjectAtCaptureBoundary() throws Exception {
+    JsonNode catalogObject = objectMapper.readTree("{\"httpMethods\":[\"GET\"]}");
+
+    assertTrue(
+        service
+            .validateCapturePropertyValue("http-trigger", "httpMethodRestrict", catalogObject)
+            .isEmpty());
+  }
+
+  @Test
   void acceptsRolesArrayAtCaptureBoundary() {
     ArrayNode roles = objectMapper.createArrayNode().add("qip-viewer");
 

@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogDepe
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElement;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.integration.catalog.util.HttpMethodRestrictCatalogShape;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -142,13 +143,22 @@ public class ChainReconcileService {
         continue;
       }
       Object catalogValue = catalogProperties.get(property.key());
-      if (!canonicalEquals(property.value(), catalogValue)) {
+      if (!canonicalEquals(property.key(), property.value(), catalogValue)) {
         propertyMismatches.add(node.nodeId() + "." + property.key());
       }
     }
   }
 
-  private static boolean canonicalEquals(Object planValue, Object catalogValue) {
+  private static boolean canonicalEquals(String propertyKey, Object planValue, Object catalogValue) {
+    if (HttpMethodRestrictCatalogShape.PROPERTY_KEY.equals(propertyKey)) {
+      return valuesEqual(
+          HttpMethodRestrictCatalogShape.toCatalogValue(planValue),
+          HttpMethodRestrictCatalogShape.toCatalogValue(catalogValue));
+    }
+    return valuesEqual(planValue, catalogValue);
+  }
+
+  private static boolean valuesEqual(Object planValue, Object catalogValue) {
     try {
       JsonNode planNode = toCanonicalNode(planValue);
       JsonNode catalogNode = toCanonicalNode(catalogValue);

@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCr
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+import org.qubership.integration.platform.ai.integration.catalog.util.HttpMethodRestrictCatalogShape;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 
 /** LangChain4j catalog write tools for create, update, and list on an existing chain. */
@@ -141,6 +142,7 @@ public class CatalogElementWriteTools {
       // whole map. Merge with the current element so partial patches keep mandatory defaults.
       Map<String, Object> mergedPatch =
           mergeWithCurrentElement(trimmedChainId, trimmedElementId, patch);
+      HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
       CatalogRestClient.ChainDiffDto diff =
           catalogRestClient.updateElement(trimmedChainId, trimmedElementId, mergedPatch);
       support.clearUpdateElementCatalogFailures(trimmedChainId, trimmedElementId);

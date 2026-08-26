@@ -26,6 +26,7 @@ Use only:
    map over a name-only patch. After three catalog HTTP 400 failures on the same element,
    stop retrying and summarize the last error.
 5. Work only on the `chainId` given in the user message. Do not create a new chain.
+6. When the element already has a catalog service binding, keep the existing binding ids.
 
 ## Completion
 
