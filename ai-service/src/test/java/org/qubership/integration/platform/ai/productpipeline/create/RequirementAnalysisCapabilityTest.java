@@ -366,7 +366,7 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
-  void mismatchedApprovedDraftTextIsContractFailureNotNeedsInput() {
+  void modelDraftParaphraseIsReplacedWithApprovedText() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     CaptureSession captureSession = new CaptureSession();
     CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
@@ -427,17 +427,15 @@ class RequirementAnalysisCapabilityTest {
     CapabilitySignal.Completed completed =
         runWithUserText(capability, approved, "conv-draft-mismatch", originalUserText);
 
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
-    assertTrue(
-        completed.outcome().message().contains("approvedDraftText does not match"),
-        completed.outcome().message());
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
     assertEquals(1, calls.get());
-    assertTrue(
+    RequirementBrief stored =
         captureSession
             .get(
                 CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, "conv-draft-mismatch"),
                 RequirementBrief.class)
-            .isEmpty());
+            .orElseThrow();
+    assertEquals(approved.planningText(), stored.approvedDraftText());
     assertEquals(
         approved.planningText(),
         draftStore.get("conv-draft-mismatch").orElseThrow().planningText());
