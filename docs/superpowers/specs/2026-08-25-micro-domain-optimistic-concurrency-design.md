@@ -16,15 +16,14 @@ multi-document YAML string. No I/O, deterministic given Phase 1.
 
 **Phase 3** is `MicroDomainService.deploy` (`:185-194`): `Yaml.loadAll`, then a sequential
 loop calling `KubeOperator.createOrUpdateResource` once per document. Each write LISTs the
-plural to choose create versus update, then applies with
-`PATCH_FORMAT_APPLY_YAML`, `fieldManager("kubectl-patch")`, and `force(true)`. No
-`resourceVersion` is sent.
+plural to choose create versus update, then applies with `PATCH_FORMAT_APPLY_YAML`,
+`fieldManager("kubectl-patch")`, and `force(true)`. No `resourceVersion` is sent.
 
 Anyone who writes one of these objects between Phase 1 and Phase 3 is silently overwritten. The
 window is not small: it spans database reads, nine or more cluster round trips, YAML generation,
 and a per-document write loop.
 
-Contention is concentrated, and unevenly.
+### Where the contention is
 
 The host-keyed `ServiceEntry` and `DestinationRule` are the worst case, and the only objects with
 a writer outside runtime-catalog. `EgressTarget.hostResourceName()` — duplicated verbatim in
@@ -65,43 +64,38 @@ merge downgrades the failure from total loss to subset loss; it does not prevent
 
 The engine does not have this problem, because its merge sits *inside* the retry loop: on conflict
 `upsertHostResource` re-reads and re-merges against fresh state. Runtime-catalog merges once, in
-Phase 2, against data that is already many round trips old by the time it writes. That asymmetry
-is the reason a precondition is needed here at all, and section 7 explains why it also forces the
-retry to rebuild rather than re-send.
+Phase 2, against data that is already many round trips old by the time it writes.
 
-### Two API facts this design rests on
+### Why apply cannot carry the precondition
 
-Both were verified against the apiserver source rather than assumed, because the obvious
-approach turns out not to work.
-
-**Server-Side Apply ignores `metadata.resourceVersion`.** `applyPatcher.applyPatchToCurrentObject`
+Server-Side Apply ignores `metadata.resourceVersion`. `applyPatcher.applyPatchToCurrentObject`
 resolves through the field manager and never reaches the optimistic-concurrency check that
-`GuaranteedUpdate` performs for ordinary updates. Upstream's `TestApplyFailsWithVersionMismatch`
+`GuaranteedUpdate` performs for ordinary updates; upstream's `TestApplyFailsWithVersionMismatch`
 shows a version mismatch in an apply body surfacing as `BadRequest`, not the 409 Conflict a retry
-loop keys on. Stamping `resourceVersion` onto an applied document is inert.
+loop keys on. Stamping a version onto an applied document is inert.
 
-**A PUT does honor it.** `Store.Update` calls `GuaranteedUpdate`, which compares the submitted
+A PUT does honor it. `Store.Update` calls `GuaranteedUpdate`, which compares the submitted
 `resourceVersion` against the stored one and returns 409 Conflict when they differ. This is the
 mechanism the engine already relies on in `engine/.../KubeOperator.createOrReplaceCustomObject`
 (`:129-155`).
 
-A third fact bounds what `force` can do here: SSA conflicts fire only between *different* field
-managers. All three patch sites hardcode `"kubectl-patch"`, so two concurrent runtime-catalog
-deploys never conflict with each other whatever `force` is set to.
+Nor can `force(true)` be tuned into a substitute. SSA conflicts fire only between *different*
+field managers, and all three patch sites hardcode `"kubectl-patch"`, so two concurrent
+runtime-catalog deploys never conflict with each other whatever `force` is set to.
 
 ## Goals
 
 - Detect, rather than silently absorb, a concurrent write to any object the build merged against.
-- Concentrate that detection on the objects where contention actually is.
 - Make runtime-catalog and the engine symmetric on the two objects they both write, the
   host-keyed `ServiceEntry` and `DestinationRule`, so neither silently clobbers the other.
+- Use one write mode and one conflict mechanism for every kind, rather than reasoning per kind
+  about field ownership.
 - Leave a typed conflict exception for the retry step to catch.
 
 ## Non-goals
 
-- The whole-build retry itself. It is a separate task, implemented and committed after this
-  one lands, and is specified in section 7 only far enough to fix the seams this step must
-  leave behind.
+- The whole-build retry itself. It is a separate task, implemented and committed after this one
+  lands, and is specified in section 7 only far enough to fix the seams this step must leave.
 - Atomicity across documents. `deploy`'s loop stays non-atomic; see section 6.
 - Any change to the engine.
 - The HTTPRoute rule-ownership annotation
@@ -110,75 +104,80 @@ deploys never conflict with each other whatever `force` is set to.
 
 ## Design
 
-### 1. The write-mode split
+### 1. One write mode
 
-A PUT overwrites the whole object; an apply merges. So PUT is safe only where the document being
-written is a *complete* representation — either because it was read and modified, or because QIP
-is the object's sole author.
+Every kind moves to read-modify-write PUT carrying a `resourceVersion` precondition. The apply
+path goes with it: `PatchUtils`, the `kubectl-patch` field manager, and `force(true)` are deleted
+rather than tuned, and with them the need to reason about which manager owns which field.
 
-| Object | Sole author | Write mode |
-|---|---|---|
-| Public / private / egress HTTPRoute | Runtime-catalog alone, emitting complete specs | PUT |
-| `ServiceEntry`, `DestinationRule` | Runtime-catalog and the engine, both emitting complete specs | PUT |
-| Source DSL and integrations-configuration ConfigMaps | QIP | PUT |
-| `CamelKIntegration` | No — the Camel-K operator co-authors it | Apply |
-| Service | No — the API server defaults `clusterIP` and peers | Apply |
-| ServiceMonitor | QIP, but no contention and no benefit | Apply |
+This subsumes what was originally scoped as a separate step. "Drop `force(true)`" is not a change
+to make once the apply path no longer exists.
 
-`CamelKIntegrationResourceBuilder` renders from a Handlebars template with a fixed field set
-(`:122-142`): name, two labels, replicas, container, health, JVM settings, mounts, properties,
-environment, and service account. A PUT of that document would strip every annotation, label,
-and finalizer the Camel-K operator added. Today's apply leaves them alone because they belong to
-a different field manager.
+### 2. What a PUT can and cannot disturb
 
-The split lands well: the PUT-eligible objects are exactly the contended ones — the host
-resources above all, since they are the only ones another component writes — and the two that
-must stay on apply are the two with the narrowest collision window.
+An earlier draft of this design kept the Integration and Service on apply, on the belief that a
+PUT of a generated document would strip fields other actors own. Checking that belief against
+source retired it. The findings are recorded here because they are the whole justification for
+section 1.
 
-### 2. Capturing versions in Phase 1
+| Concern | Finding |
+|---|---|
+| Integration `status` | The Integration CRD enables the `/status` subresource (`+kubebuilder:subresource:status` in `pkg/apis/camel/v1/integration_types.go`), so a PUT to the main resource structurally cannot modify it. `status.integrationKit`, `status.dependencies`, `status.traits`, `status.profile`, digest, and observedGeneration are all safe. |
+| Integration `spec` | The Camel-K operator does not write back to `spec.traits`, `spec.dependencies`, `spec.profile`, or `spec.sources`. Those are desired state; the operator mirrors observed state into `status.*`. |
+| Service allocated fields | `patchAllocatedValues` in `pkg/registry/core/service/storage/storage.go` copies `clusterIP`, `ports[].nodePort`, and `healthCheckNodePort` from the stored object when an incoming PUT omits them. They are preserved, not rejected. |
+| Integration metadata | Not protected by any of the above. A PUT replaces `metadata` wholesale, dropping the operator's `camel.apache.org/operator.id`, `platform.id`, `integration-profile.id` annotations and its `created.by.*` / `runtime.*` labels. See section 5. |
 
-`MicroDomainResourceBuildContextFactory` records `metadata.resourceVersion` for every
-PUT-eligible object it reads, keyed by kind and name.
+### 3. Phase 1 captures version and metadata
+
+`MicroDomainResourceBuildContextFactory` records, for every object it reads, both
+`metadata.resourceVersion` and the object's full `metadata`, keyed by kind and name.
 
 Coverage differs by mode:
 
 - `putHostResourceSpecsToBuildCache` runs in both modes, so `ServiceEntry` and `DestinationRule`
   are always covered. These are the cross-domain objects the engine also writes, so they are the
   ones that most need it, and they are covered in every mode.
-- `addAppendConfigurationToContext` runs only under `APPEND`, so the tier HTTPRoutes and
-  ConfigMaps are covered only there. Under `REWRITE` the build declares complete desired state
-  and no Phase 1 read happened to take a version from.
+- `addAppendConfigurationToContext` runs only under `APPEND`, so the Integration, Service,
+  ServiceMonitor, ConfigMaps, and tier HTTPRoutes are covered only there. Under `REWRITE` the
+  build declares complete desired state and no Phase 1 read happened to take a version from.
 
-That asymmetry forces the map to distinguish three states, not two. "No version" is ambiguous
+That asymmetry forces the record to distinguish three states, not two. "No version" is ambiguous
 between *Phase 1 looked and the object was not there* and *Phase 1 never looked*, and the write
 path must treat those oppositely — the first is a create, the second is an update to an object
-that probably exists. Collapsing them would make every `REWRITE` deploy after the first attempt
-a create against a live object and fail.
-
-So the map records observations rather than versions:
+that probably exists. Collapsing them would make every `REWRITE` deploy after the first attempt a
+create against a live object and fail.
 
 ```java
-Map<ResourceKey, Optional<String>> observations;
+public record ResourceKey(String kind, String name) { }
+
+Map<ResourceKey, Optional<V1ObjectMeta>> observations;
 ```
+
+The observation is the live `metadata` itself rather than a record pairing a version with it:
+`V1ObjectMeta` already carries `resourceVersion`, and holding it separately would be two sources
+of truth for one value.
 
 | Map state | Meaning |
 |---|---|
-| `Optional.of(v)` | Phase 1 read the object at version `v` |
+| `Optional.of(meta)` | Phase 1 read the object; `meta.getResourceVersion()` is its version |
 | `Optional.empty()` | Phase 1 looked and the object did not exist |
 | key absent | Phase 1 never looked (this kind is not read in this mode) |
 
-### 3. Carrying versions to the write
+Reads that feed this record go through a generic tree (`KubeCustomObject` or an equivalent map),
+never the `CamelKIntegration` POJO. That class models four spec fields and no status, so
+round-tripping an Integration through it would lose anything Camel-K adds to spec later — a
+failure that would appear only after an upstream version bump.
+
+### 4. Carrying it to the write
 
 The build cache is the wrong carrier. It holds `spec` maps consumed by builders, and the builders
 must stay pure YAML generators with no knowledge of concurrency control. Threading versions
 through them would touch every builder and buy nothing.
 
-Instead the version map travels beside the YAML:
+Instead the record travels beside the YAML:
 
 ```java
-public record BuiltResources(String yaml, Map<ResourceKey, Optional<String>> observations) { }
-
-public record ResourceKey(String kind, String name) { }
+public record BuiltResources(String yaml, Map<ResourceKey, Optional<V1ObjectMeta>> observations) { }
 ```
 
 `MicroDomainResourceBuildService.buildResources` returns `BuiltResources`.
@@ -186,76 +185,63 @@ public record ResourceKey(String kind, String name) { }
 `POST /custom-resources` build-only endpoint keeps returning the YAML string alone, reading
 `.yaml()` off the record.
 
-`deploy` parses the documents as it does today, and for each one looks up `(kind, name)` and
-takes one of three branches:
+`deploy` parses the documents as it does today, and for each one looks up `(kind, name)` and takes
+one of three branches:
 
-- **Observed at version `v`** — stamp `v` onto `metadata.resourceVersion` and PUT. Conditional:
-  a 409 means someone wrote during the build.
+- **Observed at a version** — overlay metadata per section 5, stamp the version onto
+  `metadata.resourceVersion`, and PUT. A 409 means someone wrote during the build.
 - **Observed absent** — create. A 409 `AlreadyExists` means another writer created the object
   during the build. That is the create-race, and it is reported as a conflict like any other.
-- **Never observed** — GET the object at write time to learn its current version, then PUT with
-  it (or create if the GET returns 404). This is last-write-wins in effect. It is what `REWRITE`
-  already does today, and section 2 explains why that mode has nothing better to offer.
+- **Never observed** — GET the object at write time to obtain its current version and metadata,
+  then PUT (or create if the GET returns 404). This is last-write-wins in effect, which is what
+  `REWRITE` already does today.
 
-### 4. The write path
+The existing LIST-to-decide step goes away for the first two branches, because the observation
+already says whether the object existed — one fewer round trip and one fewer TOCTOU window on the
+paths that matter. The third branch replaces that LIST with a GET of the single object.
 
-`KubeOperator.createOrUpdateCustomResource` gains a per-kind branch. For PUT-eligible kinds it
-mirrors the engine: `replaceNamespacedCustomObject` when `resourceVersion` is set,
-`createNamespacedCustomObject` when it is not.
+A PUT with no `resourceVersion` is rejected for resources whose strategy sets
+`AllowUnconditionalUpdate() == false`, which is the default and includes custom resources. That is
+why the third branch fetches a version rather than sending an empty one.
 
-The existing LIST-to-decide step goes away for the first two branches of section 3, because the
-observation already says whether the object existed — one fewer round trip and one fewer TOCTOU
-window on the paths that matter. The third branch replaces that LIST with a GET of the single
-object, which is both cheaper and sufficient.
+### 5. Metadata preservation
 
-ConfigMaps get the same treatment through `replaceNamespacedConfigMap`.
+Before a PUT, the document's `metadata` is replaced by the observed metadata with the generated
+labels and annotations overlaid onto it. Generated values win on key collision; everything else
+the live object carried survives.
 
-Kinds that stay on apply keep their current code path, minus `force(true)`.
+The operator does repair its own metadata if we drop it — `FilteringFuncs` in
+`pkg/platform/operator.go` watches `camel.apache.org/operator.id`, `integration-profile.id`, and
+`integration-profile.namespace`, forces a reconcile when they change or vanish, and restores them
+regardless of `status.phase`. So this is not a correctness requirement. It is worth doing anyway,
+for two reasons:
 
-Note the API constraint behind the PUT branches: a PUT with no `resourceVersion` is rejected for
-resources whose strategy sets `AllowUnconditionalUpdate() == false`, which is the default and
-includes custom resources. That is why the third branch fetches a version rather than sending an
-empty one.
+- The repair is triggered *by* the damage. Stripping the annotations on every deploy provokes an
+  extra reconcile each time, and where operator affinity changes it can escalate to a rebuild or
+  redeployment.
+- In a namespace with more than one operator, an Integration whose `operator.id` disappears is
+  picked up by whichever operator handles unannotated resources, which may not be the one it was
+  pinned to.
 
-### 5. Dropping `force(true)`
-
-Removing it from the sites that keep applying makes runtime-catalog stop silently overriding
-another field manager's ownership. It is worth stating plainly what this does and does not buy:
-it has no effect on two concurrent runtime-catalog deploys, which share the `"kubectl-patch"`
-manager and therefore never conflict with each other.
-
-It carries a real risk on the Integration. If the Camel-K operator owns a field the template also
-declares, the apply will begin returning 409 where it previously forced through, turning a
-working deploy into a failing one. The behavior is correct — we should not be silently taking
-fields from the operator — but it is a behavior change that can surface in production rather than
-in tests.
-
-Mitigation, in order of preference: land the change, watch for conflicts on Integration applies,
-and if they appear, restore `force(true)` for that kind alone rather than globally. The narrow
-restoration keeps the property everywhere it is safe.
-
-Field-manager names stay as they are. Giving runtime-catalog a distinct manager would only matter
-against another applier of the same objects, and the engine does not write the Integration or the
-Service.
+Preserving metadata makes the write a no-op from the operator's point of view instead of a change
+it has to notice and repair, and Phase 1 has already read the object, so it costs two lines.
 
 ### 6. What this does not close
 
 Stated so the next reader does not assume more coverage than exists.
 
-- **`deploy`'s loop is not atomic.** A conflict on document five leaves documents one through
-  four written. Per-object preconditions make each write safe and give nothing across the set.
-  Re-applying the earlier documents on retry is idempotent, so this is recoverable, but the
-  window is a partially updated domain. `/deploy-chains` compounds it: that endpoint is
-  `@Transactional` (`CustomResourceController:83`), which rolls back the catalog database and
-  cannot roll back Kubernetes.
-- **The Integration and Service stay last-write-wins.** By design, per section 1.
-- **`REWRITE` mode protects only the host resources.** The tier HTTPRoutes and ConfigMaps fall
-  into section 3's third branch there, which is last-write-wins. The exposure is bounded: those
-  objects have no writer outside runtime-catalog, so the only way to lose a write is two deploys
-  of the same micro-domain overlapping. Closing it would mean reading them during a `REWRITE`
-  build purely to obtain versions, which is a larger change than this step takes on. The
-  cross-component race — the one the engine can actually lose — is on the host resources, and
-  those are covered in both modes.
+- **`deploy`'s loop is not atomic.** A conflict on document five leaves documents one through four
+  written. Per-object preconditions make each write safe and give nothing across the set.
+  Re-applying the earlier documents on retry is idempotent, so this is recoverable, but the window
+  is a partially updated domain. `/deploy-chains` compounds it: that endpoint is `@Transactional`
+  (`CustomResourceController:83`), which rolls back the catalog database and cannot roll back
+  Kubernetes.
+- **`REWRITE` mode protects only the host resources.** Everything else falls into section 4's
+  third branch there, which is last-write-wins. The exposure is bounded: those objects have no
+  writer outside runtime-catalog, so the only way to lose a write is two deploys of the same
+  micro-domain overlapping. Closing it would mean reading them during a `REWRITE` build purely to
+  obtain versions. The cross-component race — the one the engine can actually lose — is on the
+  host resources, and those are covered in both modes.
 
 ### 7. Seams for the retry step
 
@@ -264,22 +250,21 @@ it, and nothing more:
 
 1. **A typed conflict.** A `KubeApiConflictException` in runtime-catalog, mirroring the engine's,
    raised for 409 from both the replace and the create paths. `MicroDomainService.deploy`
-   currently catches `Exception` and wraps everything in `MicroDomainDeployError` (`:191-193`);
-   it must let conflicts through distinguishably, either by rethrowing them or by giving
-   `MicroDomainDeployError` a conflict subtype. Without this the retry cannot tell a conflict
-   from a genuine failure and would retry unrecoverable errors.
-2. **`buildResources` returning `BuiltResources`.** The retry rebuilds by calling it again, so
-   the rebuild-and-rewrite unit is already expressed as one call returning everything `deploy`
-   needs.
+   currently catches `Exception` and wraps everything in `MicroDomainDeployError` (`:191-193`); it
+   must let conflicts through distinguishably, either by rethrowing them or by giving
+   `MicroDomainDeployError` a conflict subtype. Without this the retry cannot tell a conflict from
+   a genuine failure and would retry unrecoverable errors.
+2. **`buildResources` returning `BuiltResources`.** The retry rebuilds by calling it again, so the
+   rebuild-and-rewrite unit is already expressed as one call returning everything `deploy` needs.
 
 The retry itself — bounded rounds around `doDeployResource`, rebuilding the context each round —
 is out of scope here.
 
-It must rebuild, never re-send. The merge described earlier runs in Phase 2 against Phase 1 data,
-so a built document carries a port list that is a snapshot of the world as it was before the
+It must rebuild, never re-send. The merge described in the Context runs in Phase 2 against Phase 1
+data, so a built document carries a port list that is a snapshot of the world as it was before the
 conflict. Re-applying it would send both the stale `resourceVersion` and the stale union: with the
-precondition it 409s forever, and without one it would drop precisely the port whose arrival
-caused the conflict. Only re-entering Phase 1 re-merges against what is actually in the cluster.
+precondition it 409s forever, and without one it would drop precisely the port whose arrival caused
+the conflict. Only re-entering Phase 1 re-merges against what is actually in the cluster.
 
 This is also why the retry belongs around `doDeployResource` rather than around
 `MicroDomainService.deploy`. By the time control reaches `deploy`, the merge has already happened
@@ -287,36 +272,36 @@ and the stale data is baked into the YAML.
 
 ## Testing
 
-**`KubeOperatorTest`, write mode per kind:**
+**`KubeOperatorTest`, write mode:**
 
-1. A PUT-eligible custom object with a `resourceVersion` set calls `replaceNamespacedCustomObject`
-   and never `patchNamespacedCustomObject`.
-2. The same object with no `resourceVersion` calls `createNamespacedCustomObject`.
+1. An object with a `resourceVersion` set is written through the replace path, and
+   `PatchUtils.patch` is never called for any kind.
+2. An object with no `resourceVersion` is written through the create path.
 3. A 409 from the replace path surfaces as `KubeApiConflictException`, not a generic
    `KubeApiException`. Same for a 409 from the create path.
-4. An apply-eligible kind (Integration) still goes through `PatchUtils.patch`, and the call no
-   longer sets `force`.
 
-**`MicroDomainResourceBuildContextFactoryTest`, version capture:**
+**`MicroDomainResourceBuildContextFactoryTest`, observation capture:**
 
-5. Under `APPEND`, an existing tier HTTPRoute is recorded as `Optional.of(<its version>)`, and a
-   tier that does not exist in the cluster is recorded as `Optional.empty()` — the two states
-   must be distinguishable, not merged.
-6. Under `REWRITE`, the tier HTTPRoute and ConfigMap keys are **absent from the map entirely**,
-   while `ServiceEntry` and `DestinationRule` are still recorded. This is the test that pins
-   section 2's three-state distinction as deliberate rather than accidental, and it is the one
-   that fails if someone later collapses the map back to `Map<ResourceKey, String>`.
+4. Under `APPEND`, an existing tier HTTPRoute is recorded as present with its version *and* its
+   metadata; a tier that does not exist is recorded as `Optional.empty()`. The two states must be
+   distinguishable, not merged.
+5. Under `REWRITE`, the Integration, Service, ConfigMap, and HTTPRoute keys are **absent from the
+   map entirely**, while `ServiceEntry` and `DestinationRule` are still recorded. This pins
+   section 3's three-state distinction as deliberate, and it is the test that fails if someone
+   later collapses the map to two states.
 
-**`MicroDomainServiceTest`, the three write branches:**
+**`MicroDomainServiceTest`, the three write branches and metadata:**
 
-7. A document observed at a version is written with that `resourceVersion` on its metadata via
-   the replace path.
-8. A document observed absent is written via the create path with no `resourceVersion`.
-9. A document whose key is absent from the map triggers a write-time GET, and is then written via
-   the replace path carrying the version that GET returned. This is the `REWRITE` path; without
-   it, every `REWRITE` deploy after the first would attempt a create against a live object.
+6. A document observed at a version is written with that `resourceVersion` via the replace path.
+7. A document observed absent is written via the create path with no `resourceVersion`.
+8. A document whose key is absent from the map triggers a write-time GET and is then written via
+   the replace path with the version that GET returned. Without this branch, every `REWRITE`
+   deploy after the first would attempt a create against a live object.
+9. An Integration observed with operator annotations (`camel.apache.org/operator.id` and peers) is
+   written with those annotations still present, alongside the generated labels. This is the test
+   that fails if metadata overlay regresses to metadata replacement.
 
 **Regression:**
 
-10. The existing deploy tests pass unchanged for the Integration and Service, proving those kinds
-    kept apply semantics.
+10. The existing deploy tests pass unchanged, proving the switch from apply to PUT did not alter
+    what any document declares.
