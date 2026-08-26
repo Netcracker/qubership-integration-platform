@@ -19,17 +19,21 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -51,8 +55,11 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Capabili
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.PlanningSkillArtifactUnavailableException;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningPatchLedger;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
@@ -289,6 +296,29 @@ class DesignExecutionCapabilityTest {
   }
 
   @Test
+  void missingChainStructureUsesLastCaptureValidationSummary() {
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    feedbackStore.recordPlanValidationFailure(
+        CONVERSATION_ID,
+        "Structure validation failed:\n"
+            + "node 'kafka-trigger-1' (kafka-trigger-2) has unknown property key 'topic'.");
+    capability = new DesignExecutionCapability(artifactStore, adapter, "", feedbackStore);
+    when(runner.execute(
+            eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any()))
+        .thenThrow(
+            new PlanningSkillArtifactUnavailableException(
+                "cip-structure-generator",
+                Set.of("CHAIN_STRUCTURE"),
+                new IllegalStateException("status=FAILED")));
+
+    StageOutcome outcome = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, outcome.outcomeClass());
+    assertTrue(outcome.message().contains("unknown property key 'topic'"));
+    assertFalse(outcome.message().toLowerCase().contains("retry the planning stage"));
+  }
+
+  @Test
   void approvedPlanInvokesRunnerAndCheckpointsWaitingForMaterialization() {
     StageOutcome outcome =
         execute(
@@ -416,8 +446,133 @@ class DesignExecutionCapabilityTest {
     verify(runner, never()).execute(any(), any(), anyList(), eq(null), any(), any());
   }
 
+  @Test
+  void firstTurnCarriesNoRepairEvidenceToTheRunner() {
+    StageOutcome outcome = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass());
+    verify(runner, never())
+        .execute(any(), any(), anyList(), any(), any(), any(StageRepairEvidence.class), any(), any());
+  }
+
+  @Test
+  void repairTurnPassesHaltEvidenceAndThePriorGraphToTheRunner() {
+    ChainPlanGraph priorGraph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("chain-1", "Chain"),
+            List.of(new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of())),
+            List.of());
+    append(Kind.CHAIN_PLAN_GRAPH, "1", priorGraph);
+    when(runner.execute(
+            eq(approvedPlan),
+            eq(flow),
+            eq(bindings),
+            eq(manifest),
+            eq("attempt-1"),
+            any(StageRepairEvidence.class),
+            eq(priorGraph),
+            any()))
+        .thenReturn(successfulEngineResult());
+
+    Map<String, Object> repairAttributes = new HashMap<>();
+    repairAttributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_CONTEXT_ATTR,
+        "Phase 5 plan validation failed. Findings: http-trigger-1: schema violation");
+    repairAttributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_OUTCOME_ATTR,
+        "VALIDATION_FAILURE");
+    repairAttributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FAILED_STAGE_ATTR,
+        "design-execution");
+    repairAttributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .STAGE_ERROR_FINDINGS_ATTR,
+        "http-trigger-1: schema violation (blocker)");
+    repairAttributes.put(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .HALT_FOLLOW_UP_TEXT_ATTR,
+        "use RBAC");
+
+    StageOutcome outcome = execute(standardInputRefs(), repairAttributes);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass());
+    ArgumentCaptor<StageRepairEvidence> captor = ArgumentCaptor.forClass(StageRepairEvidence.class);
+    verify(runner)
+        .execute(
+            eq(approvedPlan),
+            eq(flow),
+            eq(bindings),
+            eq(manifest),
+            eq("attempt-1"),
+            captor.capture(),
+            eq(priorGraph),
+            any());
+    StageRepairEvidence evidence = captor.getValue();
+    assertEquals("VALIDATION_FAILURE", evidence.outcomeClass());
+    assertEquals("design-execution", evidence.failedStageId());
+    assertTrue(evidence.findings().contains("http-trigger-1"));
+    assertEquals("use RBAC", evidence.haltFollowUpText());
+  }
+
+  @Test
+  void repairTurnReadsTheGraphOfTheHaltedAttemptRatherThanTheLatestInTheRun() {
+    ChainPlanGraph haltedGraph = graphWithTrigger("halted-trigger");
+    Reference haltedRef = append(Kind.CHAIN_PLAN_GRAPH, "1", haltedGraph);
+    // Appended afterwards, so a lookup by kind alone would hand the runner this one instead.
+    ChainPlanGraph laterGraph = graphWithTrigger("later-trigger");
+    append(Kind.CHAIN_PLAN_GRAPH, "1", laterGraph);
+    when(runner.execute(
+            eq(approvedPlan),
+            eq(flow),
+            eq(bindings),
+            eq(manifest),
+            eq("attempt-1"),
+            any(StageRepairEvidence.class),
+            eq(haltedGraph),
+            any()))
+        .thenReturn(successfulEngineResult());
+    Map<String, Object> repairAttributes = new HashMap<>();
+    repairAttributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "Phase 5 plan validation failed. Findings: halted-trigger: schema violation");
+    repairAttributes.put(
+        StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR, List.of(haltedRef));
+
+    StageOutcome outcome = execute(standardInputRefs(), repairAttributes);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass());
+    verify(runner)
+        .execute(
+            eq(approvedPlan),
+            eq(flow),
+            eq(bindings),
+            eq(manifest),
+            eq("attempt-1"),
+            any(StageRepairEvidence.class),
+            eq(haltedGraph),
+            any());
+    verify(runner, never())
+        .execute(any(), any(), anyList(), any(), any(), any(), eq(laterGraph), any());
+  }
+
+  private static ChainPlanGraph graphWithTrigger(String nodeId) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("chain-1", "Chain"),
+        List.of(new ChainPlanNode(nodeId, "http-trigger", "Trigger", null, null, List.of())),
+        List.of());
+  }
+
   private StageOutcome execute(List<Reference> inputRefs) {
-    return collectSignals(inputRefs).stream()
+    return execute(inputRefs, Map.of());
+  }
+
+  private StageOutcome execute(List<Reference> inputRefs, Map<String, Object> extraAttributes) {
+    return collectSignals(inputRefs, extraAttributes).stream()
         .filter(CapabilitySignal.Completed.class::isInstance)
         .map(CapabilitySignal.Completed.class::cast)
         .findFirst()
@@ -426,27 +581,22 @@ class DesignExecutionCapabilityTest {
   }
 
   private List<CapabilitySignal> collectSignals(List<Reference> inputRefs) {
+    return collectSignals(inputRefs, Map.of());
+  }
+
+  private List<CapabilitySignal> collectSignals(
+      List<Reference> inputRefs, Map<String, Object> extraAttributes) {
+    Map<String, Object> attributes = new HashMap<>();
+    attributes.put("idsDocument", ids);
+    attributes.put("normalizedDesignFlow", flow);
+    attributes.put("designPlanReport", report);
+    attributes.put("designExecutionPlan", approvedPlan);
+    attributes.put("implementationPlan", implementationPlan);
+    attributes.putAll(extraAttributes);
     StageExecutionContext context =
         new StageExecutionContext(
-            RUN_ID,
-            CONVERSATION_ID,
-            "design-execution",
-            "exec-1",
-            "attempt-1",
-            null,
-            manifest,
-            inputRefs,
-            Map.of(
-                "idsDocument",
-                ids,
-                "normalizedDesignFlow",
-                flow,
-                "designPlanReport",
-                report,
-                "designExecutionPlan",
-                approvedPlan,
-                "implementationPlan",
-                implementationPlan));
+            RUN_ID, CONVERSATION_ID, "design-execution", "exec-1", "attempt-1", null, manifest,
+            inputRefs, attributes);
     return capability.execute(context).collect().asList().await().indefinitely();
   }
 

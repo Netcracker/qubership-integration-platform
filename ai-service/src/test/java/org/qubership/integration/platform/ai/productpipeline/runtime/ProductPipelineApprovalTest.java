@@ -19,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -44,6 +45,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -360,9 +362,9 @@ class ProductPipelineApprovalTest {
   }
 
   @Test
-  void unknownOutputKindFailsClosedWithContractFailure() {
+  void unknownOutputKindFailsClosedWithInternalFailure() {
     ProductPipelineRunDocument doc =
-        runAndExpectFailure(
+        runAndExpectInternalFailure(
             candidateOutcome(artifact(Kind.REQUIREMENT_BRIEF, Map.of("unexpected", true))),
             multiItemPolicy(),
             multiItemProduces());
@@ -370,14 +372,15 @@ class ProductPipelineApprovalTest {
   }
 
   @Test
-  void undeclaredSchemaVersionFailsClosedWithContractFailure() {
+  void undeclaredSchemaVersionFailsClosedWithInternalFailure() {
     List<ArtifactTypeRef> producesWithUndeclaredSchema =
         List.of(
             new ArtifactTypeRef("implementation-plan", 0),
             new ArtifactTypeRef("plan-validation-result", 1),
             new ArtifactTypeRef("chain-plan-graph", 1));
     ProductPipelineRunDocument doc =
-        runAndExpectFailure(validCreateChainCandidate(), multiItemPolicy(), producesWithUndeclaredSchema);
+        runAndExpectInternalFailure(
+            validCreateChainCandidate(), multiItemPolicy(), producesWithUndeclaredSchema);
     assertEquals(StageStatus.WAITING_FOR_INPUT, currentStage(doc).status());
   }
 
@@ -514,6 +517,68 @@ class ProductPipelineApprovalTest {
     assertEquals(StageStatus.SUCCEEDED, currentStage().status());
   }
 
+  @Test
+  void aRetryAfterARestartStillReadsWhatTheHaltedAttemptProduced() {
+    List<List<Reference>> priorPerTurn = new ArrayList<>();
+    StageOutcome halt =
+        new StageOutcome(
+            StageOutcomeClass.VALIDATION_FAILURE,
+            List.of(artifact(Kind.CHAIN_PLAN_GRAPH, Map.of("graph", "rejected"))),
+            "the assembled graph failed validation",
+            null);
+    PriorOutputRecordingCapability capability =
+        new PriorOutputRecordingCapability(priorPerTurn, halt, validCreateChainCandidate());
+    configureRuntime(profile(multiItemPolicy(), multiItemProduces()), capability);
+    startRun();
+    runtime
+        .acceptInput(new AcceptInputCommand(RUN_ID, "candidate"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_INPUT, runStore.load(RUN_ID).orElseThrow().run().status());
+    assertEquals(List.of(List.of()), priorPerTurn, "a first turn reads nothing");
+    Reference rejected =
+        currentStage().outputRefs().stream()
+            .filter(ref -> ref.kind() == Kind.CHAIN_PLAN_GRAPH)
+            .findFirst()
+            .orElseThrow();
+
+    ProductPipelineProfileCatalog catalog = mock(ProductPipelineProfileCatalog.class);
+    when(catalog.require(profile.profileId(), profile.profileVersion())).thenReturn(profile);
+    CreateChainTestOrchestrator restarted =
+        new CreateChainTestOrchestrator(
+            new ProductPipelineRunSupport(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(List.of(capability)),
+                catalog,
+                null,
+                Clock.fixed(FIXED, ZoneOffset.UTC),
+                null,
+                null,
+                null),
+            runStore);
+    restarted
+        .startOrResume(
+            new StartOrResumeCommand("conv-approval", RUN_ID, profile, sampleManifest(RUN_ID)))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    restarted
+        .acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(List.of(rejected), priorPerTurn.get(1));
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, runStore.load(RUN_ID).orElseThrow().run().status());
+    assertNull(currentStage().approvedArtifactId());
+  }
+
   private WaitingForApprovalResult runToCandidate(
       StageOutcome outcome, ApprovalPolicy approvalPolicy, List<ArtifactTypeRef> produces) {
     configureRuntime(profile(approvalPolicy, produces), new ScriptedCapability(outcome));
@@ -523,6 +588,24 @@ class ProductPipelineApprovalTest {
 
   private ProductPipelineRunDocument runAndExpectFailure(
       StageOutcome outcome, ApprovalPolicy approvalPolicy, List<ArtifactTypeRef> produces) {
+    return runAndExpectHalt(outcome, approvalPolicy, produces, PipelineGates.STAGE_RETRY);
+  }
+
+  /**
+   * A capability and a profile that disagree about the candidate set halt as an internal failure,
+   * so the card drops a Retry that would meet the same disagreement.
+   */
+  private ProductPipelineRunDocument runAndExpectInternalFailure(
+      StageOutcome outcome, ApprovalPolicy approvalPolicy, List<ArtifactTypeRef> produces) {
+    return runAndExpectHalt(
+        outcome, approvalPolicy, produces, PipelineGates.STAGE_INTERNAL_FAILURE);
+  }
+
+  private ProductPipelineRunDocument runAndExpectHalt(
+      StageOutcome outcome,
+      ApprovalPolicy approvalPolicy,
+      List<ArtifactTypeRef> produces,
+      String expectedGate) {
     configureRuntime(profile(approvalPolicy, produces), new ScriptedCapability(outcome));
     startRun();
     List<PipelineSignal> signals =
@@ -533,8 +616,7 @@ class ProductPipelineApprovalTest {
             .map(PipelineSignal.WaitingForInput.class::cast)
             .findFirst()
             .orElseThrow();
-    assertEquals(
-        PipelineGates.STAGE_RETRY, PipelineGates.gateOf(waiting.prompt()).orElseThrow());
+    assertEquals(expectedGate, PipelineGates.gateOf(waiting.prompt()).orElseThrow());
     return runStore.load(RUN_ID).orElseThrow();
   }
 
@@ -721,6 +803,36 @@ class ProductPipelineApprovalTest {
               ? StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "no scripted outcome configured")
               : outcomes.remove();
       return Multi.createFrom().item(new CapabilitySignal.Completed(outcome));
+    }
+  }
+
+  /** Scripted like {@link ScriptedCapability}, and records what each turn could read back. */
+  private static final class PriorOutputRecordingCapability implements StageCapability {
+    private final List<List<Reference>> priorPerTurn;
+    private final Queue<StageOutcome> outcomes;
+
+    private PriorOutputRecordingCapability(
+        List<List<Reference>> priorPerTurn, StageOutcome... outcomes) {
+      this.priorPerTurn = priorPerTurn;
+      this.outcomes = new ArrayDeque<>(List.of(outcomes));
+    }
+
+    @Override
+    public String capabilityId() {
+      return CAPABILITY_ID;
+    }
+
+    @Override
+    public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+      if (!context.attributes().containsKey("userText")) {
+        return Multi.createFrom()
+            .item(
+                new CapabilitySignal.Completed(
+                    StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "need user input")));
+      }
+      StageRepairEvidence repair = StageRepairEvidence.from(context);
+      priorPerTurn.add(repair == null ? List.of() : repair.priorOutputRefs());
+      return Multi.createFrom().item(new CapabilitySignal.Completed(outcomes.remove()));
     }
   }
 

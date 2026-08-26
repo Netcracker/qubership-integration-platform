@@ -36,11 +36,17 @@ public final class RequirementFactFixtures {
             "chain",
             "Create chain named \"Greetings\""));
     facts.add(
-        RequirementFact.of(
+        new RequirementFact(
+            null,
             RequirementFactPolarity.POSITIVE,
             RequirementFactKind.ENDPOINT,
             "http-trigger",
-            "GET /greetings"));
+            "GET /greetings",
+            "",
+            "",
+            "",
+            "GET",
+            "/greetings"));
     facts.add(
         RequirementFact.of(
             RequirementFactPolarity.POSITIVE,
@@ -90,11 +96,17 @@ public final class RequirementFactFixtures {
             "chain",
             "Create chain named \"LangRouter\""));
     facts.add(
-        RequirementFact.of(
+        new RequirementFact(
+            null,
             RequirementFactPolarity.POSITIVE,
             RequirementFactKind.ENDPOINT,
             "http-trigger",
-            "GET /lang-router"));
+            "GET /lang-router",
+            "",
+            "",
+            "",
+            "GET",
+            "/lang-router"));
     facts.add(
         RequirementFact.of(
             RequirementFactPolarity.POSITIVE,

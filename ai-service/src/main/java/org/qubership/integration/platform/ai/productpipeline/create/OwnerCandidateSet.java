@@ -134,7 +134,7 @@ public final class OwnerCandidateSet {
     }
     String owner = current.owner().orElse("");
     if (owner.isBlank() || owner.equals(failedStageId) || !owner.equals(preferred.get())) {
-      return OwnerDiagnosis.of(current.narrative(), preferred.get());
+      return current.withOwner(preferred.get());
     }
     return current;
   }
@@ -150,10 +150,10 @@ public final class OwnerCandidateSet {
     OwnerDiagnosis current = diagnosis == null ? OwnerDiagnosis.none("") : diagnosis;
     List<String> named = namedStages(followUpText, candidates);
     if (named.size() == 1) {
-      return OwnerDiagnosis.of(current.narrative(), named.get(0));
+      return current.withOwner(named.get(0));
     }
     if (named.size() > 1) {
-      return OwnerDiagnosis.ask(current.narrative());
+      return current.asAsk();
     }
     return current;
   }
@@ -346,8 +346,19 @@ public final class OwnerCandidateSet {
           briefProducerStageId(candidates, failedStageId)
               .or(() -> planProducerStageId(candidates, failedStageId));
       case PLAN_FILL -> planProducerStageId(candidates, failedStageId);
-      case EXECUTION, UNSPECIFIED -> Optional.empty();
+      case EXECUTION -> failedStageIfPresent(candidates, failedStageId);
+      case UNSPECIFIED -> Optional.empty();
     };
+  }
+
+  private static Optional<String> failedStageIfPresent(
+      List<OwnerCandidate> candidates, String failedStageId) {
+    if (failedStageId == null
+        || failedStageId.isBlank()
+        || !containsStage(candidates, failedStageId)) {
+      return Optional.empty();
+    }
+    return Optional.of(failedStageId);
   }
 
   static Optional<String> planProducerStageId(
@@ -391,6 +402,9 @@ public final class OwnerCandidateSet {
     if (haystack.contains("required")
         && (haystack.contains("setting") || haystack.contains("property"))) {
       return FindingOwnerCategory.PLAN_FILL;
+    }
+    if (haystack.contains("unknown property key")) {
+      return FindingOwnerCategory.EXECUTION;
     }
     return FindingOwnerCategory.UNSPECIFIED;
   }

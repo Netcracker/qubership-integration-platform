@@ -11,7 +11,30 @@ class RequirementFactTest {
   private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
   @Test
-  void defaultsKindFromPolarityWhenOmittedByLlmToolCall() throws Exception {
+  void bindsNamedIdentityFieldsWithoutReadingText() throws Exception {
+    RequirementFact fact =
+        mapper.readValue(
+            """
+            {
+              "polarity":"POSITIVE",
+              "kind":"ENDPOINT",
+              "capabilityKey":"kafka-trigger-2",
+              "text":"Consume user events from Kafka",
+              "operation":"consumeUserEvent",
+              "topic":"user/events"
+            }
+            """,
+            RequirementFact.class);
+
+    assertEquals("kafka-trigger-2", fact.capabilityKey());
+    assertEquals("consumeUserEvent", fact.operation());
+    assertEquals("user/events", fact.topic());
+    assertEquals("", fact.httpMethod());
+    assertEquals("", fact.path());
+  }
+
+  @Test
+  void omittedIdentityFieldsDefaultToEmpty() throws Exception {
     RequirementFact positive =
         mapper.readValue(
             """
@@ -29,6 +52,11 @@ class RequirementFactTest {
     assertEquals(RequirementFactKind.CONSTRAINT, negative.kind());
     assertFalse(positive.sourceFactId().isBlank());
     assertEquals("", positive.capabilityKey());
+    assertEquals("", positive.participant());
+    assertEquals("", positive.operation());
+    assertEquals("", positive.topic());
+    assertEquals("", positive.httpMethod());
+    assertEquals("", positive.path());
   }
 
   @Test

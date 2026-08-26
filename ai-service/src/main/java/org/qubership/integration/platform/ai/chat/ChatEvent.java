@@ -235,6 +235,7 @@ public sealed interface ChatEvent {
       case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
+      case PipelineGates.STAGE_ESCALATED -> List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       default -> null;
     };
   }
@@ -244,7 +245,9 @@ public sealed interface ChatEvent {
     if (clarify == null) {
       return null;
     }
-    if (PipelineGates.OWNER_CHOICE.equals(clarify.gateId())) {
+    if (PipelineGates.OWNER_CHOICE.equals(clarify.gateId())
+        || PipelineGates.STAGE_INTERNAL_FAILURE.equals(clarify.gateId())
+        || PipelineGates.STAGE_ESCALATED.equals(clarify.gateId())) {
       return clarify.missingEvidence();
     }
     return actionsForGate(clarify.gateId());

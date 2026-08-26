@@ -30,6 +30,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
@@ -291,16 +292,26 @@ public class CipDesignExecutorJavaAdapter {
             .toList();
 
     CompilerDagExecutionResult engineResult =
-        attemptId == null
+        inputs.repairEvidence() != null
             ? runner.execute(
-                inputs.approvedPlan(), inputs.flow(), bindings, inputs.runManifest(), progress)
-            : runner.execute(
                 inputs.approvedPlan(),
                 inputs.flow(),
                 bindings,
                 inputs.runManifest(),
                 attemptId,
-                progress);
+                inputs.repairEvidence(),
+                inputs.priorGraph(),
+                progress)
+            : attemptId == null
+                ? runner.execute(
+                    inputs.approvedPlan(), inputs.flow(), bindings, inputs.runManifest(), progress)
+                : runner.execute(
+                    inputs.approvedPlan(),
+                    inputs.flow(),
+                    bindings,
+                    inputs.runManifest(),
+                    attemptId,
+                    progress);
     if (engineResult.outcomeClass() != StageOutcomeClass.SUCCEEDED
         && engineResult.outcomeClass() != StageOutcomeClass.CANDIDATE) {
       return ExecutionResult.failure(
@@ -461,11 +472,15 @@ public class CipDesignExecutorJavaAdapter {
             CompilerPlanningRunner.buildValidationResult(freshPlanValidation, List.of()),
             compilerBundle);
     if (!compilerBundle.approvalEligible() || !planValidation.approvalEligible()) {
+      // The rejected graph goes out with the findings. The runtime keeps it against the halted
+      // attempt without approving it, which is how the retry gets the steps it must correct
+      // instead of rebuilding the chain from nothing.
       return new ExecutionResult(
           StageOutcomeClass.VALIDATION_FAILURE,
           formatValidationFailureMessage(planValidation),
           null,
           List.of(
+              new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of()),
               new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, planValidation, List.of()),
               new ArtifactCandidate(
                   Kind.COMPILER_VALIDATION_BUNDLE, compilerBundle, List.of())));
@@ -781,7 +796,9 @@ public class CipDesignExecutorJavaAdapter {
       RunManifest runManifest,
       Reference runManifestRef,
       List<CatalogBindingHint> bindingHints,
-      DesignExecutionCheckpoint priorCheckpoint) {
+      DesignExecutionCheckpoint priorCheckpoint,
+      StageRepairEvidence repairEvidence,
+      ChainPlanGraph priorGraph) {
 
     public ExecutionInputs {
       bindingHints = bindingHints == null ? List.of() : List.copyOf(bindingHints);
@@ -806,7 +823,9 @@ public class CipDesignExecutorJavaAdapter {
           runManifest,
           runManifestRef,
           bindingHints,
-          priorCheckpoint);
+          priorCheckpoint,
+          repairEvidence,
+          priorGraph);
     }
 
     public ExecutionInputs withPlan(DesignExecutionPlan approvedPlan, Reference planRef) {
@@ -828,7 +847,9 @@ public class CipDesignExecutorJavaAdapter {
           runManifest,
           runManifestRef,
           bindingHints,
-          priorCheckpoint);
+          priorCheckpoint,
+          repairEvidence,
+          priorGraph);
     }
 
     public ExecutionInputs withFlow(NormalizedDesignFlow flow, Reference flowRef) {
@@ -850,7 +871,9 @@ public class CipDesignExecutorJavaAdapter {
           runManifest,
           runManifestRef,
           bindingHints,
-          priorCheckpoint);
+          priorCheckpoint,
+          repairEvidence,
+          priorGraph);
     }
   }
 

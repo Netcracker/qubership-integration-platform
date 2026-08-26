@@ -18,9 +18,12 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -30,6 +33,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.create.PlanningSkillArtifactUnavailableException;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionInputs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -50,19 +55,25 @@ public class DesignExecutionCapability implements StageCapability {
   private final ProductPipelineArtifactStore artifactStore;
   private final CipDesignExecutorJavaAdapter adapter;
   private final String recoveryFaultChainPrefix;
+  private final CaptureAttemptFeedbackStore feedbackStore;
   private final Set<String> recoveryFaultedRuns = ConcurrentHashMap.newKeySet();
 
   @Inject
   public DesignExecutionCapability(
       ProductPipelineArtifactStore artifactStore,
       CipDesignExecutorJavaAdapter adapter,
-      AppConfig appConfig) {
-    this(artifactStore, adapter, appConfig.e2e().recoveryFaultChainPrefix().orElse(""));
+      AppConfig appConfig,
+      CaptureAttemptFeedbackStore feedbackStore) {
+    this(
+        artifactStore,
+        adapter,
+        appConfig.e2e().recoveryFaultChainPrefix().orElse(""),
+        feedbackStore);
   }
 
   public DesignExecutionCapability(
       ProductPipelineArtifactStore artifactStore, CipDesignExecutorJavaAdapter adapter) {
-    this(artifactStore, adapter, "");
+    this(artifactStore, adapter, "", null);
   }
 
   /** Test constructor: sets the recovery-fault chain-name prefix directly. */
@@ -70,10 +81,19 @@ public class DesignExecutionCapability implements StageCapability {
       ProductPipelineArtifactStore artifactStore,
       CipDesignExecutorJavaAdapter adapter,
       String recoveryFaultChainPrefix) {
+    this(artifactStore, adapter, recoveryFaultChainPrefix, null);
+  }
+
+  DesignExecutionCapability(
+      ProductPipelineArtifactStore artifactStore,
+      CipDesignExecutorJavaAdapter adapter,
+      String recoveryFaultChainPrefix,
+      CaptureAttemptFeedbackStore feedbackStore) {
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.adapter = Objects.requireNonNull(adapter, "adapter");
     this.recoveryFaultChainPrefix =
         recoveryFaultChainPrefix == null ? "" : recoveryFaultChainPrefix.trim();
+    this.feedbackStore = feedbackStore;
   }
 
   @Override
@@ -181,6 +201,12 @@ public class DesignExecutionCapability implements StageCapability {
                 StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
                 ToolArgumentsFailures.message(ex)));
       }
+      if (ex instanceof PlanningSkillArtifactUnavailableException missing) {
+        return completedSignal(
+            StageOutcome.of(
+                StageOutcomeClass.VALIDATION_FAILURE,
+                structureUnavailableMessage(context.conversationId(), missing)));
+      }
       String message = ex.getMessage();
       if (message == null || message.isBlank()) {
         message = "design execution failed: " + ex.getClass().getSimpleName();
@@ -253,6 +279,14 @@ public class DesignExecutionCapability implements StageCapability {
             .map(revision -> artifactStore.payload(revision, DesignExecutionCheckpoint.class))
             .orElse(null);
 
+    // Repair turn: fold the halt evidence and the graph the failing attempt left behind into the
+    // execution inputs, so the compiler DAG's generator skills correct that step instead of
+    // rebuilding the chain from scratch. Null on a first turn — StageRepairEvidence.from already
+    // returns null then, and there is no prior graph to reach for.
+    StageRepairEvidence repairEvidence = StageRepairEvidence.from(context);
+    ChainPlanGraph priorGraph =
+        repairEvidence == null ? null : loadPriorGraph(context, repairEvidence);
+
     ExecutionInputs inputs =
         new ExecutionInputs(
             context.runId(),
@@ -272,8 +306,25 @@ public class DesignExecutionCapability implements StageCapability {
             runManifest,
             manifestRef.get(),
             hints,
-            prior);
+            prior,
+            repairEvidence,
+            priorGraph);
     return new ResolvedInputs(inputs, null);
+  }
+
+  /**
+   * The graph the repair turn compares against: the one the halted attempt of this stage assembled,
+   * so a stage failing on its first pass has something to correct. Falls back to the latest graph in
+   * the run when the halted attempt recorded none, which is the graph of an earlier successful pass.
+   */
+  private ChainPlanGraph loadPriorGraph(
+      StageExecutionContext context, StageRepairEvidence repairEvidence) {
+    return repairEvidence
+        .priorOutput(Kind.CHAIN_PLAN_GRAPH)
+        .flatMap(ref -> artifactStore.get(context.runId(), ref))
+        .or(() -> artifactStore.latest(context.runId(), Kind.CHAIN_PLAN_GRAPH))
+        .map(revision -> artifactStore.payload(revision, ChainPlanGraph.class))
+        .orElse(null);
   }
 
   private MatchingApproval findImplementationApproval(
@@ -366,6 +417,26 @@ public class DesignExecutionCapability implements StageCapability {
       return Optional.empty();
     }
     return Optional.of(matches.getFirst());
+  }
+
+  /** Last capture rejection, or a skill-id summary when capture never recorded one. */
+  private String structureUnavailableMessage(
+      String conversationId, PlanningSkillArtifactUnavailableException missing) {
+    if (feedbackStore != null && conversationId != null && !conversationId.isBlank()) {
+      Optional<String> summary =
+          feedbackStore
+              .lastPlanFailure(conversationId)
+              .map(CaptureAttemptFeedback::summary)
+              .filter(text -> text != null && !text.isBlank());
+      if (summary.isPresent()) {
+        return summary.get();
+      }
+    }
+    return "Skill '"
+        + missing.skillId()
+        + "' did not produce required artifacts: "
+        + missing.missingArtifactTypes()
+        + ".";
   }
 
   private static CapabilitySignal.Completed completedSignal(StageOutcome outcome) {

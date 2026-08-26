@@ -46,11 +46,55 @@ class DefaultDesignProcessSkillRunnerTest {
 
     String prompt =
         DefaultDesignProcessSkillRunner.buildUserMessage(
-            document, addon, "Binding resolution policy: CATALOG_ONLY", Optional.empty());
+            document,
+            addon,
+            "Binding resolution policy: CATALOG_ONLY",
+            Optional.empty(),
+            Optional.empty());
 
     assertTrue(prompt.contains("## Runtime addon"));
     assertTrue(prompt.contains("CATALOG_ONLY forbids APIHub planner steps"));
     assertTrue(prompt.contains("overrides conflicting workflow instructions"));
     assertFalse(prompt.contains("Machine metadata"));
+  }
+
+  @Test
+  void appendsRepairEvidenceSectionOnRepairTurn() {
+    CompilerSkillDocument document = minimalDocument();
+
+    String prompt =
+        DefaultDesignProcessSkillRunner.buildUserMessage(
+            document,
+            null,
+            "Flow id: flow-1",
+            Optional.empty(),
+            Optional.of("- outcomeClass: CONTRACT_FAILURE\n- failedStageId: design-planning\n"));
+
+    assertTrue(prompt.contains("## Repair evidence from a previous halt"));
+    assertTrue(prompt.contains("CONTRACT_FAILURE"));
+    assertTrue(prompt.contains("do not repeat the rejected one"));
+  }
+
+  @Test
+  void omitsRepairEvidenceSectionOnFirstTurn() {
+    CompilerSkillDocument document = minimalDocument();
+
+    String prompt =
+        DefaultDesignProcessSkillRunner.buildUserMessage(
+            document, null, "Flow id: flow-1", Optional.empty(), Optional.empty());
+
+    assertFalse(prompt.contains("Repair evidence"));
+  }
+
+  private static CompilerSkillDocument minimalDocument() {
+    return new CompilerSkillDocument(
+        "cip-design-planner",
+        "cip-design-planner",
+        "skills/cip-design-planner/SKILL.md",
+        "planner",
+        QipKnowledgeCapabilityPhase.DECISION,
+        true,
+        new QipKnowledgePackVersion("test", "test"),
+        "Upstream planner instructions");
   }
 }

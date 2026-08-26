@@ -329,6 +329,23 @@ class OwnerCandidateSetTest {
     assertEquals("requirement-analysis", remapped.owner().orElseThrow());
   }
 
+  @Test
+  void preferEarliestSufficientOwnerKeepsUnknownPropertyOnTheFailedExecutionStage() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.preferEarliestSufficientOwner(
+            OwnerDiagnosis.of("Retry the planning stage.", "design-planning"),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            "",
+            "Structure validation failed:\n"
+                + "node 'kafka-trigger-1' (kafka-trigger-2) has unknown property key 'topic'.");
+
+    assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
   private static ProductPipelineProfile threeStageProfile() {
     ArtifactTypeRef draft = new ArtifactTypeRef("requirement-draft", 1);
     ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);

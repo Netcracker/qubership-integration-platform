@@ -12,11 +12,13 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionEngine;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
@@ -54,17 +56,9 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       NormalizedDesignFlow flow,
       List<CatalogBindingResolution> bindings,
       RunManifest runManifest,
-      BiConsumer<String, String> skillProgress) {
-    return execute(approvedPlan, flow, bindings, runManifest, null, skillProgress);
-  }
-
-  @Override
-  public CompilerDagExecutionResult execute(
-      DesignExecutionPlan approvedPlan,
-      NormalizedDesignFlow flow,
-      List<CatalogBindingResolution> bindings,
-      RunManifest runManifest,
       String attemptId,
+      StageRepairEvidence repairEvidence,
+      ChainPlanGraph priorGraph,
       BiConsumer<String, String> skillProgress) {
     Objects.requireNonNull(approvedPlan, "approvedPlan");
     Objects.requireNonNull(flow, "flow");
@@ -79,7 +73,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
         bindings == null ? List.of() : List.copyOf(bindings);
     RequirementBrief brief =
         DesignExecutionBriefFactory.build(
-            loadStoredBrief(runManifest.runId()), flow, resolvedBindings);
+            loadStoredBrief(runManifest.runId()), flow, resolvedBindings, repairEvidence, priorGraph);
     CompilerDagExecutionRequest request =
         new CompilerDagExecutionRequest(
             runManifest.runId(),

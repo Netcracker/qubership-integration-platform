@@ -490,7 +490,7 @@
   },
   "product-create-chain-petstore-service-call": {
     "tier": "product-pipeline",
-    "status": "inactive",
+    "status": "active",
     "pipeline": "create-chain-v1",
     "profileId": "create-chain",
     "profileVersion": "2",

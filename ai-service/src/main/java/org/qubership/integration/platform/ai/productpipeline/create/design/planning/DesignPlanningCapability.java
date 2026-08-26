@@ -12,6 +12,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -20,6 +21,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
@@ -38,22 +40,27 @@ public class DesignPlanningCapability implements StageCapability {
   private final CipDesignPlannerAdapter planner;
   private final DesignPlanProjector projector;
   private final DesignImplementationPlanRenderer renderer;
+  private final ProductPipelineArtifactStore artifactStore;
 
   @Inject
-  public DesignPlanningCapability(DesignProcessSkillRunner runner) {
+  public DesignPlanningCapability(
+      DesignProcessSkillRunner runner, ProductPipelineArtifactStore artifactStore) {
     this(
         new CipDesignPlannerAdapter(runner, new CipDesignPlannerReportParser()),
         new DesignPlanProjector(),
-        new DesignImplementationPlanRenderer());
+        new DesignImplementationPlanRenderer(),
+        artifactStore);
   }
 
   DesignPlanningCapability(
       CipDesignPlannerAdapter planner,
       DesignPlanProjector projector,
-      DesignImplementationPlanRenderer renderer) {
+      DesignImplementationPlanRenderer renderer,
+      ProductPipelineArtifactStore artifactStore) {
     this.planner = Objects.requireNonNull(planner, "planner");
     this.projector = Objects.requireNonNull(projector, "projector");
     this.renderer = Objects.requireNonNull(renderer, "renderer");
+    this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
   }
 
   @Override
@@ -88,6 +95,10 @@ public class DesignPlanningCapability implements StageCapability {
   }
 
   private CapabilitySignal.Completed executeBlocking(StageExecutionContext context) {
+    // Held outside the try so a rejection after the planner answered still hands the halt the
+    // artifact it is about. Without that, the next attempt reads the complaint and nothing else.
+    DesignPlanReport report = null;
+    DesignExecutionPlan projection = null;
     try {
       IdsDocument ids = requireIds(context);
       NormalizedDesignFlow flow = requireFlow(context);
@@ -102,13 +113,17 @@ public class DesignPlanningCapability implements StageCapability {
       }
 
       String release = toApiRelease(runManifest.languageVersion());
-      DesignPlanReport report =
+      StageRepairEvidence repair = StageRepairEvidence.from(context);
+      String repairEvidenceText =
+          repair == null ? "" : repairEvidenceText(repair, priorPlanMarkdown(context, repair));
+      report =
           planner.plan(
               new PlannerRequest(
                   context.conversationId(),
                   buildPlannerInput(ids, flow, release),
-                  pinnedSkillHash));
-      DesignExecutionPlan projection =
+                  pinnedSkillHash,
+                  repairEvidenceText));
+      projection =
           projector.project(
               report,
               flow,
@@ -137,18 +152,55 @@ public class DesignPlanningCapability implements StageCapability {
               "design plan ready for approval",
               null));
     } catch (PlannerContractException ex) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(
-              ex.outcomeClass() == null ? StageOutcomeClass.CONTRACT_FAILURE : ex.outcomeClass(),
-              ex.getMessage()));
+      return haltedSignal(
+          ex.outcomeClass() == null ? StageOutcomeClass.CONTRACT_FAILURE : ex.outcomeClass(),
+          ex.getMessage(),
+          report,
+          projection);
     } catch (RuntimeException ex) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(
-              TransientFailures.isTransient(ex)
-                  ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
-                  : StageOutcomeClass.CONTRACT_FAILURE,
-              ex.getMessage()));
+      return haltedSignal(
+          TransientFailures.isTransient(ex)
+              ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
+              : StageOutcomeClass.CONTRACT_FAILURE,
+          ex.getMessage(),
+          report,
+          projection);
     }
+  }
+
+  /**
+   * Halts carrying whatever this attempt managed to build. The runtime records those artifacts
+   * against the halted attempt without approving them or marking the stage succeeded, which is what
+   * lets the next attempt of this stage read the rejected plan back.
+   */
+  private static CapabilitySignal.Completed haltedSignal(
+      StageOutcomeClass outcomeClass,
+      String message,
+      DesignPlanReport report,
+      DesignExecutionPlan projection) {
+    List<ArtifactCandidate> produced = new ArrayList<>();
+    if (report != null) {
+      produced.add(new ArtifactCandidate(Kind.DESIGN_PLAN_REPORT, report, List.of()));
+    }
+    if (projection != null) {
+      produced.add(new ArtifactCandidate(Kind.DESIGN_EXECUTION_PLAN, projection, List.of()));
+    }
+    return new CapabilitySignal.Completed(
+        new StageOutcome(outcomeClass, List.copyOf(produced), message, null));
+  }
+
+  /**
+   * Markdown of the plan the halted attempt of this stage wrote, or blank when it never produced
+   * one. Read through the halt evidence rather than through the committed inputs: the pipeline never
+   * approved this report, and only the retry of this same stage is allowed to see it.
+   */
+  private String priorPlanMarkdown(StageExecutionContext context, StageRepairEvidence repair) {
+    return repair
+        .priorOutput(Kind.DESIGN_PLAN_REPORT)
+        .flatMap(ref -> artifactStore.get(context.runId(), ref))
+        .map(revision -> artifactStore.payload(revision, DesignPlanReport.class))
+        .map(DesignPlanReport::markdown)
+        .orElse("");
   }
 
   private static IdsDocument requireIds(StageExecutionContext context) {
@@ -189,6 +241,35 @@ public class DesignPlanningCapability implements StageCapability {
             () ->
                 new PlannerContractException(
                     "design planning requires committed input ref for " + kind.name()));
+  }
+
+  /**
+   * Formats the shared halt evidence for the planner to read on a repair turn, with the rejected
+   * plan alongside the rejection. {@code priorPlanMarkdown} is blank when the failed attempt never
+   * produced a report, in which case the planner reads the complaint alone, as it did before the
+   * halted attempt kept its output.
+   */
+  static String repairEvidenceText(StageRepairEvidence repair, String priorPlanMarkdown) {
+    StringBuilder sb = new StringBuilder();
+    if (repair.outcomeClass() != null && !repair.outcomeClass().isBlank()) {
+      sb.append("- outcomeClass: ").append(repair.outcomeClass().trim()).append('\n');
+    }
+    if (repair.failedStageId() != null && !repair.failedStageId().isBlank()) {
+      sb.append("- failedStageId: ").append(repair.failedStageId().trim()).append('\n');
+    }
+    if (repair.findings() != null && !repair.findings().isBlank()) {
+      sb.append("- validationFindings:\n").append(repair.findings().trim()).append('\n');
+    }
+    if (repair.errorEvidence() != null && !repair.errorEvidence().isBlank()) {
+      sb.append("- errorEvidence:\n").append(repair.errorEvidence().trim()).append('\n');
+    }
+    if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
+      sb.append("- authorFollowUp: ").append(repair.haltFollowUpText().trim()).append('\n');
+    }
+    if (priorPlanMarkdown != null && !priorPlanMarkdown.isBlank()) {
+      sb.append("- rejectedPlan:\n").append(priorPlanMarkdown.trim()).append('\n');
+    }
+    return sb.toString().trim();
   }
 
   /** The API release an edit or a build targets, derived from the chain's language version. */

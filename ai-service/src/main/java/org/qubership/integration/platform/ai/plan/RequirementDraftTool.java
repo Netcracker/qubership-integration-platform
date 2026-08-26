@@ -142,7 +142,14 @@ public class RequirementDraftTool {
       When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT — retry the
       same turn with facts, or keep NEEDS_INPUT with one open question.
       Optional fact fields: kind (GOAL, ENDPOINT, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY,
-      VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId.
+      VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId, participant, operation,
+      topic, httpMethod, path. text is a human description only; later Java copies the named
+      identity fields and does not parse text.
+      ENDPOINT capabilityKey is the CIP trigger type (http-trigger or kafka-trigger-2). HTTP
+      ENDPOINT facts set httpMethod and path (operation optional). Kafka ENDPOINT facts set
+      topic and operation. SERVICE_CALL facts set participant and operation (example:
+      participant=Petstore Ext, operation=getPetById). Do not put trigger identity into
+      service-call fields.
       For every SERVICE_CALL fact, call resolveApiOperation before READY_FOR_PLAN. It checks the
       local catalog first and searches API Hub only after a confirmed catalog miss.
       When catalog tools return a single clear system/spec/operation match, set catalogBinding
@@ -161,7 +168,14 @@ public class RequirementDraftTool {
         "assembledText": "HTTP GET /greetings returns Hello world via script; no service calls.",
         "openQuestions": [],
         "facts": [
-          {"polarity": "POSITIVE", "kind": "ENDPOINT", "text": "GET /greetings"},
+          {
+            "polarity": "POSITIVE",
+            "kind": "ENDPOINT",
+            "capabilityKey": "http-trigger",
+            "text": "Internal HTTP GET /greetings",
+            "httpMethod": "GET",
+            "path": "/greetings"
+          },
           {"polarity": "NEGATIVE", "kind": "CONSTRAINT", "text": "No service calls"}
         ]
       }""")

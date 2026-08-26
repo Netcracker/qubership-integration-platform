@@ -15,9 +15,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,12 +28,14 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -44,6 +49,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
@@ -109,7 +115,7 @@ class DesignPlanningCapabilityTest {
     ToolInvocationSink.bind(out::add, null, "conv-1");
     CipDesignPlannerAdapter planner =
         new CipDesignPlannerAdapter(
-            (conversationId, skillId, input, formatFailure, pinnedSkillHash) -> {
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
               ToolInvocationSink.onInvoke("runOnce");
               ToolInvocationSink.onComplete("runOnce");
               return validReport();
@@ -117,7 +123,10 @@ class DesignPlanningCapabilityTest {
             new CipDesignPlannerReportParser());
     DesignPlanningCapability capability =
         new DesignPlanningCapability(
-            planner, new DesignPlanProjector(), new DesignImplementationPlanRenderer());
+            planner,
+            new DesignPlanProjector(),
+            new DesignImplementationPlanRenderer(),
+            artifactStore);
     try {
       capability.execute(sampleContext()).collect().asList().await().indefinitely();
     } finally {
@@ -219,13 +228,16 @@ class DesignPlanningCapabilityTest {
   void mapsPlannerContractFailureToContractFailureOutcome() {
     CipDesignPlannerAdapter failingPlanner =
         new CipDesignPlannerAdapter(
-            (conversationId, skillId, input, formatFailure, pinnedSkillHash) -> {
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
               throw new PlannerContractException("forced contract failure");
             },
             new CipDesignPlannerReportParser());
     DesignPlanningCapability capability =
         new DesignPlanningCapability(
-            failingPlanner, new DesignPlanProjector(), new DesignImplementationPlanRenderer());
+            failingPlanner,
+            new DesignPlanProjector(),
+            new DesignImplementationPlanRenderer(),
+            artifactStore);
 
     StageOutcome outcome =
         capability.execute(sampleContext()).collect().asList().await().indefinitely().stream()
@@ -236,6 +248,150 @@ class DesignPlanningCapabilityTest {
             .outcome();
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
     assertTrue(outcome.message().contains("forced contract failure"));
+  }
+
+  @Test
+  void repairTurnCarriesHaltEvidenceAndFollowUpToThePlannerRunner() {
+    AtomicReference<Optional<String>> seenRepairEvidence = new AtomicReference<>();
+    CipDesignPlannerAdapter planner =
+        new CipDesignPlannerAdapter(
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
+              seenRepairEvidence.set(repairEvidence);
+              return validReport();
+            },
+            new CipDesignPlannerReportParser());
+    DesignPlanningCapability capability =
+        new DesignPlanningCapability(
+            planner,
+            new DesignPlanProjector(),
+            new DesignImplementationPlanRenderer(),
+            artifactStore);
+
+    capability
+        .execute(sampleContextWithHaltAttributes())
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertTrue(seenRepairEvidence.get().isPresent());
+    String evidence = seenRepairEvidence.get().get();
+    assertTrue(evidence.contains("CONTRACT_FAILURE"), evidence);
+    assertTrue(evidence.contains("design-planning"), evidence);
+    assertTrue(evidence.contains("missing trigger coverage for step-call"), evidence);
+    assertTrue(evidence.contains("planner report rejected: missing trigger step"), evidence);
+    assertTrue(evidence.contains("keep the trigger on Orders API"), evidence);
+  }
+
+  @Test
+  void aRejectedPlanStaysWithTheHaltThatRejectedIt() {
+    // Well formed enough for the parser, so the report exists by the time the projector refuses it
+    // for covering no trigger.
+    String reportWithoutTrigger =
+        validReport().replace("(cip-trigger-generator)", "(cip-script-generator)");
+    CipDesignPlannerAdapter planner =
+        new CipDesignPlannerAdapter(
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) ->
+                reportWithoutTrigger,
+            new CipDesignPlannerReportParser());
+    DesignPlanningCapability capability =
+        new DesignPlanningCapability(
+            planner,
+            new DesignPlanProjector(),
+            new DesignImplementationPlanRenderer(),
+            artifactStore);
+
+    StageOutcome outcome =
+        capability.execute(sampleContext()).collect().asList().await().indefinitely().stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow()
+            .outcome();
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    DesignPlanReport kept =
+        outcome.candidates().stream()
+            .filter(candidate -> candidate.kind() == Kind.DESIGN_PLAN_REPORT)
+            .map(candidate -> (DesignPlanReport) candidate.payload())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("halt dropped the report it rejected"));
+    assertTrue(kept.markdown().contains("Generate Service Call element"), kept.markdown());
+    assertTrue(
+        outcome.candidates().stream()
+            .noneMatch(candidate -> candidate.kind() == Kind.DESIGN_EXECUTION_PLAN),
+        "the projection never existed, so nothing may claim it did");
+  }
+
+  @Test
+  void repairTurnCarriesTheRejectedPlanToThePlannerRunner() {
+    AtomicReference<Optional<String>> seenRepairEvidence = new AtomicReference<>();
+    CipDesignPlannerAdapter planner =
+        new CipDesignPlannerAdapter(
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
+              seenRepairEvidence.set(repairEvidence);
+              return validReport();
+            },
+            new CipDesignPlannerReportParser());
+    DesignPlanningCapability capability =
+        new DesignPlanningCapability(
+            planner,
+            new DesignPlanProjector(),
+            new DesignImplementationPlanRenderer(),
+            artifactStore);
+    Reference rejectedPlan = appendRejectedPlanReport("1. Generate nothing at all");
+
+    capability
+        .execute(sampleContextWithHaltAttributes(rejectedPlan))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    String evidence = seenRepairEvidence.get().orElseThrow();
+    assertTrue(evidence.contains("rejectedPlan"), evidence);
+    assertTrue(evidence.contains("1. Generate nothing at all"), evidence);
+  }
+
+  @Test
+  void firstTurnCarriesNoRepairEvidenceToThePlannerRunner() {
+    AtomicReference<Optional<String>> seenRepairEvidence = new AtomicReference<>();
+    CipDesignPlannerAdapter planner =
+        new CipDesignPlannerAdapter(
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
+              seenRepairEvidence.set(repairEvidence);
+              return validReport();
+            },
+            new CipDesignPlannerReportParser());
+    DesignPlanningCapability capability =
+        new DesignPlanningCapability(
+            planner,
+            new DesignPlanProjector(),
+            new DesignImplementationPlanRenderer(),
+            artifactStore);
+
+    capability.execute(sampleContext()).collect().asList().await().indefinitely();
+
+    assertEquals(Optional.empty(), seenRepairEvidence.get());
+  }
+
+  @Test
+  void repairEvidenceTextFormatsEveryHaltField() {
+    StageRepairEvidence repair =
+        new StageRepairEvidence(
+            "CONTRACT_FAILURE",
+            "design-planning",
+            "missing trigger coverage for step-call",
+            "planner report rejected: missing trigger step",
+            "keep the trigger on Orders API");
+
+    String text = DesignPlanningCapability.repairEvidenceText(repair, "");
+
+    assertTrue(text.contains("outcomeClass: CONTRACT_FAILURE"), text);
+    assertTrue(text.contains("failedStageId: design-planning"), text);
+    assertTrue(text.contains("validationFindings:\nmissing trigger coverage"), text);
+    assertTrue(text.contains("errorEvidence:\nplanner report rejected"), text);
+    assertTrue(text.contains("authorFollowUp: keep the trigger on Orders API"), text);
   }
 
   @Test
@@ -312,10 +468,13 @@ class DesignPlanningCapabilityTest {
   private DesignPlanningCapability designPlanningCapability() {
     CipDesignPlannerAdapter planner =
         new CipDesignPlannerAdapter(
-            (conversationId, skillId, input, formatFailure, pinnedSkillHash) -> validReport(),
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> validReport(),
             new CipDesignPlannerReportParser());
     return new DesignPlanningCapability(
-        planner, new DesignPlanProjector(), new DesignImplementationPlanRenderer());
+        planner,
+        new DesignPlanProjector(),
+        new DesignImplementationPlanRenderer(),
+        artifactStore);
   }
 
   private List<PipelineSignal> startRun() {
@@ -375,6 +534,60 @@ class DesignPlanningCapabilityTest {
         sampleManifest(),
         List.of(idsRef, flowRef),
         Map.of("idsDocument", ids, "normalizedDesignFlow", flow));
+  }
+
+  /** Appends a plan report the way the runtime records the output of a halted planning attempt. */
+  private Reference appendRejectedPlanReport(String markdown) {
+    return artifactStore
+        .append(
+            new AppendCommand(
+                RUN_ID,
+                Kind.DESIGN_PLAN_REPORT,
+                "1",
+                DesignPlanningCapability.CAPABILITY_ID,
+                "1",
+                new DesignPlanReport("1", markdown),
+                List.of(),
+                null,
+                new ArtifactProvenance(
+                    RUN_ID,
+                    "design-planning",
+                    "test-design-planning",
+                    "1",
+                    "profile-sha",
+                    DesignPlanningCapability.CAPABILITY_ID,
+                    "1",
+                    "closure-sha")))
+        .reference();
+  }
+
+  /** {@link #sampleContext()} plus the halt attributes the runtime writes before a recoverable halt. */
+  private StageExecutionContext sampleContextWithHaltAttributes(Reference... priorOutputs) {
+    StageExecutionContext base = sampleContext();
+    Map<String, Object> attributes = new HashMap<>(base.attributes());
+    if (priorOutputs.length > 0) {
+      attributes.put(StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR, List.of(priorOutputs));
+    }
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "planner report rejected: missing trigger step");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR, "CONTRACT_FAILURE");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-planning");
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR,
+        "missing trigger coverage for step-call");
+    attributes.put(
+        ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR, "keep the trigger on Orders API");
+    return new StageExecutionContext(
+        base.runId(),
+        base.conversationId(),
+        base.stageId(),
+        base.executionKey(),
+        base.attemptId(),
+        base.profile(),
+        base.runManifest(),
+        base.inputRefs(),
+        attributes);
   }
 
   private ProductPipelineProfile designPlanningProfile() {

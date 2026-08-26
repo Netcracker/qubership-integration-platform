@@ -3,10 +3,15 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -17,9 +22,14 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDa
  *
  * <p>Prefers the approved analysis brief when present, then enriches it with normalized-flow
  * trigger/step facts and resolved catalog binding ids so generator skills see design intent
- * without inventing values.
+ * without inventing values. On a repair turn, the halt evidence and the prior chain-plan graph
+ * fold into the same brief text rather than a second path the generator skills would need to know
+ * about.
  */
 public final class DesignExecutionBriefFactory {
+
+  private static final Set<String> HTTP_METHODS =
+      Set.of("GET", "POST", "PUT", "PATCH", "DELETE");
 
   private DesignExecutionBriefFactory() {}
 
@@ -34,6 +44,82 @@ public final class DesignExecutionBriefFactory {
       return enrich(storedBrief, flow, resolved);
     }
     return fromFlow(flow, resolved);
+  }
+
+  /**
+   * Same brief, plus the halt evidence and the chain-plan graph the failing attempt produced.
+   * {@code repairEvidence} and {@code priorGraph} are null on a first turn, in which case this
+   * returns exactly what {@link #build(RequirementBrief, NormalizedDesignFlow, List)} does — the
+   * compiler DAG reads the seed text off {@code approvedDraftText}, so the halt findings and the
+   * prior graph go there rather than through a separate path the generator skills never see.
+   */
+  public static RequirementBrief build(
+      RequirementBrief storedBrief,
+      NormalizedDesignFlow flow,
+      List<CatalogBindingResolution> bindings,
+      StageRepairEvidence repairEvidence,
+      ChainPlanGraph priorGraph) {
+    RequirementBrief brief = build(storedBrief, flow, bindings);
+    if (repairEvidence == null || !repairEvidence.hasEvidence()) {
+      return brief;
+    }
+    return new RequirementBrief(
+        brief.goal(),
+        brief.inputs(),
+        brief.constraints(),
+        brief.assumptions(),
+        brief.citations(),
+        brief.summary(),
+        brief.approvedDraftReference(),
+        withRepairEvidence(brief.approvedDraftText(), repairEvidence, priorGraph),
+        brief.facts(),
+        brief.dataMappings());
+  }
+
+  private static String withRepairEvidence(
+      String draftText, StageRepairEvidence repair, ChainPlanGraph priorGraph) {
+    StringBuilder sb = new StringBuilder();
+    sb.append(
+        "Repair the previous design-execution attempt. Correct the step named below instead of "
+            + "regenerating the whole chain.\n\n");
+    sb.append("Halt repair evidence:\n");
+    if (repair.outcomeClass() != null && !repair.outcomeClass().isBlank()) {
+      sb.append("- outcomeClass: ").append(repair.outcomeClass().trim()).append('\n');
+    }
+    if (repair.failedStageId() != null && !repair.failedStageId().isBlank()) {
+      sb.append("- failedStageId: ").append(repair.failedStageId().trim()).append('\n');
+    }
+    if (repair.findings() != null && !repair.findings().isBlank()) {
+      sb.append("- validationFindings:\n").append(repair.findings().trim()).append('\n');
+    }
+    if (repair.errorEvidence() != null && !repair.errorEvidence().isBlank()) {
+      sb.append("- errorEvidence:\n").append(repair.errorEvidence().trim()).append('\n');
+    }
+    if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
+      sb.append("- haltFollowUpText: ").append(repair.haltFollowUpText().trim()).append('\n');
+    }
+    if (priorGraph != null) {
+      sb.append("\nPrior chain plan graph:\n").append(formatPriorGraph(priorGraph)).append('\n');
+    }
+    sb.append('\n').append(draftText == null ? "" : draftText);
+    return sb.toString();
+  }
+
+  private static String formatPriorGraph(ChainPlanGraph graph) {
+    StringBuilder body = new StringBuilder();
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node == null) {
+        continue;
+      }
+      body.append("- ")
+          .append(node.nodeId())
+          .append(" [")
+          .append(node.type())
+          .append("] ")
+          .append(node.label() == null ? "" : node.label())
+          .append('\n');
+    }
+    return body.toString().trim();
   }
 
   private static RequirementBrief enrich(
@@ -112,6 +198,7 @@ public final class DesignExecutionBriefFactory {
       String method = blankToNull(trigger.operationName());
       String path = blankToNull(trigger.endpointOrTopic());
       if (path != null) {
+        boolean kafka = "kafka".equalsIgnoreCase(trigger.kind());
         String endpoint = method == null ? path : method + " " + path;
         inputs.add(endpoint);
         facts.add(
@@ -119,8 +206,13 @@ public final class DesignExecutionBriefFactory {
                 "design-flow-trigger",
                 RequirementFactPolarity.POSITIVE,
                 RequirementFactKind.ENDPOINT,
+                kafka ? "kafka-trigger-2" : "http-trigger",
+                endpoint,
                 "",
-                endpoint));
+                nullToEmpty(trigger.operationName()),
+                kafka ? path : "",
+                kafka ? "" : httpMethodFromTrigger(trigger),
+                kafka ? "" : path));
       }
     }
     for (NormalizedDesignFlow.Step step : flow.steps()) {
@@ -135,13 +227,19 @@ public final class DesignExecutionBriefFactory {
               ? RequirementFactKind.BEHAVIOR
               : RequirementFactKind.SERVICE_CALL;
       if ("script".equalsIgnoreCase(step.kind()) || "service-call".equalsIgnoreCase(step.kind())) {
+        boolean serviceCall = "service-call".equalsIgnoreCase(step.kind());
         facts.add(
             new RequirementFact(
                 "design-flow-" + step.stepId(),
                 RequirementFactPolarity.POSITIVE,
                 kind,
+                serviceCall ? "http-service-call" : "script",
+                label,
+                serviceCall ? participantDisplayName(flow, step.toParticipantId()) : "",
+                serviceCall ? nullToEmpty(step.operationQuery()) : "",
                 "",
-                label));
+                "",
+                ""));
       }
     }
     for (String constraint : flow.constraints()) {
@@ -229,6 +327,27 @@ public final class DesignExecutionBriefFactory {
     for (String value : values) {
       if (value != null && !value.isBlank()) {
         return value.trim();
+      }
+    }
+    return "";
+  }
+
+  private static String httpMethodFromTrigger(NormalizedDesignFlow.Trigger trigger) {
+    String operation = blankToNull(trigger.operationName());
+    if (operation == null) {
+      return "";
+    }
+    String upper = operation.toUpperCase(Locale.ROOT);
+    return HTTP_METHODS.contains(upper) ? upper : "";
+  }
+
+  private static String participantDisplayName(NormalizedDesignFlow flow, String participantId) {
+    if (participantId == null || participantId.isBlank()) {
+      return "";
+    }
+    for (NormalizedDesignFlow.Participant participant : flow.participants()) {
+      if (participantId.equals(participant.participantId())) {
+        return participant.displayName();
       }
     }
     return "";

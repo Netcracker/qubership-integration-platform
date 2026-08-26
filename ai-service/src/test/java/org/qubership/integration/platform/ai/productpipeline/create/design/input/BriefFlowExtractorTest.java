@@ -43,8 +43,9 @@ class BriefFlowExtractorTest {
             List.of("HTTP GET /pets"),
             "List pets",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP GET /pets findPets"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "Petstore Ext: GET /pets")),
+                httpEndpoint(
+                    "trigger-1", "HTTP GET /pets findPets", "GET", "/pets", "findPets"),
+                serviceCall("call-1", "List pets from Petstore Ext", "Petstore Ext", "GET /pets")),
             List.of(passThrough("map-init", "trigger-1", "call-1")));
 
     BriefFlowExtractor.ExtractionResult result = extractor.extract(petsBrief);
@@ -75,14 +76,17 @@ class BriefFlowExtractorTest {
             List.of("HTTP POST /demo/pet-inventory/check"),
             "Call the existing Petstore inventory operation",
             List.of(
-                fact(
+                httpEndpoint(
                     "trigger-1",
-                    RequirementFactKind.ENDPOINT,
-                    "HTTP POST /demo/pet-inventory/check"),
-                fact(
+                    "HTTP POST /demo/pet-inventory/check",
+                    "POST",
+                    "/demo/pet-inventory/check",
+                    ""),
+                serviceCall(
                     "call-1",
-                    RequirementFactKind.SERVICE_CALL,
-                    "Petstore Ext: GET /store/inventory"),
+                    "Call the existing Petstore inventory operation",
+                    "Petstore Ext",
+                    "GET /store/inventory"),
                 new RequirementFact(
                     "constraint-apihub",
                     RequirementFactPolarity.NEGATIVE,
@@ -101,70 +105,76 @@ class BriefFlowExtractorTest {
   }
 
   @Test
-  void extractsExistingCatalogOperationFromNaturalLanguageServiceCallFact() {
+  void proseServiceCallWithoutColonReturnsNeedsInput() {
     RequirementBrief brief =
         brief(
             "Pet Inventory Check",
             List.of("POST /demo/pet-inventory/check"),
             "Check the Petstore inventory",
             List.of(
-                fact(
+                httpEndpoint(
                     "trigger-1",
-                    RequirementFactKind.ENDPOINT,
-                    "POST /demo/pet-inventory/check"),
+                    "POST /demo/pet-inventory/check",
+                    "POST",
+                    "/demo/pet-inventory/check",
+                    ""),
                 fact(
                     "call-1",
                     RequirementFactKind.SERVICE_CALL,
-                    "In the try block, call the existing \"getInventory\" operation from the "
-                        + "imported \"Petstore Ext\" service from catalog: GET /store/inventory")),
+                    "Call the existing getInventory operation from imported Petstore Ext using"
+                        + " GET /store/inventory")),
             List.of(passThrough("map-init", "trigger-1", "call-1")));
 
-    NormalizedDesignFlow flow =
-        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
-            .flow();
-
-    assertEquals("Petstore Ext", flow.participants().get(1).displayName());
-    assertEquals("GET /store/inventory", flow.steps().getFirst().operationQuery());
+    BriefFlowExtractor.ExtractionResult.NeedsInput needsInput =
+        assertInstanceOf(
+            BriefFlowExtractor.ExtractionResult.NeedsInput.class, extractor.extract(brief));
+    assertTrue(
+        needsInput.missingFacts().stream().anyMatch(m -> m.contains("SERVICE_CALL.participant")),
+        () -> needsInput.missingFacts().toString());
   }
 
   @Test
-  void extractsCatalogBoundOperationFromApprovedBriefFact() {
+  void catalogBoundProseWithoutColonReturnsNeedsInput() {
     RequirementBrief brief =
         brief(
             "Pet Inventory Check",
             List.of("POST /demo/pet-inventory/check"),
             "Check the Petstore inventory",
             List.of(
-                fact(
+                httpEndpoint(
                     "trigger-1",
-                    RequirementFactKind.ENDPOINT,
-                    "POST /demo/pet-inventory/check"),
+                    "POST /demo/pet-inventory/check",
+                    "POST",
+                    "/demo/pet-inventory/check",
+                    ""),
                 fact(
                     "call-1",
                     RequirementFactKind.SERVICE_CALL,
                     "Call the catalog-bound Petstore Ext getInventory operation, GET /store/inventory.")),
             List.of(passThrough("map-init", "trigger-1", "call-1")));
 
-    NormalizedDesignFlow flow =
-        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
-            .flow();
-
-    assertEquals("Petstore Ext", flow.participants().get(1).displayName());
-    assertEquals("GET /store/inventory", flow.steps().getFirst().operationQuery());
+    BriefFlowExtractor.ExtractionResult.NeedsInput needsInput =
+        assertInstanceOf(
+            BriefFlowExtractor.ExtractionResult.NeedsInput.class, extractor.extract(brief));
+    assertTrue(
+        needsInput.missingFacts().stream().anyMatch(m -> m.contains("SERVICE_CALL.participant")),
+        () -> needsInput.missingFacts().toString());
   }
 
   @Test
-  void extractsCatalogOperationWhenRequestFollowsACommaInsteadOfUsing() {
+  void catalogCommaProseWithoutColonReturnsNeedsInput() {
     RequirementBrief brief =
         brief(
             "Pet Inventory Check",
             List.of("POST /pet-inventory/check"),
             "Check the Petstore inventory",
             List.of(
-                fact(
+                httpEndpoint(
                     "trigger-1",
-                    RequirementFactKind.ENDPOINT,
-                    "Receive internal HTTP POST /pet-inventory/check."),
+                    "Receive internal HTTP POST /pet-inventory/check.",
+                    "POST",
+                    "/pet-inventory/check",
+                    ""),
                 fact(
                     "c0875e786c4b8d657f8b792a68c029ef65fa6da6590a61fd8fafec3c65b40bc0",
                     RequirementFactKind.SERVICE_CALL,
@@ -175,12 +185,12 @@ class BriefFlowExtractorTest {
                     "trigger-1",
                     "c0875e786c4b8d657f8b792a68c029ef65fa6da6590a61fd8fafec3c65b40bc0")));
 
-    NormalizedDesignFlow flow =
-        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
-            .flow();
-
-    assertEquals("Petstore Ext", flow.participants().get(1).displayName());
-    assertEquals("GET /store/inventory", flow.steps().getFirst().operationQuery());
+    BriefFlowExtractor.ExtractionResult.NeedsInput needsInput =
+        assertInstanceOf(
+            BriefFlowExtractor.ExtractionResult.NeedsInput.class, extractor.extract(brief));
+    assertTrue(
+        needsInput.missingFacts().stream().anyMatch(m -> m.contains("SERVICE_CALL.participant")),
+        () -> needsInput.missingFacts().toString());
   }
 
   @Test
@@ -191,8 +201,9 @@ class BriefFlowExtractorTest {
             List.of("HTTP GET /pets"),
             "List pets",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP GET /pets findPets"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "Petstore Ext: GET /pets")),
+                httpEndpoint(
+                    "trigger-1", "HTTP GET /pets findPets", "GET", "/pets", "findPets"),
+                serviceCall("call-1", "List pets from Petstore Ext", "Petstore Ext", "GET /pets")),
             List.of(
                 new RequirementDataMapping(
                     "",
@@ -212,6 +223,68 @@ class BriefFlowExtractorTest {
   }
 
   @Test
+  void kafkaTriggerWithCatalogServiceCallDoesNotDemandHttpPath() {
+    RequirementBrief brief =
+        brief(
+            "Kafka pet lookup",
+            List.of(
+                "service: reg-fixture-kafka",
+                "operation: consumeUserEvent",
+                "topic: user/events",
+                "service: Petstore Ext",
+                "operationQuery: Petstore Ext: getPetById",
+                "method: GET",
+                "path: /pet/{petId}"),
+            "Consume Kafka user events and look up a pet",
+            List.of(
+                kafkaEndpoint("trigger-1", "Consume user events", "consumeUserEvent", "user/events"),
+                serviceCall("call-1", "Look up a pet in Petstore Ext", "Petstore Ext", "getPetById")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals("kafka", flow.trigger().kind());
+    assertEquals("user/events", flow.trigger().endpointOrTopic());
+    assertEquals("consumeUserEvent", flow.trigger().operationName());
+    assertEquals("Petstore Ext", flow.participants().get(1).displayName());
+    assertEquals("getPetById", flow.steps().getFirst().operationQuery());
+  }
+
+  @Test
+  void httpPathInsideAServiceCallFactDoesNotBecomeTheKafkaTrigger() {
+    RequirementBrief brief =
+        brief(
+            "Kafka pet lookup",
+            List.of("topic: user/events", "operation: consumeUserEvent"),
+            "Consume Kafka then call Petstore",
+            List.of(
+                kafkaEndpoint("trigger-1", "Consume user events", "consumeUserEvent", "user/events"),
+                new RequirementFact(
+                    "call-1",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.SERVICE_CALL,
+                    "http-service-call",
+                    "Petstore Ext getPetById using GET /pet/{petId}",
+                    "Petstore Ext",
+                    "getPetById",
+                    "",
+                    "GET",
+                    "/pet/{petId}")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals("kafka", flow.trigger().kind());
+    assertEquals("user/events", flow.trigger().endpointOrTopic());
+    assertFalse("/pet/{petId}".equals(flow.trigger().endpointOrTopic()));
+    assertEquals("getPetById", flow.steps().getFirst().operationQuery());
+  }
+
+  @Test
   void missingTriggerPathReturnsNeedsInput() {
     RequirementBrief brief =
         brief(
@@ -220,7 +293,7 @@ class BriefFlowExtractorTest {
             "List pets",
             List.of(
                 fact("trigger-1", RequirementFactKind.ENDPOINT, "async-api-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "Petstore Ext: findPets")),
+                serviceCall("call-1", "Find pets in Petstore Ext", "Petstore Ext", "findPets")),
             List.of(passThrough("map-init", "trigger-1", "call-1")));
 
     BriefFlowExtractor.ExtractionResult result = extractor.extract(brief);
@@ -228,7 +301,7 @@ class BriefFlowExtractorTest {
     BriefFlowExtractor.ExtractionResult.NeedsInput needsInput =
         assertInstanceOf(BriefFlowExtractor.ExtractionResult.NeedsInput.class, result);
     assertTrue(
-        needsInput.missingFacts().stream().anyMatch(m -> m.contains("trigger path")),
+        needsInput.missingFacts().stream().anyMatch(m -> m.contains("ENDPOINT.path")),
         () -> needsInput.missingFacts().toString());
   }
 
@@ -240,7 +313,7 @@ class BriefFlowExtractorTest {
             List.of("HTTP GET /pets"),
             "List pets",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP GET /pets"),
+                httpEndpoint("trigger-1", "HTTP GET /pets", "GET", "/pets", ""),
                 fact("call-1", RequirementFactKind.SERVICE_CALL, "statement call-1")),
             List.of(passThrough("map-init", "trigger-1", "call-1")));
 
@@ -250,7 +323,7 @@ class BriefFlowExtractorTest {
         assertInstanceOf(BriefFlowExtractor.ExtractionResult.NeedsInput.class, result);
     assertTrue(
         needsInput.missingFacts().stream()
-            .anyMatch(m -> m.contains("SERVICE_CALL participant")),
+            .anyMatch(m -> m.contains("SERVICE_CALL.participant")),
         () -> needsInput.missingFacts().toString());
   }
 
@@ -406,10 +479,7 @@ class BriefFlowExtractorTest {
             "draft-1",
             "draft",
             List.of(
-                fact(
-                    "behavior-trigger",
-                    RequirementFactKind.BEHAVIOR,
-                    "Chain receives GET on internal route \"/greetings\"."),
+                httpEndpoint("trigger-1", "GET /greetings", "GET", "/greetings", ""),
                 fact(
                     "behavior-script",
                     RequirementFactKind.BEHAVIOR,
@@ -454,16 +524,13 @@ class BriefFlowExtractorTest {
             "draft-1",
             "draft",
             List.of(
-                fact(
-                    "endpoint-http",
-                    RequirementFactKind.ENDPOINT,
-                    "HTTP GET on internal route \"/greetings\""),
+                httpEndpoint("endpoint-http", "HTTP GET /greetings", "GET", "/greetings", ""),
                 fact("endpoint-quartz", RequirementFactKind.ENDPOINT, "Quartz-scheduler hourly cron"),
                 new RequirementFact(
                     "neg-service",
                     RequirementFactPolarity.NEGATIVE,
                     RequirementFactKind.CONSTRAINT,
-                    "",
+                    "service-call",
                     "No service calls, error handling, MCP, chain failure handler, or APIHub.")),
             List.of());
 
@@ -484,8 +551,9 @@ class BriefFlowExtractorTest {
         List.of("HTTP POST /orders"),
         "Create order",
         List.of(
-            fact("fact-trigger", RequirementFactKind.ENDPOINT, "HTTP POST /orders createOrder"),
-            fact("fact-step", RequirementFactKind.SERVICE_CALL, "Orders API: create order"),
+            httpEndpoint(
+                "fact-trigger", "HTTP POST /orders createOrder", "POST", "/orders", "createOrder"),
+            serviceCall("fact-step", "Create an order via Orders API", "Orders API", "create order"),
             fact("fact-p", RequirementFactKind.BEHAVIOR, "behavior"),
             fact("fact-map", RequirementFactKind.BEHAVIOR, "mapping")),
         List.of(passThrough("map-1", "fact-trigger", "fact-step", "fact-map")));
@@ -503,6 +571,51 @@ class BriefFlowExtractorTest {
 
   private static RequirementFact fact(String id, RequirementFactKind kind, String text) {
     return new RequirementFact(id, RequirementFactPolarity.POSITIVE, kind, null, text);
+  }
+
+  private static RequirementFact httpEndpoint(
+      String id, String text, String httpMethod, String path, String operation) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.ENDPOINT,
+        "http-trigger",
+        text,
+        "",
+        operation,
+        "",
+        httpMethod,
+        path);
+  }
+
+  private static RequirementFact kafkaEndpoint(
+      String id, String text, String operation, String topic) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.ENDPOINT,
+        "kafka-trigger-2",
+        text,
+        "",
+        operation,
+        topic,
+        "",
+        "");
+  }
+
+  private static RequirementFact serviceCall(
+      String id, String text, String participant, String operation) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "http-service-call",
+        text,
+        participant,
+        operation,
+        "",
+        "",
+        "");
   }
 
   private static RequirementDataMapping leftoverHashMapping(

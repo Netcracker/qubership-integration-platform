@@ -46,6 +46,17 @@ public sealed interface StageDecision {
     }
   }
 
+  /**
+   * Reopen the producer of a rejected upstream artifact. {@code stageId} is the observing stage;
+   * {@code producerStageId} is the stage that must emit a replacement.
+   */
+  record ReopenProducer(String stageId, String producerStageId) implements StageDecision {
+
+    public ReopenProducer {
+      producerStageId = producerStageId == null ? "" : producerStageId;
+    }
+  }
+
   record Fail(String stageId, StageOutcomeClass outcomeClass, String message)
       implements StageDecision {}
 

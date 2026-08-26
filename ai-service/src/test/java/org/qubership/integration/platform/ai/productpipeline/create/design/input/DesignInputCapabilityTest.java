@@ -339,8 +339,19 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+                httpTrigger(
+                    "trigger-1",
+                    "http-trigger",
+                    "HTTP POST /orders createOrder",
+                    "POST",
+                    "/orders",
+                    "createOrder"),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Create an order via Orders API",
+                    "Orders API",
+                    "create order")),
             List.of());
     StageOutcome prepared =
         outcome(
@@ -376,8 +387,19 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+                httpTrigger(
+                    "trigger-1",
+                    "http-trigger",
+                    "HTTP POST /orders createOrder",
+                    "POST",
+                    "/orders",
+                    "createOrder"),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Create an order via Orders API",
+                    "Orders API",
+                    "create order")),
             List.of(shapelessPassThrough()));
     StageOutcome prepared =
         outcome(
@@ -416,8 +438,19 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+                httpTrigger(
+                    "trigger-1",
+                    "http-trigger",
+                    "HTTP POST /orders createOrder",
+                    "POST",
+                    "/orders",
+                    "createOrder"),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Create an order via Orders API",
+                    "Orders API",
+                    "create order")),
             List.of());
 
     StageOutcome prepared =
@@ -455,8 +488,19 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+                httpTrigger(
+                    "trigger-1",
+                    "http-trigger",
+                    "HTTP POST /orders createOrder",
+                    "POST",
+                    "/orders",
+                    "createOrder"),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Create an order via Orders API",
+                    "Orders API",
+                    "create order")),
             List.of());
 
     StageOutcome prepared =
@@ -497,8 +541,19 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+                httpTrigger(
+                    "trigger-1",
+                    "http-trigger",
+                    "HTTP POST /orders createOrder",
+                    "POST",
+                    "/orders",
+                    "createOrder"),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Create an order via Orders API",
+                    "Orders API",
+                    "create order")),
             List.of(
                 new RequirementDataMapping(
                     "map-init",
@@ -529,8 +584,19 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+                httpTrigger(
+                    "trigger-1",
+                    "http-trigger",
+                    "HTTP POST /orders createOrder",
+                    "POST",
+                    "/orders",
+                    "createOrder"),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Create an order via Orders API",
+                    "Orders API",
+                    "create order")),
             List.of());
     StageOutcome prepared =
         outcome(
@@ -652,8 +718,19 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft text in user language may appear here",
             List.of(
-                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+                httpTrigger(
+                    "trigger-1",
+                    "http-trigger",
+                    "HTTP POST /orders createOrder",
+                    "POST",
+                    "/orders",
+                    "createOrder"),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Create an order via Orders API",
+                    "Orders API",
+                    "create order")),
             List.of());
     StageOutcome prepared =
         outcome(
@@ -854,11 +931,13 @@ class DesignInputCapabilityTest {
             "draft-1",
             "draft",
             List.of(
-                fact(
+                httpTrigger(
                     "trigger-1",
-                    RequirementFactKind.ENDPOINT,
                     "http-trigger",
-                    "HTTP GET /pets"),
+                    "HTTP GET /pets",
+                    "GET",
+                    "/pets",
+                    ""),
                 fact(
                     "call-1",
                     RequirementFactKind.SERVICE_CALL,
@@ -890,7 +969,7 @@ class DesignInputCapabilityTest {
 
     assertEquals(StageOutcomeClass.VALIDATION_FAILURE, prepared.outcomeClass());
     assertTrue(prepared.message().contains("approved requirement brief"), prepared.message());
-    assertTrue(prepared.message().contains("SERVICE_CALL participant"), prepared.message());
+    assertTrue(prepared.message().contains("SERVICE_CALL.participant"), prepared.message());
   }
 
   /**
@@ -1161,12 +1240,19 @@ class DesignInputCapabilityTest {
         "draft-1",
         "draft",
         List.of(
-            fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger", "GET /health-proxy"),
-            fact(
+            httpTrigger(
+                "trigger-1",
+                "http-trigger",
+                "GET /health-proxy",
+                "GET",
+                "/health-proxy",
+                ""),
+            serviceCall(
                 "call-1",
-                RequirementFactKind.SERVICE_CALL,
                 "http-service-call",
-                "Call catalog service 'Petstore Ext'"),
+                "Call catalog service 'Petstore Ext'",
+                "Petstore Ext",
+                "getInventory"),
             fact(
                 "script-1",
                 RequirementFactKind.BEHAVIOR,
@@ -1186,8 +1272,19 @@ class DesignInputCapabilityTest {
         "draft-1",
         "draft",
         List.of(
-            fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-            fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+            httpTrigger(
+                "trigger-1",
+                "http-trigger",
+                "HTTP POST /orders createOrder",
+                "POST",
+                "/orders",
+                "createOrder"),
+            serviceCall(
+                "call-1",
+                "http-service-call",
+                "Create an order via Orders API",
+                "Orders API",
+                "create order")),
         unboundLeftoverMappings());
   }
 
@@ -1236,8 +1333,19 @@ class DesignInputCapabilityTest {
         "draft-1",
         "draft",
         List.of(
-            fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-            fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+            httpTrigger(
+                "trigger-1",
+                "http-trigger",
+                "HTTP POST /orders createOrder",
+                "POST",
+                "/orders",
+                "createOrder"),
+            serviceCall(
+                "call-1",
+                "http-service-call",
+                "Create an order via Orders API",
+                "Orders API",
+                "create order")),
         List.of(
             mapping(
                 "map-init",
@@ -1266,16 +1374,19 @@ class DesignInputCapabilityTest {
         "draft-1",
         "draft",
         List.of(
-            fact(
+            httpTrigger(
                 "fact-trigger",
-                RequirementFactKind.ENDPOINT,
                 "async-api-trigger",
-                "HTTP POST /orders createOrder"),
-            fact(
+                "HTTP POST /orders createOrder",
+                "POST",
+                "/orders",
+                "createOrder"),
+            serviceCall(
                 "fact-step",
-                RequirementFactKind.SERVICE_CALL,
                 "http-service-call",
-                "Orders API: create order"),
+                "Create an order via Orders API",
+                "Orders API",
+                "create order"),
             fact("fact-p", RequirementFactKind.BEHAVIOR, null, "statement fact-p"),
             fact("fact-map", RequirementFactKind.BEHAVIOR, null, "statement fact-map")),
         List.of(
@@ -1307,11 +1418,12 @@ class DesignInputCapabilityTest {
                     RequirementFactKind.ENDPOINT,
                     "async-api-trigger",
                     "async trigger"),
-                fact(
+                serviceCall(
                     "call-1",
-                    RequirementFactKind.SERVICE_CALL,
                     "http-service-call",
-                    "Petstore Ext: findPets")),
+                    "Find pets in Petstore Ext",
+                    "Petstore Ext",
+                    "findPets")),
             List.of(
                 mapping(
                     "map-init",
@@ -1346,6 +1458,36 @@ class DesignInputCapabilityTest {
       String id, RequirementFactKind kind, String capabilityKey, String text) {
     return new RequirementFact(
         id, RequirementFactPolarity.POSITIVE, kind, capabilityKey, text);
+  }
+
+  private static RequirementFact httpTrigger(
+      String id, String capabilityKey, String text, String httpMethod, String path, String operation) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.ENDPOINT,
+        capabilityKey,
+        text,
+        "",
+        operation,
+        "",
+        httpMethod,
+        path);
+  }
+
+  private static RequirementFact serviceCall(
+      String id, String capabilityKey, String text, String participant, String operation) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        capabilityKey,
+        text,
+        participant,
+        operation,
+        "",
+        "",
+        "");
   }
 
   private static RequirementDataMapping shapelessPassThrough() {

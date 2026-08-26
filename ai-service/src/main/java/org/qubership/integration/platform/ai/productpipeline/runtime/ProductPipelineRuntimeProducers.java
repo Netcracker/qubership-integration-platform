@@ -190,7 +190,8 @@ public class ProductPipelineRuntimeProducers {
                 narrativeConfig.maxCallsPerRun(),
                 narrativeConfig.timeout(),
                 appConfig.create().runCacheIdleTimeout()),
-            appConfig.create().runCacheIdleTimeout());
+            appConfig.create().runCacheIdleTimeout(),
+            appConfig.create().repeatedFailureThreshold());
   }
 
   @Produces

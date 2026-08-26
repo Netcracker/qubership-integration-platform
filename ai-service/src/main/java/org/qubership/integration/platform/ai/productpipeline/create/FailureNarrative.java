@@ -15,7 +15,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
+import org.qubership.integration.platform.ai.llm.agent.HaltQuestionDraft;
 import org.qubership.integration.platform.ai.llm.agent.OwnerDiagnosisDraft;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
@@ -35,6 +37,12 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
  * cost on a card body the run can always do without; the raw evidence it falls back to is the
  * durable part. Making the count survive a restart would put a journal write on every halt to bound
  * something a restart already interrupts.
+ *
+ * <p>Questions typed at a pause take the same bounded turn, but they are deduplicated rather than
+ * rationed: an answer is remembered by the identity of the question and of the evidence it was
+ * asked against, so asking twice about a run that has not moved costs no call at all. A halt and an
+ * approval card are different pauses over different evidence, so each answer is remembered under
+ * its own pause kind and the two cannot answer for each other.
  */
 public final class FailureNarrative {
 
@@ -44,10 +52,29 @@ public final class FailureNarrative {
   private static final int UNBOUNDED_CALLS = Integer.MAX_VALUE;
   private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
 
+  /** Verdict token that reads a message at a pause as a question rather than an instruction. */
+  private static final String QUESTION_VERDICT = "QUESTION";
+
+  /** Answer-cache namespaces, so a question at one kind of pause never answers for the other. */
+  private static final String HALT_PAUSE = "halt";
+
+  private static final String APPROVAL_PAUSE = "approval";
+
+  /** Ceiling on remembered answers, so a run asked about all day cannot grow without end. */
+  private static final int MAX_CACHED_ANSWERS = 1_000;
+
   private final FailureNarrativeAgent agent;
   private final int maxCallsPerRun;
   private final Duration timeout;
   private final ConcurrentMap<String, Integer> callsByRun;
+
+  /**
+   * Answers by the identity of the question and of the evidence it was asked against. Process-local
+   * on purpose: losing it on a restart costs one model call, not correctness, so it does not earn a
+   * journal write per question.
+   */
+  private final ConcurrentMap<String, String> answersByQuestion;
+
   private volatile ExecutorService workers;
 
   /**
@@ -69,13 +96,17 @@ public final class FailureNarrative {
     this.agent = agent;
     this.maxCallsPerRun = Math.max(0, maxCallsPerRun);
     this.timeout = timeout == null || timeout.isZero() || timeout.isNegative() ? null : timeout;
+    Duration idle =
+        cacheIdleTimeout == null || cacheIdleTimeout.isZero() || cacheIdleTimeout.isNegative()
+            ? DEFAULT_CACHE_IDLE_TIMEOUT
+            : cacheIdleTimeout;
     this.callsByRun =
+        Caffeine.newBuilder().expireAfterAccess(idle).<String, Integer>build().asMap();
+    this.answersByQuestion =
         Caffeine.newBuilder()
-            .expireAfterAccess(
-                cacheIdleTimeout == null || cacheIdleTimeout.isZero() || cacheIdleTimeout.isNegative()
-                    ? DEFAULT_CACHE_IDLE_TIMEOUT
-                    : cacheIdleTimeout)
-            .<String, Integer>build()
+            .expireAfterAccess(idle)
+            .maximumSize(MAX_CACHED_ANSWERS)
+            .<String, String>build()
             .asMap();
   }
 
@@ -133,10 +164,10 @@ public final class FailureNarrative {
   }
 
   /**
-   * Same turn as the halt narrative, plus an owner from {@code candidates}. An owner outside the
-   * set is dropped; the narrative is kept. Finding category remaps a self, empty, or insufficient
-   * owner to the earliest sufficient producer in the set. A follow-up that names exactly one
-   * candidate wins over that remap.
+   * Same turn as the halt narrative, plus an owner from {@code candidates} and a remedy from the
+   * closed {@link HaltRemedy} set. An owner outside the set is dropped; the narrative is kept.
+   * Finding category remaps a self, empty, or insufficient owner to the earliest sufficient
+   * producer in the set. A follow-up that names exactly one candidate wins over that remap.
    */
   public OwnerDiagnosis diagnose(
       String runId,
@@ -174,6 +205,131 @@ public final class FailureNarrative {
                     followUp,
                     clarifyRoles));
     return preferOwner(fromDraft(draft, closed), closed, stage, findings, exception, followUpText);
+  }
+
+  /**
+   * Reads a message typed at a recoverable halt and answers it when it asks about the run. Empty
+   * when the message instructs the run instead, when the turn fails, or when there is no agent,
+   * which leaves the caller's existing follow-up branches in charge.
+   *
+   * <p>One turn both decides and answers. Two turns would spend the run's budget twice on a single
+   * message and give a hung model a second chance to hold the pause open, and the classifier would
+   * need the same evidence the answer is written from anyway.
+   *
+   * <p>Answers are remembered by identity rather than rationed by a count: the same question
+   * against unchanged evidence comes back without a model call and without spending budget, and
+   * evidence that has moved on is a different key and a fresh answer. ADR 0005 made the same trade
+   * one layer down: the budget belongs on the defect, not on the person asking about it.
+   */
+  public Optional<String> answerHaltQuestion(
+      String runId,
+      String responseLocale,
+      String message,
+      String stageId,
+      StageOutcomeClass outcomeClass,
+      String exceptionMessage,
+      String validationFindings,
+      List<OwnerCandidate> candidates,
+      String followUpText) {
+    if (agent == null || message == null || message.isBlank()) {
+      return Optional.empty();
+    }
+    String question = message.trim();
+    String stage = stageId == null || stageId.isBlank() ? "" : stageId.trim();
+    String outcome = outcomeClass == null ? "" : outcomeClass.name();
+    String exception = exceptionMessage == null ? "" : exceptionMessage;
+    String findings = optionalField(validationFindings);
+    String candidateSet = OwnerCandidateSet.format(candidates == null ? List.of() : candidates);
+    String followUp = optionalField(followUpText);
+    String locale = normalizedLocale(responseLocale);
+    return answeredOnce(
+        runId,
+        "Halt question",
+        answerKey(
+            HALT_PAUSE, question, stage, outcome, exception, findings, candidateSet, followUp),
+        () ->
+            agent.answerHaltQuestion(
+                locale, question, stage, outcome, exception, findings, candidateSet, followUp));
+  }
+
+  /**
+   * Reads a message typed at an approval card and answers it when it asks about the candidate.
+   * Empty when the message asks for a different candidate instead, when the turn fails, or when
+   * there is no agent, which leaves the refine path in charge exactly as before.
+   *
+   * <p>An approval pause holds no failure, so this is a sibling turn rather than the halt turn with
+   * its fields blanked: outcome class, exception, and findings are absent here, and handing the
+   * halt turn empty ones would have it answer from nothing or, worse, from an earlier halt the
+   * question is not about. What the pause does hold is {@code candidate}, the artifact the person
+   * is being asked to accept, which the caller assembles.
+   *
+   * <p>The answer cache is the same one halt questions use, under its own pause kind. The candidate
+   * evidence carries the content hash of the artifact under approval, so a new candidate is a new
+   * key and a stale answer cannot be served.
+   */
+  public Optional<String> answerApprovalQuestion(
+      String runId,
+      String responseLocale,
+      String message,
+      String stageId,
+      String candidate) {
+    if (agent == null || message == null || message.isBlank()) {
+      return Optional.empty();
+    }
+    String question = message.trim();
+    String stage = stageId == null || stageId.isBlank() ? "" : stageId.trim();
+    String artifact = optionalField(candidate);
+    String locale = normalizedLocale(responseLocale);
+    return answeredOnce(
+        runId,
+        "Approval question",
+        answerKey(APPROVAL_PAUSE, question, stage, artifact),
+        () -> agent.answerApprovalQuestion(locale, question, stage, artifact));
+  }
+
+  /**
+   * Serves a remembered answer or spends one bounded turn on a fresh one. A verdict of INSTRUCTION
+   * is remembered as an empty answer, because it is as durable a reading of the message as an
+   * answer is; a turn that failed is not remembered at all, since freezing a transient outage into
+   * a permanent verdict would silence every later ask.
+   */
+  private Optional<String> answeredOnce(
+      String runId, String turnName, String key, Supplier<HaltQuestionDraft> turn) {
+    String remembered = answersByQuestion.get(key);
+    if (remembered != null) {
+      return remembered.isEmpty() ? Optional.empty() : Optional.of(remembered);
+    }
+    HaltQuestionDraft draft = runTurn(runId, turnName, turn);
+    if (draft == null) {
+      return Optional.empty();
+    }
+    String answer = answerOf(draft);
+    answersByQuestion.put(key, answer);
+    return answer.isEmpty() ? Optional.empty() : Optional.of(answer);
+  }
+
+  /**
+   * The answer a draft contributes: blank for an instruction and for a verdict the closed pair does
+   * not hold, so an unrecognized reply leaves the existing follow-up paths untouched.
+   */
+  private static String answerOf(HaltQuestionDraft draft) {
+    return QUESTION_VERDICT.equalsIgnoreCase(draft.verdict().trim()) ? draft.answer().trim() : "";
+  }
+
+  /**
+   * Identity of one question against one pause: {@code pauseKind + NUL + failureSignature(evidence)
+   * + NUL + failureSignature(question)}. Both signed halves take the normalization the repair
+   * budget already uses, so wording that differs only by case, spacing, or a masked id is one key,
+   * and evidence that has moved on is another. {@code pauseKind} is a fixed token holding no NUL,
+   * so a halt question and an approval question on one run stay in separate namespaces even when
+   * their evidence normalizes alike.
+   */
+  private static String answerKey(String pauseKind, String question, String... evidence) {
+    return pauseKind
+        + '\u0000'
+        + ToolCallFingerprints.failureSignature(String.join("\n", evidence))
+        + '\u0000'
+        + ToolCallFingerprints.failureSignature(question);
   }
 
   /**
@@ -284,17 +440,29 @@ public final class FailureNarrative {
       return OwnerDiagnosis.none("");
     }
     String narrative = draft.narrative() == null ? "" : draft.narrative().trim();
-    if (draft.ambiguous()) {
-      return OwnerDiagnosis.ask(narrative);
-    }
     String owner = draft.ownerStageId() == null ? "" : draft.ownerStageId().trim();
-    if (owner.isBlank()) {
-      return OwnerDiagnosis.none(narrative);
+    boolean ownerHonored = OwnerCandidateSet.containsStage(candidates, owner);
+    OwnerDiagnosis diagnosis;
+    if (draft.ambiguous()) {
+      diagnosis = OwnerDiagnosis.ask(narrative);
+    } else if (ownerHonored) {
+      diagnosis = OwnerDiagnosis.of(narrative, owner);
+    } else {
+      diagnosis = OwnerDiagnosis.none(narrative);
     }
-    if (!OwnerCandidateSet.containsStage(candidates, owner)) {
-      return OwnerDiagnosis.none(narrative);
-    }
-    return OwnerDiagnosis.of(narrative, owner);
+    return diagnosis.withRemedy(honoredRemedy(draft, diagnosis), draft.instruction());
+  }
+
+  /**
+   * The remedy the card may state. A token outside the closed set parses to {@link
+   * HaltRemedy#NONE}, and a go-back is honored only when the model named a stage the candidate set
+   * holds, so a dropped remedy costs the card its extra sentence and leaves the narrative alone.
+   */
+  private static HaltRemedy honoredRemedy(OwnerDiagnosisDraft draft, OwnerDiagnosis diagnosis) {
+    HaltRemedy remedy = HaltRemedy.fromModelValue(draft.remedy());
+    return remedy == HaltRemedy.REOPEN_STAGE && diagnosis.owner().isEmpty()
+        ? HaltRemedy.NONE
+        : remedy;
   }
 
   private static void appendFindings(List<String> lines, ArtifactCandidate candidate) {

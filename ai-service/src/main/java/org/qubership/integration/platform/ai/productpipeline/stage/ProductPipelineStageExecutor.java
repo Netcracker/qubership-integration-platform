@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
@@ -31,11 +32,13 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerDiagnosis;
+import org.qubership.integration.platform.ai.productpipeline.create.ProducerOwnedRecovery;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -76,6 +79,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final Map<String, Integer> technicalRetriesByStage;
   private final ApprovalPrompts approvalPrompts;
   private final FailureNarrative failureNarrative;
+  private final int repeatedFailureThreshold;
+
+  private static final int MAX_SEMANTIC_REPAIRS = 1;
+  private static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
 
   public ProductPipelineStageExecutor(
       ProductPipelineRunStore runStore,
@@ -111,6 +118,32 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       Map<String, Integer> technicalRetriesByStage,
       ApprovalPrompts approvalPrompts,
       FailureNarrative failureNarrative) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        clock,
+        profilesByRun,
+        manifestsByRun,
+        attributesByRun,
+        technicalRetriesByStage,
+        approvalPrompts,
+        failureNarrative,
+        2);
+  }
+
+  public ProductPipelineStageExecutor(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      Clock clock,
+      Map<String, ProductPipelineProfile> profilesByRun,
+      Map<String, RunManifest> manifestsByRun,
+      Map<String, Map<String, Object>> attributesByRun,
+      Map<String, Integer> technicalRetriesByStage,
+      ApprovalPrompts approvalPrompts,
+      FailureNarrative failureNarrative,
+      int repeatedFailureThreshold) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -124,6 +157,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         approvalPrompts == null ? new ApprovalPrompts() : approvalPrompts;
     this.failureNarrative =
         failureNarrative == null ? new FailureNarrative() : failureNarrative;
+    this.repeatedFailureThreshold = Math.max(2, repeatedFailureThreshold);
   }
 
   @Override
@@ -237,8 +271,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     List<Reference> committed = committedInputs(doc);
     Map<String, Object> attributes =
-        enrichAttributesFromCommittedInputs(
-            runId, committed, attributesByRun.getOrDefault(runId, Map.of()));
+        publishHaltedAttemptOutputs(
+            runId,
+            doc,
+            stage,
+            enrichAttributesFromCommittedInputs(
+                runId, committed, attributesByRun.getOrDefault(runId, Map.of())));
     Optional<SkipPolicy.SkipAction> skipAction = evaluateSkip(stage, attributes);
     if (skipAction.isPresent()) {
       return Uni.createFrom()
@@ -307,8 +345,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   /**
-   * Classifies a throwable that ended a capability without an outcome. A failure the capability did
-   * not recognize is a contract failure; a capability that recognizes one completes with its own,
+   * Classifies a throwable that ended a capability without an outcome. A throwable nothing
+   * recognized is an internal failure, not a contract the author can satisfy: no wording of the
+   * requirements makes it go away. A capability that recognizes its own failure completes with a
    * better message instead of reaching here.
    */
   private static StageOutcome outcomeOf(Throwable failure) {
@@ -322,7 +361,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     String message = failure == null ? null : failure.getMessage();
     return StageOutcome.of(
-        StageOutcomeClass.CONTRACT_FAILURE,
+        StageOutcomeClass.INTERNAL_FAILURE,
         message == null || message.isBlank() ? String.valueOf(failure) : message);
   }
 
@@ -455,13 +494,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       }
       case CANDIDATE -> {
         CandidateResolution resolution = resolveCandidateResolution(stage, outcome.candidates());
-        if (resolution.contractFailure() != null) {
+        if (resolution.failure() != null) {
           yield haltRecoverable(
               doc,
               stage,
               List.of(),
-              StageOutcomeClass.CONTRACT_FAILURE,
-              resolution.contractFailure(),
+              resolution.failureClass(),
+              resolution.failure(),
               List.of(),
               emitted,
               true);
@@ -545,7 +584,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             new StageDecision.Retry(stage.stageId(), Duration.ofMillis(Math.max(delayMs, 0L))),
             emitted);
       }
-      case VALIDATION_FAILURE, CONTRACT_FAILURE, DOMAIN_FAILURE -> {
+      case VALIDATION_FAILURE, CONTRACT_FAILURE, DOMAIN_FAILURE, INTERNAL_FAILURE -> {
         List<Reference> refs =
             appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates()));
         String failureMessage =
@@ -587,14 +626,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       List<ArtifactCandidate> candidates,
       List<PipelineSignal> emitted,
       boolean diagnoseOwner) {
-    String evidence = message == null || message.isBlank() ? outcomeClass.name() : message;
+    boolean internal = outcomeClass == StageOutcomeClass.INTERNAL_FAILURE;
+    String evidence = evidenceText(outcomeClass, message, doc.run().runId());
     String findings = FailureNarrative.findingsText(candidates);
     RunManifest manifest = manifestsByRun.get(doc.run().runId());
     String locale = manifest == null ? "en" : manifest.responseLocale();
     String followUp = followUpText(doc.run().runId());
     String body;
-    String gate = PipelineGates.STAGE_RETRY;
+    String gate = internal ? PipelineGates.STAGE_INTERNAL_FAILURE : PipelineGates.STAGE_RETRY;
     List<String> choiceIds = List.of();
+    String diagnosedOwner = "";
     putRunAttribute(
         doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, evidence);
     putRunAttribute(
@@ -604,12 +645,67 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     putRunAttribute(
         doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, findings);
     putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    List<OwnerCandidate> closed = ownerCandidates(profile, stage.stageId());
+    ProducerOwnedRecovery.Route recovery =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                stage.stageId(),
+                outcomeClass,
+                findings,
+                evidence,
+                closed,
+                catalogHasBeenWritten(doc.run().runId()),
+                semanticRepairsUsed(doc, stage.stageId(), evidence),
+                MAX_SEMANTIC_REPAIRS,
+                Optional.empty()));
+    putRunAttribute(
+        doc.run().runId(),
+        ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
+        recovery.producerStageId());
+    if (recovery.action() == ProducerOwnedRecovery.Action.REPAIR_CURRENT) {
+      recordProducerRepairAttempt(doc, stage, refs, evidence);
+      emitted.add(new PipelineSignal.Progress(stage.stageId(), "Repairing rejected output"));
+      return new StageExecutionResult(
+          new StageDecision.Retry(stage.stageId(), Duration.ZERO), emitted);
+    }
+    if (recovery.action() == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM
+        && canCausalReopen(doc, recovery.producerStageId(), evidence)) {
+      recordProducerRepairAttempt(doc, stage, refs, evidence);
+      emitted.add(
+          new PipelineSignal.Progress(
+              recovery.producerStageId(), "Reopening producer for rejected input"));
+      return new StageExecutionResult(
+          new StageDecision.ReopenProducer(stage.stageId(), recovery.producerStageId()),
+          emitted);
+    }
+    if (recovery.action() == ProducerOwnedRecovery.Action.ASK_CLARIFICATION) {
+      String prompt =
+          PipelineGates.tag(
+              PipelineGates.STAGE_CLARIFICATION,
+              "Which " + recovery.requestedFact() + " should this chain use?");
+      List<StageSnapshot> stages =
+          refs.isEmpty()
+              ? doc.run().stages()
+              : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
+      commitStatus(
+          doc,
+          RunStatus.WAITING_FOR_INPUT,
+          StageStatus.WAITING_FOR_INPUT,
+          stages,
+          prompt,
+          ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null));
+      emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
+      return new StageExecutionResult(
+          new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
+    }
     if (diagnoseOwner) {
-      ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
-      List<OwnerCandidate> closed = OwnerCandidateSet.firstLayer(profile, stage.stageId());
-      List<OwnerCandidate> deeper = OwnerCandidateSet.deepen(profile, closed);
-      if (deeper.size() > closed.size()) {
-        closed = deeper;
+      List<OwnerCandidate> diagnosisSet = closed;
+      if (internal) {
+        diagnosisSet =
+            closed.stream()
+                .filter(candidate -> !stage.stageId().equals(candidate.stageId()))
+                .toList();
       }
       OwnerDiagnosis diagnosis =
           failureNarrative.diagnose(
@@ -619,19 +715,25 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               outcomeClass,
               evidence,
               findings,
-              closed,
+              diagnosisSet,
               followUp);
-      body = diagnosis.narrative().isBlank() ? evidence : diagnosis.narrative();
+      body = diagnosis.cardBody(evidence);
       if (diagnosis.ambiguous()) {
-        gate = PipelineGates.OWNER_CHOICE;
-        choiceIds = OwnerCandidateSet.stageIds(closed);
+        gate = internal ? PipelineGates.STAGE_INTERNAL_FAILURE : PipelineGates.OWNER_CHOICE;
+        choiceIds = OwnerCandidateSet.stageIds(diagnosisSet);
         putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
       } else if (diagnosis.owner().isPresent()) {
-        gate = PipelineGates.STAGE_REVISE;
+        // An internal failure keeps its own gate even with an owner: reopening that owner may route
+        // around the defect, but re-entering this stage cannot.
+        gate = internal ? PipelineGates.STAGE_INTERNAL_FAILURE : PipelineGates.STAGE_REVISE;
         putRunAttribute(
             doc.run().runId(),
             ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
             diagnosis.owner().orElseThrow());
+        diagnosedOwner = diagnosis.owner().orElseThrow();
+        if (internal) {
+          choiceIds = List.of(diagnosedOwner);
+        }
       } else {
         putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
       }
@@ -648,10 +750,28 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                   followUp)
               .orElse(evidence);
     }
-    String prompt =
-        PipelineGates.OWNER_CHOICE.equals(gate)
-            ? PipelineGates.tagOwnerChoice(body, choiceIds)
-            : PipelineGates.retag(gate, body);
+    String haltIdentity = ToolCallFingerprints.failureSignature(evidence);
+    boolean escalated =
+        !internal
+            && repeatedHaltCount(doc, stage.stageId(), haltIdentity) + 1
+                >= repeatedFailureThreshold;
+    if (escalated && choiceIds.isEmpty() && !diagnosedOwner.isBlank()) {
+      choiceIds = List.of(diagnosedOwner);
+    }
+    // Both paths strip markers out of the body before tagging, so model-authored text that happens
+    // to spell a marker cannot move the wait to a gate the executor did not choose.
+    String prompt;
+    if (escalated) {
+      prompt = PipelineGates.tagEscalated(body, choiceIds, stage.skip() != null, "");
+    } else if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
+      prompt = PipelineGates.tagInternalFailure(body, choiceIds);
+    } else {
+      prompt =
+          PipelineGates.OWNER_CHOICE.equals(gate)
+              ? PipelineGates.tagOwnerChoice(body, choiceIds)
+              : PipelineGates.retag(gate, body);
+    }
+    String durablePrompt = PipelineGates.tagHaltIdentity(prompt, haltIdentity);
     List<StageSnapshot> stages =
         refs.isEmpty()
             ? doc.run().stages()
@@ -661,12 +781,43 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         RunStatus.WAITING_FOR_INPUT,
         StageStatus.WAITING_FOR_INPUT,
         stages,
-        prompt,
+        durablePrompt,
         ProductPipelineRunSupport.haltEvidence(
             attributesByRun.get(doc.run().runId()), null));
     emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
     return new StageExecutionResult(
         new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
+  }
+
+  private static long repeatedHaltCount(
+      ProductPipelineRunDocument doc, String stageId, String haltIdentity) {
+    return doc.attempts().stream()
+        .filter(attempt -> stageId.equals(attempt.stageId()))
+        .filter(attempt -> attempt.outcome() == StageStatus.WAITING_FOR_INPUT)
+        .filter(attempt -> attempt.failureEvidence() != null)
+        .filter(
+            attempt ->
+                doc.transitions().stream()
+                    .filter(transition -> transition.toRevision() == attempt.runRevision())
+                    .map(RunTransition::reason)
+                    .map(PipelineGates::haltIdentityOf)
+                    .flatMap(Optional::stream)
+                    .anyMatch(haltIdentity::equals))
+        .count();
+  }
+
+  /**
+   * Structured evidence for the halt. An internal failure carries the run identifier, so the
+   * narrative turn has it to quote and the raw-evidence fallback still names it when that turn
+   * fails. The runtime supplies the field; the sentence around it stays the model's to write.
+   */
+  private static String evidenceText(
+      StageOutcomeClass outcomeClass, String message, String runId) {
+    String text = message == null || message.isBlank() ? outcomeClass.name() : message;
+    if (outcomeClass != StageOutcomeClass.INTERNAL_FAILURE || runId == null || runId.isBlank()) {
+      return text;
+    }
+    return text + " (runId=" + runId + ")";
   }
 
   private String followUpText(String runId) {
@@ -676,6 +827,88 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     Object value = attributes.get(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR);
     return value instanceof String text ? text : "";
+  }
+
+  private static List<OwnerCandidate> ownerCandidates(
+      ProductPipelineProfile profile, String failedStageId) {
+    List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(profile, failedStageId);
+    List<OwnerCandidate> deeper = OwnerCandidateSet.deepen(profile, first);
+    return deeper.size() > first.size() ? deeper : first;
+  }
+
+  private boolean catalogHasBeenWritten(String runId) {
+    return artifactStore.latest(runId, Kind.MATERIALIZATION_RESULT).isPresent()
+        || artifactStore.latest(runId, Kind.CATALOG_CHAIN_SNAPSHOT).isPresent();
+  }
+
+  private static int semanticRepairsUsed(
+      ProductPipelineRunDocument doc, String stageId, String evidence) {
+    String reason = producerRepairReason(evidence);
+    return (int)
+        doc.transitions().stream()
+            .filter(transition -> stageId.equals(transition.stageId()))
+            .filter(transition -> reason.equals(transition.reason()))
+            .count();
+  }
+
+  private void recordProducerRepairAttempt(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      String evidence) {
+    List<StageSnapshot> repairing =
+        refs.isEmpty()
+            ? doc.run().stages()
+            : markStageOutputs(doc, stage.stageId(), refs, StageStatus.RUNNING);
+    commitStatus(
+        doc,
+        RunStatus.RUNNING,
+        StageStatus.RUNNING,
+        repairing,
+        producerRepairReason(evidence),
+        ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null),
+        StageStatus.FAILED);
+  }
+
+  private boolean canCausalReopen(
+      ProductPipelineRunDocument doc, String owner, String evidence) {
+    if (owner == null || owner.isBlank() || owner.equals(doc.run().currentStageId())) {
+      return false;
+    }
+    if (catalogHasBeenWritten(doc.run().runId())) {
+      return false;
+    }
+    boolean approved =
+        doc.run().stages().stream()
+            .filter(stage -> owner.equals(stage.stageId()))
+            .findFirst()
+            .map(
+                stage ->
+                    stage.approvedArtifactId() != null && !stage.approvedArtifactId().isBlank())
+            .orElse(false);
+    if (!approved) {
+      return false;
+    }
+    long reopens =
+        doc.transitions().stream()
+            .filter(
+                transition ->
+                    transition.reason() != null
+                        && transition
+                            .reason()
+                            .startsWith(ProductPipelineRunSupport.CAUSAL_REOPEN_REASON_PREFIX))
+            .count();
+    if (reopens >= ProductPipelineRunSupport.MAX_CAUSAL_REOPENS) {
+      return false;
+    }
+    String reason =
+        ProductPipelineRunSupport.causalReopenReason(
+            owner, ToolCallFingerprints.failureSignature(evidence));
+    return doc.transitions().stream().noneMatch(transition -> reason.equals(transition.reason()));
+  }
+
+  private static String producerRepairReason(String evidence) {
+    return PRODUCER_REPAIR_REASON_PREFIX + ToolCallFingerprints.failureSignature(evidence);
   }
 
   private void putRunAttribute(String runId, String key, String value) {
@@ -717,6 +950,52 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     attributesByRun.put(runId, attributes);
     return attributes;
+  }
+
+  /**
+   * Hands a repair turn the artifacts its halted attempt produced, so the retry sees the plan or
+   * the graph its complaint is about and not only the complaint. {@link #haltRecoverable} already
+   * writes those refs onto the stage's own journal snapshot, which a restart restores, so this
+   * reads them back rather than keeping a second copy.
+   *
+   * <p>The refs travel in one run attribute and never in {@code committed}, so
+   * {@link #resolveDeclaredInputs} and {@link #findCommitted} cannot see them, no downstream stage
+   * can satisfy a declared input with them, and the halted stage stays unapproved. The attribute is
+   * rewritten on every execution and removed when there is nothing to publish, so one stage's
+   * halted output cannot follow the run forward into the next stage.
+   */
+  private Map<String, Object> publishHaltedAttemptOutputs(
+      String runId,
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      Map<String, Object> attributes) {
+    List<Reference> refs =
+        StageRepairEvidence.haltRecorded(attributes)
+            ? haltedAttemptOutputs(doc, stage.stageId())
+            : List.of();
+    if (refs.isEmpty()) {
+      attributes.remove(StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR);
+    } else {
+      attributes.put(StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR, refs);
+    }
+    attributesByRun.put(runId, attributes);
+    return attributes;
+  }
+
+  /**
+   * The outputs a stage recorded on an attempt that never committed them. A succeeded or approved
+   * snapshot yields nothing: those refs are committed work, reachable through
+   * {@link #committedInputs} like any other input.
+   */
+  private static List<Reference> haltedAttemptOutputs(
+      ProductPipelineRunDocument doc, String stageId) {
+    return doc.run().stages().stream()
+        .filter(snapshot -> snapshot.stageId().equals(stageId))
+        .filter(snapshot -> snapshot.status() != StageStatus.SUCCEEDED)
+        .filter(snapshot -> snapshot.approvedArtifactId() == null)
+        .findFirst()
+        .map(StageSnapshot::outputRefs)
+        .orElse(List.of());
   }
 
   private Optional<SkipPolicy.SkipAction> evaluateSkip(
@@ -796,8 +1075,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             .map(CapabilitySignal.Completed::outcome)
             .toList();
     if (completed.size() != 1) {
+      // The capability protocol, not the model reply: no author input changes how many signals a
+      // capability emits.
       return StageOutcome.of(
-          StageOutcomeClass.CONTRACT_FAILURE,
+          StageOutcomeClass.INTERNAL_FAILURE,
           "capability must emit exactly one Completed signal, got " + completed.size());
     }
     return completed.get(0);
@@ -806,32 +1087,33 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private CandidateResolution resolveCandidateResolution(
       ProfileStage stage, List<ArtifactCandidate> candidates) {
     if (stage.approval() == null) {
-      return new CandidateResolution(List.of(), "candidate outcome requires approval policy");
+      return CandidateResolution.contractFailure("candidate outcome requires approval policy");
     }
     if (candidates == null || candidates.isEmpty()) {
-      return new CandidateResolution(List.of(), "candidate outcome emitted no artifacts");
+      return CandidateResolution.contractFailure("candidate outcome emitted no artifacts");
     }
     List<ArtifactTypeRef> allowedTypes = candidateResolutionTypes(stage);
     List<ResolvedCandidate> resolved = new ArrayList<>();
     for (ArtifactCandidate candidate : candidates) {
       if (candidate == null || candidate.kind() == null) {
-        return new CandidateResolution(List.of(), "candidate artifact kind is required");
+        return CandidateResolution.contractFailure("candidate artifact kind is required");
       }
       List<ArtifactTypeRef> matches =
           allowedTypes.stream().filter(typeRef -> typeRef.matches(candidate.kind())).toList();
+      // The three mismatches below are between the capability and the profile that declared its
+      // candidate set. Neither is anything the author wrote, so they halt as internal failures.
       if (matches.isEmpty()) {
-        return new CandidateResolution(
-            List.of(), "unknown candidate kind " + candidate.kind().name());
+        return CandidateResolution.internalFailure(
+            "unknown candidate kind " + candidate.kind().name());
       }
       if (matches.size() > 1) {
-        return new CandidateResolution(
-            List.of(),
+        return CandidateResolution.internalFailure(
             "duplicate candidate-set declarations for kind " + candidate.kind().name());
       }
       ArtifactTypeRef resolvedType = matches.get(0);
       if (resolvedType.schemaVersion() <= 0) {
-        return new CandidateResolution(
-            List.of(), "undeclared schema version for kind " + candidate.kind().name());
+        return CandidateResolution.internalFailure(
+            "undeclared schema version for kind " + candidate.kind().name());
       }
       resolved.add(new ResolvedCandidate(candidate, resolvedType));
     }
@@ -842,8 +1124,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               .filter(candidate -> required.matches(candidate.kind()))
               .count();
       if (count != 1) {
-        return new CandidateResolution(
-            List.of(),
+        return CandidateResolution.contractFailure(
             "candidate set kind "
                 + required.type()
                 + " must occur exactly once, but occurred "
@@ -856,14 +1137,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             .filter(candidate -> stage.approval().artifact().matches(candidate.kind()))
             .count();
     if (approvableCount != 1) {
-      return new CandidateResolution(
-          List.of(),
+      return CandidateResolution.contractFailure(
           "approval target kind "
               + stage.approval().artifact().type()
               + " must occur exactly once, but occurred "
               + approvableCount);
     }
-    return new CandidateResolution(List.copyOf(resolved), null);
+    return CandidateResolution.resolved(resolved);
   }
 
   private List<ResolvedCandidate> resolveProducedCandidates(
@@ -1289,12 +1569,33 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private record ResolvedCandidate(ArtifactCandidate candidate, ArtifactTypeRef typeRef) {}
 
+  /**
+   * Either the candidates a CANDIDATE outcome resolved to, or the failure that stopped them
+   * resolving together with the class it halts under. {@code failureClass} is null exactly when
+   * {@code failure} is.
+   */
   private record CandidateResolution(
-      List<ResolvedCandidate> resolvedCandidates, String contractFailure) {
+      List<ResolvedCandidate> resolvedCandidates,
+      StageOutcomeClass failureClass,
+      String failure) {
 
     private CandidateResolution {
       resolvedCandidates =
           resolvedCandidates == null ? List.of() : List.copyOf(resolvedCandidates);
+    }
+
+    static CandidateResolution resolved(List<ResolvedCandidate> candidates) {
+      return new CandidateResolution(candidates, null, null);
+    }
+
+    /** The capability produced a candidate set the stage contract rejects. */
+    static CandidateResolution contractFailure(String failure) {
+      return new CandidateResolution(List.of(), StageOutcomeClass.CONTRACT_FAILURE, failure);
+    }
+
+    /** The capability and the profile disagree about what this stage produces. */
+    static CandidateResolution internalFailure(String failure) {
+      return new CandidateResolution(List.of(), StageOutcomeClass.INTERNAL_FAILURE, failure);
     }
   }
 }

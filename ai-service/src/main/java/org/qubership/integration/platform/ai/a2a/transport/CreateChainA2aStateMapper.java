@@ -213,6 +213,8 @@ public final class CreateChainA2aStateMapper {
         data.put("allowedActions", List.of(PipelineGates.RETRY_ACTION));
       } else if (PipelineGates.STAGE_REVISE.equals(clarify.gateId())) {
         data.put("allowedActions", List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION));
+      } else if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(clarify.gateId())) {
+        data.put("allowedActions", clarify.missingEvidence());
       } else if (PipelineGates.OWNER_CHOICE.equals(clarify.gateId())) {
         data.put("allowedActions", clarify.missingEvidence());
       } else {
@@ -267,6 +269,17 @@ public final class CreateChainA2aStateMapper {
     if (PipelineGates.STAGE_REVISE.equals(gate)) {
       return reason
           + "\nReply \"retry\" to repeat this stage, or \"revise\" to reopen the diagnosed owner.";
+    }
+    if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
+      if (clarify.missingEvidence().isEmpty()) {
+        return reason;
+      }
+      StringBuilder text = new StringBuilder(reason);
+      for (String stageId : clarify.missingEvidence()) {
+        text.append("\n- ").append(stageId);
+      }
+      text.append("\nReply with one of those stage ids to reopen it.");
+      return text.toString();
     }
     if (PipelineGates.OWNER_CHOICE.equals(gate)) {
       StringBuilder text = new StringBuilder(reason);

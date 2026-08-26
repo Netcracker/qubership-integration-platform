@@ -44,11 +44,13 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
       String skillId,
       String input,
       Optional<String> formatFailure,
+      Optional<String> repairEvidence,
       String pinnedSkillHash) {
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(skillId, "skillId");
     Objects.requireNonNull(input, "input");
     Objects.requireNonNull(formatFailure, "formatFailure");
+    Objects.requireNonNull(repairEvidence, "repairEvidence");
     Objects.requireNonNull(pinnedSkillHash, "pinnedSkillHash");
 
     CompilerSkillDocument document = documentService.loadByCapabilityId(skillId);
@@ -68,7 +70,11 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
     String userMessage =
         QuteUserMessageEscaping.escapeForAiServiceUserMessage(
             buildUserMessage(
-                document, addonRepository.loadForSkill(skillId), input, formatFailure));
+                document,
+                addonRepository.loadForSkill(skillId),
+                input,
+                formatFailure,
+                repairEvidence));
     List<String> tokens =
         agent.chat(conversationId, userMessage).collect().asList().await().indefinitely();
     StringBuilder rendered = new StringBuilder();
@@ -82,7 +88,8 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
       CompilerSkillDocument document,
       CompilerSkillAddonContext addon,
       String input,
-      Optional<String> formatFailure) {
+      Optional<String> formatFailure,
+      Optional<String> repairEvidence) {
     StringBuilder body = new StringBuilder();
     body.append("## Skill\n\n");
     body.append(document.markdown() == null ? "" : document.markdown().trim());
@@ -97,6 +104,11 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
     }
     body.append("\n\n## Design input\n\n");
     body.append(input.trim());
+    if (repairEvidence.isPresent() && !repairEvidence.get().isBlank()) {
+      body.append("\n\n## Repair evidence from a previous halt\n\n");
+      body.append(repairEvidence.get().trim());
+      body.append("\n\nProduce a plan that resolves this; do not repeat the rejected one.");
+    }
     if (formatFailure.isPresent()) {
       body.append("\n\n## Format failure from previous attempt\n\n");
       body.append(formatFailure.get().trim());

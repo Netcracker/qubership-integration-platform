@@ -127,7 +127,8 @@ public final class CreateChainTestOrchestrator implements CreateChainOrchestrato
       signals.addAll(
           support.applyStageLifecycle(runId, result).collect().asList().await().indefinitely());
       if (!(result.decision() instanceof StageDecision.Continue)
-          && !(result.decision() instanceof StageDecision.Retry)) {
+          && !(result.decision() instanceof StageDecision.Retry)
+          && !(result.decision() instanceof StageDecision.ReopenProducer)) {
         break;
       }
     }
