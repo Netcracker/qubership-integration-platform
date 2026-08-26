@@ -159,16 +159,20 @@ public class MicroDomainResourceBuildContextFactory {
      * {@code getMainIntegrationResources} found one. The tier HTTPRoutes are named independently of
      * whether they were found, via the same naming strategies {@code HttpRouteResourceBuilder} uses
      * to name them in the generated YAML, so an absent tier is recorded under the exact key Phase 3
-     * will look up -- recording it under a made-up or missing name would make the "observed absent"
-     * state invisible to the write for a domain's very first tier.
+     * will look up -- recording it as observed-absent under that key lets the write create it
+     * directly, without paying for a GET first. Those tiers are worth the naming machinery because
+     * they are the objects a concurrent deploy of the same domain can actually contend on.
      *
      * <p>Service, ServiceMonitor, and the integrations-configuration ConfigMap have no such strategy
-     * wired into this factory. When one of them is absent, its observation is still recorded (per
-     * the three-state contract), but under a {@code null} name: this factory cannot know, without a
-     * name generator it does not otherwise need, under what name the write will eventually declare
-     * it. A {@code null}-named entry never collides with a real generated document's key, so the
-     * write simply falls through to the "never observed" branch for that one kind -- correct, only
-     * missing the optimization the correctly-named tiers get.
+     * wired into this factory, so when one of them is absent {@link #recordIfNamed} skips it rather
+     * than recording an entry under a name nothing could ever look up: the write derives its lookup
+     * key from the generated document's own name, so an unnamed entry could never match, and would
+     * misreport "never looked" as "looked, confirmed absent". Skipping leaves the key entirely out
+     * of the map, so the write correctly falls through to Task 1's write-time GET-then-PUT for that
+     * one kind -- the same behavior as before this optimization existed, just without the false
+     * "confirmed absent" claim. These three are per-domain, uncontended objects, so the GET they pay
+     * for on the "never observed" branch is not worth three more naming strategies wired into this
+     * factory to avoid.
      */
     private void recordAppendObservations(
             ResourceBuildContext<List<Snapshot>> context,
@@ -176,12 +180,10 @@ public class MicroDomainResourceBuildContextFactory {
             Map<ResourceKey, Optional<V1ObjectMeta>> observations
     ) {
         recordObservation(observations, "Integration", nameOrNull(resources.integration()), resources.integration());
-        recordObservation(observations, "Service", nameOrNull(resources.service()), resources.service());
-        recordObservation(observations, "ServiceMonitor", nameOrNull(resources.serviceMonitor()), resources.serviceMonitor());
-        recordObservation(observations, "ConfigMap", nameOrNull(resources.integrationsConfiguration()),
-                resources.integrationsConfiguration());
-        resources.integrationSources().forEach(configMap ->
-                recordObservation(observations, "ConfigMap", nameOrNull(configMap), configMap));
+        recordIfNamed(observations, "Service", resources.service());
+        recordIfNamed(observations, "ServiceMonitor", resources.serviceMonitor());
+        recordIfNamed(observations, "ConfigMap", resources.integrationsConfiguration());
+        resources.integrationSources().forEach(configMap -> recordIfNamed(observations, "ConfigMap", configMap));
         recordObservation(observations, "HTTPRoute",
                 httpRoutePublicNamingStrategy.getName(context), resources.publicHttpRoute());
         recordObservation(observations, "HTTPRoute",
@@ -193,6 +195,22 @@ public class MicroDomainResourceBuildContextFactory {
     /** {@code obj}'s own name, or {@code null} when {@code obj} itself is absent. */
     private static String nameOrNull(KubernetesObject obj) {
         return obj == null ? null : getName(obj).orElse(null);
+    }
+
+    /**
+     * Records an observation only when {@code live} resolves to a name. The write derives its
+     * lookup key from the generated document's own name, so an entry with no name could never
+     * match -- and would misreport "never looked" as "looked, confirmed absent".
+     */
+    private void recordIfNamed(
+            Map<ResourceKey, Optional<V1ObjectMeta>> observations,
+            String kind,
+            KubernetesObject live
+    ) {
+        String name = nameOrNull(live);
+        if (name != null) {
+            recordObservation(observations, kind, name, live);
+        }
     }
 
     /**
