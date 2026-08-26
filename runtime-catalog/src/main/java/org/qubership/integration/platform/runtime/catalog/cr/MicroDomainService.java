@@ -4,6 +4,7 @@ import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.coreos.monitoring.models.V1ServiceMonitorList;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -35,6 +36,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
@@ -79,6 +81,20 @@ public class MicroDomainService {
                     (a, b) -> a));
         }
     }
+
+    /** Identifies a document in the built YAML, and an entry in the observation map. */
+    public record ResourceKey(String kind, String name) { }
+
+    /**
+     * The built YAML plus what Phase 1 observed for each object it read. The observation is the
+     * live {@code V1ObjectMeta} rather than a bare version string: it already carries
+     * {@code resourceVersion}, and it is also the metadata the write overlays generated labels onto.
+     *
+     * <p>Three states, and they are not interchangeable. {@code Optional.of(meta)} means Phase 1
+     * read the object; {@code Optional.empty()} means it looked and found nothing; a key that is
+     * absent entirely means Phase 1 never looked, which is the ordinary case under {@code REWRITE}.
+     */
+    public record BuiltResources(String yaml, Map<ResourceKey, Optional<V1ObjectMeta>> observations) { }
 
     private final KubeOperator kubeOperator;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
@@ -182,15 +198,56 @@ public class MicroDomainService {
         return kubeOperator.getDestinationRules();
     }
 
-    public void deploy(String resourceText) throws MicroDomainDeployError {
+    public void deploy(BuiltResources built) throws MicroDomainDeployError {
         try {
-            List<Object> resources = Yaml.loadAll(resourceText);
+            List<Object> resources = Yaml.loadAll(built.yaml());
             for (Object resource : resources) {
+                applyObservation(resource, built.observations());
                 kubeOperator.createOrUpdateResource(resource);
             }
+        } catch (KubeApiConflictException conflict) {
+            throw conflict;
         } catch (Exception exception) {
             throw new MicroDomainDeployError("Failed to deploy resources", exception);
         }
+    }
+
+    /**
+     * Stamps the observed {@code resourceVersion} onto {@code resource} and folds the generated
+     * labels and annotations onto the metadata the object already carried, so a write does not
+     * strip metadata another actor owns -- notably the Camel-K operator's
+     * {@code camel.apache.org/*} annotations on the Integration.
+     *
+     * <p>A key absent from {@code observations} means Phase 1 never read this kind in this mode;
+     * the document is left exactly as generated and {@code KubeOperator} resolves it with a
+     * write-time read.
+     */
+    private void applyObservation(Object resource, Map<ResourceKey, Optional<V1ObjectMeta>> observations) {
+        if (!(resource instanceof KubernetesObject object) || object.getMetadata() == null) {
+            return;
+        }
+        ResourceKey key = new ResourceKey(object.getKind(), object.getMetadata().getName());
+        Optional<V1ObjectMeta> observation = observations.get(key);
+        if (observation == null || observation.isEmpty()) {
+            return;
+        }
+        V1ObjectMeta live = observation.get();
+        V1ObjectMeta generated = object.getMetadata();
+        generated.setResourceVersion(live.getResourceVersion());
+        generated.setLabels(overlay(live.getLabels(), generated.getLabels()));
+        generated.setAnnotations(overlay(live.getAnnotations(), generated.getAnnotations()));
+    }
+
+    /** {@code base} with {@code overrides} folded on top; generated values win on key collision. */
+    private static Map<String, String> overlay(Map<String, String> base, Map<String, String> overrides) {
+        Map<String, String> merged = new LinkedHashMap<>();
+        if (base != null) {
+            merged.putAll(base);
+        }
+        if (overrides != null) {
+            merged.putAll(overrides);
+        }
+        return merged.isEmpty() ? null : merged;
     }
 
     public void delete(String name) {

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
@@ -75,7 +76,7 @@ public class CustomResourceController {
     public String buildResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for snapshots: {}", request.getSnapshotIds());
         return verifyMicroDomainEnabled(() ->
-                microDomainResourceBuildService.buildResources(request, false));
+                microDomainResourceBuildService.buildResources(request, false).yaml());
     }
 
     @PostMapping("/deploy-chains")
@@ -185,10 +186,10 @@ public class CustomResourceController {
                 .options(resourceBuildOptionsProvider.getOptions(request))
                 .snapshotIds(request.getSnapshotIds())
                 .build();
-        String resourceText = microDomainResourceBuildService.buildResources(
+        BuiltResources built = microDomainResourceBuildService.buildResources(
                 buildRequest,
                 DeployMode.APPEND.equals(request.getMode()));
-        microDomainService.deploy(resourceText);
+        microDomainService.deploy(built);
     }
 
     @DeleteMapping("/{name}")

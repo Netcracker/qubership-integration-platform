@@ -25,6 +25,7 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
@@ -37,6 +38,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -96,7 +98,8 @@ class CustomResourceControllerTest {
         ResourceBuildRequest request = ResourceBuildRequest.builder()
                 .options(ResourceBuildOptions.builder().build())
                 .build();
-        when(microDomainResourceBuildService.buildResources(request, false)).thenReturn("resource-yaml");
+        when(microDomainResourceBuildService.buildResources(request, false))
+                .thenReturn(new BuiltResources("resource-yaml", Map.of()));
 
         assertThat(controller.buildResource(request)).isEqualTo("resource-yaml");
     }
@@ -122,13 +125,14 @@ class CustomResourceControllerTest {
                 .build();
         ResourceBuildOptions options = ResourceBuildOptions.builder().build();
         when(resourceBuildOptionsProvider.getOptions(request)).thenReturn(options);
+        BuiltResources built = new BuiltResources("resource-yaml", Map.of());
         when(microDomainResourceBuildService.buildResources(any(ResourceBuildRequest.class), eq(true)))
-                .thenReturn("resource-yaml");
+                .thenReturn(built);
 
         ResponseEntity<Void> response = controller.deployResource(request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(microDomainService).deploy("resource-yaml");
+        verify(microDomainService).deploy(built);
     }
 
     @Test

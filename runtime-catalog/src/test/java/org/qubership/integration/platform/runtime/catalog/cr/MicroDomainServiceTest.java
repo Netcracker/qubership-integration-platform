@@ -34,9 +34,13 @@ import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.ResourceKey;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 
@@ -221,13 +225,36 @@ class MicroDomainServiceTest {
 
     // ---- deploy ----
 
+    private String httpRouteYaml(String name) {
+        return """
+                apiVersion: gateway.networking.k8s.io/v1
+                kind: HTTPRoute
+                metadata:
+                  name: %s
+                spec:
+                  rules: []
+                """.formatted(name);
+    }
+
+    private String integrationYaml(String name) {
+        return """
+                apiVersion: camel.apache.org/v1
+                kind: Integration
+                metadata:
+                  name: %s
+                  labels:
+                    qip.domain: payments
+                spec: {}
+                """.formatted(name);
+    }
+
     @DisplayName("Deploys every document in the manifest through the kube operator")
     @Test
     void deploysEachDocument() throws Exception {
         String manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n";
 
         MicroDomainService service = newService(false);
-        service.deploy(manifest);
+        service.deploy(new BuiltResources(manifest, Map.of()));
 
         verify(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class));
     }
@@ -241,9 +268,91 @@ class MicroDomainServiceTest {
 
         MicroDomainService service = newService(false);
         MicroDomainDeployError error =
-                assertThrows(MicroDomainDeployError.class, () -> service.deploy(manifest));
+                assertThrows(MicroDomainDeployError.class,
+                        () -> service.deploy(new BuiltResources(manifest, Map.of())));
 
         assertSame(cause, error.getCause());
+    }
+
+    @DisplayName("Lets a KubeApiConflictException through unwrapped so a caller can retry it")
+    @Test
+    void deployDoesNotWrapAConflictException() {
+        String manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n";
+        KubeApiConflictException conflict = new KubeApiConflictException("conflict", null);
+        doThrow(conflict).when(kubeOperator).createOrUpdateResource(any());
+
+        MicroDomainService service = newService(false);
+        KubeApiConflictException thrown = assertThrows(KubeApiConflictException.class,
+                () -> service.deploy(new BuiltResources(manifest, Map.of())));
+
+        assertSame(conflict, thrown,
+                "MicroDomainDeployError would hide the conflict from a caller's retry logic");
+    }
+
+    @DisplayName("Stamps the observed resourceVersion onto a document before writing it")
+    @Test
+    void deployStampsObservedResourceVersion() {
+        V1ObjectMeta observed = new V1ObjectMeta().name("route").resourceVersion("42");
+        BuiltResources built = new BuiltResources(
+                httpRouteYaml("route"),
+                Map.of(new ResourceKey("HTTPRoute", "route"), Optional.of(observed)));
+
+        MicroDomainService service = newService(false);
+        // Registers HTTPRoute with the client's static ModelMapper (mirrors the real bean's
+        // @PostConstruct), so Yaml.loadAll below resolves it to KubeCustomObject instead of
+        // falling back to DynamicKubernetesObject.
+        service.init();
+        service.deploy(built);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        KubeCustomObject written = (KubeCustomObject) captor.getValue();
+        assertEquals("42", written.getMetadata().getResourceVersion());
+    }
+
+    @DisplayName("Keeps operator-owned annotations that the generated document does not declare")
+    @Test
+    void deployOverlaysGeneratedMetadataOntoObservedMetadata() {
+        V1ObjectMeta observed = new V1ObjectMeta()
+                .name("int-res")
+                .resourceVersion("42")
+                .annotations(new LinkedHashMap<>(Map.of("camel.apache.org/operator.id", "camel-k")))
+                .labels(new LinkedHashMap<>(Map.of("qip.domain", "payments")));
+        BuiltResources built = new BuiltResources(
+                integrationYaml("int-res"),   // declares only the qip.domain label
+                Map.of(new ResourceKey("Integration", "int-res"), Optional.of(observed)));
+
+        MicroDomainService service = newService(false);
+        // Registers Integration with the client's static ModelMapper (mirrors the real bean's
+        // @PostConstruct), so Yaml.loadAll below resolves it to CamelKIntegration instead of
+        // falling back to DynamicKubernetesObject.
+        service.init();
+        service.deploy(built);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        CamelKIntegration written = (CamelKIntegration) captor.getValue();
+        assertEquals("camel-k", written.getMetadata().getAnnotations().get("camel.apache.org/operator.id"),
+                "an annotation only the operator set must survive the write");
+        assertEquals("payments", written.getMetadata().getLabels().get("qip.domain"));
+    }
+
+    @DisplayName("Leaves resourceVersion unset for a document Phase 1 observed as absent")
+    @Test
+    void deployLeavesVersionUnsetForAnObservedAbsentDocument() {
+        BuiltResources built = new BuiltResources(
+                httpRouteYaml("route"),
+                Map.of(new ResourceKey("HTTPRoute", "route"), Optional.empty()));
+
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        service.deploy(built);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        KubeCustomObject written = (KubeCustomObject) captor.getValue();
+        assertNull(written.getMetadata().getResourceVersion());
     }
 
     // ---- delete ----
