@@ -236,7 +236,8 @@ public class RequirementDraftStore {
               next.catalogBinding(),
               next.awaitingPlanContinuation(),
               next.facts(),
-              true);
+              true,
+              next.designModeHint());
     }
     if (next != current) {
       put(conversationId, next);

@@ -323,6 +323,24 @@ public final class DesignInputIdsPathPrompts {
         || normalized.contains("carry on without")) {
       return true;
     }
+    // "skip design", "skip ids", "skip the design document"
+    if (normalized.contains("skip design") || normalized.contains("skip ids")) {
+      return true;
+    }
+    // "no design document", "no design", "no ids"
+    if (normalized.contains("no design") || normalized.contains("no ids")) {
+      return true;
+    }
+    // "don't want", "don't create", "don't need" / "do not want", "do not create", "do not need"
+    // combined with a design-related word
+    if ((normalized.contains("don't") || normalized.contains("do not"))
+        && (normalized.contains("design") || normalized.contains("ids"))) {
+      return true;
+    }
+    // "without design", "without ids"
+    if (normalized.contains("without design") || normalized.contains("without ids")) {
+      return true;
+    }
     return normalized.contains("derive minimal ids")
         || normalized.contains("derive minimal")
         || (normalized.contains("derive") && normalized.contains("ids"))
