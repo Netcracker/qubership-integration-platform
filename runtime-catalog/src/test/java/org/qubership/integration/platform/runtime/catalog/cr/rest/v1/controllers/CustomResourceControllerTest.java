@@ -17,12 +17,15 @@
 package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.controllers;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainDeployError;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
@@ -31,6 +34,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.EngineService;
@@ -42,8 +46,13 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,7 +60,9 @@ import static org.mockito.Mockito.when;
  * Covers the micro-domain gate and the single-resource endpoints of {@link CustomResourceController}.
  * Each endpoint runs only when the micro domain is enabled and otherwise raises
  * {@link DomainTypeDisabledException}; the deploy endpoint wires the options provider, the build
- * service, and the deploy call together.
+ * service, and the deploy call together. A deploy that loses an optimistic-concurrency race
+ * rebuilds against current cluster state and retries up to a fixed budget before the conflict
+ * propagates.
  */
 @ExtendWith(MockitoExtension.class)
 class CustomResourceControllerTest {
@@ -90,6 +101,13 @@ class CustomResourceControllerTest {
     private void microDomainEnabled(boolean enabled) {
         when(domainProperties.getMicro()).thenReturn(microConfiguration);
         when(microConfiguration.isEnabled()).thenReturn(enabled);
+    }
+
+    private ResourceDeployRequest deployRequest(String name) {
+        return ResourceDeployRequest.builder()
+                .name(name)
+                .snapshotIds(List.of("s1"))
+                .build();
     }
 
     @Test
@@ -133,6 +151,58 @@ class CustomResourceControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(microDomainService).deploy(built);
+    }
+
+    @DisplayName("Rebuilds and retries when a deploy loses an optimistic-concurrency race")
+    @Test
+    void deployRebuildsAndRetriesOnConflict() {
+        microDomainEnabled(true);
+        when(resourceBuildOptionsProvider.getOptions(any())).thenReturn(ResourceBuildOptions.builder().build());
+        BuiltResources first = new BuiltResources("first", Map.of());
+        BuiltResources second = new BuiltResources("second", Map.of());
+        when(microDomainResourceBuildService.buildResources(any(), anyBoolean()))
+                .thenReturn(first)
+                .thenReturn(second);
+        doThrow(new KubeApiConflictException("conflict", null))
+                .doNothing()
+                .when(microDomainService).deploy(any());
+
+        controller.deployResource(deployRequest("payments"));
+
+        // Rebuilt, not re-sent: the second attempt must carry a freshly built document.
+        verify(microDomainResourceBuildService, times(2)).buildResources(any(), anyBoolean());
+        ArgumentCaptor<BuiltResources> captor = ArgumentCaptor.forClass(BuiltResources.class);
+        verify(microDomainService, times(2)).deploy(captor.capture());
+        assertEquals(List.of("first", "second"),
+                captor.getAllValues().stream().map(BuiltResources::yaml).toList());
+    }
+
+    @DisplayName("Gives up after the retry budget and surfaces the last conflict")
+    @Test
+    void deployStopsRetryingAfterTheBudgetIsExhausted() {
+        microDomainEnabled(true);
+        when(resourceBuildOptionsProvider.getOptions(any())).thenReturn(ResourceBuildOptions.builder().build());
+        when(microDomainResourceBuildService.buildResources(any(), anyBoolean()))
+                .thenReturn(new BuiltResources("yaml", Map.of()));
+        doThrow(new KubeApiConflictException("conflict", null)).when(microDomainService).deploy(any());
+
+        assertThrows(KubeApiConflictException.class, () -> controller.deployResource(deployRequest("payments")));
+
+        verify(microDomainService, times(3)).deploy(any());
+    }
+
+    @DisplayName("Does not retry a failure that is not a conflict")
+    @Test
+    void deployDoesNotRetryANonConflictFailure() {
+        microDomainEnabled(true);
+        when(resourceBuildOptionsProvider.getOptions(any())).thenReturn(ResourceBuildOptions.builder().build());
+        when(microDomainResourceBuildService.buildResources(any(), anyBoolean()))
+                .thenReturn(new BuiltResources("yaml", Map.of()));
+        doThrow(new MicroDomainDeployError("boom", null)).when(microDomainService).deploy(any());
+
+        assertThrows(MicroDomainDeployError.class, () -> controller.deployResource(deployRequest("payments")));
+
+        verify(microDomainService, times(1)).deploy(any());
     }
 
     @Test

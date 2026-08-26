@@ -14,6 +14,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -181,15 +182,29 @@ public class CustomResourceController {
         });
     }
 
+    private static final int MAX_DEPLOY_ATTEMPTS = 3;
+
     private void doDeployResource(ResourceDeployRequest request) {
         ResourceBuildRequest buildRequest = ResourceBuildRequest.builder()
                 .options(resourceBuildOptionsProvider.getOptions(request))
                 .snapshotIds(request.getSnapshotIds())
                 .build();
-        BuiltResources built = microDomainResourceBuildService.buildResources(
-                buildRequest,
-                DeployMode.APPEND.equals(request.getMode()));
-        microDomainService.deploy(built);
+        for (int attempt = 1; ; attempt++) {
+            BuiltResources built = microDomainResourceBuildService.buildResources(
+                    buildRequest,
+                    DeployMode.APPEND.equals(request.getMode()));
+            try {
+                microDomainService.deploy(built);
+                return;
+            } catch (KubeApiConflictException conflict) {
+                if (attempt == MAX_DEPLOY_ATTEMPTS) {
+                    throw conflict;
+                }
+                log.warn("Deploy of micro-domain '{}' lost a concurrency race on attempt {}/{}; "
+                                + "rebuilding against current cluster state and retrying",
+                        request.getName(), attempt, MAX_DEPLOY_ATTEMPTS);
+            }
+        }
     }
 
     @DeleteMapping("/{name}")
