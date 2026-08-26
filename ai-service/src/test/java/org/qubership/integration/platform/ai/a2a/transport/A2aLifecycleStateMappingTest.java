@@ -166,6 +166,26 @@ class A2aLifecycleStateMappingTest {
   }
 
   @Test
+  void internalFailurePublishesOnlyTheUpstreamStagesBoundToItsCard() {
+    CreateChainPendingAction.Clarify halt =
+        new CreateChainPendingAction.Clarify(
+            "A step inside the service broke.",
+            List.of("requirement-analysis", "design-planning"),
+            "stage-internal-failure");
+    CreateChainExecutionSnapshot snapshot =
+        new CreateChainExecutionSnapshot(
+            "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 3L, halt, "");
+
+    ProjectedTask projected = CreateChainA2aStateMapper.project(snapshot, List.of());
+
+    assertEquals(A2aTaskState.INPUT_REQUIRED, projected.state());
+    assertFalse(projected.terminal());
+    assertEquals(
+        List.of("requirement-analysis", "design-planning"),
+        projected.pendingActionData().get("allowedActions"));
+  }
+
+  @Test
   void idsPathClarifyStatusTellsA2aClientToReplyYesOrNo() {
     CreateChainPendingAction.Clarify clarify =
         new CreateChainPendingAction.Clarify(

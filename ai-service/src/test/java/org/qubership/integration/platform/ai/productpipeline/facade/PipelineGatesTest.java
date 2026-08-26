@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.facade;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -45,6 +46,36 @@ class PipelineGatesTest {
     assertEquals(List.of("planning", "analysis"), PipelineGates.ownerCandidatesOf(tagged));
   }
 
+  /** A typed follow-up at an internal-failure halt stays on the run, like every other halt. */
+  @Test
+  void theInternalFailureGateIsARecoverableHaltThatRoundTripsThroughTagging() {
+    String tagged =
+        PipelineGates.tag(PipelineGates.STAGE_INTERNAL_FAILURE, "A step inside the service broke.");
+
+    assertEquals(PipelineGates.STAGE_INTERNAL_FAILURE, PipelineGates.gateOf(tagged).orElseThrow());
+    assertEquals("A step inside the service broke.", PipelineGates.strip(tagged));
+  }
+
+  @Test
+  void taggingInternalFailureNarrativeKeepsThePipelineCandidates() {
+    String tagged =
+        PipelineGates.tagInternalFailure(
+            "A step inside the service broke.", List.of("analysis", "design"));
+
+    assertEquals(PipelineGates.STAGE_INTERNAL_FAILURE, PipelineGates.gateOf(tagged).orElseThrow());
+    assertEquals(List.of("analysis", "design"), PipelineGates.ownerCandidatesOf(tagged));
+    assertEquals("A step inside the service broke.", PipelineGates.strip(tagged));
+  }
+
+  @Test
+  void everyHaltGateIsRecoverableAndAQuestionGateIsNot() {
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_RETRY));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_REVISE));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_INTERNAL_FAILURE));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.OWNER_CHOICE));
+    assertFalse(PipelineGates.isRecoverableHaltGate(PipelineGates.MAPPING_GAP));
+  }
+
   @Test
   void anUntaggedPromptNamesNoGateAndSurvivesStripping() {
     assertTrue(PipelineGates.gateOf("Which system receives the message?").isEmpty());
@@ -78,5 +109,30 @@ class PipelineGatesTest {
     assertEquals(
         "Both markers.",
         PipelineGates.strip("__GATE:owner-choice__Both markers.__OWNER_CANDIDATES__planning"));
+  }
+
+  @Test
+  void escalatedHaltCarriesProducerChoicesAndDropEligibilityWithoutLeakingMarkers() {
+    String prompt =
+        PipelineGates.tagEscalated(
+            "The same validation failure happened twice.",
+            List.of("requirement-analysis", "design-planning"),
+            true,
+            "signature-1");
+
+    assertEquals(PipelineGates.STAGE_ESCALATED, PipelineGates.gateOf(prompt).orElseThrow());
+    assertEquals(
+        List.of("requirement-analysis", "design-planning"),
+        PipelineGates.ownerCandidatesOf(prompt));
+    assertTrue(PipelineGates.dropElementAllowed(prompt));
+    assertEquals("signature-1", PipelineGates.haltIdentityOf(prompt).orElseThrow());
+    assertEquals(
+        List.of(
+            "requirement-analysis",
+            "design-planning",
+            PipelineGates.DROP_ELEMENT_ACTION,
+            PipelineGates.STOP_WITH_REPORT_ACTION),
+        PipelineGates.escalatedActionsOf(prompt));
+    assertEquals("The same validation failure happened twice.", PipelineGates.strip(prompt));
   }
 }

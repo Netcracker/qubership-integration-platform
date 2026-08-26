@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
+import org.qubership.integration.platform.ai.llm.agent.HaltQuestionDraft;
 import org.qubership.integration.platform.ai.llm.agent.OwnerDiagnosisDraft;
 
 /** Test double for {@link FailureNarrativeAgent}; captures the candidate list and follow-up. */
@@ -20,9 +21,25 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
   private final boolean ambiguous;
   private final RuntimeException boom;
   private final Duration delay;
+  private String remedy = "";
+  private String instruction = "";
+  private String questionVerdict = "INSTRUCTION";
+  private String questionAnswer = "";
+  private String onlyQuestion;
 
   /** Turns the double was asked for, whatever it answered. */
   public final AtomicInteger calls = new AtomicInteger();
+
+  /** Halt-question turns alone, so a test can count them apart from diagnosis turns. */
+  public final AtomicInteger questionCalls = new AtomicInteger();
+
+  /** Approval-question turns alone, counted apart from halt questions. */
+  public final AtomicInteger approvalQuestionCalls = new AtomicInteger();
+
+  public final AtomicReference<String> lastQuestion = new AtomicReference<>();
+
+  /** Candidate evidence the last approval question was asked against. */
+  public final AtomicReference<String> lastApprovalCandidate = new AtomicReference<>();
 
   public final AtomicReference<String> lastCandidateSet = new AtomicReference<>();
   public final AtomicReference<String> lastFollowUp = new AtomicReference<>();
@@ -67,6 +84,42 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
 
   public static FakeFailureNarrativeAgent ask(String narrative) {
     return new FakeFailureNarrativeAgent(narrative, List.of(), true, null);
+  }
+
+  /**
+   * Puts a remedy on the diagnosis draft. {@code remedy} is the raw token the model would emit, so
+   * a test can hand over one the closed set does not hold.
+   */
+  public FakeFailureNarrativeAgent remedying(String remedy, String instruction) {
+    this.remedy = remedy == null ? "" : remedy;
+    this.instruction = instruction == null ? "" : instruction;
+    return this;
+  }
+
+  /**
+   * Reads the next halt message as a question and answers it with {@code answer}. Without this the
+   * double calls every halt message an instruction, which is the verdict that changes nothing.
+   */
+  public FakeFailureNarrativeAgent answering(String answer) {
+    this.questionVerdict = "QUESTION";
+    this.questionAnswer = answer == null ? "" : answer;
+    return this;
+  }
+
+  /**
+   * Reads only {@code question} as a question and every other message as an instruction, so one run
+   * can both ask and instruct without swapping the double.
+   */
+  public FakeFailureNarrativeAgent answeringOnly(String question, String answer) {
+    this.onlyQuestion = question;
+    return answering(answer);
+  }
+
+  /** Answers a halt question under a verdict token the closed pair may or may not hold. */
+  public FakeFailureNarrativeAgent answeringUnder(String verdict, String answer) {
+    this.questionVerdict = verdict == null ? "" : verdict;
+    this.questionAnswer = answer == null ? "" : answer;
+    return this;
   }
 
   public static FakeFailureNarrativeAgent boom() {
@@ -142,6 +195,52 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
     lastException.set(exceptionMessage);
     lastFindings.set(validationFindings);
     lastClarifyRoles.set(clarifyRoles);
-    return new OwnerDiagnosisDraft(narrative, nextOwnerStageId(), ambiguous);
+    return new OwnerDiagnosisDraft(narrative, nextOwnerStageId(), ambiguous, remedy, instruction);
+  }
+
+  @Override
+  public HaltQuestionDraft answerHaltQuestion(
+      String responseLocale,
+      String message,
+      String stageId,
+      String outcomeClass,
+      String exceptionMessage,
+      String validationFindings,
+      String candidateSet,
+      String followUpText) {
+    calls.incrementAndGet();
+    questionCalls.incrementAndGet();
+    if (boom != null) {
+      throw boom;
+    }
+    waitOutTheDelay();
+    lastQuestion.set(message);
+    lastCandidateSet.set(candidateSet);
+    lastFollowUp.set(followUpText);
+    lastOutcome.set(outcomeClass);
+    lastException.set(exceptionMessage);
+    lastFindings.set(validationFindings);
+    return draftFor(message);
+  }
+
+  @Override
+  public HaltQuestionDraft answerApprovalQuestion(
+      String responseLocale, String message, String stageId, String candidate) {
+    calls.incrementAndGet();
+    approvalQuestionCalls.incrementAndGet();
+    if (boom != null) {
+      throw boom;
+    }
+    waitOutTheDelay();
+    lastQuestion.set(message);
+    lastApprovalCandidate.set(candidate);
+    return draftFor(message);
+  }
+
+  private HaltQuestionDraft draftFor(String message) {
+    if (onlyQuestion != null && !onlyQuestion.equals(message)) {
+      return new HaltQuestionDraft("INSTRUCTION", "");
+    }
+    return new HaltQuestionDraft(questionVerdict, questionAnswer);
   }
 }

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -467,6 +468,34 @@ class ChatDecisionServiceTest {
 
     assertEquals("clarify", decision.kind());
     assertEquals(List.of("planning", "analysis"), decision.actions());
+  }
+
+  @Test
+  void anInternalFailureGateOffersTheBoundStageIds() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-internal"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-internal",
+                    "run-internal",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        "A step inside the service broke.",
+                        List.of("analysis", "design"),
+                        PipelineGates.STAGE_INTERNAL_FAILURE),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-internal")
+            .orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertEquals(List.of("analysis", "design"), decision.actions());
+    assertFalse(decision.actions().contains(PipelineGates.RETRY_ACTION));
+    assertFalse(decision.actions().contains(PipelineGates.REVISE_ACTION));
   }
 
   @Test

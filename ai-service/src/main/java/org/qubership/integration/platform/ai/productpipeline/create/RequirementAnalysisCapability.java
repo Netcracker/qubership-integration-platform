@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -36,6 +37,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.CanonicalKnowledgeObject;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClientException;
@@ -43,7 +45,6 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextRequest;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeFailureKind;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace;
@@ -273,7 +274,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         CapabilitySignal.Completed completed =
             completeWithBrief(context, approved, workspace, produced);
         List<CapabilitySignal> terminal = new java.util.ArrayList<>();
-        if (isRepairTurn(context) && completed.outcome().outcomeClass() == StageOutcomeClass.CANDIDATE) {
+        if (StageRepairEvidence.isRepairTurn(context)
+            && completed.outcome().outcomeClass() == StageOutcomeClass.CANDIDATE) {
           terminal.add(new CapabilitySignal.Message(repairChangeSummary(context, produced)));
         }
         terminal.add(completed);
@@ -433,7 +435,7 @@ public class RequirementAnalysisCapability implements StageCapability {
             ? StageOutcomeClass.CANDIDATE
             : StageOutcomeClass.SUCCEEDED;
     String message =
-        isRepairTurn(context)
+        StageRepairEvidence.isRepairTurn(context)
             ? "Requirement brief updated. Approve to rebuild the plan."
             : "Requirement brief ready";
     return new CapabilitySignal.Completed(
@@ -598,6 +600,12 @@ public class RequirementAnalysisCapability implements StageCapability {
               + "mappings. If you still emit a mapping, it must include stage and at least one "
               + "sourceFactId.\n\n");
     }
+    sb.append(
+        "Fact identity the later DERIVE step copies as-is (named fields, not text):\n"
+            + "- ENDPOINT capabilityKey is the CIP trigger type (http-trigger or kafka-trigger-2).\n"
+            + "- HTTP ENDPOINT: set httpMethod and path; operation is the optional operation id.\n"
+            + "- Kafka ENDPOINT: set topic and operation.\n"
+            + "- SERVICE_CALL: set participant and operation. text is a description only.\n\n");
     sb.append("Planning text:\n").append(planning).append('\n');
     if (!approved.facts().isEmpty()) {
       sb.append(
@@ -611,8 +619,9 @@ public class RequirementAnalysisCapability implements StageCapability {
             .append('/')
             .append(fact.kind())
             .append("] ")
-            .append(fact.text())
-            .append('\n');
+            .append(fact.text());
+        appendFactIdentity(sb, fact);
+        sb.append('\n');
       }
     }
     if (changeRequestText != null && !changeRequestText.isBlank()) {
@@ -621,6 +630,22 @@ public class RequirementAnalysisCapability implements StageCapability {
           .append('\n');
     }
     return sb.toString();
+  }
+
+  private static void appendFactIdentity(StringBuilder sb, RequirementFact fact) {
+    appendNamedField(sb, "capabilityKey", fact.capabilityKey());
+    appendNamedField(sb, "participant", fact.participant());
+    appendNamedField(sb, "operation", fact.operation());
+    appendNamedField(sb, "topic", fact.topic());
+    appendNamedField(sb, "httpMethod", fact.httpMethod());
+    appendNamedField(sb, "path", fact.path());
+  }
+
+  private static void appendNamedField(StringBuilder sb, String name, String value) {
+    if (value == null || value.isBlank()) {
+      return;
+    }
+    sb.append(' ').append(name).append('=').append(value.trim());
   }
 
   private static void appendRepairEvidence(StringBuilder sb, BriefRepairEvidence repair) {
@@ -649,25 +674,19 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
   }
 
-  static boolean isRepairTurn(StageExecutionContext context) {
-    if (context == null) {
-      return false;
-    }
-    String error = context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR);
-    return error != null && !error.isBlank();
-  }
-
+  /** Adds the prior brief text to the shared halt evidence; the brief-specific part of a repair. */
   static BriefRepairEvidence repairEvidence(StageExecutionContext context) {
-    if (!isRepairTurn(context)) {
+    StageRepairEvidence shared = StageRepairEvidence.from(context);
+    if (shared == null) {
       return null;
     }
     RequirementBrief prior = priorBrief(context);
     return new BriefRepairEvidence(
-        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR),
-        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR),
-        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR),
-        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR),
-        context.attributeAsString(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR),
+        shared.outcomeClass(),
+        shared.failedStageId(),
+        shared.findings(),
+        shared.errorEvidence(),
+        shared.haltFollowUpText(),
         prior == null ? "" : RequirementBriefText.format(prior));
   }
 

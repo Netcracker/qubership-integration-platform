@@ -43,3 +43,9 @@ docs/ai-service-a2a/prompts/
 
 # Isolated local git worktrees
 .worktrees/
+
+# Unpacked dependency artifacts and build scratch that land in the repo root
+META-INF/
+graph-to-image.patch
+__pycache__/
+.cursor/debug-*.log

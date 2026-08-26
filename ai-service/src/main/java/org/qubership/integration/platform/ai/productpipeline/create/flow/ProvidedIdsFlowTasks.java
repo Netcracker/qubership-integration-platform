@@ -256,6 +256,7 @@ public class ProvidedIdsFlowTasks {
       case StageDecision.WaitForApproval wait -> approvalDecision(wait.stageId());
       case StageDecision.WaitForImplementation ignored -> "WAIT_FOR_IMPLEMENTATION";
       case StageDecision.Retry ignored -> "RETRY";
+      case StageDecision.ReopenProducer ignored -> CONTINUE;
       case StageDecision.Continue ignored -> CONTINUE;
       default -> "STOP";
     };

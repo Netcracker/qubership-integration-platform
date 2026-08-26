@@ -23,8 +23,8 @@ public class ApiHubSearchAuthorizations {
   /**
    * Query budget for one authorization.
    *
-   * <p>ponytail: a constant, not a setting. Three rewordings are enough to tell a naming mismatch
-   * from a missing API; make it configurable when a real conversation proves otherwise.
+   * <p>This is a constant, not a setting. Three rewordings are enough to distinguish a naming
+   * mismatch from a missing API; make it configurable when observed usage requires another limit.
    */
   static final int DEFAULT_QUERY_BUDGET = 3;
 

@@ -128,12 +128,38 @@ a technical halt uses a short narration turn on the same evidence. If that turn 
 keeps its actions and the raw evidence — no fallback marketing sentence.
 _Avoid_: hardcoded halt copy, template error strings, "rolled back to stage X"
 
+**Remedy**:
+The change the diagnosis turn says would clear a halt: retry, revise the input, reopen a named
+stage, drop the element, or unrecoverable, plus one sentence naming what to add, remove, or
+correct. The set is closed, and the runtime validates a remedy the way it validates the owner — a
+value outside the set is dropped and the narrative stands alone. The card states the remedy; the
+gate and its actions do not change, and nothing applies it on the user's behalf.
+_Avoid_: canned remedy text, a runtime-authored instruction, an apply-the-fix button
+
+**Halt question**:
+A typed message at a pause that asks about the run rather than instructing it. A model tells the
+two apart, so the decision holds in the language of the conversation; the regex plan-question path
+is English-only and never reaches here. The answer is written from the evidence the card was
+already built from, arrives as a transcript message, and leaves the run status and the card where
+they were. A question the evidence cannot answer says so. Answers are deduplicated by the identity
+of the question and the evidence, never rationed by a count.
+_Avoid_: a per-run question budget, keyword matching for "why", moving the run to answer it
+
 **Failure routing** (decided):
 A recoverable halt is the only user-visible stop. Same-stage technical retry still runs first;
 when that budget is exhausted the halt card always includes Retry (including connection loss).
 Validation, domain, and contract failures take owner diagnosis and causal reopen. Missing mandatory
 input and policy failures halt on a Decision card; the model does not rewrite policy. No outcome
 class may leave the user with nothing to do.
+
+**Internal failure**:
+An invariant broken inside the service, as opposed to a model reply the contract rejects: a
+capability that emits the wrong number of completion signals, an artifact kind the profile never
+declared, or a throwable nothing classified. It halts recoverably like every other outcome, and
+the card carries the run identifier the author hands to support, but it offers no Retry, because
+re-entering the stage meets the same defect. Owner diagnosis considers only earlier producers. The
+card binds a valid producer stage directly; without one, the run keeps waiting for conversation.
+_Avoid_: contract failure for a service defect, a Retry that cannot work, terminal FAILED
 
 **Causal reopen window** (decided):
 Causal reopen runs only before any materializer has written to the catalog. A failure at or after
@@ -157,6 +183,34 @@ ever matched it. Any new user confirmation belongs here, not in a phrase the use
 `CREATE_ACTION` states the underlying rule: writing to the catalog is "the one irreversible step,
 never a model's to take".
 _Avoid_: approval prose, "type yes to confirm"
+
+**DEPLOY_CHAIN** (decided):
+The chat scenario for catalog Snapshot, deploy/redeploy, undeploy, and deployment status of an
+identifiable chain (open graph, just-created, or name/id). Graph explanation stays `ASK_CHAIN`.
+A chain cannot run on an engine without a catalog Snapshot; bare "deploy" creates a new Snapshot
+only when the chain has none or has unsaved changes, otherwise reuses `currentSnapshot` / latest.
+Default engine domain is `default` unless the user asks to choose or `default` is unavailable.
+After create/redeploy the chat waits briefly for Deployed, Failed, or Warning, then reports;
+Progressing past that timeout is still a valid answer. Snapshot build failure stops the flow with
+a plain-language reason from the catalog error; it does not fall back to an older Snapshot when the
+user wanted the current graph. Auto-repair via `COMPARE_AND_PATCH` is a later stage, not this
+scenario.
+_Avoid_: folding deploy into ASK_CHAIN, silent deploy of a stale Snapshot after a failed build
+
+**Catalog Snapshot**:
+The runtime-catalog versioned XML cut of a chain that deployment requires. Distinct from in-memory
+run/task "snapshots" elsewhere in this service. User-requested create is in scope for
+`DEPLOY_CHAIN`; automatic Snapshot-around-every-patch is not (see Failed write).
+_Avoid_: calling a run document or reconcile read a "snapshot" when you mean this catalog object
+
+**Chain deployment** (decided):
+Binding of one catalog Snapshot to one engine domain so the chain runs there. At most one
+deployment per chain per domain; replacing it is redeploy. Confirmation: open graph and no
+existing deployment on the target domain runs immediately; otherwise one Decision card whose
+action is Deploy or Redeploy from current state. Undeploy always uses a Decision card. Out of
+scope for v1: revert-to-snapshot, multi-domain in one request, a separate micro-engine path, A2A
+without UI.
+_Avoid_: deploy without a Snapshot, prose "yes" to confirm undeploy or redeploy
 
 ## Regression testing
 

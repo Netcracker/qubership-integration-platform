@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningDegradations;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.FakeFailureNarrativeAgent;
@@ -116,6 +117,7 @@ class ProductPipelineStageExecutorTest {
             "WaitForApproval",
             "WaitForImplementation",
             "Retry",
+            "ReopenProducer",
             "Fail",
             "Complete"),
         kinds);
@@ -701,8 +703,9 @@ class ProductPipelineStageExecutorTest {
     }
   }
 
+  /** Nothing classified the throwable, so it is our defect and Retry meets it again. */
   @Test
-  void aCapabilityThatFailsItsStreamHaltsAtTheStageRetryGateInsteadOfThrowing() {
+  void aCapabilityThatFailsItsStreamHaltsAsAnInternalFailureInsteadOfThrowing() {
     StageCapability failing =
         capability(
             "fail-cap",
@@ -717,7 +720,9 @@ class ProductPipelineStageExecutorTest {
         assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
     assertEquals("work", wait.stageId());
     assertEquals(
-        PipelineGates.tag(PipelineGates.STAGE_RETRY, "catalog lookup broke"), wait.prompt());
+        PipelineGates.STAGE_INTERNAL_FAILURE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(PipelineGates.strip(wait.prompt()).contains("catalog lookup broke"));
+    assertTrue(PipelineGates.strip(wait.prompt()).contains(RUN_ID));
     ProductPipelineRunDocument doc = requireRun();
     assertEquals(RunStatus.WAITING_FOR_INPUT, doc.run().status());
     StageAttempt latest = doc.attempts().get(doc.attempts().size() - 1);
@@ -726,6 +731,150 @@ class ProductPipelineStageExecutorTest {
     assertEquals(
         1,
         doc.attempts().stream().filter(attempt -> attempt.outcome() == StageStatus.FAILED).count());
+  }
+
+  /** Retry re-enters the same defect, so the internal-failure card offers no Retry. */
+  @Test
+  void aCapabilityEmittingTwoCompletedSignalsHaltsWithoutOfferingRetry() {
+    StageCapability doubleCompleted =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .items(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.SUCCEEDED, "first")),
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.SUCCEEDED, "second"))));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(5, 5_000L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, doubleCompleted);
+    startAndRecordInput(runtime, profile);
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertEquals(
+        PipelineGates.STAGE_INTERNAL_FAILURE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
+    assertNull(ChatEvent.actionsForGate(PipelineGates.STAGE_INTERNAL_FAILURE));
+    assertTrue(PipelineGates.strip(wait.prompt()).contains("exactly one Completed signal"));
+    assertTrue(PipelineGates.strip(wait.prompt()).contains(RUN_ID));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_INTERNAL_FAILURE));
+  }
+
+  @Test
+  void anInternalFailureBindsItsUpstreamOwnerToTheCardAndReopensThatStage() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("A step inside the service broke.", "analysis");
+    StageCapability failing =
+        capability(
+            "planning-cap",
+            context -> Multi.createFrom().failure(new IllegalStateException("catalog lookup broke")));
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = analysisThenPlanningProfile(brief, validation);
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), failing);
+    startAndRecordInput(runtime, profile);
+    approveAnalysis(runtime);
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
+
+    assertEquals(
+        PipelineGates.STAGE_INTERNAL_FAILURE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(StageOutcomeClass.INTERNAL_FAILURE.name(), agent.lastOutcome.get());
+    assertTrue(agent.lastException.get().contains(RUN_ID));
+    assertFalse(agent.lastCandidateSet.get().contains("planning"));
+    assertEquals(List.of("analysis"), PipelineGates.ownerCandidatesOf(wait.prompt()));
+    assertEquals("analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+
+    CreateChainTestOrchestrator restarted =
+        newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), failing);
+    restarted
+        .startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    restarted
+        .acceptInput(new AcceptInputCommand(RUN_ID, "analysis"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals("analysis", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+  }
+
+  @Test
+  void anAmbiguousInternalFailureKeepsBothUpstreamStagesOnTheSameCard() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.ask("Either upstream artifact could route around the defect.");
+    StageCapability failing =
+        capability(
+            "planning-cap",
+            context -> Multi.createFrom().failure(new IllegalStateException("catalog lookup broke")));
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = analysisThenDesignThenPlanningProfile(brief, validation);
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            designCandidate(),
+            failing);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "analysis");
+    approveStage(runtime, "design");
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
+
+    assertEquals(
+        PipelineGates.STAGE_INTERNAL_FAILURE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(List.of("analysis", "design"), PipelineGates.ownerCandidatesOf(wait.prompt()));
+
+    runtime
+        .acceptInput(new AcceptInputCommand(RUN_ID, "analysis"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals("analysis", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+  }
+
+  /** A reply the contract rejects is still the author's to influence, so Retry stays on the card. */
+  @Test
+  void aContractRejectionKeepsItsClassAndKeepsRetryOnTheCard() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("The reply did not match the contract.", "work");
+    StageCapability rejecting =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.CONTRACT_FAILURE, "reply is missing a field"))));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(1, 25L));
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, rejecting);
+    startAndRecordInput(runtime, profile);
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE.name(), agent.lastOutcome.get());
+    assertFalse(agent.lastException.get().contains(RUN_ID));
+    assertTrue(
+        ChatEvent.actionsForGate(PipelineGates.STAGE_REVISE).contains(PipelineGates.RETRY_ACTION));
   }
 
   @Test
@@ -932,6 +1081,304 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void aRetriedStageReadsTheArtifactItsHaltedAttemptProduced() {
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = analysisThenPlanningProfile(brief, validation);
+    List<List<Reference>> priorPerTurn = new CopyOnWriteArrayList<>();
+    List<List<Reference>> inputsPerTurn = new CopyOnWriteArrayList<>();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            profile,
+            analysisCandidate(),
+            planningRecordingPriorOutputs(priorPerTurn, inputsPerTurn));
+    startAndRecordInput(runtime, profile);
+    approveAnalysis(runtime);
+
+    execute(runtime, "planning");
+
+    assertEquals(List.of(), priorPerTurn.get(0), "a first turn reads nothing");
+    StageSnapshot halted = snapshot(requireRun(), "planning");
+    assertEquals(StageStatus.WAITING_FOR_INPUT, halted.status());
+    assertNull(halted.approvedArtifactId());
+    Reference rejected =
+        halted.outputRefs().stream()
+            .filter(ref -> ref.kind() == Kind.PLAN_VALIDATION_RESULT)
+            .findFirst()
+            .orElseThrow();
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    execute(runtime, "planning");
+
+    assertEquals(List.of(rejected), priorPerTurn.get(1));
+    assertTrue(artifactStore.get(RUN_ID, rejected).isPresent());
+    assertFalse(
+        inputsPerTurn.get(1).contains(rejected),
+        "a halted output is evidence, never a resolved declared input");
+    assertNull(snapshot(requireRun(), "planning").approvedArtifactId());
+  }
+
+  @Test
+  void theSameNormalizedFailureEscalatesAfterTwoHaltsAndSurvivesRestart() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability repeating =
+        capability(
+            "fail-cap",
+            context -> {
+              String message =
+                  calls.incrementAndGet() == 1
+                      ? "invalid node 'first' [route-a]"
+                      : "INVALID   NODE 'second' [route-b]";
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, message)));
+            });
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, repeating);
+    startAndRecordInput(runtime, profile);
+
+    StageDecision.WaitForInput first =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(first.prompt()).orElseThrow());
+
+    CreateChainTestOrchestrator restarted = newRuntime(profile, repeating);
+    restarted
+        .startOrResume(
+            new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    restarted
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    StageDecision.WaitForInput second =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class,
+            restarted
+                .support()
+                .stageExecutor()
+                .execute(RUN_ID, "work")
+                .await()
+                .indefinitely()
+                .decision());
+
+    assertEquals(
+        PipelineGates.STAGE_ESCALATED,
+        PipelineGates.gateOf(second.prompt()).orElseThrow());
+    assertFalse(
+        ChatEvent.actionsForGate(PipelineGates.STAGE_ESCALATED)
+            .contains(PipelineGates.RETRY_ACTION));
+    assertFalse(PipelineGates.dropElementAllowed(second.prompt()));
+    assertTrue(
+        requireRun().transitions().stream()
+            .anyMatch(
+                transition ->
+                    PipelineGates.STAGE_ESCALATED.equals(
+                        PipelineGates.gateOf(transition.reason()).orElse(""))));
+  }
+
+  @Test
+  void differentFailureSignaturesDoNotEscalate() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability changing =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.VALIDATION_FAILURE,
+                                calls.incrementAndGet() == 1
+                                    ? "missing trigger"
+                                    : "missing service call"))));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, changing);
+    startAndRecordInput(runtime, profile);
+    execute(runtime, "work");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    StageDecision.WaitForInput second =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(second.prompt()).orElseThrow());
+  }
+
+  @Test
+  void repeatedFailureThresholdIsConfigurable() {
+    StageCapability repeating =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.VALIDATION_FAILURE,
+                                "the same failure"))));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L));
+    CreateChainTestOrchestrator runtime = newRuntime(3, profile, repeating);
+    startAndRecordInput(runtime, profile);
+
+    execute(runtime, "work");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, "use another service"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    StageDecision.WaitForInput second =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(second.prompt()).orElseThrow());
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    StageDecision.WaitForInput third =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+    assertEquals(PipelineGates.STAGE_ESCALATED, PipelineGates.gateOf(third.prompt()).orElseThrow());
+  }
+
+  @Test
+  void escalatedStopWritesAFailureReportAndEndsTheRun() {
+    StageCapability repeating =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "same failure"))));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, repeating);
+    startAndRecordInput(runtime, profile);
+    execute(runtime, "work");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    execute(runtime, "work");
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.STOP_WITH_REPORT_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.FAILED, requireRun().run().status());
+    assertEquals(StageStatus.FAILED, stageStatus(requireRun(), "work"));
+    assertTrue(artifactStore.latest(RUN_ID, Kind.FAILURE_RECORD).isPresent());
+  }
+
+  @Test
+  void escalatedDropIsOfferedOnlyForASkippableStageAndReentersRepair() {
+    StageCapability repeating =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "same failure"))));
+    ProductPipelineProfile profile = skippableRetryProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(profile, repeating);
+    startAndRecordInput(runtime, profile);
+    execute(runtime, "work");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    StageDecision.WaitForInput escalated =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertTrue(PipelineGates.dropElementAllowed(escalated.prompt()));
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.DROP_ELEMENT_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(
+        PipelineGates.DROP_ELEMENT_ACTION,
+        runtime.support().haltFollowUpText(RUN_ID).orElseThrow());
+  }
+
+  @Test
+  void aHaltedAttemptOutputNeverSatisfiesADownstreamStageInput() {
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = planningThenPublishProfile(validation);
+    List<List<Reference>> priorPerTurn = new CopyOnWriteArrayList<>();
+    List<List<Reference>> inputsPerTurn = new CopyOnWriteArrayList<>();
+    AtomicInteger publishCalls = new AtomicInteger();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            profile,
+            planningRecordingPriorOutputs(priorPerTurn, inputsPerTurn),
+            succeeding("publish-cap", publishCalls));
+    startAndRecordInput(runtime, profile);
+
+    execute(runtime, "planning");
+    Reference rejected =
+        snapshot(requireRun(), "planning").outputRefs().stream()
+            .filter(ref -> ref.kind() == Kind.PLAN_VALIDATION_RESULT)
+            .findFirst()
+            .orElseThrow();
+    // The retry succeeds without producing anything, so the only plan-validation-result in the run
+    // is the one the halted attempt left in the artifact store.
+    List<PipelineSignal> afterRetry =
+        runtime
+            .acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(StageStatus.SUCCEEDED, stageStatus(requireRun(), "planning"));
+    assertEquals("publish", requireRun().run().currentStageId());
+    assertTrue(
+        afterRetry.stream()
+            .filter(PipelineSignal.WaitingForInput.class::isInstance)
+            .map(PipelineSignal.WaitingForInput.class::cast)
+            .anyMatch(
+                waiting ->
+                    waiting.prompt().contains("missing required input plan-validation-result")),
+        () -> "expected publish to report a missing declared input, got: " + afterRetry);
+    assertEquals(0, publishCalls.get());
+    assertTrue(artifactStore.get(RUN_ID, rejected).isPresent());
+  }
+
+  @Test
   void haltEvidenceHydratesAfterRestartForFollowUpAndRevise() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis");
@@ -972,13 +1419,9 @@ class ProductPipelineStageExecutorTest {
         .await()
         .indefinitely();
     assertEquals("add the scheduler", restarted.support().haltFollowUpText(RUN_ID).orElseThrow());
+    assertEquals("analysis", requireRun().run().currentStageId());
 
-    restarted
-        .acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    execute(restarted, "analysis");
 
     assertEquals("analysis", requireRun().run().currentStageId());
     assertNotNull(seenError.get());
@@ -1290,6 +1733,83 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void theHaltCardCarriesTheNarrativeThenTheInstructionAtTheGateTheExecutorChose() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
+            .remedying("REVISE_INPUT", "Add the nightly schedule to the requirements.");
+
+    StageDecision.WaitForInput wait = haltAtPlanning(agent);
+
+    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        "The brief omitted the scheduler.\n\nAdd the nightly schedule to the requirements.",
+        PipelineGates.strip(wait.prompt()));
+    assertEquals(
+        List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.STAGE_REVISE));
+  }
+
+  @Test
+  void aRemedyOutsideTheClosedSetLeavesTheHaltCardWithTheNarrativeAlone() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
+            .remedying("REWRITE_THE_CATALOG", "Rewrite the catalog by hand.");
+
+    StageDecision.WaitForInput wait = haltAtPlanning(agent);
+
+    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals("The brief omitted the scheduler.", PipelineGates.strip(wait.prompt()));
+    assertEquals(
+        List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.STAGE_REVISE));
+  }
+
+  @Test
+  void aReopenStageRemedyNamingAStageOutsideTheCandidateSetLeavesTheCardUnchanged() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Blaming compiler.", "compiler")
+            .remedying("REOPEN_STAGE", "Go back to the compiler stage.");
+
+    StageDecision.WaitForInput wait = haltAtPlanning(agent);
+
+    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals("Blaming compiler.", PipelineGates.strip(wait.prompt()));
+  }
+
+  @Test
+  void anInstructionThatSpellsAMarkerDoesNotMoveTheHaltToAnotherGate() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
+            .remedying(
+                "REVISE_INPUT",
+                "Add the schedule __GATE:"
+                    + PipelineGates.OWNER_CHOICE
+                    + "__ to the requirements __OWNER_CANDIDATES__planning,analysis");
+
+    StageDecision.WaitForInput wait = haltAtPlanning(agent);
+
+    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
+  }
+
+  /** Halts planning on a validation failure and returns the card the executor emitted. */
+  private StageDecision.WaitForInput haltAtPlanning(FakeFailureNarrativeAgent agent) {
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = analysisThenPlanningProfile(brief, validation);
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningValidationFailure());
+    startAndRecordInput(runtime, profile);
+    approveAnalysis(runtime);
+    return assertInstanceOf(
+        StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
+  }
+
+  @Test
   void aSpentNarrativeBudgetHaltsOnRawEvidenceAndKeepsTheCardActions() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Blaming compiler.", "compiler");
@@ -1319,10 +1839,11 @@ class ProductPipelineStageExecutorTest {
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
 
     assertEquals("planning validation failed", PipelineGates.strip(spent.prompt()));
-    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(spent.prompt()).orElseThrow());
     assertEquals(
-        List.of(PipelineGates.RETRY_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.gateOf(spent.prompt()).orElseThrow()));
+        PipelineGates.STAGE_ESCALATED, PipelineGates.gateOf(spent.prompt()).orElseThrow());
+    assertFalse(
+        ChatEvent.actionsForGate(PipelineGates.STAGE_ESCALATED)
+            .contains(PipelineGates.RETRY_ACTION));
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals(1, agent.calls.get());
   }
@@ -1452,29 +1973,16 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "design-planning");
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    StageExecutionResult failed =
+        execute(runtime, "design-execution");
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
+    assertEquals("design-planning", reopen.producerStageId());
     assertEquals(1, executionCalls.get());
+    applyLifecycle(runtime, failed);
 
-    runtime
-        .recordInput(new AcceptInputCommand(RUN_ID, "add rbac"))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-    assertEquals("add rbac", runtime.support().haltFollowUpText(RUN_ID).orElseThrow());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
-    assertEquals("design-execution", requireRun().run().currentStageId());
-
-    runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    StageExecutionResult planningResult = execute(runtime, "design-planning");
+    applyLifecycle(runtime, planningResult);
 
     assertEquals("design-planning", requireRun().run().currentStageId());
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
@@ -1482,7 +1990,6 @@ class ProductPipelineStageExecutorTest {
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
     assertNotNull(seenError.get());
     assertFalse(seenError.get().isBlank());
-    assertEquals("add rbac", seenFollowUp.get());
   }
 
   @Test
@@ -1512,19 +2019,19 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "requirement-analysis");
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-input").decision());
-    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    StageExecutionResult failedInput = execute(runtime, "design-input");
+    assertInstanceOf(StageDecision.ReopenProducer.class, failedInput.decision());
+    runtime.support().applyStageLifecycle(RUN_ID, failedInput).collect().asList().await().indefinitely();
+
+    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
     assertEquals("requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
 
+    StageExecutionResult analysis = execute(runtime, "requirement-analysis");
+    assertInstanceOf(StageDecision.WaitForApproval.class, analysis.decision());
     runtime
-        .recordInput(new AcceptInputCommand(RUN_ID, "Petstore Ext: getPetById"))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-    runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, "go back"))
+        .support()
+        .applyStageLifecycle(RUN_ID, analysis)
         .collect()
         .asList()
         .await()
@@ -1534,7 +2041,6 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-input").status());
     assertFalse(seenError.get().isBlank());
-    assertEquals("Petstore Ext: getPetById", seenFollowUp.get());
   }
 
   @Test
@@ -1552,26 +2058,13 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "design-planning");
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-
-    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals(
-        List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.STAGE_REVISE));
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
+    assertEquals("design-planning", reopen.producerStageId());
     assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
-    assertTrue(agent.lastCandidateSet.get().contains("design-planning"));
-    assertTrue(agent.lastCandidateSet.get().contains("design-execution"));
-    assertTrue(agent.lastFindings.get().toLowerCase(Locale.ROOT).contains("rbac"));
     assertEquals(1, executionCalls.get());
-
-    runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    applyLifecycle(runtime, failed);
 
     assertEquals("design-planning", requireRun().run().currentStageId());
     assertNotEquals("design-execution", requireRun().run().currentStageId());
@@ -1597,28 +2090,17 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-
-    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
+    assertEquals("requirement-analysis", reopen.producerStageId());
     assertEquals(
         "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
-    assertTrue(agent.lastCandidateSet.get().contains("requirement-analysis"));
     assertEquals(1, executionCalls.get());
+    applyLifecycle(runtime, failed);
 
-    runtime
-        .recordInput(new AcceptInputCommand(RUN_ID, "add rbac"))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-    runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    StageExecutionResult analysis = execute(runtime, "requirement-analysis");
+    applyLifecycle(runtime, analysis);
 
     assertEquals("requirement-analysis", requireRun().run().currentStageId());
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
@@ -1627,7 +2109,6 @@ class ProductPipelineStageExecutorTest {
     assertEquals(1, executionCalls.get());
     assertNotNull(seenError.get());
     assertFalse(seenError.get().isBlank());
-    assertEquals("add rbac", seenFollowUp.get());
   }
 
   @Test
@@ -1647,23 +2128,80 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-
-    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
-
-    runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
+    assertEquals("design-planning", reopen.producerStageId());
+    applyLifecycle(runtime, failed);
 
     assertEquals("design-planning", requireRun().run().currentStageId());
     assertNotEquals("requirement-analysis", requireRun().run().currentStageId());
     assertEquals(1, executionCalls.get());
+  }
+
+  @Test
+  void unknownPropertyOnExecutionKeepsTheHaltOnExecutionEvenWhenTheModelBlamesPlanning() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("", "design-planning");
+    AtomicInteger executionCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningAlwaysCandidate(),
+            executionUnknownPropertyValidationFailure(executionCalls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(1, executionCalls.get());
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+
+    assertTrue(wait.prompt().contains("unknown property key 'topic'"));
+    assertEquals("design-execution", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertNotEquals("design-planning", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(2, executionCalls.get());
+  }
+
+  @Test
+  void aCaptureContractFailureWithoutFindingsRepairsExecutionOnceThenParks() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("", "requirement-analysis");
+    AtomicInteger executionCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningAlwaysCandidate(),
+            executionCaptureContractFailure(executionCalls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(1, executionCalls.get());
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+
+    assertTrue(wait.prompt().contains("Cannot deserialize"));
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(2, executionCalls.get());
   }
 
   @Test
@@ -1815,12 +2353,6 @@ class ProductPipelineStageExecutorTest {
     execute(runtime, "work");
     runtime
         .recordInput(new AcceptInputCommand(RUN_ID, "use a different service"))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-    runtime
-        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
         .collect()
         .asList()
         .await()
@@ -2085,17 +2617,8 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
 
-    execute(runtime, "design-execution");
-    assertEquals(
-        "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
-    assertEquals(1, executionCalls.get());
-
-    runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, "go back"))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
 
     assertEquals("requirement-analysis", requireRun().run().currentStageId());
     assertNotEquals("design-execution", requireRun().run().currentStageId());
@@ -2187,17 +2710,13 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
-    execute(runtime, "design-execution");
-
-    runtime
-        .recordInput(new AcceptInputCommand(RUN_ID, "add rbac"))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+    StageExecutionResult analysisResult = execute(runtime, "requirement-analysis");
     List<PipelineSignal> reopenSignals =
         runtime
-            .acceptInput(new AcceptInputCommand(RUN_ID, "go back"))
+            .support()
+            .applyStageLifecycle(RUN_ID, analysisResult)
             .collect()
             .asList()
             .await()
@@ -2213,7 +2732,6 @@ class ProductPipelineStageExecutorTest {
     assertEquals("VALIDATION_FAILURE", seenOutcome.get());
     assertEquals("design-execution", seenFailedStage.get());
     assertTrue(seenFindings.get().toLowerCase(Locale.ROOT).contains("rbac"), seenFindings.get());
-    assertEquals("add rbac", seenFollowUp.get());
     assertNotNull(seenPriorBrief.get());
     assertEquals("goal", seenPriorBrief.get().goal());
     assertTrue(
@@ -2307,26 +2825,16 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
 
-    execute(runtime, "design-execution");
-    assertEquals(
-        "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
-    assertEquals(1, executionCalls.get());
-
-    String followUp = "go back to requirements gathering and add that we need RBAC";
-    runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, followUp))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+    StageExecutionResult analysisResult = execute(runtime, "requirement-analysis");
+    applyLifecycle(runtime, analysisResult);
 
     assertEquals("requirement-analysis", requireRun().run().currentStageId());
     assertNotEquals("design-execution", requireRun().run().currentStageId());
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
     assertEquals(1, executionCalls.get());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
-    assertEquals(followUp, runtime.support().haltFollowUpText(RUN_ID).orElseThrow());
-    assertEquals(followUp, seenFollowUp.get());
     assertNotNull(seenError.get());
     assertFalse(seenError.get().isBlank());
   }
@@ -2344,7 +2852,7 @@ class ProductPipelineStageExecutorTest {
             profile,
             analysisCandidate(),
             planningAlwaysCandidate(),
-            executionRbacValidationFailure(executionCalls));
+            executionUnspecifiedValidationFailure(executionCalls));
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
@@ -2352,9 +2860,9 @@ class ProductPipelineStageExecutorTest {
     StageDecision.WaitForInput wait =
         assertInstanceOf(
             StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals(
-        "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    assertTrue(
+        PipelineGates.isRecoverableHaltGate(PipelineGates.gateOf(wait.prompt()).orElse("")),
+        wait.prompt());
 
     runtime
         .recordInput(new AcceptInputCommand(RUN_ID, "go back to compiler and add RBAC"))
@@ -2366,8 +2874,6 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals("design-execution", requireRun().run().currentStageId());
     assertEquals(1, executionCalls.get());
-    assertEquals(
-        "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     long reopenCount =
         requireRun().transitions().stream()
             .filter(transition -> transition.reason().startsWith("causal reopen of "))
@@ -2567,6 +3073,17 @@ class ProductPipelineStageExecutorTest {
     return runtime.stageExecutor().execute(RUN_ID, stageId).await().indefinitely();
   }
 
+  private void applyLifecycle(
+      CreateChainTestOrchestrator runtime, StageExecutionResult result) {
+    runtime
+        .support()
+        .applyStageLifecycle(RUN_ID, result)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+  }
+
   private void startAndRecordInput(CreateChainTestOrchestrator runtime, ProductPipelineProfile profile) {
     runtime
         .startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
@@ -2603,6 +3120,27 @@ class ProductPipelineStageExecutorTest {
             null,
             null,
             narrative),
+        runStore);
+  }
+
+  private CreateChainTestOrchestrator newRuntime(
+      int repeatedFailureThreshold,
+      ProductPipelineProfile ignoredProfile,
+      StageCapability... capabilities) {
+    return new CreateChainTestOrchestrator(
+        new ProductPipelineRunSupport(
+            runStore,
+            artifactStore,
+            new StageCapabilityRegistry(List.of(capabilities)),
+            null,
+            null,
+            Clock.fixed(FIXED, ZoneOffset.UTC),
+            null,
+            null,
+            null,
+            new FailureNarrative(),
+            Duration.ofHours(1),
+            repeatedFailureThreshold),
         runStore);
   }
 
@@ -2897,6 +3435,51 @@ class ProductPipelineStageExecutorTest {
         });
   }
 
+  private StageCapability executionUnspecifiedValidationFailure(AtomicInteger executionCalls) {
+    return capability(
+        "execution-cap",
+        context -> {
+          executionCalls.incrementAndGet();
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      StageOutcome.of(
+                          StageOutcomeClass.VALIDATION_FAILURE,
+                          "planning validation failed. Findings: PLAN_BLOCKER: missing quartz")));
+        });
+  }
+
+  private StageCapability executionUnknownPropertyValidationFailure(AtomicInteger executionCalls) {
+    return capability(
+        "execution-cap",
+        context -> {
+          executionCalls.incrementAndGet();
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      StageOutcome.of(
+                          StageOutcomeClass.VALIDATION_FAILURE,
+                          "Structure validation failed:\n"
+                              + "node 'kafka-trigger-1' (kafka-trigger-2) has unknown"
+                              + " property key 'topic'.")));
+        });
+  }
+
+  private StageCapability executionCaptureContractFailure(AtomicInteger executionCalls) {
+    return capability(
+        "execution-cap",
+        context -> {
+          executionCalls.incrementAndGet();
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      StageOutcome.of(
+                          StageOutcomeClass.CONTRACT_FAILURE,
+                          "Cannot deserialize value of type `java.lang.String` from Object"
+                              + " value (token `JsonToken.START_OBJECT`)")));
+        });
+  }
+
   private StageCapability analysisCandidate() {
     return capability(
         "analysis-cap",
@@ -2922,6 +3505,82 @@ class ProductPipelineStageExecutorTest {
                           "brief ready",
                           null)));
         });
+  }
+
+  /**
+   * Fails the first turn with a validation artifact attached and succeeds without producing
+   * anything afterwards, recording per turn what the halted attempt made readable and what the
+   * declared-input resolution handed over.
+   */
+  private StageCapability planningRecordingPriorOutputs(
+      List<List<Reference>> priorPerTurn, List<List<Reference>> inputsPerTurn) {
+    return capability(
+        "planning-cap",
+        context -> {
+          StageRepairEvidence repair = StageRepairEvidence.from(context);
+          if (repair == null && context.attributeAsString("discoveryUserText") == null) {
+            return Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "need text")));
+          }
+          priorPerTurn.add(repair == null ? List.of() : repair.priorOutputRefs());
+          inputsPerTurn.add(context.inputRefs());
+          if (priorPerTurn.size() > 1) {
+            return Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        StageOutcome.of(StageOutcomeClass.SUCCEEDED, "planning repaired")));
+          }
+          return planningValidationFailure().execute(context);
+        });
+  }
+
+  private static ProductPipelineProfile planningThenPublishProfile(ArtifactTypeRef validation) {
+    return new ProductPipelineProfile(
+        1,
+        "planning-then-publish",
+        "2",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "planning",
+                "planning-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(validation),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "publish",
+                "publish-cap",
+                List.of(validation),
+                List.of(),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("publish", "PLAN_APPROVED"),
+        List.of("planning-cap", "publish-cap"));
+  }
+
+  private static ProductPipelineProfile skippableRetryProfile() {
+    return new ProductPipelineProfile(
+        1,
+        "skippable-retry",
+        "2",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "work",
+                "fail-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(),
+                null,
+                null,
+                new RetryPolicy(0, 1L),
+                new SkipPolicy(List.of(SkipPolicy.PROVIDED_DESIGN_ROUTE)))),
+        new TerminalPolicy("work", "PLAN_APPROVED"),
+        List.of("fail-cap"));
   }
 
   private StageCapability planningValidationFailure() {

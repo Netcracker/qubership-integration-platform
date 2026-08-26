@@ -857,13 +857,14 @@ class CreateChainSharedDesignRuntimeIT {
 
   private DesignPlanningCapability designPlanningCapability() {
     return new DesignPlanningCapability(
-        (conversationId, skillId, input, formatFailure, pinnedSkillHash) -> {
+        (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
           plannerCalls.incrementAndGet();
           if (input != null && input.contains("Orders API")) {
             return ordersPlannerReport();
           }
           return petsPlannerReport();
-        });
+        },
+        artifactStore);
   }
 
   private DesignExecutionCapability designExecutionCapability() {
@@ -1280,16 +1281,19 @@ class CreateChainSharedDesignRuntimeIT {
         "draft-1",
         "draft",
         List.of(
-            fact(
+            httpTrigger(
                 "trigger-1",
-                RequirementFactKind.ENDPOINT,
                 "http-trigger",
-                "HTTP GET /pets findPets"),
-            fact(
+                "HTTP GET /pets findPets",
+                "GET",
+                "/pets",
+                "findPets"),
+            serviceCall(
                 "call-1",
-                RequirementFactKind.SERVICE_CALL,
                 "http-service-call",
-                "Petstore Ext: GET /pets")),
+                "List pets from Petstore Ext",
+                "Petstore Ext",
+                "GET /pets")),
         List.of(
             mapping(
                 "map-init",
@@ -1316,16 +1320,19 @@ class CreateChainSharedDesignRuntimeIT {
         "draft-1",
         "draft",
         List.of(
-            fact(
+            httpTrigger(
                 "trigger-1",
-                RequirementFactKind.ENDPOINT,
                 "http-trigger",
-                "HTTP GET /pets findPets"),
-            fact(
+                "HTTP GET /pets findPets",
+                "GET",
+                "/pets",
+                "findPets"),
+            serviceCall(
                 "call-1",
-                RequirementFactKind.SERVICE_CALL,
                 "http-service-call",
-                "Petstore Ext: GET /pets")),
+                "List pets from Petstore Ext",
+                "Petstore Ext",
+                "GET /pets")),
         List.of());
   }
 
@@ -1338,6 +1345,41 @@ class CreateChainSharedDesignRuntimeIT {
       String id, RequirementFactKind kind, String capabilityKey, String text) {
     return new RequirementFact(
         id, RequirementFactPolarity.POSITIVE, kind, capabilityKey, text);
+  }
+
+  private static RequirementFact httpTrigger(
+      String id,
+      String capabilityKey,
+      String text,
+      String httpMethod,
+      String path,
+      String operation) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.ENDPOINT,
+        capabilityKey,
+        text,
+        "",
+        operation,
+        "",
+        httpMethod,
+        path);
+  }
+
+  private static RequirementFact serviceCall(
+      String id, String capabilityKey, String text, String participant, String operation) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        capabilityKey,
+        text,
+        participant,
+        operation,
+        "",
+        "",
+        "");
   }
 
   private static RequirementDataMapping mapping(

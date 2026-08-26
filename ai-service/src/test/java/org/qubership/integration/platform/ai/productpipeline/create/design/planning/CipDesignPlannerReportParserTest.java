@@ -80,13 +80,15 @@ class CipDesignPlannerReportParserTest {
             .getMessage();
 
     String pin = "pinned-skill-hash";
-    when(runner.runOnce(conversationId, "cip-design-planner", input, Optional.empty(), pin))
+    when(runner.runOnce(
+            conversationId, "cip-design-planner", input, Optional.empty(), Optional.empty(), pin))
         .thenReturn(invalidReport);
     when(runner.runOnce(
             conversationId,
             "cip-design-planner",
             input,
             Optional.of(firstFormatFailure),
+            Optional.empty(),
             pin))
         .thenReturn(validReport);
 
@@ -95,7 +97,8 @@ class CipDesignPlannerReportParserTest {
 
     assertEquals(expectedReport, adapter.plan(request));
     verify(runner, times(2))
-        .runOnce(eq(conversationId), eq("cip-design-planner"), eq(input), any(), eq(pin));
+        .runOnce(
+            eq(conversationId), eq("cip-design-planner"), eq(input), any(), any(), eq(pin));
   }
 
   @Test
@@ -109,7 +112,7 @@ class CipDesignPlannerReportParserTest {
     String pin = "pinned-skill-hash";
 
     when(runner.runOnce(
-            eq(conversationId), eq("cip-design-planner"), eq(input), any(), eq(pin)))
+            eq(conversationId), eq("cip-design-planner"), eq(input), any(), any(), eq(pin)))
         .thenReturn(invalidReport);
 
     PlannerRequest request = new PlannerRequest(conversationId, input, pin);
@@ -118,7 +121,8 @@ class CipDesignPlannerReportParserTest {
         assertThrows(PlannerContractException.class, () -> adapter.plan(request));
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, ex.outcomeClass());
     verify(runner, times(2))
-        .runOnce(eq(conversationId), eq("cip-design-planner"), eq(input), any(), eq(pin));
+        .runOnce(
+            eq(conversationId), eq("cip-design-planner"), eq(input), any(), any(), eq(pin));
   }
 
   @Test
@@ -139,7 +143,8 @@ class CipDesignPlannerReportParserTest {
         """
             .trim();
 
-    when(runner.runOnce(conversationId, "cip-design-planner", input, Optional.empty(), pin))
+    when(runner.runOnce(
+            conversationId, "cip-design-planner", input, Optional.empty(), Optional.empty(), pin))
         .thenReturn(validMinimalReport());
     when(runner.runOnce(
             eq(conversationId),
@@ -149,12 +154,14 @@ class CipDesignPlannerReportParserTest {
                 failure ->
                     failure.isPresent()
                         && failure.get().contains("CATALOG_ONLY forbids APIHub planner steps")),
+            any(),
             eq(pin)))
         .thenReturn(corrected);
 
     assertEquals(corrected, adapter.plan(new PlannerRequest(conversationId, input, pin)).markdown());
     verify(runner, times(2))
-        .runOnce(eq(conversationId), eq("cip-design-planner"), eq(input), any(), eq(pin));
+        .runOnce(
+            eq(conversationId), eq("cip-design-planner"), eq(input), any(), any(), eq(pin));
   }
 
   private static String fixtureReport() throws Exception {

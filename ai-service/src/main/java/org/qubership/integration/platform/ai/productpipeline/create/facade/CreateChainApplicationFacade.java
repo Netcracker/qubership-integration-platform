@@ -1111,6 +1111,14 @@ public class CreateChainApplicationFacade {
         return new CreateChainPendingAction.Clarify(
             prompt, PipelineGates.ownerCandidatesOf(waitPrompt), gateId);
       }
+      if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gateId)) {
+        return new CreateChainPendingAction.Clarify(
+            prompt, PipelineGates.ownerCandidatesOf(waitPrompt), gateId);
+      }
+      if (PipelineGates.STAGE_ESCALATED.equals(gateId)) {
+        return new CreateChainPendingAction.Clarify(
+            prompt, PipelineGates.escalatedActionsOf(waitPrompt), gateId);
+      }
       return new CreateChainPendingAction.Clarify(prompt, List.of(), gateId);
     }
     Optional<RequirementDraft> draft =

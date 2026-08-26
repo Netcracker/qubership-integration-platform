@@ -6,9 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Set;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -19,57 +17,22 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDa
 /**
  * Maps an approved {@link RequirementBrief} into a single {@link NormalizedDesignFlow}.
  *
- * <p>Derives trigger path/method/operation and service-call participants only from explicit brief
- * facts (and HTTP-shaped {@code inputs} when the ENDPOINT fact carries no HTTP identity). Returns
- * {@link ExtractionResult.NeedsInput} when required identity is absent — never invents path,
- * method, operation, or participant names.
+ * <p>Java copies identity fields the requirement-analysis model already wrote onto typed facts. It
+ * does not read {@code text} for HTTP methods, topics, participants, or operation ids. Missing
+ * identity is {@link ExtractionResult.NeedsInput} so analysis can rewrite the fact.
  *
- * <p>SERVICE_CALL facts preferably use {@code <Participant>: <operationQuery>}. Common catalog
- * wording is also parsed when it names both the service and operation explicitly.
+ * <p>ENDPOINT {@code capabilityKey} selects the trigger family ({@code kafka-trigger-2},
+ * {@code http-trigger}). Kafka copies {@code topic} and {@code operation}. HTTP copies
+ * {@code httpMethod} and {@code path}. SERVICE_CALL copies {@code participant} and
+ * {@code operation}. {@code text} is a human description only.
  *
- * <p>Script-only briefs (no positive SERVICE_CALL, with script intent and/or an explicit "no
- * service call" constraint) produce a {@code script} process step instead of requiring outbound
- * binding.
+ * <p>Script-only briefs (no positive SERVICE_CALL, with a script capability or a negative
+ * service-call constraint) produce a {@code script} process step.
  */
 public final class BriefFlowExtractor {
 
-  private static final Pattern HTTP_IDENTITY =
-      Pattern.compile(
-          "(?i)\\b(?:HTTP\\s+)?(GET|POST|PUT|PATCH|DELETE)\\b(?:[^\\n/]{0,80}?)(/[\\w./{}-]*)"
-              + "(?:\\s+([A-Za-z][\\w.-]*))?");
-
-  private static final Pattern SCRIPT_INTENT =
-      Pattern.compile("(?i)\\bscript\\b|\\bqip script\\b");
-
-  private static final Pattern NO_SERVICE_CALL =
-      Pattern.compile("(?i)\\bno\\s+service\\s*calls?\\b|\\bservice-call\\b");
-
-  private static final Pattern APIHUB_PROHIBITION =
-      Pattern.compile(
-          "(?i)\\b(?:do\\s+not|don't|never|no)\\b[^.\\n]{0,80}\\bapi\\s*hub\\b"
-              + "|\\bapi\\s*hub\\b[^.\\n]{0,40}\\b(?:forbidden|disabled)\\b");
-
-  private static final Pattern CATALOG_OPERATION_AFTER_SERVICE =
-      Pattern.compile(
-          "(?i)\\bcall\\s+(?<service>.+?)\\s+catalog\\s+operation\\s+"
-              + "(?<operation>[A-Za-z0-9_.-]+)\\s*(?:,|using)\\s*"
-              + "(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+)");
-
-  private static final Pattern CATALOG_OPERATION_BEFORE_SERVICE =
-      Pattern.compile(
-          "(?i)\\bcall\\s+(?:the\\s+)?(?:existing\\s+)?(?:catalog\\s+)?"
-              + "['\"]?(?<operation>[A-Za-z0-9_.-]+)['\"]?\\s+operation\\s+from\\s+(?:the\\s+)?"
-              + "(?:imported\\s+)?(?<service>.+?)\\s+service(?:\\s+from\\s+catalog)?"
-              + "(?:\\s*[:,-]?\\s*(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+))?");
-
-  private static final Pattern CATALOG_BOUND_OPERATION =
-      Pattern.compile(
-          "(?i)\\bcall\\s+(?:the\\s+)?catalog-bound\\s+(?<service>.+?)\\s+"
-              + "(?<operation>[A-Za-z0-9_.-]+)\\s+operation\\s*,?\\s*"
-              + "(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+)");
-
-  private static final Pattern CATALOG_SERVICE =
-      Pattern.compile("(?i)\\bcall\\s+catalog\\s+service\\s+['\\\"]?(?<service>[^'\\\".]+)");
+  private static final Set<String> KAFKA_TRIGGER_KEYS =
+      Set.of("kafka-trigger-2", "kafka-trigger");
 
   public sealed interface ExtractionResult {
     record Complete(NormalizedDesignFlow flow) implements ExtractionResult {}
@@ -90,41 +53,40 @@ public final class BriefFlowExtractor {
     boolean scriptOnly = calls.isEmpty() && isScriptOnlyBrief(brief);
 
     RequirementFact triggerFact = endpoints.isEmpty() ? null : endpoints.getFirst();
+    KafkaIdentity kafkaTrigger = kafkaFromEndpoint(triggerFact);
     HttpIdentity triggerHttp =
-        (triggerFact == null ? Optional.<HttpIdentity>empty() : parseHttpIdentity(triggerFact.text()))
-            .or(() -> firstHttpIdentity(brief.inputs()))
-            .or(() -> firstHttpIdentityFromFacts(brief))
-            .or(() -> parseHttpIdentity(brief.summary()))
-            .orElse(null);
-    if (triggerFact == null && triggerHttp != null) {
-      triggerFact =
-          new RequirementFact(
-              "brief-http-trigger",
-              RequirementFactPolarity.POSITIVE,
-              RequirementFactKind.ENDPOINT,
-              "http-trigger",
-              triggerHttp.method() + " " + triggerHttp.path());
-    }
+        kafkaTrigger != null ? null : httpFromEndpoint(triggerFact);
     if (triggerFact == null) {
       missing.add("ENDPOINT trigger fact");
     }
     if (!scriptOnly && calls.isEmpty()) {
       missing.add("SERVICE_CALL process step");
     }
-    if (triggerHttp == null || triggerHttp.path() == null) {
-      missing.add("trigger path (ENDPOINT fact or inputs, e.g. HTTP POST /path)");
+    String operationName;
+    if (kafkaTrigger != null) {
+      if (kafkaTrigger.topic() == null) {
+        missing.add("ENDPOINT.topic");
+      }
+      operationName = kafkaTrigger.operationName();
+      if (operationName == null) {
+        missing.add("ENDPOINT.operation");
+      }
+    } else {
+      if (triggerHttp == null || triggerHttp.path() == null) {
+        missing.add("ENDPOINT.path");
+      }
+      if (triggerHttp == null || triggerHttp.method() == null) {
+        missing.add("ENDPOINT.httpMethod");
+      }
+      operationName =
+          triggerHttp == null
+              ? null
+              : firstNonBlank(triggerHttp.operationId(), triggerHttp.method());
+      if (operationName == null) {
+        missing.add("ENDPOINT.httpMethod");
+      }
     }
-    if (triggerHttp == null || triggerHttp.method() == null) {
-      missing.add("trigger method (ENDPOINT fact or inputs, e.g. HTTP POST /path)");
-    }
-    String operationName =
-        triggerHttp == null
-            ? null
-            : firstNonBlank(triggerHttp.operationId(), triggerHttp.method());
-    if (operationName == null) {
-      missing.add("trigger operation name or method");
-    }
-    if (triggerFact == null || triggerHttp == null || (!scriptOnly && calls.isEmpty())) {
+    if (triggerFact == null || (!scriptOnly && calls.isEmpty())) {
       return new ExtractionResult.NeedsInput(List.copyOf(missing));
     }
 
@@ -186,15 +148,16 @@ public final class BriefFlowExtractor {
       }
     } else {
       for (RequirementFact call : calls) {
-        Optional<ServiceCallIdentity> callIdentity = parseServiceCall(call);
-        if (callIdentity.isEmpty()) {
-          missing.add(
-              "SERVICE_CALL participant and operation query (need '<Participant>: <operationQuery>'; got \""
-                  + factPreview(call)
-                  + "\")");
+        ServiceCallIdentity identity = serviceCallFrom(call);
+        if (identity == null) {
+          if (trimToNull(call.participant()) == null) {
+            missing.add("SERVICE_CALL.participant");
+          }
+          if (trimToNull(call.operation()) == null) {
+            missing.add("SERVICE_CALL.operation");
+          }
           continue;
         }
-        ServiceCallIdentity identity = callIdentity.get();
         String stepId = "step-" + index++;
         intentToStep.put(call.sourceFactId(), stepId);
         String targetId = participantId(identity.participantDisplayName());
@@ -226,13 +189,21 @@ public final class BriefFlowExtractor {
     }
 
     NormalizedDesignFlow.Trigger trigger =
-        new NormalizedDesignFlow.Trigger(
-            "http",
-            clientId,
-            firstTargetDisplayName,
-            triggerHttp.path(),
-            operationName,
-            List.of(triggerFact.sourceFactId()));
+        kafkaTrigger != null
+            ? new NormalizedDesignFlow.Trigger(
+                "kafka",
+                clientId,
+                firstTargetDisplayName,
+                kafkaTrigger.topic(),
+                operationName,
+                List.of(triggerFact.sourceFactId()))
+            : new NormalizedDesignFlow.Trigger(
+                "http",
+                clientId,
+                firstTargetDisplayName,
+                triggerHttp.path(),
+                operationName,
+                List.of(triggerFact.sourceFactId()));
 
     NormalizedDesignFlow flow =
         new NormalizedDesignFlow(
@@ -306,18 +277,11 @@ public final class BriefFlowExtractor {
       RequirementBrief brief) {
     boolean catalogOnly =
         brief.facts().stream()
-                .filter(Objects::nonNull)
-                .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
-                .anyMatch(
-                    fact ->
-                        "apihub".equals(
-                                fact.capabilityKey()
-                                    .toLowerCase(Locale.ROOT)
-                                    .replaceAll("[^a-z0-9]", ""))
-                            || APIHUB_PROHIBITION.matcher(fact.text()).find())
-            || brief.constraints().stream()
-                .filter(Objects::nonNull)
-                .anyMatch(constraint -> APIHUB_PROHIBITION.matcher(constraint).find());
+            .filter(Objects::nonNull)
+            .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
+            .map(RequirementFact::capabilityKey)
+            .filter(Objects::nonNull)
+            .anyMatch(key -> key.contains("apihub"));
     return catalogOnly
         ? NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY
         : NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_FIRST;
@@ -407,23 +371,12 @@ public final class BriefFlowExtractor {
   }
 
   private static boolean forbidsServiceCalls(RequirementBrief brief) {
-    if (brief.constraints() != null) {
-      for (String constraint : brief.constraints()) {
-        if (constraint != null && NO_SERVICE_CALL.matcher(constraint).find()) {
-          return true;
-        }
-      }
-    }
     return brief.facts().stream()
         .filter(Objects::nonNull)
         .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
-        .anyMatch(
-            fact -> {
-              String key = fact.capabilityKey() == null ? "" : fact.capabilityKey();
-              String text = fact.text() == null ? "" : fact.text();
-              return key.toLowerCase(Locale.ROOT).contains("service-call")
-                  || NO_SERVICE_CALL.matcher(text).find();
-            });
+        .map(RequirementFact::capabilityKey)
+        .filter(Objects::nonNull)
+        .anyMatch(key -> key.contains("service-call"));
   }
 
   private static List<RequirementFact> scriptFacts(RequirementBrief brief) {
@@ -441,10 +394,7 @@ public final class BriefFlowExtractor {
 
   private static boolean looksLikeScriptFact(RequirementFact fact) {
     String key = fact.capabilityKey() == null ? "" : fact.capabilityKey();
-    if (key.toLowerCase(Locale.ROOT).contains("script")) {
-      return true;
-    }
-    return fact.text() != null && SCRIPT_INTENT.matcher(fact.text()).find();
+    return key.contains("script");
   }
 
   private static List<RequirementFact> positive(RequirementBrief brief, RequirementFactKind kind) {
@@ -455,129 +405,56 @@ public final class BriefFlowExtractor {
         .toList();
   }
 
-  private static Optional<HttpIdentity> parseHttpIdentity(String text) {
-    if (text == null || text.isBlank()) {
-      return Optional.empty();
+  private static HttpIdentity httpFromEndpoint(RequirementFact triggerFact) {
+    if (triggerFact == null || isKafkaTrigger(triggerFact)) {
+      return null;
     }
-    Matcher matcher = HTTP_IDENTITY.matcher(text.trim());
-    if (!matcher.find()) {
-      return Optional.empty();
-    }
-    String method = matcher.group(1).toUpperCase(Locale.ROOT);
-    String path = matcher.group(2);
-    if (path.endsWith("\"") || path.endsWith("'")) {
-      path = path.substring(0, path.length() - 1);
-    }
-    String operationId = trimToNull(matcher.group(3));
-    return Optional.of(new HttpIdentity(method, path, operationId));
+    String method = trimToNull(triggerFact.httpMethod());
+    return new HttpIdentity(
+        method == null ? null : method.toUpperCase(Locale.ROOT),
+        trimToNull(triggerFact.path()),
+        trimToNull(triggerFact.operation()));
   }
 
-  private static Optional<HttpIdentity> firstHttpIdentity(List<String> inputs) {
-    if (inputs == null) {
-      return Optional.empty();
+  private static KafkaIdentity kafkaFromEndpoint(RequirementFact triggerFact) {
+    if (triggerFact == null || !isKafkaTrigger(triggerFact)) {
+      return null;
     }
-    for (String input : inputs) {
-      Optional<HttpIdentity> parsed = parseHttpIdentity(input);
-      if (parsed.isPresent()) {
-        return parsed;
-      }
-    }
-    return Optional.empty();
+    return new KafkaIdentity(
+        trimToNull(triggerFact.topic()), trimToNull(triggerFact.operation()));
   }
 
-  private static Optional<HttpIdentity> firstHttpIdentityFromFacts(RequirementBrief brief) {
-    for (RequirementFact fact : brief.facts()) {
-      if (fact == null || fact.polarity() != RequirementFactPolarity.POSITIVE) {
-        continue;
-      }
-      Optional<HttpIdentity> parsed = parseHttpIdentity(fact.text());
-      if (parsed.isPresent()) {
-        return parsed;
-      }
-    }
-    return Optional.empty();
+  private static boolean isKafkaTrigger(RequirementFact fact) {
+    String key = fact.capabilityKey() == null ? "" : fact.capabilityKey();
+    return KAFKA_TRIGGER_KEYS.contains(key);
   }
 
-  private static Optional<ServiceCallIdentity> parseServiceCall(RequirementFact fact) {
-    String text = fact == null ? null : fact.text();
-    String trimmed = trimToNull(text);
-    if (trimmed == null) {
-      return Optional.empty();
+  private static ServiceCallIdentity serviceCallFrom(RequirementFact fact) {
+    String participant = trimToNull(fact.participant());
+    String operation = trimToNull(fact.operation());
+    if (participant == null || operation == null) {
+      return null;
     }
-    Matcher catalogBound = CATALOG_BOUND_OPERATION.matcher(trimmed);
-    if (catalogBound.find()) {
-      return Optional.of(
-          new ServiceCallIdentity(
-              trimToNull(catalogBound.group("service")),
-              trimTrailingSentencePeriod(catalogBound.group("request"))));
-    }
-    Matcher serviceFirst = CATALOG_OPERATION_AFTER_SERVICE.matcher(trimmed);
-    if (serviceFirst.find()) {
-      return Optional.of(
-          new ServiceCallIdentity(
-              trimToNull(serviceFirst.group("service")),
-              trimTrailingSentencePeriod(
-                  firstNonBlank(serviceFirst.group("request"), serviceFirst.group("operation")))));
-    }
-
-    Matcher operationFirst = CATALOG_OPERATION_BEFORE_SERVICE.matcher(trimmed);
-    if (operationFirst.find()) {
-      return Optional.of(
-          new ServiceCallIdentity(
-              trimServiceName(operationFirst.group("service")),
-              firstNonBlank(operationFirst.group("request"), operationFirst.group("operation"))));
-    }
-
-    int separator = trimmed.indexOf(':');
-    if (separator > 0 && separator < trimmed.length() - 1) {
-      String participant = trimToNull(trimmed.substring(0, separator));
-      String query = trimToNull(trimmed.substring(separator + 1));
-      if (participant != null && query != null) {
-        return Optional.of(new ServiceCallIdentity(participant, query));
-      }
-    }
-
-    Matcher catalogService = CATALOG_SERVICE.matcher(trimmed);
-    if (catalogService.find()) {
-      return Optional.of(
-          new ServiceCallIdentity(trimToNull(catalogService.group("service")), trimmed));
-    }
-
-    String capability = trimToNull(fact.capabilityKey());
-    if (capability != null) {
-      return Optional.of(new ServiceCallIdentity(capability, trimmed));
-    }
-    return Optional.empty();
+    return new ServiceCallIdentity(participant, operation);
   }
 
   private static String participantId(String displayName) {
-    String slug =
-        displayName
-            .trim()
-            .toLowerCase(Locale.ROOT)
-            .replaceAll("[^a-z0-9]+", "-")
-            .replaceAll("^-+|-+$", "");
+    StringBuilder slug = new StringBuilder();
+    boolean dash = false;
+    for (int i = 0; i < displayName.length(); i++) {
+      char ch = Character.toLowerCase(displayName.charAt(i));
+      if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+        slug.append(ch);
+        dash = false;
+      } else if (slug.length() > 0 && !dash) {
+        slug.append('-');
+        dash = true;
+      }
+    }
+    if (dash && slug.length() > 0) {
+      slug.setLength(slug.length() - 1);
+    }
     return "p-" + slug;
-  }
-
-  private static String trimServiceName(String value) {
-    String trimmed = trimToNull(value);
-    if (trimmed == null || trimmed.length() < 2) {
-      return trimmed;
-    }
-    char first = trimmed.charAt(0);
-    char last = trimmed.charAt(trimmed.length() - 1);
-    if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-      return trimToNull(trimmed.substring(1, trimmed.length() - 1));
-    }
-    return trimmed;
-  }
-
-  private static String trimTrailingSentencePeriod(String value) {
-    String trimmed = trimToNull(value);
-    return trimmed != null && trimmed.endsWith(".")
-        ? trimToNull(trimmed.substring(0, trimmed.length() - 1))
-        : trimmed;
   }
 
   private static String firstNonBlank(String value, String fallback) {
@@ -590,22 +467,7 @@ public final class BriefFlowExtractor {
    * the brief; otherwise return null and let the caller use a stable default label.
    */
   private static String scriptLabelFromText(String text) {
-    String trimmed = trimToNull(text);
-    if (trimmed == null) {
-      return null;
-    }
-    return SCRIPT_INTENT.matcher(trimmed).find() ? trimmed : null;
-  }
-
-  private static String factPreview(RequirementFact fact) {
-    String text = fact == null ? null : trimToNull(fact.text());
-    if (text == null) {
-      return "";
-    }
-    if (text.length() > 120) {
-      return text.substring(0, 117) + "...";
-    }
-    return text;
+    return trimToNull(text);
   }
 
   private static String trimToNull(String value) {
@@ -617,6 +479,8 @@ public final class BriefFlowExtractor {
   }
 
   private record HttpIdentity(String method, String path, String operationId) {}
+
+  private record KafkaIdentity(String topic, String operationName) {}
 
   private record ServiceCallIdentity(String participantDisplayName, String operationQuery) {}
 }

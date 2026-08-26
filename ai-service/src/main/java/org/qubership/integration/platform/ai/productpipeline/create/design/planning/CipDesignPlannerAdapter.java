@@ -27,8 +27,13 @@ public final class CipDesignPlannerAdapter {
     String conversationId = request.conversationId();
     String input = request.input();
     String pinnedSkillHash = request.pinnedSkillHash();
+    Optional<String> repairEvidence =
+        request.repairEvidenceText().isBlank()
+            ? Optional.empty()
+            : Optional.of(request.repairEvidenceText());
     String first =
-        runner.runOnce(conversationId, SKILL_ID, input, Optional.empty(), pinnedSkillHash);
+        runner.runOnce(
+            conversationId, SKILL_ID, input, Optional.empty(), repairEvidence, pinnedSkillHash);
     try {
       parseAndValidate(first, input);
       return new DesignPlanReport("1", first.trim());
@@ -39,6 +44,7 @@ public final class CipDesignPlannerAdapter {
               SKILL_ID,
               input,
               Optional.of(firstFailure.getMessage()),
+              repairEvidence,
               pinnedSkillHash);
       try {
         parseAndValidate(second, input);

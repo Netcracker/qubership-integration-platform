@@ -141,6 +141,11 @@ public interface AppConfig {
     @WithDefault("PT1H")
     java.time.Duration runCacheIdleTimeout();
 
+    /** Matching halts on one stage before Retry is withdrawn. */
+    @WithName("repeated-failure-threshold")
+    @WithDefault("2")
+    int repeatedFailureThreshold();
+
     @WithName("flow-cache-idle-timeout")
     @WithDefault("PT1H")
     java.time.Duration flowCacheIdleTimeout();

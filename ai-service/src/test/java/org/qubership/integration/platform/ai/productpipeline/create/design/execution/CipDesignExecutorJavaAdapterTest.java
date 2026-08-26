@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,6 +50,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningPatchLedger;
@@ -342,6 +344,8 @@ class CipDesignExecutorJavaAdapterTest {
             manifestWithDependency,
             depManifestRef,
             List.of(),
+            null,
+            null,
             null);
 
     ExecutionResult result = adapter.executeAfterApproval(inputs);
@@ -383,6 +387,8 @@ class CipDesignExecutorJavaAdapterTest {
             manifestWithDependency,
             depManifestRef,
             List.of(),
+            null,
+            null,
             null);
 
     ExecutionResult result = adapter.executeAfterApproval(inputs);
@@ -459,6 +465,20 @@ class CipDesignExecutorJavaAdapterTest {
     assertTrue(
         result.candidates().stream()
             .noneMatch(candidate -> candidate.kind() == Kind.MATERIALIZATION_REQUEST));
+  }
+
+  @Test
+  void phase5ValidationFailureKeepsTheGraphItRejected() {
+    when(planValidator.validate(any(PlanGraphValidationInput.class)))
+        .thenReturn(new ValidationResult(false, List.of(), "plan validation failed"));
+
+    ExecutionResult result = adapter.executeAfterApproval(baseInputs());
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, result.outcomeClass());
+    assertTrue(
+        result.candidates().stream()
+            .anyMatch(candidate -> candidate.kind() == Kind.CHAIN_PLAN_GRAPH),
+        "a retry cannot correct a step it is not shown");
   }
 
   @Test
@@ -574,7 +594,59 @@ class CipDesignExecutorJavaAdapterTest {
                 .isEmpty());
   }
 
+  @Test
+  void repairTurnRoutesHaltEvidenceAndPriorGraphToTheRunner() {
+    StageRepairEvidence repairEvidence =
+        new StageRepairEvidence(
+            "VALIDATION_FAILURE", "design-execution", "http-trigger-1: schema violation", "", "use RBAC");
+    ChainPlanGraph priorGraph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("chain-1", "Chain"),
+            List.of(new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of())),
+            List.of());
+    when(runner.execute(
+            eq(approvedPlan),
+            eq(flow),
+            eq(bindings),
+            eq(manifest),
+            eq("attempt-1"),
+            eq(repairEvidence),
+            eq(priorGraph),
+            any()))
+        .thenReturn(successfulEngineResult(List.of("cip-trigger-generator")));
+
+    ExecutionResult result =
+        adapter.executeAfterApproval(
+            baseInputs(repairEvidence, priorGraph), "attempt-1", (skillId, status) -> {});
+
+    assertEquals(StageOutcomeClass.CANDIDATE, result.outcomeClass());
+    verify(runner)
+        .execute(
+            eq(approvedPlan),
+            eq(flow),
+            eq(bindings),
+            eq(manifest),
+            eq("attempt-1"),
+            eq(repairEvidence),
+            eq(priorGraph),
+            any());
+  }
+
+  @Test
+  void firstTurnNeverRoutesThroughTheRepairEvidenceOverload() {
+    ExecutionResult result = adapter.executeAfterApproval(baseInputs());
+
+    assertEquals(StageOutcomeClass.CANDIDATE, result.outcomeClass());
+    verify(runner, never())
+        .execute(any(), any(), anyList(), any(), any(), any(StageRepairEvidence.class), any(), any());
+  }
+
   private ExecutionInputs baseInputs() {
+    return baseInputs(null, null);
+  }
+
+  private ExecutionInputs baseInputs(StageRepairEvidence repairEvidence, ChainPlanGraph priorGraph) {
     return new ExecutionInputs(
         RUN_ID,
         CONVERSATION_ID,
@@ -593,7 +665,9 @@ class CipDesignExecutorJavaAdapterTest {
         manifest,
         manifestRef,
         List.of(),
-        null);
+        null,
+        repairEvidence,
+        priorGraph);
   }
 
   private Reference append(Kind kind, String schemaVersion, Object payload) {
