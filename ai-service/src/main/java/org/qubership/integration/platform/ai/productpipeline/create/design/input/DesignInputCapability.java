@@ -411,8 +411,8 @@ public class DesignInputCapability implements StageCapability {
       BriefFlowExtractor.ExtractionResult extracted = briefFlowExtractor.extract(brief);
       if (extracted instanceof BriefFlowExtractor.ExtractionResult.NeedsInput needsInput) {
         return StageOutcome.of(
-            StageOutcomeClass.NEEDS_INPUT,
-            "Cannot derive the design flow because required facts are missing: "
+            StageOutcomeClass.VALIDATION_FAILURE,
+            "The approved requirement brief is missing required facts: "
                 + String.join(", ", needsInput.missingFacts()));
       }
       NormalizedDesignFlow flow =
