@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan;
 
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 
 /** Iterative requirement vision accumulated before the compiler spine runs. */
 public record RequirementDraft(
@@ -16,7 +17,8 @@ public record RequirementDraft(
     ResolvedCatalogBinding catalogBinding,
     boolean awaitingPlanContinuation,
     List<RequirementFact> facts,
-    boolean importIntent) {
+    boolean importIntent,
+    DesignMode designModeHint) {
 
   public RequirementDraft {
     decision = decision != null ? decision : decisionFromComplete(complete);
@@ -47,7 +49,8 @@ public record RequirementDraft(
         null,
         false,
         List.of(),
-        false);
+        false,
+        null);
   }
 
   public RequirementDraft(
@@ -70,7 +73,8 @@ public record RequirementDraft(
         null,
         false,
         List.of(),
-        false);
+        false,
+        null);
   }
 
   public RequirementDraft(
@@ -96,7 +100,8 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         List.of(),
-        false);
+        false,
+        null);
   }
 
   public RequirementDraft(
@@ -123,7 +128,8 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         facts,
-        false);
+        false,
+        null);
   }
 
   public RequirementDraft(boolean complete, String assembledText) {
@@ -139,7 +145,37 @@ public record RequirementDraft(
         null,
         false,
         List.of(),
-        false);
+        false,
+        null);
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      ResolvedCatalogBinding catalogBinding,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        catalogBinding,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        null);
   }
 
   public boolean readyForPlan() {
@@ -182,7 +218,8 @@ public record RequirementDraft(
         binding,
         false,
         facts,
-        false);
+        false,
+        designModeHint);
   }
 
   public RequirementDraft withAwaitingPlanContinuation(boolean awaiting) {
@@ -198,7 +235,8 @@ public record RequirementDraft(
         catalogBinding,
         awaiting,
         facts,
-        importIntent);
+        importIntent,
+        designModeHint);
   }
 
   /**
@@ -218,7 +256,8 @@ public record RequirementDraft(
         null,
         false,
         facts,
-        true);
+        true,
+        designModeHint);
   }
 
   /** Clears the pending candidate while keeping {@link #importIntent()} for re-gather. */
@@ -235,7 +274,8 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         facts,
-        importIntent);
+        importIntent,
+        designModeHint);
   }
 
   public RequirementDraft withImportIntent(boolean intent) {
@@ -251,7 +291,8 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         facts,
-        intent);
+        intent,
+        designModeHint);
   }
 
   public RequirementDraft withFacts(List<RequirementFact> nextFacts) {
@@ -267,7 +308,8 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         nextFacts,
-        importIntent);
+        importIntent,
+        designModeHint);
   }
 
   private static DraftDecision decisionFromComplete(boolean complete) {

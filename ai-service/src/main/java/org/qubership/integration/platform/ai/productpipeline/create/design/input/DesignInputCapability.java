@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
@@ -528,6 +529,11 @@ public class DesignInputCapability implements StageCapability {
       } catch (IllegalArgumentException ignored) {
         return null;
       }
+    }
+    // Fall back to the hint the brainstorming LLM set on the approved requirement draft.
+    Object draftValue = context.attributes().get("approvedDraft");
+    if (draftValue instanceof RequirementDraft draft && draft.designModeHint() != null) {
+      return draft.designModeHint();
     }
     return null;
   }
