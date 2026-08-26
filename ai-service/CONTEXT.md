@@ -166,21 +166,8 @@ scoped to single-element regression checks for generator skills, deliberately av
 `ChainPlanGraph` (README: "Do not use ChainPlanGraph on this path"), and bypasses the chat router
 entirely — it is not a production entry point.
 
-**COMPARE_AND_PATCH regression mode** (built):
-A second harness mode (`run-patch-suite.sh`), separate from the single-element-on-empty-chain
-suites above: seeds a small non-empty base chain per case, drives `POST
-/api/v1/harness/chain-patch-run` (`ChainPatchHarnessService`) — the same import→agent→capture→
-apply→write path `ChainPatchScenario` uses in production, via the shared `ChainPatchPipeline`,
-minus the decision card (ADR 0001; a regression run has no reader to answer one) — and compares
-both (a) the patched element(s) against golden and (b) every untouched element reads back exactly
-as seeded. The second check is what actually proves the patch didn't touch anything outside its
-scope; a violation reports as `SCOPE_VIOLATION`, distinct from an ordinary `FAIL`. Case files and
-the case-shape README section live under `integration-platform-skills/regression/`.
-
-A case that deletes something sets `allowRemoval: true` (off by default: this path applies with no
-card and nobody watching) and lists what should be gone in `expectedRemovals`, which asserts the
-catalog no longer has those elements and excludes them from the untouched-stays-untouched check.
-`patch-remove-trailing-step` is the worked example.
+Interactive `COMPARE_AND_PATCH` is not part of this harness. Cover it with
+`ai-service/e2e/product-pipeline/` (`run-patch-scenario.sh` through chat SSE and the decision card).
 
 **Failed write** (decided, ADR 0002):
 A patch that fails partway is unwound in reverse through the same materializers that wrote it, and

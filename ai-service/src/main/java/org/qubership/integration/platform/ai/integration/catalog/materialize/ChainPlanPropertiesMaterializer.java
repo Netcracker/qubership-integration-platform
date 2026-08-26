@@ -16,6 +16,7 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+import org.qubership.integration.platform.ai.integration.catalog.util.HttpMethodRestrictCatalogShape;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -105,6 +106,7 @@ public class ChainPlanPropertiesMaterializer {
       // map. Merge with the current element so label-only or partial patches keep mandatory
       // defaults (same contract as CatalogElementWriteTools.updateElement).
       Map<String, Object> mergedPatch = mergeWithCurrentElement(current, patchBody);
+      HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
       if (patchValidatedProperties(
           map, node, elementId, current, mergedPatch, firstValidationError)) {
         patchedCount[0]++;

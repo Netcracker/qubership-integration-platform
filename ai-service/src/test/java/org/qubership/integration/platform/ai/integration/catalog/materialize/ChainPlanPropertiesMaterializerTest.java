@@ -259,6 +259,42 @@ class ChainPlanPropertiesMaterializerTest {
   }
 
   @Test
+  void coercesHttpMethodRestrictStringToCatalogObjectBeforePatch() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("http-trigger"))
+        .thenReturn(Set.of("contextPath", "httpMethodRestrict"));
+    when(schemaService.validateElementPatch(eq("http-trigger"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "http-trigger",
+                    "HTTP Trigger",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("contextPath", "/api/v1/orders"),
+                        new PlanProperty("httpMethodRestrict", "GET")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(Map.of("httpMethods", List.of("GET")), props.get("httpMethodRestrict"));
+  }
+
+  @Test
   void coercesANumericPropertyToItsSchemaTypeRatherThanAString() throws Exception {
     when(schemaService.allowedPatchPropertyKeys("service-call")).thenReturn(Set.of("connectTimeout"));
     when(schemaService.coercePatchPropertyValue("service-call", "connectTimeout", "30000"))

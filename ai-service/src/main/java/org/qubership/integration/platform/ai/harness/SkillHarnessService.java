@@ -8,7 +8,12 @@ import java.util.UUID;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
+import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.llm.agent.HarnessSkillAgent;
+import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 
 /** Runs one generator skill against an existing catalog chain via catalog tools. */
 @ApplicationScoped
@@ -18,12 +23,16 @@ public class SkillHarnessService {
   private static final int SKILL_BODY_MAX_CHARS = 24_000;
 
   private final CompilerSkillDocumentService documentService;
+  private final CompilerSkillAddonRepository addonRepository;
   private final HarnessSkillAgent harnessSkillAgent;
 
   @Inject
   public SkillHarnessService(
-      CompilerSkillDocumentService documentService, HarnessSkillAgent harnessSkillAgent) {
+      CompilerSkillDocumentService documentService,
+      CompilerSkillAddonRepository addonRepository,
+      HarnessSkillAgent harnessSkillAgent) {
     this.documentService = documentService;
+    this.addonRepository = addonRepository;
     this.harnessSkillAgent = harnessSkillAgent;
   }
 
@@ -53,7 +62,7 @@ public class SkillHarnessService {
     return conversationId.trim();
   }
 
-  private static String buildUserMessage(CompilerSkillDocument document, SkillHarnessRequest request) {
+  private String buildUserMessage(CompilerSkillDocument document, SkillHarnessRequest request) {
     StringBuilder message = new StringBuilder();
     message.append("## Skill harness run\n\n");
     message.append("chainId=").append(request.chainId().trim()).append('\n');
@@ -63,9 +72,30 @@ public class SkillHarnessService {
     message.append(request.prompt().trim()).append("\n\n");
     message.append("## Skill instructions\n\n");
     message.append(skillBody(document.markdown()));
+    appendSkillAddon(message, document);
     message.append("\n\nConfigure the chain using catalog tools only. ");
     message.append("Do not create or modify a ChainPlanGraph.");
-    return message.toString();
+    return QuteUserMessageEscaping.escapeForAiServiceUserMessage(message.toString());
+  }
+
+  private void appendSkillAddon(StringBuilder message, CompilerSkillDocument document) {
+    CompilerSkillAddonContext addon = addonRepository.loadForSkill(document.capabilityId());
+    if (!addon.hasContent()) {
+      return;
+    }
+    if (addon.skillAddon() != null) {
+      String promptMaterial =
+          AddonPromptMaterialStripper.stripForPrompt(addon.skillAddon().content());
+      if (!promptMaterial.isBlank()) {
+        message.append("\n\n## Skill addon\n\n");
+        message.append(promptMaterial);
+      }
+    }
+    for (CompilerSkillAddonDocument example : addon.examples()) {
+      message.append("\n\n## Addon example (").append(example.relativePath()).append(")\n\n");
+      message.append("Property contract. Apply with catalog element tools; do not emit GraphPatch.\n\n");
+      message.append(example.content());
+    }
   }
 
   private static String skillBody(String markdown) {
