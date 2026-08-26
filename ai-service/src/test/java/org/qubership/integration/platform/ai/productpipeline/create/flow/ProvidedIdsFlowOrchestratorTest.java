@@ -168,17 +168,27 @@ class ProvidedIdsFlowOrchestratorTest {
     AcceptInputCommand command = new AcceptInputCommand(RUN_ID, "provided IDS", "cmd-1", "hash-1");
     when(runStore.load(RUN_ID))
         .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_INPUT, "ids-entry", "flow-1")));
-    when(runSupport.recordInput(command)).thenReturn(Multi.createFrom().empty());
+    // Accepting input leaves the run RUNNING, the way recordInput commits it in production. The
+    // orchestrator only publishes a resume event when the run moved off the wait, so a stub that
+    // leaves the store waiting models a halt follow-up instead of accepted input.
+    when(runSupport.recordInput(command))
+        .thenReturn(
+            Multi.createFrom()
+                .deferred(
+                    () -> {
+                      when(runStore.load(RUN_ID))
+                          .thenReturn(
+                              Optional.of(
+                                  document(
+                                      RunStatus.RUNNING, "requirement-discovery", "flow-1", 4L)));
+                      return Multi.createFrom().empty();
+                    }));
     EventPublisher publisher = mock(EventPublisher.class);
     List<CloudEvent> published = new ArrayList<>();
     when(publisher.publish(any(CloudEvent.class)))
         .thenAnswer(
             invocation -> {
               published.add(invocation.getArgument(0));
-              when(runStore.load(RUN_ID))
-                  .thenReturn(
-                      Optional.of(
-                          document(RunStatus.RUNNING, "requirement-discovery", "flow-1", 4L)));
               return CompletableFuture.completedFuture(null);
             });
     when(application.eventPublishers()).thenReturn(List.of(publisher));
@@ -200,6 +210,35 @@ class ProvidedIdsFlowOrchestratorTest {
   }
 
   @Test
+  void inputThatLeavesTheRunWaitingStreamsHaltSignalsWithoutResumingTheInstance() {
+    AcceptInputCommand command =
+        new AcceptInputCommand(RUN_ID, "retry after halt", "cmd-halt-1", "hash-halt-1");
+    // A recoverable halt parks Flow back on the same wait, so recordInput keeps the stored status
+    // at WAITING_FOR_INPUT. Publishing a resume event here would push a second event at an
+    // instance that never left the listen.
+    when(runStore.load(RUN_ID))
+        .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_INPUT, "ids-entry", "flow-1")));
+    when(runSupport.recordInput(command)).thenReturn(Multi.createFrom().empty());
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class)))
+        .thenReturn(CompletableFuture.completedFuture(null));
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+    PipelineSignal halted = new PipelineSignal.WaitingForInput("ids-entry", "correct the IDS");
+    // Settled so that a regression fails on the publish check rather than parking in the wait.
+    when(tasks.settled(RUN_ID)).thenReturn(true);
+    when(tasks.drainSignals(RUN_ID)).thenReturn(List.of(halted));
+
+    List<PipelineSignal> actual =
+        orchestrator.acceptInput(command).collect().asList().await().indefinitely();
+
+    assertEquals(List.of(halted), actual);
+    verify(runSupport).recordInput(command);
+    verify(publisher, never()).publish(any(CloudEvent.class));
+    verify(flow, never()).startInstance(any());
+    verify(flow, never()).instance(any());
+  }
+
+  @Test
   void requirementAnalysisApprovalPublishesCorrelatedEventInsteadOfStartingAnotherInstance() {
     ApproveCommand command = mock(ApproveCommand.class);
     when(command.runId()).thenReturn(RUN_ID);
@@ -208,16 +247,23 @@ class ProvidedIdsFlowOrchestratorTest {
     when(runStore.load(RUN_ID))
         .thenReturn(
             Optional.of(document(RunStatus.WAITING_FOR_APPROVAL, "requirement-analysis", "flow-1")));
-    when(runSupport.recordApprove(command)).thenReturn(Multi.createFrom().empty());
+    when(runSupport.recordApprove(command))
+        .thenReturn(
+            Multi.createFrom()
+                .deferred(
+                    () -> {
+                      when(runStore.load(RUN_ID))
+                          .thenReturn(
+                              Optional.of(
+                                  document(RunStatus.RUNNING, "design-input", "flow-1", 5L)));
+                      return Multi.createFrom().empty();
+                    }));
     EventPublisher publisher = mock(EventPublisher.class);
     List<CloudEvent> published = new ArrayList<>();
     when(publisher.publish(any(CloudEvent.class)))
         .thenAnswer(
             invocation -> {
               published.add(invocation.getArgument(0));
-              when(runStore.load(RUN_ID))
-                  .thenReturn(
-                      Optional.of(document(RunStatus.RUNNING, "design-input", "flow-1", 5L)));
               return CompletableFuture.completedFuture(null);
             });
     when(application.eventPublishers()).thenReturn(List.of(publisher));
@@ -243,15 +289,23 @@ class ProvidedIdsFlowOrchestratorTest {
         new AcceptInputCommand(RUN_ID, "Generate full IDS", "cmd-ids-path", "hash-ids-path");
     when(runStore.load(RUN_ID))
         .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_INPUT, "design-input", "flow-1")));
-    when(runSupport.recordInput(command)).thenReturn(Multi.createFrom().empty());
+    when(runSupport.recordInput(command))
+        .thenReturn(
+            Multi.createFrom()
+                .deferred(
+                    () -> {
+                      when(runStore.load(RUN_ID))
+                          .thenReturn(
+                              Optional.of(
+                                  document(RunStatus.RUNNING, "design-input", "flow-1", 6L)));
+                      return Multi.createFrom().empty();
+                    }));
     EventPublisher publisher = mock(EventPublisher.class);
     List<CloudEvent> published = new ArrayList<>();
     when(publisher.publish(any(CloudEvent.class)))
         .thenAnswer(
             invocation -> {
               published.add(invocation.getArgument(0));
-              when(runStore.load(RUN_ID))
-                  .thenReturn(Optional.of(document(RunStatus.RUNNING, "design-input", "flow-1", 6L)));
               return CompletableFuture.completedFuture(null);
             });
     when(application.eventPublishers()).thenReturn(List.of(publisher));
@@ -315,16 +369,23 @@ class ProvidedIdsFlowOrchestratorTest {
     when(command.commandPayloadHash()).thenReturn("hash-approve-1");
     when(runStore.load(RUN_ID))
         .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_APPROVAL, "design-input", "flow-1")));
-    when(runSupport.recordApprove(command)).thenReturn(Multi.createFrom().empty());
+    when(runSupport.recordApprove(command))
+        .thenReturn(
+            Multi.createFrom()
+                .deferred(
+                    () -> {
+                      when(runStore.load(RUN_ID))
+                          .thenReturn(
+                              Optional.of(
+                                  document(RunStatus.RUNNING, "design-planning", "flow-1", 5L)));
+                      return Multi.createFrom().empty();
+                    }));
     EventPublisher publisher = mock(EventPublisher.class);
     List<CloudEvent> published = new ArrayList<>();
     when(publisher.publish(any(CloudEvent.class)))
         .thenAnswer(
             invocation -> {
               published.add(invocation.getArgument(0));
-              when(runStore.load(RUN_ID))
-                  .thenReturn(
-                      Optional.of(document(RunStatus.RUNNING, "design-planning", "flow-1", 5L)));
               return CompletableFuture.completedFuture(null);
             });
     when(application.eventPublishers()).thenReturn(List.of(publisher));
@@ -356,17 +417,27 @@ class ProvidedIdsFlowOrchestratorTest {
             Optional.of(document(RunStatus.WAITING_FOR_APPROVAL, "design-planning", "flow-1")));
     PipelineSignal waiting =
         new PipelineSignal.WaitingForImplement("design-planning", "plan-sha");
-    when(runSupport.recordApprove(command)).thenReturn(Multi.createFrom().item(waiting));
+    when(runSupport.recordApprove(command))
+        .thenReturn(
+            Multi.createFrom()
+                .deferred(
+                    () -> {
+                      when(runStore.load(RUN_ID))
+                          .thenReturn(
+                              Optional.of(
+                                  document(
+                                      RunStatus.WAITING_FOR_IMPLEMENT,
+                                      "design-planning",
+                                      "flow-1",
+                                      6L)));
+                      return Multi.createFrom().item(waiting);
+                    }));
     EventPublisher publisher = mock(EventPublisher.class);
     List<CloudEvent> published = new ArrayList<>();
     when(publisher.publish(any(CloudEvent.class)))
         .thenAnswer(
             invocation -> {
               published.add(invocation.getArgument(0));
-              when(runStore.load(RUN_ID))
-                  .thenReturn(
-                      Optional.of(
-                          document(RunStatus.WAITING_FOR_IMPLEMENT, "design-planning", "flow-1", 6L)));
               return CompletableFuture.completedFuture(null);
             });
     when(application.eventPublishers()).thenReturn(List.of(publisher));
@@ -390,16 +461,23 @@ class ProvidedIdsFlowOrchestratorTest {
     when(runStore.load(RUN_ID))
         .thenReturn(
             Optional.of(document(RunStatus.WAITING_FOR_IMPLEMENT, "design-planning", "flow-1")));
-    when(runSupport.recordImplement(command)).thenReturn(Multi.createFrom().empty());
+    when(runSupport.recordImplement(command))
+        .thenReturn(
+            Multi.createFrom()
+                .deferred(
+                    () -> {
+                      when(runStore.load(RUN_ID))
+                          .thenReturn(
+                              Optional.of(
+                                  document(RunStatus.RUNNING, "design-execution", "flow-1", 7L)));
+                      return Multi.createFrom().empty();
+                    }));
     EventPublisher publisher = mock(EventPublisher.class);
     List<CloudEvent> published = new ArrayList<>();
     when(publisher.publish(any(CloudEvent.class)))
         .thenAnswer(
             invocation -> {
               published.add(invocation.getArgument(0));
-              when(runStore.load(RUN_ID))
-                  .thenReturn(
-                      Optional.of(document(RunStatus.RUNNING, "design-execution", "flow-1", 7L)));
               return CompletableFuture.completedFuture(null);
             });
     when(application.eventPublishers()).thenReturn(List.of(publisher));
