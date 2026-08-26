@@ -277,6 +277,30 @@ class KubeOperatorCreateOrUpdateTest {
         verify(coreApi, never()).createNamespacedService(anyString(), any(V1Service.class));
     }
 
+    // Same property as keepsACallerSuppliedResourceVersionInsteadOfOverwritingIt, pinned for the
+    // Service path too rather than inferred from shared code: a caller-supplied version is a
+    // deliberate precondition, and overwriting it with the version this call just fetched would make
+    // the precondition always match and never detect a race.
+    @Test
+    void keepsACallerSuppliedResourceVersionInsteadOfOverwritingItForAService() throws ApiException {
+        V1Service service = service("order-chain-service");
+        service.getMetadata().setResourceVersion("77");
+        V1Service live = service("order-chain-service");
+        live.getMetadata().setResourceVersion("101");
+        CoreV1Api.APIreadNamespacedServiceRequest readRequest =
+                mock(CoreV1Api.APIreadNamespacedServiceRequest.class);
+        when(coreApi.readNamespacedService("order-chain-service", NAMESPACE)).thenReturn(readRequest);
+        when(readRequest.execute()).thenReturn(live);
+        CoreV1Api.APIreplaceNamespacedServiceRequest replaceRequest =
+                mock(CoreV1Api.APIreplaceNamespacedServiceRequest.class);
+        when(coreApi.replaceNamespacedService("order-chain-service", NAMESPACE, service))
+                .thenReturn(replaceRequest);
+
+        kubeOperator.createOrUpdateResource(service);
+
+        assertEquals("77", service.getMetadata().getResourceVersion());
+    }
+
     @Test
     void createsACamelKIntegrationAtTheCamelKCoordinates() throws ApiException {
         CamelKIntegration integration = new CamelKIntegration(
@@ -328,6 +352,28 @@ class KubeOperatorCreateOrUpdateTest {
         verify(replaceRequest).execute();
         verify(customObjectsApi, never()).createNamespacedCustomObject(
                 anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    // Same property as keepsACallerSuppliedResourceVersionInsteadOfOverwritingIt, pinned for the
+    // custom-object path too rather than inferred from shared code: a caller-supplied version is a
+    // deliberate precondition, and overwriting it with the version this call just fetched would make
+    // the precondition always match and never detect a race.
+    @Test
+    void keepsACallerSuppliedResourceVersionInsteadOfOverwritingItForACustomObject() throws ApiException {
+        KubeCustomObject httpRoute = customObject(
+                GATEWAY_GROUP + "/" + GATEWAY_VERSION, "HTTPRoute", "order-chain-public-routes");
+        httpRoute.getMetadata().setResourceVersion("77");
+        stubCustomObjectRead(GATEWAY_GROUP, GATEWAY_VERSION, HTTP_ROUTES_PLURAL, "order-chain-public-routes",
+                rawObjectWithResourceVersion("order-chain-public-routes", "101"));
+        CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest replaceRequest =
+                mock(CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.replaceNamespacedCustomObject(eq(GATEWAY_GROUP), eq(GATEWAY_VERSION), eq(NAMESPACE),
+                eq(HTTP_ROUTES_PLURAL), eq("order-chain-public-routes"), eq(httpRoute)))
+                .thenReturn(replaceRequest);
+
+        kubeOperator.createOrUpdateResource(httpRoute);
+
+        assertEquals("77", httpRoute.getMetadata().getResourceVersion());
     }
 
     @Test

@@ -290,6 +290,12 @@ public class KubeOperator {
      * set one. A caller-supplied version is a deliberate precondition taken from an earlier read;
      * overwriting it with the version we just fetched would make the check always pass and defeat
      * the point.
+     *
+     * <p>A caller-supplied version has two legitimate origins, and both are honored on purpose:
+     * a precondition captured during an earlier read for exactly this write, and a live object a
+     * read-modify-write caller is writing straight back (its own {@code resourceVersion} came from
+     * the cluster, so it is just as real a precondition). Clearing it in the second case to force
+     * last-write-wins would reintroduce the silent-overwrite bug this method exists to close.
      */
     private static void applyPrecondition(V1ObjectMeta outgoing, V1ObjectMeta live) {
         if (outgoing == null || live == null) {

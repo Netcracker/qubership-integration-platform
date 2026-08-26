@@ -358,7 +358,7 @@ class MicroDomainServiceTest {
         verify(kubeOperator).deleteConfigMap("src-s1");
     }
 
-    @DisplayName("Writes the Integration back with its operator-owned metadata intact")
+    @DisplayName("Writes the Integration back with its operator-owned metadata and live resourceVersion intact")
     @Test
     void deleteChainSnapshotPreservesOperatorMetadataOnTheIntegration() {
         stubNamingStrategies();
@@ -375,8 +375,15 @@ class MicroDomainServiceTest {
         // The operator sets this annotation outside QIP's own Handlebars template. A PUT that drops
         // unmodeled metadata would silently strip it; V1ObjectMeta models every field, so it survives
         // the CamelKIntegration round trip even though CamelKIntegration.IntegrationSpec does not.
+        //
+        // resourceVersion("42") is not test scaffolding: getIntegrationsByLabels returned this
+        // Integration straight from the cluster, so this is the live version, and this method is a
+        // read-modify-write. Left on the object, it becomes KubeOperator's optimistic-concurrency
+        // precondition for this write -- deliberately, per applyPrecondition's contract. Clearing it
+        // here would reintroduce the silent last-write-wins this whole branch exists to close.
         integration.setMetadata(new V1ObjectMeta()
                 .name(INTEGRATION_RESOURCE_NAME)
+                .resourceVersion("42")
                 .annotations(new LinkedHashMap<>(Map.of("camel.apache.org/operator.id", "camel-k"))));
 
         V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
@@ -402,6 +409,9 @@ class MicroDomainServiceTest {
         assertEquals("camel-k",
                 integration.getMetadata().getAnnotations().get("camel.apache.org/operator.id"),
                 "V1ObjectMeta is fully modeled, so a POJO round trip must not lose annotations");
+        assertEquals("42", integration.getMetadata().getResourceVersion(),
+                "the live resourceVersion must reach createOrUpdateResource unchanged -- it is this "
+                        + "read-modify-write's optimistic-concurrency precondition, not a value to clear");
     }
 
     @DisplayName("Skips HTTPRoute cleanup when the domain has no integrations-configuration config map")
