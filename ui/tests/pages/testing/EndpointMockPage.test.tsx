@@ -286,13 +286,11 @@ describe("EndpointMockPage response tab", () => {
     fireEvent.keyDown(value, { key: "Enter", keyCode: 13 });
 
     // Committing the cell reaches the draft the editor holds, which is what
-    // opens Save; the cell keeps the value it was given.
+    // opens Save; the cell closes its editor and shows the value it was given.
     await waitFor(() =>
       expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled(),
     );
-    expect(
-      within(section).getByDisplayValue("application/json"),
-    ).toBeInTheDocument();
+    expect(within(section).getByText("application/json")).toBeInTheDocument();
   });
 
   // The service refuses a status it cannot answer with, and the message says so
