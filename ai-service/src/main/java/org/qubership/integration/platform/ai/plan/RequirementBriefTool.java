@@ -8,13 +8,11 @@ import java.util.List;
 import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
-import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessageBuilder;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
-import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
@@ -162,17 +160,6 @@ public class RequirementBriefTool {
           LOG.warnf(
               "captureRequirementBrief: coverage failed conversationId=%s reason=%s",
               conversationId, coverageError.get());
-          if (isPinnedDraftTextMismatch(coverageError.get())) {
-            // Pin only fills blank approvedDraftText. A non-empty mismatch cannot be repaired
-            // by repeating the same payload, so fail the capture as a contract error.
-            feedbackStore.recordClassifiedPlanFailure(
-                conversationId,
-                CaptureFailureKind.VALIDATION,
-                CaptureFailureClass.PERMANENT,
-                false,
-                message);
-            throw new CaptureValidationException(message);
-          }
           boolean repeated =
               feedbackStore.recordPlanValidationFailure(conversationId, message, capture);
           if (repeated) {
@@ -213,7 +200,7 @@ public class RequirementBriefTool {
   }
 
   /**
-   * Replaces capture facts with the approved draft's facts and fills blank approvedDraftText.
+   * Replaces capture facts and draft text with the server-owned approved values.
    * Goal/summary/inputs/constraints/assumptions stay from the agent.
    */
   static RequirementBrief pinApprovedDraftFacts(RequirementBrief brief, RequirementDraft approved) {
@@ -225,7 +212,7 @@ public class RequirementBriefTool {
         brief.citations(),
         brief.summary(),
         brief.approvedDraftReference(),
-        hasText(brief.approvedDraftText()) ? brief.approvedDraftText() : approved.planningText(),
+        approved.planningText(),
         approved.facts(),
         brief.dataMappings());
   }
@@ -254,10 +241,6 @@ public class RequirementBriefTool {
 
   private static boolean hasText(String value) {
     return value != null && !value.isBlank();
-  }
-
-  private static boolean isPinnedDraftTextMismatch(String coverageError) {
-    return coverageError != null && coverageError.contains("approvedDraftText does not match");
   }
 
   private String previewCapture(RequirementBriefCapture capture) {
