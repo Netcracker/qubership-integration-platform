@@ -21,7 +21,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -44,6 +46,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
@@ -193,6 +197,55 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         failureNarrative == null ? new FailureNarrative() : failureNarrative;
     this.repeatedFailureThreshold = Math.max(2, repeatedFailureThreshold);
     this.recoveryLedger = recoveryLedger == null ? new RecoveryAttemptLedger() : recoveryLedger;
+  }
+
+  public ApprovalRecordV2 approveCandidate(
+      ChainSemanticRevision revision, CompilerContract contract) {
+    Objects.requireNonNull(revision, "revision");
+    Objects.requireNonNull(contract, "contract");
+    if (!Objects.equals(revision.compilerContractVersion(), contract.contractVersion())) {
+      throw new IllegalStateException("Approved compiler contract version does not match");
+    }
+    String digest = CanonicalPayloadHash.sha256Hex(revision);
+    Reference target =
+        new Reference(Kind.CHAIN_SEMANTIC_REVISION, revision.revisionId(), digest);
+    return new ApprovalRecordV2(
+        target,
+        digest,
+        List.of(target),
+        "user",
+        null,
+        clock.instant(),
+        null,
+        null,
+        Kind.CHAIN_SEMANTIC_REVISION.name(),
+        revision.schemaVersion(),
+        revision.revisionId(),
+        digest,
+        contract.contractVersion(),
+        contract.sha256());
+  }
+
+  public void verifyApproval(ApprovalRecordV2 approval, ChainSemanticRevision liveRevision) {
+    Objects.requireNonNull(approval, "approval");
+    Objects.requireNonNull(liveRevision, "liveRevision");
+    String liveDigest = CanonicalPayloadHash.sha256Hex(liveRevision);
+    if (!Objects.equals(approval.subjectSha256(), liveDigest)) {
+      throw new IllegalStateException("Approved semantic revision digest does not match");
+    }
+    if (!Objects.equals(approval.subjectSchemaVersion(), liveRevision.schemaVersion())) {
+      throw new IllegalStateException("Approved semantic schema version does not match");
+    }
+    if (!Objects.equals(approval.subjectRevisionId(), liveRevision.revisionId())) {
+      throw new IllegalStateException("Approved semantic revision id does not match");
+    }
+    if (!Kind.CHAIN_SEMANTIC_REVISION.name().equals(approval.subjectArtifactKind())) {
+      throw new IllegalStateException("Approved semantic revision digest does not match");
+    }
+    if (!Objects.equals(
+        approval.compilerContractVersion(), liveRevision.compilerContractVersion())) {
+      throw new IllegalStateException("Approved compiler contract version does not match");
+    }
   }
 
   @Override

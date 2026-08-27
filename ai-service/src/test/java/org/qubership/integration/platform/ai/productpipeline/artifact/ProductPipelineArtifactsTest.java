@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -117,6 +118,89 @@ class ProductPipelineArtifactsTest {
     assertEquals(brief.reference(), reloaded.target());
     assertEquals(brief.contentHash(), reloaded.targetContentHash());
     assertEquals(approval, reloaded);
+  }
+
+  @Test
+  void roundTripsApprovalRecordV2WithFullSemanticPin() {
+    Revision brief =
+        append(
+            Kind.REQUIREMENT_BRIEF,
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "s"));
+    ApprovalRecordV2 approval =
+        new ApprovalRecordV2(
+            brief.reference(),
+            brief.contentHash(),
+            List.of(brief.reference()),
+            "user-1",
+            "looks good",
+            FIXED_INSTANT,
+            null,
+            null,
+            Kind.CHAIN_SEMANTIC_REVISION.name(),
+            "chain-semantic-revision/v1",
+            "revision-1",
+            "ab".repeat(32),
+            "create-chain-compiler-contract/v1",
+            "cd".repeat(32));
+
+    Revision revision = append(Kind.APPROVAL_RECORD, approval, List.of(brief.reference()));
+    ApprovalRecordV2 reloaded = artifacts.payload(revision, ApprovalRecordV2.class);
+
+    assertEquals(approval, reloaded);
+    assertEquals(Kind.CHAIN_SEMANTIC_REVISION.name(), reloaded.subjectArtifactKind());
+    assertEquals("ab".repeat(32), reloaded.subjectSha256());
+    assertEquals("cd".repeat(32), reloaded.compilerContractSha256());
+  }
+
+  @Test
+  void roundTripsRunManifestWithFullCompilerRunPin() {
+    CompilerRunPin pin =
+        new CompilerRunPin(
+            "compiler-v2",
+            "1.0.0",
+            "pkg-digest",
+            2,
+            "v1_0_0",
+            "index-digest",
+            new ResolvedCompilerDag(List.of(), List.of(), "dag-digest"),
+            List.of("cip-structure-generator"),
+            Map.of("cip-structure-generator", "skill-sha"),
+            Map.of("cip-structure-generator", "addon-sha"),
+            List.of(new ArtifactTypeRef("graph-assembly-result", 1)),
+            Kind.CHAIN_SEMANTIC_REVISION.name(),
+            "chain-semantic-revision/v1",
+            "revision-1",
+            "ab".repeat(32),
+            "create-chain-compiler-contract/v1",
+            "cd".repeat(32));
+    RunManifest manifest =
+        new RunManifest(
+            RUN_ID,
+            null,
+            List.of(),
+            "product",
+            "create-chain",
+            "2",
+            "profile-sha256",
+            "cip-compiler-v2",
+            "baseline-sha256",
+            List.of(new DependencyClosureEntry("requirement-analysis", "1", "cap-sha256")),
+            "closure-sha256",
+            new KnowledgePackageRef(
+                "knowledge-artifact-1",
+                "2026.7.1",
+                "1.0.0",
+                "checksum-sha256",
+                "CERTIFIED",
+                "sha256:certificate"),
+            "24.4",
+            List.of(new ArtifactTypeRef("user-input", 1)),
+            pin);
+    Revision revision = append(Kind.RUN_MANIFEST, manifest);
+    RunManifest reloaded = artifacts.payload(revision, RunManifest.class);
+    assertEquals(manifest, reloaded);
+    assertEquals(pin, reloaded.compilerRunPin());
+    assertEquals("ab".repeat(32), reloaded.compilerRunPin().subjectSha256());
   }
 
   @Test

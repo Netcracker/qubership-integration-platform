@@ -17,6 +17,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -39,11 +40,21 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
@@ -93,6 +104,8 @@ class ProductPipelineStageExecutorTest {
   private static final Instant FIXED = Instant.parse("2026-08-14T00:00:00Z");
   private static final String CONVERSATION = "conversation-stage-executor-1";
   private static final String RUN_ID = "run-stage-executor-1";
+  private static final CompilerContract CONTRACT =
+      new ClasspathCompilerContractRepository().require(CompilerContract.V1);
 
   private InMemoryArtifactBlobStore blobStore;
   private ProductPipelineRunStore runStore;
@@ -107,6 +120,73 @@ class ProductPipelineStageExecutorTest {
     runStore = new ProductPipelineRunStore(blobStore, mapper, clock);
     artifactStore =
         new ProductPipelineArtifactStore(new CompilationArtifacts(blobStore, mapper, clock));
+  }
+
+  @Test
+  void verifyApprovalAcceptsUnchangedRevision() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = approve(revision);
+    stageExecutor().verifyApproval(approval, revision);
+  }
+
+  @Test
+  void verifyApprovalRejectsChangedMapping() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = approve(revision);
+    ChainSemanticRevision changed = withChangedMapping(revision);
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyApprovalRejectsChangedEntryPoint() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = approve(revision);
+    ChainSemanticRevision changed = withChangedEntryPoint(revision);
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyApprovalRejectsChangedEdge() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = approve(revision);
+    ChainSemanticRevision changed = withChangedEdge(revision);
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyApprovalRejectsChangedProvenanceCitation() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = approve(revision);
+    ChainSemanticRevision changed = withChangedProvenanceCitation(revision);
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyApprovalRejectsPinnedSchemaVersionMismatch() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval =
+        withSubjectSchemaVersion(approve(revision), "chain-semantic-revision/v0");
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, revision));
+    assertTrue(error.getMessage().contains("Approved semantic schema version does not match"));
   }
 
   @Test
@@ -4087,5 +4167,138 @@ class ProductPipelineStageExecutorTest {
         return exec.apply(context);
       }
     };
+  }
+
+  private ProductPipelineStageExecutor stageExecutor() {
+    return new ProductPipelineStageExecutor(
+        runStore,
+        artifactStore,
+        new StageCapabilityRegistry(List.of()),
+        Clock.fixed(FIXED, ZoneOffset.UTC),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        null);
+  }
+
+  private ApprovalRecordV2 approve(ChainSemanticRevision revision) {
+    return stageExecutor().approveCandidate(revision, CONTRACT);
+  }
+
+  private static ChainSemanticRevision twoEntryRevision() {
+    return SemanticFixtures.revision(
+        List.of(
+            SemanticFixtures.entry("http-in", "trigger-http"),
+            SemanticFixtures.entry("kafka-in", "trigger-kafka")));
+  }
+
+  private static ChainSemanticRevision withChangedMapping(ChainSemanticRevision revision) {
+    MappingIntent mapping = revision.mappingIntents().getFirst();
+    MappingIntent renamed =
+        new MappingIntent(
+            "map-body-changed",
+            mapping.sourceRef(),
+            mapping.sourcePort(),
+            mapping.targetRef(),
+            mapping.targetPort(),
+            mapping.rules());
+    return copy(
+        revision,
+        revision.entryPoints(),
+        revision.executionEdges(),
+        List.of(renamed),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedEntryPoint(ChainSemanticRevision revision) {
+    SemanticEntryPoint http = revision.entryPoints().getFirst();
+    SemanticEntryPoint retargeted =
+        new SemanticEntryPoint(
+            http.entryPointId(),
+            http.triggerNodeId(),
+            "node-call",
+            http.order(),
+            http.provenance(),
+            http.presentation());
+    return copy(
+        revision,
+        List.of(retargeted, revision.entryPoints().get(1)),
+        revision.executionEdges(),
+        revision.mappingIntents(),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedEdge(ChainSemanticRevision revision) {
+    SemanticExecutionEdge edge = revision.executionEdges().getLast();
+    SemanticExecutionEdge retargeted =
+        new SemanticExecutionEdge(
+            edge.edgeId(),
+            edge.sourceNodeId(),
+            "trigger-http",
+            edge.regionId(),
+            edge.route(),
+            edge.mappingId());
+    List<SemanticExecutionEdge> edges = new ArrayList<>(revision.executionEdges());
+    edges.set(edges.size() - 1, retargeted);
+    return copy(
+        revision,
+        revision.entryPoints(),
+        edges,
+        revision.mappingIntents(),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedProvenanceCitation(
+      ChainSemanticRevision revision) {
+    return copy(
+        revision,
+        revision.entryPoints(),
+        revision.executionEdges(),
+        revision.mappingIntents(),
+        List.of(
+            new QipKnowledgeCitation(
+                "cite-1", QipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
+  }
+
+  private static ApprovalRecordV2 withSubjectSchemaVersion(
+      ApprovalRecordV2 approval, String schemaVersion) {
+    return new ApprovalRecordV2(
+        approval.target(),
+        approval.targetContentHash(),
+        approval.approvedCandidates(),
+        approval.actor(),
+        approval.comment(),
+        approval.approvedAt(),
+        approval.bindingResolutionPolicy(),
+        approval.bindingResolutionPolicyHash(),
+        approval.subjectArtifactKind(),
+        schemaVersion,
+        approval.subjectRevisionId(),
+        approval.subjectSha256(),
+        approval.compilerContractVersion(),
+        approval.compilerContractSha256());
+  }
+
+  private static ChainSemanticRevision copy(
+      ChainSemanticRevision base,
+      List<SemanticEntryPoint> entryPoints,
+      List<SemanticExecutionEdge> edges,
+      List<MappingIntent> mappings,
+      List<QipKnowledgeCitation> citations) {
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        base.revisionId(),
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        entryPoints,
+        base.nodes(),
+        base.regions(),
+        edges,
+        base.containment(),
+        mappings,
+        base.constraints(),
+        base.assumptions(),
+        citations);
   }
 }
