@@ -190,6 +190,59 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void verifyApprovalAcceptsMatchingContract() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = approve(revision);
+    stageExecutor().verifyApproval(approval, revision, CONTRACT);
+  }
+
+  @Test
+  void verifyApprovalRejectsChangedContractDigest() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval =
+        withCompilerContractSha256(approve(revision), "aa".repeat(32));
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> executor.verifyApproval(approval, revision, CONTRACT));
+    assertTrue(error.getMessage().contains("Approved compiler contract digest does not match"));
+  }
+
+  @Test
+  void verifyApprovalRejectsNullContractDigest() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = withCompilerContractSha256(approve(revision), null);
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, revision));
+    assertTrue(error.getMessage().contains("Approved compiler contract digest does not match"));
+  }
+
+  @Test
+  void verifyApprovalRejectsBlankContractDigest() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = withCompilerContractSha256(approve(revision), "  ");
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, revision));
+    assertTrue(error.getMessage().contains("Approved compiler contract digest does not match"));
+  }
+
+  @Test
+  void verifyApprovalRejectsArtifactKindMismatch() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    ApprovalRecordV2 approval = withSubjectArtifactKind(approve(revision), Kind.IDS_DOCUMENT.name());
+    ProductPipelineStageExecutor executor = stageExecutor();
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> executor.verifyApproval(approval, revision));
+    assertTrue(error.getMessage().contains("Approved semantic artifact kind does not match"));
+  }
+
+  @Test
   void typedDecisionCoversEveryLifecycleOutcome() {
     Set<String> kinds =
         Arrays.stream(StageDecision.class.getPermittedSubclasses())
@@ -4263,6 +4316,36 @@ class ProductPipelineStageExecutorTest {
 
   private static ApprovalRecordV2 withSubjectSchemaVersion(
       ApprovalRecordV2 approval, String schemaVersion) {
+    return copyApproval(
+        approval,
+        approval.subjectArtifactKind(),
+        schemaVersion,
+        approval.compilerContractSha256());
+  }
+
+  private static ApprovalRecordV2 withCompilerContractSha256(
+      ApprovalRecordV2 approval, String compilerContractSha256) {
+    return copyApproval(
+        approval,
+        approval.subjectArtifactKind(),
+        approval.subjectSchemaVersion(),
+        compilerContractSha256);
+  }
+
+  private static ApprovalRecordV2 withSubjectArtifactKind(
+      ApprovalRecordV2 approval, String subjectArtifactKind) {
+    return copyApproval(
+        approval,
+        subjectArtifactKind,
+        approval.subjectSchemaVersion(),
+        approval.compilerContractSha256());
+  }
+
+  private static ApprovalRecordV2 copyApproval(
+      ApprovalRecordV2 approval,
+      String subjectArtifactKind,
+      String subjectSchemaVersion,
+      String compilerContractSha256) {
     return new ApprovalRecordV2(
         approval.target(),
         approval.targetContentHash(),
@@ -4272,12 +4355,12 @@ class ProductPipelineStageExecutorTest {
         approval.approvedAt(),
         approval.bindingResolutionPolicy(),
         approval.bindingResolutionPolicyHash(),
-        approval.subjectArtifactKind(),
-        schemaVersion,
+        subjectArtifactKind,
+        subjectSchemaVersion,
         approval.subjectRevisionId(),
         approval.subjectSha256(),
         approval.compilerContractVersion(),
-        approval.compilerContractSha256());
+        compilerContractSha256);
   }
 
   private static ChainSemanticRevision copy(

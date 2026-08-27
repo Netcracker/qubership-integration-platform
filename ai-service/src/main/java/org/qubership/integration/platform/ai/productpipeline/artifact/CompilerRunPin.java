@@ -31,36 +31,4 @@ public record CompilerRunPin(
     runtimeArtifactSchemas =
         runtimeArtifactSchemas == null ? List.of() : List.copyOf(runtimeArtifactSchemas);
   }
-
-  public CompilerRunPin(
-      String compilerPackageId,
-      String compilerPackageVersion,
-      String compilerPackageDigest,
-      int pipelineIndexSchemaVersion,
-      String pipelineIndexVersion,
-      String pipelineIndexDigest,
-      ResolvedCompilerDag resolvedDag,
-      List<String> capabilityClosure,
-      Map<String, String> skillSha256ById,
-      Map<String, String> addonSha256ById,
-      List<ArtifactTypeRef> runtimeArtifactSchemas) {
-    this(
-        compilerPackageId,
-        compilerPackageVersion,
-        compilerPackageDigest,
-        pipelineIndexSchemaVersion,
-        pipelineIndexVersion,
-        pipelineIndexDigest,
-        resolvedDag,
-        capabilityClosure,
-        skillSha256ById,
-        addonSha256ById,
-        runtimeArtifactSchemas,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
-  }
 }

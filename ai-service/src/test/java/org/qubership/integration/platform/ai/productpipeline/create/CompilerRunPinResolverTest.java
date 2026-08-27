@@ -374,7 +374,21 @@ class CompilerRunPinResolverTest {
     ChainSemanticRevision revision = twoEntryRevision();
     CompilerContract contract = v1Contract();
     CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, contract);
+    CompilerContract newer =
+        new CompilerContract(
+            contract.contractVersion(),
+            contract.semanticSchemaVersion(),
+            contract.elements(),
+            contract.topology(),
+            contract.requiredArtifacts(),
+            contract.requiredAddons(),
+            contract.requiredKnowledgeFragments(),
+            "bb".repeat(32));
     resolver.verifyPersistedPin(pin, revision);
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> resolver.verifyPersistedPin(pin, revision, newer));
+    assertTrue(error.getMessage().contains("Approved compiler contract digest does not match"));
   }
 
   private CompilerRunPin resolveProductionCreateChainPin() {
@@ -637,7 +651,13 @@ class CompilerRunPinResolverTest {
             List.of("cip-structure-generator"),
             Map.of("cip-structure-generator", "skill-sha-structure"),
             Map.of("cip-structure-generator", "addon-sha-structure"),
-            List.of(new ArtifactTypeRef("graph-assembly-result", 1)));
+            List.of(new ArtifactTypeRef("graph-assembly-result", 1)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     return new RunManifest(
         "run-1",
         null,

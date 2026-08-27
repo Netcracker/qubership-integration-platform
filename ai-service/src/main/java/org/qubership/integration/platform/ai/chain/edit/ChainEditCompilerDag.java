@@ -145,7 +145,13 @@ public final class ChainEditCompilerDag {
             cutDag.nodes().stream().map(ResolvedCompilerNode::skillId).toList(),
             pin.skillSha256ById(),
             pin.addonSha256ById(),
-            pin.runtimeArtifactSchemas());
+            pin.runtimeArtifactSchemas(),
+            pin.subjectArtifactKind(),
+            pin.subjectSchemaVersion(),
+            pin.subjectRevisionId(),
+            pin.subjectSha256(),
+            pin.compilerContractVersion(),
+            pin.compilerContractSha256());
     return new RunManifest(
         editRunId,
         source.runId(),

@@ -96,7 +96,13 @@ class CreateProductPipelineContractIT {
             List.of("planning"),
             java.util.Map.of(),
             java.util.Map.of("skill", "a".repeat(64)),
-            List.of());
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     CompilerRunPinResolver resolver = org.mockito.Mockito.mock(CompilerRunPinResolver.class);
     org.mockito.Mockito.when(
             resolver.resolve(

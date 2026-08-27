@@ -136,7 +136,13 @@ class CipDesignExecutorJavaAdapterTest {
             "approved",
             FIXED,
             ApprovalPolicy.CATALOG_FIRST_V1,
-            ApprovalPolicy.CATALOG_FIRST_V1_HASH);
+            ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     approvalRef = append(Kind.APPROVAL_RECORD, "2", approval);
 
     when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(flow), anyList(), any()))
@@ -318,7 +324,13 @@ class CipDesignExecutorJavaAdapterTest {
             "approved",
             FIXED,
             ApprovalPolicy.CATALOG_FIRST_V1,
-            ApprovalPolicy.CATALOG_FIRST_V1_HASH);
+            ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference depApprovalRef = append(Kind.APPROVAL_RECORD, "2", depApproval);
 
     when(runner.execute(eq(planWithDependencyOwner), eq(flow), eq(bindings), eq(manifestWithDependency), any()))
@@ -863,7 +875,13 @@ class CipDesignExecutorJavaAdapterTest {
             List.of("cip-trigger-generator"),
             Map.of("cip-trigger-generator", skillHash),
             Map.of("cip-trigger-generator", addonHash),
-            List.of());
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     return new RunManifest(
         RUN_ID,
         null,
@@ -947,7 +965,13 @@ class CipDesignExecutorJavaAdapterTest {
             Map.of(
                 "cip-trigger-generator", addonHash,
                 dependencySkillId, dependencyAddonHash),
-            List.of());
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     return new RunManifest(
         RUN_ID,
         null,
