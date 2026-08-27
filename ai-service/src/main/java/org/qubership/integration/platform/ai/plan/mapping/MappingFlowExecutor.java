@@ -11,36 +11,72 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 
 /**
- * Applies each configured mapping site once in graph execution order, starting from trigger
- * entries. Non-transform nodes pass the current body through.
+ * Applies configured mapping sites in graph order. {@link #apply} walks every reachable node from
+ * all trigger entries. {@link #applyAlong} applies only the sites on one path so a branch-local
+ * mapping cannot rewrite a sibling or another entry.
  */
 public final class MappingFlowExecutor {
 
   private MappingFlowExecutor() {}
 
   public static String apply(ChainPlanGraph graph, String jsonBody) {
-    String current = jsonBody == null ? "{}" : jsonBody;
     if (graph == null) {
+      return jsonBody == null ? "{}" : jsonBody;
+    }
+    return applyAlong(graph, nodeIds(executionOrder(graph)), jsonBody);
+  }
+
+  /**
+   * Applies configured mapping sites that appear on {@code pathNodeIds}, in that order.
+   * Non-transform nodes pass the current body through.
+   */
+  public static String applyAlong(ChainPlanGraph graph, List<String> pathNodeIds, String jsonBody) {
+    String current = jsonBody == null ? "{}" : jsonBody;
+    if (graph == null || pathNodeIds == null || pathNodeIds.isEmpty()) {
       return current;
     }
-    for (ChainPlanNode node : executionOrder(graph)) {
-      if (!MappingExecutionSite.isConfigured(node)) {
-        continue;
+    Map<String, ChainPlanNode> nodesById = indexNodes(graph);
+    for (String nodeId : pathNodeIds) {
+      ChainPlanNode node = nodesById.get(nodeId);
+      if (node == null) {
+        throw new IllegalArgumentException("Path node '" + nodeId + "' is not in the graph.");
       }
-      if (MappingExecutionSite.isMapper2(node)) {
-        current = SimpleMapper2Executor.applyNode(node, current);
-      } else if (MappingExecutionSite.isScript(node)) {
-        current = SimpleScriptExecutor.applyNode(node, current);
-      }
+      current = applySite(node, current);
     }
     return current;
   }
 
-  static List<ChainPlanNode> executionOrder(ChainPlanGraph graph) {
+  private static String applySite(ChainPlanNode node, String jsonBody) {
+    if (!MappingExecutionSite.isConfigured(node)) {
+      return jsonBody;
+    }
+    if (MappingExecutionSite.isMapper2(node)) {
+      return SimpleMapper2Executor.applyNode(node, jsonBody);
+    }
+    if (MappingExecutionSite.isScript(node)) {
+      return SimpleScriptExecutor.applyNode(node, jsonBody);
+    }
+    return jsonBody;
+  }
+
+  private static List<String> nodeIds(List<ChainPlanNode> nodes) {
+    List<String> ids = new ArrayList<>(nodes.size());
+    for (ChainPlanNode node : nodes) {
+      ids.add(node.nodeId());
+    }
+    return List.copyOf(ids);
+  }
+
+  private static Map<String, ChainPlanNode> indexNodes(ChainPlanGraph graph) {
     Map<String, ChainPlanNode> nodesById = new LinkedHashMap<>();
     for (ChainPlanNode node : graph.nodes()) {
       nodesById.put(node.nodeId(), node);
     }
+    return nodesById;
+  }
+
+  static List<ChainPlanNode> executionOrder(ChainPlanGraph graph) {
+    Map<String, ChainPlanNode> nodesById = indexNodes(graph);
     ArrayDeque<String> queue = new ArrayDeque<>();
     for (ChainPlanNode node : graph.nodes()) {
       if (ChainPlanGraphValidator.isTriggerElementType(node.type())) {

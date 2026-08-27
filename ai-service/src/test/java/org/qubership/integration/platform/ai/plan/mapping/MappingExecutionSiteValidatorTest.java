@@ -49,6 +49,13 @@ class MappingExecutionSiteValidatorTest {
     assertTrue(hasIssue(unconfiguredScript, "transform-map-init", "cip-script-generator"));
   }
 
+  @Test
+  void rejectsMappingSiteThatMergesIncomingBranches() {
+    List<ValidationIssue> mergeSite =
+        MappingExecutionSiteValidator.validate(mergeSiteGraph(), approvedBrief().mappingIntents());
+    assertTrue(hasIssue(mergeSite, "transform-map-init", "cip-structure-generator"));
+  }
+
   private static boolean hasIssue(
       List<ValidationIssue> issues, String needle, String ownerCapabilityId) {
     return issues.stream()
@@ -172,6 +179,24 @@ class MappingExecutionSiteValidatorTest {
         List.of(
             new ChainPlanEdge("e1", "trigger-1", "transform-map-init", null),
             new ChainPlanEdge("e2", "transform-map-init", "call-1", null)));
+  }
+
+  private static ChainPlanGraph mergeSiteGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            new ChainPlanNode("call-a", "service-call", "Call A", null, null, List.of()),
+            new ChainPlanNode("call-b", "service-call", "Call B", null, null, List.of()),
+            mapper("transform-map-init", "map-init", true),
+            new ChainPlanNode("next", "service-call", "Next", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("e1", "trigger-1", "call-a", null),
+            new ChainPlanEdge("e2", "trigger-1", "call-b", null),
+            new ChainPlanEdge("e3", "call-a", "transform-map-init", null),
+            new ChainPlanEdge("e4", "call-b", "transform-map-init", null),
+            new ChainPlanEdge("e5", "transform-map-init", "next", null)));
   }
 
   private static ChainPlanNode mapper(String nodeId, String mappingIntentId, boolean configured) {
