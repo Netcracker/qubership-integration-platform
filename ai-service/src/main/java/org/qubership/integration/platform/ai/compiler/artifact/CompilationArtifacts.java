@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
 /**
  * Owns immutable compiler artifact revisions, exact-content decisions, and lineage impact.
@@ -207,6 +208,13 @@ public class CompilationArtifacts {
   public <T> T payload(Revision revision, Class<T> payloadType) {
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(payloadType, "payloadType");
+    if (revision.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
+      requireSemanticSchemaVersion(revision.schemaVersion());
+      if (payloadType != ChainSemanticRevision.class) {
+        throw new IllegalArgumentException(
+            "CHAIN_SEMANTIC_REVISION payload decodes only as ChainSemanticRevision");
+      }
+    }
     return objectMapper.convertValue(revision.payload(), payloadType);
   }
 
@@ -226,6 +234,24 @@ public class CompilationArtifacts {
       if (revised.kind() != command.kind()) {
         throw new IllegalArgumentException("a revision must keep the artifact kind");
       }
+    }
+    if (command.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
+      requireSemanticSchemaVersion(command.schemaVersion());
+      try {
+        objectMapper.convertValue(command.payload(), ChainSemanticRevision.class);
+      } catch (IllegalArgumentException e) {
+        throw e;
+      } catch (Exception e) {
+        throw new IllegalArgumentException(
+            "CHAIN_SEMANTIC_REVISION payload must be a ChainSemanticRevision", e);
+      }
+    }
+  }
+
+  private static void requireSemanticSchemaVersion(String schemaVersion) {
+    if (!ChainSemanticRevision.CURRENT_SCHEMA_VERSION.equals(schemaVersion)) {
+      throw new IllegalArgumentException(
+          "Unsupported semantic schema version: " + schemaVersion);
     }
   }
 
@@ -370,6 +396,7 @@ public class CompilationArtifacts {
     DESIGN_ENTRY_ROUTE,
     IDS_DOCUMENT,
     NORMALIZED_DESIGN_FLOW,
+    CHAIN_SEMANTIC_REVISION,
     CATALOG_BINDING_HINT,
     DESIGN_PLAN_REPORT,
     DESIGN_EXECUTION_PLAN,
