@@ -63,6 +63,10 @@ public class KubeOperator {
     private static final String ISTIO_NETWORKING_API_VERSION = "v1";
     private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
     private static final String DESTINATION_RULES_PLURAL = "destinationrules";
+    private static final String CAMEL_API_GROUP = "camel.apache.org";
+    private static final String INTEGRATIONS_PLURAL = "integrations";
+    private static final String MONITORING_API_GROUP = "monitoring.coreos.com";
+    private static final String SERVICE_MONITORS_PLURAL = "servicemonitors";
     private static final String APPLY_RESOURCE_LOG_FORMAT = "Applying {} name={}";
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
@@ -206,9 +210,9 @@ public class KubeOperator {
         } else if (resource instanceof V1Service service) {
             createOrUpdateService(service, observedAbsent);
         } else if (resource instanceof CamelKIntegration integration) {
-            createOrUpdateCustomResource("camel.apache.org", "v1", "integrations", integration, true, observedAbsent);
+            createOrUpdateCustomResource(CAMEL_API_GROUP, "v1", INTEGRATIONS_PLURAL, integration, true, observedAbsent);
         } else if (resource instanceof V1ServiceMonitor serviceMonitor) {
-            createOrUpdateCustomResource("monitoring.coreos.com", "v1", "servicemonitors", serviceMonitor, true,
+            createOrUpdateCustomResource(MONITORING_API_GROUP, "v1", SERVICE_MONITORS_PLURAL, serviceMonitor, true,
                     observedAbsent);
         } else if (resource instanceof KubeCustomObject customObject && HTTP_ROUTE_KIND.equals(customObject.getKind())) {
             // HTTPRoute is handled directly (not through GenericCustomResources) because that map
@@ -406,7 +410,7 @@ public class KubeOperator {
 
     public List<CamelKIntegration> getIntegrationsByLabels(Map<String, String> labelValues) throws KubeApiException {
         try {
-            Object rawListObj = customObjectsApi.listNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations")
+            Object rawListObj = customObjectsApi.listNamespacedCustomObject(CAMEL_API_GROUP, "v1", namespace, INTEGRATIONS_PLURAL)
                 .labelSelector(toSelector(labelValues))
                 .execute();
             CamelKIntegrationList listObject = fromRawObject(rawListObj, new TypeToken<CamelKIntegrationList>() {}.getType());
@@ -419,7 +423,7 @@ public class KubeOperator {
     public List<V1ServiceMonitor> getServiceMonitorsByLabel(String labelName, String labelValue) throws KubeApiException {
         try {
             Object rawListObj = customObjectsApi
-                    .listNamespacedCustomObject("monitoring.coreos.com", "v1", namespace, "servicemonitors")
+                    .listNamespacedCustomObject(MONITORING_API_GROUP, "v1", namespace, SERVICE_MONITORS_PLURAL)
                     .labelSelector(toSelector(labelName, labelValue))
                     .execute();
             V1ServiceMonitorList listObject = fromRawObject(rawListObj, new TypeToken<V1ServiceMonitorList>() {}.getType());
@@ -559,11 +563,11 @@ public class KubeOperator {
     }
 
     public void deleteServiceMonitor(String name) throws KubeApiException {
-        deleteCustomObject("monitoring.coreos.com", "v1", "servicemonitors", name);
+        deleteCustomObject(MONITORING_API_GROUP, "v1", SERVICE_MONITORS_PLURAL, name);
     }
 
     public void deleteCamelKIntegration(String name) throws KubeApiException {
-        deleteCustomObject("camel.apache.org", "v1", "integrations", name);
+        deleteCustomObject(CAMEL_API_GROUP, "v1", INTEGRATIONS_PLURAL, name);
     }
 
     public void deleteCustomObject(String group, String version, String plural, String name) throws KubeApiException {

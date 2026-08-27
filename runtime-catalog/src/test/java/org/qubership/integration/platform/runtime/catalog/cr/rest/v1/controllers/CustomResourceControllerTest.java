@@ -254,8 +254,9 @@ class CustomResourceControllerTest {
         when(microDomainResourceBuildService.buildResources(any(), anyBoolean()))
                 .thenReturn(new BuiltResources("yaml", Map.of()));
         doThrow(new KubeApiConflictException("conflict", null)).when(microDomainService).deploy(any());
+        ResourceDeployRequest request = deployRequest("payments");
 
-        assertThrows(KubeApiConflictException.class, () -> controller.deployResource(deployRequest("payments")));
+        assertThrows(KubeApiConflictException.class, () -> controller.deployResource(request));
 
         verify(microDomainService, times(3)).deploy(any());
     }
@@ -268,8 +269,9 @@ class CustomResourceControllerTest {
         when(microDomainResourceBuildService.buildResources(any(), anyBoolean()))
                 .thenReturn(new BuiltResources("yaml", Map.of()));
         doThrow(new MicroDomainDeployError("boom", null)).when(microDomainService).deploy(any());
+        ResourceDeployRequest request = deployRequest("payments");
 
-        assertThrows(MicroDomainDeployError.class, () -> controller.deployResource(deployRequest("payments")));
+        assertThrows(MicroDomainDeployError.class, () -> controller.deployResource(request));
 
         verify(microDomainService, times(1)).deploy(any());
     }

@@ -418,8 +418,8 @@ class KubeOperatorCreateOrUpdateTest {
                 rawObjectWithResourceVersion("order-chain-public-routes", "101"));
         CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest replaceRequest =
                 mock(CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.replaceNamespacedCustomObject(eq(GATEWAY_GROUP), eq(GATEWAY_VERSION), eq(NAMESPACE),
-                eq(HTTP_ROUTES_PLURAL), eq("order-chain-public-routes"), eq(httpRoute)))
+        when(customObjectsApi.replaceNamespacedCustomObject(GATEWAY_GROUP, GATEWAY_VERSION, NAMESPACE,
+                HTTP_ROUTES_PLURAL, "order-chain-public-routes", httpRoute))
                 .thenReturn(replaceRequest);
 
         kubeOperator.createOrUpdateResource(httpRoute);
@@ -442,8 +442,8 @@ class KubeOperatorCreateOrUpdateTest {
                 rawObjectWithResourceVersion("order-chain-public-routes", "101"));
         CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest replaceRequest =
                 mock(CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.replaceNamespacedCustomObject(eq(GATEWAY_GROUP), eq(GATEWAY_VERSION), eq(NAMESPACE),
-                eq(HTTP_ROUTES_PLURAL), eq("order-chain-public-routes"), eq(httpRoute)))
+        when(customObjectsApi.replaceNamespacedCustomObject(GATEWAY_GROUP, GATEWAY_VERSION, NAMESPACE,
+                HTTP_ROUTES_PLURAL, "order-chain-public-routes", httpRoute))
                 .thenReturn(replaceRequest);
 
         kubeOperator.createOrUpdateResource(httpRoute);

@@ -273,9 +273,9 @@ class MicroDomainServiceTest {
         doThrow(cause).when(kubeOperator).createOrUpdateResource(any(), anyBoolean());
 
         MicroDomainService service = newService(false);
+        BuiltResources built = new BuiltResources(manifest, Map.of());
         MicroDomainDeployError error =
-                assertThrows(MicroDomainDeployError.class,
-                        () -> service.deploy(new BuiltResources(manifest, Map.of())));
+                assertThrows(MicroDomainDeployError.class, () -> service.deploy(built));
 
         assertSame(cause, error.getCause());
     }
@@ -288,8 +288,9 @@ class MicroDomainServiceTest {
         doThrow(conflict).when(kubeOperator).createOrUpdateResource(any(), anyBoolean());
 
         MicroDomainService service = newService(false);
-        KubeApiConflictException thrown = assertThrows(KubeApiConflictException.class,
-                () -> service.deploy(new BuiltResources(manifest, Map.of())));
+        BuiltResources built = new BuiltResources(manifest, Map.of());
+        KubeApiConflictException thrown =
+                assertThrows(KubeApiConflictException.class, () -> service.deploy(built));
 
         assertSame(conflict, thrown,
                 "MicroDomainDeployError would hide the conflict from a caller's retry logic");

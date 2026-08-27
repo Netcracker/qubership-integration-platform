@@ -39,6 +39,8 @@ import static org.qubership.integration.platform.runtime.catalog.kubernetes.Kube
 
 @Component
 public class MicroDomainResourceBuildContextFactory {
+    private static final String HTTP_ROUTE_KIND = "HTTPRoute";
+
     private final SnapshotRepository snapshotRepository;
     private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final MicroDomainService microDomainService;
@@ -211,11 +213,11 @@ public class MicroDomainResourceBuildContextFactory {
         recordIfNamed(observations, "ServiceMonitor", resources.serviceMonitor());
         recordIfNamed(observations, "ConfigMap", resources.integrationsConfiguration());
         resources.integrationSources().forEach(configMap -> recordIfNamed(observations, "ConfigMap", configMap));
-        recordObservation(observations, "HTTPRoute",
+        recordObservation(observations, HTTP_ROUTE_KIND,
                 httpRoutePublicNamingStrategy.getName(context), resources.publicHttpRoute());
-        recordObservation(observations, "HTTPRoute",
+        recordObservation(observations, HTTP_ROUTE_KIND,
                 httpRoutePrivateNamingStrategy.getName(context), resources.privateHttpRoute());
-        recordObservation(observations, "HTTPRoute",
+        recordObservation(observations, HTTP_ROUTE_KIND,
                 httpRouteEgressNamingStrategy.getName(context), resources.egressHttpRoute());
     }
 
