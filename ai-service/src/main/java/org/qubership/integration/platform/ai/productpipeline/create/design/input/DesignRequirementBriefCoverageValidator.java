@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementTriggerRole;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
@@ -50,6 +51,13 @@ public final class DesignRequirementBriefCoverageValidator {
   public void validate(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
     RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
+    List<RequirementFact> outboundCalls =
+        positiveFacts(normalized, RequirementFactKind.SERVICE_CALL);
+    List<RequirementFact> triggers =
+        RequirementTriggerRole.positiveTriggers(normalized.facts());
+    if (!outboundCalls.isEmpty() && triggers.isEmpty()) {
+      throw new IllegalArgumentException(RequirementTriggerRole.MISSING_ENTRY);
+    }
     for (RequirementDataMapping mapping : normalized.dataMappings()) {
       validateMappingShape(mapping);
     }
@@ -222,9 +230,12 @@ public final class DesignRequirementBriefCoverageValidator {
     if (outboundCalls.isEmpty()) {
       return List.of();
     }
+    RequirementFact trigger = firstPositiveTrigger(brief);
+    if (trigger == null) {
+      return List.of();
+    }
     List<RequiredEdge> required = new ArrayList<>();
-    RequirementFact trigger = firstPositiveEndpoint(brief);
-    String triggerId = trigger == null ? null : trigger.sourceFactId();
+    String triggerId = trigger.sourceFactId();
     required.add(
         new RequiredEdge(
             RequirementDataMapping.Stage.INITIALIZATION,
@@ -239,7 +250,7 @@ public final class DesignRequirementBriefCoverageValidator {
               outboundCalls.get(i + 1).sourceFactId(),
               "map-conv-pass-through-" + (i + 1)));
     }
-    if (trigger != null && looksRequestResponse(trigger)) {
+    if (looksRequestResponse(trigger)) {
       required.add(
           new RequiredEdge(
               RequirementDataMapping.Stage.RESPONSE,
@@ -251,7 +262,7 @@ public final class DesignRequirementBriefCoverageValidator {
   }
 
   private static void validateSingleEntryTopology(RequirementBrief brief) {
-    List<RequirementFact> endpoints = positiveFacts(brief, RequirementFactKind.ENDPOINT);
+    List<RequirementFact> endpoints = RequirementTriggerRole.positiveTriggers(brief.facts());
     List<RequirementFact> calls = positiveFacts(brief, RequirementFactKind.SERVICE_CALL);
     if (endpoints.size() != 1 || calls.isEmpty()) {
       return;
@@ -349,7 +360,7 @@ public final class DesignRequirementBriefCoverageValidator {
 
   private static List<RequirementDataMapping> topologyBoundMappings(RequirementBrief brief) {
     Set<String> topologyIds = new LinkedHashSet<>();
-    for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.ENDPOINT)) {
+    for (RequirementFact fact : RequirementTriggerRole.positiveTriggers(brief.facts())) {
       topologyIds.add(fact.sourceFactId());
     }
     for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.SERVICE_CALL)) {
@@ -491,9 +502,9 @@ public final class DesignRequirementBriefCoverageValidator {
     }
   }
 
-  private static RequirementFact firstPositiveEndpoint(RequirementBrief brief) {
-    List<RequirementFact> endpoints = positiveFacts(brief, RequirementFactKind.ENDPOINT);
-    return endpoints.isEmpty() ? null : endpoints.getFirst();
+  private static RequirementFact firstPositiveTrigger(RequirementBrief brief) {
+    List<RequirementFact> triggers = RequirementTriggerRole.positiveTriggers(brief.facts());
+    return triggers.isEmpty() ? null : triggers.getFirst();
   }
 
   private static List<RequirementFact> positiveFacts(

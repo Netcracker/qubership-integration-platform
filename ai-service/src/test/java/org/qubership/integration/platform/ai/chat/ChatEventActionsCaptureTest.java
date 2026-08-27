@@ -35,13 +35,24 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
-  void anEscalatedClarifyOffersOnlyActionsThatStillWork() {
-    List<String> actions =
+  void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
+    assertEquals(
+        List.of(),
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
-                HaltRecoveryGuard.OWNER_ALREADY_REOPENED.cardSentence(),
-                List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
-                PipelineGates.STAGE_ESCALATED));
-    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+                "Some data mappings are still missing before design can continue.",
+                List.of("INITIALIZATION: trigger → first outbound call (no ENDPOINT fact)"),
+                PipelineGates.MAPPING_GAP)));
+  }
+
+  @Test
+  void mappingGapWithASourceStillOffersPassThroughAndDescribe() {
+    assertEquals(
+        ChatEvent.MAPPING_GAP_ACTIONS,
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "Some data mappings are still missing before design can continue.",
+                List.of("INITIALIZATION: ENDPOINT \"GET /orders\" → SERVICE_CALL \"Create order\""),
+                PipelineGates.MAPPING_GAP)));
   }
 }

@@ -369,6 +369,65 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void kafkaCapabilityFactIsAnEntryWithoutAnEndpointKind() {
+    RequirementBrief brief =
+        briefWithFacts(
+            List.of(
+                kafkaCapability("trigger-1", "kafka-trigger-2"),
+                call("call-1")),
+            List.of());
+
+    List<String> missing = designValidator.listMissingEdges(brief);
+    assertEquals(1, missing.size(), missing.toString());
+    assertTrue(missing.getFirst().contains("INITIALIZATION"), missing.getFirst());
+    assertTrue(missing.getFirst().contains("trigger-1"), missing.getFirst());
+    assertFalse(missing.getFirst().contains("no ENDPOINT fact"), missing.getFirst());
+
+    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
+    assertDoesNotThrow(() -> designValidator.validate(filled));
+    assertEquals(1, filled.dataMappings().size());
+    assertEquals("trigger-1", filled.dataMappings().getFirst().fromIntentRef());
+    assertEquals("call-1", filled.dataMappings().getFirst().toIntentRef());
+  }
+
+  @Test
+  void rabbitmqCapabilityFactIsAnEntryWithoutAKafkaSpecialCase() {
+    RequirementBrief brief =
+        briefWithFacts(
+            List.of(
+                kafkaCapability("trigger-1", "rabbitmq-trigger-2"),
+                call("call-1")),
+            List.of());
+
+    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
+    assertDoesNotThrow(() -> designValidator.validate(filled));
+    assertEquals("trigger-1", filled.dataMappings().getFirst().fromIntentRef());
+  }
+
+  @Test
+  void missingTriggerStopsBeforeMappingValidation() {
+    RequirementBrief brief = briefWithFacts(List.of(call("call-1")), List.of());
+
+    assertTrue(designValidator.listMissingEdges(brief).isEmpty());
+    IllegalArgumentException thrown =
+        assertThrows(IllegalArgumentException.class, () -> designValidator.validate(brief));
+    assertTrue(thrown.getMessage().contains("configured trigger entry"), thrown.getMessage());
+    assertFalse(thrown.getMessage().contains("INITIALIZATION"), thrown.getMessage());
+    assertFalse(thrown.getMessage().contains("no ENDPOINT fact"), thrown.getMessage());
+  }
+
+  @Test
+  void passThroughCannotInventAMissingTriggerSource() {
+    RequirementBrief brief = briefWithFacts(List.of(call("call-1")), List.of());
+
+    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
+    assertTrue(filled.dataMappings().isEmpty());
+    RequirementBrief described =
+        designValidator.withExplicitMappingsForMissingEdges(brief, "$.a -> $.b");
+    assertTrue(described.dataMappings().isEmpty());
+  }
+
+  @Test
   void doesNotRequireResponseForFireAndForgetTrigger() {
     RequirementFact asyncTrigger =
         new RequirementFact(
@@ -438,6 +497,20 @@ class DesignRequirementBriefCoverageValidatorTest {
         "draft",
         facts,
         mappings);
+  }
+
+  private static RequirementFact kafkaCapability(String id, String capabilityKey) {
+    return new RequirementFact(
+        id,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY,
+        capabilityKey,
+        "Consume events from " + capabilityKey,
+        "",
+        "consumeEvent",
+        "events",
+        "",
+        "");
   }
 
   private static RequirementFact call(String id) {

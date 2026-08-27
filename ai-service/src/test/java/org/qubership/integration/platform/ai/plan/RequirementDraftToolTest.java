@@ -689,6 +689,81 @@ class RequirementDraftToolTest {
     assertTrue(draft.facts().isEmpty());
   }
 
+  @Test
+  void captureCanonicalizesCatalogTriggerCapabilityKindToEndpoint() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Consume Kafka user events and look up a pet",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(
+                    new RequirementFact(
+                        "trigger-1",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "kafka-trigger-2",
+                        "Consume user events",
+                        "",
+                        "consumeUserEvent",
+                        "user/events",
+                        "",
+                        ""),
+                    RequirementFact.of(
+                        RequirementFactPolarity.NEGATIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "",
+                        "Do not call MCP"))));
+
+    assertTrue(result.contains("Requirement draft captured"), result);
+    RequirementFact stored = store.get("draft-conv").orElseThrow().facts().getFirst();
+    assertEquals(RequirementFactKind.ENDPOINT, stored.kind());
+    assertEquals("kafka-trigger-2", stored.capabilityKey());
+  }
+
+  @Test
+  void captureRejectsAmbiguousTriggerKind() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Consume Kafka user events",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(
+                    new RequirementFact(
+                        "trigger-1",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.SERVICE_CALL,
+                        "kafka-trigger-2",
+                        "Consume user events",
+                        "Petstore Ext",
+                        "getPetById",
+                        "user/events",
+                        "",
+                        ""),
+                    RequirementFact.of(
+                        RequirementFactPolarity.NEGATIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "",
+                        "Do not call MCP"))));
+
+    assertTrue(result.contains("kafka-trigger-2"), result);
+    assertTrue(result.contains("SERVICE_CALL"), result);
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
   private static List<RequirementFact> sampleFacts() {
     return List.of(
         RequirementFact.of(
