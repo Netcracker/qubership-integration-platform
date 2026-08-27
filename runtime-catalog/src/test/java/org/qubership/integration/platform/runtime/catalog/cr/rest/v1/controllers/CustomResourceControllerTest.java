@@ -203,6 +203,49 @@ class CustomResourceControllerTest {
                 .isNotSameAs(captor.getAllValues().get(1).getOptions());
     }
 
+    // deleteChainSnapshot rewrites the Integration, the integrations-configuration ConfigMap and the
+    // shared HTTPRoute tiers, each carrying the resourceVersion it read on entry, so a deploy to the
+    // same domain can take any of those writes. It reloads everything through
+    // getMainIntegrationResources, so re-calling it recomputes against current state.
+    @DisplayName("Retries a snapshot removal that loses a concurrency race")
+    @Test
+    void deleteSnapshotRetriesOnConflict() {
+        microDomainEnabled(true);
+        doThrow(new KubeApiConflictException("conflict", null))
+                .doNothing()
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        controller.deleteSnapshotFromResource("orders", "s1");
+
+        verify(microDomainService, times(2)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Gives up on a snapshot removal after the retry budget is exhausted")
+    @Test
+    void deleteSnapshotStopsRetryingAfterTheBudgetIsExhausted() {
+        microDomainEnabled(true);
+        doThrow(new KubeApiConflictException("conflict", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(KubeApiConflictException.class,
+                () -> controller.deleteSnapshotFromResource("orders", "s1"));
+
+        verify(microDomainService, times(3)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Does not retry a snapshot removal that failed for a reason other than a conflict")
+    @Test
+    void deleteSnapshotDoesNotRetryANonConflictFailure() {
+        microDomainEnabled(true);
+        doThrow(new MicroDomainDeployError("boom", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(MicroDomainDeployError.class,
+                () -> controller.deleteSnapshotFromResource("orders", "s1"));
+
+        verify(microDomainService, times(1)).deleteChainSnapshot("orders", "s1");
+    }
+
     @DisplayName("Gives up after the retry budget and surfaces the last conflict")
     @Test
     void deployStopsRetryingAfterTheBudgetIsExhausted() {
