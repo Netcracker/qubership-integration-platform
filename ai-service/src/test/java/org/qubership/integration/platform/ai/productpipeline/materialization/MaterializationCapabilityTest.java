@@ -123,7 +123,15 @@ class MaterializationCapabilityTest {
             prepared.approvedCandidates(),
             "user",
             null,
-            FIXED);
+            FIXED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference mismatchedApprovalRef = append(Kind.APPROVAL_RECORD, "2", mismatchedApproval, List.of());
     StageExecutionContext context = contextWith(prepared, mismatchedApprovalRef);
 
@@ -252,7 +260,15 @@ class MaterializationCapabilityTest {
             candidates,
             "user",
             null,
-            FIXED);
+            FIXED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, candidates);
     StageExecutionContext context =
         new StageExecutionContext(
@@ -332,7 +348,15 @@ class MaterializationCapabilityTest {
             approvedCandidates,
             "user",
             null,
-            FIXED);
+            FIXED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, approvedCandidates);
     StageExecutionContext context =
         new StageExecutionContext(
@@ -385,7 +409,15 @@ class MaterializationCapabilityTest {
             candidates,
             "user",
             null,
-            FIXED);
+            FIXED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, candidates);
     StageExecutionContext context =
         new StageExecutionContext(
@@ -654,7 +686,13 @@ class MaterializationCapabilityTest {
             null,
             FIXED,
             ApprovalPolicy.CATALOG_FIRST_V1,
-            ApprovalPolicy.CATALOG_FIRST_V1_HASH);
+            ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference incompleteApprovalRef = append(Kind.APPROVAL_RECORD, "2", incomplete, List.of());
     ValidatedExecutionBundle badBundle =
         new ValidatedExecutionBundle(
@@ -809,7 +847,15 @@ class MaterializationCapabilityTest {
             approvedCandidates,
             "user",
             null,
-            FIXED);
+            FIXED,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, approvedCandidates);
     return new PreparedInputs(
         graphRef,
@@ -990,7 +1036,13 @@ class MaterializationCapabilityTest {
             null,
             FIXED,
             ApprovalPolicy.CATALOG_FIRST_V1,
-            ApprovalPolicy.CATALOG_FIRST_V1_HASH);
+            ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, approvedCandidates);
     ExecutorValidationBundle executorValidation =
         new ExecutorValidationBundle(

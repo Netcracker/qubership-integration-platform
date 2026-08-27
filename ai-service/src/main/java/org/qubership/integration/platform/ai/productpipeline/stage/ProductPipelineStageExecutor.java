@@ -240,11 +240,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       throw new IllegalStateException("Approved semantic revision id does not match");
     }
     if (!Kind.CHAIN_SEMANTIC_REVISION.name().equals(approval.subjectArtifactKind())) {
-      throw new IllegalStateException("Approved semantic revision digest does not match");
+      throw new IllegalStateException("Approved semantic artifact kind does not match");
     }
     if (!Objects.equals(
         approval.compilerContractVersion(), liveRevision.compilerContractVersion())) {
       throw new IllegalStateException("Approved compiler contract version does not match");
+    }
+    if (approval.compilerContractSha256() == null || approval.compilerContractSha256().isBlank()) {
+      throw new IllegalStateException("Approved compiler contract digest does not match");
+    }
+  }
+
+  public void verifyApproval(
+      ApprovalRecordV2 approval, ChainSemanticRevision liveRevision, CompilerContract contract) {
+    verifyApproval(approval, liveRevision);
+    Objects.requireNonNull(contract, "contract");
+    if (!Objects.equals(approval.compilerContractVersion(), contract.contractVersion())
+        || !Objects.equals(approval.compilerContractSha256(), contract.sha256())) {
+      throw new IllegalStateException("Approved compiler contract digest does not match");
     }
   }
 

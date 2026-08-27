@@ -2395,7 +2395,13 @@ class ChainEditCompilerTest {
             List.of(),
             "dag-digest");
     return new CompilerRunPin(
-        "compiler-v2", "1.0.0", "package-digest", 2, "v1", "index-digest", dag, List.of(), Map.of(), Map.of(), List.of());
+        "compiler-v2", "1.0.0", "package-digest", 2, "v1", "index-digest", dag, List.of(), Map.of(), Map.of(), List.of(),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static ResolvedCompilerNode generator(String skillId, GraphPatchOwnershipPolicy ownership) {
@@ -2453,7 +2459,13 @@ class ChainEditCompilerTest {
         base.capabilityClosure(),
         base.skillSha256ById(),
         base.addonSha256ById(),
-        base.runtimeArtifactSchemas());
+        base.runtimeArtifactSchemas(),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static ResolvedCompilerNode node(

@@ -442,7 +442,15 @@ class DesignPlanningCapabilityTest {
                 new Reference(Kind.CHAIN_PLAN_GRAPH, "graph-1", "hash-graph")),
             "user",
             null,
-            Instant.parse("2026-07-22T12:00:00Z"));
+            Instant.parse("2026-07-22T12:00:00Z"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     assertNull(v1Approval.bindingResolutionPolicy());
     assertNull(v1Approval.bindingResolutionPolicyHash());
 
@@ -670,7 +678,13 @@ class DesignPlanningCapabilityTest {
             List.of(DesignPlanningCapability.CAPABILITY_ID),
             Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
             Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash"),
-            List.of()));
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null));
   }
 
   private static String readFixture(String path) throws Exception {

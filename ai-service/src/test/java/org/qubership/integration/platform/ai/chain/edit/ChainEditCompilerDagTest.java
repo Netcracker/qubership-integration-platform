@@ -208,7 +208,13 @@ class ChainEditCompilerDagTest {
             List.of("cip-service-call-generator"),
             Map.of("cip-service-call-generator", "skill-sha"),
             Map.of("cip-service-call-generator", "addon-sha"),
-            List.of(new ArtifactTypeRef("chain-plan-graph", 1)));
+            List.of(new ArtifactTypeRef("chain-plan-graph", 1)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     return new RunManifest(
         "create-run-1",
         null,

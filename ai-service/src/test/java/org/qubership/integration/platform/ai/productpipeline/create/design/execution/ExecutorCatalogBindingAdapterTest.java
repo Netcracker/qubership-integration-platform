@@ -268,7 +268,15 @@ class ExecutorCatalogBindingAdapterTest {
                     List.of(),
                     "tester",
                     "ok",
-                    FIXED)));
+                    FIXED,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)));
   }
 
   private void stubExactCatalogHit(
@@ -299,7 +307,13 @@ class ExecutorCatalogBindingAdapterTest {
         "approved",
         FIXED,
         ApprovalPolicy.CATALOG_FIRST_V1,
-        ApprovalPolicy.CATALOG_FIRST_V1_HASH);
+        ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private static NormalizedDesignFlow sampleFlowOneCall() {

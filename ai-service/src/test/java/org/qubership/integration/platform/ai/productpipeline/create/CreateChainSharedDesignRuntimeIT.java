@@ -1237,7 +1237,13 @@ class CreateChainSharedDesignRuntimeIT {
                 "addon-hash-req",
                 "cip-script-generator",
                 "addon-hash-script"),
-            List.of()));
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null));
   }
 
   private static ArtifactProvenance provenance(String capabilityId) {

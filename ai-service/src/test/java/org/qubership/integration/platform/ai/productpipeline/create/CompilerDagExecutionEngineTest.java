@@ -337,7 +337,13 @@ class CompilerDagExecutionEngineTest {
             List.of(),
             Map.of(),
             Map.of(),
-            List.of(new ArtifactTypeRef("requirement-brief", 1)));
+            List.of(new ArtifactTypeRef("requirement-brief", 1)),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     return new RunManifest(
         "run-1",
         null,

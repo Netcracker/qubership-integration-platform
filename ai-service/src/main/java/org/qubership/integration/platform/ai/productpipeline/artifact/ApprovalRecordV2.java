@@ -15,66 +15,15 @@ public record ApprovalRecordV2(
     Instant approvedAt,
     @JsonInclude(JsonInclude.Include.NON_NULL) String bindingResolutionPolicy,
     @JsonInclude(JsonInclude.Include.NON_NULL) String bindingResolutionPolicyHash,
-    @JsonInclude(JsonInclude.Include.NON_NULL) String subjectArtifactKind,
-    @JsonInclude(JsonInclude.Include.NON_NULL) String subjectSchemaVersion,
-    @JsonInclude(JsonInclude.Include.NON_NULL) String subjectRevisionId,
-    @JsonInclude(JsonInclude.Include.NON_NULL) String subjectSha256,
-    @JsonInclude(JsonInclude.Include.NON_NULL) String compilerContractVersion,
-    @JsonInclude(JsonInclude.Include.NON_NULL) String compilerContractSha256) {
+    String subjectArtifactKind,
+    String subjectSchemaVersion,
+    String subjectRevisionId,
+    String subjectSha256,
+    String compilerContractVersion,
+    String compilerContractSha256) {
 
   public ApprovalRecordV2 {
     approvedCandidates =
         approvedCandidates == null ? List.of() : List.copyOf(approvedCandidates);
-  }
-
-  /** Compatibility constructor for approvals without binding-resolution policy metadata. */
-  public ApprovalRecordV2(
-      CompilationArtifacts.Reference target,
-      String targetContentHash,
-      List<CompilationArtifacts.Reference> approvedCandidates,
-      String actor,
-      String comment,
-      Instant approvedAt) {
-    this(
-        target,
-        targetContentHash,
-        approvedCandidates,
-        actor,
-        comment,
-        approvedAt,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
-  }
-
-  public ApprovalRecordV2(
-      CompilationArtifacts.Reference target,
-      String targetContentHash,
-      List<CompilationArtifacts.Reference> approvedCandidates,
-      String actor,
-      String comment,
-      Instant approvedAt,
-      String bindingResolutionPolicy,
-      String bindingResolutionPolicyHash) {
-    this(
-        target,
-        targetContentHash,
-        approvedCandidates,
-        actor,
-        comment,
-        approvedAt,
-        bindingResolutionPolicy,
-        bindingResolutionPolicyHash,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
   }
 }

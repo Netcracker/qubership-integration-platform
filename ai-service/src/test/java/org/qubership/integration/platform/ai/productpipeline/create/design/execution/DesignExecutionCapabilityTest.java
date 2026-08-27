@@ -136,7 +136,15 @@ class DesignExecutionCapabilityTest {
                 List.of(idsRef, flowRef),
                 "tester",
                 "ids approved",
-                FIXED));
+                FIXED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     implementationApprovalRef =
         append(
             Kind.APPROVAL_RECORD,
@@ -149,7 +157,13 @@ class DesignExecutionCapabilityTest {
                 "implementation approved",
                 FIXED,
                 ApprovalPolicy.CATALOG_FIRST_V1,
-                ApprovalPolicy.CATALOG_FIRST_V1_HASH));
+                ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
 
     org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator planValidator =
         mock(org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator.class);
@@ -229,7 +243,13 @@ class DesignExecutionCapabilityTest {
                 "duplicate",
                 FIXED,
                 ApprovalPolicy.CATALOG_FIRST_V1,
-                ApprovalPolicy.CATALOG_FIRST_V1_HASH));
+                ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
 
     StageOutcome outcome =
         execute(
@@ -807,7 +827,13 @@ class DesignExecutionCapabilityTest {
             List.of("cip-trigger-generator"),
             Map.of("cip-trigger-generator", "skill-hash-trigger"),
             Map.of("cip-trigger-generator", "addon-hash-trigger"),
-            List.of());
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     return new RunManifest(
         RUN_ID,
         null,

@@ -68,7 +68,13 @@ class CreateRunSelectionServiceTest {
             List.of("planning"),
             Map.of(),
             Map.of("skill", "a".repeat(64)),
-            List.of());
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     pinResolver = mock(CompilerRunPinResolver.class);
     when(pinResolver.resolve(any(), any())).thenReturn(stubPin);
   }

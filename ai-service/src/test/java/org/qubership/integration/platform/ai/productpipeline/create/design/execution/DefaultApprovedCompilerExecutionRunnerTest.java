@@ -230,7 +230,13 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             List.of("cip-trigger-generator"),
             Map.of("cip-trigger-generator", "skill-hash-trigger"),
             Map.of("cip-trigger-generator", "addon-hash-trigger"),
-            List.of());
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     return new RunManifest(
         RUN_ID,
         null,

@@ -218,7 +218,13 @@ class CreateChainProductPipelineRestartIT {
                 List.of("planning"),
                 Map.of(),
                 Map.of("skill", "a".repeat(64)),
-                List.of()));
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     CreateRunSelectionService selection =
         new CreateRunSelectionService(
             "2026.1",
@@ -423,7 +429,15 @@ class CreateChainProductPipelineRestartIT {
                 approved,
                 "user",
                 null,
-                FIXED));
+                FIXED,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     return new PreparedInputs(
         graphRef,
         assemblyRef,

@@ -419,7 +419,13 @@ class ProductPipelineProfileCatalogCutoverTest {
             List.of("planning"),
             Map.of(),
             Map.of("skill", "a".repeat(64)),
-            List.of());
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     CompilerRunPinResolver resolver = mock(CompilerRunPinResolver.class);
     when(resolver.resolve(any(), any())).thenReturn(pin);
     return resolver;

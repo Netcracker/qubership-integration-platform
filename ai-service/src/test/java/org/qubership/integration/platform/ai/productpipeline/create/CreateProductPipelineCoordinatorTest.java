@@ -562,7 +562,13 @@ public class CreateProductPipelineCoordinatorTest {
             java.util.List.of("planning"),
             java.util.Map.of(),
             java.util.Map.of("skill", "a".repeat(64)),
-            java.util.List.of());
+            java.util.List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     CompilerRunPinResolver resolver = org.mockito.Mockito.mock(CompilerRunPinResolver.class);
     org.mockito.Mockito.when(resolver.resolve(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
         .thenReturn(pin);

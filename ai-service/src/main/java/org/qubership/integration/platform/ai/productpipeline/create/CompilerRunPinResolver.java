@@ -161,7 +161,13 @@ public final class CompilerRunPinResolver {
         List.copyOf(closureIds),
         skillHashes,
         addonHashes,
-        runtimeSchemas);
+        runtimeSchemas,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   public CompilerRunPin resolve(
@@ -224,11 +230,14 @@ public final class CompilerRunPinResolver {
       throw new IllegalStateException("Approved semantic revision id does not match");
     }
     if (!Kind.CHAIN_SEMANTIC_REVISION.name().equals(stored.subjectArtifactKind())) {
-      throw new IllegalStateException("Approved semantic revision digest does not match");
+      throw new IllegalStateException("Approved semantic artifact kind does not match");
     }
     if (!Objects.equals(
         stored.compilerContractVersion(), liveRevision.compilerContractVersion())) {
       throw new IllegalStateException("Approved compiler contract version does not match");
+    }
+    if (stored.compilerContractSha256() == null || stored.compilerContractSha256().isBlank()) {
+      throw new IllegalStateException("Approved compiler contract digest does not match");
     }
   }
 
