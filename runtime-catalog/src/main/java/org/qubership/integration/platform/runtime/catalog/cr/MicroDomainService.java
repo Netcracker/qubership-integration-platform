@@ -4,6 +4,7 @@ import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.coreos.monitoring.models.V1ServiceMonitorList;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -23,6 +24,7 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.camelk.model.routes.Route;
 import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.services.EgressServiceRouteFormatter;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
@@ -35,7 +37,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
@@ -80,6 +82,20 @@ public class MicroDomainService {
         }
     }
 
+    /** Identifies a document in the built YAML, and an entry in the observation map. */
+    public record ResourceKey(String kind, String name) { }
+
+    /**
+     * The built YAML plus what Phase 1 observed for each object it read. The observation is the
+     * live {@code V1ObjectMeta} rather than a bare version string: it already carries
+     * {@code resourceVersion}, and it is also the metadata the write overlays generated labels onto.
+     *
+     * <p>Three states, and they are not interchangeable. {@code Optional.of(meta)} means Phase 1
+     * read the object; {@code Optional.empty()} means it looked and found nothing; a key that is
+     * absent entirely means Phase 1 never looked, which is the ordinary case under {@code REWRITE}.
+     */
+    public record BuiltResources(String yaml, Map<ResourceKey, Optional<V1ObjectMeta>> observations) { }
+
     private final KubeOperator kubeOperator;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy;
@@ -93,6 +109,7 @@ public class MicroDomainService {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy;
     private final YAMLMapper yamlMapper;
+    private final K8sNameValidator k8sNameValidator;
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
@@ -135,7 +152,8 @@ public class MicroDomainService {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
             @Qualifier("engineRoutesNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy,
-            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper
+            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
+            K8sNameValidator k8sNameValidator
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -151,6 +169,7 @@ public class MicroDomainService {
         this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
         this.engineRoutesNamingStrategy = engineRoutesNamingStrategy;
         this.yamlMapper = yamlMapper;
+        this.k8sNameValidator = k8sNameValidator;
     }
 
     @PostConstruct
@@ -182,15 +201,95 @@ public class MicroDomainService {
         return kubeOperator.getDestinationRules();
     }
 
-    public void deploy(String resourceText) throws MicroDomainDeployError {
+    public void deploy(BuiltResources built) throws MicroDomainDeployError {
         try {
-            List<Object> resources = Yaml.loadAll(resourceText);
+            List<Object> resources = Yaml.loadAll(built.yaml());
             for (Object resource : resources) {
-                kubeOperator.createOrUpdateResource(resource);
+                boolean observedAbsent = applyObservation(resource, built.observations());
+                kubeOperator.createOrUpdateResource(resource, observedAbsent);
             }
+        } catch (KubeApiConflictException conflict) {
+            throw conflict;
         } catch (Exception exception) {
             throw new MicroDomainDeployError("Failed to deploy resources", exception);
         }
+    }
+
+    /**
+     * Resolves which of Phase 1's three observation states {@code resource} falls into, and rebuilds
+     * its metadata for the states that carry one.
+     *
+     * <p>Returns {@code true} for the observed-absent state alone, so the caller can tell
+     * {@code KubeOperator} to create the object outright. Collapsing that state into the others
+     * would send the document through a write-time GET, and a racing writer that created the object
+     * during the build would then be overwritten wholesale instead of surfacing as a conflict.
+     *
+     * <p>The two remaining states both return {@code false}. A key absent from {@code observations}
+     * means Phase 1 never read this kind in this mode, so the document is left exactly as generated
+     * and {@code KubeOperator} resolves it with a write-time read. An observation holding live
+     * metadata means the write carries it as an optimistic-concurrency precondition; see
+     * {@link #applyLiveMetadata}.
+     */
+    private boolean applyObservation(Object resource, Map<ResourceKey, Optional<V1ObjectMeta>> observations) {
+        if (!(resource instanceof KubernetesObject object) || object.getMetadata() == null) {
+            return false;
+        }
+        ResourceKey key = new ResourceKey(object.getKind(), object.getMetadata().getName());
+        if (!observations.containsKey(key)) {
+            return false;
+        }
+        Optional<V1ObjectMeta> observation = observations.get(key);
+        if (observation.isEmpty()) {
+            return true;
+        }
+        applyLiveMetadata(object.getMetadata(), observation.get());
+        return false;
+    }
+
+    /**
+     * Replaces {@code generated} with the metadata Phase 1 observed, then folds the generated name,
+     * labels, and annotations back on top -- generated values win on key collision. A PUT replaces
+     * {@code metadata} wholesale, so anything the live object carried and this method did not copy
+     * across is dropped from the cluster: {@code ownerReferences} (which garbage collection depends
+     * on), {@code finalizers}, and the Camel-K operator's {@code camel.apache.org/*} annotations.
+     * Carrying the observed {@code resourceVersion} across is what makes the write conditional.
+     *
+     * <p>Mutates {@code generated} in place because {@code KubernetesObject} exposes {@code
+     * getMetadata} and no setter, so there is no way to hand the document a different instance.
+     */
+    private static void applyLiveMetadata(V1ObjectMeta generated, V1ObjectMeta live) {
+        String name = generated.getName();
+        Map<String, String> labels = overlay(live.getLabels(), generated.getLabels());
+        Map<String, String> annotations = overlay(live.getAnnotations(), generated.getAnnotations());
+
+        generated.setCreationTimestamp(live.getCreationTimestamp());
+        generated.setDeletionGracePeriodSeconds(live.getDeletionGracePeriodSeconds());
+        generated.setDeletionTimestamp(live.getDeletionTimestamp());
+        generated.setFinalizers(live.getFinalizers());
+        generated.setGenerateName(live.getGenerateName());
+        generated.setGeneration(live.getGeneration());
+        generated.setManagedFields(live.getManagedFields());
+        generated.setNamespace(live.getNamespace());
+        generated.setOwnerReferences(live.getOwnerReferences());
+        generated.setResourceVersion(live.getResourceVersion());
+        generated.setSelfLink(live.getSelfLink());
+        generated.setUid(live.getUid());
+
+        generated.setName(name);
+        generated.setLabels(labels);
+        generated.setAnnotations(annotations);
+    }
+
+    /** {@code base} with {@code overrides} folded on top; generated values win on key collision. */
+    private static Map<String, String> overlay(Map<String, String> base, Map<String, String> overrides) {
+        Map<String, String> merged = new LinkedHashMap<>();
+        if (base != null) {
+            merged.putAll(base);
+        }
+        if (overrides != null) {
+            merged.putAll(overrides);
+        }
+        return merged.isEmpty() ? null : merged;
     }
 
     public void delete(String name) {
@@ -238,7 +337,7 @@ public class MicroDomainService {
             CamelKIntegration integration = resources.integration();
             Optional<Set<String>> remainingSnapshotIds = remainingSnapshotIds(resources, snapshotId);
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
-                    .map(m -> m.get(snapshotId))
+                    .map(m -> m.get(k8sNameValidator.validate(snapshotId)))
                     .flatMap(KubeUtil::getName)
                     .orElse("");
             List<String> mounts = integration.getSpec()
@@ -246,7 +345,7 @@ public class MicroDomainService {
                     .getMount()
                     .getResources()
                     .stream()
-                    .filter(mount -> !mount.contains(cfgName))
+                    .filter(mount -> cfgName.isEmpty() || !mount.contains(cfgName))
                     .collect(Collectors.toList());
             integration.getSpec().getTraits().getMount().setResources(mounts);
             integration.setApiVersion("camel.apache.org/v1");
@@ -263,11 +362,7 @@ public class MicroDomainService {
                         integrationConfigurationSerdes.toYaml(integrationsConfiguration)));
                 configMap.setApiVersion("v1");
                 configMap.setKind("ConfigMap");
-                try {
-                    kubeOperator.createOrUpdateResource(configMap);
-                } catch (KubeApiException e) {
-                    throw new RuntimeException(e);
-                }
+                kubeOperator.createOrUpdateResource(configMap);
             });
             if (StringUtils.isNotBlank(cfgName)) {
                 kubeOperator.deleteConfigMap(cfgName);

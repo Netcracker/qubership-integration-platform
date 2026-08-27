@@ -19,9 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.kubernetes;
 import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.coreos.monitoring.models.V1ServiceMonitorList;
 import com.google.gson.reflect.TypeToken;
-import io.kubernetes.client.common.KubernetesListObject;
 import io.kubernetes.client.common.KubernetesObject;
-import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.JSON;
@@ -29,7 +27,6 @@ import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.*;
-import io.kubernetes.client.util.PatchUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainDeployError;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
@@ -37,6 +34,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
@@ -65,6 +63,10 @@ public class KubeOperator {
     private static final String ISTIO_NETWORKING_API_VERSION = "v1";
     private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
     private static final String DESTINATION_RULES_PLURAL = "destinationrules";
+    private static final String CAMEL_API_GROUP = "camel.apache.org";
+    private static final String INTEGRATIONS_PLURAL = "integrations";
+    private static final String MONITORING_API_GROUP = "monitoring.coreos.com";
+    private static final String SERVICE_MONITORS_PLURAL = "servicemonitors";
     private static final String APPLY_RESOURCE_LOG_FORMAT = "Applying {} name={}";
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
@@ -185,36 +187,50 @@ public class KubeOperator {
     }
 
     public void createOrUpdateResource(Object resource) throws KubeApiException {
+        createOrUpdateResource(resource, false);
+    }
+
+    /**
+     * Writes {@code resource}, deciding create versus replace from a write-time read unless
+     * {@code observedAbsent} says the caller already knows the object was not there.
+     *
+     * <p>{@code observedAbsent} carries the deploy path's observed-absent state (see
+     * {@code MicroDomainService.deploy}): Phase 1 looked for this object and found nothing. It skips
+     * the read and creates outright. Reading anyway would find an object a racing writer created
+     * during the build, and the replace that followed would overwrite it whole, because a build that
+     * saw nothing had nothing to merge against. Creating instead turns that race into a 409
+     * AlreadyExists, which {@link #toKubeException} reports as {@link KubeApiConflictException} so
+     * the caller can rebuild and retry. Callers outside the deploy path pass {@code false} and keep
+     * read-then-decide.
+     */
+    public void createOrUpdateResource(Object resource, boolean observedAbsent) throws KubeApiException {
         log.debug("Processing resource of type: {}", resource.getClass().getSimpleName());
         if (resource instanceof V1ConfigMap cm) {
-            createOrUpdateConfigMap(cm);
+            createOrUpdateConfigMap(cm, observedAbsent);
         } else if (resource instanceof V1Service service) {
-            createOrUpdateService(service);
+            createOrUpdateService(service, observedAbsent);
         } else if (resource instanceof CamelKIntegration integration) {
-            createOrUpdateCustomResource("camel.apache.org", "v1", "integrations",
-                    integration, new TypeToken<CamelKIntegrationList>() {
-                    }.getType(), true);
+            createOrUpdateCustomResource(CAMEL_API_GROUP, "v1", INTEGRATIONS_PLURAL, integration, true, observedAbsent);
         } else if (resource instanceof V1ServiceMonitor serviceMonitor) {
-            createOrUpdateCustomResource("monitoring.coreos.com", "v1", "servicemonitors",
-                    serviceMonitor, new TypeToken<V1ServiceMonitorList>() {
-                    }.getType(), true);
+            createOrUpdateCustomResource(MONITORING_API_GROUP, "v1", SERVICE_MONITORS_PLURAL, serviceMonitor, true,
+                    observedAbsent);
         } else if (resource instanceof KubeCustomObject customObject && HTTP_ROUTE_KIND.equals(customObject.getKind())) {
             // HTTPRoute is handled directly (not through GenericCustomResources) because that map
             // returns empty under the "localdev" profile, which would make definitionFor() throw
             // there too. It's also always safe to update in place if it already exists.
             log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
-            createOrUpdateCustomResource(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, customObject,
-                    new TypeToken<KubeCustomObjectList>() {}.getType(), true);
+            createOrUpdateCustomResource(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, customObject, true,
+                    observedAbsent);
         } else if (resource instanceof KubeCustomObject customObject && SERVICE_ENTRY_KIND.equals(customObject.getKind())) {
             // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
             log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
             createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, SERVICE_ENTRIES_PLURAL,
-                    customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
+                    customObject, true, observedAbsent);
         } else if (resource instanceof KubeCustomObject customObject && DESTINATION_RULE_KIND.equals(customObject.getKind())) {
             // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
             log.debug(APPLY_RESOURCE_LOG_FORMAT, customObject.getKind(), getName(customObject).orElse(""));
             createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, DESTINATION_RULES_PLURAL,
-                    customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
+                    customObject, true, observedAbsent);
         } else if (resource instanceof KubeCustomObject customObject) {
             GenericCustomResources.CustomResourceDefinition resourceDefinition =
                 Optional.ofNullable(genericCustomResources)
@@ -225,7 +241,7 @@ public class KubeOperator {
             log.debug(APPLY_RESOURCE_LOG_FORMAT + ", updateIfExists={}",
                     customObject.getKind(), getName(customObject).orElse(""), updateIfExists);
             createOrUpdateCustomResource(resourceDefinition.group(), resourceDefinition.version(), resourceDefinition.plural(), customObject,
-                    new TypeToken<KubeCustomObjectList>() {}.getType(), updateIfExists);
+                    updateIfExists, observedAbsent);
         } else if (resource instanceof V1Secret secret) {
             createSecretIfAbsent(secret);
         } else {
@@ -234,53 +250,39 @@ public class KubeOperator {
         }
     }
 
-    private void createOrUpdateConfigMap(V1ConfigMap cm) throws KubeApiException {
+    private void createOrUpdateConfigMap(V1ConfigMap cm, boolean observedAbsent) throws KubeApiException {
+        String name = getName(cm).orElseThrow(() -> new KubeApiException("Failed to get config map name"));
+        V1ConfigMap live = observedAbsent
+                ? null
+                : readOrNull(() -> coreApi.readNamespacedConfigMap(name, namespace).execute());
         try {
-            V1ConfigMapList configMapList = coreApi.listNamespacedConfigMap(namespace).execute();
-            if (listContains(configMapList, cm)) {
-                PatchUtils.patch(
-                        V1ConfigMap.class,
-                        () -> coreApi.patchNamespacedConfigMap(
-                                getName(cm).orElseThrow(() -> new KubeApiException("Failed to get config map name")),
-                                namespace,
-                                new V1Patch(JSON.serialize(cm))
-                        )
-                                .fieldManager("kubectl-patch")
-                                .force(true)
-                                .buildCall(null),
-                        V1Patch.PATCH_FORMAT_APPLY_YAML,
-                        coreApi.getApiClient()
-                );
-            } else {
+            if (live == null) {
+                clearResourceVersionForCreate(cm.getMetadata());
                 coreApi.createNamespacedConfigMap(namespace, cm).execute();
+            } else {
+                applyPrecondition(cm.getMetadata(), live.getMetadata());
+                coreApi.replaceNamespacedConfigMap(name, namespace, cm).execute();
             }
         } catch (ApiException e) {
-            throw new KubeApiException("Failed to create or update ConfigMap", e);
+            throw toKubeException("Failed to create or update ConfigMap", e);
         }
     }
 
-    private void createOrUpdateService(V1Service service) throws KubeApiException {
+    private void createOrUpdateService(V1Service service, boolean observedAbsent) throws KubeApiException {
+        String name = getName(service).orElseThrow(() -> new KubeApiException("Failed to get service name"));
+        V1Service live = observedAbsent
+                ? null
+                : readOrNull(() -> coreApi.readNamespacedService(name, namespace).execute());
         try {
-            V1ServiceList serviceList = coreApi.listNamespacedService(namespace).execute();
-            if (listContains(serviceList, service)) {
-                PatchUtils.patch(
-                        V1Service.class,
-                        () -> coreApi.patchNamespacedService(
-                                getName(service).orElseThrow(() -> new KubeApiException("Failed to get service name")),
-                                namespace,
-                                new V1Patch(JSON.serialize(service))
-                        )
-                                .fieldManager("kubectl-patch")
-                                .force(true)
-                                .buildCall(null),
-                        V1Patch.PATCH_FORMAT_APPLY_YAML,
-                        coreApi.getApiClient()
-                );
-            } else {
+            if (live == null) {
+                clearResourceVersionForCreate(service.getMetadata());
                 coreApi.createNamespacedService(namespace, service).execute();
+            } else {
+                applyPrecondition(service.getMetadata(), live.getMetadata());
+                coreApi.replaceNamespacedService(name, namespace, service).execute();
             }
         } catch (ApiException e) {
-            throw new KubeApiException("Failed to create or update Service", e);
+            throw toKubeException("Failed to create or update Service", e);
         }
     }
 
@@ -289,46 +291,89 @@ public class KubeOperator {
             String version,
             String plural,
             T obj,
-            Type listType,
-            boolean updateIfExists
+            boolean updateIfExists,
+            boolean observedAbsent
     ) throws KubeApiException {
+        String name = getName(obj).orElseThrow(() -> new KubeApiException("Failed to get custom object name"));
+        Object rawLive = observedAbsent
+                ? null
+                : readOrNull(() ->
+                        customObjectsApi.getNamespacedCustomObject(group, version, namespace, plural, name).execute());
         try {
-            Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
-            KubernetesListObject listObject = fromRawObject(rawListObj, listType);
-            Optional<String> name = getName(obj);
-            Optional<V1ObjectMeta> existingItemMetadata = listObject.getItems()
-                    .stream()
-                    .filter(item -> getName(item).equals(name))
-                    .map(KubernetesObject::getMetadata)
-                    .findAny();
-            boolean alreadyExists = existingItemMetadata.isPresent();
-            if (alreadyExists && !updateIfExists) {
-                log.info("Custom object {}/{} already exists, skipping patch as not needed for this kind", obj.getKind(), name.orElse(""));
+            if (rawLive == null) {
+                clearResourceVersionForCreate(obj.getMetadata());
+                customObjectsApi.createNamespacedCustomObject(group, version, namespace, plural, obj).execute();
                 return;
             }
-            if (alreadyExists) {
-                PatchUtils.patch(
-                        Object.class,
-                        () -> customObjectsApi.patchNamespacedCustomObject(
-                                group,
-                                version,
-                                namespace,
-                                plural,
-                                name.orElseThrow(() -> new KubeApiException("Failed to get custom object name")),
-                                new V1Patch(JSON.serialize(obj))
-                        )
-                                .fieldManager("kubectl-patch")
-                                .force(true)
-                                .buildCall(null),
-                        V1Patch.PATCH_FORMAT_APPLY_YAML,
-                        customObjectsApi.getApiClient()
-                );
-            } else {
-                customObjectsApi.createNamespacedCustomObject(group, version, namespace, plural, obj).execute();
+            if (!updateIfExists) {
+                log.info("Custom object {}/{} already exists, skipping update as not needed for this kind",
+                        obj.getKind(), name);
+                return;
             }
+            KubeCustomObject liveCustomObject = fromRawObject(rawLive, KubeCustomObject.class);
+            applyPrecondition(obj.getMetadata(), liveCustomObject.getMetadata());
+            customObjectsApi.replaceNamespacedCustomObject(group, version, namespace, plural, name, obj).execute();
         } catch (ApiException e) {
-            throw new KubeApiException("Failed to create or update custom object", e);
+            throw toKubeException("Failed to create or update custom object", e);
         }
+    }
+
+    /**
+     * Copies {@code live}'s {@code resourceVersion} onto {@code outgoing} unless the caller already
+     * set one. A caller-supplied version is a deliberate precondition taken from an earlier read;
+     * overwriting it with the version we just fetched would make the check always pass and defeat
+     * the point.
+     *
+     * <p>A caller-supplied version has two legitimate origins, and both are honored on purpose:
+     * a precondition captured during an earlier read for exactly this write, and a live object a
+     * read-modify-write caller is writing straight back (its own {@code resourceVersion} came from
+     * the cluster, so it is just as real a precondition). Clearing it in the second case to force
+     * last-write-wins would reintroduce the silent-overwrite bug this method exists to close.
+     */
+    private static void applyPrecondition(V1ObjectMeta outgoing, V1ObjectMeta live) {
+        if (outgoing == null || live == null) {
+            return;
+        }
+        if (outgoing.getResourceVersion() == null || outgoing.getResourceVersion().isBlank()) {
+            outgoing.setResourceVersion(live.getResourceVersion());
+        }
+    }
+
+    /**
+     * Drops any resourceVersion the outgoing object carries, because the API server rejects a create
+     * that declares one and reports the rejection outside the 409 range -- so the deploy retry never
+     * fires and the deploy stays broken until it is re-issued by hand. A version reaches a create
+     * whenever Phase 1 observed the object and something deleted it before the write.
+     */
+    private static void clearResourceVersionForCreate(V1ObjectMeta metadata) {
+        if (metadata != null) {
+            metadata.setResourceVersion(null);
+        }
+    }
+
+    /** Runs a single-object read, returning null for 404 and propagating every other failure. */
+    private <T> T readOrNull(ApiReader<T> reader) throws KubeApiException {
+        try {
+            return reader.read();
+        } catch (ApiException e) {
+            if (e.getCode() == HttpStatus.NOT_FOUND.value()) {
+                return null;
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ApiReader<T> {
+        T read() throws ApiException;
+    }
+
+    /** Maps HTTP 409 -- a lost race on replace, or AlreadyExists on create -- onto the typed conflict. */
+    private static KubeApiException toKubeException(String message, ApiException e) {
+        if (e.getCode() == HttpStatus.CONFLICT.value()) {
+            return new KubeApiConflictException(message + ": " + e.getResponseBody(), e);
+        }
+        return new KubeApiException(message, e);
     }
 
     private void createSecretIfAbsent(V1Secret secret) throws KubeApiException {
@@ -341,17 +386,12 @@ public class KubeOperator {
                 throw new KubeApiException("Failed to read Secret: " + name, e);
             }
             try {
+                clearResourceVersionForCreate(secret.getMetadata());
                 coreApi.createNamespacedSecret(namespace, secret).execute();
             } catch (ApiException createException) {
                 throw new KubeApiException("Failed to create Secret: " + name, createException);
             }
         }
-    }
-
-    private boolean listContains(KubernetesListObject objectList, KubernetesObject object) {
-        Optional<String> name = getName(object);
-        return objectList.getItems().stream()
-                .anyMatch(m -> getName(m).equals(name));
     }
 
     private String toSelector(String labelName, String labelValue) {
@@ -370,7 +410,7 @@ public class KubeOperator {
 
     public List<CamelKIntegration> getIntegrationsByLabels(Map<String, String> labelValues) throws KubeApiException {
         try {
-            Object rawListObj = customObjectsApi.listNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations")
+            Object rawListObj = customObjectsApi.listNamespacedCustomObject(CAMEL_API_GROUP, "v1", namespace, INTEGRATIONS_PLURAL)
                 .labelSelector(toSelector(labelValues))
                 .execute();
             CamelKIntegrationList listObject = fromRawObject(rawListObj, new TypeToken<CamelKIntegrationList>() {}.getType());
@@ -383,7 +423,7 @@ public class KubeOperator {
     public List<V1ServiceMonitor> getServiceMonitorsByLabel(String labelName, String labelValue) throws KubeApiException {
         try {
             Object rawListObj = customObjectsApi
-                    .listNamespacedCustomObject("monitoring.coreos.com", "v1", namespace, "servicemonitors")
+                    .listNamespacedCustomObject(MONITORING_API_GROUP, "v1", namespace, SERVICE_MONITORS_PLURAL)
                     .labelSelector(toSelector(labelName, labelValue))
                     .execute();
             V1ServiceMonitorList listObject = fromRawObject(rawListObj, new TypeToken<V1ServiceMonitorList>() {}.getType());
@@ -523,11 +563,11 @@ public class KubeOperator {
     }
 
     public void deleteServiceMonitor(String name) throws KubeApiException {
-        deleteCustomObject("monitoring.coreos.com", "v1", "servicemonitors", name);
+        deleteCustomObject(MONITORING_API_GROUP, "v1", SERVICE_MONITORS_PLURAL, name);
     }
 
     public void deleteCamelKIntegration(String name) throws KubeApiException {
-        deleteCustomObject("camel.apache.org", "v1", "integrations", name);
+        deleteCustomObject(CAMEL_API_GROUP, "v1", INTEGRATIONS_PLURAL, name);
     }
 
     public void deleteCustomObject(String group, String version, String plural, String name) throws KubeApiException {

@@ -96,7 +96,8 @@ class MicroDomainServiceHttpRouteTest {
                 privateNamingStrategy,
                 egressNamingStrategy,
                 engineRoutesNamingStrategy,
-                new YAMLMapper()
+                new YAMLMapper(),
+                new K8sNameValidator()
         );
         ReflectionTestUtils.setField(microDomainService, "baseRoutePrefix", "/qip-routes");
     }

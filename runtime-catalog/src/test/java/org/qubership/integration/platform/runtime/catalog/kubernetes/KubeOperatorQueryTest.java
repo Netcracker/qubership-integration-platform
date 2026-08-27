@@ -241,9 +241,10 @@ class KubeOperatorQueryTest {
                 stubCustomObjectList(CAMEL_K_GROUP, CAMEL_K_VERSION, INTEGRATIONS_PLURAL);
         ApiException apiException = new ApiException(500, "Internal Server Error");
         when(request.execute()).thenThrow(apiException);
+        Map<String, String> labels = Map.of("app", "qip");
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.getIntegrationsByLabels(Map.of("app", "qip")));
+                () -> kubeOperator.getIntegrationsByLabels(labels));
 
         assertSame(apiException, exception.getOriginalException());
     }
@@ -294,9 +295,10 @@ class KubeOperatorQueryTest {
                 stubCustomObjectList(MESH_GROUP, MESH_VERSION, MESHES_PLURAL);
         ApiException apiException = new ApiException(500, "Internal Server Error");
         when(request.execute()).thenThrow(apiException);
+        GenericCustomResources.CustomResourceDefinition definition = meshDefinition();
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.getCustomObjectsByLabelAndDefinition("app", "qip", meshDefinition()));
+                () -> kubeOperator.getCustomObjectsByLabelAndDefinition("app", "qip", definition));
 
         assertSame(apiException, exception.getOriginalException());
     }
