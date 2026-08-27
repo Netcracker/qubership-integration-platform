@@ -130,8 +130,8 @@ class DefaultSecretPolicyServiceTest {
     }
 
     @Test
-    @DisplayName("assertCanAddVariables should throw when adding new variable to default secret")
-    void shouldThrowWhenAddingNewVariableToDefaultSecret() {
+    @DisplayName("assertCanAddVariables should throw when adding new variable to default secret and flag is disabled")
+    void shouldThrowWhenAddingNewVariableToDefaultSecretAndFlagDisabled() {
         when(secretService.isDefaultSecret(DEFAULT_SECRET)).thenReturn(true);
 
         DefaultSecretPolicyService service = serviceWithFlag(false);
@@ -141,6 +141,19 @@ class DefaultSecretPolicyServiceTest {
         assertThrows(
                 DefaultSecretGoneException.class,
                 () -> service.assertCanAddVariables(DEFAULT_SECRET, newVariables, existingVariables));
+    }
+
+    @Test
+    @DisplayName("assertCanAddVariables should allow new variables on default secret when flag is enabled")
+    void shouldAllowNewVariablesOnDefaultSecretWhenFlagEnabled() {
+        when(secretService.isDefaultSecret(DEFAULT_SECRET)).thenReturn(true);
+
+        DefaultSecretPolicyService service = serviceWithFlag(true);
+        Map<String, String> newVariables = Map.of("newKey", "1");
+        Map<String, String> existingVariables = Map.of("existing", "old");
+
+        assertDoesNotThrow(() -> service.assertCanAddVariables(
+                DEFAULT_SECRET, newVariables, existingVariables));
     }
 
     @Test
