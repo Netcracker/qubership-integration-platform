@@ -4,5 +4,8 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.sema
 public enum SemanticRegionKind {
   SEQUENCE,
   CONDITION,
-  SPLIT
+  SPLIT,
+  LOOP,
+  RETRY,
+  ERROR_SCOPE
 }
