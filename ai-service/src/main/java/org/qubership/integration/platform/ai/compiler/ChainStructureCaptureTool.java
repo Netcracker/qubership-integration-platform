@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
+import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.plan.mapping.MappingStructurePhase;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
@@ -399,6 +400,7 @@ public class ChainStructureCaptureTool {
         .get(
             CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
             RequirementBrief.class)
+        .map(LegacyStageMappingAdapter::ensureIntents)
         .filter(brief -> !brief.mappingIntents().isEmpty() && structure.graph() != null)
         .map(brief -> placedStructure(structure, brief))
         .orElse(structure);
