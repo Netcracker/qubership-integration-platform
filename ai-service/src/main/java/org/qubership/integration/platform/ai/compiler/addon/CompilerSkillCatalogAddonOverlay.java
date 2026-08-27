@@ -82,7 +82,10 @@ public final class CompilerSkillCatalogAddonOverlay {
             manifest.fileChecksums(),
             manifest.skillIds(),
             List.copyOf(supportedIds),
-            List.copyOf(unsupportedIds));
+            List.copyOf(unsupportedIds),
+            manifest.compilerContractVersion(),
+            manifest.compilerContractSha256(),
+            manifest.addonSha256());
 
     return new OverlayResult(
         promotedCatalog,

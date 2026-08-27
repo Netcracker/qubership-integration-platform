@@ -67,6 +67,19 @@ class ClasspathQipKnowledgePackRepositoryTest {
     assertThrows(IllegalStateException.class, repository::loadManifest);
   }
 
+  @Test
+  void requireCompilerContractDigestFailsWhenPinIsMissing() {
+    QipKnowledgePackVersion version = new QipKnowledgePackVersion("test_v1", "test_v1");
+    ClassLoader classLoader = new TestResourceClassLoader(version);
+    ClasspathQipKnowledgePackRepository repository =
+        new ClasspathQipKnowledgePackRepository(
+            version, classLoader, new ObjectMapper().registerModule(new JavaTimeModule()));
+
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, repository::requireCompilerContractDigest);
+    assertTrue(error.getMessage().contains("missing compilerContractSha256"));
+  }
+
   private static final class TestResourceClassLoader extends ClassLoader {
 
     private final QipKnowledgePackVersion version;

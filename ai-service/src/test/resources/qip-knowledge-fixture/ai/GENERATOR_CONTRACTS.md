@@ -222,7 +222,7 @@ Every generator contract specifies:
 
 ## GEN-07: Routing Generator
 
-**Responsibility:** Generate conditional routing structures (condition/if/else, choice/when/otherwise).
+**Responsibility:** Generate conditional routing structures (condition/if/else).
 
 **Inputs:**
 - Number of routing branches
@@ -230,28 +230,27 @@ Every generator contract specifies:
 - Branch execution bodies
 
 **Outputs:**
-- Conditional or choice routing structure
+- Conditional routing structure
 - Expression configuration
-- Priority ordering (for when elements)
+- Priority ordering for sibling `if` children
 
-**Rules Implemented:** R-211, R-218, R-903, R-904
+**Rules Implemented:** R-211, R-904
 
 **Rules Forbidden:**
 - MUST NOT nest conditions deeper than 3 levels
 - MUST NOT use dynamic chain-call targets for routing
-- MUST NOT use choice for binary decisions (use condition/if/else)
+- MUST NOT generate deprecated `choice` / `when` / `otherwise`
 
 **Generated Artifacts:**
-- condition/if/else block (for binary) OR choice/when/otherwise (for 3+ branches)
-- Camel Simple expressions on if/when elements
-- priorityNumber ordering on when elements (starting at 0)
-- otherwise block (recommended for production)
+- condition/if/else block for every branch count (`if` 1..n, optional `else`)
+- Camel Simple expressions on `if` elements
+- unique `priority` on sibling `if` children (starting at 0)
 
 **Validation Rules:**
 - Expressions are valid Camel Simple
-- when priorityNumbers are unique and sequential
+- `if` priorities are unique
 - Nesting depth <= 3 for condition/if/else
-- choice has otherwise for production chains
+- Deprecated `choice` is not generated
 
 ---
 
@@ -435,15 +434,15 @@ Every generator contract specifies:
 **Rules Forbidden:**
 - MUST NOT use deprecated v1 split elements
 - MUST NOT nest split-async-2
-- MUST NOT create split-async-2 with < 2 branches
+- MUST NOT create split-async-2 with zero branches
 
 **Generated Artifacts:**
-- split-async-2 with 2+ async-split-element-2 (for independent ops)
+- split-async-2 with 1+ async-split-element-2 (fire-and-forget)
 - split-2 with split-element-2 and optional main-split-element-2 (for collections)
 - Aggregation strategy configuration
 
 **Validation Rules:**
-- split-async-2 has >= 2 branches
+- split-async-2 has >= 1 branches
 - No v1 split elements
 - No nested split-async-2
 - Aggregation strategy set when needed

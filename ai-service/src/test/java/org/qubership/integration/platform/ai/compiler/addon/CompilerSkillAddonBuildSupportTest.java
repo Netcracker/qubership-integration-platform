@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 
 class CompilerSkillAddonBuildSupportTest {
 
@@ -193,6 +194,27 @@ class CompilerSkillAddonBuildSupportTest {
     assertTrue(index.skills().get("cip-design-executor").runtimeMetadata().promoted());
     assertEquals(
         null, index.skills().get("cip-design-executor").runtimeMetadata().captureTool());
+  }
+
+  @Test
+  void loadedDocumentsIncludeContentDigest(@TempDir Path addonRoot, @TempDir Path outputDir)
+      throws Exception {
+    Files.createDirectories(addonRoot.resolve("skills"));
+    String content = addon("Security addon", "captureGraphPatch");
+    Files.writeString(addonRoot.resolve("skills/cip-security-generator.addon.md"), content);
+
+    Path versionDir = outputDir.resolve("v1");
+    CompilerSkillAddonBuildSupport.materialize(addonRoot, versionDir);
+
+    CompilerSkillAddonRepository repository =
+        CompilerSkillAddonRepository.forFilesystem(
+            outputDir, new QipKnowledgePackVersion("v1", "v1"), getClass().getClassLoader());
+    CompilerSkillAddonDocument document =
+        repository.loadForSkill("cip-security-generator").skillAddon();
+
+    assertEquals("skills/cip-security-generator.addon.md", document.relativePath());
+    assertEquals(content, document.content());
+    assertEquals(CompilerSkillAddonDocument.sha256(content), document.sha256());
   }
 
   private static String addon(String title, String captureTool) {

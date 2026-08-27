@@ -114,8 +114,8 @@ validation_rules:
     category: "Grammar"
     name: "Split-Async Minimum Branches"
     severity: "ERROR"
-    validation_logic: "IF split_async_2.async_split_element_2_count < 2 THEN FAIL"
-    recommended_fix: "split-async-2 MUST have at least two async-split-element-2 children."
+    validation_logic: "IF split_async_2.async_split_element_2_count < 1 THEN FAIL"
+    recommended_fix: "split-async-2 MUST have at least one async-split-element-2 child."
     references: ["CORPORATE_CIP_STANDARDS.md §2.2"]
 
   VR-G-009:
