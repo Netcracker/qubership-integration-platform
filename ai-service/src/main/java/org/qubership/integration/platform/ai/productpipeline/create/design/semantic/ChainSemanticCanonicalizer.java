@@ -107,15 +107,74 @@ public class ChainSemanticCanonicalizer {
   }
 
   private static List<SemanticRegion> sortRegions(List<SemanticRegion> regions) {
-    List<SemanticRegion> copy = new ArrayList<>(regions);
+    List<SemanticRegion> copy = new ArrayList<>(regions.size());
+    for (SemanticRegion region : regions) {
+      copy.add(canonicalRegion(region));
+    }
     copy.sort(Comparator.comparing(SemanticRegion::regionId));
     return List.copyOf(copy);
   }
 
+  private static SemanticRegion canonicalRegion(SemanticRegion region) {
+    return switch (region) {
+      case SemanticRegion.Sequence sequence ->
+          new SemanticRegion.Sequence(sequence.regionId(), sequence.memberNodeIds());
+      case SemanticRegion.Condition condition ->
+          new SemanticRegion.Condition(
+              condition.regionId(),
+              condition.ownerNodeId(),
+              sortConditionBranches(condition.branches()),
+              condition.reconvergenceNodeId());
+      case SemanticRegion.Split split ->
+          new SemanticRegion.Split(
+              split.regionId(),
+              split.ownerNodeId(),
+              split.mode(),
+              sortSplitBranches(split.branches()),
+              split.reconvergenceNodeId());
+    };
+  }
+
+  private static List<SemanticBranch.Condition> sortConditionBranches(
+      List<SemanticBranch.Condition> branches) {
+    List<SemanticBranch.Condition> copy = new ArrayList<>(branches);
+    copy.sort(Comparator.comparing(SemanticBranch::branchId));
+    return List.copyOf(copy);
+  }
+
+  private static List<SemanticBranch.Split> sortSplitBranches(List<SemanticBranch.Split> branches) {
+    List<SemanticBranch.Split> copy = new ArrayList<>(branches);
+    copy.sort(Comparator.comparing(SemanticBranch::branchId));
+    return List.copyOf(copy);
+  }
+
   private static List<SemanticExecutionEdge> sortEdges(List<SemanticExecutionEdge> edges) {
-    List<SemanticExecutionEdge> copy = new ArrayList<>(edges);
+    List<SemanticExecutionEdge> copy = new ArrayList<>(edges.size());
+    for (SemanticExecutionEdge edge : edges) {
+      copy.add(
+          new SemanticExecutionEdge(
+              edge.edgeId(),
+              edge.sourceNodeId(),
+              edge.targetNodeId(),
+              edge.regionId(),
+              canonicalRoute(edge.route()),
+              edge.mappingId()));
+    }
     copy.sort(Comparator.comparing(SemanticExecutionEdge::edgeId));
     return List.copyOf(copy);
+  }
+
+  private static SemanticRoute canonicalRoute(SemanticRoute route) {
+    if (route == null) {
+      return null;
+    }
+    return switch (route) {
+      case SemanticRoute.Sequence sequence -> sequence;
+      case SemanticRoute.ConditionBranch branch -> branch;
+      case SemanticRoute.SplitBranch branch -> branch;
+      case SemanticRoute.Reconverge reconverge ->
+          new SemanticRoute.Reconverge(sortStrings(reconverge.branchIds()));
+    };
   }
 
   private static List<SemanticContainment> sortContainment(List<SemanticContainment> containment) {

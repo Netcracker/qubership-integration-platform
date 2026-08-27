@@ -86,6 +86,26 @@ public final class SemanticFixtures {
         List.of());
   }
 
+  public static SemanticRegion.Split asyncSplitOneBranch() {
+    return new SemanticRegion.Split(
+        "region-async-split",
+        "split-async-1",
+        SplitMode.ASYNC,
+        List.of(new SemanticBranch.Split("notify", 0, "call-notify", List.of("call-notify"))),
+        null);
+  }
+
+  public static SemanticRegion.Split syncSplitTwoBranches() {
+    return new SemanticRegion.Split(
+        "region-sync-split",
+        "split-1",
+        SplitMode.SYNC,
+        List.of(
+            new SemanticBranch.Split("left", 0, "call-left", List.of("call-left")),
+            new SemanticBranch.Split("right", 1, "call-right", List.of("call-right"))),
+        null);
+  }
+
   private static String capabilityKey(String triggerNodeId) {
     return triggerNodeId.contains("kafka") ? "kafka-trigger-2" : "http-trigger";
   }
