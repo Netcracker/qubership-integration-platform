@@ -17,7 +17,7 @@
 | R-202 | Chain Must Have Executable | GEN-03 Structure Generator | chain.elements | chain_structure | VR-G-002 | GEN-01 |
 | R-203 | DAG Requirement | GEN-03 Structure Generator | dependency_graph | validated_dag | VR-G-003 | GEN-03 (self) |
 | R-204 | Element Reachability | GEN-03 Structure Generator | chain structure | reachability_report | VR-G-004 | R-201, R-203 |
-| R-205 | Trigger Count Limit | GEN-03 Structure Generator | trigger_count | warning_or_pass | VR-G-019 | R-201 |
+| R-205 | Minimum Trigger Count | GEN-03 Structure Generator | trigger_count | warning_or_pass | VR-G-001 | R-201 |
 | R-206 | Condition Must Have If | GEN-03 Structure Generator | condition_element | validated_condition | VR-G-005 | None |
 | R-207 | Choice Must Have When | GEN-03 Structure Generator | choice_element | validated_choice | VR-G-006 | None |
 | R-208 | Try-Catch Structure | GEN-03 Structure Generator | try_catch_element | validated_error_block | VR-G-007 | None |

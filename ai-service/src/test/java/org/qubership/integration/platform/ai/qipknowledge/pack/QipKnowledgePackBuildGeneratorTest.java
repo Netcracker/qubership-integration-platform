@@ -11,7 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonBuildSupport;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonIndex;
-import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntimePackageIndex;
 import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
 
@@ -105,5 +106,12 @@ class QipKnowledgePackBuildGeneratorTest {
     assertEquals(2, pipelineIndex.schemaVersion());
     assertFalse(pipelineIndex.dependencies().isEmpty());
     assertFalse(pipelineIndex.nodes().isEmpty());
+
+    CompilerContract contract =
+        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+    assertEquals(contract.contractVersion(), repository.loadManifest().compilerContractVersion());
+    assertEquals(contract.sha256(), repository.loadManifest().compilerContractSha256());
+    assertTrue(repository.loadManifest().addonSha256().containsKey("cip-design-executor"));
+    assertTrue(repository.loadManifest().addonSha256().containsKey("cip-structure-generator"));
   }
 }

@@ -8,6 +8,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicy;
@@ -138,6 +140,31 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
     return readJson(
         QipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PACKAGE_INDEX_FILE,
         ProductPipelinePackageIndex.class);
+  }
+
+  /**
+   * Returns the compiler contract digest pinned in the knowledge index. Missing or mismatched pins
+   * fail closed.
+   */
+  public String requireCompilerContractDigest() {
+    QipKnowledgePackManifest manifest = loadManifest();
+    String pinned = manifest.compilerContractSha256();
+    if (pinned == null || pinned.isBlank()) {
+      throw new IllegalStateException(
+          "Compiler knowledge index is missing compilerContractSha256 for version "
+              + activeVersion.normalized());
+    }
+    CompilerContract contract =
+        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+    if (!CompilerContract.V1.equals(manifest.compilerContractVersion())
+        || !pinned.equals(contract.sha256())) {
+      throw new IllegalStateException(
+          "Compiler knowledge index digest does not match compiler contract "
+              + CompilerContract.V1
+              + " for version "
+              + activeVersion.normalized());
+    }
+    return pinned;
   }
 
   private <T> T readJson(String fileName, Class<T> type) {
