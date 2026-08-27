@@ -26,6 +26,7 @@ types:
   - { type: design-mode, schemaVersion: 1 }
   - { type: design-entry-route, schemaVersion: 1 }
   - { type: ids-document, schemaVersion: 1 }
+  - { type: chain-semantic-revision, schemaVersion: 1 }
   - { type: normalized-design-flow, schemaVersion: 1 }
   - { type: catalog-binding-hint, schemaVersion: 1 }
   - { type: design-plan-report, schemaVersion: 1 }
