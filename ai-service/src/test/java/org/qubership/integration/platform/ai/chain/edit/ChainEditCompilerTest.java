@@ -2301,8 +2301,8 @@ class ChainEditCompilerTest {
                 generator(
                     GENERATOR,
                     new GraphPatchOwnershipPolicy(
-                        true,
-                        true,
+                        false,
+                        false,
                         Set.of("service-call", "http-sender"),
                         Set.of(),
                         Map.of(

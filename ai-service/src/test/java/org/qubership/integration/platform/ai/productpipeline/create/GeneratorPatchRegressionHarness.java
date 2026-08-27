@@ -483,8 +483,8 @@ final class GeneratorPatchRegressionHarness {
     ownership.put(
         "cip-service-call-generator",
         new GraphPatchOwnershipPolicy(
-            true,
-            true,
+            false,
+            false,
             Set.of(
                 "service-call",
                 "http-sender",

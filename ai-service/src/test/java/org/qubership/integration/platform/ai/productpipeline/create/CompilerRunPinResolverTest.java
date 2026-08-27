@@ -236,6 +236,31 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void productionCreateChainPinDeniesTopologyOnSpecializedGenerators() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    for (String skillId : List.of("cip-script-generator", "cip-service-call-generator")) {
+      GraphPatchOwnershipPolicy ownership =
+          pin.resolvedDag().nodes().stream()
+              .filter(node -> skillId.equals(node.skillId()))
+              .findFirst()
+              .orElseThrow()
+              .ownership();
+      assertFalse(ownership.mayAddNodes(), skillId + " must not add nodes");
+      assertFalse(ownership.mayAddEdges(), skillId + " must not add edges");
+    }
+
+    assertEquals(
+        "captureChainStructure",
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-structure-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .captureTool());
+  }
+
+  @Test
   void resumeRejectsUnavailablePinnedCompilerPackage() {
     RunManifest manifest = manifestPinnedTo("old-compiler-sha");
     assertThrows(IllegalStateException.class, () -> resolver.verifyAvailable(manifest));
