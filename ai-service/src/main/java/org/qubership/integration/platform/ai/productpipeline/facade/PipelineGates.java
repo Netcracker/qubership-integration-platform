@@ -53,7 +53,7 @@ public final class PipelineGates {
 
   /**
    * The stage broke an invariant inside the service. Retry re-enters the same defect, so the card
-   * binds upstream producer stage ids. Without a producer, the run stays waiting for conversation.
+   * binds upstream producer stage ids. Without a producer, the card offers Stop with report.
    */
   public static final String STAGE_INTERNAL_FAILURE = "stage-internal-failure";
 
@@ -80,6 +80,7 @@ public final class PipelineGates {
 
   private static final String DROP_ELEMENT_MARKER = "__DROP_ELEMENT_ALLOWED__";
   private static final String HALT_IDENTITY_MARKER = "__HALT_IDENTITY__";
+  private static final String GUARD_MARKER = "__GUARD__";
 
   /**
    * True when {@code action} is a halt-card button (Retry or Revise). A typed follow-up is not a
@@ -175,6 +176,24 @@ public final class PipelineGates {
     return (prompt == null ? "" : prompt) + HALT_IDENTITY_MARKER + encoded;
   }
 
+  /** Records which recovery guard authored this wait. Stripped before a reader sees the prompt. */
+  public static String tagGuard(String prompt, String guardName) {
+    if (guardName == null || guardName.isBlank()) {
+      return prompt == null ? "" : prompt;
+    }
+    String text = prompt == null ? "" : prompt;
+    if (guardOf(text).isPresent()) {
+      return text;
+    }
+    return text + GUARD_MARKER + guardName.trim();
+  }
+
+  /** Guard recorded on a wait, or empty when the wait names none. */
+  public static Optional<String> guardOf(String prompt) {
+    String value = markerValue(prompt, GUARD_MARKER);
+    return value.isBlank() ? Optional.empty() : Optional.of(value);
+  }
+
   /** Normalized identity stored on a halt transition, or empty for an older transition. */
   public static Optional<String> haltIdentityOf(String prompt) {
     String encoded = markerValue(prompt, HALT_IDENTITY_MARKER);
@@ -202,6 +221,59 @@ public final class PipelineGates {
     }
     actions.add(STOP_WITH_REPORT_ACTION);
     return List.copyOf(actions);
+  }
+
+  /**
+   * Actions an internal-failure card offers: bound producer stage ids, or Stop with report when
+   * the candidate set is empty so the author still has an exit.
+   */
+  public static List<String> internalFailureActionsOf(String prompt) {
+    List<String> owners = ownerCandidatesOf(prompt);
+    if (!owners.isEmpty()) {
+      return owners;
+    }
+    return List.of(STOP_WITH_REPORT_ACTION);
+  }
+
+  /**
+   * Rebuilds {@code prompt} with a new reader-visible body, keeping the gate, owner candidates,
+   * drop marker, halt identity, and guard.
+   */
+  public static String withStrippedBody(String prompt, String body) {
+    String text = body == null ? "" : body;
+    if (prompt == null || prompt.isBlank()) {
+      return text;
+    }
+    String gate = gateOf(prompt).orElse("");
+    List<String> owners = ownerCandidatesOf(prompt);
+    boolean drop = dropElementAllowed(prompt);
+    String identity = haltIdentityOf(prompt).orElse("");
+    String guard = guardOf(prompt).orElse("");
+    String rebuilt;
+    if (STAGE_ESCALATED.equals(gate)) {
+      rebuilt = tagEscalated(text, owners, drop, identity);
+    } else if (STAGE_INTERNAL_FAILURE.equals(gate)) {
+      rebuilt = tagInternalFailure(text, owners);
+      if (!identity.isBlank()) {
+        rebuilt = tagHaltIdentity(rebuilt, identity);
+      }
+    } else if (OWNER_CHOICE.equals(gate)) {
+      rebuilt = tagOwnerChoice(text, owners);
+      if (!identity.isBlank()) {
+        rebuilt = tagHaltIdentity(rebuilt, identity);
+      }
+    } else if (!gate.isBlank()) {
+      rebuilt = retag(gate, text);
+      if (!identity.isBlank()) {
+        rebuilt = tagHaltIdentity(rebuilt, identity);
+      }
+    } else {
+      rebuilt = text;
+    }
+    if (!guard.isBlank()) {
+      rebuilt = tagGuard(rebuilt, guard);
+    }
+    return rebuilt;
   }
 
   /** Candidate stage ids encoded on an owner-choice wait, or empty. */
@@ -269,7 +341,11 @@ public final class PipelineGates {
     start += marker.length();
     int end = prompt.length();
     for (String candidate :
-        List.of(OWNER_CANDIDATES_MARKER, DROP_ELEMENT_MARKER, HALT_IDENTITY_MARKER)) {
+        List.of(
+            OWNER_CANDIDATES_MARKER,
+            DROP_ELEMENT_MARKER,
+            HALT_IDENTITY_MARKER,
+            GUARD_MARKER)) {
       int next = prompt.indexOf(candidate, start);
       if (next >= 0 && next < end) {
         end = next;
@@ -281,7 +357,11 @@ public final class PipelineGates {
   private static int firstInternalMarker(String prompt) {
     int first = -1;
     for (String marker :
-        List.of(OWNER_CANDIDATES_MARKER, DROP_ELEMENT_MARKER, HALT_IDENTITY_MARKER)) {
+        List.of(
+            OWNER_CANDIDATES_MARKER,
+            DROP_ELEMENT_MARKER,
+            HALT_IDENTITY_MARKER,
+            GUARD_MARKER)) {
       int candidate = prompt.indexOf(marker);
       if (candidate >= 0 && (first < 0 || candidate < first)) {
         first = candidate;

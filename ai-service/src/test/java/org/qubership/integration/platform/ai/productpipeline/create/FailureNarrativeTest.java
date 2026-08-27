@@ -13,6 +13,8 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -79,6 +81,7 @@ class FailureNarrativeTest {
     assertEquals("The catalog timed out.", first.orElseThrow());
     assertTrue(afterTheBudget.isEmpty());
     assertEquals(1, agent.calls.get());
+    assertTrue(narrative.explanationBudgetSpent("run-1"));
   }
 
   @Test
@@ -133,9 +136,9 @@ class FailureNarrativeTest {
   }
 
   @Test
-  void diagnosePassesTheCandidateListAndFollowUpAndReturnsTheFakeOwner() {
+  void diagnosePassesTheCandidateListAndFollowUpAndTheRouterPicksTheOwner() {
     FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis");
+        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "compiler");
     List<OwnerCandidate> candidates =
         List.of(
             new OwnerCandidate("planning", "plan-validation-result"),
@@ -149,7 +152,7 @@ class FailureNarrativeTest {
                 "planning",
                 StageOutcomeClass.VALIDATION_FAILURE,
                 "planning validation failed",
-                "PLAN_BLOCKER: missing quartz",
+                "security-1: External route requires accessControlType=RBAC (blocker)",
                 candidates,
                 "the quartz job is required");
 
@@ -163,7 +166,7 @@ class FailureNarrativeTest {
   }
 
   @Test
-  void diagnoseDropsAnOwnerOutsideTheCandidateSet() {
+  void diagnoseIgnoresAModelOwnerOutsideTheCandidateSetAndBindsTheOnlyCandidate() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Blaming compiler.", "compiler");
     OwnerDiagnosis diagnosis =
@@ -179,12 +182,12 @@ class FailureNarrativeTest {
                 "");
 
     assertEquals("Blaming compiler.", diagnosis.narrative());
-    assertTrue(diagnosis.owner().isEmpty());
+    assertEquals("planning", diagnosis.owner().orElseThrow());
     assertFalse(diagnosis.ambiguous());
   }
 
   @Test
-  void diagnoseAskWhenTheFakeMarksAmbiguous() {
+  void diagnoseAsksWhenTheCauseDoesNotNameAUniqueOwner() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.ask("Either artifact could be wrong.");
     OwnerDiagnosis diagnosis =
         new FailureNarrative(agent)
@@ -203,10 +206,11 @@ class FailureNarrativeTest {
     assertTrue(diagnosis.ambiguous());
     assertTrue(diagnosis.owner().isEmpty());
     assertEquals("Either artifact could be wrong.", diagnosis.narrative());
+    assertEquals("Pick which artifact to revise.", diagnosis.instruction());
   }
 
   @Test
-  void diagnoseEmptyWhenTheTurnFails() {
+  void diagnoseKeepsRouterOwnerWhenTheTurnFails() {
     OwnerDiagnosis diagnosis =
         new FailureNarrative(FakeFailureNarrativeAgent.boom())
             .diagnose(
@@ -219,7 +223,8 @@ class FailureNarrativeTest {
                 List.of(new OwnerCandidate("work", "")),
                 "");
     assertEquals("", diagnosis.narrative());
-    assertTrue(diagnosis.owner().isEmpty());
+    assertEquals("work", diagnosis.owner().orElseThrow());
+    assertEquals("Correct the domain error in the owning artifact.", diagnosis.instruction());
   }
 
   @Test
@@ -292,7 +297,8 @@ class FailureNarrativeTest {
                     new OwnerCandidate("design-execution", "plan-validation-result"),
                     new OwnerCandidate("design-planning", "implementation-plan"),
                     new OwnerCandidate("requirement-analysis", "requirement-brief")),
-                "");
+                "",
+                RecoveryCause.of(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY));
 
     assertEquals("design-planning", diagnosis.owner().orElseThrow());
   }
@@ -377,7 +383,7 @@ class FailureNarrativeTest {
   }
 
   @Test
-  void diagnoseKeepsAmbiguousWhenTwoProducersStayPlausible() {
+  void diagnoseSelectsTheBriefWhenSecurityFindingsArePresentEvenIfTheModelAsks() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.ask("Either the brief or the plan could be wrong.");
 
@@ -396,8 +402,8 @@ class FailureNarrativeTest {
                     new OwnerCandidate("requirement-analysis", "requirement-brief")),
                 "");
 
-    assertTrue(diagnosis.ambiguous());
-    assertTrue(diagnosis.owner().isEmpty());
+    assertFalse(diagnosis.ambiguous());
+    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -443,133 +449,57 @@ class FailureNarrativeTest {
   }
 
   @Test
-  void diagnoseKeepsARemedyFromTheClosedSetAndItsInstruction() {
+  void diagnoseAuthorsTheInstructionFromTheTypedCauseNotTheModel() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
             .remedying("REVISE_INPUT", "Add the nightly schedule to the requirements.");
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals(HaltRemedy.REVISE_INPUT, diagnosis.remedy());
-    assertEquals("Add the nightly schedule to the requirements.", diagnosis.instruction());
+    assertEquals("analysis", diagnosis.owner().orElseThrow());
+    assertEquals("State the access policy in the requirements.", diagnosis.instruction());
     assertEquals(
-        "The brief omitted the scheduler.\n\nAdd the nightly schedule to the requirements.",
+        "The brief omitted the scheduler.\n\nState the access policy in the requirements.",
         diagnosis.cardBody("raw evidence"));
   }
 
   @Test
-  void diagnoseDropsARemedyOutsideTheClosedSetAndKeepsTheNarrative() {
+  void diagnoseKeepsTheRuntimeInstructionWhenTheModelNamesNoChange() {
     FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
-            .remedying("REWRITE_THE_CATALOG", "Rewrite the catalog by hand.");
+        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis");
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals(HaltRemedy.NONE, diagnosis.remedy());
-    assertEquals("", diagnosis.instruction());
+    assertEquals("State the access policy in the requirements.", diagnosis.instruction());
     assertEquals("The brief omitted the scheduler.", diagnosis.narrative());
     assertEquals("analysis", diagnosis.owner().orElseThrow());
-    assertEquals("The brief omitted the scheduler.", diagnosis.cardBody("raw evidence"));
   }
 
   @Test
-  void diagnoseDropsAReopenStageRemedyNamingAStageOutsideTheCandidateSet() {
-    FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.owner("Blaming compiler.", "compiler")
-            .remedying("REOPEN_STAGE", "Go back to the compiler stage.");
-
-    OwnerDiagnosis diagnosis =
-        new FailureNarrative(agent)
-            .diagnose(
-                "run-1",
-                "en",
-                "planning",
-                StageOutcomeClass.VALIDATION_FAILURE,
-                "failed",
-                "",
-                List.of(new OwnerCandidate("planning", "plan-validation-result")),
-                "");
-
-    assertEquals(HaltRemedy.NONE, diagnosis.remedy());
-    assertEquals("", diagnosis.instruction());
-    assertEquals("Blaming compiler.", diagnosis.narrative());
-    assertTrue(diagnosis.owner().isEmpty());
-  }
-
-  @Test
-  void diagnoseKeepsAReopenStageRemedyNamingACandidate() {
-    FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
-            .remedying("REOPEN_STAGE", "Go back to requirements and state the nightly schedule.");
+  void diagnoseKeepsTheRuntimeInstructionWhenTheTurnFails() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.boom();
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals(HaltRemedy.REOPEN_STAGE, diagnosis.remedy());
+    assertEquals("State the access policy in the requirements.", diagnosis.instruction());
+    assertEquals(
+        "planning validation failed\n\nState the access policy in the requirements.",
+        diagnosis.cardBody("planning validation failed"));
     assertEquals("analysis", diagnosis.owner().orElseThrow());
   }
 
   @Test
-  void diagnoseAddsNoRemedySentenceWhenTheInstructionIsBlank() {
+  void diagnoseKeepsTheRuntimeInstructionOnceTheRunSpendsItsBudget() {
     FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
-            .remedying("DROP_ELEMENT", "   ");
-
-    OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
-
-    assertEquals("", diagnosis.instruction());
-    assertEquals("The brief omitted the scheduler.", diagnosis.cardBody("raw evidence"));
-  }
-
-  @Test
-  void diagnoseCarriesTheRemedyThroughAnOwnerRemap() {
-    FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution")
-            .remedying("REVISE_INPUT", "State in the requirements that the route uses RBAC.");
-
-    OwnerDiagnosis diagnosis =
-        new FailureNarrative(agent)
-            .diagnose(
-                "run-1",
-                "en",
-                "design-execution",
-                StageOutcomeClass.VALIDATION_FAILURE,
-                "Phase 5 plan validation failed",
-                "security-1: External route requires accessControlType=RBAC (blocker)",
-                List.of(
-                    new OwnerCandidate("design-execution", "plan-validation-result"),
-                    new OwnerCandidate("design-planning", "implementation-plan"),
-                    new OwnerCandidate("requirement-analysis", "requirement-brief")),
-                "");
-
-    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
-    assertEquals(HaltRemedy.REVISE_INPUT, diagnosis.remedy());
-    assertEquals("State in the requirements that the route uses RBAC.", diagnosis.instruction());
-  }
-
-  @Test
-  void diagnoseHasNoRemedyWhenTheTurnFails() {
-    FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.boom().remedying("RETRY", "Run the stage again.");
-
-    OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
-
-    assertEquals(HaltRemedy.NONE, diagnosis.remedy());
-    assertEquals("", diagnosis.instruction());
-    assertEquals("planning validation failed", diagnosis.cardBody("planning validation failed"));
-  }
-
-  @Test
-  void diagnoseHasNoRemedyOnceTheRunSpendsItsBudget() {
-    FakeFailureNarrativeAgent agent =
-        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis")
-            .remedying("REVISE_INPUT", "Add the nightly schedule to the requirements.");
+        FakeFailureNarrativeAgent.owner("The brief omitted the scheduler.", "analysis");
     FailureNarrative narrative = new FailureNarrative(agent, 1, null);
 
     diagnose(narrative, "run-1");
     OwnerDiagnosis afterTheBudget = diagnose(narrative, "run-1");
 
-    assertEquals(HaltRemedy.NONE, afterTheBudget.remedy());
-    assertEquals("", afterTheBudget.instruction());
+    assertEquals("", afterTheBudget.narrative());
+    assertEquals("analysis", afterTheBudget.owner().orElseThrow());
+    assertEquals("State the access policy in the requirements.", afterTheBudget.instruction());
     assertEquals(1, agent.calls.get());
   }
 
@@ -592,10 +522,11 @@ class FailureNarrativeTest {
         FakeFailureNarrativeAgent.narrates("")
             .answering("The evidence does not say which service was unreachable.");
 
-    Optional<String> answered = ask(new FailureNarrative(agent), "run-1", "why did this stop?");
+    PauseQuestionResult answered = ask(new FailureNarrative(agent), "run-1", "why did this stop?");
 
+    assertTrue(answered.isAnswer());
     assertEquals(
-        "The evidence does not say which service was unreachable.", answered.orElseThrow());
+        "The evidence does not say which service was unreachable.", answered.answer());
     assertEquals("why did this stop?", agent.lastQuestion.get());
     assertEquals("VALIDATION_FAILURE", agent.lastOutcome.get());
   }
@@ -604,23 +535,23 @@ class FailureNarrativeTest {
   void aHaltMessageReadAsAnInstructionLeavesTheCallerOnItsFollowUpPaths() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("");
 
-    assertTrue(ask(new FailureNarrative(agent), "run-1", "drop the scheduler step").isEmpty());
+    assertTrue(ask(new FailureNarrative(agent), "run-1", "drop the scheduler step").isNotAQuestion());
     assertEquals(1, agent.questionCalls.get());
   }
 
   @Test
-  void aVerdictOutsideTheClosedPairIsReadAsAnInstruction() {
+  void aVerdictOutsideTheClosedPairIsUnanswerable() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.narrates("").answeringUnder("MAYBE", "Half an answer.");
 
-    assertTrue(ask(new FailureNarrative(agent), "run-1", "why did this stop?").isEmpty());
+    assertTrue(ask(new FailureNarrative(agent), "run-1", "why did this stop?").isUnanswerable());
   }
 
   @Test
-  void aBlankAnswerCountsAsNoAnswer() {
+  void aBlankQuestionAnswerIsUnanswerable() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("").answering("   ");
 
-    assertTrue(ask(new FailureNarrative(agent), "run-1", "why did this stop?").isEmpty());
+    assertTrue(ask(new FailureNarrative(agent), "run-1", "why did this stop?").isUnanswerable());
   }
 
   @Test
@@ -629,10 +560,10 @@ class FailureNarrativeTest {
         FakeFailureNarrativeAgent.narrates("").answering("The plan asked for an unknown element.");
     FailureNarrative narrative = new FailureNarrative(agent);
 
-    Optional<String> first = ask(narrative, "run-1", "why did this stop?");
-    Optional<String> again = ask(narrative, "run-1", "Why did this stop?  ");
+    PauseQuestionResult first = ask(narrative, "run-1", "why did this stop?");
+    PauseQuestionResult again = ask(narrative, "run-1", "Why did this stop?  ");
 
-    assertEquals(first.orElseThrow(), again.orElseThrow());
+    assertEquals(first.answer(), again.answer());
     assertEquals(1, agent.questionCalls.get());
   }
 
@@ -663,16 +594,67 @@ class FailureNarrativeTest {
   }
 
   @Test
+  void aQuestionTurnDoesNotSpendTheExplanationBudget() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.narrates("The catalog timed out.")
+            .answering("The plan asked for an unknown element.");
+    FailureNarrative narrative = new FailureNarrative(agent, 1, null);
+
+    assertTrue(ask(narrative, "run-1", "why did this stop?").isAnswer());
+    assertFalse(narrative.explanationBudgetSpent("run-1"));
+    assertEquals("The catalog timed out.", narrate(narrative, "run-1").orElseThrow());
+  }
+
+  @Test
+  void aSpentExplanationBudgetStillAnswersAHaltQuestion() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.narrates("The catalog timed out.")
+            .answering("The plan asked for an unknown element.");
+    FailureNarrative narrative = new FailureNarrative(agent, 1, null);
+
+    narrate(narrative, "run-1");
+    PauseQuestionResult asked = ask(narrative, "run-1", "why did this stop?");
+
+    assertTrue(narrative.explanationBudgetSpent("run-1"));
+    assertTrue(asked.isAnswer());
+    assertEquals("The plan asked for an unknown element.", asked.answer());
+  }
+
+  @Test
+  void aTimedOutHaltQuestionIsUnanswerableNotAnInstruction() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.slow("Too late.", Duration.ofSeconds(30)).answering("An answer.");
+
+    PauseQuestionResult asked =
+        ask(new FailureNarrative(agent, 12, Duration.ofMillis(50)), "run-1", "why did this stop?");
+
+    assertTrue(asked.isUnanswerable());
+    assertFalse(asked.isNotAQuestion());
+  }
+
+  @Test
+  void aZeroExplanationBudgetDoesNotConvertAQuestionIntoAnInstruction() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.narrates("").answering("The plan asked for an unknown element.");
+
+    PauseQuestionResult asked =
+        ask(new FailureNarrative(agent, 0, null), "run-1", "why did this stop?");
+
+    assertTrue(asked.isAnswer());
+    assertEquals(1, agent.questionCalls.get());
+  }
+
+  @Test
   void answersAnApprovalQuestionFromTheCandidateEvidence() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.narrates("")
             .answering("The brief covers pending pets and says nothing about billing.");
 
-    Optional<String> answered =
+    PauseQuestionResult answered =
         askAtApproval(new FailureNarrative(agent), "run-1", "does it cover billing?");
 
     assertEquals(
-        "The brief covers pending pets and says nothing about billing.", answered.orElseThrow());
+        "The brief covers pending pets and says nothing about billing.", answered.answer());
     assertEquals("does it cover billing?", agent.lastQuestion.get());
     assertEquals(BRIEF_CANDIDATE, agent.lastApprovalCandidate.get());
   }
@@ -682,8 +664,38 @@ class FailureNarrativeTest {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("");
 
     assertTrue(
-        askAtApproval(new FailureNarrative(agent), "run-1", "add the billing endpoint").isEmpty());
+        askAtApproval(new FailureNarrative(agent), "run-1", "add the billing endpoint")
+            .isNotAQuestion());
     assertEquals(1, agent.approvalQuestionCalls.get());
+  }
+
+  @Test
+  void aSpentExplanationBudgetStillAnswersAnApprovalQuestion() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.narrates("unused")
+            .answering("The brief covers pending pets.");
+    FailureNarrative narrative = new FailureNarrative(agent, 0, null);
+
+    PauseQuestionResult asked = askAtApproval(narrative, "run-1", "does it cover billing?");
+
+    assertTrue(asked.isAnswer());
+    assertFalse(asked.isNotAQuestion());
+    assertEquals(1, agent.approvalQuestionCalls.get());
+  }
+
+  @Test
+  void aTimedOutApprovalQuestionIsUnanswerableNotARefine() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.slow("Too late.", Duration.ofSeconds(30)).answering("An answer.");
+
+    PauseQuestionResult asked =
+        askAtApproval(
+            new FailureNarrative(agent, 12, Duration.ofMillis(50)),
+            "run-1",
+            "does it cover billing?");
+
+    assertTrue(asked.isUnanswerable());
+    assertFalse(asked.isNotAQuestion());
   }
 
   @Test
@@ -692,10 +704,10 @@ class FailureNarrativeTest {
         FakeFailureNarrativeAgent.narrates("").answering("The brief covers pending pets.");
     FailureNarrative narrative = new FailureNarrative(agent);
 
-    Optional<String> first = askAtApproval(narrative, "run-1", "does it cover billing?");
-    Optional<String> again = askAtApproval(narrative, "run-1", "Does it cover billing?  ");
+    PauseQuestionResult first = askAtApproval(narrative, "run-1", "does it cover billing?");
+    PauseQuestionResult again = askAtApproval(narrative, "run-1", "Does it cover billing?  ");
 
-    assertEquals(first.orElseThrow(), again.orElseThrow());
+    assertEquals(first.answer(), again.answer());
     assertEquals(1, agent.approvalQuestionCalls.get());
   }
 
@@ -745,22 +757,22 @@ class FailureNarrativeTest {
       stageMessage: brief 1
       payload: {"goal":"pending pets"}""";
 
-  private static Optional<String> askAtApproval(
+  private static PauseQuestionResult askAtApproval(
       FailureNarrative narrative, String runId, String question) {
     return askAtApproval(narrative, runId, question, BRIEF_CANDIDATE);
   }
 
-  private static Optional<String> askAtApproval(
+  private static PauseQuestionResult askAtApproval(
       FailureNarrative narrative, String runId, String question, String candidate) {
     return narrative.answerApprovalQuestion(runId, "en", question, "planning", candidate);
   }
 
-  private static Optional<String> ask(
+  private static PauseQuestionResult ask(
       FailureNarrative narrative, String runId, String question) {
     return ask(narrative, runId, question, "planning validation failed");
   }
 
-  private static Optional<String> ask(
+  private static PauseQuestionResult ask(
       FailureNarrative narrative, String runId, String question, String evidence) {
     return narrative.answerHaltQuestion(
         runId,
@@ -776,6 +788,29 @@ class FailureNarrativeTest {
         "");
   }
 
+  @Test
+  void askClarificationAuthorsTheQuestionInThePinnedLocale() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.narrates("unused").clarifying("Which catalog service should I use?");
+
+    Optional<String> question =
+        new FailureNarrative(agent)
+            .askClarification("run-1", "ru", "catalog service", "design-execution", "missing");
+
+    assertEquals("Which catalog service should I use?", question.orElseThrow());
+    assertEquals("ru", agent.lastClarificationLocale.get());
+    assertEquals("catalog service", agent.lastRequestedFact.get());
+  }
+
+  @Test
+  void askClarificationDoesNotFallBackToAnEnglishTemplateWhenTheTurnFails() {
+    Optional<String> question =
+        new FailureNarrative()
+            .askClarification("run-1", "en", "catalog service", "design-execution", "missing");
+
+    assertTrue(question.isEmpty());
+  }
+
   private static Optional<String> narrate(FailureNarrative narrative, String runId) {
     return narrative.narrate(
         runId, "en", "planning", StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, "timeout", "");
@@ -788,7 +823,7 @@ class FailureNarrativeTest {
         "planning",
         StageOutcomeClass.VALIDATION_FAILURE,
         "planning validation failed",
-        "",
+        "security-1: External route requires accessControlType=RBAC (blocker)",
         List.of(
             new OwnerCandidate("planning", "plan-validation-result"),
             new OwnerCandidate("analysis", "requirement-brief")),

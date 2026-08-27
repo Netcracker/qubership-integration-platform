@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner.PlanningSpineOutcome;
@@ -350,7 +351,9 @@ public class CompilerDerivedPlanningRunner {
               new ArtifactCandidate(
                   Kind.COMPILER_VALIDATION_BUNDLE, result.compilerValidationBundle(), List.of())),
           formatValidationFailureMessage(result.planValidationResult()),
-          null);
+          null,
+          RecoveryCause.fromFindings(
+              result.planValidationResult().findings(), StageOutcomeClass.VALIDATION_FAILURE));
     }
     return new StageOutcome(
         StageOutcomeClass.CANDIDATE,

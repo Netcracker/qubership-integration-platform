@@ -73,6 +73,7 @@ retain_catalog_chain="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].retainCatalogChain
 recovery_fault_stage="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.faultStage // empty' "${SCENARIOS_FILE}")"
 recovery_owner_stage="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.ownerStage // empty' "${SCENARIOS_FILE}")"
 recovery_follow_up="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.followUp // empty' "${SCENARIOS_FILE}")"
+recovery_exhaust_halt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.exhaustHalt // false' "${SCENARIOS_FILE}")"
 catalog_url="${E2E_CATALOG_URL:-http://localhost:8091}"
 pipeline="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].pipeline // empty' "${SCENARIOS_FILE}")"
 [[ "${pipeline}" == "create-chain-v1" ]] \
@@ -83,10 +84,19 @@ pipeline="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].pipeline // empty' "${SCENARIO
 # lives in CreateChainProductPipelineRestartIT and the offline @1 profile contract.
 [[ -n "${profile_version}" && "${profile_version}" == "2" ]] \
   || { echo "FAIL: scenario ${SCENARIO_ID} profileVersion must be 2 (new CREATE)" >&2; exit 1; }
-[[ -n "${expected_state}" && "${expected_state}" == "CHAIN_MATERIALIZED" ]] \
-  || { echo "FAIL: scenario ${SCENARIO_ID} terminalState must be CHAIN_MATERIALIZED" >&2; exit 1; }
-[[ "${retain_catalog_chain}" == "true" ]] \
-  || { echo "FAIL: scenario ${SCENARIO_ID} retainCatalogChain must be true" >&2; exit 1; }
+if [[ "${recovery_exhaust_halt}" == "true" ]]; then
+  [[ -n "${expected_state}" && "${expected_state}" == "WAITING_FOR_INPUT" ]] \
+    || { echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires terminalState WAITING_FOR_INPUT" >&2; exit 1; }
+  [[ "${retain_catalog_chain}" == "false" ]] \
+    || { echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires retainCatalogChain=false" >&2; exit 1; }
+  [[ -n "${recovery_fault_stage}" && -n "${recovery_follow_up}" ]] \
+    || { echo "FAIL: scenario ${SCENARIO_ID} exhaustHalt requires recovery.faultStage and recovery.followUp" >&2; exit 1; }
+else
+  [[ -n "${expected_state}" && "${expected_state}" == "CHAIN_MATERIALIZED" ]] \
+    || { echo "FAIL: scenario ${SCENARIO_ID} terminalState must be CHAIN_MATERIALIZED" >&2; exit 1; }
+  [[ "${retain_catalog_chain}" == "true" ]] \
+    || { echo "FAIL: scenario ${SCENARIO_ID} retainCatalogChain must be true" >&2; exit 1; }
+fi
 [[ -n "${prompt}" ]] || { echo "FAIL: scenario ${SCENARIO_ID} missing prompt" >&2; exit 1; }
 if [[ -n "${recovery_fault_stage}" && "${TRANSPORT}" != "chat" ]]; then
   echo "FAIL: recovery scenario currently requires chat transport for the typed revise decision" >&2
@@ -128,12 +138,27 @@ if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" == "1" ]]; then
     stub_chain_id="stub-chain-${SCENARIO_ID}"
     stub_reconcile="true"
     stub_patches='[{"ownerCapabilityId":"cip-script-generator","applicability":"APPLICABLE","baseGraphDigest":"base-stub","resultGraphDigest":"result-stub","operationCount":1}]'
+  elif [[ "${expected_state}" == "WAITING_FOR_INPUT" ]]; then
+    stub_kinds='["REQUIREMENT_BRIEF","IMPLEMENTATION_PLAN","PLAN_VALIDATION_RESULT","APPROVAL_RECORD"]'
+    stub_approval_eligible="true"
+    stub_validation_verdict="PASS"
+    stub_approval_hash="stub-hash"
   elif [[ "${expected_state}" == "FAILED" ]]; then
     stub_kinds='["REQUIREMENT_BRIEF","PLAN_VALIDATION_RESULT"]'
     stub_approval_eligible="false"
     stub_validation_verdict="FAIL"
     stub_approval_hash=""
     stub_facts="$(jq -c '. + ["VALIDATION_FAILURE","else.condition"] | unique' <<<"${stub_facts}")"
+  fi
+  stub_halt_gate=""
+  stub_halt_guard=""
+  stub_halt_prompt=""
+  stub_halt_actions='[]'
+  if [[ "${recovery_exhaust_halt}" == "true" ]]; then
+    stub_halt_gate="stage-escalated"
+    stub_halt_guard="NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
+    stub_halt_prompt="That stage is not a candidate for this defect."
+    stub_halt_actions='["stop-with-report"]'
   fi
   cat >"${REPORT_PATH}" <<EOF
 {
@@ -196,6 +221,10 @@ if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" == "1" ]]; then
     fi
   ),
   "prompt": $(jq -Rn --arg p "${prompt}" '$p'),
+  "haltGate": "${stub_halt_gate}",
+  "haltGuard": "${stub_halt_guard}",
+  "haltPrompt": $(jq -Rn --arg p "${stub_halt_prompt}" '$p'),
+  "haltActions": ${stub_halt_actions},
   "stub": true
 }
 EOF
@@ -224,6 +253,8 @@ command -v jq >/dev/null
   echo "FAIL: missing ${SCRIPTS_DIR}/chat-turn.sh" >&2
   exit 1
 }
+# shellcheck source=scripts/lib.sh
+source "${SCRIPTS_DIR}/lib.sh"
 
 export E2E_BASE_URL="${BASE_URL}"
 conversation_id="-"
@@ -256,6 +287,9 @@ send_turn() {
       bash "${SCRIPTS_DIR}/chat-turn.sh" \
         "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}"
     )"
+    if [[ "${recovery_exhaust_halt}" == "true" ]]; then
+      e2e_assert_observable_sse_output "${out_sse}" "${label}"
+    fi
   fi
   [[ -n "${conversation_id}" && "${conversation_id}" != "-" ]] \
     || { echo "FAIL: turn did not return conversationId" >&2; exit 1; }
@@ -306,7 +340,20 @@ planning_stall_fingerprint=""
 while (( SECONDS < deadline )); do
   evidence="$(curl -fsS "${BASE_URL}/api/v1/chat/conversations/${conversation_id}/product-pipeline" || true)"
   current_state="$(jq -r '.currentState // empty' <<<"${evidence}")"
-  if [[ "${current_state}" == "${expected_state}" ]]; then
+  latest_wait_reason="$(jq -r '
+    [.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""]
+    | last // empty
+  ' <<<"${evidence}")"
+  recovery_fault_injected="$(jq -r '
+    if any(.attempts[]?; ((.failureEvidence // "") | contains("E2E recovery fault")))
+    then "1" else "0" end
+  ' <<<"${evidence}")"
+  if [[ "${recovery_exhaust_halt}" == "true" \
+      && "${current_state}" == "WAITING_FOR_INPUT" \
+      && "${latest_wait_reason}" == *"__GATE:stage-escalated__"* ]]; then
+    break
+  fi
+  if [[ "${recovery_exhaust_halt}" != "true" && "${current_state}" == "${expected_state}" ]]; then
     break
   fi
   if [[ "${current_state}" == "FAILED" || "${current_state}" == "CANCELLED" ]]; then
@@ -346,6 +393,11 @@ while (( SECONDS < deadline )); do
         && "${recovery_revise_sent}" -eq 1 ]]; then
       recovery_reopened_approval_seen=1
     fi
+    if [[ -n "${recovery_fault_stage}" && "${recovery_fault_injected}" == "1" ]]; then
+      # Automatic reopen returns to the owner for approval. Reset Implement so the next
+      # execution can park after the owner-already-reopened guard.
+      implement_sent=0
+    fi
     if [[ "${TRANSPORT}" == "a2a" ]]; then
       approve_data="$(a2a_pending_approve || true)"
       if [[ -z "${approve_data}" ]]; then
@@ -381,7 +433,8 @@ while (( SECONDS < deadline )); do
       implement_sent=1
     fi
   elif [[ "${current_state}" == "WAITING_FOR_INPUT" && -n "${recovery_fault_stage}" \
-      && "${stage_id}" == "${recovery_fault_stage}" ]]; then
+      && ( "${stage_id}" == "${recovery_fault_stage}" \
+        || ( "${recovery_exhaust_halt}" == "true" && "${recovery_fault_injected}" == "1" ) ) ]]; then
     if [[ "${recovery_follow_up_sent}" -eq 0 ]]; then
       if jq -e '
         ((.committedArtifactKinds // [])
@@ -394,7 +447,7 @@ while (( SECONDS < deadline )); do
       recovery_pre_materialization_clean=1
       send_turn "recovery-follow-up-$(date +%s)" "${recovery_follow_up}"
       recovery_follow_up_sent=1
-    elif [[ "${recovery_revise_sent}" -eq 0 ]]; then
+    elif [[ "${recovery_exhaust_halt}" != "true" && "${recovery_revise_sent}" -eq 0 ]]; then
       [[ -n "${run_revision}" && "${run_revision}" != "null" ]] \
         || { echo "FAIL: recovery decision missing runRevision" >&2; break; }
       recovery_decision="$(jq -nc --argjson revision "${run_revision}" \
@@ -403,7 +456,8 @@ while (( SECONDS < deadline )); do
       recovery_revise_sent=1
       implement_sent=0
     fi
-  elif [[ "${current_state}" == "WAITING_FOR_INPUT" && "${expected_state}" != "WAITING_FOR_INPUT" ]]; then
+  elif [[ "${current_state}" == "WAITING_FOR_INPUT" \
+      && ( "${expected_state}" != "WAITING_FOR_INPUT" || "${recovery_exhaust_halt}" == "true" ) ]]; then
     # create-chain@2 design-input asks for Generate full IDS vs Derive minimal IDS.
     if [[ "${stage_id}" == "design-input" ]]; then
       # design-input asks the IDS question first and can follow up, for example for data-mapping
@@ -452,30 +506,57 @@ evidence="$(curl -fsS "${BASE_URL}/api/v1/chat/conversations/${conversation_id}/
 printf '%s\n' "${evidence}" >"${run_dir}/evidence.json"
 
 if [[ -n "${recovery_fault_stage}" ]]; then
-  [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_revise_sent}" -eq 1 \
-      && "${recovery_reopened_approval_seen}" -eq 1 \
-      && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
-    echo "FAIL: recovery flow did not complete follow-up, revise, reopen approval, and pre-materialization checks" >&2
-    exit 1
-  }
-  jq -e --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '
-    any(.attempts[]?; .stageId == $fault and ((.failureEvidence // "") | contains("E2E recovery fault")))
-    and any(.transitions[]?; ((.reason // "") | startswith("causal reopen of " + $owner)))
-    and ([.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash] | unique | length >= 2)
-    and ((["MATERIALIZATION_RESULT", "CATALOG_CHAIN_SNAPSHOT", "RECONCILE_RESULT"]
-      - (.committedArtifactKinds // [])) | length == 0)
-  ' <<<"${evidence}" >/dev/null || {
-    echo "FAIL: final evidence does not prove causal plan repair and materialization" >&2
-    exit 1
-  }
-  jq --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '{
-    faultStage: $fault,
-    ownerStage: $owner,
-    planContentHashes: ([.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash] | unique),
-    causalReopens: [.transitions[]? | select((.reason // "") | startswith("causal reopen of " + $owner))],
-    materializedChainId,
-    reconcileMatches
-  }' <<<"${evidence}" >"${run_dir}/recovery.json"
+  if [[ "${recovery_exhaust_halt}" == "true" ]]; then
+    [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
+      echo "FAIL: exhausted-halt recovery did not send the follow-up before materialization" >&2
+      exit 1
+    }
+    jq -e '
+      any(.attempts[]?; ((.failureEvidence // "") | contains("E2E recovery fault")))
+      and (([.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""] | last // "")
+        | contains("__GATE:stage-escalated__"))
+      and ((["REQUIREMENT_BRIEF", "IMPLEMENTATION_PLAN"]
+        - (.committedArtifactKinds // [])) | length == 0)
+      and ((.committedArtifactKinds // [])
+        | any(. == "MATERIALIZATION_RESULT" or . == "CATALOG_CHAIN_SNAPSHOT")
+        | not)
+    ' <<<"${evidence}" >/dev/null || {
+      echo "FAIL: final evidence does not prove an exhausted halt with the approved brief and plan" >&2
+      exit 1
+    }
+    jq --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '{
+      exhaustHalt: true,
+      faultStage: $fault,
+      ownerStage: $owner,
+      haltReason: ([.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""] | last // ""),
+      committedArtifactKinds
+    }' <<<"${evidence}" >"${run_dir}/recovery.json"
+  else
+    [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_revise_sent}" -eq 1 \
+        && "${recovery_reopened_approval_seen}" -eq 1 \
+        && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
+      echo "FAIL: recovery flow did not complete follow-up, revise, reopen approval, and pre-materialization checks" >&2
+      exit 1
+    }
+    jq -e --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '
+      any(.attempts[]?; .stageId == $fault and ((.failureEvidence // "") | contains("E2E recovery fault")))
+      and any(.transitions[]?; ((.reason // "") | startswith("causal reopen of " + $owner)))
+      and ([.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash] | unique | length >= 2)
+      and ((["MATERIALIZATION_RESULT", "CATALOG_CHAIN_SNAPSHOT", "RECONCILE_RESULT"]
+        - (.committedArtifactKinds // [])) | length == 0)
+    ' <<<"${evidence}" >/dev/null || {
+      echo "FAIL: final evidence does not prove causal plan repair and materialization" >&2
+      exit 1
+    }
+    jq --arg fault "${recovery_fault_stage}" --arg owner "${recovery_owner_stage}" '{
+      faultStage: $fault,
+      ownerStage: $owner,
+      planContentHashes: ([.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash] | unique),
+      causalReopens: [.transitions[]? | select((.reason // "") | startswith("causal reopen of " + $owner))],
+      materializedChainId,
+      reconcileMatches
+    }' <<<"${evidence}" >"${run_dir}/recovery.json"
+  fi
 fi
 
 python3 "${DIR}/build-report-from-evidence.py" \

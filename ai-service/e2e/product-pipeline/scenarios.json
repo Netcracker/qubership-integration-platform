@@ -488,6 +488,39 @@
       "followUp": "Add the required recovery-check setting to the implementation plan."
     }
   },
+  "product-create-chain-recovery-exhausted-halt": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "WAITING_FOR_INPUT",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": false,
+    "uniqueChainNamePrefix": "AiRecoveryExhaust",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives GET on internal route \"/recovery-exhaust\" and returns plain text \"exhausted\" from a script. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "GET /recovery-exhaust",
+      "script"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ],
+    "recovery": {
+      "faultStage": "design-execution",
+      "ownerStage": "design-planning",
+      "followUp": "go back to compiler and add RBAC",
+      "exhaustHalt": true
+    }
+  },
   "product-create-chain-petstore-service-call": {
     "tier": "product-pipeline",
     "status": "active",

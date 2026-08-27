@@ -16,10 +16,22 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
@@ -64,6 +76,84 @@ class ChatExecutionServiceTest {
   @AfterEach
   void tearDown() {
     ToolInvocationSink.unbind();
+  }
+
+  @Test
+  void aDecisionEventIsObservableSseOutput() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "clarify:1",
+            "clarify",
+            "That stage is not a candidate for this defect.",
+            null,
+            null,
+            1L,
+            null,
+            List.of(),
+            List.of("stop-with-report"));
+
+    String frame = ChatExecutionService.toSse(decision, new ObjectMapper());
+
+    assertTrue(frame.startsWith("event: decision\n"), frame);
+    assertTrue(frame.contains("stop-with-report"), frame);
+    assertTrue(frame.contains("That stage is not a candidate for this defect."), frame);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION})
+  void anAllowedHaltResumeDoesNotCloseSseWithoutTokenDecisionOrError(String action) {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    CreateChainExecutionSnapshot halted =
+        new CreateChainExecutionSnapshot(
+            "conv-halt-resume",
+            "run-halt-resume",
+            CreateChainExecutionStatus.INPUT_REQUIRED,
+            6L,
+            new CreateChainPendingAction.Clarify(
+                "The catalog could not find that service.",
+                List.of(),
+                PipelineGates.RETRY_ACTION.equals(action)
+                    ? PipelineGates.STAGE_RETRY
+                    : PipelineGates.STAGE_REVISE),
+            "");
+    CreateChainExecutionSnapshot running =
+        new CreateChainExecutionSnapshot(
+            "conv-halt-resume",
+            "run-halt-resume",
+            CreateChainExecutionStatus.WORKING,
+            7L,
+            null,
+            "");
+    AtomicReference<CreateChainExecutionSnapshot> snapshot = new AtomicReference<>(halted);
+    when(facade.snapshot("conv-halt-resume")).thenAnswer(invocation -> Optional.of(snapshot.get()));
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenAnswer(
+            invocation -> {
+              snapshot.set(running);
+              return Multi.createFrom().empty();
+            });
+
+    ChatDecisionService decisions =
+        new ChatDecisionService(
+            facade, new ApprovalQuestionStore(new InMemoryArtifactBlobStore()), new RequirementDraftStore());
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-halt-resume");
+    ChatDecisionCommand decision = new ChatDecisionCommand();
+    decision.setAction(action);
+    decision.setRevision(6L);
+    request.setDecision(decision);
+
+    List<String> frames =
+        commandPathService(decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    assertTrue(
+        frames.stream()
+            .anyMatch(
+                frame ->
+                    frame.startsWith("event: token\n")
+                        || frame.startsWith("event: decision\n")
+                        || frame.startsWith("event: error\n")),
+        () -> action + " closed SSE with no token, decision, or error; got: " + frames);
   }
 
   @Test

@@ -23,6 +23,7 @@ import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQues
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 
 /**
  * Runs a typed answer to a decision card against the same facade command the A2A transport uses.
@@ -252,11 +253,29 @@ public class ChatDecisionService {
     }
     return facade
         .continueWithInput(
-            new ContinueCreateChainCommand(conversationId, action, UUID.randomUUID().toString()))
+            new ContinueCreateChainCommand(
+                conversationId, action, UUID.randomUUID().toString(), InputOrigin.TRUSTED))
         .onItem()
         .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
         .onCompletion()
-        .switchTo(() -> openGateEvents(conversationId));
+        .switchTo(() -> openGateEvents(conversationId))
+        .onCompletion()
+        .ifEmpty()
+        .switchTo(() -> Multi.createFrom().item(ChatEvent.token(haltResumeProgress(action))));
+  }
+
+  /**
+   * Visible progress when a halt-card resume commits RUNNING and the stage has not waited, failed,
+   * or completed yet. Without this token the chat Multi is {@code meta} plus {@code done}.
+   */
+  static String haltResumeProgress(String action) {
+    if (PipelineGates.REVISE_ACTION.equals(action)) {
+      return "Revising the current stage.";
+    }
+    if (PipelineGates.RETRY_ACTION.equals(action)) {
+      return "Retrying the current stage.";
+    }
+    return "Resuming the current stage.";
   }
 
   private static boolean isPipelineInputAction(String action) {

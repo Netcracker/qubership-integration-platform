@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
@@ -425,11 +426,15 @@ public class CipDesignExecutorJavaAdapter {
         return Optional.of(
             ExecutionResult.failure(
                 StageOutcomeClass.NEEDS_INPUT,
-                "ambiguous catalog binding for " + needsInput.serviceCallStepId()));
+                "ambiguous catalog binding for " + needsInput.serviceCallStepId(),
+                RecoveryCause.catalogResolution("catalog operation")));
       }
       if (result instanceof BindingResolutionResult.Failed failed) {
         return Optional.of(
-            ExecutionResult.failure(failed.outcomeClass(), failed.reason()));
+            ExecutionResult.failure(
+                failed.outcomeClass(),
+                failed.reason(),
+                RecoveryCause.catalogResolution(failed.requestedFact())));
       }
     }
     return Optional.empty();
@@ -483,7 +488,9 @@ public class CipDesignExecutorJavaAdapter {
               new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of()),
               new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, planValidation, List.of()),
               new ArtifactCandidate(
-                  Kind.COMPILER_VALIDATION_BUNDLE, compilerBundle, List.of())));
+                  Kind.COMPILER_VALIDATION_BUNDLE, compilerBundle, List.of())),
+          RecoveryCause.fromFindings(
+              planValidation.findings(), StageOutcomeClass.VALIDATION_FAILURE));
     }
     // One fresh CompilerPlanValidator pass covers graph structure and plan rules.
     PlanValidationResult graphValidation = planValidation;
@@ -882,14 +889,28 @@ public class CipDesignExecutorJavaAdapter {
       StageOutcomeClass outcomeClass,
       String message,
       DesignExecutionCheckpoint checkpoint,
-      List<ArtifactCandidate> candidates) {
+      List<ArtifactCandidate> candidates,
+      RecoveryCause recoveryCause) {
 
     public ExecutionResult {
       candidates = candidates == null ? List.of() : List.copyOf(candidates);
     }
 
+    public ExecutionResult(
+        StageOutcomeClass outcomeClass,
+        String message,
+        DesignExecutionCheckpoint checkpoint,
+        List<ArtifactCandidate> candidates) {
+      this(outcomeClass, message, checkpoint, candidates, null);
+    }
+
     static ExecutionResult failure(StageOutcomeClass outcomeClass, String message) {
-      return new ExecutionResult(outcomeClass, message, null, List.of());
+      return new ExecutionResult(outcomeClass, message, null, List.of(), null);
+    }
+
+    static ExecutionResult failure(
+        StageOutcomeClass outcomeClass, String message, RecoveryCause recoveryCause) {
+      return new ExecutionResult(outcomeClass, message, null, List.of(), recoveryCause);
     }
   }
 }

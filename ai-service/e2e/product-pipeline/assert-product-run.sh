@@ -162,6 +162,35 @@ elif [[ "${expected}" == "CHAIN_MATERIALIZED" ]]; then
       fi
     fi
   fi
+elif [[ "${expected}" == "WAITING_FOR_INPUT" ]]; then
+  if jq -e '.haltGate == "stage-escalated"' "${REPORT}" >/dev/null; then
+    for kind in REQUIREMENT_BRIEF IMPLEMENTATION_PLAN; do
+      jq -e --arg k "${kind}" '(.committedArtifactKinds // []) | index($k) != null' "${REPORT}" \
+        >/dev/null || {
+        echo "FAIL: exhausted halt missing committed kind ${kind}" >&2
+        exit 1
+      }
+    done
+    jq -e '(.haltActions // []) | index("stop-with-report") != null' "${REPORT}" >/dev/null || {
+      echo "FAIL: exhausted halt card must offer stop-with-report" >&2
+      exit 1
+    }
+    jq -e '
+      (.haltGuard // "") != ""
+      and ((.haltPrompt // "") | length) > 0
+    ' "${REPORT}" >/dev/null || {
+      echo "FAIL: exhausted halt card must name the guard and keep visible text" >&2
+      exit 1
+    }
+    jq -e '
+      ((.committedArtifactKinds // [])
+        | any(. == "MATERIALIZATION_RESULT" or . == "CATALOG_CHAIN_SNAPSHOT")
+        | not)
+    ' "${REPORT}" >/dev/null || {
+      echo "FAIL: exhausted halt must not materialize a catalog chain" >&2
+      exit 1
+    }
+  fi
 fi
 
 missing="$(jq -r '.missingRequiredFacts // [] | .[]' "${REPORT}")"

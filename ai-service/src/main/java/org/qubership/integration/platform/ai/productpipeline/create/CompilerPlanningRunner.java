@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.plan.presentation.PlanPresentationF
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
@@ -263,13 +264,11 @@ public class CompilerPlanningRunner {
             continue;
           }
           // Prefer structural property codes; otherwise keep the validator issueId (e.g. security-1)
-          // so owner remapping can classify policy findings.
+          // so owner remapping can classify policy findings. Unknown-property and missing-required
+          // messages get a typed cause code at this boundary.
           String propertyCode = propertyFindingCode(issue.message());
           String issueId = issue.issueId() == null ? "" : issue.issueId().trim();
-          String code =
-              propertyCode != null
-                  ? propertyCode
-                  : (!issueId.isBlank() ? issueId : "COMPILER_BLOCKER");
+          String code = typedFindingCode(issue.message(), propertyCode, issueId);
           String message =
               propertyCode != null
                   ? propertyCode
@@ -303,7 +302,7 @@ public class CompilerPlanningRunner {
           continue;
         }
         String mapped = propertyFindingCode(exclusion);
-        String code = mapped != null ? mapped : "EXCLUSION";
+        String code = typedFindingCode(exclusion, mapped, mapped != null ? mapped : "EXCLUSION");
         findings.add(new PlanValidationFinding(code, exclusion, true));
       }
     }
@@ -401,6 +400,27 @@ public class CompilerPlanningRunner {
 
   private static String trimType(String type) {
     return type == null ? "" : type.trim();
+  }
+
+  /**
+   * Assigns a typed finding code at the compiler boundary. Property-path codes such as {@code
+   * else.condition} stay as-is (they map to {@link RecoveryCauseCode#UNKNOWN_PROPERTY}). Generic
+   * unknown-property and missing-required messages get an explicit cause code so routing never
+   * re-reads the English message.
+   */
+  static String typedFindingCode(String message, String propertyCode, String fallback) {
+    if (propertyCode != null && !propertyCode.isBlank()) {
+      return propertyCode;
+    }
+    String haystack = message == null ? "" : message.toLowerCase(java.util.Locale.ROOT);
+    if (haystack.contains("unknown property key")) {
+      return RecoveryCauseCode.UNKNOWN_PROPERTY.name();
+    }
+    if (haystack.contains("required")
+        && (haystack.contains("property") || haystack.contains("setting"))) {
+      return RecoveryCauseCode.MISSING_REQUIRED_PROPERTY.name();
+    }
+    return fallback == null || fallback.isBlank() ? "COMPILER_BLOCKER" : fallback;
   }
 
   /** Maps structural messages such as {@code (else) has unknown property key 'condition'} → {@code else.condition}. */

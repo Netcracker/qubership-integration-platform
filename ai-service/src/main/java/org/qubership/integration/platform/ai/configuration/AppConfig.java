@@ -146,6 +146,24 @@ public interface AppConfig {
     @WithDefault("2")
     int repeatedFailureThreshold();
 
+    /** Automatic semantic repairs allowed for one attempt key. */
+    @WithName("max-semantic-repairs")
+    @WithDefault("1")
+    int maxSemanticRepairs();
+
+    /** Automatic causal reopens allowed for one attempt key. */
+    @WithName("max-causal-reopens")
+    @WithDefault("2")
+    int maxCausalReopens();
+
+    /**
+     * Absolute per-run backstop on repair and reopen attempts. Same default as {@link
+     * FailureNarrativeConfig#maxCallsPerRun()}; a working conversation does not reach it.
+     */
+    @WithName("recovery-attempt-ceiling")
+    @WithDefault("12")
+    int recoveryAttemptCeiling();
+
     @WithName("flow-cache-idle-timeout")
     @WithDefault("PT1H")
     java.time.Duration flowCacheIdleTimeout();

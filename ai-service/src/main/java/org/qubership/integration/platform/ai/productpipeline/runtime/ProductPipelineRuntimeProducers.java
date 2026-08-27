@@ -191,7 +191,12 @@ public class ProductPipelineRuntimeProducers {
                 narrativeConfig.timeout(),
                 appConfig.create().runCacheIdleTimeout()),
             appConfig.create().runCacheIdleTimeout(),
-            appConfig.create().repeatedFailureThreshold());
+            appConfig.create().repeatedFailureThreshold(),
+            new RecoveryAttemptLedger(
+                new RecoveryAttemptLedger.Limits(
+                    appConfig.create().maxSemanticRepairs(),
+                    appConfig.create().maxCausalReopens(),
+                    appConfig.create().recoveryAttemptCeiling())));
   }
 
   @Produces

@@ -23,6 +23,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Start
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -99,7 +101,9 @@ public class CreateProductPipelineCoordinator {
     Optional<ProductPipelineRunDocument> existing = runStore.loadByConversation(conversationId);
     if (existing.isEmpty()) {
       return mapEvents(
-          facade.start(new StartCreateChainCommand(conversationId, text)), conversationId);
+          facade.start(
+              new StartCreateChainCommand(conversationId, text, null, InputOrigin.TRUSTED)),
+          conversationId);
     }
 
     ProductPipelineRunDocument doc = existing.get();
@@ -125,7 +129,9 @@ public class CreateProductPipelineCoordinator {
       return approveVisibleCandidate(conversationId, doc);
     }
     return mapEvents(
-        facade.start(new StartCreateChainCommand(conversationId, text)), conversationId);
+        facade.start(
+            new StartCreateChainCommand(conversationId, text, null, InputOrigin.TRUSTED)),
+        conversationId);
   }
 
   public Multi<ChatEvent> approveCurrent(String conversationId) {

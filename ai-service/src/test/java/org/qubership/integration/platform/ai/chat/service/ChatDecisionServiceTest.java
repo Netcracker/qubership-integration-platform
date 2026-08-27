@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
 
 class ChatDecisionServiceTest {
 
@@ -494,6 +495,60 @@ class ChatDecisionServiceTest {
 
     assertEquals("clarify", decision.kind());
     assertEquals(List.of("analysis", "design"), decision.actions());
+    assertFalse(decision.actions().contains(PipelineGates.RETRY_ACTION));
+    assertFalse(decision.actions().contains(PipelineGates.REVISE_ACTION));
+  }
+
+  @Test
+  void anInternalFailureGateWithNoProducerOffersStopWithReport() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-internal-empty"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-internal-empty",
+                    "run-internal-empty",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        "A step inside the service broke.",
+                        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+                        PipelineGates.STAGE_INTERNAL_FAILURE),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-internal-empty")
+            .orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
+  }
+
+  @Test
+  void anEscalatedGateOffersOnlyTheActionsTheGuardStillAccepts() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-escalated"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-escalated",
+                    "run-escalated",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    6L,
+                    new CreateChainPendingAction.Clarify(
+                        HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.cardSentence(),
+                        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+                        PipelineGates.STAGE_ESCALATED),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-escalated")
+            .orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
     assertFalse(decision.actions().contains(PipelineGates.RETRY_ACTION));
     assertFalse(decision.actions().contains(PipelineGates.REVISE_ACTION));
   }

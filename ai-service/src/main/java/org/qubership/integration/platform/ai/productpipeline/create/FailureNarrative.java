@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.llm.agent.OwnerDiagnosisDraft;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 
 /**
@@ -38,15 +39,19 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
  * durable part. Making the count survive a restart would put a journal write on every halt to bound
  * something a restart already interrupts.
  *
- * <p>Questions typed at a pause take the same bounded turn, but they are deduplicated rather than
- * rationed: an answer is remembered by the identity of the question and of the evidence it was
- * asked against, so asking twice about a run that has not moved costs no call at all. A halt and an
- * approval card are different pauses over different evidence, so each answer is remembered under
- * its own pause kind and the two cannot answer for each other.
+ * <p>Questions typed at a pause take the same timeout, but they do not spend the explanation
+ * budget. They are deduplicated rather than rationed: an answer is remembered by the identity of
+ * the question and of the evidence it was asked against, so asking twice about a run that has not
+ * moved costs no call at all. A halt and an approval card are different pauses over different
+ * evidence, so each answer is remembered under its own pause kind and the two cannot answer for
+ * each other.
  */
 public final class FailureNarrative {
 
   private static final Logger LOG = Logger.getLogger(FailureNarrative.class);
+
+  /** Card sentence when a pause question cannot be answered. */
+  public static final String NO_EXPLANATION_AVAILABLE = "No explanation is available.";
 
   /** Budget that never runs out, for the callers that hold no limits. */
   private static final int UNBOUNDED_CALLS = Integer.MAX_VALUE;
@@ -164,10 +169,9 @@ public final class FailureNarrative {
   }
 
   /**
-   * Same turn as the halt narrative, plus an owner from {@code candidates} and a remedy from the
-   * closed {@link HaltRemedy} set. An owner outside the set is dropped; the narrative is kept.
-   * Finding category remaps a self, empty, or insufficient owner to the earliest sufficient
-   * producer in the set. A follow-up that names exactly one candidate wins over that remap.
+   * Same explanation turn as the halt narrative. The router selects the owner from {@code
+   * candidates} and the typed cause; a malformed or slow model reply changes no routing decision.
+   * A follow-up that names exactly one candidate still wins, because that is the author speaking.
    */
   public OwnerDiagnosis diagnose(
       String runId,
@@ -178,50 +182,90 @@ public final class FailureNarrative {
       String validationFindings,
       List<OwnerCandidate> candidates,
       String followUpText) {
+    return diagnose(
+        runId,
+        responseLocale,
+        stageId,
+        outcomeClass,
+        exceptionMessage,
+        validationFindings,
+        candidates,
+        followUpText,
+        RecoveryCause.fromFormattedFindingCodes(validationFindings, outcomeClass));
+  }
+
+  public OwnerDiagnosis diagnose(
+      String runId,
+      String responseLocale,
+      String stageId,
+      StageOutcomeClass outcomeClass,
+      String exceptionMessage,
+      String validationFindings,
+      List<OwnerCandidate> candidates,
+      String followUpText,
+      RecoveryCause cause) {
     List<OwnerCandidate> closed = candidates == null ? List.of() : List.copyOf(candidates);
     String stage = stageId == null || stageId.isBlank() ? "" : stageId.trim();
     String exception = exceptionMessage == null ? "" : exceptionMessage;
     String findings = optionalField(validationFindings);
-    if (agent == null) {
-      return preferOwner(OwnerDiagnosis.none(""), closed, stage, findings, exception, followUpText);
+    RecoveryCause typed = cause == null
+        ? RecoveryCause.fromHalt(outcomeClass, List.of())
+        : cause;
+    String narrative = "";
+    if (agent != null) {
+      String locale = normalizedLocale(responseLocale);
+      String outcome = outcomeClass == null ? "" : outcomeClass.name();
+      String followUp = optionalField(followUpText);
+      String candidateSet = OwnerCandidateSet.format(closed);
+      String clarifyRoles = OwnerCandidateSet.formatClarifyRoles(closed);
+      OwnerDiagnosisDraft draft =
+          runTurn(
+              runId,
+              "Owner diagnosis",
+              () ->
+                  agent.diagnose(
+                      locale,
+                      stage,
+                      outcome,
+                      exception,
+                      findings,
+                      candidateSet,
+                      followUp,
+                      clarifyRoles));
+      narrative = draft == null || draft.narrative() == null ? "" : draft.narrative().trim();
     }
-    String locale = normalizedLocale(responseLocale);
-    String outcome = outcomeClass == null ? "" : outcomeClass.name();
-    String followUp = optionalField(followUpText);
-    String candidateSet = OwnerCandidateSet.format(closed);
-    String clarifyRoles = OwnerCandidateSet.formatClarifyRoles(closed);
-    OwnerDiagnosisDraft draft =
-        runTurn(
-            runId,
-            "Owner diagnosis",
-            () ->
-                agent.diagnose(
-                    locale,
-                    stage,
-                    outcome,
-                    exception,
-                    findings,
-                    candidateSet,
-                    followUp,
-                    clarifyRoles));
-    return preferOwner(fromDraft(draft, closed), closed, stage, findings, exception, followUpText);
+    return routedDiagnosis(narrative, closed, stage, typed, followUpText);
   }
 
   /**
-   * Reads a message typed at a recoverable halt and answers it when it asks about the run. Empty
-   * when the message instructs the run instead, when the turn fails, or when there is no agent,
-   * which leaves the caller's existing follow-up branches in charge.
-   *
-   * <p>One turn both decides and answers. Two turns would spend the run's budget twice on a single
-   * message and give a hung model a second chance to hold the pause open, and the classifier would
-   * need the same evidence the answer is written from anyway.
-   *
-   * <p>Answers are remembered by identity rather than rationed by a count: the same question
-   * against unchanged evidence comes back without a model call and without spending budget, and
-   * evidence that has moved on is a different key and a fresh answer. ADR 0005 made the same trade
-   * one layer down: the budget belongs on the defect, not on the person asking about it.
+   * Authors the clarification question in the conversation locale. Empty when there is no agent or
+   * the turn fails; the caller then uses the requested fact itself, not an English template.
    */
-  public Optional<String> answerHaltQuestion(
+  public Optional<String> askClarification(
+      String runId,
+      String responseLocale,
+      String requestedFact,
+      String stageId,
+      String exceptionMessage) {
+    if (agent == null) {
+      return Optional.empty();
+    }
+    String locale = normalizedLocale(responseLocale);
+    String fact = requestedFact == null ? "" : requestedFact.trim();
+    String stage = stageId == null || stageId.isBlank() ? "" : stageId.trim();
+    String exception = exceptionMessage == null ? "" : exceptionMessage;
+    String authored =
+        runTurn(
+            runId,
+            "Clarification question",
+            () -> agent.askClarification(locale, fact, stage, exception));
+    if (authored != null && !authored.isBlank()) {
+      return Optional.of(authored.trim());
+    }
+    return Optional.empty();
+  }
+
+  public PauseQuestionResult answerHaltQuestion(
       String runId,
       String responseLocale,
       String message,
@@ -231,8 +275,11 @@ public final class FailureNarrative {
       String validationFindings,
       List<OwnerCandidate> candidates,
       String followUpText) {
-    if (agent == null || message == null || message.isBlank()) {
-      return Optional.empty();
+    if (message == null || message.isBlank()) {
+      return PauseQuestionResult.notAQuestion();
+    }
+    if (agent == null) {
+      return PauseQuestionResult.notAQuestion();
     }
     String question = message.trim();
     String stage = stageId == null || stageId.isBlank() ? "" : stageId.trim();
@@ -254,8 +301,8 @@ public final class FailureNarrative {
 
   /**
    * Reads a message typed at an approval card and answers it when it asks about the candidate.
-   * Empty when the message asks for a different candidate instead, when the turn fails, or when
-   * there is no agent, which leaves the refine path in charge exactly as before.
+   * {@link PauseQuestionResult.Kind#NOT_A_QUESTION} leaves the refine path in charge. {@link
+   * PauseQuestionResult.Kind#UNANSWERABLE} is a timeout or a failed call, not a refine.
    *
    * <p>An approval pause holds no failure, so this is a sibling turn rather than the halt turn with
    * its fields blanked: outcome class, exception, and findings are absent here, and handing the
@@ -267,14 +314,17 @@ public final class FailureNarrative {
    * evidence carries the content hash of the artifact under approval, so a new candidate is a new
    * key and a stale answer cannot be served.
    */
-  public Optional<String> answerApprovalQuestion(
+  public PauseQuestionResult answerApprovalQuestion(
       String runId,
       String responseLocale,
       String message,
       String stageId,
       String candidate) {
-    if (agent == null || message == null || message.isBlank()) {
-      return Optional.empty();
+    if (message == null || message.isBlank()) {
+      return PauseQuestionResult.notAQuestion();
+    }
+    if (agent == null) {
+      return PauseQuestionResult.notAQuestion();
     }
     String question = message.trim();
     String stage = stageId == null || stageId.isBlank() ? "" : stageId.trim();
@@ -288,32 +338,37 @@ public final class FailureNarrative {
   }
 
   /**
-   * Serves a remembered answer or spends one bounded turn on a fresh one. A verdict of INSTRUCTION
-   * is remembered as an empty answer, because it is as durable a reading of the message as an
-   * answer is; a turn that failed is not remembered at all, since freezing a transient outage into
-   * a permanent verdict would silence every later ask.
+   * Serves a remembered answer or spends one bounded question turn on a fresh one. A verdict of
+   * INSTRUCTION is remembered as not-a-question, because it is as durable a reading of the message
+   * as an answer is. A turn that failed is not remembered at all, since freezing a transient outage
+   * into a permanent verdict would silence every later ask.
    */
-  private Optional<String> answeredOnce(
+  private PauseQuestionResult answeredOnce(
       String runId, String turnName, String key, Supplier<HaltQuestionDraft> turn) {
     String remembered = answersByQuestion.get(key);
     if (remembered != null) {
-      return remembered.isEmpty() ? Optional.empty() : Optional.of(remembered);
+      return remembered.isEmpty()
+          ? PauseQuestionResult.notAQuestion()
+          : PauseQuestionResult.answer(remembered);
     }
-    HaltQuestionDraft draft = runTurn(runId, turnName, turn);
+    HaltQuestionDraft draft = runQuestionTurn(runId, turnName, turn);
     if (draft == null) {
-      return Optional.empty();
+      return PauseQuestionResult.unanswerable();
     }
-    String answer = answerOf(draft);
-    answersByQuestion.put(key, answer);
-    return answer.isEmpty() ? Optional.empty() : Optional.of(answer);
-  }
-
-  /**
-   * The answer a draft contributes: blank for an instruction and for a verdict the closed pair does
-   * not hold, so an unrecognized reply leaves the existing follow-up paths untouched.
-   */
-  private static String answerOf(HaltQuestionDraft draft) {
-    return QUESTION_VERDICT.equalsIgnoreCase(draft.verdict().trim()) ? draft.answer().trim() : "";
+    String verdict = draft.verdict() == null ? "" : draft.verdict().trim();
+    if (QUESTION_VERDICT.equalsIgnoreCase(verdict)) {
+      String answer = draft.answer() == null ? "" : draft.answer().trim();
+      if (answer.isEmpty()) {
+        return PauseQuestionResult.unanswerable();
+      }
+      answersByQuestion.put(key, answer);
+      return PauseQuestionResult.answer(answer);
+    }
+    if ("INSTRUCTION".equalsIgnoreCase(verdict)) {
+      answersByQuestion.put(key, "");
+      return PauseQuestionResult.notAQuestion();
+    }
+    return PauseQuestionResult.unanswerable();
   }
 
   /**
@@ -333,9 +388,9 @@ public final class FailureNarrative {
   }
 
   /**
-   * Runs one turn under the per-run budget and the timeout. Returns {@code null} when the budget is
-   * spent, the timeout expires, or the model call throws, which is the raw-evidence path the caller
-   * already takes for a failed turn.
+   * Runs one explanation turn under the per-run budget and the timeout. Returns {@code null} when
+   * the budget is spent, the timeout expires, or the model call throws, which is the raw-evidence
+   * path the caller already takes for a failed turn.
    */
   private <T> T runTurn(String runId, String turnName, Supplier<T> turn) {
     if (!consumeCall(runId)) {
@@ -344,6 +399,18 @@ public final class FailureNarrative {
           turnName, maxCallsPerRun, runId);
       return null;
     }
+    return awaitTurn(turnName, turn);
+  }
+
+  /**
+   * Runs one pause-question turn under the timeout only. Question turns do not spend the
+   * explanation budget; deduplication by question and evidence is the primary bound.
+   */
+  private <T> T runQuestionTurn(String runId, String turnName, Supplier<T> turn) {
+    return awaitTurn(turnName, turn);
+  }
+
+  private <T> T awaitTurn(String turnName, Supplier<T> turn) {
     if (timeout == null) {
       return callOrNull(turnName, turn);
     }
@@ -386,6 +453,18 @@ public final class FailureNarrative {
     return callsByRun.merge(key, 1, Integer::sum) <= maxCallsPerRun;
   }
 
+  /** True when this run has already spent {@code maxCallsPerRun} narrative turns. */
+  public boolean explanationBudgetSpent(String runId) {
+    if (maxCallsPerRun >= UNBOUNDED_CALLS) {
+      return false;
+    }
+    if (maxCallsPerRun == 0) {
+      return true;
+    }
+    String key = runId == null ? "" : runId.trim();
+    return callsByRun.getOrDefault(key, 0) >= maxCallsPerRun;
+  }
+
   /**
    * Daemon workers that let a turn be abandoned on timeout. A worker is released when the model
    * call it was left holding returns.
@@ -409,17 +488,16 @@ public final class FailureNarrative {
     }
   }
 
-  private static OwnerDiagnosis preferOwner(
-      OwnerDiagnosis diagnosis,
+  private static OwnerDiagnosis routedDiagnosis(
+      String narrative,
       List<OwnerCandidate> candidates,
       String failedStageId,
-      String findings,
-      String evidence,
+      RecoveryCause cause,
       String followUpText) {
-    OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            diagnosis, candidates, failedStageId, findings, evidence);
-    return OwnerCandidateSet.preferNamedOwner(remapped, candidates, followUpText);
+    OwnerDiagnosis selected =
+        OwnerCandidateSet.selectOwner(narrative, candidates, failedStageId, cause, followUpText);
+    return selected.withInstruction(
+        HaltProducerCauseTable.instruction(cause, selected, candidates));
   }
 
   /** Formats validation findings for the narrative turn; empty when none are present. */
@@ -432,37 +510,6 @@ public final class FailureNarrative {
       appendFindings(lines, candidate);
     }
     return String.join("\n", lines);
-  }
-
-  private static OwnerDiagnosis fromDraft(
-      OwnerDiagnosisDraft draft, List<OwnerCandidate> candidates) {
-    if (draft == null) {
-      return OwnerDiagnosis.none("");
-    }
-    String narrative = draft.narrative() == null ? "" : draft.narrative().trim();
-    String owner = draft.ownerStageId() == null ? "" : draft.ownerStageId().trim();
-    boolean ownerHonored = OwnerCandidateSet.containsStage(candidates, owner);
-    OwnerDiagnosis diagnosis;
-    if (draft.ambiguous()) {
-      diagnosis = OwnerDiagnosis.ask(narrative);
-    } else if (ownerHonored) {
-      diagnosis = OwnerDiagnosis.of(narrative, owner);
-    } else {
-      diagnosis = OwnerDiagnosis.none(narrative);
-    }
-    return diagnosis.withRemedy(honoredRemedy(draft, diagnosis), draft.instruction());
-  }
-
-  /**
-   * The remedy the card may state. A token outside the closed set parses to {@link
-   * HaltRemedy#NONE}, and a go-back is honored only when the model named a stage the candidate set
-   * holds, so a dropped remedy costs the card its extra sentence and leaves the narrative alone.
-   */
-  private static HaltRemedy honoredRemedy(OwnerDiagnosisDraft draft, OwnerDiagnosis diagnosis) {
-    HaltRemedy remedy = HaltRemedy.fromModelValue(draft.remedy());
-    return remedy == HaltRemedy.REOPEN_STAGE && diagnosis.owner().isEmpty()
-        ? HaltRemedy.NONE
-        : remedy;
   }
 
   private static void appendFindings(List<String> lines, ArtifactCandidate candidate) {

@@ -43,16 +43,26 @@ public sealed interface BindingResolutionResult {
     }
   }
 
-  record Failed(String serviceCallStepId, String reason, StageOutcomeClass outcomeClass)
+  record Failed(
+      String serviceCallStepId,
+      String reason,
+      StageOutcomeClass outcomeClass,
+      String requestedFact)
       implements BindingResolutionResult {
     public Failed {
       serviceCallStepId = DesignArtifacts.requireText(serviceCallStepId, "serviceCallStepId");
       reason = DesignArtifacts.requireText(reason, "reason");
       outcomeClass = Objects.requireNonNullElse(outcomeClass, StageOutcomeClass.DOMAIN_FAILURE);
+      requestedFact =
+          requestedFact == null || requestedFact.isBlank() ? "catalog service" : requestedFact;
+    }
+
+    public Failed(String serviceCallStepId, String reason, StageOutcomeClass outcomeClass) {
+      this(serviceCallStepId, reason, outcomeClass, "catalog service");
     }
 
     public Failed(String serviceCallStepId, String reason) {
-      this(serviceCallStepId, reason, StageOutcomeClass.DOMAIN_FAILURE);
+      this(serviceCallStepId, reason, StageOutcomeClass.DOMAIN_FAILURE, "catalog service");
     }
   }
 }

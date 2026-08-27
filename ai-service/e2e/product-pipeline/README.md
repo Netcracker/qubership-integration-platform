@@ -29,7 +29,8 @@ ai-service/e2e/product-pipeline/run-quality-gate.sh \
 
 When `--evaluator-url` is omitted, the command starts the local evaluator with the `ai-e2e`
 Compose profile. Use `--skip-deploy` when the AI service, sidecar, catalog, database, and evaluator
-are already healthy.
+are already healthy. `--skip-deploy` still recreates `qip-ai-service` (no rebuild) when the selected
+scenarios set `QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX`, so the prefix reaches the running container.
 
 Live execution requires LLM credentials in the local, ignored
 `infrastructure/.env.local` file. The knowledge package directory is mounted read-only into the
@@ -52,6 +53,21 @@ ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --base-url http://localhost:8094
 ```
 
+`product-create-chain-recovery-exhausted-halt` uses the same injected fault and ends at an
+escalated halt card instead of repairing. Typed recovery auto-reopens `design-planning` on the
+first injection; the runner agrees that plan, implements again, and the second injection parks.
+The follow-up then names a stage outside the candidate set. The default gate skips this scenario
+so the live run keeps one recovery-fault prefix. Drive it in isolation:
+
+```bash
+ai-service/e2e/product-pipeline/run-quality-gate.sh \
+  --scenario product-create-chain-recovery-exhausted-halt \
+  --runs 1 \
+  --knowledge-package integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export \
+  --report-dir /tmp/ai-service-exhaust-gate \
+  --base-url http://localhost:8094
+```
+
 Run only COMPARE_AND_PATCH after the stack is up:
 
 ```bash
@@ -64,11 +80,13 @@ ai-service/e2e/product-pipeline/run-patch-scenario.sh \
 
 ## Scope
 
-Active CREATE scenarios use `create-chain@2` and expect `CHAIN_MATERIALIZED`. Active patch
-scenarios use `compare-and-patch` and expect `CHAIN_PATCHED`. Patch runs seed a small catalog chain,
-send one chat prompt per requested change (with the production open-chain attachment), and apply
-the decision card. They do not use `POST /api/v1/harness/chain-patch-run`. The LLM loads skill,
-addon, and example knowledge through `ChainEditCompiler`, the same path as the browser.
+Active CREATE scenarios use `create-chain@2`. Materializing scenarios expect `CHAIN_MATERIALIZED`.
+The exhausted-halt scenario expects `WAITING_FOR_INPUT` at an escalated card and is skipped from the
+default gate. Active patch scenarios use `compare-and-patch` and expect `CHAIN_PATCHED`. Patch runs
+seed a small catalog chain, send one chat prompt per requested change (with the production
+open-chain attachment), and apply the decision card. They do not use
+`POST /api/v1/harness/chain-patch-run`. The LLM loads skill, addon, and example knowledge through
+`ChainEditCompiler`, the same path as the browser.
 
 The gate records runtime failures separately from semantic evaluator results. Deployment packaging
 is outside the scenario boundary. Inactive fixtures (Petstore CREATE, try-catch wrap patch, and

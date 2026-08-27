@@ -1,16 +1,16 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet.FindingOwnerCategory;
 
 /**
  * Deterministic recovery route for a create-chain stage failure. Selects the
- * producer of the rejected artifact from provenance and typed evidence. LLM
- * owner diagnosis is a fallback when the finding does not already name a
- * producer.
+ * producer of the rejected artifact from provenance and a typed {@link RecoveryCause}.
+ * LLM owner diagnosis is a fallback when the cause does not already name a producer.
  */
 public final class ProducerOwnedRecovery {
 
@@ -31,8 +31,7 @@ public final class ProducerOwnedRecovery {
    *
    * @param failedStageId observing stage
    * @param outcomeClass capability outcome
-   * @param findings formatted validation findings
-   * @param evidence raw error text
+   * @param cause typed halt cause from the producer
    * @param candidates closed owner set
    * @param catalogWritten true after the first catalog write
    * @param semanticRepairsUsed repairs already spent on this rejection
@@ -42,8 +41,7 @@ public final class ProducerOwnedRecovery {
   public record Request(
       String failedStageId,
       StageOutcomeClass outcomeClass,
-      String findings,
-      String evidence,
+      RecoveryCause cause,
       List<OwnerCandidate> candidates,
       boolean catalogWritten,
       int semanticRepairsUsed,
@@ -52,8 +50,7 @@ public final class ProducerOwnedRecovery {
 
     public Request {
       failedStageId = failedStageId == null ? "" : failedStageId;
-      findings = findings == null ? "" : findings;
-      evidence = evidence == null ? "" : evidence;
+      cause = cause == null ? RecoveryCause.of(RecoveryCause.fromOutcomeClass(outcomeClass)) : cause;
       candidates = candidates == null ? List.of() : List.copyOf(candidates);
       diagnosedOwner = diagnosedOwner == null ? Optional.empty() : diagnosedOwner;
     }
@@ -84,17 +81,15 @@ public final class ProducerOwnedRecovery {
   /** Picks the producer-owned recovery action for this rejection. */
   public static Route route(final Request request) {
     String failed = request.failedStageId();
-    if (request.outcomeClass() == StageOutcomeClass.INTERNAL_FAILURE) {
+    RecoveryCause cause = request.cause();
+    if (request.outcomeClass() == StageOutcomeClass.INTERNAL_FAILURE
+        || cause.causeCode() == RecoveryCauseCode.INTERNAL) {
       return new Route(Action.PARK, failed);
     }
-    if (asksForMissingFact(request.findings(), request.evidence())) {
-      return new Route(
-          Action.ASK_CLARIFICATION,
-          failed,
-          requestedFact(request.findings(), request.evidence()));
+    if (cause.causeCode() == RecoveryCauseCode.CATALOG_RESOLUTION) {
+      return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
     }
-    FindingOwnerCategory category =
-        OwnerCandidateSet.classifyFinding(request.findings(), request.evidence());
+    FindingOwnerCategory category = HaltProducerCauseTable.ownerCategory(cause.causeCode());
     String diagnosed = request.diagnosedOwner().orElse("");
     String producer =
         producerFor(category, request.candidates(), failed, diagnosed)
@@ -162,33 +157,5 @@ public final class ProducerOwnedRecovery {
       return Optional.of(diagnosedOwner);
     }
     return Optional.empty();
-  }
-
-  private static boolean asksForMissingFact(
-      final String findings, final String evidence) {
-    String haystack = normalize(findings) + " " + normalize(evidence);
-    return haystack.contains("catalog service")
-        || haystack.contains("catalog operation")
-        || haystack.contains("no matching")
-        || (haystack.contains("catalog")
-            && (haystack.contains("missing")
-                || haystack.contains("not found")
-                || haystack.contains("ambiguous")));
-  }
-
-  private static String requestedFact(
-      final String findings, final String evidence) {
-    String haystack = normalize(findings) + " " + normalize(evidence);
-    if (haystack.contains("operation")) {
-      return "catalog operation";
-    }
-    if (haystack.contains("topic")) {
-      return "topic";
-    }
-    return "catalog service";
-  }
-
-  private static String normalize(final String value) {
-    return value == null ? "" : value.toLowerCase(Locale.ROOT);
   }
 }

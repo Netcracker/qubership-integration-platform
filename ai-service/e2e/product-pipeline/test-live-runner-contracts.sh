@@ -100,6 +100,8 @@ jq -e '
   || fail "recovery scenario must define the injected fault and causal owner"
 rg -q 'QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX' "${GATE_SH}" \
   || fail "quality gate must scope the recovery fault to the selected chain prefix"
+rg -q -- '--no-build --no-deps --force-recreate qip-ai-service' "${GATE_SH}" \
+  || fail "skip-deploy must recreate qip-ai-service so the recovery-fault prefix reaches the container"
 [[ "$(rg -c 'path: \.env\.local' "${ROOT:-${DIR}/../../..}/infrastructure/docker-compose.yml")" -ge 2 ]] \
   || fail "AI service and evaluator must load the documented optional .env.local overrides"
 rg -q -- '--scenario' "${GATE_SH}" \
@@ -111,6 +113,44 @@ rg -q 'causal reopen of' "${SCENARIO_SH}" \
 rg -q 'MATERIALIZATION_REQUEST.*MATERIALIZATION_RESULT.*CATALOG_CHAIN_SNAPSHOT' "${SCENARIO_SH}" \
   || fail "product runner must reject materialization artifacts before revision"
 pass "recovery scenario contract"
+
+echo "=== exhausted halt scenario is expressible and skipped from the default gate ==="
+jq -e '
+  .["product-create-chain-recovery-exhausted-halt"] as $s
+  | $s.status == "active"
+    and $s.pipeline == "create-chain-v1"
+    and $s.profileId == "create-chain"
+    and $s.profileVersion == "2"
+    and $s.terminalState == "WAITING_FOR_INPUT"
+    and $s.retainCatalogChain == false
+    and $s.uniqueChainNamePrefix == "AiRecoveryExhaust"
+    and $s.recovery.exhaustHalt == true
+    and $s.recovery.faultStage == "design-execution"
+    and $s.recovery.ownerStage == "design-planning"
+    and (($s.recovery.followUp | type) == "string" and ($s.recovery.followUp | length) > 0)
+' "${DIR}/scenarios.json" >/dev/null \
+  || fail "exhausted-halt scenario must pin WAITING_FOR_INPUT retain=false with a recovery fault"
+rg -q 'exhaustHalt' "${SCENARIO_SH}" \
+  || fail "run-product-scenario.sh must read recovery.exhaustHalt"
+rg -q 'WAITING_FOR_INPUT' "${SCENARIO_SH}" \
+  || fail "run-product-scenario.sh must accept WAITING_FOR_INPUT as an exhausted-halt terminal"
+rg -q 'e2e_assert_observable_sse_output' "${SCENARIO_SH}" \
+  || fail "run-product-scenario.sh must fail a command that produced no SSE output"
+rg -q 'e2e_assert_observable_sse_output' "${DIR}/scripts/lib.sh" \
+  || fail "lib.sh must assert observable SSE output"
+rg -q 'E2E recovery fault' "${SCENARIO_SH}" \
+  || fail "run-product-scenario.sh must detect the injected recovery fault"
+rg -q 'implement_sent=0' "${SCENARIO_SH}" \
+  || fail "run-product-scenario.sh must reset Implement after an automatic reopen"
+rg -q 'stop-with-report' "${DIR}/assert-product-run.sh" \
+  || fail "assert-product-run.sh must assert stop-with-report on an exhausted halt card"
+rg -q 'haltGate|haltPrompt|haltActions' "${BUILD_PY}" \
+  || fail "build-report-from-evidence.py must expose the halt card"
+rg -q 'exhaustHalt != true' "${GATE_SH}" \
+  || fail "quality gate must skip exhaustHalt from the default CREATE set"
+rg -q -- '--scenario' "${GATE_SH}" \
+  || fail "quality gate must support running the exhausted-halt scenario in isolation"
+pass "exhausted halt scenario contract"
 
 echo "=== live reports must be built from evidence ==="
 [[ -f "${BUILD_PY}" ]] || fail "build-report-from-evidence.py is required"
@@ -495,6 +535,35 @@ jq -e '.validationVerdict == "SKIPPED"' "${TMP}/wait-report.json" >/dev/null
 jq -e '.approvalEligible == false' "${TMP}/wait-report.json" >/dev/null
 pass "WAITING_FOR_INPUT report without plan validation"
 
+echo "=== exhausted halt report asserts card text, actions, and surviving artifacts ==="
+halt_ev="${TMP}/halt-evidence.json"
+jq '
+  .currentState = "WAITING_FOR_INPUT"
+  | .committedArtifactKinds = ["REQUIREMENT_BRIEF", "IMPLEMENTATION_PLAN", "PLAN_VALIDATION_RESULT", "APPROVAL_RECORD"]
+  | .transitions = [{
+      "toStatus": "WAITING_FOR_INPUT",
+      "reason": "__GATE:stage-escalated__That stage is not a candidate for this defect. Allowed stages: design-planning.__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
+    }]
+' "${ev}" >"${halt_ev}"
+python3 "${BUILD_PY}" \
+  --evidence "${halt_ev}" \
+  --scenario-id product-create-chain-recovery-exhausted-halt \
+  --rep 1 \
+  --required-facts '[]' \
+  --forbidden-facts '[]' \
+  --expected-terminal-state WAITING_FOR_INPUT \
+  --out "${TMP}/halt-report.json"
+jq -e '
+  .terminalState == "WAITING_FOR_INPUT"
+  and .haltGate == "stage-escalated"
+  and .haltGuard == "NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
+  and (.haltPrompt | contains("That stage is not a candidate for this defect."))
+  and (.haltActions | index("stop-with-report") != null)
+' "${TMP}/halt-report.json" >/dev/null \
+  || fail "builder must expose the exhausted halt card"
+bash "${DIR}/assert-product-run.sh" "${TMP}/halt-report.json"
+pass "exhausted halt card report contract"
+
 echo "=== live runner continues discovery WAITING_FOR_INPUT ==="
 rg -q 'discoveryAnswers' "${SCENARIO_SH}" \
   || fail "run-product-scenario.sh must read discoveryAnswers from scenarios.json"
@@ -808,8 +877,12 @@ echo "=== create-chain@2 scenario pins (new CREATE) ==="
 rg -q 'profileId|create-chain' "${GATE_SH}" \
   || fail "gate must read scenario profileId including create-chain"
 jq -e '
-  [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
-  | length == 8
+  [to_entries[] | select(
+    (.value.status // "active") == "active"
+    and .value.pipeline == "create-chain-v1"
+    and (.value.recovery.exhaustHalt != true)
+  )]
+  | length >= 8
   and all(
     .value.pipeline == "create-chain-v1"
     and .value.profileId == "create-chain"
@@ -818,7 +891,7 @@ jq -e '
     and .value.retainCatalogChain == true
   )
 ' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "exactly eight active create-chain@2 CHAIN_MATERIALIZED retain scenarios required"
+  || fail "active create-chain@2 scenarios other than exhaustHalt must pin CHAIN_MATERIALIZED retain=true"
 legacy_create_plan="$(printf '%s-%s' create plan-v1)"
 for legacy in "${legacy_create_plan}" design-first structure-e2e; do
   if jq -e --arg p "${legacy}" '[.. | strings] | index($p) != null' "${SCENARIOS_FILE}" >/dev/null; then

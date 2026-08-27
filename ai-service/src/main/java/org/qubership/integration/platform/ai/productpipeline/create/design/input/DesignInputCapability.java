@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.llm.agent.DesignGeneratorSkillAgent
 import org.qubership.integration.platform.ai.llm.agent.DesignInputPromptAgent;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -413,7 +414,8 @@ public class DesignInputCapability implements StageCapability {
         return StageOutcome.of(
             StageOutcomeClass.VALIDATION_FAILURE,
             "The approved requirement brief is missing required facts: "
-                + String.join(", ", needsInput.missingFacts()));
+                + String.join(", ", needsInput.missingFacts()),
+            RecoveryCause.missingBriefFacts(needsInput.missingFacts()));
       }
       NormalizedDesignFlow flow =
           ((BriefFlowExtractor.ExtractionResult.Complete) extracted).flow();
