@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -487,6 +488,9 @@ public class ChainPlanGraphValidator {
           }
           String key = property.key().trim();
           presentKeys.add(key);
+          if (MappingExecutionSite.isCompilerMetadataKey(key)) {
+            continue;
+          }
           if (knownSchema && !allowedKeys.contains(key)) {
             errors.add(unknownPropertyKeyMessage(node.nodeId(), elementType, key));
           }

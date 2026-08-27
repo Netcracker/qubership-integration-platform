@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -77,6 +78,43 @@ class ChainStructurePropertySanitizerTest {
     ChainStructurePropertySanitizer.SanitizationResult result = sanitizer.sanitize(capture);
 
     assertEquals(List.of(property), result.structure().graph().nodes().getFirst().properties());
+    assertEquals(List.of(), result.removedProperties());
+  }
+
+  @Test
+  void keepsMappingIntentIdOnMapper2Shell() {
+    DeterministicElementSchemaService schemaService =
+        mock(DeterministicElementSchemaService.class);
+    when(schemaService.hasElementSchema("mapper-2")).thenReturn(true);
+    when(schemaService.allowedPatchPropertyKeys("mapper-2"))
+        .thenReturn(Set.of("mappingDescription", "throwException"));
+    ChainStructurePropertySanitizer sanitizer =
+        new ChainStructurePropertySanitizer(schemaService);
+    PlanProperty intentId =
+        new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, "map-init");
+    PlanProperty mapping =
+        new PlanProperty(MappingExecutionSite.MAPPING_DESCRIPTION_PROPERTY, "[]");
+    ChainStructure capture =
+        new ChainStructure(
+            new ChainPlanGraph(
+                "1.0",
+                new ChainSection("Orders", "Orders"),
+                List.of(
+                    new ChainPlanNode(
+                        "transform-map-init",
+                        "mapper-2",
+                        "Map",
+                        null,
+                        null,
+                        List.of(intentId, mapping))),
+                List.of()),
+            List.of(),
+            List.of());
+
+    ChainStructurePropertySanitizer.SanitizationResult result = sanitizer.sanitize(capture);
+
+    assertEquals(
+        List.of(intentId, mapping), result.structure().graph().nodes().getFirst().properties());
     assertEquals(List.of(), result.removedProperties());
   }
 }

@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Recovery
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner.PlanningSpineOutcome;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -213,7 +214,9 @@ public class CompilerDerivedPlanningRunner {
           spineOutcome == null ? List.of() : spineOutcome.executedSkillIds());
     }
 
-    ValidationResult planValidation = planValidator.validate(new PlanGraphValidationInput(graph));
+    ValidationResult planValidation =
+        planValidator.validate(
+            new PlanGraphValidationInput(graph, mappingIntents(workspace)));
     PlanValidationResult planValidationResult =
         withDegradations(
             mergeCompilerBundleFindings(
@@ -373,5 +376,16 @@ public class CompilerDerivedPlanningRunner {
     public DerivedPlanningResult {
       executedSkillIds = executedSkillIds == null ? List.of() : List.copyOf(executedSkillIds);
     }
+  }
+
+  private static List<MappingIntent> mappingIntents(SkillWorkspace workspace) {
+    return workspace
+        .get(SkillArtifactType.REQUIREMENT_BRIEF)
+        .map(
+            artifact ->
+                ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload())
+                    .brief()
+                    .mappingIntents())
+        .orElse(List.of());
   }
 }

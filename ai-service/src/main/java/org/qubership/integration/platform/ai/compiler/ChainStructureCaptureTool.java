@@ -25,10 +25,12 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingStructurePhase;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /** Captures typed {@link ChainStructure} output for planning flow. */
 @ApplicationScoped
@@ -158,6 +160,18 @@ public class ChainStructureCaptureTool {
       }
       ChainStructure normalized =
           mergeConfiguredTriggerProperties(conversationId, sanitized.structure());
+      try {
+        normalized = placeMappingShells(conversationId, normalized);
+      } catch (IllegalStateException e) {
+        return finish(
+            conversationId,
+            startMs,
+            repairable(
+                conversationId,
+                fingerprintSource,
+                CaptureFailureClass.CORRECTABLE,
+                "Structure validation failed:\n" + e.getMessage()));
+      }
       ChainPlanGraph graphUnderTest = normalized.graph();
       List<String> errors = graphValidator.validate(graphUnderTest);
       if (!errors.isEmpty()) {
@@ -378,5 +392,27 @@ public class ChainStructureCaptureTool {
     ToolTraceLog.logToolComplete(
         LOG, "captureChainStructure", conversationId, System.currentTimeMillis() - startMs, result);
     return result;
+  }
+
+  private ChainStructure placeMappingShells(String conversationId, ChainStructure structure) {
+    return captureSession
+        .get(
+            CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
+            RequirementBrief.class)
+        .filter(brief -> !brief.mappingIntents().isEmpty() && structure.graph() != null)
+        .map(brief -> placedStructure(structure, brief))
+        .orElse(structure);
+  }
+
+  private static ChainStructure placedStructure(ChainStructure structure, RequirementBrief brief) {
+    ChainPlanGraph placed = MappingStructurePhase.placeShells(structure.graph(), brief);
+    if (placed == structure.graph()) {
+      return structure;
+    }
+    return new ChainStructure(
+        placed,
+        structure.sourceRequirementFactIds(),
+        structure.knowledgeCitations(),
+        structure.subgraph());
   }
 }

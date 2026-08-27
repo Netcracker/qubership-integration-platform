@@ -5,6 +5,7 @@ import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -61,6 +62,7 @@ public class ChainStructurePropertySanitizer {
       if (property == null
           || property.key() == null
           || property.key().isBlank()
+          || MappingExecutionSite.isCompilerMetadataKey(property.key().trim())
           || allowed.contains(property.key().trim())) {
         properties.add(property);
       } else {

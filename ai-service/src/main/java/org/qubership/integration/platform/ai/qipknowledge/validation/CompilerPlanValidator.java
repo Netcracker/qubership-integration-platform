@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.pipeline.InternalPipelineSkills;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSiteValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -113,6 +114,19 @@ public class CompilerPlanValidator {
               materializationIssue.affectedNodeIds(),
               materializationIssue.ruleRefs(),
               materializationIssue.suggestedFix()));
+    }
+
+    for (ValidationIssue mappingIssue :
+        MappingExecutionSiteValidator.validate(graph, input.mappingIntents())) {
+      issues.add(
+          new ValidationIssue(
+              "validation-" + issueCounter++,
+              mappingIssue.severity(),
+              mappingIssue.message(),
+              mappingIssue.ownerCapabilityId(),
+              mappingIssue.affectedNodeIds(),
+              mappingIssue.ruleRefs(),
+              mappingIssue.suggestedFix()));
     }
 
     return result(issues);

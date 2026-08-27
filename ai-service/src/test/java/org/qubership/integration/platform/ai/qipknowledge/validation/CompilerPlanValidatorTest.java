@@ -25,6 +25,10 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.Materializa
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
@@ -261,6 +265,35 @@ class CompilerPlanValidatorTest {
                 i ->
                     i.message().contains("missing required materialization property 'script'")
                         && "cip-script-generator".equals(i.ownerCapabilityId())));
+  }
+
+  @Test
+  void failsWhenApprovedMappingIntentHasNoExecutionSite() {
+    ValidationResult result =
+        validator.validate(
+            new PlanGraphValidationInput(
+                validHttpGraph(),
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "n1",
+                        MappingPort.OUTPUT,
+                        "n2",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.userId",
+                                "$.personId",
+                                null,
+                                MappingRuleStatus.USER_DEFINED))))));
+
+    assertFalse(result.valid());
+    assertTrue(
+        result.issues().stream()
+            .anyMatch(
+                issue ->
+                    issue.message().contains("map-init")
+                        && "cip-structure-generator".equals(issue.ownerCapabilityId())));
   }
 
   private static ChainPlanGraph validHttpGraph() {
