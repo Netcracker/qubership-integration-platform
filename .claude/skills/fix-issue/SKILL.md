@@ -86,7 +86,9 @@ nohup npm -w @netcracker/qip-ui run dev > /tmp/vite.log 2>&1 &
 - 8080 answering 502 means Vite is down, not that the app is broken.
 - `npm run dev` fetches documentation over the network before Vite starts; the first run is slow.
 - `vite` is hoisted to the repo-root `node_modules/.bin`, not `ui/node_modules/.bin`.
-- The shell working directory persists between commands. Use absolute paths everywhere.
+- The shell working directory persists between commands. Use absolute paths everywhere. A
+  `git checkout` issued from a scratch directory fails quietly, and the "before" frame then
+  captures the fixed code without anything looking wrong.
 - Stop only what you started. Leave containers that were already running.
 
 ### Seed through the API, shaped by the OpenAPI document
@@ -189,6 +191,31 @@ into the report as a note. Do not widen the change because a reviewer found some
 Commit with a Conventional Commits subject referencing the issue, push the branch, open a
 **draft** pull request.
 
+### The description is not the run report
+
+They have different readers. The run report says how you worked; the description says what a
+person will see and whether to merge. Writing one and calling it the other produces a page full
+of your own working notes.
+
+**Title:** the symptom in the reporter's words, naming the screen. Not the mechanism you
+changed. `fix(ui): snapshot rename looks unsaved and labels render too small` tells a reviewer
+where to look; `fix(ui): close the inline editor on commit` tells them nothing.
+
+**Body**, four short sections:
+
+- **Why** opens with the screen, in a sentence anyone can follow: which page, which control, how
+  a user reaches it. Then the symptom, then the before and after images. This is the section
+  that earns the reviewer's attention, so it comes first and it stays in plain language.
+- **What** is a handful of one-line bullets. Name the blast radius if a shared component changed.
+- **How to verify** is steps in the running application, then the commands. A reviewer who
+  cannot repeat it by hand will not check it at all.
+- **For the reviewer** carries only what needs a decision: a test whose expectation moved, a
+  behavior change reaching call sites outside the issue.
+
+Leave out the investigation. Coordinates, API field names, the class antd renamed, the query
+that turned out to be wrong: all of it earned the fix and none of it helps someone decide to
+merge. It belongs in the run report.
+
 Attach the before/after images through GitHub's attachment endpoint:
 
 ```bash
@@ -274,10 +301,11 @@ Stop and label `ai:needs-human` when any of these is true:
 Rule 7 is the one an agent talks itself out of. A decision you could defend either way is not
 yours to take silently.
 
-## The report
+## The run report
 
-Full report in the pull request body; verdict, gate table, and a link in the issue comment. On a
-stop there is no pull request, so the full report goes to the issue.
+This is the record of how the run went, and it goes in the issue comment. It is not the pull
+request description above, which is written for a reviewer. On a stop there is no pull request,
+so this is the only thing you leave behind.
 
 1. **Verdict**: the label and the gate reached.
 2. **Defects**: the issue split into numbered items.
