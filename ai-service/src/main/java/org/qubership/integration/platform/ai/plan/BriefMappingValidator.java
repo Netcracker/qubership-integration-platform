@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -39,17 +40,46 @@ public final class BriefMappingValidator {
       List<MappingIntentRule> candidates,
       MappingContract sourceContract,
       MappingContract targetContract) {
+    return validateBoundary(
+        mappingIntentId,
+        sourceRef,
+        sourcePort,
+        targetRef,
+        targetPort,
+        candidates,
+        sourceContract,
+        targetContract,
+        null);
+  }
+
+  public static Optional<MappingIntent> validateBoundary(
+      String mappingIntentId,
+      String sourceRef,
+      MappingPort sourcePort,
+      String targetRef,
+      MappingPort targetPort,
+      List<MappingIntentRule> candidates,
+      MappingContract sourceContract,
+      MappingContract targetContract,
+      String implementationPreference) {
     Objects.requireNonNull(sourcePort, "sourcePort");
     Objects.requireNonNull(targetPort, "targetPort");
     MappingContract source = sourceContract == null ? MappingContract.unknown() : sourceContract;
     MappingContract target = targetContract == null ? MappingContract.unknown() : targetContract;
-    List<MappingIntentRule> classified = classify(candidates, source, target);
+    List<MappingIntentRule> classified =
+        classify(candidates, source, target, implementationPreference);
     if (isIdentityOnlyAuto(classified)) {
       return Optional.empty();
     }
     return Optional.of(
         new MappingIntent(
-            mappingIntentId, sourceRef, sourcePort, targetRef, targetPort, classified));
+            mappingIntentId,
+            sourceRef,
+            sourcePort,
+            targetRef,
+            targetPort,
+            classified,
+            implementationPreference));
   }
 
   public static List<MappingIntentRule> classifyFromLegacy(
@@ -64,22 +94,31 @@ public final class BriefMappingValidator {
       }
       candidates.add(MappingIntentRule.fromLegacy(rule, inferStatus(rule)));
     }
-    return classify(candidates, MappingContract.unknown(), MappingContract.unknown());
+    return classify(candidates, MappingContract.unknown(), MappingContract.unknown(), null);
   }
 
   public static List<MappingIntentRule> classify(
       List<MappingIntentRule> candidates,
       MappingContract sourceContract,
       MappingContract targetContract) {
+    return classify(candidates, sourceContract, targetContract, null);
+  }
+
+  private static List<MappingIntentRule> classify(
+      List<MappingIntentRule> candidates,
+      MappingContract sourceContract,
+      MappingContract targetContract,
+      String implementationPreference) {
     MappingContract source = sourceContract == null ? MappingContract.unknown() : sourceContract;
     MappingContract target = targetContract == null ? MappingContract.unknown() : targetContract;
+    boolean scriptPreferred = MappingMechanismSelector.isScriptPreference(implementationPreference);
     List<MappingIntentRule> input = candidates == null ? List.of() : candidates;
     Map<String, MappingIntentRule> byTarget = new LinkedHashMap<>();
     for (MappingIntentRule candidate : input) {
       if (candidate == null || candidate.targetPath().isBlank()) {
         continue;
       }
-      byTarget.put(candidate.targetPath(), classifyOne(candidate, source, target));
+      byTarget.put(candidate.targetPath(), classifyOne(candidate, source, target, scriptPreferred));
     }
     if (target.known()) {
       for (MappingContract.Field field : target.fields()) {
@@ -138,9 +177,12 @@ public final class BriefMappingValidator {
   }
 
   private static MappingIntentRule classifyOne(
-      MappingIntentRule candidate, MappingContract source, MappingContract target) {
+      MappingIntentRule candidate,
+      MappingContract source,
+      MappingContract target,
+      boolean scriptPreferred) {
     if (candidate.status() == MappingRuleStatus.USER_DEFINED) {
-      return validateKnownPaths(candidate, source, target);
+      return validateKnownPaths(candidate, source, target, scriptPreferred);
     }
     if (candidate.status() == MappingRuleStatus.UNRESOLVED) {
       return candidate;
@@ -154,7 +196,7 @@ public final class BriefMappingValidator {
     if (target.known() && !target.field(candidate.targetPath()).isPresent()) {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
     }
-    if (candidate.expression() != null && !expressionSupported(candidate.expression())) {
+    if (candidate.expression() != null && !expressionSupported(candidate.expression(), scriptPreferred)) {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
     }
     MappingRuleStatus status = inferStatus(candidate);
@@ -165,7 +207,10 @@ public final class BriefMappingValidator {
   }
 
   private static MappingIntentRule validateKnownPaths(
-      MappingIntentRule candidate, MappingContract source, MappingContract target) {
+      MappingIntentRule candidate,
+      MappingContract source,
+      MappingContract target,
+      boolean scriptPreferred) {
     if (source.known() && !candidate.sourcePath().isBlank()
         && !source.field(candidate.sourcePath()).isPresent()) {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
@@ -173,7 +218,7 @@ public final class BriefMappingValidator {
     if (target.known() && !target.field(candidate.targetPath()).isPresent()) {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
     }
-    if (candidate.expression() != null && !expressionSupported(candidate.expression())) {
+    if (candidate.expression() != null && !expressionSupported(candidate.expression(), scriptPreferred)) {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
     }
     return candidate;
@@ -221,10 +266,13 @@ public final class BriefMappingValidator {
   }
 
   /**
-   * Ticket 04 only proves that unsupported expressions stay unresolved. Ticket 06 owns SCRIPT
-   * generation; identity copies have no expression.
+   * Non-blank expressions stay unresolved unless the intent prefers SCRIPT and the expression is
+   * one SCRIPT generation can write.
    */
-  private static boolean expressionSupported(String expression) {
-    return expression == null || expression.isBlank();
+  private static boolean expressionSupported(String expression, boolean scriptPreferred) {
+    if (expression == null || expression.isBlank()) {
+      return true;
+    }
+    return scriptPreferred && MappingMechanismSelector.isSupportedScriptExpression(expression);
   }
 }

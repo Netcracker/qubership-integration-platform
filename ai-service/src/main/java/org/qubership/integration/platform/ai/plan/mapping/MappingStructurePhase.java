@@ -11,7 +11,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
- * Structure-generator seam: insert one mapper-2 shell and its edges per approved mapping intent.
+ * Structure-generator seam: insert one mapper-2 or script shell and its edges per approved mapping
+ * intent.
  */
 public final class MappingStructurePhase {
 
@@ -38,6 +39,17 @@ public final class MappingStructurePhase {
     if (findSite(graph, intent.mappingIntentId()) != null) {
       return graph;
     }
+    MappingMechanism mechanism =
+        MappingMechanismSelector.select(intent)
+            .orElseThrow(
+                () ->
+                    new IllegalStateException(
+                        MappingMechanismSelector.clarification(intent)
+                            .orElse(
+                                "Approved mapping intent '"
+                                    + intent.mappingIntentId()
+                                    + "' has no compatible execution mechanism.")));
+    String elementType = shellType(mechanism);
     Map<String, ChainPlanNode> nodesById = indexNodes(graph);
     ChainPlanNode source = nodesById.get(intent.sourceRef());
     ChainPlanNode target = nodesById.get(intent.targetRef());
@@ -59,9 +71,11 @@ public final class MappingStructurePhase {
               + "' is missing. Structure generation must insert the target before the transform"
               + " shell.");
     }
-    ChainPlanNode untagged = untaggedMapperOnBoundary(graph, intent.sourceRef(), intent.targetRef());
+    ChainPlanNode untagged =
+        untaggedShellOnBoundary(graph, intent.sourceRef(), intent.targetRef(), elementType);
     if (untagged != null) {
-      return replaceNode(graph, MappingExecutionSite.withMappingIntentId(untagged, intent.mappingIntentId()));
+      return replaceNode(
+          graph, MappingExecutionSite.withMappingIntentId(untagged, intent.mappingIntentId()));
     }
     List<ChainPlanEdge> boundaryEdges =
         directEdges(graph, intent.sourceRef(), intent.targetRef());
@@ -81,8 +95,8 @@ public final class MappingStructurePhase {
         MappingExecutionSite.withMappingIntentId(
             new ChainPlanNode(
                 mapperId,
-                MappingExecutionSite.ELEMENT_TYPE,
-                "Map " + intent.mappingIntentId(),
+                elementType,
+                shellLabel(mechanism, intent.mappingIntentId()),
                 source.parentNodeId(),
                 null,
                 List.of()),
@@ -118,6 +132,18 @@ public final class MappingStructurePhase {
     return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), List.copyOf(nodes), List.copyOf(edges));
   }
 
+  private static String shellType(MappingMechanism mechanism) {
+    return mechanism == MappingMechanism.SCRIPT
+        ? MappingExecutionSite.SCRIPT_ELEMENT_TYPE
+        : MappingExecutionSite.ELEMENT_TYPE;
+  }
+
+  private static String shellLabel(MappingMechanism mechanism, String mappingIntentId) {
+    return mechanism == MappingMechanism.SCRIPT
+        ? "Script " + mappingIntentId
+        : "Map " + mappingIntentId;
+  }
+
   private static ChainPlanNode findSite(ChainPlanGraph graph, String mappingIntentId) {
     for (ChainPlanNode node : graph.nodes()) {
       if (mappingIntentId.equals(MappingExecutionSite.mappingIntentId(node))) {
@@ -127,10 +153,10 @@ public final class MappingStructurePhase {
     return null;
   }
 
-  private static ChainPlanNode untaggedMapperOnBoundary(
-      ChainPlanGraph graph, String sourceRef, String targetRef) {
+  private static ChainPlanNode untaggedShellOnBoundary(
+      ChainPlanGraph graph, String sourceRef, String targetRef, String elementType) {
     for (ChainPlanNode node : graph.nodes()) {
-      if (!MappingExecutionSite.isTransformShell(node)) {
+      if (!elementType.equals(node.type()) || !MappingExecutionSite.isTransformShell(node)) {
         continue;
       }
       if (MappingExecutionSite.mappingIntentId(node) != null

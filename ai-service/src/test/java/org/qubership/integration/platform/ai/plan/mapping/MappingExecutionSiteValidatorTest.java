@@ -27,6 +27,10 @@ class MappingExecutionSiteValidatorTest {
         MappingExecutionSiteValidator.validate(passThroughGraph(), brief.mappingIntents());
     assertTrue(hasIssue(missing, "map-init", "cip-structure-generator"));
 
+    List<ValidationIssue> missingScript =
+        MappingExecutionSiteValidator.validate(passThroughGraph(), scriptBrief().mappingIntents());
+    assertTrue(hasIssue(missingScript, "map-init", "cip-structure-generator"));
+
     List<ValidationIssue> duplicate =
         MappingExecutionSiteValidator.validate(duplicateSitesGraph(), brief.mappingIntents());
     assertTrue(hasIssue(duplicate, "map-init", "cip-structure-generator"));
@@ -38,6 +42,11 @@ class MappingExecutionSiteValidatorTest {
     List<ValidationIssue> unconfigured =
         MappingExecutionSiteValidator.validate(unconfiguredShellGraph(), brief.mappingIntents());
     assertTrue(hasIssue(unconfigured, "transform-map-init", "cip-transformation-generator"));
+
+    List<ValidationIssue> unconfiguredScript =
+        MappingExecutionSiteValidator.validate(
+            unconfiguredScriptShellGraph(), scriptBrief().mappingIntents());
+    assertTrue(hasIssue(unconfiguredScript, "transform-map-init", "cip-script-generator"));
   }
 
   private static boolean hasIssue(
@@ -123,6 +132,48 @@ class MappingExecutionSiteValidatorTest {
             new ChainPlanEdge("e2", "transform-map-init", "call-1", null)));
   }
 
+  private static RequirementBrief scriptBrief() {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map OM output to Salesforce request",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    "map-init",
+                    "trigger-1",
+                    MappingPort.OUTPUT,
+                    "call-1",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.name",
+                            "$.fullName",
+                            "uppercase the name",
+                            MappingRuleStatus.USER_DEFINED)),
+                    "SCRIPT")));
+  }
+
+  private static ChainPlanGraph unconfiguredScriptShellGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+            script("transform-map-init", "map-init", false),
+            new ChainPlanNode("call-1", "service-call", "Call", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("e1", "trigger-1", "transform-map-init", null),
+            new ChainPlanEdge("e2", "transform-map-init", "call-1", null)));
+  }
+
   private static ChainPlanNode mapper(String nodeId, String mappingIntentId, boolean configured) {
     List<PlanProperty> properties =
         configured
@@ -136,5 +187,16 @@ class MappingExecutionSiteValidatorTest {
                 new PlanProperty(
                     MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, mappingIntentId));
     return new ChainPlanNode(nodeId, "mapper-2", "Map", null, null, properties);
+  }
+
+  private static ChainPlanNode script(String nodeId, String mappingIntentId, boolean configured) {
+    List<PlanProperty> properties =
+        configured
+            ? List.of(
+                new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, mappingIntentId),
+                new PlanProperty(MappingExecutionSite.SCRIPT_PROPERTY, "target['fullName'] = source['name']"))
+            : List.of(
+                new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, mappingIntentId));
+    return new ChainPlanNode(nodeId, "script", "Script", null, null, properties);
   }
 }

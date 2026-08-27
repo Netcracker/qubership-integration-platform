@@ -41,8 +41,8 @@ public final class MappingExecutionSiteValidator {
                 "mapping-site-missing-" + intent.mappingIntentId(),
                 "Approved mapping intent '"
                     + intent.mappingIntentId()
-                    + "' has no mapper-2 execution site. Structure generation must insert one"
-                    + " reachable transform shell before configuration.",
+                    + "' has no mapper-2 or script execution site. Structure generation must"
+                    + " insert one reachable transform shell before configuration.",
                 "cip-structure-generator",
                 List.of()));
         continue;
@@ -53,8 +53,8 @@ public final class MappingExecutionSiteValidator {
                 "mapping-site-duplicate-" + intent.mappingIntentId(),
                 "Mapping intent '"
                     + intent.mappingIntentId()
-                    + "' is claimed by more than one execution site. Keep exactly one mapper-2"
-                    + " node for that intent.",
+                    + "' is claimed by more than one execution site. Keep exactly one mapper-2 or"
+                    + " script node for that intent.",
                 "cip-structure-generator",
                 sites.stream().map(ChainPlanNode::nodeId).toList()));
       }
@@ -64,7 +64,7 @@ public final class MappingExecutionSiteValidator {
           issues.add(
               blocker(
                   "mapping-site-unreachable-" + site.nodeId(),
-                  "Mapper-2 node '"
+                  "Transform node '"
                       + site.nodeId()
                       + "' is not reachable from any trigger. Connect it on the mapping boundary"
                       + " so compilation can execute the intent.",
@@ -72,15 +72,7 @@ public final class MappingExecutionSiteValidator {
                   List.of(site.nodeId())));
         }
         if (!MappingExecutionSite.isConfigured(site)) {
-          issues.add(
-              blocker(
-                  "mapping-site-unconfigured-" + site.nodeId(),
-                  "Mapper-2 node '"
-                      + site.nodeId()
-                      + "' is missing mappingDescription. cip-transformation-generator must"
-                      + " configure the existing shell.",
-                  "cip-transformation-generator",
-                  List.of(site.nodeId())));
+          issues.add(unconfiguredIssue(site));
         }
       }
     }
@@ -103,6 +95,27 @@ public final class MappingExecutionSiteValidator {
       }
     }
     return List.copyOf(issues);
+  }
+
+  private static ValidationIssue unconfiguredIssue(ChainPlanNode site) {
+    if (MappingExecutionSite.isScript(site)) {
+      return blocker(
+          "mapping-site-unconfigured-" + site.nodeId(),
+          "Script node '"
+              + site.nodeId()
+              + "' is missing a script body. cip-script-generator must configure the existing"
+              + " shell.",
+          "cip-script-generator",
+          List.of(site.nodeId()));
+    }
+    return blocker(
+        "mapping-site-unconfigured-" + site.nodeId(),
+        "Mapper-2 node '"
+            + site.nodeId()
+            + "' is missing mappingDescription. cip-transformation-generator must configure the"
+            + " existing shell.",
+        "cip-transformation-generator",
+        List.of(site.nodeId()));
   }
 
   private static Map<String, List<ChainPlanNode>> indexSites(ChainPlanGraph graph) {
