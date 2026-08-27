@@ -15,7 +15,6 @@ import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompiler
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
-import org.qubership.integration.platform.ai.llm.agent.DesignGeneratorSkillAgent;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -57,18 +56,6 @@ public class DesignInputCapability implements StageCapability {
       ChainSemanticIdsRenderer idsRenderer,
       CompilerContractRepository contractRepository) {
     this(designAgent, idsRenderer, contractRepository, null);
-  }
-
-  /**
-   * Test helper kept for existing runtime ITs that still construct design-input with the generator
-   * skill agent. The agent is unused; design-input captures a semantic revision instead.
-   */
-  public DesignInputCapability(DesignGeneratorSkillAgent ignored) {
-    this(
-        null,
-        new DefaultChainSemanticIdsRenderer(),
-        new ClasspathCompilerContractRepository(),
-        (conversationId, prompt) -> Multi.createFrom().empty());
   }
 
   public DesignInputCapability(
@@ -254,7 +241,7 @@ public class DesignInputCapability implements StageCapability {
       prompt.append("\n- none");
     }
     prompt.append(
-        "\n\nCall captureChainSemanticRevision once. Copy entryPointId, sourceFactId, and"
+        "\n\nCall captureChainSemanticRevision once. Copy entryPointId, sourceFactIds, and"
             + " serviceCallId from the brief. Do not mint occurrence ids.");
     return prompt.toString();
   }

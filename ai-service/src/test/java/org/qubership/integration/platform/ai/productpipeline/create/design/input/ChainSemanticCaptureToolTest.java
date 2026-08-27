@@ -60,6 +60,63 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
+  void captureSucceedsWhenManifestUsesPackRelativePaths() {
+    Map<String, String> files = packRelativeChecksums();
+    assertTrue(files.containsKey("knowledge/ai/GENERATOR_CONTRACTS.md"));
+    assertFalse(files.containsKey("generator-contracts"));
+    ChainSemanticCaptureTool tool = tool(pack(completeAddons(), files));
+    bindDesign(approvedBrief());
+    String result = tool.captureChainSemanticRevision(linearRevision());
+    assertTrue(result.contains("captured"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
+  }
+
+  @Test
+  void captureFailsWhenPackRelativePathSetIsMissingAFile() {
+    Map<String, String> files = packRelativeChecksums();
+    files.remove("knowledge/ai/GENERATOR_CONTRACTS.md");
+    ChainSemanticCaptureTool tool = tool(pack(completeAddons(), files));
+    bindDesign(approvedBrief());
+    String result = tool.captureChainSemanticRevision(linearRevision());
+    assertEquals("Required knowledge fragment is missing: generator-contracts", result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
+  void foreignSourceFactIdIsRejected() {
+    ChainSemanticCaptureTool tool = tool(completePack());
+    bindDesign(approvedBrief());
+    ChainSemanticRevision revision = linearRevision();
+    SemanticEntryPoint owned = revision.entryPoints().getFirst();
+    SemanticEntryPoint foreignProvenance =
+        new SemanticEntryPoint(
+            owned.entryPointId(),
+            owned.triggerNodeId(),
+            owned.initialTargetNodeId(),
+            owned.order(),
+            new SemanticProvenance(List.of("foreign-fact")),
+            owned.presentation());
+    ChainSemanticRevision mutated =
+        new ChainSemanticRevision(
+            revision.schemaVersion(),
+            revision.revisionId(),
+            revision.chainIdentity(),
+            revision.compilerContractVersion(),
+            List.of(foreignProvenance),
+            revision.nodes(),
+            revision.regions(),
+            revision.executionEdges(),
+            revision.containment(),
+            revision.mappingIntents(),
+            revision.constraints(),
+            revision.assumptions(),
+            revision.citations());
+    String result = tool.captureChainSemanticRevision(mutated);
+    assertTrue(result.contains("foreign-fact"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
   void duplicateCaptureFailsAndKeepsTheFirstCandidate() {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(approvedBrief());
@@ -160,15 +217,7 @@ class ChainSemanticCaptureToolTest {
   }
 
   private static QipKnowledgePackRepository completePack() {
-    Map<String, String> addons = new LinkedHashMap<>();
-    for (String addonId : CONTRACT.requiredAddons()) {
-      addons.put(addonId, "sha-" + addonId);
-    }
-    Map<String, String> files = new LinkedHashMap<>();
-    for (String fragment : CONTRACT.requiredKnowledgeFragments()) {
-      files.put(fragment, "sha-" + fragment);
-    }
-    return pack(addons, files);
+    return pack(completeAddons(), packRelativeChecksums());
   }
 
   private static QipKnowledgePackRepository packMissingExecutor() {
@@ -178,11 +227,23 @@ class ChainSemanticCaptureToolTest {
         addons.put(addonId, "sha-" + addonId);
       }
     }
-    Map<String, String> files = new LinkedHashMap<>();
-    for (String fragment : CONTRACT.requiredKnowledgeFragments()) {
-      files.put(fragment, "sha-" + fragment);
+    return pack(addons, packRelativeChecksums());
+  }
+
+  private static Map<String, String> completeAddons() {
+    Map<String, String> addons = new LinkedHashMap<>();
+    for (String addonId : CONTRACT.requiredAddons()) {
+      addons.put(addonId, "sha-" + addonId);
     }
-    return pack(addons, files);
+    return addons;
+  }
+
+  private static Map<String, String> packRelativeChecksums() {
+    Map<String, String> files = new LinkedHashMap<>();
+    files.put("knowledge/ai/validation-rules.yaml", "sha-validation-rules");
+    files.put("knowledge/ai/GENERATOR_CONTRACTS.md", "sha-generator-contracts");
+    files.put("knowledge/ai/generator-rule-mapping.md", "sha-generator-rule-mapping");
+    return files;
   }
 
   private static QipKnowledgePackRepository pack(
