@@ -132,6 +132,30 @@ public class ChainSemanticCanonicalizer {
               split.mode(),
               sortSplitBranches(split.branches()),
               split.reconvergenceNodeId());
+      case SemanticRegion.Loop loop ->
+          new SemanticRegion.Loop(
+              loop.regionId(),
+              loop.ownerNodeId(),
+              loop.bodyEntryNodeId(),
+              loop.bodyExitNodeIds(),
+              loop.exitNodeId(),
+              loop.policy());
+      case SemanticRegion.Retry retry ->
+          new SemanticRegion.Retry(
+              retry.regionId(),
+              retry.ownerNodeId(),
+              retry.bodyEntryNodeId(),
+              retry.bodyExitNodeIds(),
+              retry.exhaustedNodeId(),
+              retry.policy());
+      case SemanticRegion.ErrorScope scope ->
+          new SemanticRegion.ErrorScope(
+              scope.regionId(),
+              scope.ownerNodeId(),
+              scope.tryEntryNodeId(),
+              scope.handlers(),
+              scope.finallyEntryNodeId(),
+              scope.exitNodeIds());
     };
   }
 
@@ -174,6 +198,13 @@ public class ChainSemanticCanonicalizer {
       case SemanticRoute.SplitBranch branch -> branch;
       case SemanticRoute.Reconverge reconverge ->
           new SemanticRoute.Reconverge(sortStrings(reconverge.branchIds()));
+      case SemanticRoute.LoopBody body -> body;
+      case SemanticRoute.LoopExit exit -> exit;
+      case SemanticRoute.RetryAttempt attempt -> attempt;
+      case SemanticRoute.RetryExhausted exhausted -> exhausted;
+      case SemanticRoute.TryPath tryPath -> tryPath;
+      case SemanticRoute.CatchPath catchPath -> catchPath;
+      case SemanticRoute.FinallyPath finallyPath -> finallyPath;
     };
   }
 
