@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -430,6 +431,10 @@ public class DesignInputCapability implements StageCapability {
       designCoverageValidator.validate(brief);
     } catch (IllegalArgumentException ex) {
       return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, userFacingAuthoringWait(ex));
+    }
+    var unresolved = BriefMappingValidator.unresolvedRequiredMessage(brief);
+    if (unresolved.isPresent()) {
+      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, unresolved.get());
     }
     return null;
   }

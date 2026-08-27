@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessa
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
@@ -262,6 +263,44 @@ class RequirementBriefToolTest {
     assertEquals(2, brief.mappingIntents().size());
     assertEquals("map-init", brief.mappingIntents().getFirst().mappingIntentId());
     assertEquals("map-conv", brief.mappingIntents().get(1).mappingIntentId());
+    assertEquals(
+        MappingRuleStatus.PROPOSED,
+        brief.mappingIntents().getFirst().rules().getFirst().status());
+  }
+
+  @Test
+  void identityOnlyAutoDoesNotCreateMappingIntent() {
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
+
+    RequirementDataMapping identity =
+        new RequirementDataMapping(
+            "map-init",
+            RequirementDataMapping.Stage.INITIALIZATION,
+            "trigger-1",
+            "call-1",
+            RequirementDataMapping.Mode.EXPLICIT,
+            List.of(new RequirementDataMapping.Rule("$.id", "$.id", null)),
+            List.of("fact-init"));
+
+    String result =
+        tool.captureRequirementBrief(
+            new RequirementBriefCapture(
+                "Pass-through order flow",
+                List.of(),
+                List.of(),
+                List.of(),
+                "Identity copy only",
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(identity)));
+
+    assertTrue(result.contains("Requirement brief captured"), result);
+    RequirementBrief brief = getBrief("conv-brief").orElseThrow();
+    assertEquals(List.of(identity), brief.dataMappings());
+    assertTrue(brief.mappingIntents().isEmpty());
   }
 
   @Test

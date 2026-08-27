@@ -14,12 +14,17 @@ public record MappingIntent(
     MappingPort sourcePort,
     String targetRef,
     MappingPort targetPort,
-    List<RequirementDataMapping.Rule> rules) {
+    List<MappingIntentRule> rules) {
 
   public MappingIntent {
     mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
     sourceRef = sourceRef == null ? "" : sourceRef.trim();
     targetRef = targetRef == null ? "" : targetRef.trim();
     rules = rules == null ? List.of() : List.copyOf(rules);
+  }
+
+  public MappingIntent withRules(List<MappingIntentRule> newRules) {
+    return new MappingIntent(
+        mappingIntentId, sourceRef, sourcePort, targetRef, targetPort, newRules);
   }
 }

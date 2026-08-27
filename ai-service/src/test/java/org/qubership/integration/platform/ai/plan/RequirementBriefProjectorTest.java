@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
@@ -122,8 +124,88 @@ class RequirementBriefProjectorTest {
                 MappingPort.OUTPUT,
                 "call-1",
                 MappingPort.REQUEST,
-                explicit.rules())),
+                List.of(
+                    new MappingIntentRule(
+                        "$.id", "$.petId", null, MappingRuleStatus.PROPOSED)))),
         projected.mappingIntents());
     assertEquals(List.of(explicit, passThrough), projected.dataMappings());
+  }
+
+  @Test
+  void groupsFiveRulesAtOneBoundaryAndOmitsIdentityOnlyAuto() {
+    RequirementDataMapping fiveRules =
+        new RequirementDataMapping(
+            "map-init",
+            RequirementDataMapping.Stage.INITIALIZATION,
+            "trigger-1",
+            "call-1",
+            RequirementDataMapping.Mode.EXPLICIT,
+            List.of(
+                new RequirementDataMapping.Rule("$.orderId", "$.orderId", null),
+                new RequirementDataMapping.Rule("$.userId", "$.personId", null),
+                new RequirementDataMapping.Rule("$.name", "$.fullName", null),
+                new RequirementDataMapping.Rule("$.createdAt", "$.registrationDate", null),
+                new RequirementDataMapping.Rule("$.status", "$.state", null)),
+            List.of("trigger-1"));
+    RequirementDataMapping identityOnly =
+        new RequirementDataMapping(
+            "map-resp",
+            RequirementDataMapping.Stage.RESPONSE,
+            "call-1",
+            "trigger-1",
+            RequirementDataMapping.Mode.EXPLICIT,
+            List.of(new RequirementDataMapping.Rule("$.id", "$.id", null)),
+            List.of("call-1"));
+    RequirementBrief projected =
+        RequirementBriefProjector.project(
+            new RequirementBrief(
+                "Orders",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "Map the request only",
+                "ref",
+                "draft",
+                List.of(),
+                List.of(fiveRules, identityOnly)));
+
+    assertEquals(1, projected.mappingIntents().size());
+    MappingIntent intent = projected.mappingIntents().getFirst();
+    assertEquals("map-init", intent.mappingIntentId());
+    assertEquals(MappingPort.OUTPUT, intent.sourcePort());
+    assertEquals(MappingPort.REQUEST, intent.targetPort());
+    assertEquals(5, intent.rules().size());
+    assertEquals(MappingRuleStatus.AUTO, intent.rules().getFirst().status());
+    assertEquals(MappingRuleStatus.PROPOSED, intent.rules().get(1).status());
+  }
+
+  @Test
+  void preservesExistingMappingIntentsInsteadOfReplacingThemFromDataMappings() {
+    MappingIntent unresolved =
+        new MappingIntent(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("", "$.personId", null, MappingRuleStatus.UNRESOLVED)));
+    RequirementBrief projected =
+        RequirementBriefProjector.project(
+            new RequirementBrief(
+                    "Orders",
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    "Map the request only",
+                    "ref",
+                    "draft",
+                    List.of(),
+                    List.of())
+                .withMappingIntents(List.of(unresolved)));
+
+    assertEquals(List.of(unresolved), projected.mappingIntents());
   }
 }

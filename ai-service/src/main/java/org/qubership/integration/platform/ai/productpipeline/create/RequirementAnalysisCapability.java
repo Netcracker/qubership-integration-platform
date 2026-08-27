@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
+import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
@@ -406,6 +407,11 @@ public class RequirementAnalysisCapability implements StageCapability {
           StageOutcome.of(
               StageOutcomeClass.NEEDS_INPUT,
               "Requirement analysis did not capture a requirement brief"));
+    }
+    var unresolvedMapping = BriefMappingValidator.unresolvedRequiredMessage(brief);
+    if (unresolvedMapping.isPresent()) {
+      return new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, unresolvedMapping.get()));
     }
     var coverageError = coverageValidator.validate(approved, brief);
     if (coverageError.isPresent()) {

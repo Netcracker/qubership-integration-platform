@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
@@ -39,7 +40,25 @@ public final class RequirementBriefProjector {
         entryPoints,
         serviceCalls,
         requirementsFrom(facts, entryPoints, serviceCalls),
-        mappingIntentsFrom(brief.dataMappings()));
+        mappingIntentsFor(brief));
+  }
+
+  private static List<MappingIntent> mappingIntentsFor(RequirementBrief brief) {
+    if (!brief.mappingIntents().isEmpty()) {
+      return collapsePassThroughIntents(brief.mappingIntents());
+    }
+    return mappingIntentsFrom(brief.dataMappings());
+  }
+
+  private static List<MappingIntent> collapsePassThroughIntents(List<MappingIntent> intents) {
+    List<MappingIntent> kept = new ArrayList<>();
+    for (MappingIntent intent : intents) {
+      if (intent == null || BriefMappingValidator.isIdentityOnlyAuto(intent.rules())) {
+        continue;
+      }
+      kept.add(intent);
+    }
+    return List.copyOf(kept);
   }
 
   static List<RequirementEntryPoint> entryPointsFrom(List<RequirementFact> facts) {
@@ -106,6 +125,10 @@ public final class RequirementBriefProjector {
       if (mapping == null || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT) {
         continue;
       }
+      List<MappingIntentRule> rules = BriefMappingValidator.classifyFromLegacy(mapping.rules());
+      if (BriefMappingValidator.isIdentityOnlyAuto(rules)) {
+        continue;
+      }
       intents.add(
           new MappingIntent(
               mapping.mappingId(),
@@ -113,7 +136,7 @@ public final class RequirementBriefProjector {
               sourcePort(mapping.stage()),
               mapping.toIntentRef(),
               targetPort(mapping.stage()),
-              mapping.rules()));
+              rules));
     }
     return List.copyOf(intents);
   }
