@@ -3,11 +3,14 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class RequirementBriefCoverageValidatorTest {
 
@@ -165,8 +168,7 @@ class RequirementBriefCoverageValidatorTest {
 
     Optional<String> error = validator.validate(approved, reversed);
 
-    assertTrue(error.isPresent());
-    assertTrue(error.orElseThrow().contains("INITIALIZATION"), error.orElseThrow());
+    assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
   }
 
   @Test
@@ -222,6 +224,174 @@ class RequirementBriefCoverageValidatorTest {
     Optional<String> error = validator.validate(approved, brief);
 
     assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
+  }
+
+  @Test
+  void rejectsMissingServiceCallId() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    RequirementFact omFact =
+        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
+    RequirementFact wfmFact =
+        serviceCallFact("fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask");
+    CatalogBindingHint omHint =
+        catalogHint(
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            observedAt);
+    CatalogBindingHint wfmHint =
+        catalogHint(
+            "call-wfm-create-task",
+            "fact-wfm",
+            "createTask",
+            "sys-wfm",
+            "sg-wfm",
+            "spec-wfm",
+            "op-wfm",
+            observedAt);
+    RequirementServiceCall omCall =
+        new RequirementServiceCall(
+            "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint);
+    RequirementServiceCall wfmCall =
+        new RequirementServiceCall(
+            "call-wfm-create-task", "fact-wfm", "Salesforce WFM", "createTask", wfmHint);
+    RequirementDraft approved = approvedDraft(List.of(omFact, wfmFact), List.of(omCall, wfmCall));
+    RequirementBrief brief =
+        briefWithCalls(approved, List.of(omFact, wfmFact), List.of(omCall));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("call-wfm-create-task"), error.orElseThrow());
+    assertTrue(
+        error.orElseThrow().contains("serviceCallId=call-wfm-create-task"), error.orElseThrow());
+  }
+
+  @Test
+  void rejectsBindingAttachedToAnotherCallId() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    RequirementFact omFact =
+        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
+    CatalogBindingHint omHint =
+        catalogHint(
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            observedAt);
+    CatalogBindingHint wfmHint =
+        catalogHint(
+            "call-wfm-create-task",
+            "fact-wfm",
+            "createTask",
+            "sys-wfm",
+            "sg-wfm",
+            "spec-wfm",
+            "op-wfm",
+            observedAt);
+    RequirementServiceCall approvedCall =
+        new RequirementServiceCall(
+            "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint);
+    RequirementServiceCall mismatchedCall =
+        new RequirementServiceCall(
+            "call-om-result", "fact-om", "Order Management", "onTaskResult", wfmHint);
+    RequirementDraft approved = approvedDraft(List.of(omFact), List.of(approvedCall));
+    RequirementBrief brief = briefWithCalls(approved, List.of(omFact), List.of(mismatchedCall));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("call-om-result"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("call-wfm-create-task"), error.orElseThrow());
+  }
+
+  private static RequirementDraft approvedDraft(
+      List<RequirementFact> facts, List<RequirementServiceCall> serviceCalls) {
+    return new RequirementDraft(
+        true,
+        "Call OM then Salesforce WFM",
+        DraftDecision.READY_FOR_PLAN,
+        List.of(),
+        "brainstorming",
+        "1",
+        null,
+        null,
+        null,
+        false,
+        facts,
+        false,
+        null,
+        serviceCalls);
+  }
+
+  private static RequirementBrief briefWithCalls(
+      RequirementDraft approved,
+      List<RequirementFact> facts,
+      List<RequirementServiceCall> serviceCalls) {
+    return new RequirementBrief(
+        "Call OM then Salesforce WFM",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "summary",
+        "ref",
+        approved.planningText(),
+        facts,
+        List.of(),
+        List.of(),
+        serviceCalls,
+        List.of(),
+        List.of());
+  }
+
+  private static RequirementFact serviceCallFact(
+      String sourceFactId, String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        sourceFactId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
+  }
+
+  private static CatalogBindingHint catalogHint(
+      String serviceCallId,
+      String sourceFactId,
+      String operationQuery,
+      String systemId,
+      String specificationGroupId,
+      String specificationId,
+      String integrationOperationId,
+      Instant observedAt) {
+    return new CatalogBindingHint(
+        "2",
+        serviceCallId,
+        sourceFactId,
+        operationQuery,
+        systemId,
+        specificationGroupId,
+        specificationId,
+        integrationOperationId,
+        "http",
+        "POST",
+        "/tasks",
+        "2024.4",
+        observedAt,
+        "evidence-" + serviceCallId);
   }
 
   private static RequirementDataMapping passThrough(

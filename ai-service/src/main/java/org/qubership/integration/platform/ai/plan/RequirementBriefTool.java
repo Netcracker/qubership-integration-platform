@@ -209,11 +209,14 @@ public class RequirementBriefTool {
   }
 
   /**
-   * Replaces capture facts and draft text with the server-owned approved values.
+   * Replaces capture facts, service calls, and draft text with the server-owned approved values.
    * Goal/summary/inputs/constraints/assumptions stay from the agent.
    */
   static RequirementBrief pinApprovedDraftFacts(RequirementBrief brief, RequirementDraft approved) {
-    return brief.withFacts(approved.facts()).withApprovedDraftText(approved.planningText());
+    return brief
+        .withFacts(approved.facts())
+        .withApprovedDraftText(approved.planningText())
+        .withServiceCalls(approved.serviceCalls());
   }
 
   static RequirementBrief withCanonicalTriggerFacts(RequirementBrief brief) {

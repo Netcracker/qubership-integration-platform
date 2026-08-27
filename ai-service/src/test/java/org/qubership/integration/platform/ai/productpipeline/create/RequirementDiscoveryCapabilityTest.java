@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -13,6 +12,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,7 +25,6 @@ import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDo
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -41,7 +40,6 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
-import org.qubership.integration.platform.ai.plan.ServiceCallAssessment;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -54,6 +52,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
 
@@ -374,23 +373,9 @@ class RequirementDiscoveryCapabilityTest {
 
   @Test
   void discoverySkipsCatalogBindingHintWithoutOptionalProducesDeclaration() {
-    CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
-    when(catalogReadTool.searchCatalogSystems(anyString()))
-        .thenReturn(
-            List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
-    when(catalogReadTool.getApiSpecifications("sys-1"))
-        .thenReturn(
-            List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-    when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
-        .thenReturn(
-            List.of(
-                new CatalogRestClient.OperationDto(
-                    "op-1", "findPetsByStatus", "GET", "/pets", "spec-1")));
-
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft approved = petstoreServiceCallDraft();
-    RequirementDiscoveryCapability capability =
-        discoveryWithMatcher(store, approved, new CatalogBindingMatcher(catalogReadTool));
+    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
 
     // create-chain@1 shape: produces requirement-draft only — no catalog-binding-hint declaration.
     ProductPipelineProfile v1Like =
@@ -428,23 +413,9 @@ class RequirementDiscoveryCapabilityTest {
 
   @Test
   void discoveryEmitsCatalogBindingHintOnlyForExactLocalMatch() {
-    CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
-    when(catalogReadTool.searchCatalogSystems(anyString()))
-        .thenReturn(
-            List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
-    when(catalogReadTool.getApiSpecifications("sys-1"))
-        .thenReturn(
-            List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-    when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
-        .thenReturn(
-            List.of(
-                new CatalogRestClient.OperationDto(
-                    "op-1", "findPetsByStatus", "GET", "/pets", "spec-1")));
-
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft approved = petstoreServiceCallDraft();
-    RequirementDiscoveryCapability capability =
-        discoveryWithMatcher(store, approved, new CatalogBindingMatcher(catalogReadTool));
+    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -486,8 +457,6 @@ class RequirementDiscoveryCapabilityTest {
 
   @Test
   void discoveryCatalogMissDoesNotCallApiHubOrEmitHint() {
-    CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
-    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
 
@@ -515,8 +484,7 @@ class RequirementDiscoveryCapabilityTest {
                     RequirementFactKind.SERVICE_CALL,
                     "UnknownSvc",
                     "GET /x")));
-    RequirementDiscoveryCapability capability =
-        discoveryWithMatcher(store, approved, new CatalogBindingMatcher(catalogReadTool));
+    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -546,11 +514,8 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
-    assertEquals(StageOutcomeClass.CANDIDATE, completed.get().outcome().outcomeClass());
-    assertEquals(1, completed.get().outcome().candidates().size());
-    assertEquals(
-        CompilationArtifacts.Kind.REQUIREMENT_DRAFT,
-        completed.get().outcome().candidates().get(0).kind());
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertTrue(completed.get().outcome().candidates().isEmpty());
     verifyNoInteractions(apiHub, gateway);
   }
 
@@ -686,8 +651,7 @@ class RequirementDiscoveryCapabilityTest {
                     "chain",
                     "Create a chain named Pet Inventory Check"),
                 serviceCall));
-    RequirementDiscoveryCapability capability =
-        discoveryWithMatcher(store, approved, new CatalogBindingMatcher(catalogReadTool));
+    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -731,15 +695,14 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   /**
-   * Each outbound call keeps the binding gathering resolved for it, with no catalog read left.
-   *
-   * <p>Two services share one draft binding, so the draft alone cannot say which call it belongs
-   * to. The resolutions recorded during gathering can.
+   * Each outbound call keeps the binding stored on the draft, with no catalog read and no
+   * conversation-memory lookup.
    */
   @Test
   void discoveryPairsEveryServiceCallWithItsOwnResolvedBinding() {
     CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
-    ConversationApiResolutions bindings = new ConversationApiResolutions();
+    ConversationApiResolutions emptyCache = new ConversationApiResolutions();
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
 
     RequirementFact inventoryCall =
         RequirementFact.of(
@@ -753,24 +716,38 @@ class RequirementDiscoveryCapabilityTest {
             RequirementFactKind.SERVICE_CALL,
             "Billing",
             "Then post the invoice through Billing using POST /invoices.");
-    bindings.remember(
-        "conv-two-services",
-        ServiceCallAssessment.resolved(
+    CatalogBindingHint inventoryHint =
+        new CatalogBindingHint(
+            "2",
+            inventoryCall.serviceCallId(),
             inventoryCall.sourceFactId(),
-            new ServiceCallAssessment.Intent(
-                inventoryCall.text(), "Petstore Ext", "getInventory", "GET", "/store/inventory"),
-            new CatalogBindingMatcher.CatalogMatch(
-                "sys-pet", "sg-pet", "spec-pet", "op-inventory", "Petstore Ext", "http", "GET",
-                "/store/inventory", "getInventory", "catalog-read:pet")));
-    bindings.remember(
-        "conv-two-services",
-        ServiceCallAssessment.resolved(
+            "GET /store/inventory",
+            "sys-pet",
+            "sg-pet",
+            "spec-pet",
+            "op-inventory",
+            "http",
+            "GET",
+            "/store/inventory",
+            "2024.4",
+            observedAt,
+            "catalog-read:pet");
+    CatalogBindingHint invoiceHint =
+        new CatalogBindingHint(
+            "2",
+            invoiceCall.serviceCallId(),
             invoiceCall.sourceFactId(),
-            new ServiceCallAssessment.Intent(
-                invoiceCall.text(), "Billing", "createInvoice", "POST", "/invoices"),
-            new CatalogBindingMatcher.CatalogMatch(
-                "sys-bill", "sg-bill", "spec-bill", "op-invoice", "Billing", "http", "POST",
-                "/invoices", "createInvoice", "catalog-read:bill")));
+            "POST /invoices",
+            "sys-bill",
+            "sg-bill",
+            "spec-bill",
+            "op-invoice",
+            "http",
+            "POST",
+            "/invoices",
+            "2024.4",
+            observedAt,
+            "catalog-read:bill");
 
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft approved =
@@ -783,7 +760,7 @@ class RequirementDiscoveryCapabilityTest {
             "1",
             null,
             null,
-            new ResolvedCatalogBinding("sys-pet", "spec-pet", "sg-pet", "op-inventory", "EXTERNAL"),
+            null,
             false,
             List.of(
                 RequirementFact.of(
@@ -792,7 +769,22 @@ class RequirementDiscoveryCapabilityTest {
                     "chain",
                     "Create an inventory-to-invoice chain"),
                 inventoryCall,
-                invoiceCall));
+                invoiceCall),
+            false,
+            null,
+            List.of(
+                new RequirementServiceCall(
+                    inventoryCall.serviceCallId(),
+                    inventoryCall.sourceFactId(),
+                    "Petstore Ext",
+                    "getInventory",
+                    inventoryHint),
+                new RequirementServiceCall(
+                    invoiceCall.serviceCallId(),
+                    invoiceCall.sourceFactId(),
+                    "Billing",
+                    "createInvoice",
+                    invoiceHint)));
 
     RequirementDiscoveryCapability capability =
         new RequirementDiscoveryCapability(
@@ -806,8 +798,8 @@ class RequirementDiscoveryCapabilityTest {
               ProductCapabilityCaptureContext.offerDraft(approved);
               return Multi.createFrom().empty();
             },
-            new CatalogBindingMatcher(catalogReadTool),
-            bindings);
+            null,
+            emptyCache);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -850,7 +842,184 @@ class RequirementDiscoveryCapabilityTest {
     verifyNoInteractions(catalogReadTool);
   }
 
+  @Test
+  void discoveryEmitsFrozenBindingAfterResolutionCacheIsEmpty() {
+    CatalogSystemReadTool catalogReadTool = mock(CatalogSystemReadTool.class);
+    ConversationApiResolutions emptyCache = new ConversationApiResolutions();
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    RequirementFact omCall =
+        new RequirementFact(
+            "fact-om",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "Call Order Management onTaskResult",
+            "Order Management",
+            "onTaskResult",
+            "",
+            "",
+            "",
+            "call-om-result");
+    RequirementFact wfmCall =
+        new RequirementFact(
+            "fact-wfm",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "Call Salesforce WFM createTask",
+            "Salesforce WFM",
+            "createTask",
+            "",
+            "",
+            "",
+            "call-wfm-create-task");
+    CatalogBindingHint omHint =
+        new CatalogBindingHint(
+            "2",
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-shared",
+            "http",
+            "POST",
+            "/tasks/result",
+            "2024.4",
+            observedAt,
+            "evidence-om");
+    CatalogBindingHint wfmHint =
+        new CatalogBindingHint(
+            "2",
+            "call-wfm-create-task",
+            "fact-wfm",
+            "createTask",
+            "sys-wfm",
+            "sg-wfm",
+            "spec-wfm",
+            "op-shared",
+            "http",
+            "POST",
+            "/tasks",
+            "2024.4",
+            observedAt,
+            "evidence-wfm");
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Call OM then Salesforce WFM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            null,
+            false,
+            List.of(
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.GOAL,
+                    "chain",
+                    "Create an OM to Salesforce WFM chain"),
+                omCall,
+                wfmCall),
+            false,
+            null,
+            List.of(
+                new RequirementServiceCall(
+                    "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint),
+                new RequirementServiceCall(
+                    "call-wfm-create-task",
+                    "fact-wfm",
+                    "Salesforce WFM",
+                    "createTask",
+                    wfmHint)));
+
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            null,
+            (conversationId, userText) -> {
+              store.beginTurn(conversationId);
+              store.put(conversationId, approved);
+              store.markCaptured(conversationId);
+              ProductCapabilityCaptureContext.offerDraft(approved);
+              return Multi.createFrom().empty();
+            },
+            null,
+            emptyCache);
+
+    ProductPipelineProfile withHint =
+        discoveryProfile(
+            List.of(new ArtifactTypeRef("requirement-draft", 2)),
+            List.of(new ArtifactTypeRef("catalog-binding-hint", 1)));
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-frozen-after-restart",
+            "conv-frozen-after-restart",
+            "requirement-discovery",
+            "exec-frozen-after-restart",
+            "attempt-frozen-after-restart",
+            withHint,
+            null,
+            List.of(),
+            Map.of("userText", "Call OM then Salesforce WFM"));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability
+        .execute(context)
+        .subscribe()
+        .with(
+            signal -> {
+              if (signal instanceof CapabilitySignal.Completed c) {
+                completed.set(c);
+              }
+            });
+
+    List<ArtifactCandidate> candidates = completed.get().outcome().candidates();
+    assertEquals(3, candidates.size());
+    assertEquals(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, candidates.get(0).kind());
+    CatalogBindingHint first = (CatalogBindingHint) candidates.get(1).payload();
+    CatalogBindingHint second = (CatalogBindingHint) candidates.get(2).payload();
+    assertEquals("2", first.schemaVersion());
+    assertEquals("2", second.schemaVersion());
+    assertEquals("call-om-result", first.serviceCallId());
+    assertEquals("call-wfm-create-task", second.serviceCallId());
+    assertEquals("op-shared", first.integrationOperationId());
+    assertEquals("op-shared", second.integrationOperationId());
+    assertEquals(omHint, first);
+    assertEquals(wfmHint, second);
+    verifyNoInteractions(catalogReadTool);
+  }
+
   private static RequirementDraft petstoreServiceCallDraft() {
+    RequirementFact call =
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "Petstore Ext",
+            "GET /pets");
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            "2",
+            call.serviceCallId(),
+            call.sourceFactId(),
+            "GET /pets",
+            "sys-1",
+            "sg-1",
+            "spec-1",
+            "op-1",
+            "http",
+            "GET",
+            "/pets",
+            "2024.4",
+            Instant.parse("2026-08-27T12:00:00Z"),
+            "catalog-read:pet");
     return new RequirementDraft(
         true,
         "Call Petstore Ext GET /pets for pending pets.",
@@ -868,11 +1037,12 @@ class RequirementDiscoveryCapabilityTest {
                 RequirementFactKind.GOAL,
                 "chain",
                 "Create pending pets chain"),
-            RequirementFact.of(
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.SERVICE_CALL,
-                "Petstore Ext",
-                "GET /pets")));
+            call),
+        false,
+        null,
+        List.of(
+            new RequirementServiceCall(
+                call.serviceCallId(), call.sourceFactId(), "Petstore Ext", "GET /pets", hint)));
   }
 
   private static RequirementDiscoveryCapability discoveryWithMatcher(

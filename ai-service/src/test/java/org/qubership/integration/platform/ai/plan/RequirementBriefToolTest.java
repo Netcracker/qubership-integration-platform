@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,9 +19,11 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessa
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class RequirementBriefToolTest {
@@ -359,6 +362,112 @@ class RequirementBriefToolTest {
   }
 
   @Test
+  void pinsApprovedServiceCallsInsteadOfAgentCopies() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    RequirementFact omFact =
+        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
+    RequirementFact wfmFact =
+        serviceCallFact("fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask");
+    CatalogBindingHint omHint =
+        catalogHint(
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            observedAt);
+    CatalogBindingHint wfmHint =
+        catalogHint(
+            "call-wfm-create-task",
+            "fact-wfm",
+            "createTask",
+            "sys-wfm",
+            "sg-wfm",
+            "spec-wfm",
+            "op-wfm",
+            observedAt);
+    RequirementServiceCall omCall =
+        new RequirementServiceCall(
+            "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint);
+    RequirementServiceCall wfmCall =
+        new RequirementServiceCall(
+            "call-wfm-create-task", "fact-wfm", "Salesforce WFM", "createTask", wfmHint);
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Call OM then Salesforce WFM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            null,
+            false,
+            List.of(omFact, wfmFact),
+            false,
+            null,
+            List.of(omCall, wfmCall));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-brief", approved);
+    tool =
+        new RequirementBriefTool(
+            captureSession,
+            draftStore,
+            new ObjectMapper(),
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
+
+    RequirementServiceCall agentCopy =
+        new RequirementServiceCall(
+            "call-om-result", "fact-om", "Order Management", "onTaskResult", null);
+    RequirementBrief agentBrief =
+        new RequirementBrief(
+                "Call OM then Salesforce WFM",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "summary only",
+                null,
+                "paraphrased draft that is not the pinned planning text",
+                List.of(omFact),
+                List.of())
+            .withServiceCalls(List.of(agentCopy));
+    RequirementBrief pinned = RequirementBriefTool.pinApprovedDraftFacts(agentBrief, approved);
+
+    assertEquals(approved.facts(), pinned.facts());
+    assertEquals(approved.planningText(), pinned.approvedDraftText());
+    assertEquals(List.of(omCall, wfmCall), pinned.serviceCalls());
+    assertEquals(omHint, pinned.serviceCalls().get(0).catalogBinding());
+    assertEquals(wfmHint, pinned.serviceCalls().get(1).catalogBinding());
+
+    String result =
+        tool.captureRequirementBrief(
+            new RequirementBriefCapture(
+                "Call OM then Salesforce WFM",
+                List.of(),
+                List.of(),
+                List.of(),
+                "summary only",
+                null,
+                "paraphrased draft that is not the pinned planning text",
+                List.of(omFact),
+                List.of()));
+
+    assertTrue(result.contains("Requirement brief captured"), result);
+    RequirementBrief stored = getBrief("conv-brief").orElseThrow();
+    assertEquals(List.of(omCall, wfmCall), stored.serviceCalls());
+    assertEquals(omHint, stored.serviceCalls().get(0).catalogBinding());
+    assertEquals(wfmHint, stored.serviceCalls().get(1).catalogBinding());
+  }
+
+  @Test
   void toolDescriptionLeavesMappingsEmptyWithoutServiceCallFacts() throws Exception {
     Tool tool =
         RequirementBriefTool.class
@@ -384,5 +493,47 @@ class RequirementBriefToolTest {
 
     RequirementBrief brief = getBrief("conv-brief").orElseThrow();
     assertTrue(brief.dataMappings().isEmpty());
+  }
+
+  private static RequirementFact serviceCallFact(
+      String sourceFactId, String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        sourceFactId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
+  }
+
+  private static CatalogBindingHint catalogHint(
+      String serviceCallId,
+      String sourceFactId,
+      String operationQuery,
+      String systemId,
+      String specificationGroupId,
+      String specificationId,
+      String integrationOperationId,
+      Instant observedAt) {
+    return new CatalogBindingHint(
+        "2",
+        serviceCallId,
+        sourceFactId,
+        operationQuery,
+        systemId,
+        specificationGroupId,
+        specificationId,
+        integrationOperationId,
+        "http",
+        "POST",
+        "/tasks",
+        "2024.4",
+        observedAt,
+        "evidence-" + serviceCallId);
   }
 }

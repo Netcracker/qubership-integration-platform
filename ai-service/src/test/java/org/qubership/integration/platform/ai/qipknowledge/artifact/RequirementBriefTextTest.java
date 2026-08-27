@@ -1,11 +1,17 @@
 package org.qubership.integration.platform.ai.qipknowledge.artifact;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 
 class RequirementBriefTextTest {
 
@@ -186,5 +192,76 @@ class RequirementBriefTextTest {
     assertEquals(
         MappingRuleStatus.PROPOSED, restored.mappingIntents().getFirst().rules().getFirst().status());
     assertEquals("$.personId", restored.mappingIntents().getFirst().rules().getFirst().targetPath());
+  }
+
+  @Test
+  void formatsCallIdsAndCatalogIdentities() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            "2",
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-shared",
+            "http",
+            "POST",
+            "/tasks/result",
+            "2024.4",
+            observedAt,
+            "evidence-om");
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Call OM then Salesforce WFM",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Two outbound calls",
+            "ref",
+            "draft",
+            List.of(
+                new RequirementFact(
+                    "fact-om",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.SERVICE_CALL,
+                    "",
+                    "Call Order Management onTaskResult",
+                    "Order Management",
+                    "onTaskResult",
+                    "",
+                    "",
+                    "",
+                    "call-om-result")),
+            List.of(),
+            List.of(),
+            List.of(
+                new RequirementServiceCall(
+                    "call-om-result",
+                    "fact-om",
+                    "Order Management",
+                    "onTaskResult",
+                    hint),
+                new RequirementServiceCall(
+                    "call-unbound", "fact-unbound", "Billing", "createInvoice")),
+            List.of(),
+            List.of());
+
+    String formatted = RequirementBriefText.format(brief);
+
+    assertTrue(formatted.contains("call-om-result"), formatted);
+    assertTrue(formatted.contains("systemId=sys-om"), formatted);
+    assertTrue(formatted.contains("specificationGroupId=sg-om"), formatted);
+    assertTrue(formatted.contains("specificationId=spec-om"), formatted);
+    assertTrue(formatted.contains("integrationOperationId=op-shared"), formatted);
+    assertTrue(formatted.contains("protocol=http"), formatted);
+    assertTrue(formatted.contains("method=POST"), formatted);
+    assertTrue(formatted.contains("path=/tasks/result"), formatted);
+    assertTrue(formatted.contains("call-unbound"), formatted);
+    assertTrue(formatted.contains("Billing"), formatted);
+    assertFalse(formatted.contains("systemId=\n"), formatted);
   }
 }
