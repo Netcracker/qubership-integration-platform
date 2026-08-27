@@ -1,0 +1,165 @@
+contractVersion: create-chain-compiler-contract/v1
+semanticSchemaVersion: chain-semantic-revision/v1
+elements:
+  http-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - contextPath
+      - httpMethodRestrict
+    materializationRuleId: materialize-http-trigger
+    runtimeDescriptor:
+      type: http-trigger
+      container: false
+      deprecated: false
+  kafka-trigger-2:
+    containmentRoles: {}
+    requiredProperties:
+      - groupId
+    materializationRuleId: materialize-kafka-trigger-2
+    runtimeDescriptor:
+      type: kafka-trigger-2
+      container: false
+      deprecated: false
+  service-call:
+    containmentRoles: {}
+    requiredProperties:
+      - integrationOperationId
+    materializationRuleId: materialize-service-call
+    runtimeDescriptor:
+      type: service-call
+      container: false
+      deprecated: false
+  script:
+    containmentRoles: {}
+    requiredProperties:
+      - script
+    materializationRuleId: materialize-script
+    runtimeDescriptor:
+      type: script
+      container: false
+      deprecated: false
+  mapper-2:
+    containmentRoles: {}
+    requiredProperties:
+      - mappingDescription
+    materializationRuleId: materialize-mapper-2
+    runtimeDescriptor:
+      type: mapper-2
+      container: false
+      deprecated: false
+  condition:
+    containmentRoles:
+      if:
+        min: 1
+      else:
+        min: 0
+        max: 1
+    requiredProperties: []
+    materializationRuleId: materialize-condition
+    runtimeDescriptor:
+      type: condition
+      container: true
+      deprecated: false
+  if:
+    containmentRoles: {}
+    requiredProperties:
+      - condition
+    materializationRuleId: materialize-condition-if
+    runtimeDescriptor:
+      type: if
+      container: false
+      deprecated: false
+  split-2:
+    containmentRoles:
+      split-element-2:
+        min: 1
+      main-split-element-2:
+        min: 0
+        max: 1
+    requiredProperties: []
+    materializationRuleId: materialize-split-2
+    runtimeDescriptor:
+      type: split-2
+      container: true
+      deprecated: false
+  split-async-2:
+    containmentRoles:
+      async-split-element-2:
+        min: 1
+    requiredProperties: []
+    materializationRuleId: materialize-split-async-2
+    runtimeDescriptor:
+      type: split-async-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  loop-2:
+    containmentRoles: {}
+    requiredProperties:
+      - expression
+    materializationRuleId: materialize-loop-2
+    runtimeDescriptor:
+      type: loop-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  try-catch-finally-2:
+    containmentRoles:
+      try-2:
+        min: 1
+        max: 1
+      catch-2:
+        min: 1
+      finally-2:
+        min: 0
+        max: 1
+    requiredProperties: []
+    materializationRuleId: materialize-try-catch-finally-2
+    runtimeDescriptor:
+      type: try-catch-finally-2
+      container: true
+      deprecated: false
+  catch-2:
+    containmentRoles: {}
+    requiredProperties:
+      - exception
+      - priority
+    materializationRuleId: materialize-catch-2
+    runtimeDescriptor:
+      type: catch-2
+      container: false
+      deprecated: false
+topology:
+  split-async-2:
+    supported: true
+    minimumBranches: 1
+    reconvergence: explicit
+  split-2:
+    supported: true
+    reconvergence: explicit
+  condition:
+    supported: true
+  loop-2:
+    supported: true
+  try-catch-finally-2:
+    supported: true
+  reconvergence:
+    supported: true
+    reconvergence: explicit
+  generic-barrier:
+    supported: false
+  generic-aggregate:
+    supported: false
+  choice:
+    supported: false
+requiredArtifacts:
+  - CHAIN_SEMANTIC_REVISION
+  - CHAIN_PLAN_GRAPH
+  - MATERIALIZATION_MAP
+requiredAddons:
+  - cip-design-executor
+  - cip-structure-generator
+requiredKnowledgeFragments:
+  - validation-rules
+  - generator-contracts
+  - generator-rule-mapping
