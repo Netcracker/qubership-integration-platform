@@ -51,9 +51,6 @@ public class CompilerSkillAddonRepository {
   public CompilerSkillAddonContext loadForSkill(String capabilityId) {
     String skillId = requireSkillId(capabilityId);
     CompilerSkillAddonIndex index = loadIndex();
-    if (index == null) {
-      return CompilerSkillAddonContext.empty();
-    }
 
     List<CompilerSkillAddonDocument> globalDocuments = new ArrayList<>();
     for (String relativePath : index.globalDocuments()) {
@@ -80,9 +77,6 @@ public class CompilerSkillAddonRepository {
   public Optional<AddonRuntimeMetadata> loadRuntimeMetadata(String capabilityId) {
     String skillId = requireSkillId(capabilityId);
     CompilerSkillAddonIndex index = loadIndex();
-    if (index == null) {
-      return Optional.empty();
-    }
     CompilerSkillAddonIndex.CompilerSkillAddonSkillIndex skillIndex = index.skills().get(skillId);
     if (skillIndex == null) {
       return Optional.empty();
@@ -100,7 +94,7 @@ public class CompilerSkillAddonRepository {
       if (filesystemBaseDir != null) {
         Path indexFile = addonsDir().resolve(CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE);
         if (!Files.isRegularFile(indexFile)) {
-          return null;
+          throw missingAddonIndex();
         }
         return objectMapper.readValue(Files.readString(indexFile), CompilerSkillAddonIndex.class);
       }
@@ -108,13 +102,20 @@ public class CompilerSkillAddonRepository {
       String resourcePath = classpathAddonsRoot() + CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE;
       try (InputStream stream = openClasspathResource(resourcePath)) {
         if (stream == null) {
-          return null;
+          throw missingAddonIndex();
         }
         return objectMapper.readValue(stream, CompilerSkillAddonIndex.class);
       }
     } catch (IOException e) {
-      return null;
+      throw new IllegalStateException(
+          "Failed to load compiler skill addon index for version " + activeVersion.normalized(),
+          e);
     }
+  }
+
+  private IllegalStateException missingAddonIndex() {
+    return new IllegalStateException(
+        "Compiler skill addon index is missing for version " + activeVersion.normalized());
   }
 
   private Optional<CompilerSkillAddonDocument> readDocument(String relativePath) {

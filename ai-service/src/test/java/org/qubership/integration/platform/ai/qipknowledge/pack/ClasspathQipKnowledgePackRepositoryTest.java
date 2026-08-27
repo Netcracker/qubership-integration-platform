@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDescriptor;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDisposition;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineEntry;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexBuilder;
@@ -80,14 +81,39 @@ class ClasspathQipKnowledgePackRepositoryTest {
     assertTrue(error.getMessage().contains("missing compilerContractSha256"));
   }
 
+  @Test
+  void requireCompilerContractDigestFailsWhenPinDoesNotMatchContract() {
+    QipKnowledgePackVersion version = new QipKnowledgePackVersion("test_v1", "test_v1");
+    ClassLoader classLoader =
+        new TestResourceClassLoader(version, CompilerContract.V1, "0".repeat(64));
+    ClasspathQipKnowledgePackRepository repository =
+        new ClasspathQipKnowledgePackRepository(
+            version, classLoader, new ObjectMapper().registerModule(new JavaTimeModule()));
+
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, repository::requireCompilerContractDigest);
+    assertTrue(error.getMessage().contains("does not match compiler contract"));
+  }
+
   private static final class TestResourceClassLoader extends ClassLoader {
 
     private final QipKnowledgePackVersion version;
+    private final String compilerContractVersion;
+    private final String compilerContractSha256;
     private final ObjectMapper objectMapper =
         new ObjectMapper().registerModule(new JavaTimeModule());
 
     private TestResourceClassLoader(QipKnowledgePackVersion version) {
+      this(version, null, null);
+    }
+
+    private TestResourceClassLoader(
+        QipKnowledgePackVersion version,
+        String compilerContractVersion,
+        String compilerContractSha256) {
       this.version = version;
+      this.compilerContractVersion = compilerContractVersion;
+      this.compilerContractSha256 = compilerContractSha256;
     }
 
     @Override
@@ -107,16 +133,17 @@ class ClasspathQipKnowledgePackRepositoryTest {
     private byte[] resourceBytes(String fileName) throws Exception {
       return switch (fileName) {
         case QipKnowledgePackIndexLoader.MANIFEST_FILE ->
-            objectMapper
-                .writeValueAsBytes(
-                    new QipKnowledgePackManifest(
+            objectMapper.writeValueAsBytes(
+                new QipKnowledgePackManifest(
                         version,
                         "/pack",
                         Instant.parse("2026-06-19T00:00:00Z"),
                         Map.of("skills/a/SKILL.md", "abc"),
                         List.of("cip-test-generator"),
                         List.of("cip-test-generator"),
-                        List.of()));
+                        List.of())
+                    .withCompilerContractPin(
+                        compilerContractVersion, compilerContractSha256, Map.of()));
         case QipKnowledgePackIndexLoader.CAPABILITY_REGISTRY_FILE ->
             objectMapper.writeValueAsBytes(
                 new CapabilityRegistry(

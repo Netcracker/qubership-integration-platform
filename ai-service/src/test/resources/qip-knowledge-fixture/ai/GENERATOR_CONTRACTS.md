@@ -442,7 +442,7 @@ Every generator contract specifies:
 - Aggregation strategy configuration
 
 **Validation Rules:**
-- split-async-2 has >= 1 branches
+- split-async-2 has 1 or more branches
 - No v1 split elements
 - No nested split-async-2
 - Aggregation strategy set when needed
