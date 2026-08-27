@@ -716,7 +716,7 @@ class GraphPatchOwnershipValidatorTest {
   private static ChainPlanGraph graphWithMaskingFields() {
     return new ChainPlanGraph(
         "1.0",
-        new ChainSection("demo", "demo", true, List.of("customerEmail")),
+        new ChainSection("demo", "demo", true, List.of("customerEmail"), null, null),
         List.of(
             new ChainPlanNode("http-trigger-1", "http-trigger", "Trigger", null, null, List.of()),
             new ChainPlanNode("script-1", "script", "Script", null, null, List.of())),

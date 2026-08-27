@@ -652,13 +652,14 @@ public class GraphPatchApplier {
         return new ChainPropertyStep(chain, 1);
       }
       return new ChainPropertyStep(
-          new ChainSection(
-              name, chain.description(), chain.maskingEnabled(), chain.maskedFieldNames()),
+          copySection(
+              chain, name, chain.description(), chain.maskingEnabled(), chain.maskedFieldNames()),
           0);
     }
     if ("description".equals(key)) {
       return new ChainPropertyStep(
-          new ChainSection(
+          copySection(
+              chain,
               chain.name(),
               property.value().trim(),
               chain.maskingEnabled(),
@@ -678,8 +679,7 @@ public class GraphPatchApplier {
         return new ChainPropertyStep(chain, 1);
       }
       return new ChainPropertyStep(
-          new ChainSection(
-              chain.name(), chain.description(), enabled, chain.maskedFieldNames()),
+          copySection(chain, chain.name(), chain.description(), enabled, chain.maskedFieldNames()),
           0);
     }
     List<String> parsed = parseMaskedFieldNamesList(property.value());
@@ -740,9 +740,10 @@ public class GraphPatchApplier {
 
   private static ChainSection copyChainSection(ChainSection chain) {
     if (chain == null) {
-      return new ChainSection("chain", null, null, null);
+      return new ChainSection("chain", null);
     }
-    return new ChainSection(
+    return copySection(
+        chain,
         chain.name(),
         chain.description(),
         chain.maskingEnabled(),
@@ -759,7 +760,22 @@ public class GraphPatchApplier {
 
   private static ChainSection withMaskedFieldNames(ChainSection chain, List<String> names) {
     List<String> copy = names == null || names.isEmpty() ? null : List.copyOf(names);
-    return new ChainSection(chain.name(), chain.description(), chain.maskingEnabled(), copy);
+    return copySection(chain, chain.name(), chain.description(), chain.maskingEnabled(), copy);
+  }
+
+  private static ChainSection copySection(
+      ChainSection chain,
+      String name,
+      String description,
+      Boolean maskingEnabled,
+      List<String> maskedFieldNames) {
+    return new ChainSection(
+        name,
+        description,
+        maskingEnabled,
+        maskedFieldNames,
+        chain.semanticRevisionId(),
+        chain.compilerContractVersion());
   }
 
   private static Boolean parseBoolean(String rawValue) {
