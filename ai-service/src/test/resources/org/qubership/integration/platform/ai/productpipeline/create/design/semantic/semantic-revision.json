@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "chain-semantic-revision/v1",
+  "revisionId": "revision-1",
+  "chainIdentity": "chain-greetings",
+  "compilerContractVersion": "create-chain-compiler-contract/v1",
+  "entryPoints": [
+    {
+      "entryPointId": "http-in",
+      "triggerNodeId": "trigger-http",
+      "initialTargetNodeId": "op-shared",
+      "order": 0,
+      "provenance": { "sourceFactIds": [] },
+      "presentation": { "label": null, "description": null }
+    },
+    {
+      "entryPointId": "kafka-in",
+      "triggerNodeId": "trigger-kafka",
+      "initialTargetNodeId": "op-shared",
+      "order": 1,
+      "provenance": { "sourceFactIds": [] },
+      "presentation": { "label": null, "description": null }
+    }
+  ],
+  "nodes": [
+    {
+      "kind": "TRIGGER",
+      "nodeId": "trigger-http",
+      "capabilityKey": "http-trigger",
+      "provenance": { "sourceFactIds": [] }
+    },
+    {
+      "kind": "TRIGGER",
+      "nodeId": "trigger-kafka",
+      "capabilityKey": "kafka-trigger-2",
+      "provenance": { "sourceFactIds": [] }
+    },
+    {
+      "kind": "OPERATION",
+      "nodeId": "op-shared",
+      "elementType": "script",
+      "provenance": { "sourceFactIds": [] }
+    },
+    {
+      "kind": "SERVICE_CALL",
+      "nodeId": "node-call",
+      "serviceCallId": "call-1",
+      "operation": "getOrder",
+      "provenance": { "sourceFactIds": ["fact-call"] }
+    }
+  ],
+  "regions": [],
+  "executionEdges": [
+    {
+      "edgeId": "edge-http-in",
+      "sourceNodeId": "trigger-http",
+      "targetNodeId": "op-shared",
+      "regionId": null,
+      "route": null,
+      "mappingId": null
+    },
+    {
+      "edgeId": "edge-kafka-in",
+      "sourceNodeId": "trigger-kafka",
+      "targetNodeId": "op-shared",
+      "regionId": null,
+      "route": null,
+      "mappingId": null
+    },
+    {
+      "edgeId": "edge-call",
+      "sourceNodeId": "op-shared",
+      "targetNodeId": "node-call",
+      "regionId": null,
+      "route": null,
+      "mappingId": "map-body"
+    }
+  ],
+  "containment": [],
+  "mappingIntents": [
+    {
+      "mappingIntentId": "map-body",
+      "sourceRef": "edge-call",
+      "sourcePort": "OUTPUT",
+      "targetRef": "edge-call",
+      "targetPort": "REQUEST",
+      "rules": [
+        {
+          "sourcePath": "id",
+          "targetPath": "orderId",
+          "expression": null,
+          "status": "PROPOSED"
+        }
+      ],
+      "implementationPreference": null
+    }
+  ],
+  "constraints": ["no auth"],
+  "assumptions": ["happy path"],
+  "citations": []
+}

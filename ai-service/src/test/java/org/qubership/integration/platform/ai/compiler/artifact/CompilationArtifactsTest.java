@@ -20,6 +20,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.DecisionCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 
 class CompilationArtifactsTest {
 
@@ -143,6 +146,54 @@ class CompilationArtifactsTest {
 
     assertNull(revision.provenance());
     assertNull(command(Kind.REQUIREMENT_DRAFT, "draft", List.of(), null).provenance());
+  }
+
+  @Test
+  void decodesChainSemanticRevisionAsTypedPayload() {
+    ChainSemanticRevision semantic = sampleSemanticRevision();
+    Revision stored =
+        artifacts.append(
+            new AppendCommand(
+                COMPILATION_ID,
+                Kind.CHAIN_SEMANTIC_REVISION,
+                ChainSemanticRevision.CURRENT_SCHEMA_VERSION,
+                "test-producer",
+                "1",
+                semantic,
+                List.of(),
+                null));
+
+    assertEquals(semantic, artifacts.payload(stored, ChainSemanticRevision.class));
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> artifacts.payload(stored, Map.class));
+    assertEquals(
+        "CHAIN_SEMANTIC_REVISION payload decodes only as ChainSemanticRevision",
+        error.getMessage());
+  }
+
+  @Test
+  void rejectsUnsupportedChainSemanticRevisionSchema() {
+    AppendCommand command =
+        new AppendCommand(
+            COMPILATION_ID,
+            Kind.CHAIN_SEMANTIC_REVISION,
+            "normalized-design-flow/v1",
+            "test-producer",
+            "1",
+            sampleSemanticRevision(),
+            List.of(),
+            null);
+
+    IllegalArgumentException error =
+        assertThrows(IllegalArgumentException.class, () -> artifacts.append(command));
+    assertEquals(
+        "Unsupported semantic schema version: normalized-design-flow/v1", error.getMessage());
+  }
+
+  private static ChainSemanticRevision sampleSemanticRevision() {
+    return SemanticFixtures.revision(
+        List.of(new SemanticEntryPoint("http-in", "trigger-http")));
   }
 
   private Revision append(
