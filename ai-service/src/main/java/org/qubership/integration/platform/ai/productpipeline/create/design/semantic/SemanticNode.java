@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.semantic;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.util.List;
@@ -17,7 +16,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
   @JsonSubTypes.Type(value = SemanticNode.ServiceCall.class, name = "SERVICE_CALL"),
   @JsonSubTypes.Type(value = SemanticNode.Operation.class, name = "OPERATION")
 })
-@JsonIgnoreProperties(ignoreUnknown = true)
 public sealed interface SemanticNode
     permits SemanticNode.Trigger, SemanticNode.ServiceCall, SemanticNode.Operation {
 

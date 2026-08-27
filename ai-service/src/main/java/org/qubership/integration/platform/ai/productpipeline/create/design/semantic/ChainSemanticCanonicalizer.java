@@ -1,10 +1,12 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.semantic;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -22,21 +24,19 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeC
 @ApplicationScoped
 public class ChainSemanticCanonicalizer {
 
-  private final ObjectMapper objectMapper;
-
-  public ChainSemanticCanonicalizer() {
-    this(new ObjectMapper());
-  }
-
-  @Inject
-  public ChainSemanticCanonicalizer(ObjectMapper objectMapper) {
-    this.objectMapper = canonicalMapper(Objects.requireNonNull(objectMapper, "objectMapper"));
-  }
+  private static final ObjectMapper OBJECT_MAPPER =
+      JsonMapper.builder()
+          .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
+          .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+          .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+          .defaultPropertyInclusion(
+              JsonInclude.Value.construct(JsonInclude.Include.ALWAYS, JsonInclude.Include.ALWAYS))
+          .build();
 
   public byte[] canonicalBytes(ChainSemanticRevision revision) {
     Objects.requireNonNull(revision, "revision");
     try {
-      return objectMapper.writeValueAsBytes(sorted(revision));
+      return OBJECT_MAPPER.writeValueAsBytes(sorted(revision));
     } catch (Exception e) {
       throw new IllegalStateException("Cannot serialize chain semantic revision", e);
     }
@@ -51,13 +51,6 @@ public class ChainSemanticCanonicalizer {
     }
   }
 
-  private static ObjectMapper canonicalMapper(ObjectMapper source) {
-    return source
-        .copy()
-        .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
-        .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
-  }
-
   private static ChainSemanticRevision sorted(ChainSemanticRevision revision) {
     return new ChainSemanticRevision(
         revision.schemaVersion(),
@@ -66,7 +59,7 @@ public class ChainSemanticCanonicalizer {
         revision.compilerContractVersion(),
         sortEntryPoints(revision.entryPoints()),
         sortNodes(revision.nodes()),
-        revision.regions(),
+        sortRegions(revision.regions()),
         sortEdges(revision.executionEdges()),
         sortContainment(revision.containment()),
         sortMappings(revision.mappingIntents()),
@@ -87,9 +80,7 @@ public class ChainSemanticCanonicalizer {
               sortedProvenance(entryPoint.provenance()),
               entryPoint.presentation()));
     }
-    copy.sort(
-        Comparator.comparingInt(SemanticEntryPoint::order)
-            .thenComparing(SemanticEntryPoint::entryPointId));
+    copy.sort(Comparator.comparing(SemanticEntryPoint::entryPointId));
     return List.copyOf(copy);
   }
 
@@ -113,6 +104,12 @@ public class ChainSemanticCanonicalizer {
       case SemanticNode.Operation operation ->
           new SemanticNode.Operation(operation.nodeId(), operation.elementType(), provenance);
     };
+  }
+
+  private static List<SemanticRegion> sortRegions(List<SemanticRegion> regions) {
+    List<SemanticRegion> copy = new ArrayList<>(regions);
+    copy.sort(Comparator.comparing(SemanticRegion::regionId));
+    return List.copyOf(copy);
   }
 
   private static List<SemanticExecutionEdge> sortEdges(List<SemanticExecutionEdge> edges) {
