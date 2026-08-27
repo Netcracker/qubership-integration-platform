@@ -197,6 +197,18 @@ class CompilerSkillAddonBuildSupportTest {
   }
 
   @Test
+  void loadForSkillFailsWhenAddonIndexIsMissing(@TempDir Path outputDir) {
+    CompilerSkillAddonRepository repository =
+        CompilerSkillAddonRepository.forFilesystem(
+            outputDir, new QipKnowledgePackVersion("v1", "v1"), getClass().getClassLoader());
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> repository.loadForSkill("cip-design-executor"));
+    assertTrue(error.getMessage().contains("addon index is missing"));
+  }
+
+  @Test
   void loadedDocumentsIncludeContentDigest(@TempDir Path addonRoot, @TempDir Path outputDir)
       throws Exception {
     Files.createDirectories(addonRoot.resolve("skills"));
