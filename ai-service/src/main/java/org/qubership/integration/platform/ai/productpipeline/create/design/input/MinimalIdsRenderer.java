@@ -60,24 +60,28 @@ public final class MinimalIdsRenderer {
           .append(" |\n");
     }
     if (flow.dataMappings() != null && !flow.dataMappings().isEmpty()) {
-      out.append('\n');
-      out.append("#### Data Mappings\n\n");
-      out.append("| Mapping ID | Stage | From | To | Mode | Source Facts |\n");
-      out.append("|------------|-------|------|----|------|--------------|\n");
-      for (NormalizedDesignFlow.DataMapping mapping : flow.dataMappings()) {
-        out.append("| ")
-            .append(mapping.mappingId())
-            .append(" | ")
-            .append(mapping.stage().name())
-            .append(" | ")
-            .append(mapping.fromStepId())
-            .append(" | ")
-            .append(mapping.toStepId())
-            .append(" | ")
-            .append(mapping.mode().name())
-            .append(" | ")
-            .append(String.join(", ", mapping.sourceFactIds()))
-            .append(" |\n");
+      List<NormalizedDesignFlow.DataMapping> explicit =
+          flow.dataMappings().stream()
+              .filter(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT)
+              .toList();
+      if (!explicit.isEmpty()) {
+        out.append('\n');
+        out.append("#### Data Mappings\n\n");
+        out.append("| Mapping ID | From | To | Mode | Source Facts |\n");
+        out.append("|------------|------|----|------|--------------|\n");
+        for (NormalizedDesignFlow.DataMapping mapping : explicit) {
+          out.append("| ")
+              .append(mapping.mappingId())
+              .append(" | ")
+              .append(mapping.fromStepId())
+              .append(" | ")
+              .append(mapping.toStepId())
+              .append(" | ")
+              .append(mapping.mode().name())
+              .append(" | ")
+              .append(String.join(", ", mapping.sourceFactIds()))
+              .append(" |\n");
+        }
       }
     }
     if (!out.isEmpty() && out.charAt(out.length() - 1) != '\n') {

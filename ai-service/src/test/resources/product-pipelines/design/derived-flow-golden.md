@@ -17,9 +17,3 @@ sequenceDiagram
 | Process Step | Description |
 |--------------|-------------|
 | step-1 | create order |
-
-#### Data Mappings
-
-| Mapping ID | Stage | From | To | Mode | Source Facts |
-|------------|-------|------|----|------|--------------|
-| map-1 | INITIALIZATION | step-trigger | step-1 | PASS_THROUGH | fact-map |

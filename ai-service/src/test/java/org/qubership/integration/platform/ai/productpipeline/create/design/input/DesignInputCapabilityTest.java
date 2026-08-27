@@ -537,7 +537,7 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void describedMappingsBecomeExplicitRulesOnTheNormalizedFlow() {
+  void mappingRuleSyntaxDoesNotInventStageRowsOnAPassThroughBrief() {
     DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
     RequirementBrief briefWithoutMappings =
         new RequirementBrief(
@@ -580,14 +580,8 @@ class DesignInputCapabilityTest {
                     "requirementBrief",
                     briefWithoutMappings)));
 
-    assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
-    assertEquals(2, flowPayload(prepared).dataMappings().size());
-    assertTrue(
-        flowPayload(prepared).dataMappings().stream()
-            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT));
-    assertEquals(
-        "$.request.id",
-        flowPayload(prepared).dataMappings().getFirst().rules().getFirst().sourcePath());
+    assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass(), prepared.message());
+    assertDirectPassThrough(flowPayload(prepared));
   }
 
   @Test

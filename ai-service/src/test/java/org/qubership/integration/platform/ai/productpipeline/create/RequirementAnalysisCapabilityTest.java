@@ -244,12 +244,13 @@ class RequirementAnalysisCapabilityTest {
     String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
 
     assertTrue(message.contains("dataMappings"));
-    assertTrue(message.contains("Leave dataMappings empty"));
+    assertTrue(message.contains("Leave mappingIntents and dataMappings empty"));
     assertFalse(message.contains("Capture typed dataMappings"), message);
+    assertFalse(message.contains("every required edge"), message);
   }
 
   @Test
-  void buildAnalysisUserMessageAsksForMappingsWhenServiceCallFactsExist() {
+  void buildAnalysisUserMessageDoesNotAskToFillAMappingRowForEveryLinearEdge() {
     RequirementDraft approved =
         new RequirementDraft(
             true,
@@ -275,9 +276,11 @@ class RequirementAnalysisCapabilityTest {
                     "Inventory API: reserve stock")));
     String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
 
-    assertTrue(message.contains("Capture typed dataMappings"));
-    assertTrue(message.contains("PASS_THROUGH"));
-    assertTrue(message.contains("EXPLICIT"));
+    assertTrue(message.contains("Pass-through is the absence of a mapping intent"));
+    assertTrue(message.contains("mappingIntents"));
+    assertFalse(message.contains("Capture typed dataMappings"), message);
+    assertFalse(message.contains("every required edge"), message);
+    assertFalse(message.contains("PASS_THROUGH"), message);
   }
 
   @Test

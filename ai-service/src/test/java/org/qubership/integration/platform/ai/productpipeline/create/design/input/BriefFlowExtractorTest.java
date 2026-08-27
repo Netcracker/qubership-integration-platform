@@ -13,6 +13,9 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
@@ -219,6 +222,40 @@ class BriefFlowExtractorTest {
             .flow();
 
     assertFalse(flow.dataMappings().getFirst().mappingId().isBlank());
+    assertDoesNotThrow(() -> new NormalizedDesignFlowValidator().validate(flow));
+  }
+
+  @Test
+  void v2MappingIntentsProjectWithoutStageInference() {
+    RequirementBrief brief =
+        brief(
+                "Pets",
+                List.of("HTTP GET /pets"),
+                "List pets",
+                List.of(
+                    httpEndpoint(
+                        "trigger-1", "HTTP GET /pets findPets", "GET", "/pets", "findPets"),
+                    serviceCall("call-1", "List pets from Petstore Ext", "Petstore Ext", "GET /pets")),
+                List.of())
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-pet",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(new MappingIntentRule("$.id", "$.petId", null)))));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals(1, flow.dataMappings().size());
+    assertEquals("map-pet", flow.dataMappings().getFirst().mappingId());
+    assertEquals(NormalizedDesignFlow.MappingMode.EXPLICIT, flow.dataMappings().getFirst().mode());
+    assertEquals("$.id", flow.dataMappings().getFirst().rules().getFirst().sourcePath());
+    assertTrue(flow.connections().isEmpty(), flow.connections().toString());
     assertDoesNotThrow(() -> new NormalizedDesignFlowValidator().validate(flow));
   }
 

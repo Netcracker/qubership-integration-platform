@@ -287,34 +287,25 @@ public final class DesignPlanProjector {
 
   private static void validateScriptMappingCoverage(
       ParsedPlannerReport parsed, NormalizedDesignFlow flow) {
-    Set<NormalizedDesignFlow.MappingStage> requiredStages = new LinkedHashSet<>();
+    boolean requiresTransform = false;
     for (NormalizedDesignFlow.DataMapping mapping : flow.dataMappings()) {
       if (mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT) {
-        requiredStages.add(mapping.stage());
+        requiresTransform = true;
+        break;
       }
     }
-    if (requiredStages.isEmpty()) {
+    if (!requiresTransform) {
       return;
     }
-    Set<String> scriptTexts = new LinkedHashSet<>();
-    for (ParsedPlannerReport.Step step : parsed.steps()) {
-      if (step.owningSkillIds().contains("cip-script-generator")) {
-        scriptTexts.add(step.reportText().toLowerCase(Locale.ROOT));
-      }
-    }
-    for (NormalizedDesignFlow.MappingStage stage : requiredStages) {
-      String needle =
-          switch (stage) {
-            case INITIALIZATION -> "initialization";
-            case CONVERSION -> "convert";
-            case RESPONSE -> "response";
-          };
-      boolean covered =
-          scriptTexts.stream().anyMatch(text -> text.contains(needle));
-      if (!covered) {
-        throw new PlannerContractException(
-            "planner report missing script coverage for mapping stage " + stage);
-      }
+    boolean covered =
+        parsed.steps().stream()
+            .anyMatch(
+                step ->
+                    step.owningSkillIds().contains("cip-script-generator")
+                        || step.owningSkillIds().contains("cip-transformation-generator"));
+    if (!covered) {
+      throw new PlannerContractException(
+          "planner report missing script coverage for an explicit mapping intent");
     }
   }
 

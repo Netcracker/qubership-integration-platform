@@ -165,7 +165,6 @@ public record NormalizedDesignFlow(
 
     public DataMapping {
       mappingId = DesignArtifacts.requireText(mappingId, "mappingId");
-      stage = DesignArtifacts.requireNonNull(stage, "stage");
       fromStepId = DesignArtifacts.requireText(fromStepId, "fromStepId");
       toStepId = DesignArtifacts.requireText(toStepId, "toStepId");
       mode = DesignArtifacts.requireNonNull(mode, "mode");
@@ -174,6 +173,7 @@ public record NormalizedDesignFlow(
     }
   }
 
+  /** Leftover stage label from adapted {@code dataMappings}. Absent for v2 mapping intents. */
   public enum MappingStage {
     INITIALIZATION,
     CONVERSION,
