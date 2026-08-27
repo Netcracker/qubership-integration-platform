@@ -84,6 +84,18 @@ public final class RequirementBriefText {
           .append(intent.targetRef())
           .append('/')
           .append(intent.targetPort());
+      for (MappingIntentRule rule : intent.rules()) {
+        body.append('\n')
+            .append("  - ")
+            .append(rule.status())
+            .append(' ')
+            .append(rule.sourcePath())
+            .append(" -> ")
+            .append(rule.targetPath());
+        if (rule.expression() != null) {
+          body.append(" | expression: ").append(rule.expression());
+        }
+      }
     }
   }
 

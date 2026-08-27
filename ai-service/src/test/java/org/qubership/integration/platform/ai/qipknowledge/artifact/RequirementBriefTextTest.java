@@ -111,4 +111,80 @@ class RequirementBriefTextTest {
     assertTrue(brief.mappingIntents().isEmpty());
     assertEquals("Call customer API", brief.goal());
   }
+
+  @Test
+  void formatsMappingIntentRulesWithStatus() {
+    RequirementBrief brief =
+        new RequirementBrief(
+                "Orders",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "Map OM output to Salesforce request",
+                "ref",
+                "draft",
+                List.of(),
+                List.of())
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.orderId", "$.orderId", null, MappingRuleStatus.AUTO),
+                            new MappingIntentRule(
+                                "$.userId", "$.personId", null, MappingRuleStatus.PROPOSED),
+                            new MappingIntentRule(
+                                "$.name", "$.fullName", "trim(value)", MappingRuleStatus.USER_DEFINED),
+                            new MappingIntentRule(
+                                "", "$.personId", null, MappingRuleStatus.UNRESOLVED)))));
+
+    String formatted = RequirementBriefText.format(brief);
+
+    assertTrue(formatted.contains("map-init trigger-1/OUTPUT -> call-1/REQUEST"), formatted);
+    assertTrue(formatted.contains("AUTO $.orderId -> $.orderId"), formatted);
+    assertTrue(formatted.contains("PROPOSED $.userId -> $.personId"), formatted);
+    assertTrue(formatted.contains("USER_DEFINED $.name -> $.fullName"), formatted);
+    assertTrue(formatted.contains("UNRESOLVED  -> $.personId"), formatted);
+  }
+
+  @Test
+  void mappingIntentJsonRoundTripsRuleStatus() throws Exception {
+    RequirementBrief original =
+        new RequirementBrief(
+                "Orders",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "Map one boundary",
+                "ref",
+                "draft",
+                List.of(),
+                List.of())
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.userId", "$.personId", null, MappingRuleStatus.PROPOSED)))));
+
+    RequirementBrief restored =
+        objectMapper.readValue(objectMapper.writeValueAsString(original), RequirementBrief.class);
+
+    assertEquals(1, restored.mappingIntents().size());
+    assertEquals(
+        MappingRuleStatus.PROPOSED, restored.mappingIntents().getFirst().rules().getFirst().status());
+    assertEquals("$.personId", restored.mappingIntents().getFirst().rules().getFirst().targetPath());
+  }
 }

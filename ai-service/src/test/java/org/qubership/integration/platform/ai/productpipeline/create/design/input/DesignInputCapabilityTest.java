@@ -30,6 +30,10 @@ import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGate
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
@@ -368,6 +372,72 @@ class DesignInputCapabilityTest {
     assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
     assertEquals(DesignMode.DERIVE, modePayload(prepared));
     assertDirectPassThrough(flowPayload(prepared));
+  }
+
+  @Test
+  void unresolvedRequiredTargetKeepsBriefInNeedsInput() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    RequirementBrief brief =
+        healthProxyBrief(List.of())
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "", "$.personId", null, MappingRuleStatus.UNRESOLVED)))));
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Derive minimal IDS",
+                    "requirementBrief",
+                    brief)));
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("$.personId"), prepared.message());
+  }
+
+  @Test
+  void optionalUnmatchedTargetDoesNotBlockDesignInput() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    RequirementBrief brief =
+        healthProxyBrief(List.of())
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.orderId", "$.orderId", null, MappingRuleStatus.AUTO),
+                            new MappingIntentRule(
+                                "$.userId", "$.personId", null, MappingRuleStatus.PROPOSED)))));
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Derive minimal IDS",
+                    "requirementBrief",
+                    brief)));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(DesignMode.DERIVE, modePayload(prepared));
   }
 
   @Test

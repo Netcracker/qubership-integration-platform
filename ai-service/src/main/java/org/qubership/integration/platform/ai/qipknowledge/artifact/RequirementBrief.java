@@ -159,4 +159,22 @@ public record RequirementBrief(
         requirements,
         mappingIntents);
   }
+
+  public RequirementBrief withMappingIntents(List<MappingIntent> mappingIntents) {
+    return new RequirementBrief(
+        goal,
+        inputs,
+        constraints,
+        assumptions,
+        citations,
+        summary,
+        approvedDraftReference,
+        approvedDraftText,
+        facts,
+        dataMappings,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents);
+  }
 }

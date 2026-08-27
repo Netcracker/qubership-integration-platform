@@ -8,9 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
@@ -42,6 +48,45 @@ class DesignRequirementBriefCoverageValidatorTest {
     RequirementBrief briefWithoutInitialization = twoCallBrief(List.of(conversion(), response()));
 
     assertDoesNotThrow(() -> designValidator.validate(briefWithoutInitialization));
+  }
+
+  @Test
+  void identityOnlyAutoDoesNotCreateMappingIntentAndDoesNotBlockTopology() {
+    RequirementDataMapping identityInit =
+        new RequirementDataMapping(
+            "map-init",
+            RequirementDataMapping.Stage.INITIALIZATION,
+            "trigger-1",
+            "call-1",
+            RequirementDataMapping.Mode.EXPLICIT,
+            List.of(new RequirementDataMapping.Rule("$.id", "$.id", null)),
+            List.of("fact-map-init"));
+    RequirementBrief brief = twoCallBrief(List.of(identityInit, conversion(), response()));
+
+    assertDoesNotThrow(() -> designValidator.validate(brief));
+    RequirementBrief projected = RequirementBriefProjector.project(brief);
+    assertEquals(1, projected.mappingIntents().size());
+    assertEquals("map-conv", projected.mappingIntents().getFirst().mappingIntentId());
+  }
+
+  @Test
+  void unresolvedRequiredTargetDoesNotFailTopologyValidate() {
+    RequirementBrief brief =
+        twoCallBrief(List.of(initialization(), conversion(), response()))
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "", "$.personId", null, MappingRuleStatus.UNRESOLVED)))));
+
+    assertDoesNotThrow(() -> designValidator.validate(brief));
+    assertTrue(BriefMappingValidator.blocksApproval(brief));
   }
 
   @Test

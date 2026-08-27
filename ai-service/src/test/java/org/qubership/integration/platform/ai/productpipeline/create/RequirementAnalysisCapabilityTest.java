@@ -39,6 +39,10 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
@@ -93,6 +97,36 @@ class RequirementAnalysisCapabilityTest {
         candidate.facts().stream()
             .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
             .count());
+  }
+
+  @Test
+  void unresolvedRequiredMappingKeepsBriefInNeedsInput() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief brief =
+        coveringBrief(approved, "Greetings HTTP script")
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "", "$.personId", null, MappingRuleStatus.UNRESOLVED)))));
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("$.personId"));
   }
 
   @Test
