@@ -39,6 +39,7 @@ import java.util.List;
  */
 @Component
 @ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
 public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "engine-routes";
 

@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
 public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     public static final String PUBLIC_HTTP_ROUTE_CACHE_KEY = "publicHttpRoute";
     public static final String PRIVATE_HTTP_ROUTE_CACHE_KEY = "privateHttpRoute";

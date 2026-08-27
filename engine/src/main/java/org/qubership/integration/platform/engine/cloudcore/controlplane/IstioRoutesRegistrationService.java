@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 @Service("controlPlaneService")
 @ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
 public class IstioRoutesRegistrationService implements ControlPlaneService {
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";

@@ -277,6 +277,8 @@ qip:
       name: private-gateway
     internal:
       name: internal-gateway-service
+  istio:
+    enabled: ${QIP_ISTIO_ENABLED:true}
   control-plane:
     enabled: ${CONTROL_PLANE_ENABLED:false}
     mesh-type: ${SERVICE_MESH_TYPE:Core}

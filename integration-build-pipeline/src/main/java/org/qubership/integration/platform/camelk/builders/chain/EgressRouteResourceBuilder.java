@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
 public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     public static final String EGRESS_HTTP_ROUTE_CACHE_KEY = "egressHttpRoute";
     private static final String ROUTES_CACHE_KEY = "egressRouteResourceBuilder.routes";

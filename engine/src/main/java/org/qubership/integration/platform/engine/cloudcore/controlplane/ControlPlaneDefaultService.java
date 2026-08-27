@@ -20,6 +20,7 @@ import org.qubership.integration.platform.engine.model.deployment.update.RouteTy
 import org.qubership.integration.platform.engine.service.BlueGreenStateService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -40,7 +41,9 @@ import static org.qubership.integration.platform.engine.configuration.camel.Came
 @Slf4j
 @Component("controlPlaneService")
 @ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
-@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Core", matchIfMissing = true)
+@ConditionalOnExpression(
+        "'${qip.control-plane.mesh-type:Core}'.equalsIgnoreCase('Core')"
+                + " or !'${qip.istio.enabled:false}'.equalsIgnoreCase('true')")
 public class ControlPlaneDefaultService implements ControlPlaneService {
 
     private static final String CAMEL_ROUTES_REWRITE_PREFIX = CAMEL_ROUTES_LEGACY_PREFIX;
