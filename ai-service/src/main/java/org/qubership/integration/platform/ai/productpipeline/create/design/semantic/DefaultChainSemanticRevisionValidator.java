@@ -42,7 +42,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateEdges(revision, index, errors);
     validateExecutionDag(revision, index, errors);
     validateReachability(revision, index, errors);
-    validateContainment(revision, index, errors);
+    validateContainment(revision, contract, index, errors);
     validateRegions(revision, contract, index, errors);
     validateHiddenJoins(revision, index, errors);
     validateMappings(revision, index, errors);
@@ -155,8 +155,108 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       }
       if (edge.route() == null) {
         errors.add("Execution edge '" + edge.edgeId() + "' is missing a route");
+      } else {
+        validateRouteRefs(edge, index, errors);
       }
     }
+  }
+
+  private static void validateRouteRefs(
+      SemanticExecutionEdge edge, Index index, List<String> errors) {
+    SemanticRoute route = edge.route();
+    List<ScopedRef> refs = scopedRefs(route);
+    if (refs.isEmpty()) {
+      return;
+    }
+    if (edge.regionId() == null) {
+      errors.add("Execution edge '" + edge.edgeId() + "' is missing a region");
+      return;
+    }
+    SemanticRegion region = index.regions.get(edge.regionId());
+    if (region == null) {
+      return;
+    }
+    for (ScopedRef ref : refs) {
+      if (!regionOwns(region, route, ref.id())) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' "
+                + ref.field()
+                + " '"
+                + ref.id()
+                + "' is missing from region '"
+                + edge.regionId()
+                + "'");
+      }
+    }
+  }
+
+  private static List<ScopedRef> scopedRefs(SemanticRoute route) {
+    return switch (route) {
+      case SemanticRoute.ConditionBranch branch ->
+          List.of(new ScopedRef("branchId", branch.branchId()));
+      case SemanticRoute.SplitBranch branch -> List.of(new ScopedRef("branchId", branch.branchId()));
+      case SemanticRoute.CatchPath catchPath ->
+          List.of(new ScopedRef("handlerId", catchPath.handlerId()));
+      case SemanticRoute.Reconverge reconverge -> {
+        List<ScopedRef> refs = new ArrayList<>();
+        for (String branchId : reconverge.branchIds()) {
+          refs.add(new ScopedRef("branchId", branchId));
+        }
+        yield refs;
+      }
+      default -> List.of();
+    };
+  }
+
+  private static boolean regionOwns(SemanticRegion region, SemanticRoute route, String id) {
+    return switch (route) {
+      case SemanticRoute.ConditionBranch ignored ->
+          region instanceof SemanticRegion.Condition condition
+              && ownsConditionBranch(condition, id);
+      case SemanticRoute.SplitBranch ignored ->
+          region instanceof SemanticRegion.Split split && ownsSplitBranch(split, id);
+      case SemanticRoute.CatchPath ignored ->
+          region instanceof SemanticRegion.ErrorScope scope && ownsHandler(scope, id);
+      case SemanticRoute.Reconverge ignored -> ownsReconvergeBranch(region, id);
+      default -> true;
+    };
+  }
+
+  private static boolean ownsConditionBranch(SemanticRegion.Condition condition, String branchId) {
+    for (SemanticBranch.Condition branch : condition.branches()) {
+      if (branch.branchId().equals(branchId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ownsSplitBranch(SemanticRegion.Split split, String branchId) {
+    for (SemanticBranch.Split branch : split.branches()) {
+      if (branch.branchId().equals(branchId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ownsHandler(SemanticRegion.ErrorScope scope, String handlerId) {
+    for (ErrorHandler handler : scope.handlers()) {
+      if (handler.handlerId().equals(handlerId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ownsReconvergeBranch(SemanticRegion region, String branchId) {
+    return switch (region) {
+      case SemanticRegion.Condition condition -> ownsConditionBranch(condition, branchId);
+      case SemanticRegion.Split split -> ownsSplitBranch(split, branchId);
+      default -> false;
+    };
   }
 
   private static void validateExecutionDag(
@@ -221,7 +321,10 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
   }
 
   private static void validateContainment(
-      ChainSemanticRevision revision, Index index, List<String> errors) {
+      ChainSemanticRevision revision,
+      CompilerContract contract,
+      Index index,
+      List<String> errors) {
     Map<String, String> parentByChild = new LinkedHashMap<>();
     Map<String, List<String>> children = new LinkedHashMap<>();
     for (SemanticContainment relation : revision.containment()) {
@@ -231,6 +334,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       if (!index.nodes.containsKey(relation.childNodeId())) {
         errors.add("Containment childNodeId '" + relation.childNodeId() + "' is missing");
       }
+      validateContainmentRole(relation, contract, index, errors);
       String previous = parentByChild.put(relation.childNodeId(), relation.parentNodeId());
       if (previous != null) {
         errors.add(
@@ -253,6 +357,26 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     }
     if (cycle) {
       errors.add("containment relations must form a DAG");
+    }
+  }
+
+  private static void validateContainmentRole(
+      SemanticContainment relation,
+      CompilerContract contract,
+      Index index,
+      List<String> errors) {
+    SemanticNode parent = index.nodes.get(relation.parentNodeId());
+    if (parent == null) {
+      return;
+    }
+    ElementContract element = contract.elements().get(elementType(parent));
+    if (element == null || !element.containmentRoles().containsKey(relation.role())) {
+      errors.add(
+          "Containment role '"
+              + relation.role()
+              + "' is not allowed on parent '"
+              + relation.parentNodeId()
+              + "'");
     }
   }
 
@@ -602,6 +726,8 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
   }
 
   private record BranchCounts(int ifCount, int elseCount) {}
+
+  private record ScopedRef(String field, String id) {}
 
   private static final class Index {
     private final Map<String, SemanticNode> nodes;
