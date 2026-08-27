@@ -367,10 +367,7 @@ class DesignInputCapabilityTest {
                     briefWithoutMappings)));
     assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
     assertEquals(DesignMode.DERIVE, modePayload(prepared));
-    assertEquals(2, flowPayload(prepared).dataMappings().size());
-    assertTrue(
-        flowPayload(prepared).dataMappings().stream()
-            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertDirectPassThrough(flowPayload(prepared));
   }
 
   @Test
@@ -415,10 +412,7 @@ class DesignInputCapabilityTest {
                     briefWithShapelessLeftovers)));
     assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
     assertEquals(DesignMode.DERIVE, modePayload(prepared));
-    assertEquals(2, flowPayload(prepared).dataMappings().size());
-    assertTrue(
-        flowPayload(prepared).dataMappings().stream()
-            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertDirectPassThrough(flowPayload(prepared));
     assertFalse(
         prepared.message() != null && prepared.message().contains("dataMapping stage is required"),
         prepared.message());
@@ -469,9 +463,7 @@ class DesignInputCapabilityTest {
                     briefWithoutMappings)));
 
     assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
-    assertTrue(
-        flowPayload(prepared).dataMappings().stream()
-            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertDirectPassThrough(flowPayload(prepared));
   }
 
   @Test
@@ -636,9 +628,7 @@ class DesignInputCapabilityTest {
 
     assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
     assertEquals(DesignMode.GENERATE, modePayload(prepared));
-    assertTrue(
-        flowPayload(prepared).dataMappings().stream()
-            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertDirectPassThrough(flowPayload(prepared));
     assertFalse(containsIntentRefDump(prepared.message()), prepared.message());
   }
 
@@ -660,9 +650,7 @@ class DesignInputCapabilityTest {
 
     assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
     assertEquals(DesignMode.DERIVE, modePayload(prepared));
-    assertTrue(
-        flowPayload(prepared).dataMappings().stream()
-            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+    assertDirectPassThrough(flowPayload(prepared));
     assertFalse(containsIntentRefDump(prepared.message()), prepared.message());
   }
 
@@ -1213,20 +1201,23 @@ class DesignInputCapabilityTest {
             && prepared.message().toLowerCase(java.util.Locale.ROOT).contains("missing data mapping"),
         prepared.message());
     List<NormalizedDesignFlow.DataMapping> mappings = flowPayload(prepared).dataMappings();
-    assertEquals(2, mappings.size(), mappings.toString());
+    assertTrue(mappings.isEmpty(), mappings.toString());
+    List<NormalizedDesignFlow.Connection> connections = flowPayload(prepared).connections();
+    assertFalse(connections.isEmpty(), connections.toString());
     assertTrue(
-        mappings.stream()
-            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH),
-        mappings.toString());
+        connections.stream().anyMatch(connection -> "step-trigger".equals(connection.fromStepId())),
+        connections.toString());
+    assertTrue(flowPayload(prepared).transformations().isEmpty());
+  }
+
+  private static void assertDirectPassThrough(NormalizedDesignFlow flow) {
+    assertTrue(flow.dataMappings().isEmpty(), flow.dataMappings().toString());
+    assertTrue(flow.transformations().isEmpty());
+    assertFalse(flow.connections().isEmpty(), flow.connections().toString());
     assertTrue(
-        mappings.stream().anyMatch(mapping -> mapping.stage() == NormalizedDesignFlow.MappingStage.INITIALIZATION),
-        mappings.toString());
-    assertTrue(
-        mappings.stream().anyMatch(mapping -> mapping.stage() == NormalizedDesignFlow.MappingStage.RESPONSE),
-        mappings.toString());
-    assertTrue(
-        mappings.stream().allMatch(mapping -> !mapping.sourceFactIds().isEmpty()),
-        mappings.toString());
+        flow.connections().stream()
+            .anyMatch(connection -> "step-trigger".equals(connection.fromStepId())),
+        flow.connections().toString());
   }
 
   private static RequirementBrief healthProxyBrief(List<RequirementDataMapping> mappings) {
@@ -1441,13 +1432,7 @@ class DesignInputCapabilityTest {
         prepared.message());
     assertEquals("kafka", flowPayload(prepared).trigger().kind());
     assertEquals("user/events", flowPayload(prepared).trigger().endpointOrTopic());
-    assertEquals(1, flowPayload(prepared).dataMappings().size());
-    assertEquals(
-        NormalizedDesignFlow.MappingMode.PASS_THROUGH,
-        flowPayload(prepared).dataMappings().getFirst().mode());
-    assertEquals(
-        NormalizedDesignFlow.MappingStage.INITIALIZATION,
-        flowPayload(prepared).dataMappings().getFirst().stage());
+    assertDirectPassThrough(flowPayload(prepared));
   }
 
   @Test

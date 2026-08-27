@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -63,17 +64,8 @@ public final class DesignExecutionBriefFactory {
     if (repairEvidence == null || !repairEvidence.hasEvidence()) {
       return brief;
     }
-    return new RequirementBrief(
-        brief.goal(),
-        brief.inputs(),
-        brief.constraints(),
-        brief.assumptions(),
-        brief.citations(),
-        brief.summary(),
-        brief.approvedDraftReference(),
-        withRepairEvidence(brief.approvedDraftText(), repairEvidence, priorGraph),
-        brief.facts(),
-        brief.dataMappings());
+    return brief.withApprovedDraftText(
+        withRepairEvidence(brief.approvedDraftText(), repairEvidence, priorGraph));
   }
 
   private static String withRepairEvidence(
@@ -133,17 +125,18 @@ public final class DesignExecutionBriefFactory {
 
     String draftText =
         firstNonBlank(brief.approvedDraftText(), formatBindingBlock(bindings), formatFlowSeed(flow));
-    return new RequirementBrief(
-        firstNonBlank(brief.goal(), flow.chainName()),
-        List.copyOf(inputs),
-        List.copyOf(constraints),
-        brief.assumptions(),
-        brief.citations(),
-        firstNonBlank(brief.summary(), flow.description()),
-        brief.approvedDraftReference(),
-        draftText,
-        List.copyOf(facts),
-        flow.dataMappings().isEmpty() ? brief.dataMappings() : dataMappingsFrom(flow));
+    return RequirementBriefProjector.project(
+        new RequirementBrief(
+            firstNonBlank(brief.goal(), flow.chainName()),
+            List.copyOf(inputs),
+            List.copyOf(constraints),
+            brief.assumptions(),
+            brief.citations(),
+            firstNonBlank(brief.summary(), flow.description()),
+            brief.approvedDraftReference(),
+            draftText,
+            List.copyOf(facts),
+            flow.dataMappings().isEmpty() ? brief.dataMappings() : dataMappingsFrom(flow)));
   }
 
   private static RequirementBrief fromFlow(
@@ -155,17 +148,18 @@ public final class DesignExecutionBriefFactory {
     appendBindingInputs(bindings, inputs);
     String summary =
         firstNonBlank(flow.description(), "Implement chain " + flow.chainName() + " from approved design flow");
-    return new RequirementBrief(
-        flow.chainName(),
-        List.copyOf(inputs),
-        List.copyOf(constraints),
-        flow.assumptions(),
-        List.of(),
-        summary,
-        null,
-        firstNonBlank(formatBindingBlock(bindings), formatFlowSeed(flow)),
-        List.copyOf(facts),
-        dataMappingsFrom(flow));
+    return RequirementBriefProjector.project(
+        new RequirementBrief(
+            flow.chainName(),
+            List.copyOf(inputs),
+            List.copyOf(constraints),
+            flow.assumptions(),
+            List.of(),
+            summary,
+            null,
+            firstNonBlank(formatBindingBlock(bindings), formatFlowSeed(flow)),
+            List.copyOf(facts),
+            dataMappingsFrom(flow)));
   }
 
   private static List<RequirementDataMapping> dataMappingsFrom(NormalizedDesignFlow flow) {

@@ -89,18 +89,13 @@ public final class RequirementBriefCoverageValidator {
   }
 
   private static boolean isSingleEntryServiceFlow(RequirementBrief brief) {
-    long endpoints =
-        brief.facts().stream()
-            .filter(Objects::nonNull)
-            .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
-            .filter(fact -> fact.kind() == RequirementFactKind.ENDPOINT)
-            .count();
+    long entries = RequirementTriggerRole.positiveTriggers(brief.facts()).size();
     boolean hasServiceCall =
         brief.facts().stream()
             .filter(Objects::nonNull)
             .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
             .anyMatch(fact -> fact.kind() == RequirementFactKind.SERVICE_CALL);
-    return endpoints == 1 && hasServiceCall;
+    return entries == 1 && hasServiceCall;
   }
 
   private static Map<String, RequirementFact> indexById(List<RequirementFact> facts, String label) {

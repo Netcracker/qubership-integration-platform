@@ -236,26 +236,24 @@ public class DesignInputCapability implements StageCapability {
 
     RequirementBrief effectiveBrief =
         brief == null ? null : DesignRequirementDataMappingNormalizer.normalize(brief);
+    if (effectiveBrief != null) {
+      effectiveBrief = designCoverageValidator.retainTopologyBoundMappings(effectiveBrief);
+    }
     if (effectiveBrief != null
+        && pending != null
+        && hasMappingRuleSyntax(userText)
         && !designCoverageValidator.listMissingEdges(effectiveBrief).isEmpty()) {
       try {
-        if (pending != null && hasMappingRuleSyntax(userText)) {
-          effectiveBrief =
-              designCoverageValidator.withExplicitMappingsForMissingEdges(effectiveBrief, userText);
-        } else {
-          // Missing SERVICE_CALL topology edges default to PASS_THROUGH. GENERATE used to wait
-          // for a pass_through confirmation whenever leftover capture rows survived
-          // normalization, which blocked design after brief approval.
-          effectiveBrief = designCoverageValidator.withPassThroughForMissingEdges(effectiveBrief);
-        }
+        effectiveBrief =
+            designCoverageValidator.withExplicitMappingsForMissingEdges(effectiveBrief, userText);
       } catch (IllegalArgumentException ex) {
         return mappingAnswerError(effectiveBrief, ex.getMessage());
       }
     }
 
     return switch (mode) {
-      case GENERATE -> prepareGenerate(effectiveBrief, mode, userText, discoveryText, responseLocale);
-      case DERIVE -> prepareDerive(effectiveBrief, mode, userText, discoveryText, responseLocale);
+      case GENERATE -> prepareGenerate(effectiveBrief, userText);
+      case DERIVE -> prepareDerive(effectiveBrief, userText);
       case PROVIDE ->
           StageOutcome.of(
               StageOutcomeClass.CONTRACT_FAILURE, "PROVIDE is not a standard-route IDS choice");
@@ -353,18 +351,12 @@ public class DesignInputCapability implements StageCapability {
     }
   }
 
-  private StageOutcome prepareGenerate(
-      RequirementBrief brief,
-      DesignMode pendingMode,
-      String userText,
-      String discoveryText,
-      String responseLocale) {
+  private StageOutcome prepareGenerate(RequirementBrief brief, String userText) {
     if (brief == null) {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT, "GENERATE requires RequirementBrief");
     }
-    StageOutcome mappingWait =
-        mappingCoverageOrWait(brief, pendingMode, userText, discoveryText, responseLocale);
+    StageOutcome mappingWait = mappingCoverageOrWait(brief);
     if (mappingWait != null) {
       return mappingWait;
     }
@@ -394,18 +386,12 @@ public class DesignInputCapability implements StageCapability {
     }
   }
 
-  private StageOutcome prepareDerive(
-      RequirementBrief brief,
-      DesignMode pendingMode,
-      String userText,
-      String discoveryText,
-      String responseLocale) {
+  private StageOutcome prepareDerive(RequirementBrief brief, String userText) {
     if (brief == null) {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT, "DERIVE requires RequirementBrief");
     }
-    StageOutcome mappingWait =
-        mappingCoverageOrWait(brief, pendingMode, userText, discoveryText, responseLocale);
+    StageOutcome mappingWait = mappingCoverageOrWait(brief);
     if (mappingWait != null) {
       return mappingWait;
     }
@@ -439,29 +425,13 @@ public class DesignInputCapability implements StageCapability {
     }
   }
 
-  private StageOutcome mappingCoverageOrWait(
-      RequirementBrief brief,
-      DesignMode pendingMode,
-      String userText,
-      String discoveryText,
-      String responseLocale) {
-    List<String> missing = designCoverageValidator.listMissingEdges(brief);
-    if (missing.isEmpty()) {
-      try {
-        designCoverageValidator.validate(brief);
-      } catch (IllegalArgumentException ex) {
-        return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, userFacingAuthoringWait(ex));
-      }
-      return null;
+  private StageOutcome mappingCoverageOrWait(RequirementBrief brief) {
+    try {
+      designCoverageValidator.validate(brief);
+    } catch (IllegalArgumentException ex) {
+      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, userFacingAuthoringWait(ex));
     }
-    return StageOutcome.of(
-        StageOutcomeClass.NEEDS_INPUT,
-        PipelineGates.retag(
-            PipelineGates.MAPPING_GAP,
-            DesignInputIdsPathPrompts.encodeMappingGapWait(
-                idsPathPrompts.mappingGapPrompt(
-                    responseLocale, brief, pendingMode, missing, userText, discoveryText),
-                designCoverageValidator.listReadableMissingEdges(brief))));
+    return null;
   }
 
   private StageOutcome mappingAnswerError(RequirementBrief brief, String message) {

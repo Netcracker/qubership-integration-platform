@@ -106,6 +106,9 @@ class RequirementBriefTextTest {
     RequirementBrief brief = objectMapper.readValue(legacyJson, RequirementBrief.class);
 
     assertTrue(brief.dataMappings().isEmpty());
+    assertTrue(brief.entryPoints().isEmpty());
+    assertTrue(brief.serviceCalls().isEmpty());
+    assertTrue(brief.mappingIntents().isEmpty());
     assertEquals("Call customer API", brief.goal());
   }
 }

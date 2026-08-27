@@ -259,6 +259,64 @@ class RequirementBriefToolTest {
     assertTrue(result.contains("Requirement brief captured"), result);
     RequirementBrief brief = getBrief("conv-brief").orElseThrow();
     assertEquals(List.of(initialization, conversion, response), brief.dataMappings());
+    assertEquals(2, brief.mappingIntents().size());
+    assertEquals("map-init", brief.mappingIntents().getFirst().mappingIntentId());
+    assertEquals("map-conv", brief.mappingIntents().get(1).mappingIntentId());
+  }
+
+  @Test
+  void recordsEntryPointsFromCatalogTriggerCapability() {
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
+
+    RequirementFact kafka =
+        new RequirementFact(
+            "trigger-1",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "kafka-trigger-2",
+            "Consume user events",
+            "",
+            "consumeUserEvent",
+            "user/events",
+            "",
+            "");
+    RequirementFact call =
+        new RequirementFact(
+            "call-1",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "http-service-call",
+            "Look up a pet",
+            "Petstore Ext",
+            "getPetById",
+            "",
+            "",
+            "");
+
+    String result =
+        tool.captureRequirementBrief(
+            new RequirementBriefCapture(
+                "Kafka pet lookup",
+                List.of(),
+                List.of(),
+                List.of(),
+                "Consume events and look up a pet",
+                null,
+                null,
+                List.of(kafka, call),
+                List.of(),
+                List.of()));
+
+    assertTrue(result.contains("Requirement brief captured"), result);
+    RequirementBrief brief = getBrief("conv-brief").orElseThrow();
+    assertEquals(1, brief.entryPoints().size());
+    assertEquals("kafka-trigger-2", brief.entryPoints().getFirst().capabilityKey());
+    assertEquals("user/events", brief.entryPoints().getFirst().topic());
+    assertEquals(1, brief.serviceCalls().size());
+    assertEquals("Petstore Ext", brief.serviceCalls().getFirst().participant());
+    assertTrue(brief.mappingIntents().isEmpty());
+    assertTrue(brief.dataMappings().isEmpty());
   }
 
   @Test
