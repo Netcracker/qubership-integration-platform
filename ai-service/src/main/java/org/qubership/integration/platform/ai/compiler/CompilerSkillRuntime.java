@@ -49,6 +49,7 @@ import org.qubership.integration.platform.ai.plan.ValidationResultTool;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ElementSkeleton;
+import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -1358,6 +1359,7 @@ public class CompilerSkillRuntime {
         .get(
             CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
             RequirementBrief.class)
+        .map(LegacyStageMappingAdapter::ensureIntents)
         .map(RequirementBrief::mappingIntents)
         .orElse(List.of());
   }

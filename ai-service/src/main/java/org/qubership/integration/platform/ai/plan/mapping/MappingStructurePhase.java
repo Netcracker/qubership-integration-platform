@@ -8,6 +8,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -22,11 +23,12 @@ public final class MappingStructurePhase {
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
-    if (brief == null || brief.mappingIntents().isEmpty()) {
+    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    if (adapted == null || adapted.mappingIntents().isEmpty()) {
       return graph;
     }
     ChainPlanGraph current = graph;
-    for (MappingIntent intent : brief.mappingIntents()) {
+    for (MappingIntent intent : adapted.mappingIntents()) {
       if (intent == null || intent.mappingIntentId().isBlank()) {
         continue;
       }
@@ -80,6 +82,10 @@ public final class MappingStructurePhase {
     List<ChainPlanEdge> boundaryEdges =
         directEdges(graph, intent.sourceRef(), intent.targetRef());
     if (boundaryEdges.isEmpty()) {
+      if (intent.targetPort() == MappingPort.OUTPUT
+          && outgoingCount(graph, intent.sourceRef()) == 0) {
+        return appendTerminalShell(graph, intent, source, mechanism);
+      }
       throw new IllegalStateException(
           "Approved mapping intent '"
               + intent.mappingIntentId()
@@ -130,6 +136,48 @@ public final class MappingStructurePhase {
             intent.targetRef(),
             first.scopeNodeId()));
     return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), List.copyOf(nodes), List.copyOf(edges));
+  }
+
+  private static ChainPlanGraph appendTerminalShell(
+      ChainPlanGraph graph,
+      MappingIntent intent,
+      ChainPlanNode source,
+      MappingMechanism mechanism) {
+    String mapperId = "transform-" + intent.mappingIntentId();
+    ChainPlanNode mapper =
+        MappingExecutionSite.withMappingIntentId(
+            new ChainPlanNode(
+                mapperId,
+                shellType(mechanism),
+                shellLabel(mechanism, intent.mappingIntentId()),
+                source.parentNodeId(),
+                null,
+                List.of()),
+            intent.mappingIntentId());
+    List<ChainPlanNode> nodes = new ArrayList<>(graph.nodes());
+    nodes.add(mapper);
+    List<ChainPlanEdge> edges = new ArrayList<>();
+    if (graph.edges() != null) {
+      edges.addAll(graph.edges());
+    }
+    edges.add(
+        new ChainPlanEdge(
+            "e-" + intent.sourceRef() + "-" + mapperId, intent.sourceRef(), mapperId, null));
+    return new ChainPlanGraph(
+        graph.schemaVersion(), graph.chain(), List.copyOf(nodes), List.copyOf(edges));
+  }
+
+  private static int outgoingCount(ChainPlanGraph graph, String nodeId) {
+    int count = 0;
+    if (graph.edges() == null) {
+      return 0;
+    }
+    for (ChainPlanEdge edge : graph.edges()) {
+      if (nodeId.equals(edge.fromNodeId())) {
+        count++;
+      }
+    }
+    return count;
   }
 
   private static String shellType(MappingMechanism mechanism) {

@@ -5,11 +5,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
@@ -47,7 +45,7 @@ public final class RequirementBriefProjector {
     if (!brief.mappingIntents().isEmpty()) {
       return collapsePassThroughIntents(brief.mappingIntents());
     }
-    return mappingIntentsFrom(brief.dataMappings());
+    return LegacyStageMappingAdapter.fromDataMappings(brief.dataMappings());
   }
 
   private static List<MappingIntent> collapsePassThroughIntents(List<MappingIntent> intents) {
@@ -114,44 +112,5 @@ public final class RequirementBriefProjector {
       requirements.add(fact);
     }
     return List.copyOf(requirements);
-  }
-
-  private static List<MappingIntent> mappingIntentsFrom(List<RequirementDataMapping> mappings) {
-    if (mappings == null || mappings.isEmpty()) {
-      return List.of();
-    }
-    List<MappingIntent> intents = new ArrayList<>();
-    for (RequirementDataMapping mapping : mappings) {
-      if (mapping == null || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT) {
-        continue;
-      }
-      List<MappingIntentRule> rules = BriefMappingValidator.classifyFromLegacy(mapping.rules());
-      if (BriefMappingValidator.isIdentityOnlyAuto(rules)) {
-        continue;
-      }
-      intents.add(
-          new MappingIntent(
-              mapping.mappingId(),
-              mapping.fromIntentRef(),
-              sourcePort(mapping.stage()),
-              mapping.toIntentRef(),
-              targetPort(mapping.stage()),
-              rules));
-    }
-    return List.copyOf(intents);
-  }
-
-  private static MappingPort sourcePort(RequirementDataMapping.Stage stage) {
-    if (stage == RequirementDataMapping.Stage.INITIALIZATION) {
-      return MappingPort.OUTPUT;
-    }
-    return MappingPort.RESPONSE;
-  }
-
-  private static MappingPort targetPort(RequirementDataMapping.Stage stage) {
-    if (stage == RequirementDataMapping.Stage.RESPONSE) {
-      return MappingPort.OUTPUT;
-    }
-    return MappingPort.REQUEST;
   }
 }

@@ -24,7 +24,8 @@ public final class ScriptConfigurationPhase {
   private ScriptConfigurationPhase() {}
 
   public static ChainPlanGraph configure(ChainPlanGraph graph, RequirementBrief brief) {
-    return configure(graph, brief, intentIds(brief));
+    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    return configure(graph, adapted, intentIds(adapted));
   }
 
   /**
@@ -33,17 +34,18 @@ public final class ScriptConfigurationPhase {
    */
   public static ChainPlanGraph configure(
       ChainPlanGraph graph, RequirementBrief brief, Set<String> mappingIntentIds) {
+    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
-    if (brief == null
-        || brief.mappingIntents().isEmpty()
+    if (adapted == null
+        || adapted.mappingIntents().isEmpty()
         || mappingIntentIds == null
         || mappingIntentIds.isEmpty()) {
       return graph;
     }
     ChainPlanGraph current = graph;
-    for (MappingIntent intent : brief.mappingIntents()) {
+    for (MappingIntent intent : adapted.mappingIntents()) {
       if (!mappingIntentIds.contains(intent.mappingIntentId()) || !isScriptIntent(intent)) {
         continue;
       }
@@ -60,7 +62,10 @@ public final class ScriptConfigurationPhase {
       throw new IllegalArgumentException("graph is required");
     }
     List<PropertyPatch> propertyPatches = new ArrayList<>();
-    List<MappingIntent> intents = brief == null ? List.of() : brief.mappingIntents();
+    List<MappingIntent> intents =
+        brief == null
+            ? List.of()
+            : LegacyStageMappingAdapter.ensureIntents(brief).mappingIntents();
     for (MappingIntent intent : intents) {
       if (!isScriptIntent(intent)) {
         continue;
