@@ -56,7 +56,7 @@ public record SkipPolicy(List<String> whenAny) {
         }
         case CATALOG_BINDING_PRESENT -> {
           RequirementDraft draft = context.requirementDraft();
-          if (draft != null && draft.catalogBinding() != null) {
+          if (draft != null && draft.selectedImportCallAlreadyBound()) {
             return Optional.of(SkipAction.REQUIREMENT_DRAFT_PASSTHROUGH);
           }
         }

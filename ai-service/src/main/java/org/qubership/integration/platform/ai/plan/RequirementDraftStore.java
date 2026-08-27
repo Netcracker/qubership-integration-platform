@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -19,6 +20,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /** Stores requirement drafts as immutable revisions in the active compilation. */
 @ApplicationScoped
@@ -184,10 +188,63 @@ public class RequirementDraftStore {
 
   public void applyImportResult(String conversationId, ResolvedCatalogBinding binding) {
     RequirementDraft current = get(conversationId).orElse(null);
+    String serviceCallId = current == null ? null : current.apiHubCandidateServiceCallId();
+    applyImportResult(conversationId, serviceCallId, binding);
+  }
+
+  public void applyImportResult(
+      String conversationId, String serviceCallId, ResolvedCatalogBinding binding) {
+    RequirementDraft current = get(conversationId).orElse(null);
     if (current == null || binding == null) {
       return;
     }
-    put(conversationId, current.withCatalogBinding(binding));
+    String owner = resolveImportOwner(current, serviceCallId);
+    if (owner == null || current.serviceCalls().isEmpty()) {
+      put(conversationId, current.withCatalogBinding(binding));
+      return;
+    }
+    RequirementServiceCall target =
+        current.serviceCalls().stream()
+            .filter(call -> owner.equals(call.serviceCallId()))
+            .findFirst()
+            .orElse(current.serviceCalls().getFirst());
+    CatalogBindingHint hint = hintFromImport(target, binding);
+    put(conversationId, current.withBoundServiceCall(target.serviceCallId(), hint));
+  }
+
+  private static String resolveImportOwner(RequirementDraft current, String serviceCallId) {
+    if (serviceCallId != null && !serviceCallId.isBlank()) {
+      return serviceCallId.trim();
+    }
+    if (current.apiHubCandidateServiceCallId() != null) {
+      return current.apiHubCandidateServiceCallId();
+    }
+    List<RequirementServiceCall> unbound =
+        current.serviceCalls().stream().filter(call -> call.catalogBinding() == null).toList();
+    if (unbound.size() == 1) {
+      return unbound.getFirst().serviceCallId();
+    }
+    if (current.serviceCalls().size() == 1) {
+      return current.serviceCalls().getFirst().serviceCallId();
+    }
+    return null;
+  }
+
+  private static CatalogBindingHint hintFromImport(
+      RequirementServiceCall call, ResolvedCatalogBinding binding) {
+    CatalogBindingMatcher.CatalogMatch match =
+        new CatalogBindingMatcher.CatalogMatch(
+            binding.systemId(),
+            binding.specificationGroupId(),
+            binding.specificationId(),
+            binding.integrationOperationId(),
+            "",
+            "",
+            null,
+            null,
+            call.operation(),
+            "import:" + binding.integrationOperationId());
+    return CatalogBindingHint.from(call, match, "catalog", Instant.now());
   }
 
   /**
@@ -238,7 +295,8 @@ public class RequirementDraftStore {
               next.facts(),
               true,
               next.designModeHint(),
-              next.serviceCalls());
+              next.serviceCalls(),
+              next.apiHubCandidateServiceCallId());
     }
     if (next != current) {
       put(conversationId, next);

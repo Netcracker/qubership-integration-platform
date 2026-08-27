@@ -3,16 +3,27 @@ package org.qubership.integration.platform.ai.plan;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 
 /**
@@ -49,18 +60,17 @@ public class RequirementDraftTool {
           + " Reply to the user only after a successful capture, in the user's language.";
 
   static final String BINDING_REQUIRED_OPEN_QUESTION =
-      "Which catalog operation should this chain call? Resolve it in the local catalog before "
-          + "searching API Hub.";
+      "Which catalog operation should each unresolved service call use? Call resolveApiOperation"
+          + " for each serviceCallId before searching API Hub.";
 
   static final String BINDING_SOFT_DOWNGRADE_PREFIX =
-      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): catalogBinding was missing "
-          + "for a required service call. ";
+      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): one or more service calls"
+          + " are unresolved. ";
 
   static final String BINDING_SOFT_DOWNGRADE_HINT =
-      "In this same turn, call captureRequirementDraft again with decision=READY_FOR_PLAN and"
-      + " catalogBinding (systemId, specificationId, specificationGroupId,"
-          + " integrationOperationId) taken from resolveApiOperation or catalog tool results."
-          + " Do not invent UUIDs.";
+      "Assign and reuse serviceCallId on each SERVICE_CALL fact. Call resolveApiOperation for"
+          + " each unresolved serviceCallId, then recapture after those tool results are recorded."
+          + " Do not invent catalog UUIDs.";
 
   static final String ALREADY_READY_STOP_HINT =
       "Requirement draft is already READY_FOR_PLAN for this turn. Do not call"
@@ -144,23 +154,23 @@ public class RequirementDraftTool {
       When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT — retry the
       same turn with facts, or keep NEEDS_INPUT with one open question.
       Optional fact fields: kind (GOAL, ENDPOINT, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY,
-      VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId, participant, operation,
-      topic, httpMethod, path. text is a human description only; later Java copies the named
-      identity fields and does not parse text.
+      VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId, serviceCallId, participant,
+      operation, topic, httpMethod, path. text is a human description only; later Java copies the
+      named identity fields and does not parse text.
       ENDPOINT capabilityKey is the CIP trigger type (http-trigger or kafka-trigger-2). HTTP
       ENDPOINT facts set httpMethod and path (operation optional). Kafka ENDPOINT facts set
-      topic and operation. SERVICE_CALL facts set participant and operation (example:
-      participant=Petstore Ext, operation=getPetById). Do not put trigger identity into
-      service-call fields.
-      For every SERVICE_CALL fact, call resolveApiOperation before READY_FOR_PLAN. It checks the
-      local catalog first and searches API Hub only after a confirmed catalog miss.
-      When catalog tools return a single clear system/spec/operation match, set catalogBinding
-      with systemId, specificationId, specificationGroupId, and integrationOperationId from those
-      tool results (never invent UUIDs). catalogBinding allows READY_FOR_PLAN.
+      topic and operation. SERVICE_CALL facts set participant, operation, and a stable
+      serviceCallId (example: serviceCallId=call-om-result, participant=OM,
+      operation=onTaskResult). Reuse the same serviceCallId when editing that call; allocate a
+      new id only for a new occurrence. Do not put trigger identity into service-call fields.
+      For every SERVICE_CALL fact, call resolveApiOperation with that serviceCallId before
+      READY_FOR_PLAN. It checks the local catalog first and searches API Hub only after a
+      confirmed catalog miss. READY_FOR_PLAN requires every active serviceCallId to have its own
+      catalog binding from those tool results (never invent UUIDs).
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
-      packageId, version, and operationId or documentId from the search hit (do not put
-      apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave openQuestions empty;
-      the server offers the import as a decision card.
+      serviceCallId plus packageId, version, and operationId or documentId from the search hit
+      (do not put apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave
+      openQuestions empty; the server offers the import as a decision card.
       Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
       After a successful READY_FOR_PLAN capture in this turn, do not call captureRequirementDraft
       again and do not repeat the ready-for-planning assistant text.
@@ -262,6 +272,13 @@ public class RequirementDraftTool {
             conversationId, ex.getMessage());
         return finish(conversationId, startMs, ex.getMessage());
       }
+      String duplicateCallError = validateUniqueServiceCallIds(facts);
+      if (duplicateCallError != null) {
+        LOG.warnf(
+            "captureRequirementDraft: validation failed conversationId=%s reason=%s",
+            conversationId, duplicateCallError);
+        return finish(conversationId, startMs, duplicateCallError);
+      }
 
       ResolvedCatalogBinding binding =
           ResolvedCatalogBinding.enrichFromCache(
@@ -316,18 +333,24 @@ public class RequirementDraftTool {
             candidate.packageId());
       }
 
-      List<RequirementFact> serviceCalls = positiveServiceCalls(facts);
-      List<RequirementFact> unresolvedCalls =
-          unresolvedServiceCalls(serviceCalls, binding, conversationId);
+      List<RequirementFact> positiveCalls = positiveServiceCalls(facts);
+      recordAssessmentsFromListedOperations(positiveCalls, conversationId);
+      List<RequirementServiceCall> reconciledCalls =
+          reconcileServiceCalls(facts, previous, conversationId);
+      ResolvedCatalogBinding storedBinding =
+          reconciledCalls.size() == 1 && reconciledCalls.getFirst().catalogBinding() == null
+              ? binding
+              : null;
+      List<RequirementServiceCall> unresolvedCalls =
+          storedBinding != null
+              ? List.of()
+              : reconciledCalls.stream().filter(call -> call.catalogBinding() == null).toList();
       // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
       // below stays for drafts whose facts carry no SERVICE_CALL kind at all.
       boolean bindingMissing =
-          serviceCalls.isEmpty() && resolutions != null
-              ? binding == null
-                  && requiresResolvedCatalogBinding(facts, catalogCache, conversationId)
-              : resolutions == null
-                  && binding == null
-                  && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
+          positiveCalls.isEmpty()
+              && binding == null
+              && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
       if (decision == DraftDecision.READY_FOR_PLAN
           && (!unresolvedCalls.isEmpty() || bindingMissing)) {
         softDowngradedForBinding = true;
@@ -356,6 +379,8 @@ public class RequirementDraftTool {
               : (candidate != null || (previous != null && previous.importIntent()));
 
       DesignMode designModeHint = parseDesignModeHint(capture.designModeHint());
+      String owningCallId =
+          candidate != null && previous != null ? previous.apiHubCandidateServiceCallId() : null;
       RequirementDraft draft =
           new RequirementDraft(
               softDowngradedForFacts
@@ -371,13 +396,22 @@ public class RequirementDraftTool {
               sourceSkillVersion(conversationId),
               sourceSkillHash(conversationId),
               candidate,
-              binding,
+              storedBinding,
               false,
               facts,
               importIntent,
-              designModeHint);
+              designModeHint,
+              reconciledCalls,
+              owningCallId);
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
+      if (resolutions != null) {
+        Set<String> retained = new LinkedHashSet<>();
+        for (RequirementServiceCall call : reconciledCalls) {
+          retained.add(call.serviceCallId());
+        }
+        resolutions.retainServiceCalls(conversationId, retained);
+      }
       org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
           .offerDraft(draft);
 
@@ -431,7 +465,11 @@ public class RequirementDraftTool {
         return finish(
             conversationId,
             startMs,
-            BINDING_SOFT_DOWNGRADE_PREFIX + BINDING_SOFT_DOWNGRADE_HINT + " " + storedPreview);
+            BINDING_SOFT_DOWNGRADE_PREFIX
+                + describeUnresolvedCalls(unresolvedCalls)
+                + BINDING_SOFT_DOWNGRADE_HINT
+                + " "
+                + storedPreview);
       }
       if (softDowngradedForFacts) {
         return finish(
@@ -476,29 +514,241 @@ public class RequirementDraftTool {
   }
 
   /**
-   * Positive service-call facts this conversation has not resolved to a catalog operation.
-   *
-   * <p>Readiness is set equality: an approved brief means every outbound call has a binding, not
-   * that some call somewhere produced one. A single-call draft that carries its binding directly —
-   * an import promotion, for instance — still counts as resolved, because that binding can only
-   * belong to the one call.
+   * Rebuilds the durable call list from the current facts. Order follows the facts; identity and
+   * readiness use {@code serviceCallId}.
    */
-  private List<RequirementFact> unresolvedServiceCalls(
-      List<RequirementFact> calls, ResolvedCatalogBinding binding, String conversationId) {
-    if (resolutions == null || calls.isEmpty()) {
-      return List.of();
+  List<RequirementServiceCall> reconcileServiceCalls(
+      List<RequirementFact> facts, RequirementDraft previous, String conversationId) {
+    List<RequirementFact> calls = positiveServiceCalls(facts);
+    Map<String, RequirementServiceCall> previousById = new LinkedHashMap<>();
+    Map<String, RequirementFact> previousFactsById = new HashMap<>();
+    if (previous != null) {
+      for (RequirementServiceCall call : previous.serviceCalls()) {
+        previousById.put(call.serviceCallId(), call);
+      }
+      for (RequirementFact fact : previous.facts()) {
+        if (fact != null
+            && fact.polarity() == RequirementFactPolarity.POSITIVE
+            && fact.kind() == RequirementFactKind.SERVICE_CALL) {
+          previousFactsById.put(fact.serviceCallId(), fact);
+        }
+      }
     }
-    if (calls.size() == 1 && binding != null) {
-      return List.of();
+    List<RequirementServiceCall> reconciled = new ArrayList<>();
+    for (RequirementFact fact : calls) {
+      RequirementServiceCall prior = previousById.get(fact.serviceCallId());
+      RequirementFact priorFact = previousFactsById.get(fact.serviceCallId());
+      ServiceCallAssessment assessment =
+          resolutions == null
+              ? null
+              : resolutions.forServiceCall(conversationId, fact.serviceCallId()).orElse(null);
+      CatalogBindingHint hint = bindingFor(fact, prior, priorFact, assessment);
+      reconciled.add(
+          new RequirementServiceCall(
+              fact.serviceCallId(),
+              fact.sourceFactId(),
+              fact.participant(),
+              fact.operation(),
+              hint));
     }
-    return calls.stream()
-        .filter(
-            call ->
-                resolutions
-                    .forFact(conversationId, call.sourceFactId())
-                    .filter(ServiceCallAssessment::isResolved)
-                    .isEmpty())
-        .toList();
+    return List.copyOf(reconciled);
+  }
+
+  private static CatalogBindingHint bindingFor(
+      RequirementFact fact,
+      RequirementServiceCall prior,
+      RequirementFact priorFact,
+      ServiceCallAssessment assessment) {
+    boolean identityUnchanged = priorFact != null && sameCallIdentity(fact, priorFact);
+    CatalogBindingHint priorHint = prior == null ? null : prior.catalogBinding();
+    if (assessment != null
+        && assessment.isResolved()
+        && assessment.binding() != null
+        && assessmentIntentMatches(assessment, fact)) {
+      if (priorHint != null && sameCatalogIdentity(priorHint, assessment.binding())) {
+        return priorHint;
+      }
+      return CatalogBindingHint.from(
+          new RequirementServiceCall(
+              fact.serviceCallId(),
+              fact.sourceFactId(),
+              fact.participant(),
+              fact.operation()),
+          assessment.binding(),
+          "catalog",
+          assessment.observedAt());
+    }
+    if (priorHint != null && identityUnchanged) {
+      return priorHint;
+    }
+    return null;
+  }
+
+  private static boolean sameCallIdentity(RequirementFact left, RequirementFact right) {
+    return sameField(left.participant(), right.participant())
+        && sameField(left.operation(), right.operation())
+        && sameField(left.httpMethod(), right.httpMethod())
+        && sameField(left.path(), right.path());
+  }
+
+  private static boolean assessmentIntentMatches(
+      ServiceCallAssessment assessment, RequirementFact fact) {
+    ServiceCallAssessment.Intent intent = assessment.intent();
+    return sameField(intent.systemHint(), fact.participant())
+        && sameField(intent.operationHint(), fact.operation())
+        && sameField(intent.method(), fact.httpMethod())
+        && sameField(intent.path(), fact.path());
+  }
+
+  private static boolean sameCatalogIdentity(
+      CatalogBindingHint hint, CatalogBindingMatcher.CatalogMatch match) {
+    return sameField(hint.systemId(), match.systemId())
+        && sameField(hint.specificationGroupId(), match.specificationGroupId())
+        && sameField(hint.specificationId(), match.specificationId())
+        && sameField(hint.integrationOperationId(), match.integrationOperationId());
+  }
+
+  private static boolean sameField(String left, String right) {
+    String a = left == null ? "" : left.trim();
+    String b = right == null ? "" : right.trim();
+    return a.equals(b);
+  }
+
+  /**
+   * Records one resolved assessment per service-call fact when {@code listCatalogOperations} already
+   * returned a unique match. Two outbound calls may share the same catalog operation; each fact
+   * still gets its own assessment.
+   */
+  private void recordAssessmentsFromListedOperations(
+      List<RequirementFact> calls, String conversationId) {
+    if (resolutions == null || catalogCache == null || calls.isEmpty()) {
+      return;
+    }
+    List<CatalogRestClient.OperationDto> listed = catalogCache.rememberedOperations(conversationId);
+    if (listed.isEmpty()) {
+      return;
+    }
+    for (RequirementFact call : calls) {
+      if (resolutions
+          .forServiceCall(conversationId, call.serviceCallId())
+          .filter(ServiceCallAssessment::isResolved)
+          .isPresent()) {
+        continue;
+      }
+      List<CatalogRestClient.OperationDto> matches = new ArrayList<>();
+      for (CatalogRestClient.OperationDto operation : listed) {
+        if (operation == null) {
+          continue;
+        }
+        if (listedOperationMatches(conversationId, call, operation)) {
+          matches.add(operation);
+        }
+      }
+      if (matches.size() != 1) {
+        continue;
+      }
+      CatalogRestClient.OperationDto operation = matches.getFirst();
+      catalogMatchFromListed(conversationId, operation)
+          .ifPresent(
+              match ->
+                  resolutions.remember(
+                      conversationId,
+                      ServiceCallAssessment.resolved(
+                          call.serviceCallId(),
+                          call.sourceFactId(),
+                          intentFrom(call),
+                          match)));
+    }
+  }
+
+  private boolean listedOperationMatches(
+      String conversationId,
+      RequirementFact call,
+      CatalogRestClient.OperationDto operation) {
+    String participant = CatalogStrings.blankToNull(call.participant());
+    if (participant != null) {
+      Optional<CatalogRestClient.SystemDto> system =
+          catalogCache
+              .findSpecificationOwnerSystemId(conversationId, operation.modelId())
+              .flatMap(systemId -> catalogCache.findSystem(conversationId, systemId));
+      if (system.isEmpty() || !serviceNameAgrees(participant, system.get().name())) {
+        return false;
+      }
+    }
+    String hint = CatalogStrings.percentDecode(CatalogStrings.blankToNull(call.operation()));
+    if (hint == null) {
+      hint = call.text();
+    }
+    return operationHintAgrees(hint, operation);
+  }
+
+  private Optional<CatalogBindingMatcher.CatalogMatch> catalogMatchFromListed(
+      String conversationId, CatalogRestClient.OperationDto operation) {
+    String specificationId = CatalogStrings.blankToNull(operation.modelId());
+    if (specificationId == null) {
+      return Optional.empty();
+    }
+    CatalogRestClient.SpecificationDto specification =
+        catalogCache.findSpecification(conversationId, specificationId).orElse(null);
+    String systemId =
+        catalogCache
+            .findSpecificationOwnerSystemId(conversationId, specificationId)
+            .orElse(null);
+    if (specification == null
+        || CatalogStrings.blankToNull(specification.specificationGroupId()) == null
+        || CatalogStrings.blankToNull(systemId) == null) {
+      return Optional.empty();
+    }
+    CatalogRestClient.SystemDto system =
+        catalogCache.findSystem(conversationId, systemId).orElse(null);
+    return Optional.of(
+        new CatalogBindingMatcher.CatalogMatch(
+            systemId,
+            specification.specificationGroupId(),
+            specificationId,
+            operation.id(),
+            system == null ? "" : system.name(),
+            system == null ? "" : system.protocol(),
+            operation.method(),
+            operation.path(),
+            operation.name(),
+            "catalog-listed:" + systemId + "/" + specificationId + "/" + operation.id()));
+  }
+
+  private static ServiceCallAssessment.Intent intentFrom(RequirementFact call) {
+    return new ServiceCallAssessment.Intent(
+        call.text(),
+        call.participant(),
+        call.operation(),
+        call.httpMethod(),
+        call.path());
+  }
+
+  private static boolean serviceNameAgrees(String required, String catalogName) {
+    if (CatalogStrings.blankToNull(catalogName) == null) {
+      return false;
+    }
+    String left = required.trim().toLowerCase(Locale.ROOT);
+    String right = catalogName.trim().toLowerCase(Locale.ROOT);
+    return left.equals(right) || right.contains(left) || left.contains(right);
+  }
+
+  private static boolean operationHintAgrees(
+      String hint, CatalogRestClient.OperationDto operation) {
+    String needle = CatalogStrings.percentDecode(hint);
+    if (needle == null) {
+      return false;
+    }
+    if (equalsIgnoreCase(needle, operation.id()) || equalsIgnoreCase(needle, operation.name())) {
+      return true;
+    }
+    String lower = needle.toLowerCase(Locale.ROOT);
+    String name = CatalogStrings.blankToNull(operation.name());
+    return name != null && lower.contains(name.toLowerCase(Locale.ROOT));
+  }
+
+  private static boolean equalsIgnoreCase(String left, String right) {
+    return left != null && right != null && left.equalsIgnoreCase(right);
   }
 
   private static List<RequirementFact> positiveServiceCalls(List<RequirementFact> facts) {
@@ -519,41 +769,68 @@ public class RequirementDraftTool {
    * lacks, and an ambiguous one needs a choice between candidates the catalog already returned.
    * Asking "which operation" for either of those wastes the turn the reader spends answering it.
    */
-  private String bindingOpenQuestion(List<RequirementFact> unresolvedCalls, String conversationId) {
+  private String bindingOpenQuestion(
+      List<RequirementServiceCall> unresolvedCalls, String conversationId) {
     if (unresolvedCalls.isEmpty()) {
       return BINDING_REQUIRED_OPEN_QUESTION;
     }
     List<String> clarifications =
-        unresolvedCalls.stream().map(call -> clarification(call, conversationId)).toList();
+        unresolvedCalls.stream()
+            .map(call -> describeUnresolvedCall(call) + ". " + clarification(call, conversationId))
+            .toList();
     return String.join(" ", clarifications);
   }
 
-  private String clarification(RequirementFact call, String conversationId) {
+  private static String describeUnresolvedCalls(List<RequirementServiceCall> unresolvedCalls) {
+    if (unresolvedCalls.isEmpty()) {
+      return "";
+    }
+    StringBuilder body = new StringBuilder("Unresolved service calls: ");
+    for (int i = 0; i < unresolvedCalls.size(); i++) {
+      if (i > 0) {
+        body.append("; ");
+      }
+      body.append(describeUnresolvedCall(unresolvedCalls.get(i)));
+    }
+    return body.append(". ").toString();
+  }
+
+  private static String describeUnresolvedCall(RequirementServiceCall call) {
+    return "serviceCallId="
+        + call.serviceCallId()
+        + ", participant="
+        + call.participant()
+        + ", operation="
+        + call.operation();
+  }
+
+  private String clarification(RequirementServiceCall call, String conversationId) {
     ServiceCallAssessment assessment =
         resolutions == null
             ? null
-            : resolutions.forFact(conversationId, call.sourceFactId()).orElse(null);
+            : resolutions.forServiceCall(conversationId, call.serviceCallId()).orElse(null);
+    String label = call.operation().isBlank() ? call.serviceCallId() : call.operation();
     if (assessment == null) {
       return "Which catalog operation should this chain call for \""
-          + call.text()
+          + label
           + "\"? Resolve it in the local catalog before searching API Hub.";
     }
     return switch (assessment.outcome()) {
       case INCOMPLETE ->
           "For \""
-              + call.text()
+              + label
               + "\", which "
               + String.join(", ", assessment.missingIntentFields())
               + " should the chain use?";
       case AMBIGUOUS ->
           "For \""
-              + call.text()
+              + label
               + "\", which catalog operation is meant: "
               + String.join(", ", assessment.candidateOperationIds())
               + "?";
       default ->
           "Which catalog operation should this chain call for \""
-              + call.text()
+              + label
               + "\"? Resolve it in the local catalog before searching API Hub.";
     };
   }
@@ -585,6 +862,20 @@ public class RequirementDraftTool {
       }
       if (!seen.add(fact.sourceFactId())) {
         return "duplicate sourceFactId in facts: " + fact.sourceFactId();
+      }
+    }
+    return null;
+  }
+
+  private static String validateUniqueServiceCallIds(List<RequirementFact> facts) {
+    Set<String> seen = new LinkedHashSet<>();
+    for (RequirementFact fact : positiveServiceCalls(facts)) {
+      String id = fact.serviceCallId();
+      if (id.isEmpty()) {
+        continue;
+      }
+      if (!seen.add(id)) {
+        return "duplicate serviceCallId in facts: " + id;
       }
     }
     return null;

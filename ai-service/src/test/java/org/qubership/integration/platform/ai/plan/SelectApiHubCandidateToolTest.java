@@ -51,7 +51,8 @@ class SelectApiHubCandidateToolTest {
             "partyManagement-v5-partyManagement-v5-party-search-post",
             null,
             "rest",
-            "Party Management");
+            "Party Management",
+            null);
 
     assertTrue(result.contains("\"ok\":true"));
     assertTrue(result.contains("S.ProdCat.PartyMgmt"));
@@ -77,7 +78,7 @@ class SelectApiHubCandidateToolTest {
 
     String result =
         tool.selectApiHubCandidate(
-            "S.ProdCat.PartyMgmt", "2026.2@1", null, null, null, "Party Management");
+            "S.ProdCat.PartyMgmt", "2026.2@1", null, null, null, "Party Management", null);
 
     assertTrue(result.contains("\"ok\":true"));
     RequirementDraft draft = store.get("select-conv").orElseThrow();
@@ -115,7 +116,8 @@ class SelectApiHubCandidateToolTest {
             "partyManagement-v5-partyManagement-v5-party-search-post",
             null,
             "rest",
-            "Party Management");
+            "Party Management",
+            null);
 
     assertTrue(result.contains("\"ok\":true"));
     assertTrue(result.contains("catalogBinding"));
@@ -132,10 +134,64 @@ class SelectApiHubCandidateToolTest {
     MDC.put(ChatMdc.CONVERSATION_ID, "select-conv");
     store.beginTurn("select-conv");
 
-    String result = tool.selectApiHubCandidate(null, null, "op-1", null, "rest", null);
+    String result = tool.selectApiHubCandidate(null, null, "op-1", null, "rest", null, null);
 
     assertTrue(result.contains("\"ok\":false"));
     assertTrue(store.get("select-conv").isEmpty());
     assertFalse(apiHubCache.latestCandidate("select-conv").isPresent());
+  }
+
+  @Test
+  void selectRequiresServiceCallIdWhenSeveralCallsAreUnresolved() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "select-conv");
+    store.beginTurn("select-conv");
+    store.put(
+        "select-conv",
+        new RequirementDraft(
+            false,
+            "Call OM then Salesforce WFM",
+            DraftDecision.NEEDS_INPUT,
+            List.of(),
+            RequirementDraftTool.SOURCE_SKILL_ID,
+            "pack",
+            "hash",
+            null,
+            null,
+            false,
+            List.of(
+                serviceCall("call-om-result", "OM", "onTaskResult"),
+                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
+            false));
+
+    String result =
+        tool.selectApiHubCandidate(
+            "S.ProdCat.PartyMgmt",
+            "2026.2@1",
+            "partyManagement-v5-partyManagement-v5-party-search-post",
+            null,
+            "rest",
+            "Party Management",
+            null);
+
+    assertTrue(result.contains("\"ok\":false"), result);
+    assertTrue(result.contains("serviceCallId is required"), result);
+    assertTrue(result.contains("call-om-result"), result);
+    assertTrue(result.contains("call-wfm-create-task"), result);
+  }
+
+  private static RequirementFact serviceCall(
+      String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        serviceCallId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
   }
 }

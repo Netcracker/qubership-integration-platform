@@ -106,9 +106,6 @@ public record CatalogBindingHint(
   @JsonIgnore
   @Deprecated
   public String serviceCallSourceFactId() {
-  @JsonIgnore
-  @Deprecated
-  public String serviceCallSourceFactId() {
     return serviceCallId;
   }
 
