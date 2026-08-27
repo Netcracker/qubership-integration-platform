@@ -5,7 +5,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 
-/** Pins every runtime and knowledge choice for one durable product-pipeline run. */
+/** Pins every runtime, knowledge, and compiler-run choice for one durable product-pipeline run. */
 public record RunManifest(
     String runId,
     String parentRunId,

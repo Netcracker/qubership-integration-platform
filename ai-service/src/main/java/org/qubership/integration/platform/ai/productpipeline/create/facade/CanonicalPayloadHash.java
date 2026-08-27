@@ -9,6 +9,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
 /**
  * Canonical SHA-256 digests for public create-chain artifact payloads.
@@ -20,8 +22,15 @@ public final class CanonicalPayloadHash {
 
   private static final ObjectMapper CANONICAL =
       new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+  private static final ChainSemanticCanonicalizer SEMANTIC_CANONICALIZER =
+      new ChainSemanticCanonicalizer();
 
   private CanonicalPayloadHash() {}
+
+  public static String sha256Hex(ChainSemanticRevision revision) {
+    Objects.requireNonNull(revision, "revision");
+    return SEMANTIC_CANONICALIZER.sha256(revision);
+  }
 
   public static String sha256Hex(Map<String, ?> payload) {
     Objects.requireNonNull(payload, "payload");

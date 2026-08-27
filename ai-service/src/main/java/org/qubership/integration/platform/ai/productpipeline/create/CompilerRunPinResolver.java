@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineNode;
@@ -25,6 +27,8 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRu
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPipelinePolicy;
@@ -158,6 +162,74 @@ public final class CompilerRunPinResolver {
         skillHashes,
         addonHashes,
         runtimeSchemas);
+  }
+
+  public CompilerRunPin resolve(
+      String runId, ChainSemanticRevision approvedSemanticRevision, CompilerContract contract) {
+    Objects.requireNonNull(runId, "runId");
+    if (runId.isBlank()) {
+      throw new IllegalArgumentException("runId must not be blank");
+    }
+    Objects.requireNonNull(approvedSemanticRevision, "approvedSemanticRevision");
+    Objects.requireNonNull(contract, "contract");
+    if (!Objects.equals(
+        approvedSemanticRevision.compilerContractVersion(), contract.contractVersion())) {
+      throw new IllegalStateException("Approved compiler contract version does not match");
+    }
+    return new CompilerRunPin(
+        null,
+        null,
+        null,
+        0,
+        null,
+        null,
+        null,
+        List.of(),
+        Map.of(),
+        Map.of(),
+        List.of(),
+        Kind.CHAIN_SEMANTIC_REVISION.name(),
+        approvedSemanticRevision.schemaVersion(),
+        approvedSemanticRevision.revisionId(),
+        CanonicalPayloadHash.sha256Hex(approvedSemanticRevision),
+        contract.contractVersion(),
+        contract.sha256());
+  }
+
+  public void verifyPersistedPin(CompilerRunPin stored, ChainSemanticRevision liveRevision) {
+    Objects.requireNonNull(stored, "stored");
+    Objects.requireNonNull(liveRevision, "liveRevision");
+    verifySemanticPin(stored, liveRevision);
+  }
+
+  public void verifyPersistedPin(
+      CompilerRunPin stored, ChainSemanticRevision liveRevision, CompilerContract contract) {
+    verifyPersistedPin(stored, liveRevision);
+    Objects.requireNonNull(contract, "contract");
+    if (!Objects.equals(stored.compilerContractVersion(), contract.contractVersion())
+        || !Objects.equals(stored.compilerContractSha256(), contract.sha256())) {
+      throw new IllegalStateException("Approved compiler contract digest does not match");
+    }
+  }
+
+  private static void verifySemanticPin(CompilerRunPin stored, ChainSemanticRevision liveRevision) {
+    String liveDigest = CanonicalPayloadHash.sha256Hex(liveRevision);
+    if (!Objects.equals(stored.subjectSha256(), liveDigest)) {
+      throw new IllegalStateException("Approved semantic revision digest does not match");
+    }
+    if (!Objects.equals(stored.subjectSchemaVersion(), liveRevision.schemaVersion())) {
+      throw new IllegalStateException("Approved semantic schema version does not match");
+    }
+    if (!Objects.equals(stored.subjectRevisionId(), liveRevision.revisionId())) {
+      throw new IllegalStateException("Approved semantic revision id does not match");
+    }
+    if (!Kind.CHAIN_SEMANTIC_REVISION.name().equals(stored.subjectArtifactKind())) {
+      throw new IllegalStateException("Approved semantic revision digest does not match");
+    }
+    if (!Objects.equals(
+        stored.compilerContractVersion(), liveRevision.compilerContractVersion())) {
+      throw new IllegalStateException("Approved compiler contract version does not match");
+    }
   }
 
   public void verifyAvailable(RunManifest manifest) {

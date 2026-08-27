@@ -4,9 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
 
 class CanonicalPayloadHashTest {
 
@@ -72,5 +82,117 @@ class CanonicalPayloadHashTest {
     payload.put("outcome", "materialized");
     payload.put("status", "DRAFT");
     assertEquals(CanonicalPayloadHash.sha256Hex(canonical), CanonicalPayloadHash.sha256Hex(payload));
+  }
+
+  @Test
+  void semanticDigestDelegatesToChainSemanticCanonicalizer() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    assertEquals(
+        new ChainSemanticCanonicalizer().sha256(revision),
+        CanonicalPayloadHash.sha256Hex(revision));
+  }
+
+  @Test
+  void semanticDigestChangesWhenConsumedFieldsChange() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    String digest = CanonicalPayloadHash.sha256Hex(revision);
+    assertNotEquals(digest, CanonicalPayloadHash.sha256Hex(withChangedEntryPoint(revision)));
+    assertNotEquals(digest, CanonicalPayloadHash.sha256Hex(withChangedEdge(revision)));
+    assertNotEquals(digest, CanonicalPayloadHash.sha256Hex(withChangedMapping(revision)));
+    assertNotEquals(
+        digest, CanonicalPayloadHash.sha256Hex(withChangedProvenanceCitation(revision)));
+  }
+
+  private static ChainSemanticRevision twoEntryRevision() {
+    return SemanticFixtures.revision(
+        List.of(
+            SemanticFixtures.entry("http-in", "trigger-http"),
+            SemanticFixtures.entry("kafka-in", "trigger-kafka")));
+  }
+
+  private static ChainSemanticRevision withChangedEntryPoint(ChainSemanticRevision revision) {
+    SemanticEntryPoint http = revision.entryPoints().getFirst();
+    SemanticEntryPoint retargeted =
+        new SemanticEntryPoint(
+            http.entryPointId(),
+            http.triggerNodeId(),
+            "node-call",
+            http.order(),
+            http.provenance(),
+            http.presentation());
+    return copy(
+        revision,
+        List.of(retargeted, revision.entryPoints().get(1)),
+        revision.executionEdges(),
+        revision.mappingIntents(),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedEdge(ChainSemanticRevision revision) {
+    SemanticExecutionEdge edge = revision.executionEdges().getLast();
+    SemanticExecutionEdge retargeted =
+        new SemanticExecutionEdge(
+            edge.edgeId(),
+            edge.sourceNodeId(),
+            "trigger-http",
+            edge.regionId(),
+            edge.route(),
+            edge.mappingId());
+    List<SemanticExecutionEdge> edges = new ArrayList<>(revision.executionEdges());
+    edges.set(edges.size() - 1, retargeted);
+    return copy(
+        revision, revision.entryPoints(), edges, revision.mappingIntents(), revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedMapping(ChainSemanticRevision revision) {
+    MappingIntent mapping = revision.mappingIntents().getFirst();
+    MappingIntent renamed =
+        new MappingIntent(
+            "map-body-changed",
+            mapping.sourceRef(),
+            mapping.sourcePort(),
+            mapping.targetRef(),
+            mapping.targetPort(),
+            mapping.rules());
+    return copy(
+        revision,
+        revision.entryPoints(),
+        revision.executionEdges(),
+        List.of(renamed),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedProvenanceCitation(
+      ChainSemanticRevision revision) {
+    return copy(
+        revision,
+        revision.entryPoints(),
+        revision.executionEdges(),
+        revision.mappingIntents(),
+        List.of(
+            new QipKnowledgeCitation(
+                "cite-1", QipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
+  }
+
+  private static ChainSemanticRevision copy(
+      ChainSemanticRevision base,
+      List<SemanticEntryPoint> entryPoints,
+      List<SemanticExecutionEdge> edges,
+      List<MappingIntent> mappings,
+      List<QipKnowledgeCitation> citations) {
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        base.revisionId(),
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        entryPoints,
+        base.nodes(),
+        base.regions(),
+        edges,
+        base.containment(),
+        mappings,
+        base.constraints(),
+        base.assumptions(),
+        citations);
   }
 }

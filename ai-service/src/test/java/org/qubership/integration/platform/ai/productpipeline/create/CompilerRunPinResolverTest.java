@@ -6,12 +6,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPackageIdentity;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
@@ -19,9 +24,15 @@ import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineI
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexBuilder;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSource;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineNode;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
@@ -29,6 +40,9 @@ import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPip
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
@@ -264,6 +278,103 @@ class CompilerRunPinResolverTest {
   void resumeRejectsUnavailablePinnedCompilerPackage() {
     RunManifest manifest = manifestPinnedTo("old-compiler-sha");
     assertThrows(IllegalStateException.class, () -> resolver.verifyAvailable(manifest));
+  }
+
+  @Test
+  void semanticPinFieldsShareConstructorOrder() {
+    List<String> expected =
+        List.of(
+            "subjectArtifactKind",
+            "subjectSchemaVersion",
+            "subjectRevisionId",
+            "subjectSha256",
+            "compilerContractVersion",
+            "compilerContractSha256");
+    assertEquals(expected, pinFieldNames(ApprovalRecordV2.class));
+    assertEquals(expected, pinFieldNames(CompilerRunPin.class));
+  }
+
+  @Test
+  void resolvePinsFullSemanticRevisionAndContract() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerContract contract = v1Contract();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, contract);
+
+    assertEquals(Kind.CHAIN_SEMANTIC_REVISION.name(), pin.subjectArtifactKind());
+    assertEquals(revision.schemaVersion(), pin.subjectSchemaVersion());
+    assertEquals(revision.revisionId(), pin.subjectRevisionId());
+    assertEquals(CanonicalPayloadHash.sha256Hex(revision), pin.subjectSha256());
+    assertEquals(contract.contractVersion(), pin.compilerContractVersion());
+    assertEquals(contract.sha256(), pin.compilerContractSha256());
+  }
+
+  @Test
+  void verifyPersistedPinRejectsChangedMapping() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, v1Contract());
+    ChainSemanticRevision changed = withChangedMapping(revision);
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> resolver.verifyPersistedPin(pin, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyPersistedPinRejectsChangedEntryPoint() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, v1Contract());
+    ChainSemanticRevision changed = withChangedEntryPoint(revision);
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> resolver.verifyPersistedPin(pin, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyPersistedPinRejectsChangedEdge() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, v1Contract());
+    ChainSemanticRevision changed = withChangedEdge(revision);
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> resolver.verifyPersistedPin(pin, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyPersistedPinRejectsChangedProvenanceCitation() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, v1Contract());
+    ChainSemanticRevision changed = withChangedProvenanceCitation(revision);
+    IllegalStateException error =
+        assertThrows(IllegalStateException.class, () -> resolver.verifyPersistedPin(pin, changed));
+    assertTrue(error.getMessage().contains("Approved semantic revision digest does not match"));
+  }
+
+  @Test
+  void verifyPersistedPinRejectsChangedContractDigest() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerContract contract = v1Contract();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, contract);
+    CompilerContract other =
+        new CompilerContract(
+            contract.contractVersion(),
+            contract.semanticSchemaVersion(),
+            contract.elements(),
+            contract.topology(),
+            contract.requiredArtifacts(),
+            contract.requiredAddons(),
+            contract.requiredKnowledgeFragments(),
+            "aa".repeat(32));
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> resolver.verifyPersistedPin(pin, revision, other));
+    assertTrue(error.getMessage().contains("Approved compiler contract digest does not match"));
+  }
+
+  @Test
+  void restartDoesNotRecomputeContractDigestAgainstNewerContract() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerContract contract = v1Contract();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, contract);
+    resolver.verifyPersistedPin(pin, revision);
   }
 
   private CompilerRunPin resolveProductionCreateChainPin() {
@@ -623,5 +734,110 @@ class CompilerRunPinResolverTest {
         mode,
         adapterId,
         ownership);
+  }
+
+  private static List<String> pinFieldNames(Class<?> type) {
+    return Arrays.stream(type.getRecordComponents())
+        .map(RecordComponent::getName)
+        .dropWhile(name -> !name.equals("subjectArtifactKind"))
+        .limit(6)
+        .toList();
+  }
+
+  private static CompilerContract v1Contract() {
+    return new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+  }
+
+  private static ChainSemanticRevision twoEntryRevision() {
+    return SemanticFixtures.revision(
+        List.of(
+            SemanticFixtures.entry("http-in", "trigger-http"),
+            SemanticFixtures.entry("kafka-in", "trigger-kafka")));
+  }
+
+  private static ChainSemanticRevision withChangedMapping(ChainSemanticRevision revision) {
+    MappingIntent mapping = revision.mappingIntents().getFirst();
+    MappingIntent renamed =
+        new MappingIntent(
+            "map-body-changed",
+            mapping.sourceRef(),
+            mapping.sourcePort(),
+            mapping.targetRef(),
+            mapping.targetPort(),
+            mapping.rules());
+    return copy(
+        revision,
+        revision.entryPoints(),
+        revision.executionEdges(),
+        List.of(renamed),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedEntryPoint(ChainSemanticRevision revision) {
+    SemanticEntryPoint http = revision.entryPoints().getFirst();
+    SemanticEntryPoint retargeted =
+        new SemanticEntryPoint(
+            http.entryPointId(),
+            http.triggerNodeId(),
+            "node-call",
+            http.order(),
+            http.provenance(),
+            http.presentation());
+    return copy(
+        revision,
+        List.of(retargeted, revision.entryPoints().get(1)),
+        revision.executionEdges(),
+        revision.mappingIntents(),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedEdge(ChainSemanticRevision revision) {
+    SemanticExecutionEdge edge = revision.executionEdges().getLast();
+    SemanticExecutionEdge retargeted =
+        new SemanticExecutionEdge(
+            edge.edgeId(),
+            edge.sourceNodeId(),
+            "trigger-http",
+            edge.regionId(),
+            edge.route(),
+            edge.mappingId());
+    List<SemanticExecutionEdge> edges = new ArrayList<>(revision.executionEdges());
+    edges.set(edges.size() - 1, retargeted);
+    return copy(
+        revision, revision.entryPoints(), edges, revision.mappingIntents(), revision.citations());
+  }
+
+  private static ChainSemanticRevision withChangedProvenanceCitation(
+      ChainSemanticRevision revision) {
+    return copy(
+        revision,
+        revision.entryPoints(),
+        revision.executionEdges(),
+        revision.mappingIntents(),
+        List.of(
+            new QipKnowledgeCitation(
+                "cite-1", QipKnowledgeRefType.RULE, "rules/example.yaml", null, "pinned fact")));
+  }
+
+  private static ChainSemanticRevision copy(
+      ChainSemanticRevision base,
+      List<SemanticEntryPoint> entryPoints,
+      List<SemanticExecutionEdge> edges,
+      List<MappingIntent> mappings,
+      List<QipKnowledgeCitation> citations) {
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        base.revisionId(),
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        entryPoints,
+        base.nodes(),
+        base.regions(),
+        edges,
+        base.containment(),
+        mappings,
+        base.constraints(),
+        base.assumptions(),
+        citations);
   }
 }
