@@ -8,7 +8,7 @@ public record SemanticExecutionEdge(
     String sourceNodeId,
     String targetNodeId,
     String regionId,
-    String route,
+    SemanticRoute route,
     String mappingId) {
 
   public SemanticExecutionEdge {
@@ -16,7 +16,6 @@ public record SemanticExecutionEdge(
     sourceNodeId = DesignArtifacts.requireText(sourceNodeId, "sourceNodeId");
     targetNodeId = DesignArtifacts.requireText(targetNodeId, "targetNodeId");
     regionId = DesignArtifacts.nullableTrimmed(regionId);
-    route = DesignArtifacts.nullableTrimmed(route);
     mappingId = DesignArtifacts.nullableTrimmed(mappingId);
   }
 }
