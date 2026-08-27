@@ -172,6 +172,48 @@ class BriefMappingValidatorTest {
     assertEquals(MappingRuleStatus.PROPOSED, intent.get().rules().getFirst().status());
   }
 
+  @Test
+  void expressionStaysUnresolvedWithoutScriptPreference() {
+    Optional<MappingIntent> intent =
+        BriefMappingValidator.validateBoundary(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name", "$.fullName", "uppercase the name", MappingRuleStatus.USER_DEFINED)),
+            MappingContract.unknown(),
+            MappingContract.unknown());
+
+    assertTrue(intent.isPresent());
+    assertEquals(MappingRuleStatus.UNRESOLVED, intent.get().rules().getFirst().status());
+    assertTrue(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+  }
+
+  @Test
+  void scriptPreferenceAcceptsPlainLanguageExpression() {
+    Optional<MappingIntent> intent =
+        BriefMappingValidator.validateBoundary(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name", "$.fullName", "uppercase the name", MappingRuleStatus.USER_DEFINED)),
+            MappingContract.unknown(),
+            MappingContract.unknown(),
+            "SCRIPT");
+
+    assertTrue(intent.isPresent());
+    assertEquals("SCRIPT", intent.get().implementationPreference());
+    assertEquals(MappingRuleStatus.USER_DEFINED, intent.get().rules().getFirst().status());
+    assertFalse(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+  }
+
   private static RequirementBrief briefWithIntents(List<MappingIntent> intents) {
     return new RequirementBrief(
             "Orders",

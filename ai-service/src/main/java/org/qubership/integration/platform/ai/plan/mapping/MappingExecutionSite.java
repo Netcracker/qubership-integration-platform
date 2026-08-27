@@ -5,12 +5,14 @@ import java.util.List;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
-/** Compiler metadata and configuration keys on a mapper-2 execution site. */
+/** Compiler metadata and configuration keys on a mapper-2 or script execution site. */
 public final class MappingExecutionSite {
 
   public static final String ELEMENT_TYPE = "mapper-2";
+  public static final String SCRIPT_ELEMENT_TYPE = "script";
   public static final String MAPPING_INTENT_ID_PROPERTY = "mappingIntentId";
   public static final String MAPPING_DESCRIPTION_PROPERTY = "mappingDescription";
+  public static final String SCRIPT_PROPERTY = "script";
 
   private MappingExecutionSite() {}
 
@@ -19,7 +21,19 @@ public final class MappingExecutionSite {
   }
 
   public static boolean isTransformShell(ChainPlanNode node) {
+    if (node == null) {
+      return false;
+    }
+    String type = trim(node.type());
+    return ELEMENT_TYPE.equals(type) || SCRIPT_ELEMENT_TYPE.equals(type);
+  }
+
+  public static boolean isMapper2(ChainPlanNode node) {
     return node != null && ELEMENT_TYPE.equals(trim(node.type()));
+  }
+
+  public static boolean isScript(ChainPlanNode node) {
+    return node != null && SCRIPT_ELEMENT_TYPE.equals(trim(node.type()));
   }
 
   public static String mappingIntentId(ChainPlanNode node) {
@@ -30,7 +44,15 @@ public final class MappingExecutionSite {
     return propertyValue(node, MAPPING_DESCRIPTION_PROPERTY);
   }
 
+  public static String scriptBody(ChainPlanNode node) {
+    return propertyValue(node, SCRIPT_PROPERTY);
+  }
+
   public static boolean isConfigured(ChainPlanNode node) {
+    if (isScript(node)) {
+      String script = scriptBody(node);
+      return script != null && !script.isBlank();
+    }
     String description = mappingDescription(node);
     return description != null && !description.isBlank();
   }

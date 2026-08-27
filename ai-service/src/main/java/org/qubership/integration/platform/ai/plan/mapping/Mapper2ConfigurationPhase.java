@@ -34,7 +34,7 @@ public final class Mapper2ConfigurationPhase {
     }
     ChainPlanGraph current = graph;
     for (MappingIntent intent : brief.mappingIntents()) {
-      if (intent == null || intent.mappingIntentId().isBlank()) {
+      if (!isMapper2Intent(intent)) {
         continue;
       }
       ChainPlanNode site = requireSite(current, intent.mappingIntentId());
@@ -54,7 +54,7 @@ public final class Mapper2ConfigurationPhase {
     List<PropertyPatch> propertyPatches = new ArrayList<>();
     List<MappingIntent> intents = brief == null ? List.of() : brief.mappingIntents();
     for (MappingIntent intent : intents) {
-      if (intent == null || intent.mappingIntentId().isBlank()) {
+      if (!isMapper2Intent(intent)) {
         continue;
       }
       ChainPlanNode site = requireSite(graph, intent.mappingIntentId());
@@ -75,6 +75,12 @@ public final class Mapper2ConfigurationPhase {
         List.of(),
         List.of(),
         "Configure existing mapper-2 shells from approved mapping intents");
+  }
+
+  private static boolean isMapper2Intent(MappingIntent intent) {
+    return intent != null
+        && !intent.mappingIntentId().isBlank()
+        && MappingMechanismSelector.select(intent).orElse(null) == MappingMechanism.MAPPER_2;
   }
 
   private static ChainPlanNode requireSite(ChainPlanGraph graph, String mappingIntentId) {

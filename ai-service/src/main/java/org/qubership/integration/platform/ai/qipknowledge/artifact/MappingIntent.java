@@ -14,17 +14,38 @@ public record MappingIntent(
     MappingPort sourcePort,
     String targetRef,
     MappingPort targetPort,
-    List<MappingIntentRule> rules) {
+    List<MappingIntentRule> rules,
+    String implementationPreference) {
 
   public MappingIntent {
     mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
     sourceRef = sourceRef == null ? "" : sourceRef.trim();
     targetRef = targetRef == null ? "" : targetRef.trim();
     rules = rules == null ? List.of() : List.copyOf(rules);
+    implementationPreference =
+        implementationPreference == null || implementationPreference.isBlank()
+            ? null
+            : implementationPreference.trim();
+  }
+
+  public MappingIntent(
+      String mappingIntentId,
+      String sourceRef,
+      MappingPort sourcePort,
+      String targetRef,
+      MappingPort targetPort,
+      List<MappingIntentRule> rules) {
+    this(mappingIntentId, sourceRef, sourcePort, targetRef, targetPort, rules, null);
   }
 
   public MappingIntent withRules(List<MappingIntentRule> newRules) {
     return new MappingIntent(
-        mappingIntentId, sourceRef, sourcePort, targetRef, targetPort, newRules);
+        mappingIntentId,
+        sourceRef,
+        sourcePort,
+        targetRef,
+        targetPort,
+        newRules,
+        implementationPreference);
   }
 }
