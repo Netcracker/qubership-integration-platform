@@ -341,7 +341,7 @@ public class MicroDomainService {
                     .getMount()
                     .getResources()
                     .stream()
-                    .filter(mount -> !mount.contains(cfgName))
+                    .filter(mount -> cfgName.isEmpty() || !mount.contains(cfgName))
                     .collect(Collectors.toList());
             integration.getSpec().getTraits().getMount().setResources(mounts);
             integration.setApiVersion("camel.apache.org/v1");
