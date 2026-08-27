@@ -139,6 +139,7 @@ class ExecutorCatalogBindingAdapterTest {
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
     assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
+    assertEquals("call-1", failed.serviceCallId());
     assertTrue(failed.reason().contains("requirement gathering"), failed.reason());
   }
 
@@ -174,6 +175,7 @@ class ExecutorCatalogBindingAdapterTest {
     BindingResolutionResult.NeedsInput needsInput =
         assertInstanceOf(BindingResolutionResult.NeedsInput.class, results.getFirst());
     assertEquals(WAITING_FOR_INPUT, needsInput.outcomeClass());
+    assertEquals("call-1", needsInput.serviceCallId());
     assertEquals(List.of("op-a", "op-b"), needsInput.candidateIds());
   }
 
