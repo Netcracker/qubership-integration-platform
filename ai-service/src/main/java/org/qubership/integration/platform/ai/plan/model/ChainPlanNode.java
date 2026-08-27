@@ -52,6 +52,12 @@ public record ChainPlanNode(
     return reservedProperty("semanticNodeId");
   }
 
+  /** Semantic revision id stored under reserved property {@code semanticRevisionId}. Empty when absent. */
+  @JsonIgnore
+  public Optional<String> semanticRevisionId() {
+    return reservedProperty("semanticRevisionId");
+  }
+
   private Optional<String> reservedProperty(String key) {
     if (properties == null) {
       return Optional.empty();
