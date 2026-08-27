@@ -14,7 +14,8 @@ public record CatalogBindingResolution(
 
   public enum Source {
     EXISTING_CATALOG,
-    APIHUB_IMPORT
+    APIHUB_IMPORT,
+    UPLOADED_SPEC
   }
 
   public CatalogBindingResolution {

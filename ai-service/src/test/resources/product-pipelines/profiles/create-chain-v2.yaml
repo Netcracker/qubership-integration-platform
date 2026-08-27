@@ -87,6 +87,18 @@ stages:
         - { type: design-execution-plan, schemaVersion: 1 }
         - { type: implementation-plan, schemaVersion: 2 }
     retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+  - stageId: uploaded-spec-import
+    capabilityId: uploaded-spec-import
+    consumes:
+      - { type: requirement-draft, schemaVersion: 2 }
+      - { type: approval-record, schemaVersion: 2 }
+    produces:
+      - { type: requirement-draft, schemaVersion: 2 }
+    skip:
+      whenAny:
+        - no-uploaded-spec-candidates
+        - provided-design-route
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: design-execution
     capabilityId: design-execution
     consumes:
@@ -136,6 +148,8 @@ terminal: { stageId: materialization, state: CHAIN_MATERIALIZED }
 dependencyRoots:
   - ids-entry
   - requirement-discovery
+  - import-stage
+  - uploaded-spec-import
   - requirement-analysis
   - design-input
   - design-planning

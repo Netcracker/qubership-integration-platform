@@ -16,6 +16,7 @@ public record SkipPolicy(List<String> whenAny) {
   public static final String NO_APIHUB_CANDIDATE = "no-apihub-candidate";
   public static final String CATALOG_BINDING_PRESENT = "catalog-binding-present";
   public static final String PROVIDED_DESIGN_ROUTE = "provided-design-route";
+  public static final String NO_UPLOADED_SPEC_CANDIDATES = "no-uploaded-spec-candidates";
 
   public enum SkipAction {
     REQUIREMENT_DRAFT_PASSTHROUGH,
@@ -65,6 +66,15 @@ public record SkipPolicy(List<String> whenAny) {
             return Optional.of(SkipAction.NO_OUTPUT);
           }
         }
+        case NO_UPLOADED_SPEC_CANDIDATES -> {
+          RequirementDraft draft = context.requirementDraft();
+          if (draft == null) {
+            continue;
+          }
+          if (draft.uploadedSpecCandidates() == null || draft.uploadedSpecCandidates().isEmpty()) {
+            return Optional.of(SkipAction.REQUIREMENT_DRAFT_PASSTHROUGH);
+          }
+        }
         default -> throw new IllegalArgumentException("unknown skip condition: " + condition);
       }
     }
@@ -80,7 +90,8 @@ public record SkipPolicy(List<String> whenAny) {
       String normalized = condition.trim().toLowerCase(Locale.ROOT);
       if (!NO_APIHUB_CANDIDATE.equals(normalized)
           && !CATALOG_BINDING_PRESENT.equals(normalized)
-          && !PROVIDED_DESIGN_ROUTE.equals(normalized)) {
+          && !PROVIDED_DESIGN_ROUTE.equals(normalized)
+          && !NO_UPLOADED_SPEC_CANDIDATES.equals(normalized)) {
         throw new IllegalArgumentException("unknown skip condition: " + condition);
       }
     }

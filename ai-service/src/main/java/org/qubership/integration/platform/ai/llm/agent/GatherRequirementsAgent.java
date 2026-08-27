@@ -7,6 +7,7 @@ import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools;
 import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
+import org.qubership.integration.platform.ai.plan.RegisterUploadedSpecTool;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.SelectApiHubCandidateTool;
 
@@ -19,7 +20,8 @@ import org.qubership.integration.platform.ai.plan.SelectApiHubCandidateTool;
       RequirementDraftTool.class,
       SelectApiHubCandidateTool.class,
       CatalogSystemTools.class,
-      CatalogFirstApiHubDiscoveryTool.class
+      CatalogFirstApiHubDiscoveryTool.class,
+      RegisterUploadedSpecTool.class
     },
     maxSequentialToolInvocations = 8)
 @ApplicationScoped

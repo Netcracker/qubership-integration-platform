@@ -13,20 +13,35 @@ public record RequirementDraftCapture(
     List<String> openQuestions,
     ApiHubRequirementRefs apiHubCandidate,
     ResolvedCatalogBinding catalogBinding,
-    List<RequirementFact> facts) {
+    List<RequirementFact> facts,
+    List<UploadedSpecCandidate> uploadedSpecCandidates) {
 
   public RequirementDraftCapture {
     openQuestions = openQuestions == null ? List.of() : List.copyOf(openQuestions);
     facts = facts == null ? List.of() : List.copyOf(facts);
+    uploadedSpecCandidates =
+        uploadedSpecCandidates == null ? List.of() : List.copyOf(uploadedSpecCandidates);
+  }
+
+  public RequirementDraftCapture(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      ApiHubRequirementRefs apiHubCandidate,
+      ResolvedCatalogBinding catalogBinding,
+      List<RequirementFact> facts) {
+    this(
+        complete, assembledText, decision, openQuestions, apiHubCandidate, catalogBinding, facts, List.of());
   }
 
   public RequirementDraftCapture(boolean complete, String assembledText) {
-    this(complete, assembledText, null, List.of(), null, null, List.of());
+    this(complete, assembledText, null, List.of(), null, null, List.of(), List.of());
   }
 
   public RequirementDraftCapture(
       boolean complete, String assembledText, DraftDecision decision, List<String> openQuestions) {
-    this(complete, assembledText, decision, openQuestions, null, null, List.of());
+    this(complete, assembledText, decision, openQuestions, null, null, List.of(), List.of());
   }
 
   public RequirementDraftCapture(
@@ -35,7 +50,7 @@ public record RequirementDraftCapture(
       DraftDecision decision,
       List<String> openQuestions,
       ApiHubRequirementRefs apiHubCandidate) {
-    this(complete, assembledText, decision, openQuestions, apiHubCandidate, null, List.of());
+    this(complete, assembledText, decision, openQuestions, apiHubCandidate, null, List.of(), List.of());
   }
 
   public RequirementDraftCapture(
@@ -45,6 +60,7 @@ public record RequirementDraftCapture(
       List<String> openQuestions,
       ApiHubRequirementRefs apiHubCandidate,
       ResolvedCatalogBinding catalogBinding) {
-    this(complete, assembledText, decision, openQuestions, apiHubCandidate, catalogBinding, List.of());
+    this(
+        complete, assembledText, decision, openQuestions, apiHubCandidate, catalogBinding, List.of(), List.of());
   }
 }

@@ -8,6 +8,11 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+import org.qubership.integration.platform.ai.plan.ConversationApiResolutions;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
+import org.qubership.integration.platform.ai.plan.ServiceCallAssessment;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -28,10 +33,21 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPol
 public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBindingAdapter {
 
   private final CatalogBindingMatcher matcher;
+  private final RequirementDraftStore draftStore;
+  private final ConversationApiResolutions conversationResolutions;
 
   @Inject
-  public DefaultExecutorCatalogBindingAdapter(CatalogBindingMatcher matcher) {
+  public DefaultExecutorCatalogBindingAdapter(
+      CatalogBindingMatcher matcher,
+      RequirementDraftStore draftStore,
+      ConversationApiResolutions conversationResolutions) {
     this.matcher = Objects.requireNonNull(matcher, "matcher");
+    this.draftStore = draftStore;
+    this.conversationResolutions = conversationResolutions;
+  }
+
+  public DefaultExecutorCatalogBindingAdapter(CatalogBindingMatcher matcher) {
+    this(matcher, null, null);
   }
 
   @Override
@@ -49,13 +65,32 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       if (step == null || !"service-call".equalsIgnoreCase(step.kind())) {
         continue;
       }
-      results.add(resolveStep(flow, step, hintList));
+      results.add(resolveStep(flow, step, hintList, conversationId));
     }
     return List.copyOf(results);
   }
 
   private BindingResolutionResult resolveStep(
-      NormalizedDesignFlow flow, NormalizedDesignFlow.Step step, List<CatalogBindingHint> hints) {
+      NormalizedDesignFlow flow,
+      NormalizedDesignFlow.Step step,
+      List<CatalogBindingHint> hints,
+      String conversationId) {
+    Optional<ResolvedCatalogBinding> uploaded = resolveUploadedSpec(conversationId, step);
+    if (uploaded.isPresent()) {
+      ResolvedCatalogBinding binding = uploaded.get();
+      return new BindingResolutionResult.Resolved(
+          new CatalogBindingResolution(
+              step.stepId(),
+              CatalogBindingResolution.Source.UPLOADED_SPEC,
+              binding.systemId(),
+              binding.specificationGroupId(),
+              binding.specificationId(),
+              binding.integrationOperationId() != null ? binding.integrationOperationId() : "",
+              null,
+              resolveRelease(flow),
+              "uploaded-spec:" + step.stepId()));
+    }
+
     Optional<CatalogBindingHint> hint = findHint(step, hints);
     if (hint.isPresent()) {
       CatalogBindingHint observed = hint.get();
@@ -136,6 +171,40 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       throw new IllegalArgumentException(
           "approval must carry bindingResolutionPolicy=CATALOG_FIRST_V1 with the pinned hash");
     }
+  }
+
+  private Optional<ResolvedCatalogBinding> resolveUploadedSpec(
+      String conversationId, NormalizedDesignFlow.Step step) {
+    if (conversationResolutions == null || draftStore == null) {
+      return Optional.empty();
+    }
+    RequirementDraft draft = draftStore.get(conversationId).orElse(null);
+    if (draft == null || draft.uploadedSpecImportResults().isEmpty()) {
+      return Optional.empty();
+    }
+
+    for (String factId : step.sourceFactIds()) {
+      ServiceCallAssessment assessment =
+          conversationResolutions.forFact(conversationId, factId).orElse(null);
+      if (assessment == null
+          || assessment.outcome() != ServiceCallAssessment.Outcome.UPLOADED_SPEC
+          || assessment.evidenceRef() == null) {
+        continue;
+      }
+      String s3Key = assessment.evidenceRef();
+      for (var result : draft.uploadedSpecImportResults()) {
+        if (s3Key.equals(result.s3Key())) {
+          ResolvedCatalogBinding binding = result.binding();
+          // If the import result does not yet pin an operation, let the catalog matcher resolve it
+          // against the newly imported specification instead of returning an incomplete binding.
+          if (CatalogStrings.blankToNull(binding.integrationOperationId()) == null) {
+            return Optional.empty();
+          }
+          return Optional.of(binding);
+        }
+      }
+    }
+    return Optional.empty();
   }
 
   private static String resolveRelease(NormalizedDesignFlow flow) {

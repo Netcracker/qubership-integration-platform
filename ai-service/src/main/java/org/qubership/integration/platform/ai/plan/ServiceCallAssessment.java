@@ -33,11 +33,14 @@ public record ServiceCallAssessment(
     RESOLVED,
     /** Several catalog operations matched; the author has to choose. */
     AMBIGUOUS,
-    /** The catalog holds no such operation. This is what authorizes an APIHub search. */
+    /** The catalog holds no such operation. This is what authorizes an API Hub search. */
     CATALOG_MISS,
     /** The intent lacks the identity fields a catalog lookup needs. */
-    INCOMPLETE
+    INCOMPLETE,
+    /** Covered by an uploaded spec file that has not been imported into the catalog yet. */
+    UPLOADED_SPEC
   }
+
 
   /**
    * The identity of one outbound call, as fields rather than as one sentence.
@@ -138,6 +141,19 @@ public record ServiceCallAssessment(
         List.of(),
         intent.missingFields(),
         null,
+        Instant.now());
+  }
+
+  public static ServiceCallAssessment uploadedSpec(
+      String sourceFactId, Intent intent, String s3Key) {
+    return new ServiceCallAssessment(
+        sourceFactId,
+        intent,
+        Outcome.UPLOADED_SPEC,
+        null,
+        List.of(),
+        List.of(),
+        s3Key,
         Instant.now());
   }
 

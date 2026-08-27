@@ -4,6 +4,7 @@ import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
@@ -143,11 +144,18 @@ public class RequirementDraftTool {
       same turn with facts, or keep NEEDS_INPUT with one open question.
       Optional fact fields: kind (GOAL, ENDPOINT, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY,
       VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId.
+      Write SERVICE_CALL facts concisely as "<Participant>: <operationQuery>" when possible
+      (e.g. "Petstore Ext: GET /pets"). Long natural-language facts are still parsed, but concise
+      text is more reliable for downstream design derivation.
       For every SERVICE_CALL fact, call resolveApiOperation before READY_FOR_PLAN. It checks the
       local catalog first and searches API Hub only after a confirmed catalog miss.
       When catalog tools return a single clear system/spec/operation match, set catalogBinding
       with systemId, specificationId, specificationGroupId, and integrationOperationId from those
       tool results (never invent UUIDs). catalogBinding allows READY_FOR_PLAN.
+      When a SERVICE_CALL is covered by a spec the user uploaded to the chat, set
+      uploadedSpecCandidates to the registered spec (s3Key, title, version, specType, and the
+      operationId or channel name used). Do NOT search API Hub for a call that is already covered
+      by an uploaded spec. uploadedSpecCandidates allow READY_FOR_PLAN without catalogBinding.
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
       packageId, version, and operationId or documentId from the search hit (do not put
       apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave openQuestions empty;
@@ -289,6 +297,11 @@ public class RequirementDraftTool {
       }
 
       List<RequirementFact> serviceCalls = positiveServiceCalls(facts);
+      List<UploadedSpecCandidate> uploadedCandidates =
+          capture.uploadedSpecCandidates() == null ? List.of() : capture.uploadedSpecCandidates();
+      if (!uploadedCandidates.isEmpty()) {
+        recordUploadedSpecAssessments(conversationId, serviceCalls, uploadedCandidates);
+      }
       List<RequirementFact> unresolvedCalls =
           unresolvedServiceCalls(serviceCalls, binding, conversationId);
       // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
@@ -300,8 +313,23 @@ public class RequirementDraftTool {
               : resolutions == null
                   && binding == null
                   && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
+      boolean uploadedSpecsSatisfyCalls =
+          !uploadedCandidates.isEmpty()
+              && (serviceCalls.isEmpty()
+                  || serviceCalls.stream()
+                      .allMatch(
+                          call ->
+                              resolutions != null
+                                  && resolutions
+                                      .forFact(conversationId, call.sourceFactId())
+                                      .filter(
+                                          assessment ->
+                                              assessment.outcome()
+                                                      == ServiceCallAssessment.Outcome.UPLOADED_SPEC
+                                                  || assessment.isResolved())
+                                      .isPresent()));
       if (decision == DraftDecision.READY_FOR_PLAN
-          && (!unresolvedCalls.isEmpty() || bindingMissing)) {
+          && (!unresolvedCalls.isEmpty() || (bindingMissing && !uploadedSpecsSatisfyCalls))) {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
@@ -345,7 +373,9 @@ public class RequirementDraftTool {
               binding,
               false,
               facts,
-              importIntent);
+              importIntent,
+              uploadedCandidates,
+              previous != null ? previous.uploadedSpecImportResults() : List.of());
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
       org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
@@ -354,8 +384,8 @@ public class RequirementDraftTool {
       LOG.infof(
           "captureRequirementDraft: stored draft conversationId=%s decision=%s complete=%s"
               + " openQuestions=%d facts=%d sourceSkill=%s sourceVersion=%s sourceHash=%s textChars=%d"
-              + " hasCatalogBinding=%s hasApiHubCandidate=%s softDowngradedForFacts=%s"
-              + " softDowngradedForImport=%s softDowngradedForBinding=%s"
+              + " hasCatalogBinding=%s hasApiHubCandidate=%s uploadedSpecCandidates=%d"
+              + " softDowngradedForFacts=%s softDowngradedForImport=%s softDowngradedForBinding=%s"
               + " softDowngradedBlockedWithCandidate=%s",
           conversationId,
           draft.decision(),
@@ -368,6 +398,7 @@ public class RequirementDraftTool {
           draft.assembledText().length(),
           draft.catalogBinding() != null,
           draft.apiHubCandidate() != null,
+          draft.uploadedSpecCandidates().size(),
           softDowngradedForFacts,
           softDowngradedForImport,
           softDowngradedForBinding,
@@ -466,9 +497,65 @@ public class RequirementDraftTool {
             call ->
                 resolutions
                     .forFact(conversationId, call.sourceFactId())
-                    .filter(ServiceCallAssessment::isResolved)
+                    .filter(
+                        assessment ->
+                            assessment.isResolved()
+                                || assessment.outcome()
+                                    == ServiceCallAssessment.Outcome.UPLOADED_SPEC)
                     .isEmpty())
         .toList();
+  }
+
+  private void recordUploadedSpecAssessments(
+      String conversationId,
+      List<RequirementFact> serviceCalls,
+      List<UploadedSpecCandidate> candidates) {
+    if (resolutions == null) {
+      return;
+    }
+    for (RequirementFact call : serviceCalls) {
+      if (call == null || call.text() == null) {
+        continue;
+      }
+      UploadedSpecCandidate matched = findUploadedSpecByText(call.text(), candidates);
+      if (matched == null && candidates.size() == 1) {
+        // Fallback: a single uploaded spec is the only possible source for an unmatched call.
+        matched = candidates.get(0);
+      }
+      if (matched != null) {
+        resolutions.remember(
+            conversationId,
+            ServiceCallAssessment.uploadedSpec(
+                call.sourceFactId(),
+                new ServiceCallAssessment.Intent(call.text(), null, null, null, null),
+                matched.s3Key()));
+      }
+    }
+  }
+
+  private static UploadedSpecCandidate findUploadedSpecByText(
+      String callText, List<UploadedSpecCandidate> candidates) {
+    if (callText == null || candidates == null) {
+      return null;
+    }
+    String text = callText.toLowerCase(Locale.ROOT);
+    for (UploadedSpecCandidate candidate : candidates) {
+      if (candidate == null || candidate.title() == null || candidate.s3Key() == null) {
+        continue;
+      }
+      String title = candidate.title().toLowerCase(Locale.ROOT);
+      String filename = candidate.s3Key();
+      int slash = filename.lastIndexOf('/');
+      if (slash >= 0) {
+        filename = filename.substring(slash + 1);
+      }
+      if (text.contains(title)
+          || text.contains(filename.toLowerCase(Locale.ROOT))
+          || text.contains(candidate.specType().name().toLowerCase(Locale.ROOT))) {
+        return candidate;
+      }
+    }
+    return null;
   }
 
   private static List<RequirementFact> positiveServiceCalls(List<RequirementFact> facts) {

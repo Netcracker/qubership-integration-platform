@@ -39,6 +39,27 @@ class HttpMethodRestrictCatalogShapeTest {
   }
 
   @Test
+  void parsesJsonObjectStringAsCatalogObject() {
+    assertEquals(
+        Map.of("httpMethods", List.of("POST")),
+        HttpMethodRestrictCatalogShape.toCatalogValue("{\"httpMethods\":[\"POST\"]}"));
+  }
+
+  @Test
+  void parsesJsonArrayStringAsCatalogObject() {
+    assertEquals(
+        Map.of("httpMethods", List.of("GET", "POST")),
+        HttpMethodRestrictCatalogShape.toCatalogValue("[\"GET\",\"POST\"]"));
+  }
+
+  @Test
+  void fallsBackToCommaSplitForInvalidJson() {
+    assertEquals(
+        Map.of("httpMethods", List.of("GET", "POST")),
+        HttpMethodRestrictCatalogShape.toCatalogValue("GET,POST"));
+  }
+
+  @Test
   void rewritesThePropertyOnAPatchBody() {
     Map<String, Object> properties = new LinkedHashMap<>();
     properties.put("httpMethodRestrict", "POST");

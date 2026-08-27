@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecStore;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
@@ -24,6 +26,8 @@ class GatherRequirementsPromptBuilderTest {
   private CompilerSkillDocumentService skillDocumentService;
   private CompilerSkillAddonRepository addonRepository;
   private RequirementDraftStore draftStore;
+  private ConversationService conversationService;
+  private UploadedSpecStore uploadedSpecStore;
   private GatherRequirementsPromptBuilder builder;
 
   @BeforeEach
@@ -31,12 +35,19 @@ class GatherRequirementsPromptBuilderTest {
     skillDocumentService = mock(CompilerSkillDocumentService.class);
     addonRepository = mock(CompilerSkillAddonRepository.class);
     draftStore = new RequirementDraftStore();
+    conversationService = mock(ConversationService.class);
+    uploadedSpecStore = new UploadedSpecStore();
     when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
         .thenReturn(brainstormingDocument());
     when(addonRepository.loadForSkill(RequirementDraftTool.SOURCE_SKILL_ID))
         .thenReturn(brainstormingAddon());
     builder =
-        new GatherRequirementsPromptBuilder(skillDocumentService, addonRepository, draftStore);
+        new GatherRequirementsPromptBuilder(
+            skillDocumentService,
+            addonRepository,
+            draftStore,
+            conversationService,
+            uploadedSpecStore);
   }
 
   @Test

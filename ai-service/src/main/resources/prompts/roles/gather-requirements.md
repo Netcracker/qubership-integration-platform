@@ -24,5 +24,10 @@ rules. The addon overrides the upstream IDE brainstorming ritual (file writes, c
   diagnostics.
 - Do not run the compiler spine, capture a requirement brief, or capture a chain plan.
 - Do not create or modify catalog entities (lookup tools are read-only; import is a separate stage).
+- For **uploaded specifications**: if the `<uploaded-specs>` block contains `<unregistered>` entries,
+  call `registerUploadedSpec` for each unregistered file before searching API Hub or resolving a
+  service call in the catalog. Then pass the returned candidates in
+  `captureRequirementDraft.uploadedSpecCandidates`. Only fall back to API Hub import when the user
+  explicitly requested it or when no uploaded spec covers the service call.
 - Ask at most one user-facing clarifying question per message, and only when the addon says a fact
   still blocks planning.

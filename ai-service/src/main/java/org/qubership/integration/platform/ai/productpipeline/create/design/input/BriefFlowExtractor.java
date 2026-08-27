@@ -71,6 +71,16 @@ public final class BriefFlowExtractor {
   private static final Pattern CATALOG_SERVICE =
       Pattern.compile("(?i)\\bcall\\s+catalog\\s+service\\s+['\\\"]?(?<service>[^'\\\".]+)");
 
+  private static final Pattern UPLOADED_SPEC_CALL =
+      Pattern.compile(
+          "(?i)uploaded\\s+(?:asyncapi|openapi)?\\s*spec(?:ification)?\\s+"
+              + "['\\\"]?(?<service>[^'\\\"]+)['\\\"]?"
+              + "(?:\\s+(?:version|v)\\s+[^\\s,]+)?"
+              + ".*?\\boperation(?:id)?\\s+(?<operation>[A-Za-z0-9_.-]+)");
+
+  private static final Pattern UPLOADED_SPEC_CHANNEL =
+      Pattern.compile("(?i)\\bchannel\\s+(?<channel>[^\\s,]+)");
+
   public sealed interface ExtractionResult {
     record Complete(NormalizedDesignFlow flow) implements ExtractionResult {}
 
@@ -543,11 +553,30 @@ public final class BriefFlowExtractor {
           new ServiceCallIdentity(trimToNull(catalogService.group("service")), trimmed));
     }
 
+    Matcher uploadedSpec = UPLOADED_SPEC_CALL.matcher(trimmed);
+    if (uploadedSpec.find()) {
+      String service = trimServiceName(uploadedSpec.group("service"));
+      String operation = trimToNull(uploadedSpec.group("operation"));
+      String channel = channelFromUploadedSpec(trimmed);
+      String query =
+          firstNonBlank(
+              channel != null ? channel + " subscribe " + operation : null, operation);
+      return Optional.of(new ServiceCallIdentity(service, query));
+    }
+
     String capability = trimToNull(fact.capabilityKey());
     if (capability != null) {
       return Optional.of(new ServiceCallIdentity(capability, trimmed));
     }
     return Optional.empty();
+  }
+
+  private static String channelFromUploadedSpec(String text) {
+    if (text == null) {
+      return null;
+    }
+    Matcher matcher = UPLOADED_SPEC_CHANNEL.matcher(text);
+    return matcher.find() ? trimToNull(matcher.group("channel")) : null;
   }
 
   private static String participantId(String displayName) {

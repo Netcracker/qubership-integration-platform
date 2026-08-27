@@ -1,9 +1,11 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 
 /** Iterative requirement vision accumulated before the compiler spine runs. */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record RequirementDraft(
     boolean complete,
     String assembledText,
@@ -16,7 +18,10 @@ public record RequirementDraft(
     ResolvedCatalogBinding catalogBinding,
     boolean awaitingPlanContinuation,
     List<RequirementFact> facts,
-    boolean importIntent) {
+    boolean importIntent,
+    List<UploadedSpecCandidate> uploadedSpecCandidates,
+    List<org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportResult>
+        uploadedSpecImportResults) {
 
   public RequirementDraft {
     decision = decision != null ? decision : decisionFromComplete(complete);
@@ -25,6 +30,10 @@ public record RequirementDraft(
     sourceSkillHash =
         sourceSkillHash != null && !sourceSkillHash.isBlank() ? sourceSkillHash.trim() : null;
     facts = facts == null ? List.of() : List.copyOf(facts);
+    uploadedSpecCandidates =
+        uploadedSpecCandidates == null ? List.of() : List.copyOf(uploadedSpecCandidates);
+    uploadedSpecImportResults =
+        uploadedSpecImportResults == null ? List.of() : List.copyOf(uploadedSpecImportResults);
     complete = decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
   }
 
@@ -47,7 +56,9 @@ public record RequirementDraft(
         null,
         false,
         List.of(),
-        false);
+        false,
+        List.of(),
+        List.of());
   }
 
   public RequirementDraft(
@@ -70,7 +81,9 @@ public record RequirementDraft(
         null,
         false,
         List.of(),
-        false);
+        false,
+        List.of(),
+        List.of());
   }
 
   public RequirementDraft(
@@ -96,7 +109,9 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         List.of(),
-        false);
+        false,
+        List.of(),
+        List.of());
   }
 
   public RequirementDraft(
@@ -123,7 +138,39 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         facts,
-        false);
+        false,
+        List.of(),
+        List.of());
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      ResolvedCatalogBinding catalogBinding,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        catalogBinding,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        List.of(),
+        List.of());
   }
 
   public RequirementDraft(boolean complete, String assembledText) {
@@ -139,7 +186,9 @@ public record RequirementDraft(
         null,
         false,
         List.of(),
-        false);
+        false,
+        List.of(),
+        List.of());
   }
 
   public boolean readyForPlan() {
@@ -182,7 +231,9 @@ public record RequirementDraft(
         binding,
         false,
         facts,
-        false);
+        false,
+        uploadedSpecCandidates,
+        uploadedSpecImportResults);
   }
 
   public RequirementDraft withAwaitingPlanContinuation(boolean awaiting) {
@@ -198,7 +249,9 @@ public record RequirementDraft(
         catalogBinding,
         awaiting,
         facts,
-        importIntent);
+        importIntent,
+        uploadedSpecCandidates,
+        uploadedSpecImportResults);
   }
 
   /**
@@ -218,7 +271,9 @@ public record RequirementDraft(
         null,
         false,
         facts,
-        true);
+        true,
+        uploadedSpecCandidates,
+        uploadedSpecImportResults);
   }
 
   /** Clears the pending candidate while keeping {@link #importIntent()} for re-gather. */
@@ -235,7 +290,9 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         facts,
-        importIntent);
+        importIntent,
+        uploadedSpecCandidates,
+        uploadedSpecImportResults);
   }
 
   public RequirementDraft withImportIntent(boolean intent) {
@@ -251,7 +308,9 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         facts,
-        intent);
+        intent,
+        uploadedSpecCandidates,
+        uploadedSpecImportResults);
   }
 
   public RequirementDraft withFacts(List<RequirementFact> nextFacts) {
@@ -267,7 +326,47 @@ public record RequirementDraft(
         catalogBinding,
         awaitingPlanContinuation,
         nextFacts,
-        importIntent);
+        importIntent,
+        uploadedSpecCandidates,
+        uploadedSpecImportResults);
+  }
+
+  public RequirementDraft withUploadedSpecCandidates(List<UploadedSpecCandidate> candidates) {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        catalogBinding,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        candidates,
+        uploadedSpecImportResults);
+  }
+
+  public RequirementDraft withUploadedSpecImportResults(
+      List<org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportResult>
+          results) {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        catalogBinding,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        uploadedSpecCandidates,
+        results);
   }
 
   private static DraftDecision decisionFromComplete(boolean complete) {

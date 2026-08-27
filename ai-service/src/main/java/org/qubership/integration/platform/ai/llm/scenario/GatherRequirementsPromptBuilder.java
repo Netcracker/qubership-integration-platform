@@ -2,7 +2,10 @@ package org.qubership.integration.platform.ai.llm.scenario;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
@@ -10,6 +13,9 @@ import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialS
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecEntry;
+import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecStore;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
@@ -28,15 +34,28 @@ public class GatherRequirementsPromptBuilder {
   private final CompilerSkillDocumentService skillDocumentService;
   private final CompilerSkillAddonRepository addonRepository;
   private final RequirementDraftStore draftStore;
+  private final ConversationService conversationService;
+  private final UploadedSpecStore uploadedSpecStore;
 
   @Inject
   public GatherRequirementsPromptBuilder(
       CompilerSkillDocumentService skillDocumentService,
       CompilerSkillAddonRepository addonRepository,
-      RequirementDraftStore draftStore) {
+      RequirementDraftStore draftStore,
+      ConversationService conversationService,
+      UploadedSpecStore uploadedSpecStore) {
     this.skillDocumentService = skillDocumentService;
     this.addonRepository = addonRepository;
     this.draftStore = draftStore;
+    this.conversationService = conversationService;
+    this.uploadedSpecStore = uploadedSpecStore;
+  }
+
+  public GatherRequirementsPromptBuilder(
+      CompilerSkillDocumentService skillDocumentService,
+      CompilerSkillAddonRepository addonRepository,
+      RequirementDraftStore draftStore) {
+    this(skillDocumentService, addonRepository, draftStore, null, null);
   }
 
   /**
@@ -75,6 +94,7 @@ public class GatherRequirementsPromptBuilder {
           </service-runtime-envelope>
           %s
           %s
+          %s
           <user-message>
           %s
           </user-message>
@@ -87,6 +107,7 @@ public class GatherRequirementsPromptBuilder {
                   normalizedLocale(responseLocale),
                   addonBlock(),
                   currentDraftBlock(draft),
+                  uploadedSpecsBlock(conversationId),
                   userMessage != null ? userMessage : "");
       return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
     } catch (RuntimeException e) {
@@ -149,5 +170,66 @@ public class GatherRequirementsPromptBuilder {
         </current-requirement-draft>
         """
         .formatted(current.decision(), current.assembledText(), openQuestions);
+  }
+
+  private String uploadedSpecsBlock(String conversationId) {
+    if (conversationService == null || uploadedSpecStore == null || conversationId == null) {
+      return "";
+    }
+    List<String> allowedKeys = conversationService.getAllowedAttachmentKeys(conversationId);
+    if (allowedKeys == null || allowedKeys.isEmpty()) {
+      return "";
+    }
+    List<UploadedSpecEntry> registered = uploadedSpecStore.getAll(conversationId);
+    Set<String> registeredKeys =
+        registered == null
+            ? Set.of()
+            : registered.stream().map(UploadedSpecEntry::s3Key).collect(Collectors.toSet());
+
+    StringBuilder unregistered = new StringBuilder();
+    for (String key : allowedKeys) {
+      if (key != null && !registeredKeys.contains(key)) {
+        String filename = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
+        unregistered
+            .append("- key: \"")
+            .append(key)
+            .append("\" | filename: \"")
+            .append(filename)
+            .append("\"\n");
+      }
+    }
+
+    StringBuilder registeredBlock = new StringBuilder();
+    if (registered != null) {
+      for (UploadedSpecEntry entry : registered) {
+        registeredBlock
+            .append("- key: \"")
+            .append(entry.s3Key())
+            .append("\" | title: \"")
+            .append(entry.title())
+            .append("\" | type: ")
+            .append(entry.specType())
+            .append(" | version: ")
+            .append(entry.version())
+            .append("\n");
+      }
+    }
+
+    if (unregistered.isEmpty() && registeredBlock.isEmpty()) {
+      return "";
+    }
+
+    return """
+
+        <uploaded-specs>
+          <unregistered>
+        %s  </unregistered>
+          <registered>
+        %s  </registered>
+        </uploaded-specs>
+        """
+        .formatted(
+            unregistered.isEmpty() ? "" : unregistered.toString(),
+            registeredBlock.isEmpty() ? "" : registeredBlock.toString());
   }
 }

@@ -143,13 +143,14 @@ public class ChainReconcileService {
         continue;
       }
       Object catalogValue = catalogProperties.get(property.key());
-      if (!canonicalEquals(property.key(), property.value(), catalogValue)) {
+      if (!canonicalEquals(node.nodeId(), property.key(), property.value(), catalogValue)) {
         propertyMismatches.add(node.nodeId() + "." + property.key());
       }
     }
   }
 
-  private static boolean canonicalEquals(String propertyKey, Object planValue, Object catalogValue) {
+  private static boolean canonicalEquals(
+      String nodeId, String propertyKey, Object planValue, Object catalogValue) {
     if (HttpMethodRestrictCatalogShape.PROPERTY_KEY.equals(propertyKey)) {
       return valuesEqual(
           HttpMethodRestrictCatalogShape.toCatalogValue(planValue),
@@ -304,17 +305,29 @@ public class ChainReconcileService {
     if (matches) {
       return "Catalog matches plan for chain " + chainId;
     }
-    return "Reconcile found "
-        + missingElementIds.size()
-        + " element issue(s), "
-        + missingConnections.size()
-        + " connection issue(s), "
-        + labelMismatches.size()
-        + " label issue(s), "
-        + propertyMismatches.size()
-        + " property issue(s), "
-        + chainMismatches.size()
-        + " chain issue(s)";
+    StringBuilder summary = new StringBuilder();
+    summary.append("Reconcile found ");
+    summary.append(missingElementIds.size()).append(" element issue(s), ");
+    summary.append(missingConnections.size()).append(" connection issue(s), ");
+    summary.append(labelMismatches.size()).append(" label issue(s), ");
+    summary.append(propertyMismatches.size()).append(" property issue(s), ");
+    summary.append(chainMismatches.size()).append(" chain issue(s)");
+    if (!propertyMismatches.isEmpty()) {
+      summary.append("; property mismatches: ").append(String.join(", ", propertyMismatches));
+    }
+    if (!missingElementIds.isEmpty()) {
+      summary.append("; missing elements: ").append(String.join(", ", missingElementIds));
+    }
+    if (!missingConnections.isEmpty()) {
+      summary.append("; missing connections: ").append(String.join(", ", missingConnections));
+    }
+    if (!labelMismatches.isEmpty()) {
+      summary.append("; label mismatches: ").append(String.join(", ", labelMismatches));
+    }
+    if (!chainMismatches.isEmpty()) {
+      summary.append("; chain mismatches: ").append(String.join(", ", chainMismatches));
+    }
+    return summary.toString();
   }
 
   private static String blankToNull(String value) {
