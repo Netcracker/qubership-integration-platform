@@ -5,7 +5,10 @@
    much and widening it to match spans the cell exactly: the value lines up
    with its column header, and the border hovering draws traces the cell rather
    than sticking out past the table. Hovering trades 1px of padding for the
-   border, so the text does not move. */
+   border, so the text does not move.
+
+   The 4px block padding is what holds the row at 32px around a 24px label
+   chip; raising it grows every row of every table. */
 .inlineEditValueWrap {
   box-sizing: border-box;
   padding: 4px 8px;
