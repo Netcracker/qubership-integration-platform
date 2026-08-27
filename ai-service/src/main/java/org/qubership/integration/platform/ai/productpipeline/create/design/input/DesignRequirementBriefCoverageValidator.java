@@ -1,14 +1,9 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -18,38 +13,13 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
 /**
- * Design-path ({@code create-chain@2}) coverage for typed mapping intent on a requirement brief.
- * Coverage validates topology edges, not junk rows in {@code dataMappings}. Incomplete rows are
- * dropped first; {@link #validate(RequirementBrief)} runs on the remaining well-shaped mappings.
- * Unknown source or target schemas do not require a mapping row: missing stage edges stay
- * nonblocking pass-through.
- *
- * <p>Request-response detection: {@link RequirementFactKind} has no sync/async split. A positive
- * {@code ENDPOINT} fact is treated as request-response unless its {@code capabilityKey} names a
- * known fire-and-forget CIP trigger type ({@code async-api-trigger}, {@code kafka-trigger-2},
- * {@code quartz-scheduler}, {@code rabbitmq-trigger-2}, and common aliases). Blank or unknown
- * capability keys default to request-response (typical HTTP / chain entry).
+ * Design-path ({@code create-chain@2}) coverage for leftover mapping rows on a requirement brief.
+ * Coverage does not infer {@code INITIALIZATION}, {@code CONVERSION}, or {@code RESPONSE} edges
+ * from trigger and service-call order. Missing topology is not a mapping gap. Incomplete rows are
+ * dropped first; {@link #validate(RequirementBrief)} checks remaining well-shaped mappings.
+ * Unknown source or target schemas do not require a mapping row.
  */
 public final class DesignRequirementBriefCoverageValidator {
-
-  private static final Pattern EXPLICIT_RULE =
-      Pattern.compile(
-          "^(?:(\\d+)\\s*[:.)]\\s*)?(.+?)\\s*(?:->|→)\\s*(.+?)(?:\\s*\\|\\s*(.+))?$");
-
-  /**
-   * CIP trigger capability keys that are fire-and-forget (no RESPONSE mapping required).
-   * Drawn from catalog trigger types; not inferred from API schemas.
-   */
-  private static final Set<String> FIRE_AND_FORGET_CAPABILITY_KEYS =
-      Set.of(
-          "async-api-trigger",
-          "kafka-trigger-2",
-          "kafka-trigger",
-          "quartz-scheduler",
-          "rabbitmq-trigger-2",
-          "rabbitmq-trigger",
-          "sds-trigger",
-          "pubsub-trigger");
 
   public void validate(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
@@ -64,55 +34,22 @@ public final class DesignRequirementBriefCoverageValidator {
     for (RequirementDataMapping mapping : normalized.dataMappings()) {
       validateMappingShape(mapping);
     }
-    validateSingleEntryTopology(normalized);
   }
 
   /**
-   * Human-readable missing stage edges (empty when coverage passes). Does not invent mapping
-   * rules; only reports topology gaps.
-   *
-   * <p>Lines keep internal {@code sourceFactId} values (often SHA-256). Prefer {@link
-   * #listReadableMissingEdges(RequirementBrief)} for chat cards.
+   * Stage-ordered mapping holes are not a coverage gap. Returns empty so callers cannot block
+   * approval by inventing {@code INITIALIZATION}/{@code CONVERSION}/{@code RESPONSE} edges.
    */
   public List<String> listMissingEdges(RequirementBrief brief) {
-    return listMissingEdges(brief, false);
+    Objects.requireNonNull(brief, "brief");
+    return List.of();
   }
 
   /**
-   * Same topology gaps as {@link #listMissingEdges(RequirementBrief)}, labeled with fact {@code
-   * kind} and short {@code text} (or a role fallback). Digests stay out of the label.
+   * Same as {@link #listMissingEdges(RequirementBrief)}: no inferred stage edges to show.
    */
   public List<String> listReadableMissingEdges(RequirementBrief brief) {
-    return listMissingEdges(brief, true);
-  }
-
-  private List<String> listMissingEdges(RequirementBrief brief, boolean readable) {
-    Objects.requireNonNull(brief, "brief");
-    List<String> missing = new ArrayList<>();
-    for (RequiredEdge edge : missingRequiredEdges(brief)) {
-      if (edge.fromIntentRef() == null) {
-        missing.add(
-            readable
-                ? "INITIALIZATION: trigger → first outbound call (no ENDPOINT fact)"
-                : "INITIALIZATION mapping required: trigger → first outbound call"
-                    + " (no ENDPOINT fact)");
-      } else if (readable) {
-        missing.add(
-            edge.stage()
-                + ": "
-                + factLabel(brief, edge.fromIntentRef(), "source")
-                + " → "
-                + factLabel(brief, edge.toIntentRef(), "target"));
-      } else {
-        missing.add(
-            edge.stage()
-                + " mapping required: "
-                + edge.fromIntentRef()
-                + " → "
-                + edge.toIntentRef());
-      }
-    }
-    return List.copyOf(missing);
+    return listMissingEdges(brief);
   }
 
   /**
@@ -126,244 +63,11 @@ public final class DesignRequirementBriefCoverageValidator {
   }
 
   /**
-   * Fills missing required stage edges as {@code PASS_THROUGH} with a synthetic source fact id.
-   * Existing mappings are kept. Caller must still {@link #validate(RequirementBrief)}.
+   * Does not invent {@code PASS_THROUGH} rows for inferred stage holes. Drops unbound leftover
+   * mappings and leaves pass-through as the absence of a mapping intent.
    */
   public RequirementBrief withPassThroughForMissingEdges(RequirementBrief brief) {
-    Objects.requireNonNull(brief, "brief");
-    RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
-    RequirementBrief bound = withMappings(normalized, topologyBoundMappings(normalized));
-    List<RequirementDataMapping> merged = new ArrayList<>(bound.dataMappings());
-    for (RequiredEdge edge : missingRequiredEdges(bound)) {
-      if (edge.fromIntentRef() != null) {
-        addPassThroughIfMissing(
-            merged,
-            edge.stage(),
-            edge.fromIntentRef(),
-            edge.toIntentRef(),
-            edge.mappingId());
-      }
-    }
-    return withMappings(bound, merged);
-  }
-
-  /**
-   * Parses user-authored mapping rules and attaches them to the numbered missing edges shown in
-   * the UI. Each line uses {@code [edge number:] sourcePath -> targetPath [| expression]}.
-   */
-  public RequirementBrief withExplicitMappingsForMissingEdges(
-      RequirementBrief brief, String specification) {
-    Objects.requireNonNull(brief, "brief");
-    RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
-    List<RequiredEdge> missing = missingRequiredEdges(normalized);
-    if (missing.isEmpty()) {
-      return normalized;
-    }
-    if (missing.stream().anyMatch(edge -> edge.fromIntentRef() == null)) {
-      throw new IllegalArgumentException(
-          "An ENDPOINT fact is required before explicit data mappings can be attached");
-    }
-    if (specification == null || specification.isBlank()) {
-      throw new IllegalArgumentException(
-          "Describe at least one mapping rule as sourcePath -> targetPath");
-    }
-
-    Map<Integer, List<RequirementDataMapping.Rule>> rulesByEdge = new LinkedHashMap<>();
-    for (String rawLine : specification.lines().toList()) {
-      String line = rawLine.trim();
-      if (line.isEmpty()) {
-        continue;
-      }
-      Matcher matcher = EXPLICIT_RULE.matcher(line);
-      if (!matcher.matches()) {
-        throw new IllegalArgumentException(
-            "Invalid mapping rule '"
-                + line
-                + "'. Use: 1: $.source -> $.target | optional expression");
-      }
-      String edgeNumberText = matcher.group(1);
-      if (edgeNumberText == null && missing.size() > 1) {
-        throw new IllegalArgumentException(
-            "Prefix each mapping rule with its edge number, for example: 1: $.source -> $.target");
-      }
-      int edgeNumber = edgeNumberText == null ? 1 : Integer.parseInt(edgeNumberText);
-      if (edgeNumber < 1 || edgeNumber > missing.size()) {
-        throw new IllegalArgumentException(
-            "Mapping edge number "
-                + edgeNumber
-                + " is outside the displayed range 1-"
-                + missing.size());
-      }
-      rulesByEdge
-          .computeIfAbsent(edgeNumber, ignored -> new ArrayList<>())
-          .add(
-              new RequirementDataMapping.Rule(
-                  matcher.group(2), matcher.group(3), matcher.group(4)));
-    }
-    if (rulesByEdge.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Describe at least one mapping rule as sourcePath -> targetPath");
-    }
-
-    List<RequirementDataMapping> merged = new ArrayList<>(normalized.dataMappings());
-    for (Map.Entry<Integer, List<RequirementDataMapping.Rule>> entry : rulesByEdge.entrySet()) {
-      RequiredEdge edge = missing.get(entry.getKey() - 1);
-      merged.add(
-          new RequirementDataMapping(
-              edge.mappingId().replace("pass-through", "explicit"),
-              edge.stage(),
-              edge.fromIntentRef(),
-              edge.toIntentRef(),
-              RequirementDataMapping.Mode.EXPLICIT,
-              entry.getValue(),
-              List.of("design-input:mapping-answer")));
-    }
-    return withMappings(normalized, merged);
-  }
-
-  private static List<RequiredEdge> missingRequiredEdges(RequirementBrief brief) {
-    List<RequirementDataMapping> mappings =
-        DesignRequirementDataMappingNormalizer.completeMappings(brief.dataMappings());
-    return requiredEdges(brief).stream()
-        .filter(
-            edge ->
-                edge.fromIntentRef() == null
-                    || !hasStageEdge(
-                        mappings, edge.stage(), edge.fromIntentRef(), edge.toIntentRef()))
-        .toList();
-  }
-
-  private static List<RequiredEdge> requiredEdges(RequirementBrief brief) {
-    List<RequirementFact> outboundCalls = positiveFacts(brief, RequirementFactKind.SERVICE_CALL);
-    if (outboundCalls.isEmpty()) {
-      return List.of();
-    }
-    RequirementFact trigger = firstPositiveTrigger(brief);
-    if (trigger == null) {
-      return List.of();
-    }
-    List<RequiredEdge> required = new ArrayList<>();
-    String triggerId = trigger.sourceFactId();
-    required.add(
-        new RequiredEdge(
-            RequirementDataMapping.Stage.INITIALIZATION,
-            triggerId,
-            outboundCalls.getFirst().sourceFactId(),
-            "map-init-pass-through"));
-    for (int i = 0; i < outboundCalls.size() - 1; i++) {
-      required.add(
-          new RequiredEdge(
-              RequirementDataMapping.Stage.CONVERSION,
-              outboundCalls.get(i).sourceFactId(),
-              outboundCalls.get(i + 1).sourceFactId(),
-              "map-conv-pass-through-" + (i + 1)));
-    }
-    if (looksRequestResponse(trigger)) {
-      required.add(
-          new RequiredEdge(
-              RequirementDataMapping.Stage.RESPONSE,
-              outboundCalls.getLast().sourceFactId(),
-              triggerId,
-              "map-resp-pass-through"));
-    }
-    return List.copyOf(required);
-  }
-
-  private static void validateSingleEntryTopology(RequirementBrief brief) {
-    List<RequirementFact> endpoints = RequirementTriggerRole.positiveTriggers(brief.facts());
-    List<RequirementFact> calls = positiveFacts(brief, RequirementFactKind.SERVICE_CALL);
-    if (endpoints.size() != 1 || calls.isEmpty()) {
-      return;
-    }
-
-    Set<MappingEdge> required = new LinkedHashSet<>();
-    for (RequiredEdge edge : requiredEdges(brief)) {
-      if (edge.fromIntentRef() != null) {
-        required.add(new MappingEdge(edge.stage(), edge.fromIntentRef(), edge.toIntentRef()));
-      }
-    }
-    Set<MappingEdge> observed = new LinkedHashSet<>();
-    List<String> violations = new ArrayList<>();
-    for (RequirementDataMapping mapping : brief.dataMappings()) {
-      MappingEdge edge =
-          new MappingEdge(mapping.stage(), mapping.fromIntentRef(), mapping.toIntentRef());
-      if (!required.contains(edge)) {
-        RequiredEdge expected =
-            requiredEdges(brief).stream()
-                .filter(candidate -> candidate.stage() == mapping.stage())
-                .findFirst()
-                .orElse(null);
-        violations.add(
-            "unexpected "
-                + mapping.stage()
-                + " mapping: "
-                + mapping.fromIntentRef()
-                + " → "
-                + mapping.toIntentRef()
-                + (expected == null
-                    ? ""
-                    : "; expected "
-                        + expected.fromIntentRef()
-                        + " → "
-                        + expected.toIntentRef()));
-      }
-      if (!observed.add(edge)) {
-        violations.add(
-            "duplicate "
-                + mapping.stage()
-                + " mapping: "
-                + mapping.fromIntentRef()
-                + " → "
-                + mapping.toIntentRef());
-      }
-    }
-    if (!violations.isEmpty()) {
-      throw new IllegalArgumentException(
-          String.join("; ", violations) + repairInstruction(brief));
-    }
-  }
-
-  private static String repairInstruction(RequirementBrief brief) {
-    List<RequiredEdge> edges =
-        requiredEdges(brief).stream()
-            .filter(edge -> edge.fromIntentRef() != null)
-            .toList();
-    if (edges.isEmpty()) {
-      return "";
-    }
-    List<String> readable =
-        edges.stream()
-            .map(
-                edge ->
-                    edge.stage()
-                        + ": "
-                        + factLabel(brief, edge.fromIntentRef(), "source")
-                        + " → "
-                        + factLabel(brief, edge.toIntentRef(), "target"))
-            .toList();
-    List<String> payload =
-        edges.stream().map(DesignRequirementBriefCoverageValidator::repairJson).toList();
-    return ". Required topology: "
-        + String.join("; ", readable)
-        + ". Set dataMappings to include: ["
-        + String.join(",", payload)
-        + "]";
-  }
-
-  private static String repairJson(RequiredEdge edge) {
-    return "{\"mappingId\":\""
-        + edge.mappingId()
-        + "\",\"stage\":\""
-        + edge.stage()
-        + "\",\"fromIntentRef\":\""
-        + edge.fromIntentRef()
-        + "\",\"toIntentRef\":\""
-        + edge.toIntentRef()
-        + "\",\"mode\":\"PASS_THROUGH\",\"rules\":[],\"sourceFactIds\":[\""
-        + edge.fromIntentRef()
-        + "\",\""
-        + edge.toIntentRef()
-        + "\"]}";
+    return retainTopologyBoundMappings(brief);
   }
 
   private static List<RequirementDataMapping> topologyBoundMappings(RequirementBrief brief) {
@@ -385,79 +89,6 @@ public final class DesignRequirementBriefCoverageValidator {
   private static RequirementBrief withMappings(
       RequirementBrief brief, List<RequirementDataMapping> mappings) {
     return RequirementBriefProjector.project(brief.withDataMappings(mappings));
-  }
-
-  private record RequiredEdge(
-      RequirementDataMapping.Stage stage,
-      String fromIntentRef,
-      String toIntentRef,
-      String mappingId) {}
-
-  private record MappingEdge(
-      RequirementDataMapping.Stage stage, String fromIntentRef, String toIntentRef) {}
-
-  /** Card label: {@code KIND "short text"}; falls back to a role when the fact is missing. */
-  private static String factLabel(RequirementBrief brief, String sourceFactId, String roleFallback) {
-    if (sourceFactId == null || sourceFactId.isBlank()) {
-      return roleFallback;
-    }
-    for (RequirementFact fact : brief.facts()) {
-      if (fact == null || fact.sourceFactId() == null) {
-        continue;
-      }
-      if (!sourceFactId.equals(fact.sourceFactId())) {
-        continue;
-      }
-      String kind = fact.kind() == null ? "FACT" : fact.kind().name();
-      String text = shorten(fact.text(), 72);
-      return kind + " \"" + text + '"';
-    }
-    return roleFallback;
-  }
-
-  private static String shorten(String text, int maxChars) {
-    if (text == null) {
-      return "";
-    }
-    String trimmed = text.strip();
-    if (trimmed.length() <= maxChars) {
-      return trimmed;
-    }
-    return trimmed.substring(0, Math.max(0, maxChars - 1)).stripTrailing() + "…";
-  }
-
-  private static void addPassThroughIfMissing(
-      List<RequirementDataMapping> mappings,
-      RequirementDataMapping.Stage stage,
-      String fromIntentRef,
-      String toIntentRef,
-      String mappingId) {
-    if (hasStageEdge(mappings, stage, fromIntentRef, toIntentRef)) {
-      return;
-    }
-    mappings.add(
-        new RequirementDataMapping(
-            mappingId,
-            stage,
-            fromIntentRef,
-            toIntentRef,
-            RequirementDataMapping.Mode.PASS_THROUGH,
-            List.of(),
-            List.of(mappingId + "-fact")));
-  }
-
-  private static boolean hasStageEdge(
-      List<RequirementDataMapping> mappings,
-      RequirementDataMapping.Stage stage,
-      String fromIntentRef,
-      String toIntentRef) {
-    return mappings.stream()
-        .filter(DesignRequirementDataMappingNormalizer::isComplete)
-        .filter(mapping -> mapping.stage() == stage)
-        .anyMatch(
-            mapping ->
-                fromIntentRef.equals(mapping.fromIntentRef())
-                    && toIntentRef.equals(mapping.toIntentRef()));
   }
 
   private static void validateMappingShape(RequirementDataMapping mapping) {
@@ -500,11 +131,6 @@ public final class DesignRequirementBriefCoverageValidator {
     }
   }
 
-  private static RequirementFact firstPositiveTrigger(RequirementBrief brief) {
-    List<RequirementFact> triggers = RequirementTriggerRole.positiveTriggers(brief.facts());
-    return triggers.isEmpty() ? null : triggers.getFirst();
-  }
-
   private static List<RequirementFact> positiveFacts(
       RequirementBrief brief, RequirementFactKind kind) {
     return brief.facts().stream()
@@ -512,17 +138,5 @@ public final class DesignRequirementBriefCoverageValidator {
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.kind() == kind)
         .toList();
-  }
-
-  /**
-   * Whether the trigger looks request-response (caller awaits a reply). See class Javadoc for the
-   * capabilityKey heuristic when {@link RequirementFactKind} has no sync polarity.
-   */
-  private static boolean looksRequestResponse(RequirementFact trigger) {
-    String key = trigger.capabilityKey();
-    if (key == null || key.isBlank()) {
-      return true;
-    }
-    return !FIRE_AND_FORGET_CAPABILITY_KEYS.contains(key);
   }
 }

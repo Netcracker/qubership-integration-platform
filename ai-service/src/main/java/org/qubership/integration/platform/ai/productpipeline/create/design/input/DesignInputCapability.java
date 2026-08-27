@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
@@ -48,8 +47,6 @@ public class DesignInputCapability implements StageCapability {
       org.jboss.logging.Logger.getLogger(DesignInputCapability.class);
 
   private static final String IDS_FLOW_MARKER = "Integration flow for CIP Chain";
-  private static final Pattern MAPPING_RULE_HINT =
-      Pattern.compile("^(?:(?:\\d+)\\s*[:.)]\\s*|[$/]).*(?:->|→).+$");
 
   private final IdsDocumentParser idsDocumentParser;
   private final NormalizedDesignFlowValidator flowValidator;
@@ -240,17 +237,6 @@ public class DesignInputCapability implements StageCapability {
     if (effectiveBrief != null) {
       effectiveBrief = designCoverageValidator.retainTopologyBoundMappings(effectiveBrief);
     }
-    if (effectiveBrief != null
-        && pending != null
-        && hasMappingRuleSyntax(userText)
-        && !designCoverageValidator.listMissingEdges(effectiveBrief).isEmpty()) {
-      try {
-        effectiveBrief =
-            designCoverageValidator.withExplicitMappingsForMissingEdges(effectiveBrief, userText);
-      } catch (IllegalArgumentException ex) {
-        return mappingAnswerError(effectiveBrief, ex.getMessage());
-      }
-    }
 
     return switch (mode) {
       case GENERATE -> prepareGenerate(effectiveBrief, userText);
@@ -275,15 +261,6 @@ public class DesignInputCapability implements StageCapability {
       return false;
     }
     return userText.trim().equalsIgnoreCase(discoveryText.trim());
-  }
-
-  private static boolean hasMappingRuleSyntax(String userText) {
-    if (userText == null) {
-      return false;
-    }
-    List<String> lines = userText.lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
-    return !lines.isEmpty()
-        && lines.stream().allMatch(line -> MAPPING_RULE_HINT.matcher(line).matches());
   }
 
   /**
@@ -437,16 +414,6 @@ public class DesignInputCapability implements StageCapability {
       return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, unresolved.get());
     }
     return null;
-  }
-
-  private StageOutcome mappingAnswerError(RequirementBrief brief, String message) {
-    return StageOutcome.of(
-        StageOutcomeClass.NEEDS_INPUT,
-        PipelineGates.retag(
-            PipelineGates.MAPPING_GAP,
-            DesignInputIdsPathPrompts.encodeMappingGapWait(
-                userFacingAuthoringWait(message),
-                designCoverageValidator.listReadableMissingEdges(brief))));
   }
 
   /**

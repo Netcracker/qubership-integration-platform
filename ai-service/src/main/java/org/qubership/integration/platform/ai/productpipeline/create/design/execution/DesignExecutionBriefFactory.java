@@ -168,7 +168,9 @@ public final class DesignExecutionBriefFactory {
             mapping ->
                 new RequirementDataMapping(
                     mapping.mappingId(),
-                    RequirementDataMapping.Stage.valueOf(mapping.stage().name()),
+                    mapping.stage() == null
+                        ? null
+                        : RequirementDataMapping.Stage.valueOf(mapping.stage().name()),
                     mapping.fromStepId(),
                     mapping.toStepId(),
                     RequirementDataMapping.Mode.valueOf(mapping.mode().name()),

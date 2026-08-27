@@ -86,23 +86,22 @@ public final class DesignImplementationPlanRenderer {
       body.append('\n').append("## Trigger").append('\n').append("- ").append(triggerFact).append('\n');
     }
 
-    if (!flow.dataMappings().isEmpty()) {
-      body.append('\n').append("## Required mappings").append('\n');
-      for (NormalizedDesignFlow.DataMapping mapping : flow.dataMappings()) {
+    List<NormalizedDesignFlow.DataMapping> explicitMappings =
+        flow.dataMappings().stream()
+            .filter(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT)
+            .toList();
+    if (!explicitMappings.isEmpty()) {
+      body.append('\n').append("## Approved mapping intents").append('\n');
+      for (NormalizedDesignFlow.DataMapping mapping : explicitMappings) {
         String mappingFact =
             mapping.mappingId()
                 + " ["
                 + mapping.mode()
-                + "]"
-                + " "
-                + mapping.stage()
-                + " "
+                + "] "
                 + mapping.fromStepId()
                 + " -> "
                 + mapping.toStepId();
-        if (mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT) {
-          scriptOutcomes.add(mappingFact);
-        }
+        scriptOutcomes.add(mappingFact);
         body.append("- ").append(mappingFact).append('\n');
         for (NormalizedDesignFlow.MappingRule rule : mapping.rules()) {
           body.append("  - ")

@@ -595,16 +595,14 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     if (hasPositiveServiceCall(approved)) {
       sb.append(
-          "Capture typed dataMappings for every required edge around positive SERVICE_CALL facts. "
-              + "Use PASS_THROUGH with no rules when the user requested no transformation. Use "
-              + "EXPLICIT only for approved sourcePath and targetPath rules; never invent rules. "
-              + "Reuse the sourceFactId values below as fromIntentRef and toIntentRef. Give every "
-              + "PASS_THROUGH mapping at least one approved sourceFactId for provenance.\n\n");
+          "Do not invent dataMappings or mappingIntents for trigger-to-call edges. "
+              + "Pass-through is the absence of a mapping intent. Capture mappingIntents only "
+              + "when the user requested field adaptation with explicit sourcePath and targetPath "
+              + "rules. Never invent rules.\n\n");
     } else {
       sb.append(
-          "Leave dataMappings empty. There are no positive SERVICE_CALL facts, so do not invent "
-              + "mappings. If you still emit a mapping, it must include stage and at least one "
-              + "sourceFactId.\n\n");
+          "Leave mappingIntents and dataMappings empty. There are no positive SERVICE_CALL "
+              + "facts, so do not invent mappings.\n\n");
     }
     sb.append(
         "Fact identity the later DERIVE step copies as-is (named fields, not text):\n"

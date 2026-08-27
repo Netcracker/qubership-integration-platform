@@ -12,7 +12,10 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementTriggerRole;
+import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
@@ -241,11 +244,12 @@ public final class BriefFlowExtractor {
         authoredFlow.steps().stream()
             .filter(step -> "service-call".equalsIgnoreCase(step.kind()))
             .toList();
-    if (!brief.dataMappings().isEmpty() && endpoints.isEmpty()) {
+    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    if (!adapted.mappingIntents().isEmpty() && endpoints.isEmpty()) {
       throw new IllegalArgumentException(
           "Cannot project data mappings because the requirement brief has no ENDPOINT fact");
     }
-    if (!brief.dataMappings().isEmpty() && calls.size() != serviceCallSteps.size()) {
+    if (!calls.isEmpty() && calls.size() != serviceCallSteps.size()) {
       throw new IllegalArgumentException(
           serviceCallCoverageGap(calls.size(), serviceCallSteps.size()));
     }
@@ -296,30 +300,40 @@ public final class BriefFlowExtractor {
 
   private static List<NormalizedDesignFlow.DataMapping> explicitMappings(
       RequirementBrief brief, Map<String, String> intentToStep) {
+    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    Map<String, RequirementDataMapping> leftoverById = leftoverExplicitById(brief);
+    Map<String, RequirementDataMapping> leftoverByRefs = leftoverExplicitByRefs(brief);
     List<NormalizedDesignFlow.DataMapping> mappings = new ArrayList<>();
-    for (RequirementDataMapping mapping : brief.dataMappings()) {
-      if (mapping == null || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT) {
+    for (MappingIntent intent : adapted.mappingIntents()) {
+      if (intent == null) {
         continue;
       }
-      String fromStep = intentToStep.get(mapping.fromIntentRef());
-      String toStep = intentToStep.get(mapping.toIntentRef());
+      String fromStep = intentToStep.get(intent.sourceRef());
+      String toStep = intentToStep.get(intent.targetRef());
       if (fromStep == null || toStep == null) {
         continue;
       }
+      RequirementDataMapping leftover = leftoverFor(leftoverById, leftoverByRefs, intent);
       List<String> sourceFactIds =
-          mapping.sourceFactIds().isEmpty()
-              ? List.of("requirement-mapping:" + mapping.mappingId())
-              : mapping.sourceFactIds();
+          leftover != null && !leftover.sourceFactIds().isEmpty()
+              ? leftover.sourceFactIds()
+              : List.of("requirement-mapping:" + normalizedMappingId(intent, leftover, fromStep, toStep));
       List<NormalizedDesignFlow.MappingRule> rules = new ArrayList<>();
-      for (RequirementDataMapping.Rule rule : mapping.rules()) {
+      for (MappingIntentRule rule : intent.rules()) {
+        if (rule == null || rule.sourcePath().isBlank() || rule.targetPath().isBlank()) {
+          continue;
+        }
         rules.add(
             new NormalizedDesignFlow.MappingRule(
                 rule.sourcePath(), rule.targetPath(), rule.expression(), sourceFactIds));
       }
+      if (rules.isEmpty()) {
+        continue;
+      }
       mappings.add(
           new NormalizedDesignFlow.DataMapping(
-              normalizedMappingId(mapping, fromStep, toStep),
-              NormalizedDesignFlow.MappingStage.valueOf(mapping.stage().name()),
+              normalizedMappingId(intent, leftover, fromStep, toStep),
+              leftoverStage(leftover),
               fromStep,
               toStep,
               NormalizedDesignFlow.MappingMode.EXPLICIT,
@@ -373,19 +387,8 @@ public final class BriefFlowExtractor {
   private static Set<String> explicitForwardEdges(
       RequirementBrief brief, Map<String, String> intentToStep) {
     Set<String> edges = new LinkedHashSet<>();
-    for (RequirementDataMapping mapping : brief.dataMappings()) {
-      if (mapping == null || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT) {
-        continue;
-      }
-      String fromStep = intentToStep.get(mapping.fromIntentRef());
-      String toStep = intentToStep.get(mapping.toIntentRef());
-      if (fromStep == null || toStep == null) {
-        continue;
-      }
-      if (mapping.stage() == RequirementDataMapping.Stage.RESPONSE) {
-        continue;
-      }
-      edges.add(fromStep + '\n' + toStep);
+    for (NormalizedDesignFlow.DataMapping mapping : explicitMappings(brief, intentToStep)) {
+      edges.add(mapping.fromStepId() + '\n' + mapping.toStepId());
     }
     return edges;
   }
@@ -416,16 +419,70 @@ public final class BriefFlowExtractor {
   }
 
   private static String normalizedMappingId(
-      RequirementDataMapping mapping, String fromStep, String toStep) {
-    if (!mapping.mappingId().isBlank()) {
-      return mapping.mappingId();
+      MappingIntent intent,
+      RequirementDataMapping leftover,
+      String fromStep,
+      String toStep) {
+    if (leftover != null && leftover.mappingId() != null && !leftover.mappingId().isBlank()) {
+      return leftover.mappingId();
     }
-    return "map-"
-        + mapping.stage().name().toLowerCase(Locale.ROOT)
-        + "-"
-        + fromStep
-        + "-to-"
-        + toStep;
+    if (intent.mappingIntentId() != null && !intent.mappingIntentId().isBlank()) {
+      return intent.mappingIntentId();
+    }
+    return "map-" + fromStep + "-to-" + toStep;
+  }
+
+  private static Map<String, RequirementDataMapping> leftoverExplicitById(RequirementBrief brief) {
+    Map<String, RequirementDataMapping> leftoverById = new LinkedHashMap<>();
+    for (RequirementDataMapping mapping : brief.dataMappings()) {
+      if (mapping == null
+          || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT
+          || mapping.mappingId() == null
+          || mapping.mappingId().isBlank()) {
+        continue;
+      }
+      leftoverById.put(mapping.mappingId(), mapping);
+    }
+    return leftoverById;
+  }
+
+  private static Map<String, RequirementDataMapping> leftoverExplicitByRefs(RequirementBrief brief) {
+    Map<String, RequirementDataMapping> leftoverByRefs = new LinkedHashMap<>();
+    for (RequirementDataMapping mapping : brief.dataMappings()) {
+      if (mapping == null
+          || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT
+          || mapping.fromIntentRef() == null
+          || mapping.fromIntentRef().isBlank()
+          || mapping.toIntentRef() == null
+          || mapping.toIntentRef().isBlank()) {
+        continue;
+      }
+      leftoverByRefs.putIfAbsent(mapping.fromIntentRef() + '\n' + mapping.toIntentRef(), mapping);
+    }
+    return leftoverByRefs;
+  }
+
+  private static RequirementDataMapping leftoverFor(
+      Map<String, RequirementDataMapping> leftoverById,
+      Map<String, RequirementDataMapping> leftoverByRefs,
+      MappingIntent intent) {
+    if (!intent.mappingIntentId().isBlank()) {
+      RequirementDataMapping byId = leftoverById.get(intent.mappingIntentId());
+      if (byId != null) {
+        return byId;
+      }
+    }
+    return leftoverByRefs.get(intent.sourceRef() + '\n' + intent.targetRef());
+  }
+
+  /**
+   * Leftover stage label for an adapted EXPLICIT row. V2 mapping intents have no stage.
+   */
+  private static NormalizedDesignFlow.MappingStage leftoverStage(RequirementDataMapping leftover) {
+    if (leftover != null && leftover.stage() != null) {
+      return NormalizedDesignFlow.MappingStage.valueOf(leftover.stage().name());
+    }
+    return null;
   }
 
   /**

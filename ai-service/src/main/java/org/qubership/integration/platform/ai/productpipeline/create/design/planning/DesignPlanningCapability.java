@@ -288,7 +288,7 @@ public class DesignPlanningCapability implements StageCapability {
    * Shows the planner the flow its report is checked against.
    *
    * <p>{@link DesignPlanProjector} rejects a report that names a participant outside the flow,
-   * that covers no trigger, or that leaves an explicit mapping stage without a script step. The
+   * that covers no trigger, or that leaves an explicit mapping intent without a transform step. The
    * prose IDS alone does not carry those names, so a planner given only the IDS has to guess them.
    */
   static String buildPlannerInput(IdsDocument ids, NormalizedDesignFlow flow, String release) {
@@ -360,15 +360,14 @@ public class DesignPlanningCapability implements StageCapability {
             .filter(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT)
             .toList();
     if (explicitMappings.isEmpty()) {
-      text.append("\nNo explicit data mappings. Do not plan mapping scripts.\n");
+      text.append("\nNo explicit mapping intents. Do not plan mapping scripts.\n");
     } else {
       text.append(
-          "\nExplicit data mapping stages. Each needs a cip-script-generator step naming it:\n");
+          "\nExplicit mapping intents. Each needs a cip-script-generator or"
+              + " cip-transformation-generator step naming the mapping id:\n");
       for (NormalizedDesignFlow.DataMapping mapping : explicitMappings) {
         text.append("- ")
             .append(mapping.mappingId())
-            .append(" ")
-            .append(mapping.stage())
             .append(" ")
             .append(mapping.fromStepId())
             .append(" -> ")

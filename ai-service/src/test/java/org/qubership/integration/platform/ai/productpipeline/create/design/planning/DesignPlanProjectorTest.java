@@ -100,6 +100,47 @@ class DesignPlanProjectorTest {
   }
 
   @Test
+  void emptyMappingsDoNotRequireInitializationConvertOrResponseScripts() {
+    String reportWithoutStageScripts =
+        """
+        1. Analyze requirements and name chain Orders (cip-requirement-analyzer + cip-naming-generator)
+        2. Generate HTTP Trigger element with interface Orders API (cip-trigger-generator)
+        3. Generate Service Call element for Orders Service.createOrder (cip-service-call-generator)
+        4. Generate execution structure and element ordering (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    NormalizedDesignFlow base = sampleFlow();
+    NormalizedDesignFlow emptyMappings =
+        new NormalizedDesignFlow(
+            base.schemaVersion(),
+            base.flowId(),
+            base.chainName(),
+            base.description(),
+            base.trigger(),
+            base.participants(),
+            base.steps(),
+            base.connections(),
+            base.transformations(),
+            List.of(),
+            base.constraints(),
+            base.assumptions());
+
+    DesignExecutionPlan projected =
+        projector.project(
+            new DesignPlanReport("1", reportWithoutStageScripts),
+            emptyMappings,
+            sampleDag(),
+            "catalog-hash",
+            Map.of(),
+            Map.of());
+
+    assertEquals(6, projected.steps().size());
+  }
+
+  @Test
   void rejectsApiHubStepsForCatalogOnlyFlow() {
     NormalizedDesignFlow base = sampleFlow();
     NormalizedDesignFlow catalogOnly =
