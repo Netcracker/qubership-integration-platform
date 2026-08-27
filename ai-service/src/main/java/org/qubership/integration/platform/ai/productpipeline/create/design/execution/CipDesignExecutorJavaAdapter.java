@@ -45,7 +45,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase;
@@ -279,7 +279,7 @@ public class CipDesignExecutorJavaAdapter {
     List<BindingResolutionResult> bindingResults =
         bindingAdapter.resolve(
             inputs.conversationId(),
-            inputs.flow(),
+            inputs.revision(),
             inputs.bindingHints(),
             inputs.approval());
     Optional<ExecutionResult> bindingFailure = toBindingFailure(bindingResults);
@@ -296,7 +296,7 @@ public class CipDesignExecutorJavaAdapter {
         inputs.repairEvidence() != null
             ? runner.execute(
                 inputs.approvedPlan(),
-                inputs.flow(),
+                inputs.revision(),
                 bindings,
                 inputs.runManifest(),
                 attemptId,
@@ -305,10 +305,10 @@ public class CipDesignExecutorJavaAdapter {
                 progress)
             : attemptId == null
                 ? runner.execute(
-                    inputs.approvedPlan(), inputs.flow(), bindings, inputs.runManifest(), progress)
+                    inputs.approvedPlan(), inputs.revision(), bindings, inputs.runManifest(), progress)
                 : runner.execute(
                     inputs.approvedPlan(),
-                    inputs.flow(),
+                    inputs.revision(),
                     bindings,
                     inputs.runManifest(),
                     attemptId,
@@ -354,8 +354,8 @@ public class CipDesignExecutorJavaAdapter {
     if (!containsCandidate(inputs.approval(), inputs.planRef())) {
       return "approved candidate set is missing the design execution plan (projection) hash";
     }
-    if (!containsCandidate(inputs.approval(), inputs.flowRef())) {
-      return "approved candidate set is missing the normalized design flow hash";
+    if (!containsCandidate(inputs.approval(), inputs.revisionRef())) {
+      return "approved candidate set is missing the chain semantic revision hash";
     }
     if (!containsCandidate(inputs.approval(), inputs.idsRef())) {
       return "approved candidate set is missing the IDS document hash";
@@ -405,13 +405,13 @@ public class CipDesignExecutorJavaAdapter {
       previousOrdinal = step.reportOrdinal();
     }
 
-    Optional<NormalizedDesignFlow> storedFlow =
-        loadPayload(inputs.runId(), inputs.flowRef(), NormalizedDesignFlow.class);
-    if (storedFlow.isEmpty()) {
-      return "normalized design flow revision is missing";
+    Optional<ChainSemanticRevision> storedRevision =
+        loadPayload(inputs.runId(), inputs.revisionRef(), ChainSemanticRevision.class);
+    if (storedRevision.isEmpty()) {
+      return "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution";
     }
-    if (!Objects.equals(storedFlow.get().dataMappings(), inputs.flow().dataMappings())) {
-      return "mapping intent mismatch between live flow and approved normalized design flow";
+    if (!Objects.equals(storedRevision.get().mappingIntents(), inputs.revision().mappingIntents())) {
+      return "mapping intent mismatch between live revision and approved chain semantic revision";
     }
     return null;
   }
@@ -510,7 +510,7 @@ public class CipDesignExecutorJavaAdapter {
             inputs.approvalRef(),
             inputs.reportRef(),
             inputs.planRef(),
-            inputs.flowRef(),
+            inputs.revisionRef(),
             inputs.idsRef(),
             inputs.implementationPlanRef(),
             inputs.runManifestRef());
@@ -646,7 +646,7 @@ public class CipDesignExecutorJavaAdapter {
                     List.of(
                         inputs.reportRef().contentHash(),
                         inputs.planRef().contentHash(),
-                        inputs.flowRef().contentHash()),
+                        inputs.revisionRef().contentHash()),
                     List.of(validatedBundleRef),
                     List.of(validatedBundleRef.contentHash()),
                     provenance(inputs),
@@ -794,8 +794,8 @@ public class CipDesignExecutorJavaAdapter {
       Reference reportRef,
       DesignExecutionPlan approvedPlan,
       Reference planRef,
-      NormalizedDesignFlow flow,
-      Reference flowRef,
+      ChainSemanticRevision revision,
+      Reference revisionRef,
       IdsDocument ids,
       Reference idsRef,
       ImplementationPlan implementationPlan,
@@ -821,8 +821,8 @@ public class CipDesignExecutorJavaAdapter {
           reportRef,
           approvedPlan,
           planRef,
-          flow,
-          flowRef,
+          revision,
+          revisionRef,
           ids,
           idsRef,
           implementationPlan,
@@ -845,8 +845,8 @@ public class CipDesignExecutorJavaAdapter {
           reportRef,
           approvedPlan,
           planRef,
-          flow,
-          flowRef,
+          revision,
+          revisionRef,
           ids,
           idsRef,
           implementationPlan,
@@ -859,7 +859,7 @@ public class CipDesignExecutorJavaAdapter {
           priorGraph);
     }
 
-    public ExecutionInputs withFlow(NormalizedDesignFlow flow, Reference flowRef) {
+    public ExecutionInputs withRevision(ChainSemanticRevision revision, Reference revisionRef) {
       return new ExecutionInputs(
           runId,
           conversationId,
@@ -869,8 +869,8 @@ public class CipDesignExecutorJavaAdapter {
           reportRef,
           approvedPlan,
           planRef,
-          flow,
-          flowRef,
+          revision,
+          revisionRef,
           ids,
           idsRef,
           implementationPlan,

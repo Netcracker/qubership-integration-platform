@@ -65,7 +65,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
@@ -85,7 +86,7 @@ class DesignExecutionCapabilityTest {
   private DesignExecutionCapability capability;
 
   private Reference idsRef;
-  private Reference flowRef;
+  private Reference revisionRef;
   private Reference reportRef;
   private Reference planRef;
   private Reference implementationRef;
@@ -94,7 +95,7 @@ class DesignExecutionCapabilityTest {
   private Reference implementationApprovalRef;
 
   private DesignExecutionPlan approvedPlan;
-  private NormalizedDesignFlow flow;
+  private ChainSemanticRevision revision;
   private RunManifest manifest;
   private List<CatalogBindingResolution> bindings;
   private DesignPlanReport report;
@@ -111,7 +112,7 @@ class DesignExecutionCapabilityTest {
     runner = mock(ApprovedCompilerExecutionRunner.class);
     bindingAdapter = mock(ExecutorCatalogBindingAdapter.class);
 
-    flow = sampleFlow();
+    revision = sampleRevision();
     approvedPlan = samplePlan();
     manifest = sampleManifest();
     bindings = List.of(sampleBinding());
@@ -120,7 +121,8 @@ class DesignExecutionCapabilityTest {
     ids = sampleIds();
 
     idsRef = append(Kind.IDS_DOCUMENT, "1", ids);
-    flowRef = append(Kind.NORMALIZED_DESIGN_FLOW, "1", flow);
+    revisionRef =
+        append(Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision);
     reportRef = append(Kind.DESIGN_PLAN_REPORT, "1", report);
     planRef = append(Kind.DESIGN_EXECUTION_PLAN, "1", approvedPlan);
     implementationRef = append(Kind.IMPLEMENTATION_PLAN, "1", implementationPlan);
@@ -133,7 +135,7 @@ class DesignExecutionCapabilityTest {
             new ApprovalRecordV2(
                 idsRef,
                 idsRef.contentHash(),
-                List.of(idsRef, flowRef),
+                List.of(idsRef, revisionRef),
                 "tester",
                 "ids approved",
                 FIXED,
@@ -152,7 +154,7 @@ class DesignExecutionCapabilityTest {
             new ApprovalRecordV2(
                 implementationRef,
                 implementationRef.contentHash(),
-                List.of(idsRef, flowRef, reportRef, planRef, implementationRef),
+                List.of(idsRef, revisionRef, reportRef, planRef, implementationRef),
                 "tester",
                 "implementation approved",
                 FIXED,
@@ -175,17 +177,17 @@ class DesignExecutionCapabilityTest {
         new CipDesignExecutorJavaAdapter(runner, bindingAdapter, artifactStore, planValidator);
     capability = new DesignExecutionCapability(artifactStore, adapter);
 
-    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(flow), anyList(), any()))
+    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
         .thenReturn(List.of(new BindingResolutionResult.Resolved(bindings.getFirst())));
     when(runner.execute(
-            eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any()))
+            eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"), any()))
         .thenReturn(successfulEngineResult());
   }
 
   @Test
   void missingImplementationApprovalDoesNotInvokeRunner() {
     StageOutcome outcome =
-        execute(List.of(idsRef, flowRef, reportRef, planRef, implementationRef, manifestRef));
+        execute(List.of(idsRef, revisionRef, reportRef, planRef, implementationRef, manifestRef));
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
     assertTrue(outcome.message().toLowerCase().contains("approval"));
@@ -198,7 +200,7 @@ class DesignExecutionCapabilityTest {
         execute(
             List.of(
                 idsRef,
-                flowRef,
+                revisionRef,
                 reportRef,
                 planRef,
                 implementationRef,
@@ -217,7 +219,7 @@ class DesignExecutionCapabilityTest {
         execute(
             List.of(
                 idsRef,
-                flowRef,
+                revisionRef,
                 staleReport,
                 planRef,
                 implementationRef,
@@ -238,7 +240,7 @@ class DesignExecutionCapabilityTest {
             new ApprovalRecordV2(
                 implementationRef,
                 implementationRef.contentHash(),
-                List.of(idsRef, flowRef, reportRef, planRef, implementationRef),
+                List.of(idsRef, revisionRef, reportRef, planRef, implementationRef),
                 "tester",
                 "duplicate",
                 FIXED,
@@ -255,7 +257,7 @@ class DesignExecutionCapabilityTest {
         execute(
             List.of(
                 idsRef,
-                flowRef,
+                revisionRef,
                 reportRef,
                 planRef,
                 implementationRef,
@@ -270,14 +272,14 @@ class DesignExecutionCapabilityTest {
 
   @Test
   void nullMessageRuntimeExceptionIncludesExceptionClass() {
-    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(flow), anyList(), any()))
+    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
         .thenThrow(new NullPointerException());
 
     StageOutcome outcome =
         execute(
             List.of(
                 idsRef,
-                flowRef,
+                revisionRef,
                 reportRef,
                 planRef,
                 implementationRef,
@@ -292,7 +294,7 @@ class DesignExecutionCapabilityTest {
 
   @Test
   void toolArgumentsFailureIsRetryableTechnicalNotContract() {
-    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(flow), anyList(), any()))
+    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
         .thenThrow(
             new RuntimeException(
                 new dev.langchain4j.exception.ToolArgumentsException(
@@ -302,7 +304,7 @@ class DesignExecutionCapabilityTest {
         execute(
             List.of(
                 idsRef,
-                flowRef,
+                revisionRef,
                 reportRef,
                 planRef,
                 implementationRef,
@@ -324,7 +326,7 @@ class DesignExecutionCapabilityTest {
             + "node 'kafka-trigger-1' (kafka-trigger-2) has unknown property key 'topic'.");
     capability = new DesignExecutionCapability(artifactStore, adapter, "", feedbackStore);
     when(runner.execute(
-            eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any()))
+            eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"), any()))
         .thenThrow(
             new PlanningSkillArtifactUnavailableException(
                 "cip-structure-generator",
@@ -344,7 +346,7 @@ class DesignExecutionCapabilityTest {
         execute(
             List.of(
                 idsRef,
-                flowRef,
+                revisionRef,
                 reportRef,
                 planRef,
                 implementationRef,
@@ -355,8 +357,8 @@ class DesignExecutionCapabilityTest {
     assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass());
     verify(runner)
         .execute(
-            eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any());
-    verify(bindingAdapter).resolve(eq(CONVERSATION_ID), eq(flow), anyList(), any());
+            eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"), any());
+    verify(bindingAdapter).resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any());
 
     DesignExecutionCheckpoint checkpoint =
         outcome.candidates().stream()
@@ -382,7 +384,7 @@ class DesignExecutionCapabilityTest {
 
   @Test
   void configuredRecoveryFaultFailsTheFirstTwoMatchingRunAttempts() {
-    capability = new DesignExecutionCapability(artifactStore, adapter, "Pets");
+    capability = new DesignExecutionCapability(artifactStore, adapter, "Orders");
 
     StageOutcome first = execute(standardInputRefs());
     StageOutcome second = execute(standardInputRefs());
@@ -402,7 +404,7 @@ class DesignExecutionCapabilityTest {
   @Test
   void ineligibleCompilerBundlePutsMergedFindingsOnStageOutcome() {
     when(runner.execute(
-            eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any()))
+            eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"), any()))
         .thenReturn(ineligibleCompilerEngineResult());
 
     StageOutcome outcome = execute(standardInputRefs());
@@ -436,7 +438,7 @@ class DesignExecutionCapabilityTest {
               return successfulEngineResult();
             })
         .when(runner)
-        .execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), eq("attempt-1"), any());
+        .execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"), any());
 
     List<CapabilitySignal> signals = collectSignals(standardInputRefs());
 
@@ -456,7 +458,7 @@ class DesignExecutionCapabilityTest {
         execute(
             List.of(
                 idsRef,
-                flowRef,
+                revisionRef,
                 reportRef,
                 planRef,
                 implementationRef,
@@ -489,7 +491,7 @@ class DesignExecutionCapabilityTest {
     append(Kind.CHAIN_PLAN_GRAPH, "1", priorGraph);
     when(runner.execute(
             eq(approvedPlan),
-            eq(flow),
+            eq(revision),
             eq(bindings),
             eq(manifest),
             eq("attempt-1"),
@@ -527,7 +529,7 @@ class DesignExecutionCapabilityTest {
     verify(runner)
         .execute(
             eq(approvedPlan),
-            eq(flow),
+            eq(revision),
             eq(bindings),
             eq(manifest),
             eq("attempt-1"),
@@ -550,7 +552,7 @@ class DesignExecutionCapabilityTest {
     append(Kind.CHAIN_PLAN_GRAPH, "1", laterGraph);
     when(runner.execute(
             eq(approvedPlan),
-            eq(flow),
+            eq(revision),
             eq(bindings),
             eq(manifest),
             eq("attempt-1"),
@@ -571,7 +573,7 @@ class DesignExecutionCapabilityTest {
     verify(runner)
         .execute(
             eq(approvedPlan),
-            eq(flow),
+            eq(revision),
             eq(bindings),
             eq(manifest),
             eq("attempt-1"),
@@ -611,7 +613,7 @@ class DesignExecutionCapabilityTest {
       List<Reference> inputRefs, Map<String, Object> extraAttributes) {
     Map<String, Object> attributes = new HashMap<>();
     attributes.put("idsDocument", ids);
-    attributes.put("normalizedDesignFlow", flow);
+    attributes.put("chainSemanticRevision", revision);
     attributes.put("designPlanReport", report);
     attributes.put("designExecutionPlan", approvedPlan);
     attributes.put("implementationPlan", implementationPlan);
@@ -626,7 +628,7 @@ class DesignExecutionCapabilityTest {
   private List<Reference> standardInputRefs() {
     return List.of(
         idsRef,
-        flowRef,
+        revisionRef,
         reportRef,
         planRef,
         implementationRef,
@@ -724,9 +726,9 @@ class DesignExecutionCapabilityTest {
   private static DesignExecutionPlan samplePlan() {
     return new DesignExecutionPlan(
         "1",
-        "flow-1",
+        "revision-orders",
         "cip-design-planner",
-        "normalized-design-flow/flow-1",
+        "chain-semantic-revision/revision-orders",
         "design-input-hash",
         "2024.4",
         ApprovalPolicy.CATALOG_FIRST_V1,
@@ -741,7 +743,7 @@ class DesignExecutionCapabilityTest {
                 List.of("client"),
                 List.of(),
                 List.of(),
-                List.of("NORMALIZED_DESIGN_FLOW"),
+                List.of("CHAIN_SEMANTIC_REVISION"),
                 List.of("GRAPH_PATCH_ARTIFACT"))),
         "design-plan-report",
         "report-content-hash",
@@ -751,30 +753,8 @@ class DesignExecutionCapabilityTest {
         ApprovalPolicy.CATALOG_FIRST_V1_HASH);
   }
 
-  private static NormalizedDesignFlow sampleFlow() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-1",
-        "Pets",
-        "",
-        new NormalizedDesignFlow.Trigger("http", "client", "HTTP", "/pets", "GET", List.of()),
-        List.of(new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of())),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "call-1", "service-call", "client", "petstore", "GET /pets", "", List.of())),
-        List.of(),
-        List.of(),
-        List.of(
-            new NormalizedDesignFlow.DataMapping(
-                "map-1",
-                NormalizedDesignFlow.MappingStage.CONVERSION,
-                "call-1",
-                "call-1",
-                NormalizedDesignFlow.MappingMode.EXPLICIT,
-                List.of(new NormalizedDesignFlow.MappingRule("$.id", "$.petId", null, List.of())),
-                List.of())),
-        List.of(),
-        List.of());
+  private static ChainSemanticRevision sampleRevision() {
+    return SemanticFixtures.linearOrders();
   }
 
   private static IdsDocument sampleIds() {

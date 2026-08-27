@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.profile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -88,13 +89,17 @@ class ProductPipelineProfileCatalogCutoverTest {
     assertEquals(
         List.of(
             "ids-document",
-            "normalized-design-flow",
+            "chain-semantic-revision",
             "design-plan-report",
             "design-execution-plan",
             "implementation-plan"),
         stage(v2, "design-planning").approval().candidateSet().stream()
             .map(ArtifactTypeRef::type)
             .toList());
+    List<String> executionConsumes =
+        stage(v2, "design-execution").consumes().stream().map(ArtifactTypeRef::type).toList();
+    assertTrue(executionConsumes.contains("chain-semantic-revision"));
+    assertFalse(executionConsumes.contains("normalized-design-flow"));
     assertTrue(v2.stages().stream().allMatch(stage -> stage.retry() != null));
     assertEquals(List.of(2), v2.compilerPipeline().supportedIndexSchemas());
     assertEquals(

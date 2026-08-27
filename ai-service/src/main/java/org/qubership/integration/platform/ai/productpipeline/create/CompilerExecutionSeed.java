@@ -9,6 +9,7 @@ import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
@@ -46,8 +47,14 @@ public record CompilerExecutionSeed(
    */
   public static final String SEED_PRODUCER = "chain-edit-seed";
 
+  /** Producer id of semantic revision and compiled graph artifacts on the CREATE seed. */
+  public static final String SEMANTIC_COMPILER_PRODUCER = "chain-semantic-compiler";
+
   /** The skill CREATE marks satisfied before the compiler DAG starts. */
   public static final String REQUIREMENT_ANALYZER_SKILL = "cip-requirement-analyzer";
+
+  /** Structure is already projected from the compiled graph, so CREATE does not run this skill. */
+  public static final String STRUCTURE_GENERATOR_SKILL = "cip-structure-generator";
 
   /** Upstream CREATE skills that a property-only edit never runs. */
   public static final Set<String> EDIT_PRE_SATISFIED_SKILLS =
@@ -84,7 +91,50 @@ public record CompilerExecutionSeed(
                 REQUIREMENT_ANALYZER_SKILL,
                 new SkillArtifactPayload.RequirementBriefPayload(brief))),
         Set.of(REQUIREMENT_ANALYZER_SKILL));
-    }
+  }
+
+  /**
+   * CREATE seed after design-execution compiled the semantic revision. The workspace already holds
+   * the revision, the compiled graph, and a structure projection, so {@code
+   * cip-structure-generator} does not run again.
+   */
+  public static CompilerExecutionSeed forCreate(
+      String conversationId,
+      RequirementBrief brief,
+      ChainSemanticRevision revision,
+      ChainPlanGraph graph) {
+    Objects.requireNonNull(brief, "requirementBrief");
+    Objects.requireNonNull(revision, "revision");
+    Objects.requireNonNull(graph, "graph");
+    String text = planningSeedText(brief);
+    return new CompilerExecutionSeed(
+        conversationId,
+        false,
+        text,
+        List.of(
+            SkillArtifact.of(
+                SkillArtifactType.RAW_USER_REQUEST,
+                REQUIREMENT_ANALYZER_SKILL,
+                new SkillArtifactPayload.RawUserRequestPayload(text, List.of())),
+            SkillArtifact.of(
+                SkillArtifactType.REQUIREMENT_BRIEF,
+                REQUIREMENT_ANALYZER_SKILL,
+                new SkillArtifactPayload.RequirementBriefPayload(brief)),
+            SkillArtifact.of(
+                SkillArtifactType.CHAIN_SEMANTIC_REVISION,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.ChainSemanticRevisionPayload(revision)),
+            SkillArtifact.of(
+                SkillArtifactType.CHAIN_PLAN_GRAPH,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.ChainPlanGraphPayload(graph)),
+            SkillArtifact.of(
+                SkillArtifactType.CHAIN_STRUCTURE,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.ChainStructurePayload(
+                    new ChainStructure(graph, List.of(), List.of())))),
+        Set.of(REQUIREMENT_ANALYZER_SKILL, STRUCTURE_GENERATOR_SKILL));
+  }
 
   /**
    * A run whose starting graph is a chain that already exists.

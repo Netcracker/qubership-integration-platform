@@ -26,9 +26,12 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecord;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
+import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.FailureClass;
 import org.qubership.integration.platform.ai.productpipeline.artifact.FailureRecord;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -47,6 +50,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunP
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
@@ -145,7 +150,7 @@ public final class ProductPipelineRunSupport {
   private final Map<String, RunManifest> manifestsByRun;
   private final Map<String, Map<String, Object>> attributesByRun;
   private final Map<String, Integer> technicalRetriesByStage;
-  private final StageExecutor stageExecutor;
+  private final ProductPipelineStageExecutor stageExecutor;
 
   /** Shared with the stage executor; also answers questions typed at a pause this run waits at. */
   private final FailureNarrative failureNarrative;
@@ -1712,6 +1717,12 @@ public final class ProductPipelineRunSupport {
               Revision approvalRevision;
               if (multiItemApproval) {
                 ApprovalPolicy approvalPolicy = stageProfile.approval();
+                ApprovalRecordV2 approvalRecord =
+                    semanticApprovalRecord(
+                        command.runId(),
+                        target,
+                        approvedCandidates,
+                        approvalPolicy);
                 approvalRevision =
                     artifactStore.append(
                         new AppendCommand(
@@ -1720,21 +1731,7 @@ public final class ProductPipelineRunSupport {
                             "2",
                             "product-pipeline-runtime",
                             "1",
-                            new ApprovalRecordV2(
-                                target,
-                                target.contentHash(),
-                                approvedCandidates,
-                                "user",
-                                null,
-                                clock.instant(),
-                                approvalPolicy.bindingResolutionPolicy(),
-                                approvalPolicy.bindingResolutionPolicyHash(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null),
+                            approvalRecord,
                             approvedCandidates,
                             null,
                             provenance(
@@ -2342,6 +2339,118 @@ public final class ProductPipelineRunSupport {
               + manifest.runId());
     }
     compilerRunPinResolver.verifyAvailable(manifest);
+  }
+
+  private ApprovalRecordV2 semanticApprovalRecord(
+      String runId,
+      Reference target,
+      List<Reference> approvedCandidates,
+      ApprovalPolicy approvalPolicy) {
+    String subjectKind = null;
+    String subjectSchemaVersion = null;
+    String subjectRevisionId = null;
+    String subjectSha256 = null;
+    String compilerContractVersion = null;
+    String compilerContractSha256 = null;
+    if (target.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
+      ChainSemanticRevision revision =
+          artifactStore
+              .get(runId, target)
+              .map(stored -> artifactStore.payload(stored, ChainSemanticRevision.class))
+              .orElseThrow(
+                  () ->
+                      new IllegalStateException(
+                          "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution"));
+      CompilerContract contract =
+          new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+      ApprovalRecordV2 semantic = stageExecutor.approveCandidate(revision, contract);
+      subjectKind = semantic.subjectArtifactKind();
+      subjectSchemaVersion = semantic.subjectSchemaVersion();
+      subjectRevisionId = semantic.subjectRevisionId();
+      subjectSha256 = semantic.subjectSha256();
+      compilerContractVersion = semantic.compilerContractVersion();
+      compilerContractSha256 = semantic.compilerContractSha256();
+      persistCombinedSemanticPin(runId, revision, contract);
+    }
+    return new ApprovalRecordV2(
+        target,
+        target.contentHash(),
+        approvedCandidates,
+        "user",
+        null,
+        clock.instant(),
+        approvalPolicy.bindingResolutionPolicy(),
+        approvalPolicy.bindingResolutionPolicyHash(),
+        subjectKind,
+        subjectSchemaVersion,
+        subjectRevisionId,
+        subjectSha256,
+        compilerContractVersion,
+        compilerContractSha256);
+  }
+
+  private void persistCombinedSemanticPin(
+      String runId, ChainSemanticRevision revision, CompilerContract contract) {
+    RunManifest manifest = manifestsByRun.get(runId);
+    if (manifest == null || manifest.compilerRunPin() == null) {
+      return;
+    }
+    CompilerRunPin semanticPin =
+        compilerRunPinResolver == null
+            ? null
+            : compilerRunPinResolver.resolve(runId, revision, contract);
+    if (semanticPin == null) {
+      semanticPin =
+          new CompilerRunPin(
+              null,
+              null,
+              null,
+              0,
+              null,
+              null,
+              null,
+              List.of(),
+              Map.of(),
+              Map.of(),
+              List.of(),
+              Kind.CHAIN_SEMANTIC_REVISION.name(),
+              revision.schemaVersion(),
+              revision.revisionId(),
+              CanonicalPayloadHash.sha256Hex(revision),
+              contract.contractVersion(),
+              contract.sha256());
+    }
+    CompilerRunPin combined = manifest.compilerRunPin().withSemanticSubject(semanticPin);
+    RunManifest updated =
+        new RunManifest(
+            manifest.runId(),
+            manifest.parentRunId(),
+            manifest.sourceReferences(),
+            manifest.runtimeSelection(),
+            manifest.profileId(),
+            manifest.profileVersion(),
+            manifest.profileDigest(),
+            manifest.referenceBaselineId(),
+            manifest.referenceBaselineDigest(),
+            manifest.dependencyClosure(),
+            manifest.dependencyClosureDigest(),
+            manifest.knowledgePackage(),
+            manifest.languageVersion(),
+            manifest.artifactSchemaVersions(),
+            combined,
+            manifest.responseLocale());
+    artifactStore.append(
+        new AppendCommand(
+            runId,
+            Kind.RUN_MANIFEST,
+            "1",
+            "product-pipeline-runtime",
+            "1",
+            updated,
+            List.of(),
+            null,
+            provenance(runId, "design-input", "design-input")));
+    manifestsByRun.put(runId, updated);
   }
 
   private ArtifactProvenance provenance(String runId, String stageId, String capabilityId) {

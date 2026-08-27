@@ -11,6 +11,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
@@ -22,9 +24,10 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageRep
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionEngine;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerExecutionSeed;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -39,21 +42,27 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
   private final CompilerDagExecutionEngine engine;
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
+  private final ChainSemanticGraphCompiler graphCompiler;
+  private final CompilerContractRepository contractRepository;
 
   @Inject
   public DefaultApprovedCompilerExecutionRunner(
       CompilerDagExecutionEngine engine,
       ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore) {
+      ProductPipelineArtifactStore artifactStore,
+      ChainSemanticGraphCompiler graphCompiler,
+      CompilerContractRepository contractRepository) {
     this.engine = Objects.requireNonNull(engine, "engine");
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
+    this.graphCompiler = Objects.requireNonNull(graphCompiler, "graphCompiler");
+    this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
   }
 
   @Override
   public CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
-      NormalizedDesignFlow flow,
+      ChainSemanticRevision revision,
       List<CatalogBindingResolution> bindings,
       RunManifest runManifest,
       String attemptId,
@@ -61,7 +70,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       ChainPlanGraph priorGraph,
       BiConsumer<String, String> skillProgress) {
     Objects.requireNonNull(approvedPlan, "approvedPlan");
-    Objects.requireNonNull(flow, "flow");
+    Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(runManifest, "runManifest");
     BiConsumer<String, String> progress =
         skillProgress == null ? (skillId, status) -> {} : skillProgress;
@@ -71,20 +80,33 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     String conversationId = resolveConversationId(runManifest.runId());
     List<CatalogBindingResolution> resolvedBindings =
         bindings == null ? List.of() : List.copyOf(bindings);
+    CompilerContract contract =
+        contractRepository.require(
+            pin.compilerContractVersion() != null
+                ? pin.compilerContractVersion()
+                : CompilerContract.V1);
+    ChainPlanGraph graph = graphCompiler.compile(revision, contract, resolvedBindings);
     RequirementBrief brief =
         DesignExecutionBriefFactory.build(
-            loadStoredBrief(runManifest.runId()), flow, resolvedBindings, repairEvidence, priorGraph);
+            loadStoredBrief(runManifest.runId()),
+            revision,
+            resolvedBindings,
+            repairEvidence,
+            priorGraph);
+    CompilerExecutionSeed seed =
+        CompilerExecutionSeed.forCreate(conversationId, brief, revision, graph);
     CompilerDagExecutionRequest request =
         new CompilerDagExecutionRequest(
             runManifest.runId(),
             conversationId,
             runManifest,
             brief,
-            flow,
+            revision,
             executionDag,
             approvedOwningSkillIds,
             resolvedBindings,
-            List.of());
+            List.of(),
+            seed);
     return engine.execute(request, attemptId, progress).await().indefinitely();
   }
 

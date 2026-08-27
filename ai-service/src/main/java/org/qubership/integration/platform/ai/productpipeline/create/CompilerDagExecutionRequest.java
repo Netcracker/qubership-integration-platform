@@ -6,7 +6,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /** Inputs for one shared compiler DAG execution pass. */
@@ -15,7 +15,7 @@ public record CompilerDagExecutionRequest(
     String conversationId,
     RunManifest runManifest,
     RequirementBrief requirementBrief,
-    NormalizedDesignFlow normalizedFlow,
+    ChainSemanticRevision semanticRevision,
     ResolvedCompilerDag executionDag,
     List<String> approvedOwningSkillIds,
     List<CatalogBindingResolution> catalogBindings,
@@ -44,7 +44,7 @@ public record CompilerDagExecutionRequest(
       String conversationId,
       RunManifest runManifest,
       RequirementBrief requirementBrief,
-      NormalizedDesignFlow normalizedFlow,
+      ChainSemanticRevision semanticRevision,
       ResolvedCompilerDag executionDag,
       List<String> approvedOwningSkillIds,
       List<CatalogBindingResolution> catalogBindings,
@@ -54,7 +54,7 @@ public record CompilerDagExecutionRequest(
         conversationId,
         runManifest,
         requirementBrief,
-        normalizedFlow,
+        semanticRevision,
         executionDag,
         approvedOwningSkillIds,
         catalogBindings,

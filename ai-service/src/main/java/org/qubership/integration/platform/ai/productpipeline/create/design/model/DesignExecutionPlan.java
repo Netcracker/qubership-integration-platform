@@ -8,7 +8,7 @@ import java.util.Map;
  */
 public record DesignExecutionPlan(
     String schemaVersion,
-    String flowId,
+    String semanticRevisionId,
     String designAuthority,
     String designInputRef,
     String designInputHash,
@@ -29,7 +29,7 @@ public record DesignExecutionPlan(
 
   public DesignExecutionPlan {
     schemaVersion = DesignArtifacts.requireText(schemaVersion, "schemaVersion");
-    flowId = DesignArtifacts.requireText(flowId, "flowId");
+    semanticRevisionId = DesignArtifacts.requireText(semanticRevisionId, "semanticRevisionId");
     designAuthority = DesignArtifacts.requireText(designAuthority, "designAuthority");
     designInputRef = DesignArtifacts.requireText(designInputRef, "designInputRef");
     designInputHash = DesignArtifacts.requireText(designInputHash, "designInputHash");

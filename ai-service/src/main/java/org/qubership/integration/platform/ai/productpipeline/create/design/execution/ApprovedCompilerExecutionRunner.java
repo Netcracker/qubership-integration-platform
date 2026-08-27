@@ -8,7 +8,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageRep
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
 /**
  * Runs the shared compiler DAG for an approved design-execution plan. Only {@link
@@ -19,10 +19,10 @@ public interface ApprovedCompilerExecutionRunner {
   /** Runs the DAG without surfacing per-skill progress (tests / callers that ignore activity). */
   default CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
-      NormalizedDesignFlow flow,
+      ChainSemanticRevision revision,
       List<CatalogBindingResolution> bindings,
       RunManifest runManifest) {
-    return execute(approvedPlan, flow, bindings, runManifest, (skillId, status) -> {});
+    return execute(approvedPlan, revision, bindings, runManifest, (skillId, status) -> {});
   }
 
   /**
@@ -31,22 +31,22 @@ public interface ApprovedCompilerExecutionRunner {
    */
   default CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
-      NormalizedDesignFlow flow,
+      ChainSemanticRevision revision,
       List<CatalogBindingResolution> bindings,
       RunManifest runManifest,
       BiConsumer<String, String> skillProgress) {
-    return execute(approvedPlan, flow, bindings, runManifest, null, skillProgress);
+    return execute(approvedPlan, revision, bindings, runManifest, null, skillProgress);
   }
 
   /** Runs one stage attempt and preserves its identity in compiler artifacts. */
   default CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
-      NormalizedDesignFlow flow,
+      ChainSemanticRevision revision,
       List<CatalogBindingResolution> bindings,
       RunManifest runManifest,
       String attemptId,
       BiConsumer<String, String> skillProgress) {
-    return execute(approvedPlan, flow, bindings, runManifest, attemptId, null, null, skillProgress);
+    return execute(approvedPlan, revision, bindings, runManifest, attemptId, null, null, skillProgress);
   }
 
   /**
@@ -58,7 +58,7 @@ public interface ApprovedCompilerExecutionRunner {
    */
   CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
-      NormalizedDesignFlow flow,
+      ChainSemanticRevision revision,
       List<CatalogBindingResolution> bindings,
       RunManifest runManifest,
       String attemptId,

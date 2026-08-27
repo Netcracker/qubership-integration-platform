@@ -5,44 +5,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
 class DesignExecutionBriefFactoryTest {
 
   @Test
-  void buildsBriefFromFlowWithTriggerPathAndBindings() {
-    NormalizedDesignFlow flow =
-        new NormalizedDesignFlow(
-            "1",
-            "flow-1",
+  void buildsBriefFromRevisionIdentityAndBindings() {
+    ChainSemanticRevision revision =
+        SemanticFixtures.linear(
             "HealthProxy",
-            "Proxy inventory",
-            new NormalizedDesignFlow.Trigger(
-                "http", "client", "HTTP", "/health-proxy", "GET", List.of()),
-            List.of(new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of())),
-            List.of(
-                new NormalizedDesignFlow.Step(
-                    "call-1",
-                    "service-call",
-                    "cip",
-                    "petstore",
-                    "GET /store/inventory",
-                    "",
-                    List.of()),
-                new NormalizedDesignFlow.Step(
-                    "script-1", "script", "cip", "cip", "", "Return inventory JSON", List.of())),
+            "revision-health",
+            "trigger-http",
+            "node-call",
+            "call-1",
+            "GET /store/inventory",
+            "HTTP",
             List.of(),
-            List.of(),
-            List.of(),
-            List.of("RBAC role test-role", "No external route"),
-            List.of());
+            List.of("RBAC role test-role", "No external route"));
     CatalogBindingResolution binding =
         new CatalogBindingResolution(
             "call-1",
@@ -55,22 +42,14 @@ class DesignExecutionBriefFactoryTest {
             "2024.4",
             "evidence-1");
 
-    RequirementBrief brief = DesignExecutionBriefFactory.build(null, flow, List.of(binding));
+    RequirementBrief brief = DesignExecutionBriefFactory.build(null, revision, List.of(binding));
 
-    assertTrue(brief.inputs().stream().anyMatch(i -> i.contains("/health-proxy")));
+    assertEquals("HealthProxy", brief.goal());
     assertTrue(brief.inputs().stream().anyMatch(i -> i.contains("systemId=sys-1")));
     assertTrue(brief.constraints().stream().anyMatch(c -> c.contains("test-role")));
     assertTrue(brief.approvedDraftText().contains("integrationOperationId: op-1"));
     assertTrue(brief.approvedDraftText().contains("Resolved catalog bindings"));
-    assertTrue(brief.facts().stream().anyMatch(f -> f.text().contains("/health-proxy")));
-    RequirementFact triggerFact =
-        brief.facts().stream()
-            .filter(f -> "design-flow-trigger".equals(f.sourceFactId()))
-            .findFirst()
-            .orElseThrow();
-    assertEquals("http-trigger", triggerFact.capabilityKey());
-    assertEquals("GET", triggerFact.httpMethod());
-    assertEquals("/health-proxy", triggerFact.path());
+    assertTrue(brief.facts().isEmpty());
   }
 
   @Test
@@ -86,21 +65,6 @@ class DesignExecutionBriefFactoryTest {
             null,
             "approved text",
             List.of());
-    NormalizedDesignFlow flow =
-        new NormalizedDesignFlow(
-            "1",
-            "flow-1",
-            "HealthProxy",
-            "",
-            new NormalizedDesignFlow.Trigger(
-                "http", "client", "HTTP", "/health-proxy", "GET", List.of()),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of());
     CatalogBindingResolution binding =
         new CatalogBindingResolution(
             "call-1",
@@ -113,58 +77,44 @@ class DesignExecutionBriefFactoryTest {
             "2024.4",
             "evidence-9");
 
-    RequirementBrief brief = DesignExecutionBriefFactory.build(stored, flow, List.of(binding));
+    RequirementBrief brief =
+        DesignExecutionBriefFactory.build(stored, sampleRevision(), List.of(binding));
 
     assertTrue(brief.approvedDraftText().contains("approved text"));
     assertTrue(brief.inputs().stream().anyMatch(i -> i.contains("systemId=sys-9")));
   }
 
   @Test
-  void carriesApprovedFlowMappingsIntoTheExecutionBrief() {
-    NormalizedDesignFlow flow =
-        new NormalizedDesignFlow(
-            "1",
-            "flow-1",
-            "HealthProxy",
-            "Proxy inventory",
-            new NormalizedDesignFlow.Trigger(
-                "http", "client", "HTTP", "/health-proxy", "GET", List.of("fact-trigger")),
+  void preservesStoredBriefMappingsInsteadOfInventingThem() {
+    RequirementDataMapping mapping =
+        new RequirementDataMapping(
+            "map-init",
+            RequirementDataMapping.Stage.INITIALIZATION,
+            "step-trigger",
+            "call-1",
+            RequirementDataMapping.Mode.EXPLICIT,
             List.of(
-                new NormalizedDesignFlow.Participant(
-                    "client", "Client", "EXTERNAL", List.of("fact-client")),
-                new NormalizedDesignFlow.Participant(
-                    "petstore", "Petstore", "EXTERNAL", List.of("fact-petstore"))),
-            List.of(
-                new NormalizedDesignFlow.Step(
-                    "call-1",
-                    "service-call",
-                    "client",
-                    "petstore",
-                    "GET /store/inventory",
-                    "",
-                    List.of("fact-call"))),
+                new RequirementDataMapping.Rule(
+                    "$.request.id", "$.headers.X-Request-Id", null)),
+            List.of("fact-map"));
+    RequirementBrief stored =
+        new RequirementBrief(
+            "goal",
             List.of(),
             List.of(),
-            List.of(
-                new NormalizedDesignFlow.DataMapping(
-                    "map-init",
-                    NormalizedDesignFlow.MappingStage.INITIALIZATION,
-                    "step-trigger",
-                    "call-1",
-                    NormalizedDesignFlow.MappingMode.EXPLICIT,
-                    List.of(
-                        new NormalizedDesignFlow.MappingRule(
-                            "$.request.id",
-                            "$.headers.X-Request-Id",
-                            null,
-                            List.of("fact-rule"))),
-                    List.of("fact-map"))),
             List.of(),
-            List.of());
+            List.of(),
+            "summary",
+            null,
+            "approved text",
+            List.of(),
+            List.of(mapping));
 
-    RequirementBrief brief = DesignExecutionBriefFactory.build(null, flow, List.of());
+    RequirementBrief brief =
+        DesignExecutionBriefFactory.build(stored, sampleRevision(), List.of());
 
-    assertTrue(brief.dataMappings().stream().anyMatch(mapping -> mapping.mappingId().equals("map-init")));
+    assertTrue(
+        brief.dataMappings().stream().anyMatch(item -> item.mappingId().equals("map-init")));
     assertTrue(
         brief.dataMappings().getFirst().rules().stream()
             .anyMatch(rule -> rule.targetPath().equals("$.headers.X-Request-Id")));
@@ -172,7 +122,6 @@ class DesignExecutionBriefFactoryTest {
 
   @Test
   void formatsResolvedCatalogBindingsAsPlural() {
-    NormalizedDesignFlow flow = minimalFlow();
     CatalogBindingResolution first =
         new CatalogBindingResolution(
             "step-om",
@@ -197,7 +146,7 @@ class DesignExecutionBriefFactoryTest {
             "evidence-wfm");
 
     RequirementBrief brief =
-        DesignExecutionBriefFactory.build(null, flow, List.of(first, second));
+        DesignExecutionBriefFactory.build(null, sampleRevision(), List.of(first, second));
 
     assertTrue(brief.approvedDraftText().startsWith("Resolved catalog bindings"));
     assertTrue(brief.approvedDraftText().contains("serviceCallId: step-om"));
@@ -206,18 +155,15 @@ class DesignExecutionBriefFactoryTest {
 
   @Test
   void firstTurnCarriesNoRepairEvidence() {
-    NormalizedDesignFlow flow = minimalFlow();
-
     RequirementBrief withoutRepair =
-        DesignExecutionBriefFactory.build(null, flow, List.of(), null, null);
-    RequirementBrief plain = DesignExecutionBriefFactory.build(null, flow, List.of());
+        DesignExecutionBriefFactory.build(null, sampleRevision(), List.of(), null, null);
+    RequirementBrief plain = DesignExecutionBriefFactory.build(null, sampleRevision(), List.of());
 
     assertEquals(plain.approvedDraftText(), withoutRepair.approvedDraftText());
   }
 
   @Test
   void repairTurnFoldsHaltEvidenceAndPriorGraphIntoDraftText() {
-    NormalizedDesignFlow flow = minimalFlow();
     StageRepairEvidence repairEvidence =
         new StageRepairEvidence(
             "VALIDATION_FAILURE",
@@ -233,7 +179,8 @@ class DesignExecutionBriefFactoryTest {
             List.of());
 
     RequirementBrief brief =
-        DesignExecutionBriefFactory.build(null, flow, List.of(), repairEvidence, priorGraph);
+        DesignExecutionBriefFactory.build(
+            null, sampleRevision(), List.of(), repairEvidence, priorGraph);
 
     assertTrue(brief.approvedDraftText().contains("VALIDATION_FAILURE"));
     assertTrue(brief.approvedDraftText().contains("design-execution"));
@@ -246,29 +193,17 @@ class DesignExecutionBriefFactoryTest {
 
   @Test
   void repairEvidenceWithNoFindingsOrErrorLeavesDraftTextUnchanged() {
-    NormalizedDesignFlow flow = minimalFlow();
-    StageRepairEvidence emptyEvidence = new StageRepairEvidence("VALIDATION_FAILURE", null, "", "", null);
+    StageRepairEvidence emptyEvidence =
+        new StageRepairEvidence("VALIDATION_FAILURE", null, "", "", null);
 
     RequirementBrief brief =
-        DesignExecutionBriefFactory.build(null, flow, List.of(), emptyEvidence, null);
-    RequirementBrief plain = DesignExecutionBriefFactory.build(null, flow, List.of());
+        DesignExecutionBriefFactory.build(null, sampleRevision(), List.of(), emptyEvidence, null);
+    RequirementBrief plain = DesignExecutionBriefFactory.build(null, sampleRevision(), List.of());
 
     assertEquals(plain.approvedDraftText(), brief.approvedDraftText());
   }
 
-  private static NormalizedDesignFlow minimalFlow() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-1",
-        "Pets",
-        "",
-        new NormalizedDesignFlow.Trigger("http", "client", "HTTP", "/pets", "GET", List.of()),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of());
+  private static ChainSemanticRevision sampleRevision() {
+    return SemanticFixtures.linearOrders();
   }
 }

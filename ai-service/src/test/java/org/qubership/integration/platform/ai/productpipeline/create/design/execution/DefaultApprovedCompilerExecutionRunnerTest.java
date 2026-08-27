@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -36,12 +37,15 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionEngine;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerExecutionSeed;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningPatchLedger;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
@@ -73,6 +77,9 @@ class DefaultApprovedCompilerExecutionRunnerTest {
     artifactStore =
         new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
     engine = mock(CompilerDagExecutionEngine.class);
+    ChainSemanticGraphCompiler graphCompiler = mock(ChainSemanticGraphCompiler.class);
+    when(graphCompiler.compile(any(), any(), any()))
+        .thenReturn(successfulEngineResult().graph());
     when(engine.execute(
             any(CompilerDagExecutionRequest.class), any(String.class), any(BiConsumer.class)))
         .thenAnswer(
@@ -81,7 +88,13 @@ class DefaultApprovedCompilerExecutionRunnerTest {
               capturedAttemptId.set(invocation.getArgument(1));
               return Uni.createFrom().item(successfulEngineResult());
             });
-    runner = new DefaultApprovedCompilerExecutionRunner(engine, runStore, artifactStore);
+    runner =
+        new DefaultApprovedCompilerExecutionRunner(
+            engine,
+            runStore,
+            artifactStore,
+            graphCompiler,
+            new ClasspathCompilerContractRepository());
   }
 
   @Test
@@ -120,13 +133,21 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             manifestRef));
 
     runner.execute(
-        samplePlan(), sampleFlow(), List.of(), manifest, "attempt-2", (skillId, status) -> {});
+        samplePlan(), sampleRevision(), List.of(), manifest, "attempt-2", (skillId, status) -> {});
 
     CompilerDagExecutionRequest request = capturedRequest.get();
     assertEquals(RUN_ID, request.runId());
     assertEquals(CONVERSATION_ID, request.conversationId());
     assertNotEquals(request.runId(), request.conversationId());
     assertEquals("attempt-2", capturedAttemptId.get());
+    assertTrue(
+        request.effectiveSeed().presentArtifactTypes().contains("CHAIN_SEMANTIC_REVISION"));
+    assertTrue(request.effectiveSeed().presentArtifactTypes().contains("CHAIN_PLAN_GRAPH"));
+    assertTrue(
+        request
+            .effectiveSeed()
+            .preSatisfiedSkillIds()
+            .contains(CompilerExecutionSeed.STRUCTURE_GENERATOR_SKILL));
   }
 
   private static CompilerDagExecutionResult successfulEngineResult() {
@@ -154,9 +175,9 @@ class DefaultApprovedCompilerExecutionRunnerTest {
   private static DesignExecutionPlan samplePlan() {
     return new DesignExecutionPlan(
         "1",
-        "flow-1",
+        "revision-orders",
         "cip-design-planner",
-        "normalized-design-flow/flow-1",
+        "chain-semantic-revision/revision-orders",
         "design-input-hash",
         "2024.4",
         ApprovalPolicy.CATALOG_FIRST_V1,
@@ -181,22 +202,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
         ApprovalPolicy.CATALOG_FIRST_V1_HASH);
   }
 
-  private static NormalizedDesignFlow sampleFlow() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-1",
-        "Pets",
-        "",
-        new NormalizedDesignFlow.Trigger("http", "client", "HTTP", "/pets", "GET", List.of()),
-        List.of(new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of())),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "call-1", "service-call", "client", "petstore", "GET /pets", "", List.of())),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of());
+  private static ChainSemanticRevision sampleRevision() {
+    return SemanticFixtures.linearOrders();
   }
 
   private static RunManifest sampleManifest() {
