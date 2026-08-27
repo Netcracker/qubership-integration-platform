@@ -152,6 +152,12 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void authoringPromptCopiesPluralSourceFactIds() {
+    String prompt = DesignInputCapability.authoringPrompt(approvedBrief(), CONTRACT);
+    assertTrue(prompt.contains("sourceFactIds"), prompt);
+  }
+
+  @Test
   void editingIdsMarkdownDoesNotChangeStoredSemanticDigest() {
     DesignInputCapability capability = capturingCapability();
     StageOutcome prepared =
@@ -181,6 +187,48 @@ class DesignInputCapabilityTest {
     assertEquals(digest, edited.normalizedFlowHash());
     assertFalse(
         prepared.candidates().stream().anyMatch(c -> c.kind() == Kind.NORMALIZED_DESIGN_FLOW));
+  }
+
+  @Test
+  void secondProvidedIdsAttemptDoesNotReplaceCapturedRevision() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "requirementBrief",
+                    approvedBrief())));
+    ChainSemanticRevision stored = semanticPayload(prepared);
+    String digest = CanonicalPayloadHash.sha256Hex(stored);
+    IdsDocument edited =
+        new IdsDocument(
+            "1",
+            IdsDocument.Mode.PROVIDED,
+            "user-ids",
+            "edited-hash",
+            digest,
+            "reviewer@1",
+            idsPayload(prepared).markdown() + "\n<!-- edited by a reviewer -->\n");
+    StageOutcome second =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.PROVIDE,
+                    "idsDocument",
+                    edited,
+                    "requirementBrief",
+                    approvedBrief())));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, second.outcomeClass());
+    assertTrue(second.candidates().isEmpty());
+    assertEquals(linearRevision().revisionId(), stored.revisionId());
+    assertEquals(digest, CanonicalPayloadHash.sha256Hex(stored));
   }
 
   @Test
@@ -222,9 +270,9 @@ class DesignInputCapabilityTest {
       addons.put(addonId, "sha-" + addonId);
     }
     Map<String, String> files = new LinkedHashMap<>();
-    for (String fragment : CONTRACT.requiredKnowledgeFragments()) {
-      files.put(fragment, "sha-" + fragment);
-    }
+    files.put("knowledge/ai/validation-rules.yaml", "sha-validation-rules");
+    files.put("knowledge/ai/GENERATOR_CONTRACTS.md", "sha-generator-contracts");
+    files.put("knowledge/ai/generator-rule-mapping.md", "sha-generator-rule-mapping");
     when(pack.loadManifest())
         .thenReturn(
             new QipKnowledgePackManifest(

@@ -14,6 +14,8 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ErrorHandler;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticBranch;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
@@ -115,11 +117,20 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
       StringBuilder body, SemanticRegion region, Map<String, SemanticNode> nodes) {
     switch (region) {
       case SemanticRegion.Condition condition -> {
-        body.append("    alt ").append(escape(firstPredicate(condition))).append('\n');
-        for (SemanticBranch.Condition branch : condition.branches()) {
-          appendMessage(body, nodes.get(branch.entryNodeId()));
+        List<SemanticBranch.Condition> branches = condition.branches();
+        if (!branches.isEmpty()) {
+          boolean first = true;
+          for (SemanticBranch.Condition branch : branches) {
+            if (first) {
+              body.append("    alt ").append(escape(branchLabel(branch))).append('\n');
+              first = false;
+            } else {
+              body.append("    else ").append(escape(branchLabel(branch))).append('\n');
+            }
+            appendMessage(body, nodes.get(branch.entryNodeId()));
+          }
+          body.append("    end\n");
         }
-        body.append("    end\n");
       }
       case SemanticRegion.Loop loop -> {
         body.append("    loop ").append(escape(loop.policy().expression())).append('\n');
@@ -132,11 +143,12 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
         body.append("    end\n");
       }
       case SemanticRegion.ErrorScope error -> {
-        String exception =
-            error.handlers().isEmpty() ? "error" : error.handlers().getFirst().exceptionClass();
-        body.append("    opt catch ").append(escape(exception)).append('\n');
         appendMessage(body, nodes.get(error.tryEntryNodeId()));
-        body.append("    end\n");
+        for (ErrorHandler handler : error.handlers()) {
+          body.append("    opt catch ").append(escape(handler.exceptionClass())).append('\n');
+          appendMessage(body, nodes.get(handler.entryNodeId()));
+          body.append("    end\n");
+        }
       }
       case SemanticRegion.Split split -> {
         body.append("    par split\n");
@@ -163,13 +175,11 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
     }
   }
 
-  private static String firstPredicate(SemanticRegion.Condition condition) {
-    for (SemanticBranch.Condition branch : condition.branches()) {
-      if (branch.predicate() != null && !branch.predicate().isBlank()) {
-        return branch.predicate();
-      }
+  private static String branchLabel(SemanticBranch.Condition branch) {
+    if (branch.predicate() != null && !branch.predicate().isBlank()) {
+      return branch.predicate();
     }
-    return "condition";
+    return branch.role() == ConditionBranchRole.ELSE ? "" : "condition";
   }
 
   private static boolean ownerReachable(SemanticRegion region, Set<String> reachable) {

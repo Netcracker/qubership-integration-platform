@@ -1,13 +1,15 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.model;
 
 /**
- * Durable IDS document stored for PROVIDE, GENERATE, and DERIVE design-input modes.
+ * Durable IDS document stored for design-input. When the markdown is rendered from a captured
+ * semantic revision, {@code mode} is {@link Mode#DERIVED}.
  *
  * @param schemaVersion artifact payload schema version
  * @param mode how the document was produced
  * @param sourceReference approved brief or upload reference that produced the document
  * @param sourceHash content hash of the source artifact
- * @param normalizedFlowHash content hash of the extracted {@link NormalizedDesignFlow}
+ * @param normalizedFlowHash semantic digest when IDS is derived from a revision; otherwise a
+ *     content hash of the extracted flow or a pending marker
  * @param rendererVersion renderer identity for DERIVE; unused markers are allowed for other modes
  * @param markdown exact IDS markdown content
  */

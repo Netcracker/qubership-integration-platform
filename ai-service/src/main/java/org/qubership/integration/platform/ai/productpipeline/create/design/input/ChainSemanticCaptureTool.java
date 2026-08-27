@@ -195,12 +195,27 @@ public class ChainSemanticCaptureTool {
   }
 
   private static boolean fragmentPresent(QipKnowledgePackManifest manifest, String fragment) {
+    String fileName = knowledgeFileName(fragment);
     for (String path : manifest.fileChecksums().keySet()) {
-      if (path.equals(fragment) || path.contains(fragment)) {
+      if (fileName.equals(path) || fileName.equals(lastSegment(path))) {
         return true;
       }
     }
     return false;
+  }
+
+  private static String knowledgeFileName(String fragment) {
+    return switch (fragment) {
+      case "validation-rules" -> "validation-rules.yaml";
+      case "generator-contracts" -> "GENERATOR_CONTRACTS.md";
+      case "generator-rule-mapping" -> "generator-rule-mapping.md";
+      default -> fragment;
+    };
+  }
+
+  private static String lastSegment(String path) {
+    int slash = path.lastIndexOf('/');
+    return slash < 0 ? path : path.substring(slash + 1);
   }
 
   private static String elementType(SemanticNode node) {

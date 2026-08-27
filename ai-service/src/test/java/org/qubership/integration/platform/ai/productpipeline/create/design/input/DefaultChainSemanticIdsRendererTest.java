@@ -81,7 +81,11 @@ class DefaultChainSemanticIdsRendererTest {
                 new SemanticNode.Operation(
                     "try-catch-1", "try-catch-finally-2", new SemanticProvenance(List.of())),
                 new SemanticNode.Operation(
-                    "catch-body", "script", new SemanticProvenance(List.of()))),
+                    "catch-body", "script", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "else-body", "script", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "io-handler", "script", new SemanticProvenance(List.of()))),
             List.of(
                 new SemanticRegion.Condition(
                     "region-condition",
@@ -93,7 +97,14 @@ class DefaultChainSemanticIdsRendererTest {
                             "status == 'ok'",
                             1,
                             "loop-1",
-                            List.of("loop-1"))),
+                            List.of("loop-1")),
+                        new SemanticBranch.Condition(
+                            "fail",
+                            ConditionBranchRole.ELSE,
+                            "status != 'ok'",
+                            2,
+                            "else-body",
+                            List.of("else-body"))),
                     null),
                 new SemanticRegion.Loop(
                     "region-loop",
@@ -118,9 +129,14 @@ class DefaultChainSemanticIdsRendererTest {
                             "catch-all",
                             "java.lang.Exception",
                             "catch-body",
-                            List.of("catch-body"))),
+                            List.of("catch-body")),
+                        new ErrorHandler(
+                            "catch-io",
+                            "java.io.IOException",
+                            "io-handler",
+                            List.of("io-handler"))),
                     null,
-                    List.of("catch-body"))),
+                    List.of("catch-body", "io-handler"))),
             List.of(
                 new SemanticExecutionEdge(
                     "edge-entry",
@@ -157,9 +173,16 @@ class DefaultChainSemanticIdsRendererTest {
             List.of());
 
     String markdown = renderer.render(revision, CONTRACT).markdown();
-    assertTrue(markdown.contains("alt "));
+    assertTrue(markdown.contains("alt status == 'ok'"), markdown);
+    assertTrue(markdown.contains("else status != 'ok'"), markdown);
     assertTrue(markdown.contains("loop "));
     assertTrue(markdown.contains("opt "));
+    int tryCall = markdown.indexOf("getOrder");
+    int catchException = markdown.indexOf("opt catch java.lang.Exception");
+    int catchIo = markdown.indexOf("opt catch java.io.IOException");
+    assertTrue(tryCall >= 0, markdown);
+    assertTrue(catchException > tryCall, markdown);
+    assertTrue(catchIo > catchException, markdown);
     assertFalse(markdown.contains("flowchart"));
     assertFalse(markdown.contains("graph "));
     assertFalse(markdown.contains("stateDiagram"));
