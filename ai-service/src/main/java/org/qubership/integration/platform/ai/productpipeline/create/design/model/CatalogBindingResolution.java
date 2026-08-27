@@ -1,8 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.model;
 
-/** One resolved catalog or APIHub binding for an outbound service-call step. */
+/** One resolved catalog or APIHub binding for an outbound service-call occurrence. */
 public record CatalogBindingResolution(
-    String serviceCallStepId,
+    String serviceCallId,
     Source source,
     String systemId,
     String specificationGroupId,
@@ -18,7 +18,7 @@ public record CatalogBindingResolution(
   }
 
   public CatalogBindingResolution {
-    serviceCallStepId = DesignArtifacts.requireText(serviceCallStepId, "serviceCallStepId");
+    serviceCallId = DesignArtifacts.requireText(serviceCallId, "serviceCallId");
     source = DesignArtifacts.requireNonNull(source, "source");
     systemId = DesignArtifacts.requireText(systemId, "systemId");
     specificationGroupId =

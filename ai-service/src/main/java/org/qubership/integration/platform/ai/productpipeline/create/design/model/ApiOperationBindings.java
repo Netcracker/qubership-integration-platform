@@ -11,7 +11,7 @@ public record ApiOperationBindings(String schemaVersion, List<Binding> bindings)
   }
 
   public record Binding(
-      String serviceCallStepId,
+      String serviceCallId,
       String systemId,
       String specificationGroupId,
       String specificationId,
@@ -20,7 +20,7 @@ public record ApiOperationBindings(String schemaVersion, List<Binding> bindings)
       String release) {
 
     public Binding {
-      serviceCallStepId = DesignArtifacts.requireText(serviceCallStepId, "serviceCallStepId");
+      serviceCallId = DesignArtifacts.requireText(serviceCallId, "serviceCallId");
       systemId = DesignArtifacts.requireText(systemId, "systemId");
       specificationGroupId =
           DesignArtifacts.requireText(specificationGroupId, "specificationGroupId");

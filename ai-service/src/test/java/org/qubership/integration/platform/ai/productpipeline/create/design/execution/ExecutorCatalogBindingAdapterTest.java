@@ -57,7 +57,7 @@ class ExecutorCatalogBindingAdapterTest {
 
     BindingResolutionResult.Resolved resolved =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
-    assertEquals("call-wfm", resolved.binding().serviceCallStepId());
+    assertEquals("call-wfm", resolved.binding().serviceCallId());
     assertEquals("sys-wfm", resolved.binding().systemId());
     assertEquals("op-create", resolved.binding().integrationOperationId());
   }
@@ -107,9 +107,9 @@ class ExecutorCatalogBindingAdapterTest {
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(0));
     BindingResolutionResult.Resolved second =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(1));
-    assertEquals("step-om", first.binding().serviceCallStepId());
+    assertEquals("step-om", first.binding().serviceCallId());
     assertEquals("op-result", first.binding().integrationOperationId());
-    assertEquals("step-wfm", second.binding().serviceCallStepId());
+    assertEquals("step-wfm", second.binding().serviceCallId());
     assertEquals("op-create", second.binding().integrationOperationId());
   }
 
@@ -208,9 +208,9 @@ class ExecutorCatalogBindingAdapterTest {
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(0));
     BindingResolutionResult.Resolved second =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(1));
-    assertEquals("call-orders", first.binding().serviceCallStepId());
+    assertEquals("call-orders", first.binding().serviceCallId());
     assertEquals("sys-o", first.binding().systemId());
-    assertEquals("call-billing", second.binding().serviceCallStepId());
+    assertEquals("call-billing", second.binding().serviceCallId());
     assertEquals("sys-b", second.binding().systemId());
   }
 

@@ -253,7 +253,7 @@ public final class DesignExecutionBriefFactory {
       }
       inputs.add(
           "Resolved catalog binding for "
-              + binding.serviceCallStepId()
+              + binding.serviceCallId()
               + ": systemId="
               + binding.systemId()
               + ", specificationGroupId="
@@ -274,8 +274,8 @@ public final class DesignExecutionBriefFactory {
       if (binding == null) {
         continue;
       }
-      body.append("- serviceCallStepId: ")
-          .append(binding.serviceCallStepId())
+      body.append("- serviceCallId: ")
+          .append(binding.serviceCallId())
           .append('\n')
           .append("- systemId: ")
           .append(binding.systemId())

@@ -45,6 +45,9 @@ public class ChainPlanPropertiesMaterializer {
 
   private static final int MAX_ALLOWED_KEYS_IN_MESSAGE = 10;
 
+  private static final Set<String> SERVICE_CALL_IDENTITY_KEYS =
+      Set.of("serviceCallId", "semanticRevisionId", "semanticNodeId");
+
   public PropertiesApplyResult apply(ChainPlanGraph graph, MaterializationMap map) {
     Objects.requireNonNull(graph, "graph");
     Objects.requireNonNull(map, "map");
@@ -210,7 +213,9 @@ public class ChainPlanPropertiesMaterializer {
   private static boolean isAllowedProperty(PlanProperty property, Set<String> allowedKeys) {
     return property.key() != null
         && !property.key().isBlank()
-        && (allowedKeys.isEmpty() || allowedKeys.contains(property.key()));
+        && (allowedKeys.isEmpty()
+            || allowedKeys.contains(property.key())
+            || SERVICE_CALL_IDENTITY_KEYS.contains(property.key()));
   }
 
   private static void preservePlacementFields(
