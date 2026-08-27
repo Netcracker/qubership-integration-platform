@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -22,7 +23,8 @@ public final class ProductCapabilityCaptureContext {
 
   public enum Mode {
     DISCOVERY,
-    ANALYSIS
+    ANALYSIS,
+    DESIGN
   }
 
   public record Binding(
@@ -30,8 +32,10 @@ public final class ProductCapabilityCaptureContext {
       String runId,
       String conversationId,
       RequirementDraft approvedDraft,
+      RequirementBrief approvedBrief,
       AtomicReference<RequirementDraft> draftCandidate,
       AtomicReference<RequirementBrief> briefCandidate,
+      AtomicReference<ChainSemanticRevision> semanticCandidate,
       Consumer<Object> onCandidate) {}
 
   public static Context bindDiscovery(
@@ -42,6 +46,8 @@ public final class ProductCapabilityCaptureContext {
             runId,
             conversationId,
             null,
+            null,
+            new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
             onCandidate);
@@ -61,6 +67,29 @@ public final class ProductCapabilityCaptureContext {
             runId,
             conversationId,
             approvedDraft,
+            null,
+            new AtomicReference<>(),
+            new AtomicReference<>(),
+            new AtomicReference<>(),
+            onCandidate);
+    Context context = Context.of(CONTEXT_KEY, binding);
+    install(binding, context);
+    return context;
+  }
+
+  public static Context bindDesign(
+      String runId,
+      String conversationId,
+      RequirementBrief approvedBrief,
+      Consumer<Object> onCandidate) {
+    Binding binding =
+        new Binding(
+            Mode.DESIGN,
+            runId,
+            conversationId,
+            null,
+            approvedBrief,
+            new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
             onCandidate);
@@ -86,12 +115,22 @@ public final class ProductCapabilityCaptureContext {
     return current().map(Binding::approvedDraft).filter(draft -> draft != null);
   }
 
+  public static Optional<RequirementBrief> approvedBrief() {
+    return current().map(Binding::approvedBrief).filter(brief -> brief != null);
+  }
+
   public static Optional<RequirementDraft> draftCandidate() {
     return current().map(binding -> binding.draftCandidate().get()).filter(draft -> draft != null);
   }
 
   public static Optional<RequirementBrief> briefCandidate() {
     return current().map(binding -> binding.briefCandidate().get()).filter(brief -> brief != null);
+  }
+
+  public static Optional<ChainSemanticRevision> semanticCandidate() {
+    return current()
+        .map(binding -> binding.semanticCandidate().get())
+        .filter(revision -> revision != null);
   }
 
   public static void offerDraft(RequirementDraft draft) {
@@ -118,6 +157,20 @@ public final class ProductCapabilityCaptureContext {
               binding.briefCandidate().set(brief);
               if (binding.onCandidate() != null) {
                 binding.onCandidate().accept(brief);
+              }
+            });
+  }
+
+  public static void offerSemantic(ChainSemanticRevision revision) {
+    current()
+        .ifPresent(
+            binding -> {
+              if (binding.mode() != Mode.DESIGN) {
+                return;
+              }
+              binding.semanticCandidate().set(revision);
+              if (binding.onCandidate() != null) {
+                binding.onCandidate().accept(revision);
               }
             });
   }

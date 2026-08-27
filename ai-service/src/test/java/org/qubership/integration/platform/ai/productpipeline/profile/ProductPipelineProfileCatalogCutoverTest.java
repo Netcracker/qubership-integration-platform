@@ -40,7 +40,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunP
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBinding;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.DefaultChainSemanticIdsRenderer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
@@ -109,10 +112,12 @@ class ProductPipelineProfileCatalogCutoverTest {
         stage(v2, "requirement-discovery").optionalProduces());
     assertEquals(
         List.of(
-            new ArtifactTypeRef("design-mode", 1),
-            new ArtifactTypeRef("ids-document", 1),
-            new ArtifactTypeRef("normalized-design-flow", 1)),
+            new ArtifactTypeRef("chain-semantic-revision", 1),
+            new ArtifactTypeRef("ids-document", 1)),
         stage(v2, "design-input").approval().candidateSet());
+    assertEquals(
+        new ArtifactTypeRef("chain-semantic-revision", 1),
+        stage(v2, "design-input").approval().artifact());
     assertEquals(
         "CATALOG_FIRST_V1", stage(v2, "design-planning").approval().bindingResolutionPolicy());
     assertNull(stage(v2, "requirement-discovery").approval());
@@ -199,11 +204,17 @@ class ProductPipelineProfileCatalogCutoverTest {
   }
 
   @Test
-  void fixedApprovalPolicyWaitsOnlyForGenerateDesignInput() {
-    org.qubership.integration.platform.ai.llm.agent.DesignGeneratorSkillAgent agent =
-        mock(org.qubership.integration.platform.ai.llm.agent.DesignGeneratorSkillAgent.class);
-    when(agent.chat(any(), any())).thenReturn(Multi.createFrom().item(VALID_IDS));
-    DesignInputCapability designInput = new DesignInputCapability(agent);
+  void fixedApprovalPolicyWaitsForSemanticDesignInput() {
+    var revision =
+        SemanticFixtures.revision(
+            List.of(SemanticFixtures.entry("http-in", "trigger-http")));
+    DesignInputCapability designInput =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              ProductCapabilityCaptureContext.offerSemantic(revision);
+              return Multi.createFrom().empty();
+            },
+            new DefaultChainSemanticIdsRenderer());
     DesignPlanningCapability designPlanningCapability = mock(DesignPlanningCapability.class);
     when(designPlanningCapability.capabilityId()).thenReturn(DesignPlanningCapability.CAPABILITY_ID);
     when(designPlanningCapability.execute(any()))
@@ -213,7 +224,7 @@ class ProductPipelineProfileCatalogCutoverTest {
                     new CapabilitySignal.Completed(
                         StageOutcome.of(StageOutcomeClass.SUCCEEDED, "planned"))));
 
-    StageOutcome generate =
+    StageOutcome captured =
         outcome(
             designInput,
             designInputContext(
@@ -221,26 +232,17 @@ class ProductPipelineProfileCatalogCutoverTest {
                 "Generate full IDS",
                 approvedBriefWithMappings(),
                 null));
-    StageOutcome derive =
-        outcome(
-            designInput,
-            designInputContext(
-                DesignEntryRoute.STANDARD, "Derive minimal IDS", deriveBrief(), null));
     StageOutcome provide =
         outcome(
             designInput,
             designInputContext(DesignEntryRoute.PROVIDE, null, null, providedIdsDocument()));
 
-    List<String> waitingForApprovalStagesGenerate = waitingStages(generate, "design-input");
-    List<String> waitingForApprovalStagesDerive = waitingStages(derive, "design-input");
+    List<String> waitingForApprovalStages = waitingStages(captured, "design-input");
     List<String> waitingForApprovalStagesProvide = waitingStages(provide, "design-input");
 
-    assertTrue(waitingForApprovalStagesGenerate.contains("design-input"));
-    assertTrue(waitingForApprovalStagesDerive.stream().noneMatch("design-input"::equals));
+    assertTrue(waitingForApprovalStages.contains("design-input"));
     assertTrue(waitingForApprovalStagesProvide.stream().noneMatch("design-input"::equals));
-
-    // Planning invocation for DERIVE/PROVIDE is covered by CreateChainSharedDesignRuntimeIT;
-    // do not self-call the mock here.
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, provide.outcomeClass());
   }
 
   @Test

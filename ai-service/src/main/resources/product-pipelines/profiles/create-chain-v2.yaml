@@ -56,15 +56,13 @@ stages:
       - { type: requirement-brief, schemaVersion: 1 }
       - { type: ids-document, schemaVersion: 1 }
     produces:
-      - { type: design-mode, schemaVersion: 1 }
+      - { type: chain-semantic-revision, schemaVersion: 1 }
       - { type: ids-document, schemaVersion: 1 }
-      - { type: normalized-design-flow, schemaVersion: 1 }
     approval:
-      artifact: { type: ids-document, schemaVersion: 1 }
+      artifact: { type: chain-semantic-revision, schemaVersion: 1 }
       candidateSet:
-        - { type: design-mode, schemaVersion: 1 }
+        - { type: chain-semantic-revision, schemaVersion: 1 }
         - { type: ids-document, schemaVersion: 1 }
-        - { type: normalized-design-flow, schemaVersion: 1 }
     retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
   - stageId: design-planning
     capabilityId: design-planning

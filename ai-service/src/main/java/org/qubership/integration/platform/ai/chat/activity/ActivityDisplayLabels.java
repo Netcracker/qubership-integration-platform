@@ -127,6 +127,7 @@ public final class ActivityDisplayLabels {
         Map.entry("brainstorming", "Exploring requirements"),
         Map.entry("cip-requirement-analyzer", "Parsing requirements"),
         Map.entry("cip-design-generator", "Generating the design"),
+        Map.entry("chain-semantic-design", "Capturing the chain design"),
         Map.entry("cip-design-planner", "Planning the implementation"),
         Map.entry("cip-design-executor", "Executing the plan"),
         Map.entry("cip-pattern-selector", "Selecting a pattern"),
