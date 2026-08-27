@@ -4,6 +4,7 @@ import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
@@ -11,6 +12,7 @@ import org.qubership.integration.platform.ai.integration.catalog.cache.Conversat
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 
 /**
@@ -162,6 +164,10 @@ public class RequirementDraftTool {
       Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
       After a successful READY_FOR_PLAN capture in this turn, do not call captureRequirementDraft
       again and do not repeat the ready-for-planning assistant text.
+      Optional: designModeHint — set to "DERIVE" when the user explicitly states they do not want
+      a full integration design document and prefer to proceed without one. Set to "GENERATE" if
+      the user explicitly requests a full generated design document. Omit (leave null) when the
+      user has not expressed a preference; the pipeline will ask at the right time.
       {
         "complete": true,
         "decision": "READY_FOR_PLAN",
@@ -341,6 +347,7 @@ public class RequirementDraftTool {
               ? false
               : (candidate != null || (previous != null && previous.importIntent()));
 
+      DesignMode designModeHint = parseDesignModeHint(capture.designModeHint());
       RequirementDraft draft =
           new RequirementDraft(
               softDowngradedForFacts
@@ -359,7 +366,8 @@ public class RequirementDraftTool {
               binding,
               false,
               facts,
-              importIntent);
+              importIntent,
+              designModeHint);
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
       org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
@@ -689,6 +697,17 @@ public class RequirementDraftTool {
     } catch (RuntimeException e) {
       LOG.warnf(e, "Failed to resolve requirement draft source skill hash source=%s", sourcePath);
       return "unknown";
+    }
+  }
+
+  private static DesignMode parseDesignModeHint(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return null;
+    }
+    try {
+      return DesignMode.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException ignored) {
+      return null;
     }
   }
 }

@@ -160,7 +160,8 @@ public class SelectApiHubCandidateTool {
                 null,
                 false,
                 List.of(),
-                true);
+                true,
+                null);
       }
       store.put(conversationId, draft);
       store.markCaptured(conversationId);

@@ -56,8 +56,10 @@ preamble, no bullet list.\
       """
 Classify the user's reply about generating an integration design document (IDS).
 Reply with exactly one token: GENERATE, DERIVE, or NONE.
-- GENERATE = yes / generate the full IDS / create the design document
-- DERIVE = no / skip full generation / derive a minimal IDS from the brief
+- GENERATE = yes / generate the full IDS / create the design document / I want IDS
+- DERIVE = no / skip / don't create / don't want / I don't want a design document / \
+no IDS needed / skip IDS / skip design / no design document / proceed without IDS / \
+skip full generation / derive a minimal IDS from the brief
 - NONE = unrelated or unclear
 User reply:
 ---
