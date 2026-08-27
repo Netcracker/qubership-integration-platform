@@ -32,6 +32,7 @@ import org.qubership.integration.platform.camelk.integrations.configuration.Inte
 import org.qubership.integration.platform.camelk.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
@@ -53,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -98,7 +100,8 @@ class MicroDomainServiceTest {
                 context -> "http-route-private",
                 context -> "http-route-egress",
                 context -> "engine-routes",
-                new YAMLMapper());
+                new YAMLMapper(),
+                new K8sNameValidator());
         // The @Value fields are package-private, so the test in this package sets them directly.
         service.domainLabel = "qip.domain";
         service.bgVersionLabel = "qip.bgVersion";
@@ -557,6 +560,52 @@ class MicroDomainServiceTest {
         verify(kubeOperator).createOrUpdateResource(cfg);
 
         verify(kubeOperator).deleteConfigMap("src-s1");
+    }
+
+    // Regression: the source ConfigMap's SNAPSHOT_ID_LABEL holds a K8sNameValidator-sanitized id,
+    // which strips a leading digit, while the caller passes the raw id. Most snapshot UUIDs start
+    // with a hex digit, so looking the label up with the raw id missed and cfgName fell back to "":
+    // the snapshot's mount was left in place and its source ConfigMap was never deleted.
+    @DisplayName("Finds the source config map when the snapshot id was sanitized into its label")
+    @Test
+    void deleteChainSnapshotResolvesTheSanitizedSnapshotIdLabel() {
+        stubNamingStrategies();
+
+        String rawId = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+        String labelId = new K8sNameValidator().validate(rawId);
+        assertNotEquals(rawId, labelId, "the fixture only proves anything if validate() rewrites the id");
+
+        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
+                new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
+        mount.setResources(new ArrayList<>(List.of("configmap:src-uuid/x", "configmap:keep/y")));
+        CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
+        traits.setMount(mount);
+        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
+        spec.setTraits(traits);
+        CamelKIntegration integration = new CamelKIntegration();
+        integration.setSpec(spec);
+
+        V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
+        V1ConfigMap source = configMap("src-uuid", Map.of(SNAPSHOT_ID_LABEL, labelId));
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
+        when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
+        when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(cfg, source));
+
+        IntegrationsConfiguration configuration = IntegrationsConfiguration.builder()
+                .sources(new ArrayList<>(List.of(SourceDefinition.builder().id(rawId).build())))
+                .build();
+        when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
+        when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
+                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+
+        MicroDomainService service = newService(false);
+        service.deleteChainSnapshot(DOMAIN, rawId);
+
+        assertEquals(List.of("configmap:keep/y"),
+                integration.getSpec().getTraits().getMount().getResources(),
+                "the removed snapshot's mount goes, and every other mount stays");
+        verify(kubeOperator).deleteConfigMap("src-uuid");
     }
 
     @DisplayName("Writes the Integration back with its operator-owned metadata and live resourceVersion intact")

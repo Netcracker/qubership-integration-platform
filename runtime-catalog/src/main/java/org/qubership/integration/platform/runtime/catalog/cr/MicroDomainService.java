@@ -24,6 +24,7 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.camelk.model.routes.Route;
 import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.services.EgressServiceRouteFormatter;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
@@ -108,6 +109,7 @@ public class MicroDomainService {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy;
     private final YAMLMapper yamlMapper;
+    private final K8sNameValidator k8sNameValidator;
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
@@ -150,7 +152,8 @@ public class MicroDomainService {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
             @Qualifier("engineRoutesNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy,
-            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper
+            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
+            K8sNameValidator k8sNameValidator
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -166,6 +169,7 @@ public class MicroDomainService {
         this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
         this.engineRoutesNamingStrategy = engineRoutesNamingStrategy;
         this.yamlMapper = yamlMapper;
+        this.k8sNameValidator = k8sNameValidator;
     }
 
     @PostConstruct
@@ -333,7 +337,7 @@ public class MicroDomainService {
             CamelKIntegration integration = resources.integration();
             Optional<Set<String>> remainingSnapshotIds = remainingSnapshotIds(resources, snapshotId);
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
-                    .map(m -> m.get(snapshotId))
+                    .map(m -> m.get(k8sNameValidator.validate(snapshotId)))
                     .flatMap(KubeUtil::getName)
                     .orElse("");
             List<String> mounts = integration.getSpec()
