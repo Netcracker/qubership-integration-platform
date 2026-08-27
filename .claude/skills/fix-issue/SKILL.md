@@ -1,6 +1,6 @@
 ---
 name: fix-issue
-description: Take a GitHub issue labeled ready-for-agent, fix it end to end against the running local stack, and deliver a branch, a draft pull request, an evidence report, and an autonomy label. Use when asked to work an issue by number or URL, or to run the autonomous issue pipeline.
+description: Take a GitHub issue labeled ready-for-agent, fix it end to end against the running local stack, and deliver a branch, a pull request, an evidence report, and an autonomy label. Use when asked to work an issue by number or URL, or to run the autonomous issue pipeline.
 ---
 
 # Working a GitHub issue end to end
@@ -198,6 +198,11 @@ Spawn parallel reviewers on the green diff, one lens each: **correctness and reg
 larger ones. Give each the issue, the contract, and the diff. Never give them your own
 reasoning, or they will confirm the story you told them.
 
+**Let the round finish before you change anything.** The lenses read the same diff in parallel,
+so an edit made while they are still reading lands under them: in one run two of three came back
+describing a file that had been deleted meanwhile, and both said so in their reports. Collect
+every lens, then act on the set.
+
 Then apply the rule that matters most:
 
 > **A review finding must clear the same evidence bar as the fix. Reproduce it or drop it.**
@@ -241,8 +246,10 @@ nothing reviewed those.
 
 ## Gate 5: deliver
 
-Commit with a Conventional Commits subject referencing the issue, push the branch, open a
-**draft** pull request.
+Commit with a Conventional Commits subject referencing the issue, push the branch, and open the
+pull request **ready for review, not as a draft**. Gate 6 already holds the run until the checks
+are green, which is the same bar a reviewer needs; a draft asks nobody to look and sits unread
+until someone converts it by hand.
 
 ### The description is not the run report
 
@@ -301,6 +308,14 @@ gh api graphql -f query='query{repository(owner:"O",name:"R"){pullRequest(number
 Once the issue is linked, move it to **In Review** on the board. That needs a token carrying the
 `project` scope; `gh auth refresh -s project` grants it. Without the scope the query fails with
 `INSUFFICIENT_SCOPES`. Report that you could not move it rather than passing over it in silence.
+
+Label the pull request as well as the issue, so the pull request list shows which ones came from
+a run. **`gh pr edit --add-label` fails in this repository** with a GraphQL error about Projects
+classic, and it fails quietly, so go through REST:
+
+```bash
+gh api -X POST repos/{owner}/{repo}/issues/<PR>/labels -f "labels[]=ai:processed"
+```
 
 Then comment the short report on the issue and link the pull request.
 
