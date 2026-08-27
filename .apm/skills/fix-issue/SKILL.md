@@ -86,9 +86,12 @@ nohup npm -w @netcracker/qip-ui run dev > /tmp/vite.log 2>&1 &
 - 8080 answering 502 means Vite is down, not that the app is broken.
 - `npm run dev` fetches documentation over the network before Vite starts; the first run is slow.
 - `vite` is hoisted to the repo-root `node_modules/.bin`, not `ui/node_modules/.bin`.
-- The shell working directory persists between commands. Use absolute paths everywhere. A
-  `git checkout` issued from a scratch directory fails quietly, and the "before" frame then
-  captures the fixed code without anything looking wrong.
+- **Write every git command as `git -C <repo> ...`, without exception.** The shell working
+  directory persists between commands, so a `git stash` or `git checkout` issued from a scratch
+  directory fails quietly, and the "before" frame then captures the fixed code with nothing
+  looking wrong. This was written as "use absolute paths" and got violated three times across
+  three runs anyway: a form of words that cannot be followed absent-mindedly beats a reminder
+  that can. Absolute paths still apply to everything else.
 - Stop only what you started. Leave containers that were already running.
 
 ### Seed through the API, shaped by the OpenAPI document
