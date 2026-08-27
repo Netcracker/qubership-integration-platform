@@ -14,6 +14,14 @@ _HTTP_ENDPOINT_FACT_RE = re.compile(
     r"^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+(/\S+)$",
     re.IGNORECASE,
 )
+_GATE_RE = re.compile(r"__GATE:([a-z0-9-]+)__")
+_GUARD_RE = re.compile(r"__GUARD__([A-Z0-9_]+)")
+_HALT_INTERNAL_MARKERS = (
+    "__OWNER_CANDIDATES__",
+    "__DROP_ELEMENT_ALLOWED__",
+    "__HALT_IDENTITY__",
+    "__GUARD__",
+)
 
 
 def _first_decoded(decoded: dict[str, Any], kind_prefix: str) -> Any | None:
@@ -198,6 +206,50 @@ def _positive_fact_texts(requirement: Any) -> list[str]:
                 texts.append(value.strip())
                 break
     return texts
+
+
+def _halt_card(transitions: list[Any]) -> dict[str, Any]:
+    """Last WAITING_FOR_INPUT reason as the author-visible halt card, or empty fields."""
+    reason = ""
+    for item in transitions:
+        if isinstance(item, dict) and item.get("toStatus") == "WAITING_FOR_INPUT":
+            value = item.get("reason")
+            if isinstance(value, str):
+                reason = value
+    gate_match = _GATE_RE.search(reason)
+    guard_match = _GUARD_RE.search(reason)
+    gate = gate_match.group(1) if gate_match else ""
+    guard = guard_match.group(1) if guard_match else ""
+    prompt = _GATE_RE.sub("", reason)
+    cut = len(prompt)
+    for marker in _HALT_INTERNAL_MARKERS:
+        idx = prompt.find(marker)
+        if 0 <= idx < cut:
+            cut = idx
+    prompt = prompt[:cut].strip()
+    actions: list[str] = []
+    if gate == "stage-escalated":
+        owners: list[str] = []
+        marker = "__OWNER_CANDIDATES__"
+        if marker in reason:
+            raw = reason.split(marker, 1)[1]
+            for other in _HALT_INTERNAL_MARKERS:
+                if other == marker:
+                    continue
+                nxt = raw.find(other)
+                if nxt >= 0:
+                    raw = raw[:nxt]
+            owners = [part.strip() for part in raw.split(",") if part.strip()]
+        actions.extend(owners)
+        if "__DROP_ELEMENT_ALLOWED__" in reason:
+            actions.append("drop-element")
+        actions.append("stop-with-report")
+    return {
+        "haltGate": gate,
+        "haltGuard": guard,
+        "haltPrompt": prompt,
+        "haltActions": actions,
+    }
 
 
 def _findings(validation: Any) -> list[dict[str, Any]]:
@@ -475,6 +527,8 @@ def build_report(
     if not isinstance(terminal_state, str) or not terminal_state.strip():
         raise ValueError("evidence missing currentState")
 
+    halt_card = _halt_card(transitions)
+
     knowledge_report_fields = {
         "knowledgePackage": dict(knowledge_package),
         "knowledgeContext": {
@@ -519,6 +573,10 @@ def build_report(
         "decodedPlan": plan,
         "requirementFacts": requirement_facts,
         "validationFindings": findings,
+        "haltGate": halt_card["haltGate"],
+        "haltGuard": halt_card["haltGuard"],
+        "haltPrompt": halt_card["haltPrompt"],
+        "haltActions": halt_card["haltActions"],
         "stub": False,
     }
 

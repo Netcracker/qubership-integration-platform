@@ -75,7 +75,8 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
           "the approved catalog binding no longer resolves (operation "
               + observed.integrationOperationId()
               + "); resolve this service call again before execution",
-          StageOutcomeClass.DOMAIN_FAILURE);
+          StageOutcomeClass.DOMAIN_FAILURE,
+          "catalog operation");
     }
 
     CatalogBindingMatcher.MatchResult match = matcher.match(flow, step);

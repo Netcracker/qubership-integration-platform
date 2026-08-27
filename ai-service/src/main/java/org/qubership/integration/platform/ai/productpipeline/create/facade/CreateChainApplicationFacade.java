@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
+import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StaleApprovalException;
@@ -179,12 +180,14 @@ public class CreateChainApplicationFacade {
                           acceptInput(
                               created.run().runId(),
                               command.requirementText(),
-                              command.commandId())));
+                              command.commandId(),
+                              command.origin())));
                 }
                 return Multi.createFrom().empty();
               });
     }
-    return continueExisting(taskId, command.requirementText(), command.commandId());
+    return continueExisting(
+        taskId, command.requirementText(), command.commandId(), command.origin());
   }
 
   /** Continues the same durable run with clarification input. */
@@ -192,7 +195,8 @@ public class CreateChainApplicationFacade {
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     selectionService.selectOrCreate(taskId);
-    return continueExisting(taskId, command.clarificationText(), command.commandId());
+    return continueExisting(
+        taskId, command.clarificationText(), command.commandId(), command.origin());
   }
 
   /** Response locale pinned from the conversation's first CREATE prompt. */
@@ -604,7 +608,8 @@ public class CreateChainApplicationFacade {
 
   private final AtomicInteger lastImplementCount = new AtomicInteger();
 
-  private Multi<CreateChainEvent> continueExisting(String taskId, String text, String commandId) {
+  private Multi<CreateChainEvent> continueExisting(
+      String taskId, String text, String commandId, InputOrigin origin) {
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
@@ -638,7 +643,8 @@ public class CreateChainApplicationFacade {
     }
     if (status == RunStatus.WAITING_FOR_INPUT || status == RunStatus.WAITING_FOR_APPROVAL) {
       return mapSignals(
-          taskId, runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId)));
+          taskId,
+          runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin)));
     }
     if (status == RunStatus.RUNNING || status == RunStatus.PLAN_APPROVED) {
       CreateRunBinding binding = requireBinding(taskId);
@@ -925,13 +931,15 @@ public class CreateChainApplicationFacade {
   }
 
   /** Builds the {@code accept-input} step of a start or clarification command. */
-  private static AcceptInputCommand acceptInput(String runId, String text, String commandId) {
+  private static AcceptInputCommand acceptInput(
+      String runId, String text, String commandId, InputOrigin origin) {
     String safeText = text == null ? "" : text;
     return new AcceptInputCommand(
         runId,
         safeText,
         stepId(commandId, "accept-input"),
-        payloadHash(Map.of("text", safeText)));
+        payloadHash(Map.of("text", safeText)),
+        origin);
   }
 
   /**
@@ -1113,7 +1121,7 @@ public class CreateChainApplicationFacade {
       }
       if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gateId)) {
         return new CreateChainPendingAction.Clarify(
-            prompt, PipelineGates.ownerCandidatesOf(waitPrompt), gateId);
+            prompt, PipelineGates.internalFailureActionsOf(waitPrompt), gateId);
       }
       if (PipelineGates.STAGE_ESCALATED.equals(gateId)) {
         return new CreateChainPendingAction.Clarify(

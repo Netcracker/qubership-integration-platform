@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 
 class ProducerOwnedRecoveryTest {
@@ -21,7 +23,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route route =
         route(
             "design-execution",
-            "unknown property key 'topic' on kafka-trigger-2",
+            RecoveryCause.of(RecoveryCauseCode.UNKNOWN_PROPERTY),
             EXECUTION_CANDIDATES,
             false,
             0,
@@ -32,11 +34,25 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void formattedUnknownPropertyProseDoesNotSelectAnOwner() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+  }
+
+  @Test
   void anInvalidApprovedBriefReopensRequirementAnalysis() {
     ProducerOwnedRecovery.Route route =
         route(
             "design-input",
-            "approved requirement brief is missing required facts",
+            RecoveryCause.of(RecoveryCauseCode.MISSING_BRIEF_FACTS),
             List.of(
                 new OwnerCandidate("design-input", "ids-document"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
@@ -53,7 +69,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route route =
         route(
             "design-execution",
-            "unknown property key 'topic' on kafka-trigger-2",
+            RecoveryCause.of(RecoveryCauseCode.UNKNOWN_PROPERTY),
             EXECUTION_CANDIDATES,
             false,
             1,
@@ -68,7 +84,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route first =
         route(
             "design-execution",
-            "unknown property key 'topic'",
+            RecoveryCause.of(RecoveryCauseCode.UNKNOWN_PROPERTY),
             EXECUTION_CANDIDATES,
             false,
             1,
@@ -76,7 +92,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route next =
         route(
             "design-execution",
-            "unknown property key 'tls'",
+            RecoveryCause.of(RecoveryCauseCode.UNKNOWN_PROPERTY),
             EXECUTION_CANDIDATES,
             false,
             0,
@@ -91,7 +107,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route route =
         route(
             "design-input",
-            "approved requirement brief is missing required facts",
+            RecoveryCause.of(RecoveryCauseCode.MISSING_BRIEF_FACTS),
             List.of(
                 new OwnerCandidate("design-input", "ids-document"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
@@ -107,7 +123,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route route =
         route(
             "design-execution",
-            "catalog service Petstore is missing",
+            RecoveryCause.catalogResolution("catalog service"),
             EXECUTION_CANDIDATES,
             false,
             0,
@@ -123,7 +139,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route route =
         route(
             "design-execution",
-            "planning validation failed. Findings: PLAN_BLOCKER: missing quartz-scheduler",
+            RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER),
             EXECUTION_CANDIDATES,
             false,
             0,
@@ -140,10 +156,7 @@ class ProducerOwnedRecoveryTest {
             new ProducerOwnedRecovery.Request(
                 "design-execution",
                 StageOutcomeClass.CONTRACT_FAILURE,
-                "",
-                "Cannot deserialize value of type `java.lang.String` from Object value"
-                    + " (token `JsonToken.START_OBJECT`) (through reference chain:"
-                    + " ConfiguredTrigger[\"properties\"]->ArrayList[7]->PlanProperty[\"value\"])",
+                RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE),
                 EXECUTION_CANDIDATES,
                 false,
                 0,
@@ -159,7 +172,7 @@ class ProducerOwnedRecoveryTest {
     ProducerOwnedRecovery.Route route =
         route(
             "design-execution",
-            "unknown property key 'topic'",
+            RecoveryCause.of(RecoveryCauseCode.UNKNOWN_PROPERTY),
             EXECUTION_CANDIDATES,
             false,
             0,
@@ -170,7 +183,7 @@ class ProducerOwnedRecoveryTest {
 
   private static ProducerOwnedRecovery.Route route(
       String failedStageId,
-      String evidence,
+      RecoveryCause cause,
       List<OwnerCandidate> candidates,
       boolean catalogWritten,
       int semanticRepairsUsed,
@@ -179,8 +192,7 @@ class ProducerOwnedRecoveryTest {
         new ProducerOwnedRecovery.Request(
             failedStageId,
             StageOutcomeClass.VALIDATION_FAILURE,
-            "",
-            evidence,
+            cause,
             candidates,
             catalogWritten,
             semanticRepairsUsed,

@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
@@ -113,30 +115,40 @@ public final class OwnerCandidateSet {
   }
 
   /**
-   * Remap a self, empty, or insufficient owner to the earliest sufficient producer for the finding
-   * category. Ambiguous diagnoses stay asks. User-named owners are applied after this via {@link
-   * #preferNamedOwner}.
+   * Selects the owner from the typed cause and the closed candidate set. The model's owner and
+   * ambiguity flag are not inputs. When the cause does not name a unique producer, this asks among
+   * the candidates rather than guessing. That extra owner-choice card is the recorded trade for
+   * dropping model-assisted disambiguation: a card the author answers beats a routing decision
+   * nothing can check.
+   *
+   * <p>A follow-up that names exactly one candidate still wins, because that is the author speaking,
+   * not the model.
    */
-  public static OwnerDiagnosis preferEarliestSufficientOwner(
-      OwnerDiagnosis diagnosis,
+  public static OwnerDiagnosis selectOwner(
+      String narrative,
       List<OwnerCandidate> candidates,
       String failedStageId,
-      String findings,
-      String evidence) {
-    OwnerDiagnosis current = diagnosis == null ? OwnerDiagnosis.none("") : diagnosis;
-    if (current.ambiguous()) {
-      return current;
-    }
+      RecoveryCause cause,
+      String followUpText) {
+    String text = narrative == null ? "" : narrative;
+    RecoveryCauseCode code =
+        cause == null ? RecoveryCauseCode.VALIDATION_BLOCKER : cause.causeCode();
     Optional<String> preferred =
-        preferredProducer(classifyFinding(findings, evidence), candidates, failedStageId);
-    if (preferred.isEmpty()) {
-      return current;
+        preferredProducer(HaltProducerCauseTable.ownerCategory(code), candidates, failedStageId);
+    OwnerDiagnosis routed;
+    if (preferred.isPresent()) {
+      routed = OwnerDiagnosis.of(text, preferred.get());
+    } else {
+      List<String> ids = stageIds(candidates);
+      if (ids.size() == 1) {
+        routed = OwnerDiagnosis.of(text, ids.get(0));
+      } else if (!ids.isEmpty()) {
+        routed = OwnerDiagnosis.ask(text);
+      } else {
+        routed = OwnerDiagnosis.none(text);
+      }
     }
-    String owner = current.owner().orElse("");
-    if (owner.isBlank() || owner.equals(failedStageId) || !owner.equals(preferred.get())) {
-      return current.withOwner(preferred.get());
-    }
-    return current;
+    return preferNamedOwner(routed, candidates, followUpText);
   }
 
   /**
@@ -386,60 +398,6 @@ public final class OwnerCandidateSet {
       }
     }
     return Optional.ofNullable(found);
-  }
-
-  static FindingOwnerCategory classifyFinding(String findings, String evidence) {
-    if (hasFindingCodePrefix(findings, "security-")
-        || hasFindingCodePrefix(evidence, "security-")
-        || containsSecurityCodeToken(findings, evidence)) {
-      return FindingOwnerCategory.POLICY_OR_BRIEF;
-    }
-    String haystack = normalize(findings) + " " + normalize(evidence);
-    if (haystack.contains("approved requirement brief")
-        && haystack.contains("missing required facts")) {
-      return FindingOwnerCategory.POLICY_OR_BRIEF;
-    }
-    if (haystack.contains("required")
-        && (haystack.contains("setting") || haystack.contains("property"))) {
-      return FindingOwnerCategory.PLAN_FILL;
-    }
-    if (haystack.contains("unknown property key")) {
-      return FindingOwnerCategory.EXECUTION;
-    }
-    return FindingOwnerCategory.UNSPECIFIED;
-  }
-
-  /**
-   * True when {@code security-N} appears mid-string (Phase 5 exception text embeds findings after
-   * {@code Findings:}, so {@link #hasFindingCodePrefix} alone misses it).
-   */
-  private static boolean containsSecurityCodeToken(String findings, String evidence) {
-    String haystack = normalize(findings) + " " + normalize(evidence);
-    return haystack.contains("security-");
-  }
-
-  /** True when formatted findings contain a line whose code starts with {@code prefix}. */
-  static boolean hasFindingCodePrefix(String findings, String prefix) {
-    if (findings == null || findings.isBlank() || prefix == null || prefix.isBlank()) {
-      return false;
-    }
-    String needle = prefix.toLowerCase(Locale.ROOT);
-    for (String line : findings.split("\\R")) {
-      String code = findingCode(line);
-      if (!code.isBlank() && code.startsWith(needle)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static String findingCode(String line) {
-    if (line == null || line.isBlank()) {
-      return "";
-    }
-    int colon = line.indexOf(':');
-    String raw = colon < 0 ? line.trim() : line.substring(0, colon).trim();
-    return raw.toLowerCase(Locale.ROOT);
   }
 
   private static String normalize(String value) {

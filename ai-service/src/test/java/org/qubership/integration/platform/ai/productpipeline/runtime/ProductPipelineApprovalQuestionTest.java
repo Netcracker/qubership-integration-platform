@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -161,8 +162,48 @@ class ProductPipelineApprovalQuestionTest {
         agent.lastApprovalCandidate.get());
   }
 
+  @Test
+  void aSpentExplanationBudgetDoesNotRefineAQuestion() {
+    runToApproval(answeringAgent(), 0);
+    long revisionBefore = run().run().runRevision();
+
+    List<PipelineSignal> signals = type(QUESTION);
+
+    assertEquals(ANSWER, onlyMessage(signals));
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals(1, analysisCalls.get(), "a spent explanation budget must not start a refine");
+    assertEquals(revisionBefore, run().run().runRevision());
+  }
+
+  @Test
+  void anUnanswerableApprovalQuestionDoesNotRefine() {
+    runToApproval(
+        FakeFailureNarrativeAgent.slow("Too late.", Duration.ofSeconds(30))
+            .answeringOnly(QUESTION, ANSWER),
+        Integer.MAX_VALUE,
+        Duration.ofMillis(50));
+    long revisionBefore = run().run().runRevision();
+
+    List<PipelineSignal> signals = type(QUESTION);
+
+    assertEquals(FailureNarrative.NO_EXPLANATION_AVAILABLE, onlyMessage(signals));
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals(1, analysisCalls.get(), "an unanswerable question must not start a refine");
+    assertEquals(revisionBefore, run().run().runRevision());
+  }
+
   /** Drives the run to the approval card at {@link #STAGE_ID} and returns the card. */
   private PipelineSignal.WaitingForApproval runToApproval(FakeFailureNarrativeAgent narrativeAgent) {
+    return runToApproval(narrativeAgent, Integer.MAX_VALUE, null);
+  }
+
+  private PipelineSignal.WaitingForApproval runToApproval(
+      FakeFailureNarrativeAgent narrativeAgent, int maxCalls) {
+    return runToApproval(narrativeAgent, maxCalls, null);
+  }
+
+  private PipelineSignal.WaitingForApproval runToApproval(
+      FakeFailureNarrativeAgent narrativeAgent, int maxCalls, Duration timeout) {
     agent = narrativeAgent;
     profile = singleGatedStageProfile();
     ProductPipelineRunSupport support =
@@ -176,7 +217,7 @@ class ProductPipelineApprovalQuestionTest {
             null,
             null,
             null,
-            new FailureNarrative(agent));
+            new FailureNarrative(agent, maxCalls, timeout));
     runtime = new CreateChainTestOrchestrator(support, runStore);
     runtime
         .startOrResume(

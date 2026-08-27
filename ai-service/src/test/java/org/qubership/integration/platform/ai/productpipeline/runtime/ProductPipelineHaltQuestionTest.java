@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,6 +75,7 @@ class ProductPipelineHaltQuestionTest {
   @Test
   void aQuestionIsAnsweredAndTheRunStaysAtTheSameGate() {
     String halted = haltOnPlanningValidation(answeringAgent());
+    SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
 
     List<PipelineSignal> signals = type("why did this stop?");
 
@@ -83,6 +85,9 @@ class ProductPipelineHaltQuestionTest {
     assertEquals("planning", run().run().currentStageId());
     assertEquals(halted, latestWaitingPrompt());
     assertEquals(1, agent.questionCalls.get());
+    SemanticRecoveryState after = runtime.captureSemanticRecoveryState(RUN_ID);
+    assertInstanceOf(
+        SemanticRecoveryState.CompareResult.Unchanged.class, before.compareTo(after));
   }
 
   @Test
@@ -109,7 +114,7 @@ class ProductPipelineHaltQuestionTest {
   void anInstructionNamingAStageStillReopensThatStage() {
     haltOnPlanningValidation(answeringAgent());
 
-    type("requirement-analysis");
+    type("go back to requirement-analysis");
 
     assertEquals("requirement-analysis", run().run().currentStageId());
     assertEquals(RunStatus.RUNNING, run().run().status());
@@ -119,6 +124,7 @@ class ProductPipelineHaltQuestionTest {
   @Test
   void aBareGoBackStillReopensTheDiagnosedOwner() {
     haltOnPlanningValidation(answeringAgent());
+    type("requirement-analysis");
 
     type("go back");
 
@@ -135,6 +141,11 @@ class ProductPipelineHaltQuestionTest {
 
     String prompt = waitingPrompt(signals);
     assertTrue(prompt.contains("requirement-analysis"), prompt);
+    assertEquals(
+        HaltRecoveryGuard.NAMED_STAGE_OUTSIDE_CANDIDATE_SET.name(),
+        PipelineGates.guardOf(
+                run().transitions().get(run().transitions().size() - 1).reason())
+            .orElseThrow());
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
     assertEquals(0, agent.questionCalls.get());
   }
@@ -142,6 +153,7 @@ class ProductPipelineHaltQuestionTest {
   @Test
   void aHaltMessageReadAsAnInstructionExecutesTheDiagnosedRepairPath() {
     haltOnPlanningValidation(FakeFailureNarrativeAgent.owner("", "requirement-analysis"));
+    type("requirement-analysis");
 
     type("use the other scheduler");
 

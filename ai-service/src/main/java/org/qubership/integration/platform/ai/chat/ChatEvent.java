@@ -241,7 +241,7 @@ public sealed interface ChatEvent {
   }
 
   /** Actions a clarify gate offers, including owner-choice stage ids from missing evidence. */
-  static List<String> actionsForClarify(PendingAction.Clarify clarify) {
+  public static List<String> actionsForClarify(PendingAction.Clarify clarify) {
     if (clarify == null) {
       return null;
     }

@@ -90,6 +90,50 @@ e2e_json_escape() {
   python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' <<<"$1"
 }
 
+# Fail when a chat turn produced no reader-visible output (token text, a decision card, or an error).
+# Meta plus done alone is the unexplained no-output symptom: the stream closed with nothing to show.
+e2e_assert_observable_sse_output() {
+  local sse_file="${1:?sse file}"
+  local label="${2:-turn}"
+  python3 - "$sse_file" "$label" <<'PY'
+import re
+import sys
+
+path, label = sys.argv[1], sys.argv[2]
+text = open(path, errors="replace").read()
+has_token = False
+has_decision = False
+has_error = False
+for block in re.split(r"\n\n+", text):
+    event = ""
+    data_lines = []
+    for raw in block.splitlines():
+        line = raw.rstrip("\r")
+        if line.startswith("event:"):
+            event = line.split(":", 1)[1].strip()
+        elif line.startswith("data:event:"):
+            rest = line[len("data:"):]
+            if rest.startswith("event:"):
+                event = rest.split(":", 1)[1].strip()
+        elif line.startswith("data:"):
+            payload = line[5:]
+            if payload.startswith("data:"):
+                payload = payload[5:]
+            data_lines.append(payload.lstrip())
+    payload = "\n".join(data_lines).strip()
+    if event == "token" and payload:
+        has_token = True
+    elif event == "decision" and payload:
+        has_decision = True
+    elif event == "error" and payload:
+        has_error = True
+if not (has_token or has_decision or has_error):
+    raise SystemExit(
+        f"FAIL: {label} produced no observable SSE output (need token, decision, or error)"
+    )
+PY
+}
+
 # Print concatenated assistant token text from an SSE file (tolerates a doubled data: prefix).
 e2e_extract_sse_tokens() {
   local sse_file="${1:?sse file}"

@@ -5,12 +5,12 @@ import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
 
 /**
- * Authors the halt-card explanation from structured failure evidence. The diagnosis turn also
- * picks an owner from the closed candidate set, offers a go-back, and names the change that would
- * clear the halt. A third turn reads a message typed at the halt and answers it when it asks rather
- * than instructs, and a fourth does the same for a message typed at an approval card, where the
- * evidence is the candidate rather than a failure. The runtime supplies fields, not user-facing
- * prose; Retry, Revise, and Agree stay typed actions.
+ * Authors the halt-card explanation from structured failure evidence. The diagnosis turn explains
+ * the same evidence; the runtime selects the owner and writes the instruction. A third turn reads a
+ * message typed at the halt and answers it when it asks rather than instructs, and a fourth does
+ * the same for a message typed at an approval card, where the evidence is the candidate rather than
+ * a failure. The runtime supplies fields, not user-facing prose; Retry, Revise, and Agree stay
+ * typed actions.
  */
 @RegisterAiService(
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
@@ -37,6 +37,7 @@ Rules:
 findings or skill ids. Do not invent names.
 - State the root cause from validationFindings.
 - Do not tell the reader which button to click or which word to type. Do not mention Revise.
+- Do not name a change to make. The runtime states the instruction.
 - If outcomeClass is RETRYABLE_TECHNICAL_FAILURE, keep the narration to one or two sentences, \
 do not blame the plan, and do not offer to go back or clarify the plan.
 - Reply with only the user-facing explanation. No markdown fences, no quotes, no preamble.\
@@ -53,8 +54,7 @@ do not blame the plan, and do not offer to go back or clarify the plan.
   @UserMessage(
       """
 Explain what went wrong in this create-chain run, in ordinary language, for the person who \
-started it, pick the owning stage from the closed candidate set, and name the change that \
-would clear the halt. Write in the pinned response locale {responseLocale}. This locale is \
+started it. Write in the pinned response locale {responseLocale}. This locale is \
 authoritative; do not infer a different language from the evidence.
 
 Structured evidence (do not invent facts beyond this):
@@ -67,39 +67,17 @@ Structured evidence (do not invent facts beyond this):
 - clarifyRoles: {clarifyRoles}
 
 Rules:
-- Narrative: two or three short sentences, then a go-back offer. Name the failed step in \
-ordinary language.
+- Two or three short sentences. Name the failed step in ordinary language.
 - Say whether validation failed or a generator/compiler step failed, using outcomeClass and \
 findings or skill ids. Do not invent names.
 - State the root cause from validationFindings.
-- Offer to go back to clarify that place in the plan. Use the clarifyRoles entry for the owner \
-you pick when present; otherwise a short role such as "the plan" or "requirements", not only \
-the stage id.
-- When ownerStageId is non-empty, offer to go back to clarify that place. Do not name a UI \
-control or a typed command. They do not write YAML or a brief.
-- ownerStageId must be empty or exactly one stage id from candidateSet. Never name a stage \
-outside that set.
-- Set ambiguous to true when two candidates in the set stay equally plausible; then leave \
-ownerStageId empty and do not guess a go-back target.
-- If the consumed inputs look fine, the owner is the failed stage itself, except for \
-INTERNAL_FAILURE. For INTERNAL_FAILURE, leave ownerStageId empty when candidateSet contains no \
-upstream stage.
-- Pick the earliest sufficient owner from candidateSet: policy, auth, scope, or constraint \
-findings belong to the requirement-brief producer when that candidate is present; plan \
-structure, binding, or step-fill findings belong to the plan producer when the brief already \
-covers the constraint; execution-only failures stay on the failed stage.
-- Do not pick the failed stage when an earlier producer in candidateSet owns the artifact that \
-must change.
-- The rules above govern the narrative alone. The narrative explains what happened; it does not \
-prescribe the change to make. The instruction field carries that.
-- remedy: exactly one of RETRY, REVISE_INPUT, REOPEN_STAGE, DROP_ELEMENT, UNRECOVERABLE, or \
-empty when the evidence supports no concrete change. Use REOPEN_STAGE only when ownerStageId \
-names a stage from candidateSet.
-- instruction: one sentence in the response locale naming what to add, remove, or correct — a \
-missing fact, an element the design cannot support, a wrong value, or the artifact to go back \
-to. Describe the change to the work, not a control to click or a word to type. Leave it empty \
-when the evidence supports no such change; do not invent one.
-- Reply with narrative, ownerStageId, ambiguous, remedy, and instruction only.\
+- You may name artifacts in ordinary language using clarifyRoles. Do not pick an owner, name a \
+stage to reopen, or guess which candidate is at fault.
+- Do not tell the reader which button to click or which word to type. Do not mention Revise.
+- Do not name a change to make. The runtime states the instruction and selects the owner.
+- If outcomeClass is RETRYABLE_TECHNICAL_FAILURE, keep the narration to one or two sentences, \
+do not blame the plan, and do not offer to go back or clarify the plan.
+- Reply with narrative only. No markdown fences, no quotes, no preamble.\
 """)
   OwnerDiagnosisDraft diagnose(
       String responseLocale,
@@ -190,4 +168,23 @@ type, and do not restate the approval request.
 """)
   HaltQuestionDraft answerApprovalQuestion(
       String responseLocale, String message, String stageId, String candidate);
+
+  @UserMessage(
+      """
+Ask the author for the one missing fact this create-chain run needs. Write in the pinned \
+response locale {responseLocale}. This locale is authoritative; do not infer a different \
+language from the evidence.
+
+Structured evidence (do not invent facts beyond this):
+- requestedFact: {requestedFact}
+- stageId: {stageId}
+- exception: {exceptionMessage}
+
+Rules:
+- One short question in the response locale. Do not wrap requestedFact in an English template.
+- Name the missing fact in ordinary language the author can answer.
+- Reply with only the question. No markdown fences, no quotes, no preamble.\
+""")
+  String askClarification(
+      String responseLocale, String requestedFact, String stageId, String exceptionMessage);
 }

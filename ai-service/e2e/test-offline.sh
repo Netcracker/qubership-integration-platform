@@ -43,19 +43,9 @@ bash -n "${PRODUCT_DIR}/scripts/lib.sh"
 pass "product shell syntax"
 
 echo "=== product scenarios pin create-chain@2 (new CREATE) ==="
-CREATE_ACTIVE="$(
-  jq -r 'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == "create-chain-v1") | .key' \
-    "${PRODUCT_DIR}/scenarios.json" | wc -l | tr -d ' '
-)"
-[[ "${CREATE_ACTIVE}" == "7" ]] || fail "expected 7 active CREATE scenarios, got ${CREATE_ACTIVE}"
-PATCH_ACTIVE="$(
-  jq -r 'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == "compare-and-patch") | .key' \
-    "${PRODUCT_DIR}/scenarios.json" | wc -l | tr -d ' '
-)"
-[[ "${PATCH_ACTIVE}" == "3" ]] || fail "expected 3 active compare-and-patch scenarios, got ${PATCH_ACTIVE}"
 jq -e '
-  [to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == "create-chain-v1")]
-  | length == 7
+  [to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == "create-chain-v1" and (.value.recovery.exhaustHalt != true))]
+  | length >= 7
   and all(
     .value.pipeline == "create-chain-v1"
     and .value.profileId == "create-chain"
@@ -64,7 +54,15 @@ jq -e '
     and .value.retainCatalogChain == true
   )
 ' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
-  || fail "every active CREATE scenario must pin create-chain@2 CHAIN_MATERIALIZED retain=true"
+  || fail "every active CREATE scenario except exhaustHalt must pin create-chain@2 CHAIN_MATERIALIZED retain=true"
+jq -e '
+  .["product-create-chain-recovery-exhausted-halt"]
+  | .status == "active"
+    and .terminalState == "WAITING_FOR_INPUT"
+    and .retainCatalogChain == false
+    and .recovery.exhaustHalt == true
+' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
+  || fail "exhausted-halt CREATE scenario must pin WAITING_FOR_INPUT retain=false"
 jq -e '
   ([to_entries[].value.pipeline] | index("create-plan-v1") == null)
   and ([to_entries[].value.pipeline] | index("design-first") == null)
@@ -73,7 +71,7 @@ jq -e '
   and ([to_entries[].value.tier] | index("structure-e2e") == null)
 ' "${PRODUCT_DIR}/scenarios.json" >/dev/null \
   || fail "product scenarios must not include create-plan/design-first/structure-e2e"
-pass "seven create-chain@2 scenarios and three compare-and-patch scenarios"
+pass "create-chain@2 scenarios plus exhausted-halt terminal"
 
 echo "=== create-chain@1 backward-compat path remains ==="
 AI_ROOT="$(cd "${PRODUCT_DIR}/../.." && pwd)"

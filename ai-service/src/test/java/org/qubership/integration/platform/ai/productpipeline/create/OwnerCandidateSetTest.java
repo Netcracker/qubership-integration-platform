@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
@@ -221,15 +223,15 @@ class OwnerCandidateSetTest {
   @Test
   void preferEarliestSufficientOwnerMapsPolicyFindingsToTheBriefProducer() {
     OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.of("Design execution could not complete.", "design-execution"),
+        OwnerCandidateSet.selectOwner(
+            "Design execution could not complete.",
             List.of(
                 new OwnerCandidate("design-execution", "plan-validation-result"),
                 new OwnerCandidate("design-planning", "implementation-plan"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-execution",
-            "security-1: External route requires accessControlType=RBAC (blocker)",
-            "Phase 5 plan validation failed");
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
 
     assertEquals("requirement-analysis", remapped.owner().orElseThrow());
   }
@@ -237,14 +239,14 @@ class OwnerCandidateSetTest {
   @Test
   void preferEarliestSufficientOwnerMapsMissingApprovedBriefFactsToTheBriefProducer() {
     OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.of("Design input needs more information.", "design-input"),
+        OwnerCandidateSet.selectOwner(
+            "Design input needs more information.",
             List.of(
                 new OwnerCandidate("design-input", "normalized-design-flow"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-input",
-            "",
-            "The approved requirement brief is missing required facts: SERVICE_CALL participant");
+            RecoveryCause.of(RecoveryCauseCode.MISSING_BRIEF_FACTS),
+            "");
 
     assertEquals("requirement-analysis", remapped.owner().orElseThrow());
   }
@@ -252,16 +254,15 @@ class OwnerCandidateSetTest {
   @Test
   void preferEarliestSufficientOwnerMapsEmbeddedSecurityCodesInEvidence() {
     OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.none("Validation failed."),
+        OwnerCandidateSet.selectOwner(
+            "Validation failed.",
             List.of(
                 new OwnerCandidate("design-execution", "plan-validation-result"),
                 new OwnerCandidate("design-planning", "implementation-plan"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-execution",
-            "",
-            "Phase 5 plan validation failed. Findings: security-1: External route RBAC"
-                + " requires a non-empty roles list");
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
 
     assertEquals("requirement-analysis", remapped.owner().orElseThrow());
   }
@@ -269,45 +270,61 @@ class OwnerCandidateSetTest {
   @Test
   void preferEarliestSufficientOwnerMapsPlanFillFindingsToThePlanProducer() {
     OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.of("Design execution could not complete.", "design-execution"),
+        OwnerCandidateSet.selectOwner(
+            "Design execution could not complete.",
             List.of(
                 new OwnerCandidate("design-execution", "plan-validation-result"),
                 new OwnerCandidate("design-planning", "implementation-plan"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-execution",
-            "plan-1: Missing required property on http-trigger (blocker)",
-            "Phase 5 plan validation failed");
+            RecoveryCause.of(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY),
+            "");
 
     assertEquals("design-planning", remapped.owner().orElseThrow());
   }
 
   @Test
-  void preferEarliestSufficientOwnerKeepsAmbiguousDiagnoses() {
-    OwnerDiagnosis kept =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.ask("Either the brief or the plan could be wrong."),
+  void selectOwnerAsksWhenTheCauseDoesNotNameAProducer() {
+    OwnerDiagnosis asked =
+        OwnerCandidateSet.selectOwner(
+            "Either the brief or the plan could be wrong.",
             List.of(
                 new OwnerCandidate("design-planning", "implementation-plan"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-execution",
-            "security-1: External route requires accessControlType=RBAC (blocker)",
+            RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER),
             "");
 
-    assertTrue(kept.ambiguous());
-    assertTrue(kept.owner().isEmpty());
+    assertTrue(asked.ambiguous());
+    assertTrue(asked.owner().isEmpty());
+  }
+
+  @Test
+  void selectOwnerIgnoresAModelAskWhenTheCauseNamesTheBrief() {
+    OwnerDiagnosis selected =
+        OwnerCandidateSet.selectOwner(
+            "Either the brief or the plan could be wrong.",
+            List.of(
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
+
+    assertEquals("requirement-analysis", selected.owner().orElseThrow());
+    assertFalse(selected.ambiguous());
   }
 
   @Test
   void preferEarliestSufficientOwnerFallsBackToPlanWhenBriefIsAbsent() {
     OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.of("Design execution could not complete.", "design-execution"),
+        OwnerCandidateSet.selectOwner(
+            "Design execution could not complete.",
             List.of(
                 new OwnerCandidate("design-execution", "plan-validation-result"),
                 new OwnerCandidate("design-planning", "implementation-plan")),
             "design-execution",
-            "security-1: External route requires accessControlType=RBAC (blocker)",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
     assertEquals("design-planning", remapped.owner().orElseThrow());
@@ -316,14 +333,14 @@ class OwnerCandidateSetTest {
   @Test
   void preferEarliestSufficientOwnerRemapsAPlanOwnerToBriefForPolicyFindings() {
     OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.of("The plan omitted RBAC.", "design-planning"),
+        OwnerCandidateSet.selectOwner(
+            "The plan omitted RBAC.",
             List.of(
                 new OwnerCandidate("design-execution", "plan-validation-result"),
                 new OwnerCandidate("design-planning", "implementation-plan"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-execution",
-            "security-1: External route requires accessControlType=RBAC (blocker)",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
     assertEquals("requirement-analysis", remapped.owner().orElseThrow());
@@ -332,16 +349,15 @@ class OwnerCandidateSetTest {
   @Test
   void preferEarliestSufficientOwnerKeepsUnknownPropertyOnTheFailedExecutionStage() {
     OwnerDiagnosis remapped =
-        OwnerCandidateSet.preferEarliestSufficientOwner(
-            OwnerDiagnosis.of("Retry the planning stage.", "design-planning"),
+        OwnerCandidateSet.selectOwner(
+            "Retry the planning stage.",
             List.of(
                 new OwnerCandidate("design-execution", "plan-validation-result"),
                 new OwnerCandidate("design-planning", "implementation-plan"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-execution",
-            "",
-            "Structure validation failed:\n"
-                + "node 'kafka-trigger-1' (kafka-trigger-2) has unknown property key 'topic'.");
+            RecoveryCause.of(RecoveryCauseCode.UNKNOWN_PROPERTY),
+            "");
 
     assertEquals("design-execution", remapped.owner().orElseThrow());
   }

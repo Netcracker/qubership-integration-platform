@@ -119,7 +119,12 @@ python3 -m py_compile \
 active_entries() {
   local pipeline="$1"
   jq -r --arg p "${pipeline}" \
-    'to_entries[] | select(.value.tier == "product-pipeline" and (.value.status // "active") == "active" and .value.pipeline == $p) | .key' \
+    'to_entries[] | select(
+      .value.tier == "product-pipeline"
+      and (.value.status // "active") == "active"
+      and .value.pipeline == $p
+      and (.value.recovery.exhaustHalt != true)
+    ) | .key' \
     "${SCENARIOS_FILE}" | sort
 }
 
@@ -169,6 +174,23 @@ done
 
 if [[ "${#CREATE_SCENARIO_IDS[@]}" -gt 0 ]]; then
   for scenario in "${CREATE_SCENARIO_IDS[@]}"; do
+    if jq -e --arg s "${scenario}" '.[$s].recovery.exhaustHalt == true' "${SCENARIOS_FILE}" >/dev/null; then
+      jq -e --arg s "${scenario}" '
+        .[$s].pipeline == "create-chain-v1"
+        and .[$s].profileId == "create-chain"
+        and .[$s].profileVersion == "2"
+        and .[$s].terminalState == "WAITING_FOR_INPUT"
+        and .[$s].retainCatalogChain == false
+        and .[$s].recovery.faultStage == "design-execution"
+        and .[$s].recovery.ownerStage == "design-planning"
+        and ((.[$s].recovery.followUp | type) == "string" and (.[$s].recovery.followUp | length) > 0)
+        and ((.[$s].uniqueChainNamePrefix | type) == "string" and (.[$s].uniqueChainNamePrefix | length) > 0)
+      ' "${SCENARIOS_FILE}" >/dev/null || {
+        echo "FAIL: exhausted-halt scenario ${scenario} must pin WAITING_FOR_INPUT retain=false with a recovery fault" >&2
+        exit 1
+      }
+      continue
+    fi
     jq -e --arg s "${scenario}" '
       .[$s].pipeline == "create-chain-v1"
       and .[$s].profileId == "create-chain"
@@ -304,6 +326,16 @@ if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" == "1" ]]; then
   echo "SKIP deploy (stub mode)"
 elif [[ "${SKIP_DEPLOY}" -eq 1 ]]; then
   echo "SKIP deploy (--skip-deploy; stack must already use the intended package)"
+  if [[ "${recovery_fault_prefix_count}" -eq 1 ]]; then
+    command -v docker >/dev/null
+    [[ -f "${COMPOSE_FILE}" ]] || {
+      echo "FAIL: missing compose file ${COMPOSE_FILE}" >&2
+      exit 1
+    }
+    echo "Recreating qip-ai-service so the recovery-fault prefix reaches the running container"
+    compose_cmd --profile ai up -d --no-build --no-deps --force-recreate qip-ai-service
+    wait_for_health "${BASE_URL}"
+  fi
 fi
 
 if [[ "${PRODUCT_PIPELINE_STUB_MODE:-0}" != "1" && "${SKIP_DEPLOY}" -eq 0 ]]; then

@@ -29,6 +29,10 @@ public final class CreateChainTestOrchestrator implements CreateChainOrchestrato
     this.runStore = Objects.requireNonNull(runStore, "runStore");
   }
 
+  public SemanticRecoveryState captureSemanticRecoveryState(String runId) {
+    return support.captureSemanticRecoveryState(runId);
+  }
+
   public ProductPipelineRunSupport support() {
     return support;
   }

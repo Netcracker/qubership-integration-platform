@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -28,6 +27,8 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRe
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -52,11 +53,18 @@ public class DesignExecutionCapability implements StageCapability {
 
   public static final String CAPABILITY_ID = "design-execution";
 
+  /**
+   * Live recovery injects {@link RecoveryCauseCode#MISSING_REQUIRED_PROPERTY}, which auto-reopens
+   * the owner. A second injection on the same run parks because that owner already reopened.
+   */
+  static final int MAX_E2E_RECOVERY_FAULT_INJECTIONS = 2;
+
   private final ProductPipelineArtifactStore artifactStore;
   private final CipDesignExecutorJavaAdapter adapter;
   private final String recoveryFaultChainPrefix;
   private final CaptureAttemptFeedbackStore feedbackStore;
-  private final Set<String> recoveryFaultedRuns = ConcurrentHashMap.newKeySet();
+  private final ConcurrentHashMap<String, Integer> recoveryFaultInjections =
+      new ConcurrentHashMap<>();
 
   @Inject
   public DesignExecutionCapability(
@@ -172,7 +180,8 @@ public class DesignExecutionCapability implements StageCapability {
             StageOutcome.of(
                 StageOutcomeClass.VALIDATION_FAILURE,
                 "E2E recovery fault: the implementation plan is missing required setting "
-                    + "'recovery-check'. Revise design-planning before materialization."));
+                    + "'recovery-check'. Revise design-planning before materialization.",
+                RecoveryCause.of(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY)));
       }
       ExecutionResult result =
           adapter.executeAfterApproval(resolved.inputs(), context.attemptId(), skillProgress);
@@ -189,7 +198,8 @@ public class DesignExecutionCapability implements StageCapability {
               mapped,
               result.candidates() == null ? List.of() : result.candidates(),
               result.message(),
-              null));
+              null,
+              result.recoveryCause()));
     } catch (RuntimeException ex) {
       if (TransientFailures.isTransient(ex)) {
         return completedSignal(
@@ -216,10 +226,13 @@ public class DesignExecutionCapability implements StageCapability {
   }
 
   private boolean injectRecoveryFault(String runId, String chainName) {
-    return !recoveryFaultChainPrefix.isBlank()
-        && chainName != null
-        && chainName.startsWith(recoveryFaultChainPrefix)
-        && recoveryFaultedRuns.add(runId);
+    if (recoveryFaultChainPrefix.isBlank()
+        || chainName == null
+        || !chainName.startsWith(recoveryFaultChainPrefix)) {
+      return false;
+    }
+    int injected = recoveryFaultInjections.merge(runId, 1, Integer::sum);
+    return injected <= MAX_E2E_RECOVERY_FAULT_INJECTIONS;
   }
 
   private ResolvedInputs resolveInputs(StageExecutionContext context) {

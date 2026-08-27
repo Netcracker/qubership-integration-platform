@@ -361,18 +361,21 @@ class DesignExecutionCapabilityTest {
   }
 
   @Test
-  void configuredRecoveryFaultFailsOnlyTheFirstMatchingRunAttempt() {
+  void configuredRecoveryFaultFailsTheFirstTwoMatchingRunAttempts() {
     capability = new DesignExecutionCapability(artifactStore, adapter, "Pets");
 
     StageOutcome first = execute(standardInputRefs());
-
-    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, first.outcomeClass());
-    assertTrue(first.message().contains("required setting"));
-    verifyNoInteractions(bindingAdapter, runner);
-
     StageOutcome second = execute(standardInputRefs());
 
-    assertEquals(StageOutcomeClass.SUCCEEDED, second.outcomeClass());
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, first.outcomeClass());
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, second.outcomeClass());
+    assertTrue(first.message().contains("required setting"));
+    assertTrue(second.message().contains("required setting"));
+    verifyNoInteractions(bindingAdapter, runner);
+
+    StageOutcome third = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, third.outcomeClass());
     verify(runner).execute(any(), any(), anyList(), any(), eq("attempt-1"), any());
   }
 

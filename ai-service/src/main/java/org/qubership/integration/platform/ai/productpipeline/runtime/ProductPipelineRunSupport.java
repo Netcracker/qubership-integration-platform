@@ -34,12 +34,15 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.FailureRec
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
+import org.qubership.integration.platform.ai.productpipeline.create.PauseQuestionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
@@ -99,6 +102,12 @@ public final class ProductPipelineRunSupport {
   /** Formatted validation findings from the halt, when present. */
   public static final String STAGE_ERROR_FINDINGS_ATTR = "stageErrorFindings";
 
+  /** Typed {@code RecoveryCauseCode} name stored with the halt. */
+  public static final String STAGE_ERROR_CAUSE_CODE_ATTR = "stageErrorCauseCode";
+
+  /** Catalog-resolution requested fact, when the cause carries one. */
+  public static final String STAGE_ERROR_REQUESTED_FACT_ATTR = "stageErrorRequestedFact";
+
   /**
    * Content hash of the owner's last approved candidate. Set when that stage is re-entered after a
    * causal reopen.
@@ -140,6 +149,8 @@ public final class ProductPipelineRunSupport {
 
   /** Shared with the stage executor; also answers questions typed at a pause this run waits at. */
   private final FailureNarrative failureNarrative;
+
+  private final RecoveryAttemptLedger recoveryLedger;
 
   public ProductPipelineRunSupport(
       ProductPipelineRunStore runStore,
@@ -304,6 +315,36 @@ public final class ProductPipelineRunSupport {
       FailureNarrative failureNarrative,
       Duration cacheIdleTimeout,
       int repeatedFailureThreshold) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        profileCatalog,
+        compilerRunPinResolver,
+        clock,
+        idsPathPrompts,
+        approvalPrompts,
+        s3Service,
+        failureNarrative,
+        cacheIdleTimeout,
+        repeatedFailureThreshold,
+        new RecoveryAttemptLedger());
+  }
+
+  public ProductPipelineRunSupport(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      ProductPipelineProfileCatalog profileCatalog,
+      CompilerRunPinResolver compilerRunPinResolver,
+      Clock clock,
+      DesignInputIdsPathPrompts idsPathPrompts,
+      ApprovalPrompts approvalPrompts,
+      S3Service s3Service,
+      FailureNarrative failureNarrative,
+      Duration cacheIdleTimeout,
+      int repeatedFailureThreshold,
+      RecoveryAttemptLedger recoveryLedger) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -319,6 +360,7 @@ public final class ProductPipelineRunSupport {
     this.attributesByRun = idleCache(cacheIdleTimeout);
     this.technicalRetriesByStage = idleCache(cacheIdleTimeout);
     this.failureNarrative = failureNarrative == null ? new FailureNarrative() : failureNarrative;
+    this.recoveryLedger = recoveryLedger == null ? new RecoveryAttemptLedger() : recoveryLedger;
     this.stageExecutor =
         new ProductPipelineStageExecutor(
             runStore,
@@ -331,7 +373,8 @@ public final class ProductPipelineRunSupport {
             technicalRetriesByStage,
             this.approvalPrompts,
             this.failureNarrative,
-            repeatedFailureThreshold);
+            repeatedFailureThreshold,
+            this.recoveryLedger);
   }
 
   /** Single-stage execution seam used by Flow. */
@@ -437,6 +480,37 @@ public final class ProductPipelineRunSupport {
     return requireRun(runId).run().currentStageId();
   }
 
+  /**
+   * Runtime seam for {@link SemanticRecoveryState}: run, stage, gate, stripped prompt, remaining
+   * attempts. Card actions are empty; fill them from {@code ChatEvent.actionsForClarify}.
+   */
+  public SemanticRecoveryState captureSemanticRecoveryState(String runId) {
+    ProductPipelineRunDocument doc = requireRun(runId);
+    String prompt = latestWaitingForInputPrompt(doc);
+    String gateId = PipelineGates.gateOf(prompt).orElse("");
+    String stageId = doc.run().currentStageId() == null ? "" : doc.run().currentStageId();
+    StageStatus stageStatus =
+        doc.run().stages().stream()
+            .filter(stage -> stageId.equals(stage.stageId()))
+            .map(StageSnapshot::status)
+            .findFirst()
+            .orElse(StageStatus.PENDING);
+    String owner = stringAttribute(runId, DIAGNOSED_OWNER_STAGE_ATTR).orElse(stageId);
+    if (owner.isBlank()) {
+      owner = stageId;
+    }
+    RecoveryCause cause = currentRecoveryCause(runId);
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    return SemanticRecoveryState.captureRuntime(
+        doc.run().status(),
+        stageId,
+        stageStatus,
+        gateId,
+        PipelineGates.strip(prompt),
+        recoveryLedger.remaining(doc.transitions(), key, InputOrigin.TRUSTED));
+  }
+
   /** Restores caches and durable waits without selecting or running the next stage. */
   public Multi<PipelineSignal> restoreForExternalWorkflow(StartOrResumeCommand command) {
     Objects.requireNonNull(command, "command");
@@ -508,7 +582,7 @@ public final class ProductPipelineRunSupport {
                         new IllegalStateException(
                             "run is not waiting for input or approval: " + doc.run().status()));
               }
-              if (isEscalatedAction(doc, command.text(), PipelineGates.STOP_WITH_REPORT_ACTION)) {
+              if (isStopWithReportAction(doc, command.text())) {
                 return stopWithReport(doc, command);
               }
               if (isEscalatedAction(doc, command.text(), PipelineGates.DROP_ELEMENT_ACTION)) {
@@ -540,6 +614,18 @@ public final class ProductPipelineRunSupport {
               boolean retryClick = PipelineGates.RETRY_ACTION.equals(command.text());
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(command.text());
               boolean haltCardClick = retryClick || reviseClick;
+              if (retryClick) {
+                HaltRecoveryGuard retryRefusal = diagnoseRetryRefusal(doc, command);
+                if (retryRefusal != null) {
+                  return refuseWithGuard(doc, command, retryRefusal);
+                }
+              }
+              if (isClarificationWait(doc) && !haltCardClick) {
+                HaltRecoveryGuard clarificationRefusal = diagnoseAttemptRefusal(doc, command);
+                if (clarificationRefusal != null) {
+                  return refuseWithGuard(doc, command, clarificationRefusal);
+                }
+              }
               if (!haltCardClick) {
                 artifactStore.append(
                     new AppendCommand(
@@ -586,12 +672,16 @@ public final class ProductPipelineRunSupport {
               if (reviseClick) {
                 return recordRevise(doc, command);
               }
+              String reason = "accepted input";
+              if (retryClick || isClarificationWait(doc)) {
+                reason = recordAttempt(doc, command);
+              }
               commitStatus(
                   doc,
                   RunStatus.RUNNING,
                   StageStatus.RUNNING,
                   doc.run().stages(),
-                  "accepted input",
+                  reason,
                   null,
                   command.commandId(),
                   command.commandPayloadHash());
@@ -631,18 +721,26 @@ public final class ProductPipelineRunSupport {
     return Multi.createFrom()
         .deferred(
             () -> {
-              Optional<String> answer =
+              PauseQuestionResult asked =
                   failureNarrative.answerApprovalQuestion(
                       command.runId(),
                       responseLocaleOf(command.runId()),
                       command.text(),
                       doc.run().currentStageId(),
                       approvalCandidateEvidence(doc));
-              if (answer.isEmpty()) {
+              if (asked.isUnanswerable()) {
+                return Multi.createFrom()
+                    .item(
+                        (PipelineSignal)
+                            new PipelineSignal.Message(FailureNarrative.NO_EXPLANATION_AVAILABLE))
+                    .onCompletion()
+                    .switchTo(() -> reemitApprovalCard(doc));
+              }
+              if (asked.isNotAQuestion()) {
                 return acceptTypedInput(doc, command);
               }
               return Multi.createFrom()
-                  .item((PipelineSignal) new PipelineSignal.Message(answer.get()))
+                  .item((PipelineSignal) new PipelineSignal.Message(asked.answer()))
                   .onCompletion()
                   .switchTo(() -> reemitApprovalCard(doc));
             })
@@ -800,21 +898,22 @@ public final class ProductPipelineRunSupport {
       return applyBareGoBack(doc, command, closed);
     }
     if (OwnerCandidateSet.requestsNamedStage(command.text())) {
-      return stayWaitingListingAllowed(doc, command, closed);
+      return refuseWithGuard(
+          doc, command, HaltRecoveryGuard.NAMED_STAGE_OUTSIDE_CANDIDATE_SET);
     }
     return answerQuestionOrStayWaiting(doc, command, closed, priorFollowUp);
   }
 
   /**
    * Last branch of a halt follow-up: a message that named no stage and asked for no go-back either
-   * asks about the pause or instructs the run in a way no earlier branch claimed. A model decides
-   * which, so the decision holds in the language the conversation is in rather than in English
-   * alone.
+   * asks about the pause, instructs the run, or cannot be answered. A model decides the first two;
+   * a timeout or a failed call is the third and is never treated as an instruction.
    *
    * <p>A question is answered from the evidence the halt card was already built from and reaches
    * the transcript as a message. The run keeps its status, the same wait comes back so the card
    * stays, and the question is lifted back off {@link #HALT_FOLLOW_UP_TEXT_ATTR} so the next repair
-   * turn does not read it as a correction. Everything else stays waiting exactly as before.
+   * turn does not read it as a correction. An unanswerable question produces a card that says no
+   * explanation is available and keeps the raw evidence.
    *
    * <p>The turn runs off the calling thread because {@code recordInput} can be reached on the event
    * loop, where a model call may not block.
@@ -827,7 +926,7 @@ public final class ProductPipelineRunSupport {
     return Multi.createFrom()
         .deferred(
             () -> {
-              Optional<String> answer =
+              PauseQuestionResult asked =
                   failureNarrative.answerHaltQuestion(
                       command.runId(),
                       responseLocaleOf(command.runId()),
@@ -839,16 +938,47 @@ public final class ProductPipelineRunSupport {
                       stringAttribute(command.runId(), STAGE_ERROR_FINDINGS_ATTR).orElse(""),
                       closed,
                       priorFollowUp);
-              if (answer.isEmpty()) {
+              if (asked.isUnanswerable()) {
+                return showUnanswerableHalt(doc, command, priorFollowUp);
+              }
+              if (asked.isNotAQuestion()) {
                 return applyDiagnosedOwner(doc, command);
               }
               restoreHaltFollowUpText(command.runId(), priorFollowUp);
               return Multi.createFrom()
-                  .item((PipelineSignal) new PipelineSignal.Message(answer.get()))
+                  .item((PipelineSignal) new PipelineSignal.Message(asked.answer()))
                   .onCompletion()
-                  .switchTo(() -> stayWaitingForInput(doc, command));
+                  .switchTo(() -> reemitHaltCard(doc));
             })
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+  }
+
+  /**
+   * Halt card for a pause question the turn could not answer. Keeps the gate and the raw evidence;
+   * does not treat the message as an instruction.
+   */
+  private Multi<PipelineSignal> showUnanswerableHalt(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, String priorFollowUp) {
+    restoreHaltFollowUpText(command.runId(), priorFollowUp);
+    String previous = latestWaitingForInputPrompt(doc);
+    String evidence =
+        stringAttribute(command.runId(), STAGE_ERROR_CONTEXT_ATTR)
+            .orElseGet(() -> PipelineGates.strip(previous));
+    String body =
+        FailureNarrative.NO_EXPLANATION_AVAILABLE
+            + (evidence.isBlank() ? "" : " " + evidence);
+    String prompt = PipelineGates.withStrippedBody(previous, body);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        doc.run().stages(),
+        prompt,
+        haltEvidence(attributesByRun.get(command.runId()), null),
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom()
+        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
   }
 
   /**
@@ -887,13 +1017,13 @@ public final class ProductPipelineRunSupport {
       List<OwnerCandidate> closed) {
     String currentPrompt = latestWaitingForInputPrompt(doc);
     if (PipelineGates.OWNER_CHOICE.equals(PipelineGates.gateOf(currentPrompt).orElse(""))) {
-      return stayWaitingForInput(doc, command);
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.BARE_GO_BACK_AT_OWNER_CHOICE);
     }
     Optional<String> owner =
         OwnerCandidateSet.ownerForBareGoBack(
             diagnosedOwnerOf(command.runId()), closed, doc.run().currentStageId());
     if (owner.isEmpty()) {
-      return stayWaitingForInput(doc, command);
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER);
     }
     attributesByRun
         .computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>())
@@ -908,27 +1038,188 @@ public final class ProductPipelineRunSupport {
     return OwnerCandidateSet.deepen(profile, first);
   }
 
-  private Multi<PipelineSignal> stayWaitingListingAllowed(
-      ProductPipelineRunDocument doc, AcceptInputCommand command, List<OwnerCandidate> closed) {
+  /**
+   * Re-emits the current halt wait without committing. Used after an answered question so the card
+   * stays and the transcript message is the observable effect.
+   */
+  private Multi<PipelineSignal> reemitHaltCard(ProductPipelineRunDocument doc) {
+    String prompt = latestWaitingForInputPrompt(doc);
+    return Multi.createFrom()
+        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+  }
+
+  /**
+   * Refuses a halt command by advancing to an escalated wait that names {@code guard}. Re-committing
+   * the previous wait is not a legal answer. A second refusal of the same already-escalated guard
+   * emits the guard sentence as a message and keeps the terminal card.
+   */
+  private Multi<PipelineSignal> refuseWithGuard(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, HaltRecoveryGuard guard) {
+    HaltRecoveryGuard named = guard == null ? HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS : guard;
     String previous = latestWaitingForInputPrompt(doc);
-    String gate = PipelineGates.gateOf(previous).orElse(PipelineGates.STAGE_RETRY);
-    String body = PipelineGates.strip(previous);
-    String allowed = String.join(", ", OwnerCandidateSet.stageIds(closed));
-    if (!allowed.isBlank() && !body.contains(allowed)) {
-      body = body.isBlank() ? allowed : body + " " + allowed;
+    if (PipelineGates.STAGE_ESCALATED.equals(PipelineGates.gateOf(previous).orElse(""))
+        && named.name().equals(PipelineGates.guardOf(previous).orElse(""))) {
+      return Multi.createFrom()
+          .item((PipelineSignal) new PipelineSignal.Message(named.cardSentence()))
+          .onCompletion()
+          .switchTo(() -> reemitHaltCard(doc));
     }
-    String prompt = PipelineGates.retag(gate, body);
+    String evidence =
+        stringAttribute(command.runId(), STAGE_ERROR_CONTEXT_ATTR)
+            .orElseGet(() -> PipelineGates.strip(previous));
+    List<OwnerCandidate> closed = haltOwnerCandidates(doc);
+    String allowed = String.join(", ", OwnerCandidateSet.stageIds(closed));
+    SemanticRecoveryState.RemainingAttempts remaining = remainingOf(doc, command);
+    String body =
+        named.cardSentence()
+            + (allowed.isBlank() ? "" : " Allowed stages: " + allowed + ".")
+            + (evidence.isBlank() ? "" : " " + evidence)
+            + " (runId="
+            + command.runId()
+            + ")"
+            + HaltRecoveryGuard.remainingLine(remaining);
+    List<String> working = workingEscalatedActions(doc, command, closed);
+    boolean drop = working.contains(PipelineGates.DROP_ELEMENT_ACTION);
+    List<String> stages = new ArrayList<>();
+    for (String action : working) {
+      if (!PipelineGates.DROP_ELEMENT_ACTION.equals(action)
+          && !PipelineGates.STOP_WITH_REPORT_ACTION.equals(action)) {
+        stages.add(action);
+      }
+    }
+    String haltIdentity = PipelineGates.haltIdentityOf(previous).orElse("");
+    String prompt =
+        PipelineGates.tagGuard(
+            PipelineGates.tagEscalated(body, stages, drop, haltIdentity), named.name());
     commitStatus(
         doc,
         RunStatus.WAITING_FOR_INPUT,
         StageStatus.WAITING_FOR_INPUT,
         doc.run().stages(),
         prompt,
-        null,
+        haltEvidence(attributesByRun.get(command.runId()), null),
         command.commandId(),
         command.commandPayloadHash());
     return Multi.createFrom()
         .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+  }
+
+  private List<String> workingEscalatedActions(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, List<OwnerCandidate> closed) {
+    List<String> actions = new ArrayList<>();
+    if (bareGoBackAtOwnerChoice(doc, command)) {
+      actions.addAll(PipelineGates.ownerCandidatesOf(latestWaitingForInputPrompt(doc)));
+    } else if (namedStageListing(command)) {
+      actions.addAll(OwnerCandidateSet.stageIds(closed));
+    } else {
+      for (String stageId : OwnerCandidateSet.stageIds(closed)) {
+        if (isCurrentUnapprovedOwner(doc, stageId)
+            || shouldCausalReopen(
+                doc, stageId, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
+          actions.add(stageId);
+        }
+      }
+    }
+    ProfileStage stage = currentStageOrNull(doc);
+    if (stage != null && stage.skip() != null) {
+      actions.add(PipelineGates.DROP_ELEMENT_ACTION);
+    }
+    actions.add(PipelineGates.STOP_WITH_REPORT_ACTION);
+    return actions;
+  }
+
+  private static boolean namedStageListing(AcceptInputCommand command) {
+    return OwnerCandidateSet.requestsNamedStage(command.text());
+  }
+
+  private static boolean bareGoBackAtOwnerChoice(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    return OwnerCandidateSet.isBareGoBack(command.text())
+        && PipelineGates.OWNER_CHOICE.equals(
+            PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""));
+  }
+
+  private ProfileStage currentStageOrNull(ProductPipelineRunDocument doc) {
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    if (profile == null || profile.stages() == null) {
+      return null;
+    }
+    return profile.stages().stream()
+        .filter(stage -> stage.stageId().equals(doc.run().currentStageId()))
+        .findFirst()
+        .orElse(null);
+  }
+
+  private HaltRecoveryGuard diagnoseReopenRefusal(
+      ProductPipelineRunDocument doc,
+      String owner,
+      InputOrigin origin,
+      RecoveryAttemptLedger.ReopenInitiator initiator) {
+    if (owner == null
+        || owner.isBlank()
+        || owner.equals(doc.run().currentStageId())
+        || !isEarlierApprovedOwner(doc, owner)) {
+      return HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER;
+    }
+    if (catalogHasBeenWritten(doc.run().runId())) {
+      return HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN;
+    }
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    String legacy = causalReopenFailureSignature(doc.run().runId());
+    if (recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy)) {
+      return HaltRecoveryGuard.OWNER_ALREADY_REOPENED;
+    }
+    if (!recoveryLedger.mayReopen(doc.transitions(), key, origin, initiator, legacy)) {
+      return HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
+    }
+    return HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
+  }
+
+  private HaltRecoveryGuard diagnoseRetryRefusal(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    return diagnoseAttemptRefusal(doc, command);
+  }
+
+  private HaltRecoveryGuard diagnoseAttemptRefusal(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    RecoveryAttemptKey key = currentAttemptKey(doc);
+    if (recoveryLedger.mayRepair(doc.transitions(), key, command.origin())) {
+      return null;
+    }
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    if (cause.causeCode() == RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED) {
+      return HaltRecoveryGuard.TECHNICAL_RETRY;
+    }
+    return HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS;
+  }
+
+  private String recordAttempt(ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    RecoveryAttemptKey key = currentAttemptKey(doc);
+    String owner = key.ownerStageId();
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    return recoveryLedger.recordRepair(key, artifact);
+  }
+
+  private RecoveryAttemptKey currentAttemptKey(ProductPipelineRunDocument doc) {
+    String owner = diagnosedOwnerOf(doc.run().runId());
+    if (owner.isBlank()) {
+      owner = doc.run().currentStageId() == null ? "" : doc.run().currentStageId();
+    }
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    return recoveryLedger.key(owner, cause, artifact, doc.transitions());
+  }
+
+  private SemanticRecoveryState.RemainingAttempts remainingOf(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    return recoveryLedger.remaining(doc.transitions(), currentAttemptKey(doc), command.origin());
+  }
+
+  private static boolean isClarificationWait(ProductPipelineRunDocument doc) {
+    return PipelineGates.STAGE_CLARIFICATION.equals(
+        PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""));
   }
 
   private Multi<PipelineSignal> recordRevise(
@@ -951,23 +1242,37 @@ public final class ProductPipelineRunSupport {
           command.commandPayloadHash());
       return Multi.createFrom().empty();
     }
-    if (shouldCausalReopen(doc, owner)) {
+    if (shouldCausalReopen(
+        doc, owner, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
       return causalReopenOwner(doc, command, owner);
     }
-    return stayWaitingForInput(doc, command);
+    return refuseWithGuard(
+        doc,
+        command,
+        diagnoseReopenRefusal(
+            doc, owner, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR));
   }
 
-  private boolean shouldCausalReopen(ProductPipelineRunDocument doc, String owner) {
+  private boolean shouldCausalReopen(
+      ProductPipelineRunDocument doc,
+      String owner,
+      InputOrigin origin,
+      RecoveryAttemptLedger.ReopenInitiator initiator) {
     if (!isEarlierApprovedOwner(doc, owner)) {
       return false;
     }
     if (catalogHasBeenWritten(doc.run().runId())) {
       return false;
     }
-    if (causalReopenCount(doc) >= MAX_CAUSAL_REOPENS) {
-      return false;
-    }
-    return !ownerAlreadyHadCausalReopen(doc, owner, causalReopenFailureSignature(doc.run().runId()));
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    return recoveryLedger.mayReopen(
+        doc.transitions(),
+        key,
+        origin,
+        initiator,
+        causalReopenFailureSignature(doc.run().runId()));
   }
 
   private static boolean isEarlierApprovedOwner(ProductPipelineRunDocument doc, String owner) {
@@ -990,21 +1295,6 @@ public final class ProductPipelineRunSupport {
     return artifactStore.latest(runId, Kind.MATERIALIZATION_RESULT).isPresent();
   }
 
-  private static long causalReopenCount(ProductPipelineRunDocument doc) {
-    return doc.transitions().stream()
-        .filter(
-            transition ->
-                transition.reason() != null
-                    && transition.reason().startsWith(CAUSAL_REOPEN_REASON_PREFIX))
-        .count();
-  }
-
-  private static boolean ownerAlreadyHadCausalReopen(
-      ProductPipelineRunDocument doc, String owner, String failureSignature) {
-    String reason = causalReopenReason(owner, failureSignature);
-    return doc.transitions().stream().anyMatch(transition -> reason.equals(transition.reason()));
-  }
-
   private String causalReopenFailureSignature(String runId) {
     Map<String, Object> attributes = attributesByRun.get(runId);
     Object evidence = attributes == null ? null : attributes.get(STAGE_ERROR_CONTEXT_ATTR);
@@ -1013,6 +1303,43 @@ public final class ProductPipelineRunSupport {
 
   public static String causalReopenReason(String owner, String failureSignature) {
     return CAUSAL_REOPEN_REASON_PREFIX + owner + '\u0000' + failureSignature;
+  }
+
+  private String reopenReason(
+      ProductPipelineRunDocument doc, String owner, AcceptInputCommand command) {
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    RecoveryAttemptLedger.ReopenInitiator initiator =
+        command == null
+            ? RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC
+            : RecoveryAttemptLedger.ReopenInitiator.AUTHOR;
+    return recoveryLedger.recordReopen(key, initiator, artifact);
+  }
+
+  private RecoveryCause currentRecoveryCause(String runId) {
+    String codeName = stringAttribute(runId, STAGE_ERROR_CAUSE_CODE_ATTR).orElse("");
+    String findings = stringAttribute(runId, STAGE_ERROR_FINDINGS_ATTR).orElse("");
+    String outcomeName = stringAttribute(runId, STAGE_ERROR_OUTCOME_ATTR).orElse("");
+    String requestedFact = stringAttribute(runId, STAGE_ERROR_REQUESTED_FACT_ATTR).orElse("");
+    StageOutcomeClass outcomeClass = StageOutcomeClass.VALIDATION_FAILURE;
+    if (!outcomeName.isBlank()) {
+      try {
+        outcomeClass = StageOutcomeClass.valueOf(outcomeName);
+      } catch (IllegalArgumentException ignored) {
+        outcomeClass = StageOutcomeClass.VALIDATION_FAILURE;
+      }
+    }
+    RecoveryCause fromFindings = RecoveryCause.fromFormattedFindingCodes(findings, outcomeClass);
+    if (codeName.isBlank()) {
+      return fromFindings;
+    }
+    try {
+      return new RecoveryCause(
+          RecoveryCauseCode.valueOf(codeName), fromFindings.findings(), requestedFact);
+    } catch (IllegalArgumentException ignored) {
+      return fromFindings;
+    }
   }
 
   private Multi<PipelineSignal> causalReopenOwner(
@@ -1046,7 +1373,7 @@ public final class ProductPipelineRunSupport {
     if (profile == null || ownerSnapshot == null || prior == null) {
       return command == null
           ? Multi.createFrom().empty()
-          : stayWaitingForInput(doc, command);
+          : refuseWithGuard(doc, command, HaltRecoveryGuard.MISSING_PROFILE_OR_PRIOR_CANDIDATE);
     }
     attributesByRun
         .computeIfAbsent(runId, ignored -> new ConcurrentHashMap<>())
@@ -1082,27 +1409,11 @@ public final class ProductPipelineRunSupport {
         doc,
         owner,
         updated,
-        causalReopenReason(owner, causalReopenFailureSignature(runId)),
+        reopenReason(doc, owner, command),
         haltEvidence(attributesByRun.get(runId), prior.contentHash()),
         commandId,
         commandPayloadHash);
     return Multi.createFrom().empty();
-  }
-
-  private Multi<PipelineSignal> stayWaitingForInput(
-      ProductPipelineRunDocument doc, AcceptInputCommand command) {
-    String prompt = latestWaitingForInputPrompt(doc);
-    commitStatus(
-        doc,
-        RunStatus.WAITING_FOR_INPUT,
-        StageStatus.WAITING_FOR_INPUT,
-        doc.run().stages(),
-        prompt,
-        null,
-        command.commandId(),
-        command.commandPayloadHash());
-    return Multi.createFrom()
-        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
   }
 
   private Multi<PipelineSignal> recordOwnerChoice(
@@ -1158,6 +1469,19 @@ public final class ProductPipelineRunSupport {
       return false;
     }
     return PipelineGates.ownerCandidatesOf(prompt).contains(text);
+  }
+
+  private static boolean isStopWithReportAction(ProductPipelineRunDocument doc, String text) {
+    if (!PipelineGates.STOP_WITH_REPORT_ACTION.equals(text)) {
+      return false;
+    }
+    String prompt = latestWaitingForInputPrompt(doc);
+    String gate = PipelineGates.gateOf(prompt).orElse("");
+    if (PipelineGates.STAGE_ESCALATED.equals(gate)) {
+      return PipelineGates.escalatedActionsOf(prompt).contains(text);
+    }
+    return PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)
+        && PipelineGates.internalFailureActionsOf(prompt).contains(text);
   }
 
   private static boolean isEscalatedAction(
@@ -1581,7 +1905,11 @@ public final class ProductPipelineRunSupport {
   private Multi<PipelineSignal> applyReopenProducer(
       String runId, StageDecision.ReopenProducer reopen, List<PipelineSignal> signals) {
     ProductPipelineRunDocument doc = requireRun(runId);
-    if (shouldCausalReopen(doc, reopen.producerStageId())) {
+    if (shouldCausalReopen(
+        doc,
+        reopen.producerStageId(),
+        InputOrigin.TRUSTED,
+        RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC)) {
       return causalReopenOwner(doc, reopen.producerStageId(), null, null)
           .onCompletion()
           .switchTo(() -> Multi.createFrom().iterable(signals));
@@ -1943,6 +2271,8 @@ public final class ProductPipelineRunSupport {
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_OUTCOME_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_FAILED_STAGE_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_FINDINGS_ATTR);
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_CAUSE_CODE_ATTR);
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_REQUESTED_FACT_ATTR);
     copyHaltAttribute(attributes, evidence, DIAGNOSED_OWNER_STAGE_ATTR);
     if (priorCandidate != null && !priorCandidate.isBlank()) {
       evidence.put(PRIOR_CANDIDATE_ATTR, priorCandidate);
@@ -1967,6 +2297,8 @@ public final class ProductPipelineRunSupport {
         STAGE_ERROR_OUTCOME_ATTR,
         STAGE_ERROR_FAILED_STAGE_ATTR,
         STAGE_ERROR_FINDINGS_ATTR,
+        STAGE_ERROR_CAUSE_CODE_ATTR,
+        STAGE_ERROR_REQUESTED_FACT_ATTR,
         DIAGNOSED_OWNER_STAGE_ATTR,
         PRIOR_CANDIDATE_ATTR)) {
       attributes.remove(key);

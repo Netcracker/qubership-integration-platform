@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -50,9 +51,13 @@ import org.qubership.integration.platform.ai.productpipeline.profile.BypassPolic
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.SkipPolicy;
+import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
+import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignalLiveSink;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptKey;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptLedger;
 import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -80,9 +85,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final ApprovalPrompts approvalPrompts;
   private final FailureNarrative failureNarrative;
   private final int repeatedFailureThreshold;
+  private final RecoveryAttemptLedger recoveryLedger;
 
-  private static final int MAX_SEMANTIC_REPAIRS = 1;
-  private static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
+  public static final int MAX_SEMANTIC_REPAIRS = 1;
+  public static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
 
   public ProductPipelineStageExecutor(
       ProductPipelineRunStore runStore,
@@ -144,6 +150,34 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       ApprovalPrompts approvalPrompts,
       FailureNarrative failureNarrative,
       int repeatedFailureThreshold) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        clock,
+        profilesByRun,
+        manifestsByRun,
+        attributesByRun,
+        technicalRetriesByStage,
+        approvalPrompts,
+        failureNarrative,
+        repeatedFailureThreshold,
+        new RecoveryAttemptLedger());
+  }
+
+  public ProductPipelineStageExecutor(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      Clock clock,
+      Map<String, ProductPipelineProfile> profilesByRun,
+      Map<String, RunManifest> manifestsByRun,
+      Map<String, Map<String, Object>> attributesByRun,
+      Map<String, Integer> technicalRetriesByStage,
+      ApprovalPrompts approvalPrompts,
+      FailureNarrative failureNarrative,
+      int repeatedFailureThreshold,
+      RecoveryAttemptLedger recoveryLedger) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -158,6 +192,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     this.failureNarrative =
         failureNarrative == null ? new FailureNarrative() : failureNarrative;
     this.repeatedFailureThreshold = Math.max(2, repeatedFailureThreshold);
+    this.recoveryLedger = recoveryLedger == null ? new RecoveryAttemptLedger() : recoveryLedger;
   }
 
   @Override
@@ -503,7 +538,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               resolution.failure(),
               List.of(),
               emitted,
-              true);
+              true,
+              null);
         }
         List<Reference> refs =
             appendCandidates(runId, stage, resolution.resolvedCandidates(), committedInputs(doc));
@@ -573,7 +609,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               outcome.message(),
               outcome.candidates(),
               emitted,
-              false);
+              false,
+              outcome.recoveryCause());
         }
         technicalRetriesByStage.put(key, used + 1);
         long delayMs =
@@ -599,7 +636,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             failureMessage,
             outcome.candidates(),
             emitted,
-            true);
+            true,
+            outcome.recoveryCause());
       }
       case POLICY_FAILURE, MISSING_MANDATORY_INPUT -> {
         List<Reference> refs =
@@ -612,7 +650,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             outcome.message(),
             outcome.candidates(),
             emitted,
-            false);
+            false,
+            outcome.recoveryCause());
       }
     };
   }
@@ -625,10 +664,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String message,
       List<ArtifactCandidate> candidates,
       List<PipelineSignal> emitted,
-      boolean diagnoseOwner) {
+      boolean diagnoseOwner,
+      RecoveryCause recoveryCause) {
     boolean internal = outcomeClass == StageOutcomeClass.INTERNAL_FAILURE;
     String evidence = evidenceText(outcomeClass, message, doc.run().runId());
+    RecoveryCause cause =
+        recoveryCause == null ? RecoveryCause.fromHalt(outcomeClass, candidates) : recoveryCause;
     String findings = FailureNarrative.findingsText(candidates);
+    if (findings.isBlank()) {
+      findings = cause.formattedFindings();
+    }
     RunManifest manifest = manifestsByRun.get(doc.run().runId());
     String locale = manifest == null ? "en" : manifest.responseLocale();
     String followUp = followUpText(doc.run().runId());
@@ -644,34 +689,52 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, stage.stageId());
     putRunAttribute(
         doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, findings);
+    putRunAttribute(
+        doc.run().runId(),
+        ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR,
+        cause.causeCode().name());
+    putRunAttribute(
+        doc.run().runId(),
+        ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR,
+        cause.requestedFact());
     putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
     List<OwnerCandidate> closed = ownerCandidates(profile, stage.stageId());
+    String artifactIdentity =
+        RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
+    RecoveryAttemptKey observingKey =
+        recoveryLedger.key(stage.stageId(), cause, artifactIdentity, doc.transitions());
     ProducerOwnedRecovery.Route recovery =
         ProducerOwnedRecovery.route(
             new ProducerOwnedRecovery.Request(
                 stage.stageId(),
                 outcomeClass,
-                findings,
-                evidence,
+                cause,
                 closed,
                 catalogHasBeenWritten(doc.run().runId()),
-                semanticRepairsUsed(doc, stage.stageId(), evidence),
-                MAX_SEMANTIC_REPAIRS,
+                recoveryLedger.repairsUsed(doc.transitions(), observingKey, InputOrigin.TRUSTED),
+                recoveryLedger.limits().maxSemanticRepairs(),
                 Optional.empty()));
     putRunAttribute(
         doc.run().runId(),
         ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
         recovery.producerStageId());
     if (recovery.action() == ProducerOwnedRecovery.Action.REPAIR_CURRENT) {
-      recordProducerRepairAttempt(doc, stage, refs, evidence);
-      emitted.add(new PipelineSignal.Progress(stage.stageId(), "Repairing rejected output"));
-      return new StageExecutionResult(
-          new StageDecision.Retry(stage.stageId(), Duration.ZERO), emitted);
+      String ownerArtifact =
+          RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
+      RecoveryAttemptKey key =
+          recoveryLedger.key(
+              recovery.producerStageId(), cause, ownerArtifact, doc.transitions());
+      if (recoveryLedger.mayRepair(doc.transitions(), key, InputOrigin.TRUSTED)) {
+        recordProducerRepairAttempt(
+            doc, stage, refs, recoveryLedger.recordRepair(key, ownerArtifact));
+        emitted.add(new PipelineSignal.Progress(stage.stageId(), "Repairing rejected output"));
+        return new StageExecutionResult(
+            new StageDecision.Retry(stage.stageId(), Duration.ZERO), emitted);
+      }
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM
-        && canCausalReopen(doc, recovery.producerStageId(), evidence)) {
-      recordProducerRepairAttempt(doc, stage, refs, evidence);
+        && canCausalReopen(doc, recovery.producerStageId(), cause, evidence)) {
       emitted.add(
           new PipelineSignal.Progress(
               recovery.producerStageId(), "Reopening producer for rejected input"));
@@ -680,10 +743,58 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           emitted);
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.ASK_CLARIFICATION) {
+      String ownerArtifact =
+          RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
+      RecoveryAttemptKey clarificationKey =
+          recoveryLedger.key(
+              recovery.producerStageId(), cause, ownerArtifact, doc.transitions());
+      if (!recoveryLedger.mayRepair(doc.transitions(), clarificationKey, InputOrigin.TRUSTED)) {
+        String exhausted =
+            HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.cardSentence()
+                + " "
+                + evidence
+                + " (runId="
+                + doc.run().runId()
+                + ")"
+                + HaltRecoveryGuard.remainingLine(
+                    recoveryLedger.remaining(
+                        doc.transitions(), clarificationKey, InputOrigin.TRUSTED));
+        String prompt =
+            PipelineGates.tagGuard(
+                PipelineGates.tagEscalated(
+                    exhausted, List.of(), stage.skip() != null, ToolCallFingerprints.failureSignature(evidence)),
+                HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name());
+        List<StageSnapshot> stages =
+            refs.isEmpty()
+                ? doc.run().stages()
+                : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
+        commitStatus(
+            doc,
+            RunStatus.WAITING_FOR_INPUT,
+            StageStatus.WAITING_FOR_INPUT,
+            stages,
+            prompt,
+            ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null));
+        emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
+        return new StageExecutionResult(
+            new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
+      }
+      String question =
+          failureNarrative
+              .askClarification(
+                  doc.run().runId(),
+                  locale,
+                  recovery.requestedFact(),
+                  stage.stageId(),
+                  evidence)
+              .orElse(recovery.requestedFact());
       String prompt =
           PipelineGates.tag(
               PipelineGates.STAGE_CLARIFICATION,
-              "Which " + recovery.requestedFact() + " should this chain use?");
+              question
+                  + HaltRecoveryGuard.remainingLine(
+                      recoveryLedger.remaining(
+                          doc.transitions(), clarificationKey, InputOrigin.TRUSTED)));
       List<StageSnapshot> stages =
           refs.isEmpty()
               ? doc.run().stages()
@@ -716,7 +827,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               evidence,
               findings,
               diagnosisSet,
-              followUp);
+              followUp,
+              cause);
       body = diagnosis.cardBody(evidence);
       if (diagnosis.ambiguous()) {
         gate = internal ? PipelineGates.STAGE_INTERNAL_FAILURE : PipelineGates.OWNER_CHOICE;
@@ -725,17 +837,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       } else if (diagnosis.owner().isPresent()) {
         // An internal failure keeps its own gate even with an owner: reopening that owner may route
         // around the defect, but re-entering this stage cannot.
-        gate = internal ? PipelineGates.STAGE_INTERNAL_FAILURE : PipelineGates.STAGE_REVISE;
+        diagnosedOwner = diagnosis.owner().orElseThrow();
         putRunAttribute(
             doc.run().runId(),
             ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
-            diagnosis.owner().orElseThrow());
-        diagnosedOwner = diagnosis.owner().orElseThrow();
+            diagnosedOwner);
         if (internal) {
+          gate = PipelineGates.STAGE_INTERNAL_FAILURE;
           choiceIds = List.of(diagnosedOwner);
+        } else if (canCausalReopen(doc, diagnosedOwner, cause, evidence)
+            || isCurrentUnapprovedOwner(doc, diagnosedOwner)) {
+          gate = PipelineGates.STAGE_REVISE;
+        } else {
+          gate = PipelineGates.STAGE_RETRY;
         }
       } else {
         putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+        gate = PipelineGates.STAGE_INTERNAL_FAILURE;
+        choiceIds = List.of();
       }
     } else {
       body =
@@ -751,18 +870,37 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               .orElse(evidence);
     }
     String haltIdentity = ToolCallFingerprints.failureSignature(evidence);
+    RecoveryAttemptKey parkKey =
+        recoveryLedger.key(stage.stageId(), cause, artifactIdentity, doc.transitions());
+    boolean repairsExhausted =
+        !internal && !recoveryLedger.mayRepair(doc.transitions(), parkKey, InputOrigin.TRUSTED);
     boolean escalated =
         !internal
-            && repeatedHaltCount(doc, stage.stageId(), haltIdentity) + 1
-                >= repeatedFailureThreshold;
+            && (repairsExhausted
+                || repeatedHaltCount(doc, stage.stageId(), haltIdentity) + 1
+                    >= repeatedFailureThreshold);
     if (escalated && choiceIds.isEmpty() && !diagnosedOwner.isBlank()) {
       choiceIds = List.of(diagnosedOwner);
+    }
+    if (escalated) {
+      body =
+          (repairsExhausted ? HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.cardSentence() + " " : "")
+              + body
+              + HaltRecoveryGuard.remainingLine(
+                  recoveryLedger.remaining(doc.transitions(), parkKey, InputOrigin.TRUSTED));
     }
     // Both paths strip markers out of the body before tagging, so model-authored text that happens
     // to spell a marker cannot move the wait to a gate the executor did not choose.
     String prompt;
     if (escalated) {
       prompt = PipelineGates.tagEscalated(body, choiceIds, stage.skip() != null, "");
+      if (repairsExhausted) {
+        prompt = PipelineGates.tagGuard(prompt, HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name());
+      } else {
+        prompt =
+            PipelineGates.tagGuard(
+                prompt, HaltRecoveryGuard.REPEATED_FAILURE_THRESHOLD.name());
+      }
     } else if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
       prompt = PipelineGates.tagInternalFailure(body, choiceIds);
     } else {
@@ -841,21 +979,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         || artifactStore.latest(runId, Kind.CATALOG_CHAIN_SNAPSHOT).isPresent();
   }
 
-  private static int semanticRepairsUsed(
-      ProductPipelineRunDocument doc, String stageId, String evidence) {
-    String reason = producerRepairReason(evidence);
-    return (int)
-        doc.transitions().stream()
-            .filter(transition -> stageId.equals(transition.stageId()))
-            .filter(transition -> reason.equals(transition.reason()))
-            .count();
-  }
-
   private void recordProducerRepairAttempt(
       ProductPipelineRunDocument doc,
       ProfileStage stage,
       List<Reference> refs,
-      String evidence) {
+      String reason) {
     List<StageSnapshot> repairing =
         refs.isEmpty()
             ? doc.run().stages()
@@ -865,13 +993,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         RunStatus.RUNNING,
         StageStatus.RUNNING,
         repairing,
-        producerRepairReason(evidence),
+        reason,
         ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null),
         StageStatus.FAILED);
   }
 
   private boolean canCausalReopen(
-      ProductPipelineRunDocument doc, String owner, String evidence) {
+      ProductPipelineRunDocument doc, String owner, RecoveryCause cause, String evidence) {
     if (owner == null || owner.isBlank() || owner.equals(doc.run().currentStageId())) {
       return false;
     }
@@ -889,26 +1017,25 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (!approved) {
       return false;
     }
-    long reopens =
-        doc.transitions().stream()
-            .filter(
-                transition ->
-                    transition.reason() != null
-                        && transition
-                            .reason()
-                            .startsWith(ProductPipelineRunSupport.CAUSAL_REOPEN_REASON_PREFIX))
-            .count();
-    if (reopens >= ProductPipelineRunSupport.MAX_CAUSAL_REOPENS) {
-      return false;
-    }
-    String reason =
-        ProductPipelineRunSupport.causalReopenReason(
-            owner, ToolCallFingerprints.failureSignature(evidence));
-    return doc.transitions().stream().noneMatch(transition -> reason.equals(transition.reason()));
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    return recoveryLedger.mayReopen(
+        doc.transitions(),
+        key,
+        InputOrigin.TRUSTED,
+        RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC,
+        ToolCallFingerprints.failureSignature(evidence));
   }
 
-  private static String producerRepairReason(String evidence) {
-    return PRODUCER_REPAIR_REASON_PREFIX + ToolCallFingerprints.failureSignature(evidence);
+  private static boolean isCurrentUnapprovedOwner(ProductPipelineRunDocument doc, String owner) {
+    if (owner == null || owner.isBlank() || !owner.equals(doc.run().currentStageId())) {
+      return false;
+    }
+    return doc.run().stages().stream()
+        .filter(stage -> owner.equals(stage.stageId()))
+        .findFirst()
+        .map(stage -> stage.approvedArtifactId() == null || stage.approvedArtifactId().isBlank())
+        .orElse(false);
   }
 
   private void putRunAttribute(String runId, String key, String value) {

@@ -16,7 +16,10 @@ set -e
 }
 
 active="$(
-  jq '[to_entries[] | select((.value.status // "active") == "active")] | length' \
+  jq '[to_entries[] | select(
+    (.value.status // "active") == "active"
+    and (.value.recovery.exhaustHalt != true)
+  )] | length' \
     "${DIR}/scenarios.json"
 )"
 PRODUCT_PIPELINE_STUB_MODE=1 bash "${DIR}/run-quality-gate.sh" \

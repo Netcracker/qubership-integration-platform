@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
 import org.junit.jupiter.api.Test;
 
 class PipelineGatesTest {
@@ -68,10 +69,24 @@ class PipelineGatesTest {
   }
 
   @Test
+  void taggingAGuardNamesItAndStripsItFromTheReader() {
+    String tagged =
+        PipelineGates.tagGuard(
+            PipelineGates.tagEscalated("Recovery is exhausted.", List.of("analysis"), false, ""),
+            HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name());
+
+    assertEquals(
+        HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name(), PipelineGates.guardOf(tagged).orElseThrow());
+    assertEquals("Recovery is exhausted.", PipelineGates.strip(tagged));
+    assertFalse(PipelineGates.strip(tagged).contains("__GUARD__"));
+  }
+
+  @Test
   void everyHaltGateIsRecoverableAndAQuestionGateIsNot() {
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_RETRY));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_REVISE));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_INTERNAL_FAILURE));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_ESCALATED));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.OWNER_CHOICE));
     assertFalse(PipelineGates.isRecoverableHaltGate(PipelineGates.MAPPING_GAP));
   }
@@ -134,5 +149,25 @@ class PipelineGatesTest {
             PipelineGates.STOP_WITH_REPORT_ACTION),
         PipelineGates.escalatedActionsOf(prompt));
     assertEquals("The same validation failure happened twice.", PipelineGates.strip(prompt));
+  }
+
+  @Test
+  void anEmptyInternalFailureCardOffersStopWithReport() {
+    String tagged =
+        PipelineGates.tagInternalFailure("A step inside the service broke.", List.of());
+
+    assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        PipelineGates.internalFailureActionsOf(tagged));
+  }
+
+  @Test
+  void withStrippedBodyKeepsTheGateAndReplacesTheReaderText() {
+    String tagged = PipelineGates.tag(PipelineGates.STAGE_REVISE, "old narrative");
+    String rebuilt =
+        PipelineGates.withStrippedBody(tagged, "No explanation is available. raw evidence");
+
+    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(rebuilt).orElseThrow());
+    assertEquals("No explanation is available. raw evidence", PipelineGates.strip(rebuilt));
   }
 }

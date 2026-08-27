@@ -109,41 +109,42 @@ _Avoid_: auto-approved fix, in-place edit of an approved plan
 
 **Owner diagnosis**:
 Choosing the stage that produced the defective artifact. Candidates are the producers of the failed
-stage's inputs (and those producers' inputs, if the search must go deeper); an LLM picks among that
-set. If more than one candidate stays plausible, a Decision card asks which artifact to revise.
-_Avoid_: previous-approval heuristic, unconstrained LLM blame
+stage's inputs (and those producers' inputs, if the search must go deeper). The deterministic
+router picks among that set from the typed cause. If more than one candidate stays plausible, a
+Decision card asks which artifact to revise. More owner-choice cards is the recorded trade for
+dropping model-assisted disambiguation: a card the author answers beats a routing decision nothing
+can check.
+_Avoid_: previous-approval heuristic, unconstrained LLM blame, a second authority that names the owner
 
 **Recoverable halt**:
 A pause that keeps the run inside the product pipeline. The user can retry the current stage, go
 back to an earlier approval, ask questions, or revise the plan. The run is not finished and is not
 a tombstone. A typed message at this pause is a halt follow-up: it stays on this run and continues
-the diagnosis, and it is not a new router classification.
+the diagnosis, and it is not a new router classification. Every command at this pause advances the
+semantic recovery state, or produces a transcript message that answers what was typed. No command
+produces neither.
 _Avoid_: terminal FAILED, abort the conversation, irreversible pipeline death, drop out of CREATE
 
 **Failure narrative**:
 LLM-authored explanation of what went wrong, written for the user at a recoverable halt. The
-runtime supplies structured evidence (outcome class, exception, validation findings, stage id);
-it does not supply the prose. The same model turn that diagnoses the owner writes the narrative;
-a technical halt uses a short narration turn on the same evidence. If that turn fails, the card
-keeps its actions and the raw evidence — no fallback marketing sentence.
-_Avoid_: hardcoded halt copy, template error strings, "rolled back to stage X"
-
-**Remedy**:
-The change the diagnosis turn says would clear a halt: retry, revise the input, reopen a named
-stage, drop the element, or unrecoverable, plus one sentence naming what to add, remove, or
-correct. The set is closed, and the runtime validates a remedy the way it validates the owner — a
-value outside the set is dropped and the narrative stands alone. The card states the remedy; the
-gate and its actions do not change, and nothing applies it on the user's behalf.
-_Avoid_: canned remedy text, a runtime-authored instruction, an apply-the-fix button
+runtime supplies structured evidence (outcome class, exception, validation findings, stage id) and
+the instruction naming what to change. The model authors the explanation only. A technical halt
+uses a short narration turn on the same evidence. If that turn fails, the card keeps its actions,
+the raw evidence, and the runtime instruction.
+_Avoid_: hardcoded halt copy, template error strings, "rolled back to stage X", a model-authored prescription
 
 **Halt question**:
 A typed message at a pause that asks about the run rather than instructing it. A model tells the
 two apart, so the decision holds in the language of the conversation; the regex plan-question path
-is English-only and never reaches here. The answer is written from the evidence the card was
-already built from, arrives as a transcript message, and leaves the run status and the card where
-they were. A question the evidence cannot answer says so. Answers are deduplicated by the identity
-of the question and the evidence, never rationed by a count.
-_Avoid_: a per-run question budget, keyword matching for "why", moving the run to answer it
+is English-only and never reaches here. Three outcomes: an answer, a message that was not a
+question, and an inability to answer. An unanswerable turn produces a card that says no explanation
+is available and keeps the raw evidence; it is never treated as an instruction. The answer is
+written from the evidence the card was already built from, arrives as a transcript message, and
+leaves the run status and the card where they were. Answers are deduplicated by the identity of
+the question and the evidence. Question turns do not spend the explanation budget. Rationing an
+author's questions by count is the thing to avoid; an absolute model-call ceiling a working
+conversation never reaches is a process-safety backstop, not that budget.
+_Avoid_: rationing questions by a per-run count, keyword matching for "why", moving the run to answer it
 
 **Failure routing** (decided):
 A recoverable halt is the only user-visible stop. Same-stage technical retry still runs first;
@@ -158,7 +159,8 @@ capability that emits the wrong number of completion signals, an artifact kind t
 declared, or a throwable nothing classified. It halts recoverably like every other outcome, and
 the card carries the run identifier the author hands to support, but it offers no Retry, because
 re-entering the stage meets the same defect. Owner diagnosis considers only earlier producers. The
-card binds a valid producer stage directly; without one, the run keeps waiting for conversation.
+card binds a valid producer stage directly. Without one, the card offers Stop with report so the
+author can end the run.
 _Avoid_: contract failure for a service defect, a Retry that cannot work, terminal FAILED
 
 **Causal reopen window** (decided):

@@ -48,6 +48,12 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
   public final AtomicReference<String> lastFindings = new AtomicReference<>();
   public final AtomicReference<String> lastClarifyRoles = new AtomicReference<>();
 
+  public final AtomicReference<String> lastRequestedFact = new AtomicReference<>();
+
+  public final AtomicReference<String> lastClarificationLocale = new AtomicReference<>();
+
+  private String clarificationQuestion = "";
+
   private FakeFailureNarrativeAgent(
       String narrative, List<String> ownerStageIds, boolean ambiguous, RuntimeException boom) {
     this(narrative, ownerStageIds, ambiguous, boom, null);
@@ -93,6 +99,14 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
   public FakeFailureNarrativeAgent remedying(String remedy, String instruction) {
     this.remedy = remedy == null ? "" : remedy;
     this.instruction = instruction == null ? "" : instruction;
+    return this;
+  }
+
+  /**
+   * Sets the model-authored clarification question this double returns.
+   */
+  public FakeFailureNarrativeAgent clarifying(String question) {
+    this.clarificationQuestion = question == null ? "" : question;
     return this;
   }
 
@@ -195,7 +209,24 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
     lastException.set(exceptionMessage);
     lastFindings.set(validationFindings);
     lastClarifyRoles.set(clarifyRoles);
-    return new OwnerDiagnosisDraft(narrative, nextOwnerStageId(), ambiguous, remedy, instruction);
+    return new OwnerDiagnosisDraft(narrative);
+  }
+
+  @Override
+  public String askClarification(
+      String responseLocale, String requestedFact, String stageId, String exceptionMessage) {
+    calls.incrementAndGet();
+    if (boom != null) {
+      throw boom;
+    }
+    waitOutTheDelay();
+    lastClarificationLocale.set(responseLocale);
+    lastRequestedFact.set(requestedFact);
+    lastException.set(exceptionMessage);
+    if (!clarificationQuestion.isBlank()) {
+      return clarificationQuestion;
+    }
+    return requestedFact == null ? "" : requestedFact;
   }
 
   @Override
