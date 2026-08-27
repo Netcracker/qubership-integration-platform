@@ -72,6 +72,20 @@ public record RequirementFact(
     return new RequirementFact(null, polarity, kind, capabilityKey, text);
   }
 
+  public RequirementFact withKind(RequirementFactKind newKind) {
+    return new RequirementFact(
+        sourceFactId,
+        polarity,
+        newKind,
+        capabilityKey,
+        text,
+        participant,
+        operation,
+        topic,
+        httpMethod,
+        path);
+  }
+
   public static String deriveSourceFactId(RequirementFactPolarity polarity, String text) {
     Objects.requireNonNull(polarity, "polarity");
     if (text == null || text.isBlank()) {

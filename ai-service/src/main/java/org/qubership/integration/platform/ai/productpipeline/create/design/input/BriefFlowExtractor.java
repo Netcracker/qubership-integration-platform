@@ -10,6 +10,7 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementTriggerRole;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
@@ -48,7 +49,7 @@ public final class BriefFlowExtractor {
       missing.add("goal / chain name");
     }
 
-    List<RequirementFact> endpoints = positive(brief, RequirementFactKind.ENDPOINT);
+    List<RequirementFact> endpoints = triggerFacts(brief);
     List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
     boolean scriptOnly = calls.isEmpty() && isScriptOnlyBrief(brief);
 
@@ -231,7 +232,7 @@ public final class BriefFlowExtractor {
       RequirementBrief brief, NormalizedDesignFlow authoredFlow) {
     Objects.requireNonNull(brief, "brief");
     Objects.requireNonNull(authoredFlow, "authoredFlow");
-    List<RequirementFact> endpoints = positive(brief, RequirementFactKind.ENDPOINT);
+    List<RequirementFact> endpoints = triggerFacts(brief);
     List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
     List<NormalizedDesignFlow.Step> serviceCallSteps =
         authoredFlow.steps().stream()
@@ -395,6 +396,14 @@ public final class BriefFlowExtractor {
   private static boolean looksLikeScriptFact(RequirementFact fact) {
     String key = fact.capabilityKey() == null ? "" : fact.capabilityKey();
     return key.contains("script");
+  }
+
+  private static List<RequirementFact> triggerFacts(RequirementBrief brief) {
+    List<RequirementFact> catalogTriggers = RequirementTriggerRole.positiveTriggers(brief.facts());
+    if (!catalogTriggers.isEmpty()) {
+      return catalogTriggers;
+    }
+    return positive(brief, RequirementFactKind.ENDPOINT);
   }
 
   private static List<RequirementFact> positive(RequirementBrief brief, RequirementFactKind kind) {

@@ -250,7 +250,20 @@ public sealed interface ChatEvent {
         || PipelineGates.STAGE_ESCALATED.equals(clarify.gateId())) {
       return clarify.missingEvidence();
     }
+    if (PipelineGates.MAPPING_GAP.equals(clarify.gateId())
+        && mappingGapSourceIsMissing(clarify.missingEvidence())) {
+      return List.of();
+    }
     return actionsForGate(clarify.gateId());
+  }
+
+  private static boolean mappingGapSourceIsMissing(List<String> missingEvidence) {
+    if (missingEvidence == null || missingEvidence.isEmpty()) {
+      return false;
+    }
+    return missingEvidence.stream()
+        .filter(Objects::nonNull)
+        .anyMatch(line -> line.contains("no ENDPOINT fact") || line.contains("no trigger"));
   }
 
   static ChatEvent error(String message) {

@@ -1400,6 +1400,101 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void kafkaCapabilityTriggerReachesDeriveWithoutAMappingGap() {
+    DesignInputCapability capability = capabilityWithFixedGenerate("unused");
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Kafka pet lookup",
+            List.of("topic: user/events"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Consume Kafka user events and look up a pet",
+            "draft-1",
+            "draft",
+            List.of(
+                kafkaCapabilityTrigger(),
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Look up a pet in Petstore Ext",
+                    "Petstore Ext",
+                    "getPetById")),
+            List.of());
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Derive minimal IDS",
+                    "requirementBrief",
+                    brief)));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
+    assertFalse(
+        prepared.message() != null && prepared.message().contains(PipelineGates.MAPPING_GAP),
+        prepared.message());
+    assertEquals("kafka", flowPayload(prepared).trigger().kind());
+    assertEquals("user/events", flowPayload(prepared).trigger().endpointOrTopic());
+    assertEquals(1, flowPayload(prepared).dataMappings().size());
+    assertEquals(
+        NormalizedDesignFlow.MappingMode.PASS_THROUGH,
+        flowPayload(prepared).dataMappings().getFirst().mode());
+    assertEquals(
+        NormalizedDesignFlow.MappingStage.INITIALIZATION,
+        flowPayload(prepared).dataMappings().getFirst().stage());
+  }
+
+  @Test
+  void serviceCallWithoutATriggerDoesNotOfferMappingGapActions() {
+    DesignInputCapability capability = capabilityWithFixedGenerate("unused");
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Pet lookup",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Look up a pet",
+            "draft-1",
+            "draft",
+            List.of(
+                serviceCall(
+                    "call-1",
+                    "http-service-call",
+                    "Look up a pet in Petstore Ext",
+                    "Petstore Ext",
+                    "getPetById")),
+            List.of());
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    "userText",
+                    "Derive minimal IDS",
+                    "requirementBrief",
+                    brief)));
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass(), prepared.message());
+    assertTrue(
+        prepared.message() != null && prepared.message().contains("configured trigger entry"),
+        prepared.message());
+    assertFalse(
+        prepared.message() != null && prepared.message().contains(PipelineGates.MAPPING_GAP),
+        prepared.message());
+  }
+
+  @Test
   void deriveTreatsMissingApprovedTriggerIdentityAsARecoverableValidationFailure() {
     DesignInputCapability capability = capabilityWithFixedGenerate("unused");
     RequirementBrief briefMissingPath =
@@ -1447,6 +1542,20 @@ class DesignInputCapabilityTest {
     // The approved brief owns the missing trigger identity, so recovery must reopen its producer.
     assertEquals(StageOutcomeClass.VALIDATION_FAILURE, prepared.outcomeClass());
     assertTrue(prepared.message().contains("approved requirement brief"), prepared.message());
+  }
+
+  private static RequirementFact kafkaCapabilityTrigger() {
+    return new RequirementFact(
+        "trigger-1",
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY,
+        "kafka-trigger-2",
+        "Consume user events",
+        "",
+        "consumeUserEvent",
+        "user/events",
+        "",
+        "");
   }
 
   private static RequirementFact fact(

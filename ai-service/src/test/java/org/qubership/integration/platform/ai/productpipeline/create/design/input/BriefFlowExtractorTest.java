@@ -223,6 +223,37 @@ class BriefFlowExtractorTest {
   }
 
   @Test
+  void kafkaCapabilityKindStillExtractsAKafkaTrigger() {
+    RequirementBrief brief =
+        brief(
+            "Kafka pet lookup",
+            List.of("topic: user/events", "operation: consumeUserEvent"),
+            "Consume Kafka user events and look up a pet",
+            List.of(
+                new RequirementFact(
+                    "trigger-1",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "kafka-trigger-2",
+                    "Consume user events",
+                    "",
+                    "consumeUserEvent",
+                    "user/events",
+                    "",
+                    ""),
+                serviceCall("call-1", "Look up a pet in Petstore Ext", "Petstore Ext", "getPetById")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals("kafka", flow.trigger().kind());
+    assertEquals("user/events", flow.trigger().endpointOrTopic());
+    assertEquals("consumeUserEvent", flow.trigger().operationName());
+  }
+
+  @Test
   void kafkaTriggerWithCatalogServiceCallDoesNotDemandHttpPath() {
     RequirementBrief brief =
         brief(

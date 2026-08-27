@@ -254,6 +254,14 @@ public class RequirementDraftTool {
             conversationId, duplicateFactError);
         return finish(conversationId, startMs, duplicateFactError);
       }
+      try {
+        facts = RequirementTriggerRole.canonicalize(facts);
+      } catch (IllegalArgumentException ex) {
+        LOG.warnf(
+            "captureRequirementDraft: trigger kind rejected conversationId=%s reason=%s",
+            conversationId, ex.getMessage());
+        return finish(conversationId, startMs, ex.getMessage());
+      }
 
       ResolvedCatalogBinding binding =
           ResolvedCatalogBinding.enrichFromCache(

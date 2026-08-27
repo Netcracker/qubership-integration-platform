@@ -154,6 +154,19 @@ public class RequirementBriefTool {
         // LLM often paraphrases or omits sourceFactId. Draft facts are already normalized —
         // pin them so coverage cannot fail on id drift while keeping the agent's prose fields.
         brief = pinApprovedDraftFacts(brief, approved.get());
+      } else if (ProductCapabilityCaptureContext.isBound()) {
+        String message = "approved draft is required before capturing a requirement brief";
+        return finish(conversationId, startMs, message);
+      }
+      try {
+        brief = withCanonicalTriggerFacts(brief);
+      } catch (IllegalArgumentException ex) {
+        LOG.warnf(
+            "captureRequirementBrief: trigger kind rejected conversationId=%s reason=%s",
+            conversationId, ex.getMessage());
+        return finish(conversationId, startMs, ex.getMessage());
+      }
+      if (approved.isPresent()) {
         Optional<String> coverageError = coverageValidator.validate(approved.get(), brief);
         if (coverageError.isPresent()) {
           String message = "Requirement brief coverage failed: " + coverageError.get();
@@ -167,9 +180,6 @@ public class RequirementBriefTool {
           }
           return finish(conversationId, startMs, message);
         }
-      } else if (ProductCapabilityCaptureContext.isBound()) {
-        String message = "approved draft is required before capturing a requirement brief";
-        return finish(conversationId, startMs, message);
       }
 
       CaptureKey key = CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId);
@@ -214,6 +224,24 @@ public class RequirementBriefTool {
         brief.approvedDraftReference(),
         approved.planningText(),
         approved.facts(),
+        brief.dataMappings());
+  }
+
+  static RequirementBrief withCanonicalTriggerFacts(RequirementBrief brief) {
+    List<RequirementFact> canonical = RequirementTriggerRole.canonicalize(brief.facts());
+    if (canonical.equals(brief.facts())) {
+      return brief;
+    }
+    return new RequirementBrief(
+        brief.goal(),
+        brief.inputs(),
+        brief.constraints(),
+        brief.assumptions(),
+        brief.citations(),
+        brief.summary(),
+        brief.approvedDraftReference(),
+        brief.approvedDraftText(),
+        canonical,
         brief.dataMappings());
   }
 
