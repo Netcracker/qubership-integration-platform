@@ -28,6 +28,14 @@ public final class BriefMappingValidator {
   private BriefMappingValidator() {}
 
   /**
+   * Mapping may sit only on a site with exactly one incoming execution edge. Reconvergence is
+   * not a mapping endpoint while generic aggregate is unsupported.
+   */
+  public static boolean isMappingEndpoint(int incomingExecutionEdges, boolean reconvergence) {
+    return incomingExecutionEdges == 1 && !reconvergence;
+  }
+
+  /**
    * Classifies candidate rules against known contracts. Returns empty when the boundary is
    * identity-only AUTO and has no other rules.
    */
