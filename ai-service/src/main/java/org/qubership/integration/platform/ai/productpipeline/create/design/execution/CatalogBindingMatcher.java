@@ -3,9 +3,11 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -13,7 +15,9 @@ import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 
 /**
  * Read-only local-catalog matcher for catalog-first binding resolution. Never queries APIHub and
@@ -200,6 +204,45 @@ public class CatalogBindingMatcher {
             op.path(),
             op.name(),
             "catalog-revalidate:" + systemId + "/" + specificationId + "/" + integrationOperationId));
+  }
+
+  /**
+   * Indexes resolved bindings by {@code serviceCallId}. Matching is exact owner identity: the same
+   * operation UUID on two occurrences stays two keys. Missing, duplicate, or extra bindings fail
+   * fast. Participant names and operation text are not consulted.
+   */
+  public Map<String, CatalogBindingResolution> match(
+      List<SemanticNode.ServiceCall> calls, List<CatalogBindingResolution> bindings) {
+    Objects.requireNonNull(calls, "calls");
+    Objects.requireNonNull(bindings, "bindings");
+    Map<String, CatalogBindingResolution> byId = new LinkedHashMap<>();
+    for (CatalogBindingResolution binding : bindings) {
+      if (binding == null) {
+        throw new IllegalArgumentException("catalog binding is required");
+      }
+      CatalogBindingResolution previous = byId.putIfAbsent(binding.serviceCallId(), binding);
+      if (previous != null) {
+        throw new IllegalArgumentException(
+            "duplicate catalog binding for serviceCallId=" + binding.serviceCallId());
+      }
+    }
+    Map<String, CatalogBindingResolution> matched = new LinkedHashMap<>();
+    for (SemanticNode.ServiceCall call : calls) {
+      if (call == null) {
+        throw new IllegalArgumentException("service call is required");
+      }
+      CatalogBindingResolution binding = byId.remove(call.serviceCallId());
+      if (binding == null) {
+        throw new IllegalArgumentException(
+            "missing catalog binding for serviceCallId=" + call.serviceCallId());
+      }
+      matched.put(call.serviceCallId(), binding);
+    }
+    if (!byId.isEmpty()) {
+      throw new IllegalArgumentException(
+          "extra catalog binding for serviceCallId=" + byId.keySet().iterator().next());
+    }
+    return Map.copyOf(matched);
   }
 
   private static String resolveServiceName(

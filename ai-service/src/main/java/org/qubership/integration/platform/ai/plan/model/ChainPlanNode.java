@@ -1,9 +1,11 @@
 package org.qubership.integration.platform.ai.plan.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * A single element node in the plan graph.
@@ -36,4 +38,34 @@ public record ChainPlanNode(
         @Description(
             "Catalog properties as [{key,value}, ...]. Script body uses key 'script'."
                 + " Prefer [] when only changing label. Never put a bare Groovy string in this array.")
-        List<PlanProperty> properties) {}
+        List<PlanProperty> properties) {
+
+  /** Owner id stored under reserved property {@code serviceCallId}. Empty when absent. */
+  @JsonIgnore
+  public Optional<String> serviceCallId() {
+    return reservedProperty("serviceCallId");
+  }
+
+  /** Semantic node id stored under reserved property {@code semanticNodeId}. Empty when absent. */
+  @JsonIgnore
+  public Optional<String> semanticNodeId() {
+    return reservedProperty("semanticNodeId");
+  }
+
+  private Optional<String> reservedProperty(String key) {
+    if (properties == null) {
+      return Optional.empty();
+    }
+    for (PlanProperty property : properties) {
+      if (property == null || !key.equals(property.key())) {
+        continue;
+      }
+      String value = property.value();
+      if (value == null || value.isBlank()) {
+        return Optional.empty();
+      }
+      return Optional.of(value);
+    }
+    return Optional.empty();
+  }
+}

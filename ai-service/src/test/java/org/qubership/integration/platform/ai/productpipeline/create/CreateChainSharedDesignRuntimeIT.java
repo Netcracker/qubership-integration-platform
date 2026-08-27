@@ -450,7 +450,7 @@ class CreateChainSharedDesignRuntimeIT {
             .orElseThrow();
     assertEquals("sys-om", om.systemId());
     assertEquals("sys-wfm", wfm.systemId());
-    assertFalse(om.serviceCallStepId().equals(wfm.serviceCallStepId()));
+    assertFalse(om.serviceCallId().equals(wfm.serviceCallId()));
   }
 
   @Test

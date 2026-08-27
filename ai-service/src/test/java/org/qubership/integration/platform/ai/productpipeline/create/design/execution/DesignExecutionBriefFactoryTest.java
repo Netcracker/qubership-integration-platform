@@ -200,8 +200,8 @@ class DesignExecutionBriefFactoryTest {
         DesignExecutionBriefFactory.build(null, flow, List.of(first, second));
 
     assertTrue(brief.approvedDraftText().startsWith("Resolved catalog bindings"));
-    assertTrue(brief.approvedDraftText().contains("serviceCallStepId: step-om"));
-    assertTrue(brief.approvedDraftText().contains("serviceCallStepId: step-wfm"));
+    assertTrue(brief.approvedDraftText().contains("serviceCallId: step-om"));
+    assertTrue(brief.approvedDraftText().contains("serviceCallId: step-wfm"));
   }
 
   @Test

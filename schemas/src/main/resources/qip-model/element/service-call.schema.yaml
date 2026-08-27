@@ -58,6 +58,21 @@ properties:
           - $ref: "#/definitions/AuthorizationBasic"
           - $ref: "#/definitions/AuthorizationBearerToken"
           - $ref: "#/definitions/AuthorizationM2MToken"
+      serviceCallId:
+        type: string
+        title: Service call id
+        description: Immutable owner of this service-call occurrence.
+        readOnly: true
+      semanticRevisionId:
+        type: string
+        title: Semantic revision id
+        description: Semantic revision that compiled this element.
+        readOnly: true
+      semanticNodeId:
+        type: string
+        title: Semantic node id
+        description: Semantic node that compiled this element.
+        readOnly: true
     required:
       - retryCount
       - retryDelay

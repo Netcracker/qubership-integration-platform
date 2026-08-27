@@ -524,7 +524,7 @@ public class CipDesignExecutorJavaAdapter {
                 .map(
                     binding ->
                         new ApiOperationBindings.Binding(
-                            binding.serviceCallStepId(),
+                            binding.serviceCallId(),
                             binding.systemId(),
                             binding.specificationGroupId(),
                             binding.specificationId(),

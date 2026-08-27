@@ -500,6 +500,50 @@ class ChainPlanPropertiesMaterializerTest {
   }
 
   @Test
+  void patchesServiceCallIdentityPropertiesOntoTheCatalogElement() {
+    when(schemaService.allowedPatchPropertyKeys("service-call"))
+        .thenReturn(Set.of("integrationOperationId"));
+    when(schemaService.validateElementPatch(eq("service-call"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("pet-lookup", null),
+            List.of(
+                new ChainPlanNode(
+                    "node-a",
+                    "service-call",
+                    "Get Order",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("serviceCallId", "call-a"),
+                        new PlanProperty("semanticRevisionId", "rev-1"),
+                        new PlanProperty("semanticNodeId", "node-a"),
+                        new PlanProperty("integrationOperationId", "op-shared")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("node-a", "el-1"));
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> materializedProperties =
+        (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("call-a", materializedProperties.get("serviceCallId"));
+    assertEquals("node-a", materializedProperties.get("semanticNodeId"));
+    assertEquals("rev-1", materializedProperties.get("semanticRevisionId"));
+    assertEquals("op-shared", materializedProperties.get("integrationOperationId"));
+  }
+
+  @Test
   void mergesCurrentCatalogPropertiesSoNameOnlyPatchKeepsDefaults() throws Exception {
     when(schemaService.allowedPatchPropertyKeys("catch-2")).thenReturn(Set.of("exception", "priority"));
     when(schemaService.validateElementPatch(eq("catch-2"), anyString()))
