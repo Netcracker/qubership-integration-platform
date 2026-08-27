@@ -235,10 +235,10 @@ public class MicroDomainService {
             return false;
         }
         ResourceKey key = new ResourceKey(object.getKind(), object.getMetadata().getName());
-        Optional<V1ObjectMeta> observation = observations.get(key);
-        if (observation == null) {
+        if (!observations.containsKey(key)) {
             return false;
         }
+        Optional<V1ObjectMeta> observation = observations.get(key);
         if (observation.isEmpty()) {
             return true;
         }
