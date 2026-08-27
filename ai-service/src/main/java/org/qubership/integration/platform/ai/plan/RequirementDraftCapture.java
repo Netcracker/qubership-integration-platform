@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 
@@ -12,7 +13,7 @@ public record RequirementDraftCapture(
     DraftDecision decision,
     List<String> openQuestions,
     ApiHubRequirementRefs apiHubCandidate,
-    ResolvedCatalogBinding catalogBinding,
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY) ResolvedCatalogBinding catalogBinding,
     List<RequirementFact> facts,
     String designModeHint) {
 

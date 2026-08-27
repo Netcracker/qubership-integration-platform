@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
@@ -13,12 +14,12 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 /**
  * API-resolution assessments produced during requirement gathering, kept per conversation.
  *
- * <p>A chain that calls several services resolves each call on its own turn. Keying by source fact
- * lets a later stage tell which call an answer belongs to, so an unresolved call cannot borrow the
- * binding of a resolved one, and a resolved call is never searched for again.
+ * <p>A chain that calls several services resolves each call on its own turn. Keying by {@code
+ * serviceCallId} lets a later stage tell which call an answer belongs to, so an unresolved call
+ * cannot borrow the binding of a resolved one, and a resolved call is never searched for again.
  *
- * <p>Re-resolving the same fact replaces its assessment: the newest answer is the only one that
- * counts.
+ * <p>Re-resolving the same call replaces its assessment: the newest answer is the only one that
+ * counts. This map is process memory only; the requirement draft is the durable source of truth.
  */
 @ApplicationScoped
 public class ConversationApiResolutions {
@@ -33,25 +34,54 @@ public class ConversationApiResolutions {
     }
     byConversation
         .computeIfAbsent(id, ignored -> Collections.synchronizedMap(new LinkedHashMap<>()))
-        .put(assessment.sourceFactId(), assessment);
+        .put(assessment.serviceCallId(), assessment);
   }
 
-  /** Every assessment this conversation produced, in insertion order of the source facts. */
+  /** Every assessment this conversation produced, in insertion order of the service calls. */
   public List<ServiceCallAssessment> assessments(String conversationId) {
-    return List.copyOf(byFact(conversationId).values());
+    return List.copyOf(byServiceCall(conversationId).values());
   }
 
-  public Optional<ServiceCallAssessment> forFact(String conversationId, String sourceFactId) {
-    String factId = CatalogStrings.blankToNull(sourceFactId);
-    if (factId == null) {
+  public Optional<ServiceCallAssessment> forServiceCall(
+      String conversationId, String serviceCallId) {
+    String callId = CatalogStrings.blankToNull(serviceCallId);
+    if (callId == null) {
       return Optional.empty();
     }
-    return Optional.ofNullable(byFact(conversationId).get(factId));
+    return Optional.ofNullable(byServiceCall(conversationId).get(callId));
+  }
+
+  /**
+   * @deprecated Use {@link #forServiceCall(String, String)}. Kept for one release so in-flight
+   *     discovery work can migrate without an all-at-once edit.
+   */
+  @Deprecated
+  public Optional<ServiceCallAssessment> forFact(String conversationId, String sourceFactId) {
+    return forServiceCall(conversationId, sourceFactId);
+  }
+
+  /** Drops assessments whose service-call ids are no longer in the captured draft. */
+  public void retainServiceCalls(String conversationId, Set<String> serviceCallIds) {
+    String id = CatalogStrings.blankToNull(conversationId);
+    if (id == null) {
+      return;
+    }
+    Map<String, ServiceCallAssessment> assessments = byConversation.get(id);
+    if (assessments == null) {
+      return;
+    }
+    Set<String> keep = serviceCallIds == null ? Set.of() : serviceCallIds;
+    synchronized (assessments) {
+      assessments.keySet().removeIf(key -> !keep.contains(key));
+      if (assessments.isEmpty()) {
+        byConversation.remove(id, assessments);
+      }
+    }
   }
 
   /** Catalog matches this conversation resolved, newest per operation. */
   public List<CatalogBindingMatcher.CatalogMatch> resolved(String conversationId) {
-    return byFact(conversationId).values().stream()
+    return byServiceCall(conversationId).values().stream()
         .filter(ServiceCallAssessment::isResolved)
         .map(ServiceCallAssessment::binding)
         .toList();
@@ -64,7 +94,7 @@ public class ConversationApiResolutions {
     }
   }
 
-  private Map<String, ServiceCallAssessment> byFact(String conversationId) {
+  private Map<String, ServiceCallAssessment> byServiceCall(String conversationId) {
     String id = CatalogStrings.blankToNull(conversationId);
     if (id == null) {
       return Map.of();

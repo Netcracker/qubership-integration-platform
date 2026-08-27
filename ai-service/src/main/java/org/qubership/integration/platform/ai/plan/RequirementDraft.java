@@ -1,10 +1,17 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /** Iterative requirement vision accumulated before the compiler spine runs. */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record RequirementDraft(
     boolean complete,
     String assembledText,
@@ -14,11 +21,12 @@ public record RequirementDraft(
     String sourceSkillVersion,
     String sourceSkillHash,
     ApiHubRequirementRefs apiHubCandidate,
-    ResolvedCatalogBinding catalogBinding,
+    @JsonInclude(JsonInclude.Include.NON_NULL) ResolvedCatalogBinding catalogBinding,
     boolean awaitingPlanContinuation,
     List<RequirementFact> facts,
     boolean importIntent,
-    DesignMode designModeHint) {
+    DesignMode designModeHint,
+    List<RequirementServiceCall> serviceCalls) {
 
   public RequirementDraft {
     decision = decision != null ? decision : decisionFromComplete(complete);
@@ -27,6 +35,23 @@ public record RequirementDraft(
     sourceSkillHash =
         sourceSkillHash != null && !sourceSkillHash.isBlank() ? sourceSkillHash.trim() : null;
     facts = facts == null ? List.of() : List.copyOf(facts);
+    if (serviceCalls == null || serviceCalls.isEmpty()) {
+      serviceCalls = serviceCallsFromFacts(facts);
+    } else {
+      serviceCalls = List.copyOf(serviceCalls);
+    }
+    if (serviceCalls.size() == 1 && catalogBinding != null) {
+      RequirementServiceCall only = serviceCalls.getFirst();
+      if (only.catalogBinding() == null) {
+        RequirementServiceCall promoted = promoteLegacyBinding(only, catalogBinding);
+        if (promoted.catalogBinding() != null) {
+          serviceCalls = List.of(promoted);
+          catalogBinding = null;
+        }
+      }
+    } else if (serviceCalls.size() > 1) {
+      catalogBinding = null;
+    }
     complete = decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
   }
 
@@ -178,6 +203,37 @@ public record RequirementDraft(
         null);
   }
 
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      ResolvedCatalogBinding catalogBinding,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      DesignMode designModeHint) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        catalogBinding,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        designModeHint,
+        List.of());
+  }
+
   public boolean readyForPlan() {
     return decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
   }
@@ -219,7 +275,8 @@ public record RequirementDraft(
         false,
         facts,
         false,
-        designModeHint);
+        designModeHint,
+        serviceCalls);
   }
 
   public RequirementDraft withAwaitingPlanContinuation(boolean awaiting) {
@@ -236,7 +293,8 @@ public record RequirementDraft(
         awaiting,
         facts,
         importIntent,
-        designModeHint);
+        designModeHint,
+        serviceCalls);
   }
 
   /**
@@ -257,7 +315,8 @@ public record RequirementDraft(
         false,
         facts,
         true,
-        designModeHint);
+        designModeHint,
+        serviceCalls);
   }
 
   /** Clears the pending candidate while keeping {@link #importIntent()} for re-gather. */
@@ -275,7 +334,8 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         importIntent,
-        designModeHint);
+        designModeHint,
+        serviceCalls);
   }
 
   public RequirementDraft withImportIntent(boolean intent) {
@@ -292,7 +352,8 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         intent,
-        designModeHint);
+        designModeHint,
+        serviceCalls);
   }
 
   public RequirementDraft withFacts(List<RequirementFact> nextFacts) {
@@ -309,10 +370,65 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         nextFacts,
         importIntent,
-        designModeHint);
+        designModeHint,
+        List.of());
   }
 
   private static DraftDecision decisionFromComplete(boolean complete) {
     return complete ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT;
+  }
+
+  private static List<RequirementServiceCall> serviceCallsFromFacts(List<RequirementFact> facts) {
+    List<RequirementServiceCall> calls = new ArrayList<>();
+    for (RequirementFact fact : facts) {
+      if (fact == null
+          || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || fact.kind() != RequirementFactKind.SERVICE_CALL) {
+        continue;
+      }
+      calls.add(
+          new RequirementServiceCall(
+              fact.serviceCallId(),
+              fact.sourceFactId(),
+              fact.participant(),
+              fact.operation()));
+    }
+    return List.copyOf(calls);
+  }
+
+  private static RequirementServiceCall promoteLegacyBinding(
+      RequirementServiceCall call, ResolvedCatalogBinding binding) {
+    if (binding.optionalOperationId().isEmpty()
+        || binding.systemId() == null
+        || binding.systemId().isBlank()
+        || binding.specificationId() == null
+        || binding.specificationId().isBlank()
+        || binding.specificationGroupId() == null
+        || binding.specificationGroupId().isBlank()) {
+      return call;
+    }
+    String operationQuery = call.operation().isBlank() ? "service-call" : call.operation();
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            "2",
+            call.serviceCallId().isBlank() ? call.sourceFactId() : call.serviceCallId(),
+            call.sourceFactId(),
+            operationQuery,
+            binding.systemId(),
+            binding.specificationGroupId(),
+            binding.specificationId(),
+            binding.integrationOperationId(),
+            null,
+            null,
+            null,
+            "catalog",
+            Instant.EPOCH,
+            "legacy-catalog-binding");
+    return new RequirementServiceCall(
+        call.serviceCallId(),
+        call.sourceFactId(),
+        call.participant(),
+        call.operation(),
+        hint);
   }
 }

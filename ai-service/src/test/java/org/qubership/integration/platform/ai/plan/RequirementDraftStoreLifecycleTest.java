@@ -2,16 +2,21 @@ package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class RequirementDraftStoreLifecycleTest {
 
@@ -50,6 +55,92 @@ class RequirementDraftStoreLifecycleTest {
   }
 
   @Test
+  void reconstructingStoreRecoversPerCallBindings() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    CatalogBindingHint omHint =
+        new CatalogBindingHint(
+            "2",
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-shared",
+            "http",
+            "POST",
+            "/tasks/result",
+            "2024.4",
+            observedAt,
+            "evidence-om");
+    CatalogBindingHint wfmHint =
+        new CatalogBindingHint(
+            "2",
+            "call-wfm-create-task",
+            "fact-wfm",
+            "createTask",
+            "sys-wfm",
+            "sg-wfm",
+            "spec-wfm",
+            "op-shared",
+            "http",
+            "POST",
+            "/tasks",
+            "2024.4",
+            observedAt,
+            "evidence-wfm");
+    RequirementDraft draft =
+        new RequirementDraft(
+            true,
+            "Call OM then Salesforce WFM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            null,
+            false,
+            List.of(
+                serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult"),
+                serviceCallFact(
+                    "fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask")),
+            false,
+            null,
+            List.of(
+                new RequirementServiceCall(
+                    "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint),
+                new RequirementServiceCall(
+                    "call-wfm-create-task",
+                    "fact-wfm",
+                    "Salesforce WFM",
+                    "createTask",
+                    wfmHint)));
+
+    InMemoryArtifactBlobStore blobStore = new InMemoryArtifactBlobStore();
+    TestRuntime first = runtime(blobStore);
+    first.store().put("conversation-1", draft);
+    assertEquals(
+        "2",
+        first
+            .store()
+            .latestRevision("conversation-1")
+            .orElseThrow()
+            .schemaVersion());
+
+    RequirementDraft recovered = runtime(blobStore).store().get("conversation-1").orElseThrow();
+
+    assertEquals(2, recovered.serviceCalls().size());
+    assertEquals("call-om-result", recovered.serviceCalls().get(0).serviceCallId());
+    assertEquals("call-wfm-create-task", recovered.serviceCalls().get(1).serviceCallId());
+    assertEquals("op-shared", recovered.serviceCalls().get(0).catalogBinding().integrationOperationId());
+    assertEquals("op-shared", recovered.serviceCalls().get(1).catalogBinding().integrationOperationId());
+    assertEquals("sys-om", recovered.serviceCalls().get(0).catalogBinding().systemId());
+    assertEquals("sys-wfm", recovered.serviceCalls().get(1).catalogBinding().systemId());
+    assertNull(recovered.catalogBinding());
+  }
+
+  @Test
   void reconstructingStoreRecoversActiveDraft() {
     InMemoryArtifactBlobStore blobStore = new InMemoryArtifactBlobStore();
     runtime(blobStore).store().put("conversation-1", new RequirementDraft(true, "saved draft"));
@@ -57,6 +148,22 @@ class RequirementDraftStoreLifecycleTest {
     RequirementDraft recovered = runtime(blobStore).store().get("conversation-1").orElseThrow();
 
     assertEquals("saved draft", recovered.assembledText());
+  }
+
+  private static RequirementFact serviceCallFact(
+      String sourceFactId, String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        sourceFactId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
   }
 
   private static TestRuntime runtime(InMemoryArtifactBlobStore blobStore) {

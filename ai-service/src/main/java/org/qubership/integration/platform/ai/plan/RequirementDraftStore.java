@@ -54,7 +54,7 @@ public class RequirementDraftStore {
         new AppendCommand(
             compilationId,
             Kind.REQUIREMENT_DRAFT,
-            "1",
+            "2",
             draft.sourceSkillId() != null ? draft.sourceSkillId() : "requirement-draft-store",
             draft.sourceSkillVersion(),
             draft,
@@ -237,7 +237,8 @@ public class RequirementDraftStore {
               next.awaitingPlanContinuation(),
               next.facts(),
               true,
-              next.designModeHint());
+              next.designModeHint(),
+              next.serviceCalls());
     }
     if (next != current) {
       put(conversationId, next);

@@ -292,6 +292,79 @@ class CreateChainArtifactContractsTest {
   }
 
   @Test
+  void roundTripsCatalogBindingHintV2() {
+    CatalogBindingHint omHint =
+        new CatalogBindingHint(
+            "2",
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-shared",
+            "http",
+            "POST",
+            "/tasks/result",
+            "2024.4",
+            FIXED_INSTANT,
+            "evidence-om");
+    CatalogBindingHint wfmHint =
+        new CatalogBindingHint(
+            "2",
+            "call-wfm-create-task",
+            "fact-wfm",
+            "createTask",
+            "sys-wfm",
+            "sg-wfm",
+            "spec-wfm",
+            "op-shared",
+            "http",
+            "POST",
+            "/tasks",
+            "2024.4",
+            FIXED_INSTANT,
+            "evidence-wfm");
+
+    CatalogBindingHint restoredOm = roundTrip(Kind.CATALOG_BINDING_HINT, omHint);
+    CatalogBindingHint restoredWfm = roundTrip(Kind.CATALOG_BINDING_HINT, wfmHint);
+
+    assertEquals("call-om-result", restoredOm.serviceCallId());
+    assertEquals("call-wfm-create-task", restoredWfm.serviceCallId());
+    assertEquals("op-shared", restoredOm.integrationOperationId());
+    assertEquals("op-shared", restoredWfm.integrationOperationId());
+    assertEquals("POST", restoredOm.method());
+    assertEquals("/tasks", restoredWfm.path());
+    assertEquals(omHint, restoredOm);
+    assertEquals(wfmHint, restoredWfm);
+  }
+
+  @Test
+  void readsV1HintServiceCallSourceFactIdAsServiceCallId() throws Exception {
+    String v1 =
+        """
+        {
+          "schemaVersion": "1",
+          "serviceCallSourceFactId": "fact-1",
+          "operationQuery": "get order",
+          "systemId": "sys-1",
+          "specificationGroupId": "sg-1",
+          "specificationId": "spec-1",
+          "integrationOperationId": "op-1",
+          "release": "2024.4",
+          "observedAt": "2026-07-29T12:00:00Z",
+          "evidenceRef": "evidence-1"
+        }
+        """;
+
+    CatalogBindingHint hint = mapper.readValue(v1, CatalogBindingHint.class);
+
+    assertEquals("fact-1", hint.serviceCallId());
+    assertEquals("fact-1", hint.sourceFactId());
+    assertEquals("get order", hint.operationQuery());
+  }
+
+  @Test
   void missingCollectionsNormalizeToImmutableEmptyLists() {
     NormalizedDesignFlow flow =
         new NormalizedDesignFlow(

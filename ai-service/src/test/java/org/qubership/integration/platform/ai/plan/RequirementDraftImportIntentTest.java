@@ -121,6 +121,91 @@ class RequirementDraftImportIntentTest {
   }
 
   @Test
+  void legacySingletonPromotesToOnlyServiceCall() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    String legacy =
+        """
+        {
+          "complete": true,
+          "assembledText": "HTTP then Petstore Ext getInventory",
+          "decision": "READY_FOR_PLAN",
+          "openQuestions": [],
+          "catalogBinding": {
+            "systemId": "sys-1",
+            "specificationId": "spec-1",
+            "specificationGroupId": "group-1",
+            "integrationOperationId": "op-1"
+          },
+          "facts": [
+            {
+              "polarity": "POSITIVE",
+              "kind": "SERVICE_CALL",
+              "text": "Petstore Ext getInventory",
+              "participant": "Petstore Ext",
+              "operation": "getInventory"
+            }
+          ]
+        }
+        """;
+
+    RequirementDraft draft = mapper.readValue(legacy, RequirementDraft.class);
+
+    assertEquals(1, draft.serviceCalls().size());
+    assertEquals("getInventory", draft.serviceCalls().getFirst().operation());
+    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
+    assertEquals("op-1", draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
+    assertFalse(draft.serviceCalls().getFirst().serviceCallId().isBlank());
+    assertNull(draft.catalogBinding());
+  }
+
+  @Test
+  void legacySingletonDoesNotBindMultipleServiceCalls() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    String legacy =
+        """
+        {
+          "complete": false,
+          "assembledText": "Call OM then Salesforce WFM",
+          "decision": "NEEDS_INPUT",
+          "openQuestions": [],
+          "catalogBinding": {
+            "systemId": "sys-shared",
+            "specificationId": "spec-shared",
+            "specificationGroupId": "group-shared",
+            "integrationOperationId": "op-shared"
+          },
+          "facts": [
+            {
+              "polarity": "POSITIVE",
+              "kind": "SERVICE_CALL",
+              "text": "Call OM onTaskResult",
+              "participant": "Order Management",
+              "operation": "onTaskResult",
+              "serviceCallId": "call-om-result"
+            },
+            {
+              "polarity": "POSITIVE",
+              "kind": "SERVICE_CALL",
+              "text": "Call Salesforce WFM createTask",
+              "participant": "Salesforce WFM",
+              "operation": "createTask",
+              "serviceCallId": "call-wfm-create-task"
+            }
+          ]
+        }
+        """;
+
+    RequirementDraft draft = mapper.readValue(legacy, RequirementDraft.class);
+
+    assertEquals(2, draft.serviceCalls().size());
+    assertEquals("call-om-result", draft.serviceCalls().get(0).serviceCallId());
+    assertEquals("call-wfm-create-task", draft.serviceCalls().get(1).serviceCallId());
+    assertNull(draft.serviceCalls().get(0).catalogBinding());
+    assertNull(draft.serviceCalls().get(1).catalogBinding());
+    assertNull(draft.catalogBinding());
+  }
+
+  @Test
   void ensureImportIntentDoesNotOverwriteExistingVision() {
     RequirementDraftStore store = new RequirementDraftStore();
     store.put("conv-keep", new RequirementDraft(false, "existing vision").withImportIntent(false));

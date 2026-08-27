@@ -23,7 +23,9 @@ public record RequirementFact(
         String operation,
     @Description("Kafka topic when capabilityKey is kafka-trigger-2") String topic,
     @Description("HTTP method when capabilityKey is http-trigger, e.g. GET") String httpMethod,
-    @Description("HTTP path when capabilityKey is http-trigger, e.g. /pet/{petId}") String path) {
+    @Description("HTTP path when capabilityKey is http-trigger, e.g. /pet/{petId}") String path,
+    @Description("Stable SERVICE_CALL occurrence id; empty for other fact kinds")
+        String serviceCallId) {
 
   public RequirementFact {
     Objects.requireNonNull(polarity, "polarity");
@@ -42,16 +44,32 @@ public record RequirementFact(
         capabilityKey == null || capabilityKey.isBlank()
             ? ""
             : capabilityKey.trim().toLowerCase(Locale.ROOT);
-    if (sourceFactId == null || sourceFactId.isBlank()) {
-      sourceFactId = deriveSourceFactId(polarity, text);
-    } else {
-      sourceFactId = sourceFactId.trim();
-    }
     participant = blankToEmpty(participant);
     operation = blankToEmpty(operation);
     topic = blankToEmpty(topic);
     httpMethod = blankToEmpty(httpMethod);
     path = blankToEmpty(path);
+    if (kind == RequirementFactKind.SERVICE_CALL) {
+      String trimmedCallId = blankToEmpty(serviceCallId);
+      if (!trimmedCallId.isEmpty()) {
+        serviceCallId = trimmedCallId;
+        sourceFactId =
+            sourceFactId == null || sourceFactId.isBlank() ? serviceCallId : sourceFactId.trim();
+      } else if (sourceFactId == null || sourceFactId.isBlank()) {
+        sourceFactId = deriveSourceFactId(polarity, text);
+        serviceCallId = sourceFactId;
+      } else {
+        sourceFactId = sourceFactId.trim();
+        serviceCallId = sourceFactId;
+      }
+    } else {
+      if (sourceFactId == null || sourceFactId.isBlank()) {
+        sourceFactId = deriveSourceFactId(polarity, text);
+      } else {
+        sourceFactId = sourceFactId.trim();
+      }
+      serviceCallId = "";
+    }
   }
 
   /** Compatibility constructor used by tests and older capture JSON without identity fields. */
@@ -62,6 +80,32 @@ public record RequirementFact(
       String capabilityKey,
       String text) {
     this(sourceFactId, polarity, kind, capabilityKey, text, "", "", "", "", "");
+  }
+
+  /** Compatibility constructor used before service-call occurrence identity existed. */
+  public RequirementFact(
+      String sourceFactId,
+      RequirementFactPolarity polarity,
+      RequirementFactKind kind,
+      String capabilityKey,
+      String text,
+      String participant,
+      String operation,
+      String topic,
+      String httpMethod,
+      String path) {
+    this(
+        sourceFactId,
+        polarity,
+        kind,
+        capabilityKey,
+        text,
+        participant,
+        operation,
+        topic,
+        httpMethod,
+        path,
+        "");
   }
 
   public static RequirementFact of(
@@ -83,7 +127,8 @@ public record RequirementFact(
         operation,
         topic,
         httpMethod,
-        path);
+        path,
+        serviceCallId);
   }
 
   public static String deriveSourceFactId(RequirementFactPolarity polarity, String text) {
