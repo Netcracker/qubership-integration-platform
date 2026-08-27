@@ -141,6 +141,29 @@ it as the reference line. A neighboring non-editable table column revealed that 
 sit 12 px right of their own headers, a fact invisible when you only measure the broken cell
 against itself.
 
+### Look at the pixels, not only at the properties
+
+A visual defect can leave every property correct. `opacity`, `visibility`, `color` and `display`
+all read normal on an element that something else is painting over, because none of them knows
+about paint order. Reading them and concluding "not reproducible" is how a real defect gets
+reported as absent.
+
+So screenshot the element itself before you conclude anything, and look at the picture:
+
+```js
+await locator.screenshot({ path: "control.png" });   // crops away everything else
+// with deviceScaleFactor: 4 on the page, a 24px control is legible
+```
+
+Issue #671 is the case. The arrow reported as vanishing under the pointer measured
+`opacity: 1`, `visibility: visible`, and an unchanged colour, on all 29 nodes of the tree, in
+both themes. The run reported it as not reproducing. The arrow was being covered by the hover
+fill antd paints into the switcher, which this theme had made opaque. One screenshot of that
+one control showed a blank square, which is exactly what the reporter had attached.
+
+**A negative conclusion needs the same evidence as a positive one.** "Does not reproduce" on a
+visual defect is a claim about what the screen shows, so it takes a picture, not a property.
+
 ## Gate 3: fix
 
 Change the least that satisfies the contract. Add no guard, cache, or limit that no observed
