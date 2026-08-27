@@ -37,7 +37,6 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomRe
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
@@ -202,8 +201,8 @@ public class MicroDomainService {
         try {
             List<Object> resources = Yaml.loadAll(built.yaml());
             for (Object resource : resources) {
-                applyObservation(resource, built.observations());
-                kubeOperator.createOrUpdateResource(resource);
+                boolean observedAbsent = applyObservation(resource, built.observations());
+                kubeOperator.createOrUpdateResource(resource, observedAbsent);
             }
         } catch (KubeApiConflictException conflict) {
             throw conflict;
@@ -213,29 +212,68 @@ public class MicroDomainService {
     }
 
     /**
-     * Stamps the observed {@code resourceVersion} onto {@code resource} and folds the generated
-     * labels and annotations onto the metadata the object already carried, so a write does not
-     * strip metadata another actor owns -- notably the Camel-K operator's
-     * {@code camel.apache.org/*} annotations on the Integration.
+     * Resolves which of Phase 1's three observation states {@code resource} falls into, and rebuilds
+     * its metadata for the states that carry one.
      *
-     * <p>A key absent from {@code observations} means Phase 1 never read this kind in this mode;
-     * the document is left exactly as generated and {@code KubeOperator} resolves it with a
-     * write-time read.
+     * <p>Returns {@code true} for the observed-absent state alone, so the caller can tell
+     * {@code KubeOperator} to create the object outright. Collapsing that state into the others
+     * would send the document through a write-time GET, and a racing writer that created the object
+     * during the build would then be overwritten wholesale instead of surfacing as a conflict.
+     *
+     * <p>The two remaining states both return {@code false}. A key absent from {@code observations}
+     * means Phase 1 never read this kind in this mode, so the document is left exactly as generated
+     * and {@code KubeOperator} resolves it with a write-time read. An observation holding live
+     * metadata means the write carries it as an optimistic-concurrency precondition; see
+     * {@link #applyLiveMetadata}.
      */
-    private void applyObservation(Object resource, Map<ResourceKey, Optional<V1ObjectMeta>> observations) {
+    private boolean applyObservation(Object resource, Map<ResourceKey, Optional<V1ObjectMeta>> observations) {
         if (!(resource instanceof KubernetesObject object) || object.getMetadata() == null) {
-            return;
+            return false;
         }
         ResourceKey key = new ResourceKey(object.getKind(), object.getMetadata().getName());
         Optional<V1ObjectMeta> observation = observations.get(key);
-        if (observation == null || observation.isEmpty()) {
-            return;
+        if (observation == null) {
+            return false;
         }
-        V1ObjectMeta live = observation.get();
-        V1ObjectMeta generated = object.getMetadata();
+        if (observation.isEmpty()) {
+            return true;
+        }
+        applyLiveMetadata(object.getMetadata(), observation.get());
+        return false;
+    }
+
+    /**
+     * Replaces {@code generated} with the metadata Phase 1 observed, then folds the generated name,
+     * labels, and annotations back on top -- generated values win on key collision. A PUT replaces
+     * {@code metadata} wholesale, so anything the live object carried and this method did not copy
+     * across is dropped from the cluster: {@code ownerReferences} (which garbage collection depends
+     * on), {@code finalizers}, and the Camel-K operator's {@code camel.apache.org/*} annotations.
+     * Carrying the observed {@code resourceVersion} across is what makes the write conditional.
+     *
+     * <p>Mutates {@code generated} in place because {@code KubernetesObject} exposes {@code
+     * getMetadata} and no setter, so there is no way to hand the document a different instance.
+     */
+    private static void applyLiveMetadata(V1ObjectMeta generated, V1ObjectMeta live) {
+        String name = generated.getName();
+        Map<String, String> labels = overlay(live.getLabels(), generated.getLabels());
+        Map<String, String> annotations = overlay(live.getAnnotations(), generated.getAnnotations());
+
+        generated.setCreationTimestamp(live.getCreationTimestamp());
+        generated.setDeletionGracePeriodSeconds(live.getDeletionGracePeriodSeconds());
+        generated.setDeletionTimestamp(live.getDeletionTimestamp());
+        generated.setFinalizers(live.getFinalizers());
+        generated.setGenerateName(live.getGenerateName());
+        generated.setGeneration(live.getGeneration());
+        generated.setManagedFields(live.getManagedFields());
+        generated.setNamespace(live.getNamespace());
+        generated.setOwnerReferences(live.getOwnerReferences());
         generated.setResourceVersion(live.getResourceVersion());
-        generated.setLabels(overlay(live.getLabels(), generated.getLabels()));
-        generated.setAnnotations(overlay(live.getAnnotations(), generated.getAnnotations()));
+        generated.setSelfLink(live.getSelfLink());
+        generated.setUid(live.getUid());
+
+        generated.setName(name);
+        generated.setLabels(labels);
+        generated.setAnnotations(annotations);
     }
 
     /** {@code base} with {@code overrides} folded on top; generated values win on key collision. */
@@ -320,11 +358,7 @@ public class MicroDomainService {
                         integrationConfigurationSerdes.toYaml(integrationsConfiguration)));
                 configMap.setApiVersion("v1");
                 configMap.setKind("ConfigMap");
-                try {
-                    kubeOperator.createOrUpdateResource(configMap);
-                } catch (KubeApiException e) {
-                    throw new RuntimeException(e);
-                }
+                kubeOperator.createOrUpdateResource(configMap);
             });
             if (StringUtils.isNotBlank(cfgName)) {
                 kubeOperator.deleteConfigMap(cfgName);

@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -182,6 +183,80 @@ class KubeOperatorCreateOrUpdateTest {
         when(createRequest.execute()).thenThrow(new ApiException(409, "AlreadyExists"));
 
         assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrUpdateResource(configMap));
+    }
+
+    @Test
+    void createsWithoutReadingWhenTheCallerObservedTheObjectAbsent() throws ApiException {
+        V1ConfigMap configMap = configMap("order-chain-sources");
+        CoreV1Api.APIcreateNamespacedConfigMapRequest createRequest =
+                mock(CoreV1Api.APIcreateNamespacedConfigMapRequest.class);
+        when(coreApi.createNamespacedConfigMap(NAMESPACE, configMap)).thenReturn(createRequest);
+
+        kubeOperator.createOrUpdateResource(configMap, true);
+
+        verify(createRequest).execute();
+        // Reading first would find an object a racing writer created during the build, and the
+        // replace that followed would overwrite it wholesale instead of raising a conflict.
+        verify(coreApi, never()).readNamespacedConfigMap(anyString(), anyString());
+        verify(coreApi, never()).replaceNamespacedConfigMap(anyString(), anyString(), any(V1ConfigMap.class));
+    }
+
+    @Test
+    void raisesAConflictExceptionWhenAnObservedAbsentCreateLosesTheRace() throws ApiException {
+        V1ConfigMap configMap = configMap("order-chain-sources");
+        CoreV1Api.APIcreateNamespacedConfigMapRequest createRequest =
+                mock(CoreV1Api.APIcreateNamespacedConfigMapRequest.class);
+        when(coreApi.createNamespacedConfigMap(NAMESPACE, configMap)).thenReturn(createRequest);
+        when(createRequest.execute()).thenThrow(new ApiException(409, "AlreadyExists"));
+
+        assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrUpdateResource(configMap, true));
+    }
+
+    // The API server rejects a create that declares a resourceVersion, and not with a 409, so the
+    // deploy retry would never fire. A version reaches this branch whenever Phase 1 observed the
+    // object and something deleted it before the write.
+    @Test
+    void clearsAStaleResourceVersionBeforeCreatingAConfigMap() throws ApiException {
+        V1ConfigMap configMap = configMap("order-chain-sources");
+        configMap.getMetadata().setResourceVersion("77");
+        stubConfigMapReadAsNotFound("order-chain-sources");
+        CoreV1Api.APIcreateNamespacedConfigMapRequest createRequest =
+                mock(CoreV1Api.APIcreateNamespacedConfigMapRequest.class);
+        when(coreApi.createNamespacedConfigMap(NAMESPACE, configMap)).thenReturn(createRequest);
+
+        kubeOperator.createOrUpdateResource(configMap);
+
+        verify(createRequest).execute();
+        assertNull(configMap.getMetadata().getResourceVersion());
+    }
+
+    @Test
+    void clearsAStaleResourceVersionBeforeCreatingAService() throws ApiException {
+        V1Service service = service("order-chain-service");
+        service.getMetadata().setResourceVersion("77");
+        stubServiceReadAsNotFound("order-chain-service");
+        CoreV1Api.APIcreateNamespacedServiceRequest createRequest =
+                mock(CoreV1Api.APIcreateNamespacedServiceRequest.class);
+        when(coreApi.createNamespacedService(NAMESPACE, service)).thenReturn(createRequest);
+
+        kubeOperator.createOrUpdateResource(service);
+
+        verify(createRequest).execute();
+        assertNull(service.getMetadata().getResourceVersion());
+    }
+
+    @Test
+    void clearsAStaleResourceVersionBeforeCreatingACustomObject() throws ApiException {
+        KubeCustomObject httpRoute = customObject(GATEWAY_GROUP + "/" + GATEWAY_VERSION, "HTTPRoute", "orders-public");
+        httpRoute.getMetadata().setResourceVersion("77");
+        stubCustomObjectReadAsNotFound(GATEWAY_GROUP, GATEWAY_VERSION, HTTP_ROUTES_PLURAL, "orders-public");
+        CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
+                stubCustomObjectCreate(GATEWAY_GROUP, GATEWAY_VERSION, HTTP_ROUTES_PLURAL);
+
+        kubeOperator.createOrUpdateResource(httpRoute);
+
+        verify(createRequest).execute();
+        assertNull(httpRoute.getMetadata().getResourceVersion());
     }
 
     @Test

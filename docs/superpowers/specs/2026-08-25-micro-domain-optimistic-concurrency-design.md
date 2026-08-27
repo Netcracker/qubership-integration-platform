@@ -188,17 +188,27 @@ public record BuiltResources(String yaml, Map<ResourceKey, Optional<V1ObjectMeta
 `deploy` parses the documents as it does today, and for each one looks up `(kind, name)` and takes
 one of three branches:
 
-- **Observed at a version** — overlay metadata per section 5, stamp the version onto
-  `metadata.resourceVersion`, and PUT. A 409 means someone wrote during the build.
-- **Observed absent** — create. A 409 `AlreadyExists` means another writer created the object
-  during the build. That is the create-race, and it is reported as a conflict like any other.
+- **Observed at a version** — rebuild the document's metadata from the observed metadata per
+  section 5, which carries `metadata.resourceVersion` across with everything else, then write.
+  `KubeOperator` still GETs the object to choose create versus replace, but `applyPrecondition`
+  leaves a caller-supplied version alone, so the PUT stays conditional on what Phase 1 saw. A 409
+  means someone wrote during the build. When that GET returns 404 — the object was deleted after
+  Phase 1 — the write falls through to the create branch, which clears the stamped
+  `resourceVersion` first: the API server rejects a create that declares one, and rejects it
+  outside the 409 range, so the retry could not act on it.
+- **Observed absent** — create, with no GET first. `MicroDomainService.deploy` passes an
+  `observedAbsent` flag to `KubeOperator.createOrUpdateResource`, and that branch skips the read.
+  Reading would find an object a racing writer created during the build, and the replace that
+  followed would overwrite it wholesale, since this build merged against nothing. Creating instead
+  turns the race into a 409 `AlreadyExists`, reported as a conflict like any other.
 - **Never observed** — GET the object at write time to obtain its current version and metadata,
   then PUT (or create if the GET returns 404). This is last-write-wins in effect, which is what
   `REWRITE` already does today.
 
-The existing LIST-to-decide step goes away for the first two branches, because the observation
-already says whether the object existed — one fewer round trip and one fewer TOCTOU window on the
-paths that matter. The third branch replaces that LIST with a GET of the single object.
+The existing LIST-to-decide step is gone from all three branches. The first and third replace it
+with a GET of the single object; the second skips even that, because the observation already says
+the object was not there — one fewer round trip and one fewer TOCTOU window on the create-race
+path, the one where a lost write costs the most.
 
 A PUT with no `resourceVersion` is rejected for resources whose strategy sets
 `AllowUnconditionalUpdate() == false`, which is the default and includes custom resources. That is
@@ -224,7 +234,10 @@ for two reasons:
   pinned to.
 
 Preserving metadata makes the write a no-op from the operator's point of view instead of a change
-it has to notice and repair, and Phase 1 has already read the object, so it costs two lines.
+it has to notice and repair, and Phase 1 has already read the object, so it costs one metadata
+copy at the write. `ownerReferences` and `finalizers` raise the stakes past the operator's
+annotations: nothing restores those, and the Service's generated name can equal the Integration
+name, so dropping them would break garbage collection for an operator-owned Service.
 
 ### 6. What this does not close
 
@@ -234,7 +247,7 @@ Stated so the next reader does not assume more coverage than exists.
   written. Per-object preconditions make each write safe and give nothing across the set.
   Re-applying the earlier documents on retry is idempotent, so this is recoverable, but the window
   is a partially updated domain. `/deploy-chains` compounds it: that endpoint is `@Transactional`
-  (`CustomResourceController:83`), which rolls back the catalog database and cannot roll back
+  (`CustomResourceController.deployChains`), which rolls back the catalog database and cannot roll back
   Kubernetes.
 - **`REWRITE` mode protects only the host resources.** Everything else falls into section 4's
   third branch there, which is last-write-wins. The exposure is bounded: those objects have no
@@ -242,6 +255,18 @@ Stated so the next reader does not assume more coverage than exists.
   micro-domain overlapping. Closing it would mean reading them during a `REWRITE` build purely to
   obtain versions. The cross-component race — the one the engine can actually lose — is on the
   host resources, and those are covered in both modes.
+- **A retry stretches `/deploy-chains`'s transaction.** The retry sits inside `doDeployResource`,
+  which that `@Transactional` endpoint calls, so the retry budget multiplies the work the database
+  transaction spans: up to three full builds and three rounds of cluster writes before it commits.
+  The connection stays checked out and the rows stay locked for all of it, so a contended domain
+  holds both for as long as three cluster round trips take.
+- **A retry under `REWRITE` orphans the previous attempt's source ConfigMaps.**
+  `SourceDslConfigMapNamingStrategy` appends a generated suffix to each source ConfigMap name, and
+  the only thing that reuses an existing name is `putSourceConfigMapNamesToBuildCache`, which runs
+  from the `APPEND` path alone. A `REWRITE` retry therefore names a fresh set, writes it, and
+  leaves the previous attempt's ConfigMaps in the namespace with nothing mounting them. They
+  survive until the domain is deleted. Reading the existing source ConfigMaps during a `REWRITE`
+  build would close this and the second gap above at the same time.
 
 ### 7. Seams for the retry step
 

@@ -20,6 +20,7 @@ import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1OwnerReference;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1Service;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +58,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -256,7 +259,7 @@ class MicroDomainServiceTest {
         MicroDomainService service = newService(false);
         service.deploy(new BuiltResources(manifest, Map.of()));
 
-        verify(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class));
+        verify(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class), anyBoolean());
     }
 
     @DisplayName("Wraps a failed apply in a MicroDomainDeployError that keeps the cause")
@@ -264,7 +267,7 @@ class MicroDomainServiceTest {
     void wrapsDeployFailure() throws Exception {
         String manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n";
         RuntimeException cause = new RuntimeException("boom");
-        doThrow(cause).when(kubeOperator).createOrUpdateResource(any());
+        doThrow(cause).when(kubeOperator).createOrUpdateResource(any(), anyBoolean());
 
         MicroDomainService service = newService(false);
         MicroDomainDeployError error =
@@ -279,7 +282,7 @@ class MicroDomainServiceTest {
     void deployDoesNotWrapAConflictException() {
         String manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n";
         KubeApiConflictException conflict = new KubeApiConflictException("conflict", null);
-        doThrow(conflict).when(kubeOperator).createOrUpdateResource(any());
+        doThrow(conflict).when(kubeOperator).createOrUpdateResource(any(), anyBoolean());
 
         MicroDomainService service = newService(false);
         KubeApiConflictException thrown = assertThrows(KubeApiConflictException.class,
@@ -305,7 +308,7 @@ class MicroDomainServiceTest {
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
         KubeCustomObject written = (KubeCustomObject) captor.getValue();
         assertEquals("42", written.getMetadata().getResourceVersion());
     }
@@ -330,7 +333,7 @@ class MicroDomainServiceTest {
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
         CamelKIntegration written = (CamelKIntegration) captor.getValue();
         assertEquals("camel-k", written.getMetadata().getAnnotations().get("camel.apache.org/operator.id"),
                 "an annotation only the operator set must survive the write");
@@ -350,9 +353,98 @@ class MicroDomainServiceTest {
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(true));
         KubeCustomObject written = (KubeCustomObject) captor.getValue();
         assertNull(written.getMetadata().getResourceVersion());
+    }
+
+    @DisplayName("Stamps the observed resourceVersion onto a core-kind document too")
+    @Test
+    void deployStampsObservedResourceVersionOnACoreKindDocument() {
+        // The other observation tests all drive custom kinds, which reach Yaml.loadAll through
+        // ModelMapper. Core kinds take the built-in route, so this pins that getKind() is populated
+        // there as well -- if it were not, the (kind, name) lookup would miss and every core-kind
+        // write would silently fall back to last-write-wins.
+        V1ObjectMeta observed = new V1ObjectMeta().name("cm-1").resourceVersion("42");
+        BuiltResources built = new BuiltResources(
+                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n",
+                Map.of(new ResourceKey("ConfigMap", "cm-1"), Optional.of(observed)));
+
+        MicroDomainService service = newService(false);
+        service.deploy(built);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        V1ConfigMap written = (V1ConfigMap) captor.getValue();
+        assertEquals("ConfigMap", written.getKind(),
+                "Yaml.loadAll must populate kind for a core kind, or the observation lookup misses");
+        assertEquals("42", written.getMetadata().getResourceVersion());
+    }
+
+    @DisplayName("Keeps ownerReferences and finalizers the live object carried")
+    @Test
+    void deployPreservesLiveMetadataTheGeneratedDocumentDoesNotDeclare() {
+        V1OwnerReference owner = new V1OwnerReference()
+                .apiVersion("apps/v1")
+                .kind("Deployment")
+                .name("orders-operator")
+                .uid("owner-uid");
+        V1ObjectMeta observed = new V1ObjectMeta()
+                .name("int-res")
+                .resourceVersion("42")
+                .uid("live-uid")
+                .ownerReferences(new ArrayList<>(List.of(owner)))
+                .finalizers(new ArrayList<>(List.of("qip.org/cleanup")));
+        BuiltResources built = new BuiltResources(
+                integrationYaml("int-res"),
+                Map.of(new ResourceKey("Integration", "int-res"), Optional.of(observed)));
+
+        MicroDomainService service = newService(false);
+        service.init();
+        service.deploy(built);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        V1ObjectMeta written = ((CamelKIntegration) captor.getValue()).getMetadata();
+        assertEquals(List.of(owner), written.getOwnerReferences(),
+                "a PUT replaces metadata wholesale, so dropping ownerReferences here would break "
+                        + "garbage collection for an operator-owned object");
+        assertEquals(List.of("qip.org/cleanup"), written.getFinalizers());
+        assertEquals("live-uid", written.getUid());
+        assertEquals("int-res", written.getName(), "the generated name must win over the live one");
+        assertEquals("payments", written.getLabels().get("qip.domain"));
+    }
+
+    @DisplayName("Tells the write to create outright for a document Phase 1 observed as absent")
+    @Test
+    void deployAsksForAnUnconditionalCreateForAnObservedAbsentDocument() {
+        BuiltResources built = new BuiltResources(
+                httpRouteYaml("route"),
+                Map.of(new ResourceKey("HTTPRoute", "route"), Optional.empty()));
+
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        service.deploy(built);
+
+        // A write-time read would find an object a racing writer created during the build and
+        // replace it wholesale; creating instead turns that race into a reportable conflict.
+        verify(kubeOperator).createOrUpdateResource(any(), eq(true));
+    }
+
+    @DisplayName("Leaves a document Phase 1 never looked at to the write-time read")
+    @Test
+    void deployLeavesAnUnobservedDocumentToTheWriteTimeRead() {
+        BuiltResources built = new BuiltResources(httpRouteYaml("route"), Map.of());
+
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        service.deploy(built);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        assertNull(((KubeCustomObject) captor.getValue()).getMetadata().getResourceVersion());
     }
 
     // ---- delete ----
@@ -521,6 +613,45 @@ class MicroDomainServiceTest {
         assertEquals("42", integration.getMetadata().getResourceVersion(),
                 "the live resourceVersion must reach createOrUpdateResource unchanged -- it is this "
                         + "read-modify-write's optimistic-concurrency precondition, not a value to clear");
+    }
+
+    @DisplayName("Lets a conflict on the configuration config map through with its type intact")
+    @Test
+    void deleteChainSnapshotDoesNotWrapAConflictException() {
+        stubNamingStrategies();
+
+        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
+                new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
+        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x")));
+        CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
+        traits.setMount(mount);
+        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
+        spec.setTraits(traits);
+        CamelKIntegration integration = new CamelKIntegration();
+        integration.setSpec(spec);
+        integration.setMetadata(new V1ObjectMeta().name(INTEGRATION_RESOURCE_NAME));
+
+        V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
+        V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
+        when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
+        when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(cfg, source));
+
+        IntegrationsConfiguration configuration = IntegrationsConfiguration.builder()
+                .sources(new ArrayList<>(List.of(SourceDefinition.builder().id("s1").build())))
+                .build();
+        when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
+        when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+
+        KubeApiConflictException conflict = new KubeApiConflictException("conflict", null);
+        doThrow(conflict).when(kubeOperator).createOrUpdateResource(cfg);
+
+        MicroDomainService service = newService(false);
+        KubeApiConflictException thrown = assertThrows(KubeApiConflictException.class,
+                () -> service.deleteChainSnapshot(DOMAIN, "s1"));
+
+        assertSame(conflict, thrown,
+                "wrapping it in a RuntimeException would hide the conflict from a caller's retry logic");
     }
 
     @DisplayName("Skips HTTPRoute cleanup when the domain has no integrations-configuration config map")

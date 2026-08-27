@@ -6,6 +6,7 @@ import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
@@ -99,7 +100,7 @@ public class MicroDomainResourceBuildContextFactory {
             .<Snapshot>map(SnapshotAdapter::new)
             .toList();
 
-        ResourceBuildOptions options = request.getOptions().toBuilder().build();
+        ResourceBuildOptions options = copyOptions(request.getOptions());
         BuildInfo buildInfo = createBuildInfo(options);
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo)
                 .updateTo(snapshots);
@@ -117,6 +118,32 @@ public class MicroDomainResourceBuildContextFactory {
         putHostResourceSpecsToBuildCache(context, observations);
 
         return new BuildContextWithObservations(context, observations);
+    }
+
+    /**
+     * Copies {@code source} deeply enough that this factory cannot write back into the caller's
+     * options. {@code toBuilder().build()} alone is not enough: Lombok copies field references, so
+     * the copy would share the caller's {@code MountOptions} instance and
+     * {@link #updateIntegrationResources} and {@link #updateIntegrationEmptyDirs} would union the
+     * live Integration's mounts straight into it. Any caller that builds twice from one request
+     * would then merge against its own previous result: the mount set could only grow, and a mount
+     * another writer removed would come back.
+     */
+    private static ResourceBuildOptions copyOptions(ResourceBuildOptions source) {
+        return source.toBuilder()
+                .mount(copyMount(source.getMount()))
+                .build();
+    }
+
+    /** The one nested options object this factory mutates, so the one that needs a real copy. */
+    private static MountOptions copyMount(MountOptions source) {
+        if (source == null) {
+            return null;
+        }
+        return MountOptions.builder()
+                .emptyDirs(source.getEmptyDirs() == null ? new HashSet<>() : new HashSet<>(source.getEmptyDirs()))
+                .resources(source.getResources() == null ? new HashSet<>() : new HashSet<>(source.getResources()))
+                .build();
     }
 
     private BuildInfo createBuildInfo(ResourceBuildOptions options) {

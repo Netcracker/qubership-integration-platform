@@ -223,6 +223,37 @@ class MicroDomainResourceBuildContextFactoryTest {
         assertEquals(Set.of("/dir-integration", "/dir-options"), merged.getEmptyDirs());
     }
 
+    @DisplayName("Merges into its own copy of the mount options, leaving the caller's request untouched")
+    @Test
+    void appendDoesNotWriteBackIntoTheRequestedOptions() {
+        CamelKIntegration integration = new CamelKIntegration();
+        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
+                new CamelKIntegration.IntegrationSpec.Traits.MountTrait(
+                        List.of("/from-integration"), List.of("/dir-integration"), false);
+        CamelKIntegration.IntegrationSpec.Traits traits =
+                new CamelKIntegration.IntegrationSpec.Traits();
+        traits.setMount(mount);
+        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
+        spec.setTraits(traits);
+        integration.setSpec(spec);
+        when(microDomainService.getMainIntegrationResources(DOMAIN))
+                .thenReturn(java.util.Optional.of(resources(integration, null, List.of())));
+
+        ResourceBuildOptions options = options();
+        options.getMount().setResources(new java.util.HashSet<>(Set.of("/from-options")));
+        options.getMount().setEmptyDirs(new java.util.HashSet<>(Set.of("/dir-options")));
+        MountOptions requested = options.getMount();
+
+        factory.createResourceBuildContext(request(options), true);
+
+        // toBuilder().build() copies the reference, so without a real copy the merge would land in
+        // the caller's own MountOptions and a second build from the same request would union against
+        // the first build's result.
+        assertEquals(Set.of("/from-options"), requested.getResources(),
+                "the merge must not reach the mount options the caller still holds");
+        assertEquals(Set.of("/dir-options"), requested.getEmptyDirs());
+    }
+
     @DisplayName("Caches the parsed integrations configuration under the config map name")
     @Test
     void appendCachesIntegrationsConfiguration() {

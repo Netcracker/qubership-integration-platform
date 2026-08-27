@@ -177,6 +177,32 @@ class CustomResourceControllerTest {
                 captor.getAllValues().stream().map(BuiltResources::yaml).toList());
     }
 
+    @DisplayName("Builds each retry attempt from options the previous attempt could not have touched")
+    @Test
+    void deployBuildsAFreshRequestForEveryAttempt() {
+        microDomainEnabled(true);
+        // The build mutates options.mount in place, so a request hoisted out of the retry loop would
+        // feed the previous attempt's merged mount set back into the next build: the set could only
+        // grow, and a mount the conflicting writer removed would come back.
+        when(resourceBuildOptionsProvider.getOptions(any()))
+                .thenReturn(ResourceBuildOptions.builder().build())
+                .thenReturn(ResourceBuildOptions.builder().build());
+        when(microDomainResourceBuildService.buildResources(any(), anyBoolean()))
+                .thenReturn(new BuiltResources("yaml", Map.of()));
+        doThrow(new KubeApiConflictException("conflict", null))
+                .doNothing()
+                .when(microDomainService).deploy(any());
+
+        controller.deployResource(deployRequest("payments"));
+
+        verify(resourceBuildOptionsProvider, times(2)).getOptions(any());
+        ArgumentCaptor<ResourceBuildRequest> captor = ArgumentCaptor.forClass(ResourceBuildRequest.class);
+        verify(microDomainResourceBuildService, times(2)).buildResources(captor.capture(), anyBoolean());
+        assertThat(captor.getAllValues().get(0).getOptions())
+                .as("the second attempt must build from its own options, not the ones attempt 1 mutated")
+                .isNotSameAs(captor.getAllValues().get(1).getOptions());
+    }
+
     @DisplayName("Gives up after the retry budget and surfaces the last conflict")
     @Test
     void deployStopsRetryingAfterTheBudgetIsExhausted() {

@@ -45,6 +45,8 @@ import static java.util.Objects.nonNull;
         description = "Custom Resource Build and Deploy Controller"
 )
 public class CustomResourceController {
+    private static final int MAX_DEPLOY_ATTEMPTS = 3;
+
     private final MicroDomainResourceBuildService microDomainResourceBuildService;
     private final MicroDomainService microDomainService;
     private final ResourceBuildOptionsProvider resourceBuildOptionsProvider;
@@ -182,14 +184,24 @@ public class CustomResourceController {
         });
     }
 
-    private static final int MAX_DEPLOY_ATTEMPTS = 3;
-
+    /**
+     * Builds the resources for {@code request} and writes them, rebuilding from scratch and retrying
+     * up to {@link #MAX_DEPLOY_ATTEMPTS} times when a write loses an optimistic-concurrency race.
+     *
+     * <p>The build request is constructed inside the loop, not hoisted out of it. The build mutates
+     * the options it is handed -- {@code MicroDomainResourceBuildContextFactory} unions the live
+     * Integration's mounts into {@code options.mount} in place -- so a request shared across
+     * attempts would carry the previous attempt's merge into the next one. The mount set could then
+     * only grow, and a mount the conflicting writer had removed would come back, re-mounting a
+     * ConfigMap that no longer exists. {@code ResourceBuildOptionsProvider.getOptions} is property
+     * binding plus customizers, so rebuilding it per attempt is cheap.
+     */
     private void doDeployResource(ResourceDeployRequest request) {
-        ResourceBuildRequest buildRequest = ResourceBuildRequest.builder()
-                .options(resourceBuildOptionsProvider.getOptions(request))
-                .snapshotIds(request.getSnapshotIds())
-                .build();
         for (int attempt = 1; ; attempt++) {
+            ResourceBuildRequest buildRequest = ResourceBuildRequest.builder()
+                    .options(resourceBuildOptionsProvider.getOptions(request))
+                    .snapshotIds(request.getSnapshotIds())
+                    .build();
             BuiltResources built = microDomainResourceBuildService.buildResources(
                     buildRequest,
                     DeployMode.APPEND.equals(request.getMode()));
