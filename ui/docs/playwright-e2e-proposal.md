@@ -134,8 +134,9 @@ Two details worth settling before anyone writes YAML:
 
 ## What this costs
 
-- **Browser download.** Roughly 150 MB of Chromium per environment. Cached in CI, paid once
-  per developer locally, and paid again by anyone who runs `npm ci` in a fresh container.
+- **Browser download.** 115 MB of Chromium per environment, measured. Cached in CI and paid
+  again by anyone who runs `npm ci` in a fresh container. Not a one-time cost locally either:
+  the browser revision Playwright pins moves with the package, so a version bump re-downloads.
 - **Flakiness.** Browser tests fail for reasons unrelated to the change under review. Ant
   Design animations, `ResizeObserver` timing, and Monaco initialization are the usual
   suspects, and `ui/jest.config.ts` already carries comments about the last two biting the
