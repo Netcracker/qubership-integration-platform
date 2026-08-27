@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.qipknowledge.artifact;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 
 /** Renders a structured {@link RequirementBrief} for downstream compiler prompts. */
 public final class RequirementBriefText {
@@ -56,11 +57,37 @@ public final class RequirementBriefText {
     }
     body.append("Service calls:");
     for (var serviceCall : serviceCalls) {
-      body.append('\n')
-          .append("- ")
-          .append(serviceCall.participant())
-          .append(": ")
-          .append(serviceCall.operation());
+      body.append('\n').append("- ").append(serviceCall.serviceCallId());
+      if (!serviceCall.participant().isBlank() || !serviceCall.operation().isBlank()) {
+        body.append(' ')
+            .append(serviceCall.participant())
+            .append(": ")
+            .append(serviceCall.operation());
+      }
+      CatalogBindingHint hint = serviceCall.catalogBinding();
+      if (hint != null) {
+        appendCatalogIdentity(body, hint);
+      }
+    }
+  }
+
+  private static void appendCatalogIdentity(StringBuilder body, CatalogBindingHint hint) {
+    body.append(" systemId=")
+        .append(hint.systemId())
+        .append(" specificationGroupId=")
+        .append(hint.specificationGroupId())
+        .append(" specificationId=")
+        .append(hint.specificationId())
+        .append(" integrationOperationId=")
+        .append(hint.integrationOperationId());
+    if (hint.protocol() != null && !hint.protocol().isBlank()) {
+      body.append(" protocol=").append(hint.protocol());
+    }
+    if (hint.method() != null && !hint.method().isBlank()) {
+      body.append(" method=").append(hint.method());
+    }
+    if (hint.path() != null && !hint.path().isBlank()) {
+      body.append(" path=").append(hint.path());
     }
   }
 

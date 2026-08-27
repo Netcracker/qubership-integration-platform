@@ -142,6 +142,24 @@ public record RequirementBrief(
         mappingIntents);
   }
 
+  public RequirementBrief withServiceCalls(List<RequirementServiceCall> serviceCalls) {
+    return new RequirementBrief(
+        goal,
+        inputs,
+        constraints,
+        assumptions,
+        citations,
+        summary,
+        approvedDraftReference,
+        approvedDraftText,
+        facts,
+        dataMappings,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents);
+  }
+
   public RequirementBrief withDataMappings(List<RequirementDataMapping> dataMappings) {
     return new RequirementBrief(
         goal,

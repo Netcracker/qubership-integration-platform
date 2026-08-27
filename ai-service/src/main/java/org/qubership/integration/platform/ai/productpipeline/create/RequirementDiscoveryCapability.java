@@ -5,7 +5,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -40,6 +39,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Product-pipeline requirement discovery stage. Uses brainstorming capture only; analysis never
@@ -301,23 +301,76 @@ public class RequirementDiscoveryCapability implements StageCapability {
   }
 
   /**
-   * Emits one {@code CATALOG_BINDING_HINT} per {@link RequirementFactKind#SERVICE_CALL} fact whose
-   * catalog operation this conversation already identified.
+   * Emits one {@code CATALOG_BINDING_HINT} per bound service call on the approved draft.
    *
-   * <p>Gathering resolves each outbound call separately and records what it bound, so a chain that
-   * calls several services carries one resolution per service. A fact claims the resolution it
-   * names — by operation name, or by method and path — and only an unambiguous claim becomes a
-   * hint.
+   * <p>Schema {@code 2} drafts store the frozen catalog identity on each
+   * {@link RequirementServiceCall}. Discovery copies those hints; it does not search the catalog,
+   * rank operations, or read {@link ConversationApiResolutions}. Restarting between capture and this
+   * stage therefore cannot drop a binding that already landed on the draft.
    *
-   * <p>A single outbound call needs no such pairing: the binding on the draft is the one the reader
-   * approved. That also covers a binding that came from an APIHub import rather than from a catalog
-   * lookup.
-   *
-   * <p>Anything still unpaired falls back to a read-only catalog probe, which produces a hint only
-   * on exactly one match. Nothing here queries APIHub or imports a specification.
+   * <p>A v1 single-call draft that was never normalized still uses the previous pairing and
+   * read-only catalog probe. That branch is not used once {@code serviceCalls} already carry
+   * bindings.
    */
   List<ArtifactCandidate> exactCatalogBindingHints(RequirementDraft draft, String conversationId) {
-    if (draft == null || draft.facts().isEmpty()) {
+    if (draft == null) {
+      return List.of();
+    }
+    List<ArtifactCandidate> fromDraft = hintsFromBoundServiceCalls(draft);
+    if (!fromDraft.isEmpty()) {
+      return fromDraft;
+    }
+    if (draft.serviceCalls().size() > 1) {
+      // v2 multi-call records exist but are unbound. Do not recover bindings from conversation
+      // memory or catalog search.
+      return List.of();
+    }
+    return v1ExactCatalogBindingHints(draft, conversationId);
+  }
+
+  private static List<ArtifactCandidate> hintsFromBoundServiceCalls(RequirementDraft draft) {
+    List<ArtifactCandidate> hints = new ArrayList<>();
+    for (RequirementServiceCall call : draft.serviceCalls()) {
+      CatalogBindingHint hint = call.catalogBinding();
+      if (hint == null) {
+        continue;
+      }
+      hints.add(
+          new ArtifactCandidate(
+              CompilationArtifacts.Kind.CATALOG_BINDING_HINT, frozenHint(hint), List.of()));
+    }
+    return hints;
+  }
+
+  private static CatalogBindingHint frozenHint(CatalogBindingHint hint) {
+    if ("2".equals(hint.schemaVersion())) {
+      return hint;
+    }
+    return new CatalogBindingHint(
+        "2",
+        hint.serviceCallId(),
+        hint.sourceFactId(),
+        hint.operationQuery(),
+        hint.systemId(),
+        hint.specificationGroupId(),
+        hint.specificationId(),
+        hint.integrationOperationId(),
+        hint.protocol(),
+        hint.method(),
+        hint.path(),
+        hint.release(),
+        hint.observedAt(),
+        hint.evidenceRef());
+  }
+
+  /**
+   * v1 compatibility: old single-call drafts that have not yet been normalized to {@code
+   * serviceCalls}. Pair by assessment, named resolution, the legacy singleton, or a read-only
+   * catalog probe. Never queries API Hub.
+   */
+  private List<ArtifactCandidate> v1ExactCatalogBindingHints(
+      RequirementDraft draft, String conversationId) {
+    if (draft.facts().isEmpty()) {
       return List.of();
     }
     List<RequirementFact> calls = positiveServiceCallFacts(draft);

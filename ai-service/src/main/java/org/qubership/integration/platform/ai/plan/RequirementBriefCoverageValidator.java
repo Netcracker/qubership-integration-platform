@@ -9,7 +9,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignRequirementBriefCoverageValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Compares approved-draft fact IDs to the captured brief. Never invents facts from transcript.
@@ -78,6 +80,10 @@ public final class RequirementBriefCoverageValidator {
         && !brief.approvedDraftText().equals(approvedDraft.planningText())) {
       return Optional.of("requirement brief approvedDraftText does not match approved draft");
     }
+    Optional<String> serviceCallError = validateServiceCalls(approvedDraft, brief);
+    if (serviceCallError.isPresent()) {
+      return serviceCallError;
+    }
     if (isSingleEntryServiceFlow(brief)) {
       try {
         topologyValidator.validate(brief);
@@ -86,6 +92,71 @@ public final class RequirementBriefCoverageValidator {
       }
     }
     return Optional.empty();
+  }
+
+  /**
+   * Empty brief service-call lists stay a coverage no-op so v1 briefs that only pin facts still
+   * pass. A non-empty list must cover every draft {@code serviceCallId} and must not attach a
+   * binding that names a different call.
+   */
+  private static Optional<String> validateServiceCalls(
+      RequirementDraft approvedDraft, RequirementBrief brief) {
+    if (brief.serviceCalls().isEmpty()) {
+      return Optional.empty();
+    }
+    Map<String, RequirementServiceCall> draftById = indexCalls(approvedDraft.serviceCalls());
+    Map<String, RequirementServiceCall> briefById = indexCalls(brief.serviceCalls());
+    if (briefById.size() != brief.serviceCalls().size()) {
+      return Optional.of("requirement brief contains duplicate serviceCallId values");
+    }
+    Set<String> missing = new LinkedHashSet<>(draftById.keySet());
+    missing.removeAll(briefById.keySet());
+    if (!missing.isEmpty()) {
+      List<String> named = new ArrayList<>();
+      for (String id : missing) {
+        named.add(describeCall(draftById.get(id)));
+      }
+      return Optional.of("requirement brief missing " + String.join("; ", named));
+    }
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (call.serviceCallId().isBlank()) {
+        return Optional.of(
+            "requirement brief missing serviceCallId, participant="
+                + call.participant()
+                + ", operation="
+                + call.operation());
+      }
+      CatalogBindingHint hint = call.catalogBinding();
+      if (hint != null && !call.serviceCallId().equals(hint.serviceCallId())) {
+        return Optional.of(
+            "requirement brief catalog binding serviceCallId="
+                + hint.serviceCallId()
+                + " does not match call serviceCallId="
+                + call.serviceCallId());
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static Map<String, RequirementServiceCall> indexCalls(
+      List<RequirementServiceCall> calls) {
+    Map<String, RequirementServiceCall> byId = new LinkedHashMap<>();
+    for (RequirementServiceCall call : calls) {
+      if (call == null || call.serviceCallId().isBlank()) {
+        continue;
+      }
+      byId.putIfAbsent(call.serviceCallId(), call);
+    }
+    return byId;
+  }
+
+  private static String describeCall(RequirementServiceCall call) {
+    return "serviceCallId="
+        + call.serviceCallId()
+        + ", participant="
+        + call.participant()
+        + ", operation="
+        + call.operation();
   }
 
   private static boolean isSingleEntryServiceFlow(RequirementBrief brief) {
