@@ -30,10 +30,10 @@ public sealed interface BindingResolutionResult {
     }
   }
 
-  record NeedsInput(String serviceCallStepId, List<String> candidateIds)
+  record NeedsInput(String serviceCallId, List<String> candidateIds)
       implements BindingResolutionResult {
     public NeedsInput {
-      serviceCallStepId = DesignArtifacts.requireText(serviceCallStepId, "serviceCallStepId");
+      serviceCallId = DesignArtifacts.requireText(serviceCallId, "serviceCallId");
       candidateIds = DesignArtifacts.copyList(candidateIds);
     }
 
@@ -44,25 +44,25 @@ public sealed interface BindingResolutionResult {
   }
 
   record Failed(
-      String serviceCallStepId,
+      String serviceCallId,
       String reason,
       StageOutcomeClass outcomeClass,
       String requestedFact)
       implements BindingResolutionResult {
     public Failed {
-      serviceCallStepId = DesignArtifacts.requireText(serviceCallStepId, "serviceCallStepId");
+      serviceCallId = DesignArtifacts.requireText(serviceCallId, "serviceCallId");
       reason = DesignArtifacts.requireText(reason, "reason");
       outcomeClass = Objects.requireNonNullElse(outcomeClass, StageOutcomeClass.DOMAIN_FAILURE);
       requestedFact =
           requestedFact == null || requestedFact.isBlank() ? "catalog service" : requestedFact;
     }
 
-    public Failed(String serviceCallStepId, String reason, StageOutcomeClass outcomeClass) {
-      this(serviceCallStepId, reason, outcomeClass, "catalog service");
+    public Failed(String serviceCallId, String reason, StageOutcomeClass outcomeClass) {
+      this(serviceCallId, reason, outcomeClass, "catalog service");
     }
 
-    public Failed(String serviceCallStepId, String reason) {
-      this(serviceCallStepId, reason, StageOutcomeClass.DOMAIN_FAILURE, "catalog service");
+    public Failed(String serviceCallId, String reason) {
+      this(serviceCallId, reason, StageOutcomeClass.DOMAIN_FAILURE, "catalog service");
     }
   }
 }

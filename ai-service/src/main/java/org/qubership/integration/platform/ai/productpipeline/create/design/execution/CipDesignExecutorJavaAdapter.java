@@ -426,7 +426,7 @@ public class CipDesignExecutorJavaAdapter {
         return Optional.of(
             ExecutionResult.failure(
                 StageOutcomeClass.NEEDS_INPUT,
-                "ambiguous catalog binding for " + needsInput.serviceCallStepId(),
+                "ambiguous catalog binding for " + needsInput.serviceCallId(),
                 RecoveryCause.catalogResolution("catalog operation")));
       }
       if (result instanceof BindingResolutionResult.Failed failed) {

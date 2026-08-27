@@ -502,7 +502,12 @@ class ChainPlanPropertiesMaterializerTest {
   @Test
   void patchesServiceCallIdentityPropertiesOntoTheCatalogElement() {
     when(schemaService.allowedPatchPropertyKeys("service-call"))
-        .thenReturn(Set.of("integrationOperationId"));
+        .thenReturn(
+            Set.of(
+                "integrationOperationId",
+                "serviceCallId",
+                "semanticRevisionId",
+                "semanticNodeId"));
     when(schemaService.validateElementPatch(eq("service-call"), anyString()))
         .thenReturn("{\"valid\":true}");
     when(catalogRestClient.getElement(anyString(), anyString()))
