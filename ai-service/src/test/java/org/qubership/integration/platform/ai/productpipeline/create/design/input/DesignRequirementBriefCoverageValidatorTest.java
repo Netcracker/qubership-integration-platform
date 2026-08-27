@@ -38,44 +38,27 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
-  void rejectsBriefWithCallsButWithoutInitializationMapping() {
+  void unknownSchemasAllowApprovalWithoutMappingRows() {
     RequirementBrief briefWithoutInitialization = twoCallBrief(List.of(conversion(), response()));
 
-    IllegalArgumentException thrown =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> designValidator.validate(briefWithoutInitialization));
-
-    assertTrue(thrown.getMessage().contains("INITIALIZATION mapping"), thrown.getMessage());
+    assertDoesNotThrow(() -> designValidator.validate(briefWithoutInitialization));
   }
 
   @Test
   void missingMappingMessageListsEveryEdgeAndExactRepairPayload() {
-    IllegalArgumentException thrown =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> designValidator.validate(twoCallBrief(List.of())));
+    List<String> missing = designValidator.listMissingEdges(twoCallBrief(List.of()));
 
-    String message = thrown.getMessage();
-    assertTrue(message.contains("INITIALIZATION mapping required"), message);
-    assertTrue(message.contains("CONVERSION mapping required"), message);
-    assertTrue(message.contains("RESPONSE mapping required"), message);
-    assertTrue(message.contains("\"stage\":\"INITIALIZATION\""), message);
-    assertTrue(message.contains("\"fromIntentRef\":\"trigger-1\""), message);
-    assertTrue(message.contains("\"toIntentRef\":\"call-1\""), message);
-    assertTrue(message.contains("\"mode\":\"PASS_THROUGH\""), message);
-    assertTrue(message.contains("ENDPOINT \"GET /orders\""), message);
-    assertTrue(message.contains("SERVICE_CALL"), message);
+    assertTrue(missing.stream().anyMatch(line -> line.contains("INITIALIZATION mapping required")));
+    assertTrue(missing.stream().anyMatch(line -> line.contains("CONVERSION mapping required")));
+    assertTrue(missing.stream().anyMatch(line -> line.contains("RESPONSE mapping required")));
+    assertDoesNotThrow(() -> designValidator.validate(twoCallBrief(List.of())));
   }
 
   @Test
   void passThroughFillsMissingEdgesThenValidatePasses() {
     RequirementBrief briefWithoutMappings = twoCallBrief(List.of());
 
-    IllegalArgumentException before =
-        assertThrows(
-            IllegalArgumentException.class, () -> designValidator.validate(briefWithoutMappings));
-    assertTrue(before.getMessage().contains("INITIALIZATION"), before.getMessage());
+    assertDoesNotThrow(() -> designValidator.validate(briefWithoutMappings));
 
     RequirementBrief filled =
         designValidator.withPassThroughForMissingEdges(briefWithoutMappings);
@@ -147,26 +130,18 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
-  void rejectsBriefWithTwoCallsButWithoutConversionMapping() {
+  void missingConversionEdgeIsNonblockingPassThrough() {
     RequirementBrief briefWithoutConversion = twoCallBrief(List.of(initialization(), response()));
 
-    IllegalArgumentException thrown =
-        assertThrows(
-            IllegalArgumentException.class, () -> designValidator.validate(briefWithoutConversion));
-
-    assertTrue(thrown.getMessage().contains("CONVERSION mapping"), thrown.getMessage());
+    assertDoesNotThrow(() -> designValidator.validate(briefWithoutConversion));
   }
 
   @Test
-  void rejectsBriefWithRequestResponseTriggerButWithoutResponseMapping() {
+  void missingResponseEdgeIsNonblockingPassThrough() {
     RequirementBrief briefWithoutResponse =
         twoCallBrief(List.of(initialization(), conversion()));
 
-    IllegalArgumentException thrown =
-        assertThrows(
-            IllegalArgumentException.class, () -> designValidator.validate(briefWithoutResponse));
-
-    assertTrue(thrown.getMessage().contains("RESPONSE mapping"), thrown.getMessage());
+    assertDoesNotThrow(() -> designValidator.validate(briefWithoutResponse));
   }
 
   @Test
@@ -313,14 +288,7 @@ class DesignRequirementBriefCoverageValidatorTest {
         missing.stream().anyMatch(line -> line.contains("RESPONSE")),
         String.join("\n", missing));
 
-    IllegalArgumentException thrown =
-        assertThrows(IllegalArgumentException.class, () -> designValidator.validate(brief));
-
-    assertTrue(thrown.getMessage().contains("RESPONSE mapping"), thrown.getMessage());
-    assertFalse(thrown.getMessage().contains("dataMapping stage is required"), thrown.getMessage());
-    assertFalse(
-        thrown.getMessage().contains("PASS_THROUGH mapping requires at least one sourceFactId"),
-        thrown.getMessage());
+    assertDoesNotThrow(() -> designValidator.validate(brief));
   }
 
   @Test
@@ -383,11 +351,8 @@ class DesignRequirementBriefCoverageValidatorTest {
     assertTrue(missing.getFirst().contains("trigger-1"), missing.getFirst());
     assertFalse(missing.getFirst().contains("no ENDPOINT fact"), missing.getFirst());
 
-    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
-    assertDoesNotThrow(() -> designValidator.validate(filled));
-    assertEquals(1, filled.dataMappings().size());
-    assertEquals("trigger-1", filled.dataMappings().getFirst().fromIntentRef());
-    assertEquals("call-1", filled.dataMappings().getFirst().toIntentRef());
+    assertDoesNotThrow(() -> designValidator.validate(brief));
+    assertTrue(brief.dataMappings().isEmpty());
   }
 
   @Test
@@ -399,9 +364,8 @@ class DesignRequirementBriefCoverageValidatorTest {
                 call("call-1")),
             List.of());
 
-    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
-    assertDoesNotThrow(() -> designValidator.validate(filled));
-    assertEquals("trigger-1", filled.dataMappings().getFirst().fromIntentRef());
+    assertDoesNotThrow(() -> designValidator.validate(brief));
+    assertTrue(brief.dataMappings().isEmpty());
   }
 
   @Test

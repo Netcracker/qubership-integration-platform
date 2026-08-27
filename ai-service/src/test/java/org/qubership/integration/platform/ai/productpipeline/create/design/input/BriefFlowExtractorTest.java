@@ -210,8 +210,8 @@ class BriefFlowExtractorTest {
                     RequirementDataMapping.Stage.INITIALIZATION,
                     "trigger-1",
                     "call-1",
-                    RequirementDataMapping.Mode.PASS_THROUGH,
-                    List.of(),
+                    RequirementDataMapping.Mode.EXPLICIT,
+                    List.of(new RequirementDataMapping.Rule("$.id", "$.petId", null)),
                     List.of("trigger-1", "call-1"))));
 
     NormalizedDesignFlow flow =
@@ -223,7 +223,41 @@ class BriefFlowExtractorTest {
   }
 
   @Test
-  void kafkaCapabilityKindStillExtractsAKafkaTrigger() {
+  void unknownSchemasProduceDirectConnectionWithoutMappingRow() {
+    RequirementBrief brief =
+        brief(
+            "Kafka pet lookup",
+            List.of("topic: user/events", "operation: consumeUserEvent"),
+            "Consume Kafka user events and look up a pet",
+            List.of(
+                new RequirementFact(
+                    "trigger-1",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "kafka-trigger-2",
+                    "Consume user events",
+                    "",
+                    "consumeUserEvent",
+                    "user/events",
+                    "",
+                    ""),
+                serviceCall("call-1", "Look up a pet in Petstore Ext", "Petstore Ext", "getPetById")),
+            List.of());
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertTrue(flow.dataMappings().isEmpty(), flow.dataMappings().toString());
+    assertTrue(flow.transformations().isEmpty());
+    assertEquals(1, flow.connections().size());
+    assertEquals("step-trigger", flow.connections().getFirst().fromStepId());
+    assertEquals(flow.steps().getFirst().stepId(), flow.connections().getFirst().toStepId());
+    assertDoesNotThrow(() -> new NormalizedDesignFlowValidator().validate(flow));
+  }
+
+  @Test
+  void legacyPassThroughMappingBecomesDirectConnection() {
     RequirementBrief brief =
         brief(
             "Kafka pet lookup",
@@ -251,6 +285,10 @@ class BriefFlowExtractorTest {
     assertEquals("kafka", flow.trigger().kind());
     assertEquals("user/events", flow.trigger().endpointOrTopic());
     assertEquals("consumeUserEvent", flow.trigger().operationName());
+    assertTrue(flow.dataMappings().isEmpty(), flow.dataMappings().toString());
+    assertEquals(1, flow.connections().size());
+    assertEquals("step-trigger", flow.connections().getFirst().fromStepId());
+    assertEquals(flow.steps().getFirst().stepId(), flow.connections().getFirst().toStepId());
   }
 
   @Test
@@ -440,9 +478,10 @@ class BriefFlowExtractorTest {
             .filter(step -> "service-call".equalsIgnoreCase(step.kind()))
             .findFirst()
             .orElseThrow();
-    assertEquals(1, projected.dataMappings().size());
-    assertEquals("step-trigger", projected.dataMappings().getFirst().fromStepId());
-    assertEquals(serviceCall.stepId(), projected.dataMappings().getFirst().toStepId());
+    assertTrue(projected.dataMappings().isEmpty(), projected.dataMappings().toString());
+    assertEquals(1, projected.connections().size());
+    assertEquals("step-trigger", projected.connections().getFirst().fromStepId());
+    assertEquals(serviceCall.stepId(), projected.connections().getFirst().toStepId());
   }
 
   @Test
@@ -487,14 +526,15 @@ class BriefFlowExtractorTest {
 
     NormalizedDesignFlow projected = extractor.withMappings(brief, authored);
 
-    assertEquals(2, projected.dataMappings().size());
+    assertTrue(projected.dataMappings().isEmpty(), projected.dataMappings().toString());
+    assertEquals(1, projected.connections().size());
     assertTrue(
-        projected.dataMappings().stream()
+        projected.connections().stream()
             .noneMatch(
-                mapping ->
-                    mapping.fromStepId().contains("820d45e2")
-                        || mapping.toStepId().contains("b96b0eea")),
-        projected.dataMappings().toString());
+                connection ->
+                    connection.fromStepId().contains("820d45e2")
+                        || connection.toStepId().contains("b96b0eea")),
+        projected.connections().toString());
   }
 
   @Test

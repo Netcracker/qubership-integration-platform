@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementTriggerRole;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
@@ -20,6 +21,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDa
  * Design-path ({@code create-chain@2}) coverage for typed mapping intent on a requirement brief.
  * Coverage validates topology edges, not junk rows in {@code dataMappings}. Incomplete rows are
  * dropped first; {@link #validate(RequirementBrief)} runs on the remaining well-shaped mappings.
+ * Unknown source or target schemas do not require a mapping row: missing stage edges stay
+ * nonblocking pass-through.
  *
  * <p>Request-response detection: {@link RequirementFactKind} has no sync/async split. A positive
  * {@code ENDPOINT} fact is treated as request-response unless its {@code capabilityKey} names a
@@ -62,11 +65,6 @@ public final class DesignRequirementBriefCoverageValidator {
       validateMappingShape(mapping);
     }
     validateSingleEntryTopology(normalized);
-    List<String> missing = listMissingEdges(normalized);
-    if (!missing.isEmpty()) {
-      throw new IllegalArgumentException(
-          String.join("; ", missing) + repairInstruction(normalized));
-    }
   }
 
   /**
@@ -115,6 +113,16 @@ public final class DesignRequirementBriefCoverageValidator {
       }
     }
     return List.copyOf(missing);
+  }
+
+  /**
+   * Drops mapping rows whose intent refs are not the captured trigger or service-call facts.
+   * Does not synthesize pass-through rows.
+   */
+  public RequirementBrief retainTopologyBoundMappings(RequirementBrief brief) {
+    Objects.requireNonNull(brief, "brief");
+    RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
+    return withMappings(normalized, topologyBoundMappings(normalized));
   }
 
   /**
@@ -376,17 +384,7 @@ public final class DesignRequirementBriefCoverageValidator {
 
   private static RequirementBrief withMappings(
       RequirementBrief brief, List<RequirementDataMapping> mappings) {
-    return new RequirementBrief(
-        brief.goal(),
-        brief.inputs(),
-        brief.constraints(),
-        brief.assumptions(),
-        brief.citations(),
-        brief.summary(),
-        brief.approvedDraftReference(),
-        brief.approvedDraftText(),
-        brief.facts(),
-        mappings);
+    return RequirementBriefProjector.project(brief.withDataMappings(mappings));
   }
 
   private record RequiredEdge(

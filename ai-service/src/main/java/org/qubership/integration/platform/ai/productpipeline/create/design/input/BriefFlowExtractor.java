@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -184,7 +185,9 @@ public final class BriefFlowExtractor {
       }
     }
 
-    List<NormalizedDesignFlow.DataMapping> mappings = toNormalizedMappings(brief, intentToStep);
+    List<NormalizedDesignFlow.DataMapping> mappings = explicitMappings(brief, intentToStep);
+    List<NormalizedDesignFlow.Connection> connections =
+        passThroughConnections(brief, intentToStep, steps);
     if (!missing.isEmpty()) {
       return new ExtractionResult.NeedsInput(List.copyOf(missing));
     }
@@ -215,7 +218,7 @@ public final class BriefFlowExtractor {
             trigger,
             List.copyOf(participants.values()),
             steps,
-            List.of(),
+            connections,
             List.of(),
             mappings,
             List.copyOf(brief.constraints()),
@@ -254,10 +257,13 @@ public final class BriefFlowExtractor {
     for (int i = 0; i < calls.size(); i++) {
       intentToStep.put(calls.get(i).sourceFactId(), serviceCallSteps.get(i).stepId());
     }
-    List<NormalizedDesignFlow.DataMapping> mappings =
-        brief.dataMappings().isEmpty()
-            ? authoredFlow.dataMappings()
-            : toNormalizedMappings(brief, intentToStep);
+    List<NormalizedDesignFlow.DataMapping> mappings = explicitMappings(brief, intentToStep);
+    List<NormalizedDesignFlow.Connection> connections =
+        passThroughConnections(brief, intentToStep, authoredFlow.steps());
+    if (mappings.isEmpty() && connections.isEmpty()) {
+      mappings = authoredFlow.dataMappings();
+      connections = authoredFlow.connections();
+    }
     return new NormalizedDesignFlow(
         authoredFlow.schemaVersion(),
         authoredFlow.flowId(),
@@ -266,7 +272,7 @@ public final class BriefFlowExtractor {
         authoredFlow.trigger(),
         authoredFlow.participants(),
         authoredFlow.steps(),
-        authoredFlow.connections(),
+        connections,
         authoredFlow.transformations(),
         mappings,
         authoredFlow.constraints(),
@@ -288,15 +294,16 @@ public final class BriefFlowExtractor {
         : NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_FIRST;
   }
 
-  private static List<NormalizedDesignFlow.DataMapping> toNormalizedMappings(
+  private static List<NormalizedDesignFlow.DataMapping> explicitMappings(
       RequirementBrief brief, Map<String, String> intentToStep) {
     List<NormalizedDesignFlow.DataMapping> mappings = new ArrayList<>();
     for (RequirementDataMapping mapping : brief.dataMappings()) {
+      if (mapping == null || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT) {
+        continue;
+      }
       String fromStep = intentToStep.get(mapping.fromIntentRef());
       String toStep = intentToStep.get(mapping.toIntentRef());
       if (fromStep == null || toStep == null) {
-        // Leftover capture rows often keep SHA-256 refs that are not ENDPOINT or SERVICE_CALL
-        // fact ids (pin drift, script facts). Drop them; do not dump hashes into chat.
         continue;
       }
       List<String> sourceFactIds =
@@ -315,11 +322,97 @@ public final class BriefFlowExtractor {
               NormalizedDesignFlow.MappingStage.valueOf(mapping.stage().name()),
               fromStep,
               toStep,
-              NormalizedDesignFlow.MappingMode.valueOf(mapping.mode().name()),
+              NormalizedDesignFlow.MappingMode.EXPLICIT,
               rules,
               sourceFactIds));
     }
     return List.copyOf(mappings);
+  }
+
+  /**
+   * Direct execution edges for boundaries without an explicit mapping intent. Unknown schemas and
+   * legacy {@code PASS_THROUGH} rows become connections, not mapping records.
+   */
+  private static List<NormalizedDesignFlow.Connection> passThroughConnections(
+      RequirementBrief brief,
+      Map<String, String> intentToStep,
+      List<NormalizedDesignFlow.Step> steps) {
+    Set<String> explicitEdges = explicitForwardEdges(brief, intentToStep);
+    List<String> chain = new ArrayList<>();
+    if (!triggerFacts(brief).isEmpty()) {
+      chain.add("step-trigger");
+    }
+    List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
+    if (!calls.isEmpty()) {
+      for (RequirementFact call : calls) {
+        String stepId = intentToStep.get(call.sourceFactId());
+        if (stepId != null) {
+          chain.add(stepId);
+        }
+      }
+    } else {
+      for (NormalizedDesignFlow.Step step : steps) {
+        if (isProcessStep(step)) {
+          chain.add(step.stepId());
+        }
+      }
+    }
+    List<NormalizedDesignFlow.Connection> connections = new ArrayList<>();
+    for (int i = 0; i < chain.size() - 1; i++) {
+      String from = chain.get(i);
+      String to = chain.get(i + 1);
+      if (explicitEdges.contains(from + '\n' + to)) {
+        continue;
+      }
+      connections.add(
+          new NormalizedDesignFlow.Connection(from, to, null, provenanceForEdge(brief, from, to)));
+    }
+    return List.copyOf(connections);
+  }
+
+  private static Set<String> explicitForwardEdges(
+      RequirementBrief brief, Map<String, String> intentToStep) {
+    Set<String> edges = new LinkedHashSet<>();
+    for (RequirementDataMapping mapping : brief.dataMappings()) {
+      if (mapping == null || mapping.mode() != RequirementDataMapping.Mode.EXPLICIT) {
+        continue;
+      }
+      String fromStep = intentToStep.get(mapping.fromIntentRef());
+      String toStep = intentToStep.get(mapping.toIntentRef());
+      if (fromStep == null || toStep == null) {
+        continue;
+      }
+      if (mapping.stage() == RequirementDataMapping.Stage.RESPONSE) {
+        continue;
+      }
+      edges.add(fromStep + '\n' + toStep);
+    }
+    return edges;
+  }
+
+  private static List<String> provenanceForEdge(RequirementBrief brief, String from, String to) {
+    List<String> ids = new ArrayList<>();
+    for (RequirementFact fact : triggerFacts(brief)) {
+      if ("step-trigger".equals(from) || "step-trigger".equals(to)) {
+        ids.add(fact.sourceFactId());
+        break;
+      }
+    }
+    for (RequirementFact fact : positive(brief, RequirementFactKind.SERVICE_CALL)) {
+      ids.add(fact.sourceFactId());
+    }
+    if (ids.isEmpty()) {
+      return List.of("connection:" + from + ":" + to);
+    }
+    return List.copyOf(ids);
+  }
+
+  private static boolean isProcessStep(NormalizedDesignFlow.Step step) {
+    if (step == null || step.kind() == null || step.stepId() == null || step.stepId().isBlank()) {
+      return false;
+    }
+    String kind = step.kind().toLowerCase(Locale.ROOT);
+    return "service-call".equals(kind) || "script".equals(kind);
   }
 
   private static String normalizedMappingId(

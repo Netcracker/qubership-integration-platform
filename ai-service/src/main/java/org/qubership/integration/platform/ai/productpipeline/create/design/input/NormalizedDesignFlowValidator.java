@@ -57,8 +57,8 @@ public final class NormalizedDesignFlowValidator {
     }
 
     for (NormalizedDesignFlow.Connection connection : flow.connections()) {
-      requireStep(stepIds, connection.fromStepId(), "connection");
-      requireStep(stepIds, connection.toStepId(), "connection");
+      requireStepOrTrigger(stepIds, connection.fromStepId(), "connection");
+      requireStepOrTrigger(stepIds, connection.toStepId(), "connection");
       requireProvenance("connection", connection.sourceFactIds());
     }
     for (NormalizedDesignFlow.Transformation transformation : flow.transformations()) {
@@ -97,11 +97,15 @@ public final class NormalizedDesignFlowValidator {
     }
   }
 
-  private static void requireStepOrTrigger(Set<String> stepIds, String stepId) {
+  private static void requireStepOrTrigger(Set<String> stepIds, String stepId, String owner) {
     if ("step-trigger".equals(stepId)) {
       return;
     }
-    requireStep(stepIds, stepId, "mapping");
+    requireStep(stepIds, stepId, owner);
+  }
+
+  private static void requireStepOrTrigger(Set<String> stepIds, String stepId) {
+    requireStepOrTrigger(stepIds, stepId, "mapping");
   }
 
   private static void requireProvenance(String owner, List<String> sourceFactIds) {

@@ -97,12 +97,11 @@ public class RequirementBriefTool {
        on goal, summary, inputs, constraints, and assumptions.
       When there are no positive SERVICE_CALL facts, leave dataMappings empty. Do not invent\
        mappings. If you emit a mapping, it must include stage and at least one sourceFactId.
-      When positive SERVICE_CALL facts exist, capture dataMappings for endpoint to first call\
-       (INITIALIZATION), between adjacent calls (CONVERSION), and last call to endpoint (RESPONSE)\
-       for request-response triggers. Reuse approved sourceFactId values as fromIntentRef and\
-       toIntentRef. Use PASS_THROUGH with no rules when no transformation was requested. Use\
-       EXPLICIT only for user-approved sourcePath and targetPath rules; never invent rules. Give\
-       every PASS_THROUGH mapping at least one approved sourceFactId for provenance.
+      When no transformation was requested, leave dataMappings empty. The server records that as\
+       pass-through: a direct connection with no mapping row. Use EXPLICIT dataMappings only for\
+       user-approved sourcePath and targetPath rules; never invent rules. Reuse approved\
+       sourceFactId values as fromIntentRef and toIntentRef. The server records entry points from\
+       catalog trigger capabilities independently of fact kind.
       Minimal example:
       {
         "goal": "Expose a greeting HTTP endpoint",
@@ -159,7 +158,7 @@ public class RequirementBriefTool {
         return finish(conversationId, startMs, message);
       }
       try {
-        brief = withCanonicalTriggerFacts(brief);
+        brief = RequirementBriefProjector.project(withCanonicalTriggerFacts(brief));
       } catch (IllegalArgumentException ex) {
         LOG.warnf(
             "captureRequirementBrief: trigger kind rejected conversationId=%s reason=%s",
@@ -214,17 +213,7 @@ public class RequirementBriefTool {
    * Goal/summary/inputs/constraints/assumptions stay from the agent.
    */
   static RequirementBrief pinApprovedDraftFacts(RequirementBrief brief, RequirementDraft approved) {
-    return new RequirementBrief(
-        brief.goal(),
-        brief.inputs(),
-        brief.constraints(),
-        brief.assumptions(),
-        brief.citations(),
-        brief.summary(),
-        brief.approvedDraftReference(),
-        approved.planningText(),
-        approved.facts(),
-        brief.dataMappings());
+    return brief.withFacts(approved.facts()).withApprovedDraftText(approved.planningText());
   }
 
   static RequirementBrief withCanonicalTriggerFacts(RequirementBrief brief) {
@@ -232,17 +221,7 @@ public class RequirementBriefTool {
     if (canonical.equals(brief.facts())) {
       return brief;
     }
-    return new RequirementBrief(
-        brief.goal(),
-        brief.inputs(),
-        brief.constraints(),
-        brief.assumptions(),
-        brief.citations(),
-        brief.summary(),
-        brief.approvedDraftReference(),
-        brief.approvedDraftText(),
-        canonical,
-        brief.dataMappings());
+    return brief.withFacts(canonical);
   }
 
   private static RequirementBrief toRequirementBrief(RequirementBriefCapture capture) {

@@ -19,17 +19,7 @@ public final class DesignRequirementDataMappingNormalizer {
     if (complete.size() == brief.dataMappings().size()) {
       return brief;
     }
-    return new RequirementBrief(
-        brief.goal(),
-        brief.inputs(),
-        brief.constraints(),
-        brief.assumptions(),
-        brief.citations(),
-        brief.summary(),
-        brief.approvedDraftReference(),
-        brief.approvedDraftText(),
-        brief.facts(),
-        complete);
+    return brief.withDataMappings(complete);
   }
 
   static List<RequirementDataMapping> completeMappings(List<RequirementDataMapping> mappings) {
