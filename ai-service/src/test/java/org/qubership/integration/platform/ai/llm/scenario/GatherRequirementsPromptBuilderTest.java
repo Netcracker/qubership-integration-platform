@@ -13,9 +13,13 @@ import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentServi
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
 
@@ -62,6 +66,54 @@ class GatherRequirementsPromptBuilderTest {
 
     assertFalse(input.contains("<compiler-process-skill"));
     assertTrue(input.contains("More detail"));
+  }
+
+  @Test
+  void wrapListsServiceCallIdsFromTheCurrentDraft() {
+    draftStore.put(
+        "conv-1",
+        new RequirementDraft(
+            false,
+            "Call OM then Salesforce WFM",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Which operations?"),
+            RequirementDraftTool.SOURCE_SKILL_ID,
+            "1",
+            null,
+            null,
+            null,
+            false,
+            List.of(
+                serviceCall("call-om-result", "OM", "onTaskResult"),
+                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
+            false));
+
+    String input = builder.wrap("conv-1", "Continue gathering", "en");
+
+    assertTrue(input.contains("serviceCallId=call-om-result"), input);
+    assertTrue(input.contains("serviceCallId=call-wfm-create-task"), input);
+    assertTrue(input.contains("sourceFactId=call-om-result"), input);
+    assertTrue(input.contains("participant=OM"), input);
+    assertTrue(input.contains("operation=onTaskResult"), input);
+    assertTrue(input.contains("resolved=false"), input);
+    assertTrue(input.contains("reuse serviceCallId"), input);
+    assertFalse(input.contains("sys-"), input);
+  }
+
+  private static RequirementFact serviceCall(
+      String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        serviceCallId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
   }
 
   private static CompilerSkillAddonContext brainstormingAddon() {

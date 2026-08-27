@@ -45,11 +45,12 @@ class CatalogFirstApiHubDiscoveryToolTest {
 
     String result = tool(matcher, apiHub)
             .resolveApiOperation(
+                "call-stock",
                 "The chain calls Petstore Ext to read stock levels",
                 "Petstore Ext",
                 "",
                 "GET",
-                "/store/inventory",
+                "/store/inventory", null, null,
                 "2024.4");
 
     assertTrue(result.contains("CATALOG_BOUND"), result);
@@ -61,17 +62,20 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void catalogMissUsesApiHubDiscovery() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(), any())).thenReturn(new CatalogBindingMatcher.MatchResult.None());
-    when(apiHub.searchApiOperations(eq("getInventory"), eq("rest"), eq("2024.4"), eq(0), eq(100), eq(null)))
+    when(matcher.match(any(), any()))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.None());
+    when(apiHub.searchApiOperations(
+            eq("getInventory"), eq("rest"), eq("2024.4"), eq(0), eq(100), eq(null)))
         .thenReturn("{\"hits\":[\"candidate\"]}");
 
     String result = tool(matcher, apiHub)
             .resolveApiOperation(
+                "call-stock",
                 "The chain calls Petstore to read stock levels",
                 "Petstore",
                 "getInventory",
                 "",
-                "",
+                "", null, null,
                 "2024.4");
 
     assertTrue(result.contains("candidate"), result);
@@ -86,7 +90,8 @@ class CatalogFirstApiHubDiscoveryToolTest {
     String result =
         tool(matcher, apiHub)
             .resolveApiOperation(
-                "The chain reads stock levels from somewhere", "Petstore", "", "", "", "");
+                "call-stock",
+                "The chain reads stock levels from somewhere", "Petstore", "", "", "", null, null, "");
 
     assertTrue(result.contains("INCOMPLETE"), result);
     assertTrue(result.contains("operationHint"), result);
@@ -117,9 +122,25 @@ class CatalogFirstApiHubDiscoveryToolTest {
     CatalogFirstApiHubDiscoveryTool tool = tool(matcher, apiHub, resolutions);
     try (ToolSession.Handle ignored = ToolSession.open("conv-assessments")) {
       tool.resolveApiOperation(
-          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
+          "call-stock",
+          "Read stock levels from Petstore Ext",
+          "Petstore Ext",
+          "",
+          "GET",
+          "/store/inventory",
+          null,
+          null,
+          "");
       tool.resolveApiOperation(
-          "Raise an invoice in Billing", "Billing", "createInvoice", "", "", "");
+          "call-invoice",
+          "Raise an invoice in Billing",
+          "Billing",
+          "createInvoice",
+          "",
+          "",
+          null,
+          null,
+          "");
     }
 
     String conversationId = "conv-assessments";
@@ -130,10 +151,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
     assertEquals(
         "operation-1",
         resolutions
-            .forFact(
-                conversationId,
-                RequirementFact.deriveSourceFactId(
-                    RequirementFactPolarity.POSITIVE, "Read stock levels from Petstore Ext"))
+            .forServiceCall(conversationId, "call-stock")
             .orElseThrow()
             .binding()
             .integrationOperationId());
@@ -150,8 +168,25 @@ class CatalogFirstApiHubDiscoveryToolTest {
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-mixed")) {
       tool.resolveApiOperation(
-          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
-      tool.resolveApiOperation("Raise an invoice in Billing", "Billing", "createInvoice", "", "", "");
+          "call-stock",
+          "Read stock levels from Petstore Ext",
+          "Petstore Ext",
+          "",
+          "GET",
+          "/store/inventory",
+          null,
+          null,
+          "");
+      tool.resolveApiOperation(
+          "call-invoice",
+          "Raise an invoice in Billing",
+          "Billing",
+          "createInvoice",
+          "",
+          "",
+          null,
+          null,
+          "");
     }
 
     verify(apiHub, times(1)).searchApiOperations(eq("createInvoice"), any(), any(), any(), any(), any());
@@ -167,9 +202,25 @@ class CatalogFirstApiHubDiscoveryToolTest {
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-all-local")) {
       tool.resolveApiOperation(
-          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
+          "call-stock",
+          "Read stock levels from Petstore Ext",
+          "Petstore Ext",
+          "",
+          "GET",
+          "/store/inventory",
+          null,
+          null,
+          "");
       tool.resolveApiOperation(
-          "Read stock levels again", "Petstore Ext", "getInventory", "", "", "");
+          "call-stock-again",
+          "Read stock levels again",
+          "Petstore Ext",
+          "getInventory",
+          "",
+          "",
+          null,
+          null,
+          "");
     }
 
     verifyNoInteractions(apiHub);
@@ -189,12 +240,28 @@ class CatalogFirstApiHubDiscoveryToolTest {
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-timeout")) {
       tool.resolveApiOperation(
-          "Read stock levels from Petstore Ext", "Petstore Ext", "", "GET", "/store/inventory", "");
+          "call-stock",
+          "Read stock levels from Petstore Ext",
+          "Petstore Ext",
+          "",
+          "GET",
+          "/store/inventory",
+          null,
+          null,
+          "");
       assertThrows(
           IllegalStateException.class,
           () ->
               tool.resolveApiOperation(
-                  "Raise an invoice in Billing", "Billing", "createInvoice", "", "", ""));
+                  "call-invoice",
+                  "Raise an invoice in Billing",
+                  "Billing",
+                  "createInvoice",
+                  "",
+                  "",
+                  null,
+                  null,
+                  ""));
     }
 
     List<ServiceCallAssessment> assessments = resolutions.assessments("conv-timeout");
@@ -207,21 +274,95 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void vagueCapabilitySearchesByTheOperationHintNotTheSentence() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(), any())).thenReturn(new CatalogBindingMatcher.MatchResult.None());
+    when(matcher.match(any(), any()))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.None());
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-vague")) {
       tool(matcher, apiHub)
           .resolveApiOperation(
+              "call-stock",
               "The chain has to find out how many pets are left in stock before it answers",
               "",
               "retrieve inventory levels",
               "",
-              "",
+              "", null, null,
               "");
     }
 
     verify(apiHub)
         .searchApiOperations(eq("retrieve inventory levels"), eq("rest"), any(), any(), any(), any());
+  }
+
+  @Test
+  void aBrokerOperationFallsBackToTheAsyncApiIndexNotTheRestOne() {
+    assertEquals("asyncapi", CatalogFirstApiHubDiscoveryTool.apiTypeFor("kafka"));
+    assertEquals("asyncapi", CatalogFirstApiHubDiscoveryTool.apiTypeFor("AMQP"));
+    assertEquals("rest", CatalogFirstApiHubDiscoveryTool.apiTypeFor("http"));
+    // An unnamed transport is not evidence of asynchrony; most calls are REST.
+    assertEquals("rest", CatalogFirstApiHubDiscoveryTool.apiTypeFor(""));
+    assertEquals("rest", CatalogFirstApiHubDiscoveryTool.apiTypeFor(null));
+  }
+
+  @Test
+  void omittedServiceCallIdErrorsWhenTheDraftHasSeveralCalls() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.put(
+        "conv-many",
+        new RequirementDraft(
+            false,
+            "OM then WFM",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Which operations?"),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            null,
+            false,
+            List.of(
+                serviceCall("call-om-result", "OM", "onTaskResult"),
+                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
+            false));
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    CatalogFirstApiHubDiscoveryTool discovery = tool(matcher, apiHub, new ConversationApiResolutions(), store);
+
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-many")) {
+      result =
+          discovery.resolveApiOperation(
+              "",
+              "Call OM onTaskResult",
+              "OM",
+              "onTaskResult",
+              "",
+              "",
+              null,
+              null,
+              "");
+    }
+
+    assertTrue(result.contains("ERROR"), result);
+    assertTrue(result.contains("serviceCallId is required"), result);
+    assertTrue(result.contains("call-om-result"), result);
+    assertTrue(result.contains("call-wfm-create-task"), result);
+    verifyNoInteractions(matcher);
+    verifyNoInteractions(apiHub);
+  }
+
+  private static RequirementFact serviceCall(String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        serviceCallId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
   }
 
   private static CatalogBindingMatcher.CatalogMatch petstoreMatch() {
@@ -245,6 +386,14 @@ class CatalogFirstApiHubDiscoveryToolTest {
 
   private static CatalogFirstApiHubDiscoveryTool tool(
       CatalogBindingMatcher matcher, ApiHubMcpTools apiHub, ConversationApiResolutions resolutions) {
+    return tool(matcher, apiHub, resolutions, null);
+  }
+
+  private static CatalogFirstApiHubDiscoveryTool tool(
+      CatalogBindingMatcher matcher,
+      ApiHubMcpTools apiHub,
+      ConversationApiResolutions resolutions,
+      RequirementDraftStore draftStore) {
     CatalogSystemReadTool catalogRead = mock(CatalogSystemReadTool.class);
     when(catalogRead.searchCatalogSystems(any())).thenReturn(List.of());
     when(catalogRead.getApiSpecifications(any())).thenReturn(List.of());
@@ -256,6 +405,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
         apiHub,
         resolutions,
         new ApiHubSearchAuthorizations(),
-        new ObjectMapper());
+        new ObjectMapper(),
+        draftStore);
   }
 }

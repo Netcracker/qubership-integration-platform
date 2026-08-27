@@ -113,7 +113,8 @@ public class SpecificationImportCapability implements StageCapability {
           ResolvedCatalogBinding binding =
               ResolvedCatalogBinding.enrichFromCache(
                   catalogCache, conversationId, existing.get());
-          draftStore.applyImportResult(conversationId, binding);
+          draftStore.applyImportResult(
+              conversationId, draft.apiHubCandidateServiceCallId(), binding);
           RequirementDraft updated =
               draftStore.get(conversationId).orElseGet(() -> draft.withCatalogBinding(binding));
           LOG.infof(
@@ -159,7 +160,8 @@ public class SpecificationImportCapability implements StageCapability {
                                       catalogCache,
                                       conversationId,
                                       ResolvedCatalogBinding.fromImportResult(result));
-                              draftStore.applyImportResult(conversationId, binding);
+                              draftStore.applyImportResult(
+                                  conversationId, draft.apiHubCandidateServiceCallId(), binding);
                               RequirementDraft updated =
                                   draftStore
                                       .get(conversationId)
@@ -237,7 +239,7 @@ public class SpecificationImportCapability implements StageCapability {
    * decisions 3 and 7).
    */
   private static boolean shouldPassthrough(RequirementDraft draft) {
-    if (draft.catalogBinding() != null) {
+    if (draft.selectedImportCallAlreadyBound()) {
       return true;
     }
     return draft.apiHubCandidate() == null && !draft.importIntent();

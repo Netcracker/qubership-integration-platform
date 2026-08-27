@@ -224,6 +224,13 @@ public class ConversationCatalogCache {
     return !state.operationsById.isEmpty() || !state.operationsByModelId.isEmpty();
   }
 
+  public List<CatalogRestClient.OperationDto> rememberedOperations(String conversationId) {
+    if (blankConversation(conversationId)) {
+      return List.of();
+    }
+    return List.copyOf(state(conversationId).operationsById.values());
+  }
+
   public Optional<CatalogRestClient.OperationDto> findOperation(
       String conversationId, String operationId) {
     String opId = CatalogStrings.blankToNull(operationId);

@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Structured gather tool that pins an API Hub import candidate for the active conversation.
@@ -64,7 +65,8 @@ public class SelectApiHubCandidateTool {
       binds an existing runtime-catalog hierarchy or stores an import candidate — do NOT put
       apiHubCandidate on captureRequirementDraft.
       Required: packageId, version, and either operationId or documentId (use documentId=api when
-      importing the whole package). Optional: apiType (default rest), packageName.
+      importing the whole package). Optional: apiType (default rest), packageName, serviceCallId.
+      serviceCallId is required when more than one service call is still unresolved.
       Returns JSON: { ok, tool, candidate, nextStep, openQuestion?, catalogBinding? }.
       """)
   public String selectApiHubCandidate(
@@ -73,7 +75,8 @@ public class SelectApiHubCandidateTool {
       @P("Optional operationId from the search hit") String operationId,
       @P("Optional documentId/slug; use api when importing the whole package") String documentId,
       @P("Optional apiType: rest, graphql, or asyncapi (default rest)") String apiType,
-      @P("Optional human-readable packageName from the search hit") String packageName) {
+      @P("Optional human-readable packageName from the search hit") String packageName,
+      @P("Stable SERVICE_CALL occurrence id this import belongs to") String serviceCallId) {
     String conversationId = ChainPlanTool.resolveConversationId();
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(
@@ -122,6 +125,17 @@ public class SelectApiHubCandidateTool {
                     + " documentId"));
       }
 
+      RequirementDraft previous = store.get(conversationId).orElse(null);
+      String owningCallId = resolveOwningServiceCallId(previous, serviceCallId);
+      if (owningCallId == null && previous != null && unresolvedCallIds(previous).size() > 1) {
+        return finish(
+            conversationId,
+            startMs,
+            errorJson(
+                "serviceCallId is required when several service calls are unresolved: "
+                    + String.join(", ", unresolvedCallIds(previous))));
+      }
+
       if (apiHubCache != null) {
         apiHubCache.rememberCandidate(conversationId, candidate);
       }
@@ -134,13 +148,13 @@ public class SelectApiHubCandidateTool {
         return finish(
             conversationId,
             startMs,
-            storeExistingCatalogBinding(conversationId, candidate, existing.get()));
+            storeExistingCatalogBinding(
+                conversationId, candidate, existing.get(), owningCallId));
       }
 
-      RequirementDraft previous = store.get(conversationId).orElse(null);
       RequirementDraft draft;
       if (previous != null) {
-        draft = previous.withApiHubCandidate(candidate);
+        draft = previous.withApiHubCandidate(candidate, owningCallId);
       } else {
         String assembled =
             "API Hub candidate selected: "
@@ -190,13 +204,15 @@ public class SelectApiHubCandidateTool {
   }
 
   private String storeExistingCatalogBinding(
-      String conversationId, ApiHubRequirementRefs candidate, ResolvedCatalogBinding binding)
+      String conversationId,
+      ApiHubRequirementRefs candidate,
+      ResolvedCatalogBinding binding,
+      String serviceCallId)
       throws Exception {
+    store.applyImportResult(conversationId, serviceCallId, binding);
     RequirementDraft previous = store.get(conversationId).orElse(null);
-    RequirementDraft draft;
-    if (previous != null) {
-      draft = previous.withCatalogBinding(binding);
-    } else {
+    RequirementDraft draft = previous;
+    if (draft == null) {
       String assembled =
           "Bound existing catalog service for "
               + (CatalogStrings.blankToNull(candidate.packageName()) != null
@@ -211,8 +227,8 @@ public class SelectApiHubCandidateTool {
                   RequirementDraftTool.SOURCE_SKILL_ID,
                   "unknown")
               .withCatalogBinding(binding);
+      store.put(conversationId, draft);
     }
-    store.put(conversationId, draft);
     store.markCaptured(conversationId);
     ProductCapabilityCaptureContext.offerDraft(draft);
 
@@ -237,6 +253,31 @@ public class SelectApiHubCandidateTool {
             + " packageId=%s",
         conversationId, binding.systemId(), candidate.packageId());
     return objectMapper.writeValueAsString(root);
+  }
+
+  private static String resolveOwningServiceCallId(RequirementDraft previous, String serviceCallId) {
+    String explicit = CatalogStrings.blankToNull(serviceCallId);
+    if (explicit != null) {
+      return explicit;
+    }
+    if (previous == null) {
+      return null;
+    }
+    List<String> unresolved = unresolvedCallIds(previous);
+    if (unresolved.size() == 1) {
+      return unresolved.getFirst();
+    }
+    if (unresolved.isEmpty() && previous.serviceCalls().size() == 1) {
+      return previous.serviceCalls().getFirst().serviceCallId();
+    }
+    return null;
+  }
+
+  private static List<String> unresolvedCallIds(RequirementDraft draft) {
+    return draft.serviceCalls().stream()
+        .filter(call -> call.catalogBinding() == null)
+        .map(RequirementServiceCall::serviceCallId)
+        .toList();
   }
 
   private void putCandidate(ObjectNode root, ApiHubRequirementRefs candidate) {

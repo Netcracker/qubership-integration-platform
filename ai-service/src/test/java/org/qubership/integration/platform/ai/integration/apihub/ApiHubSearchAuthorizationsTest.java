@@ -16,19 +16,19 @@ class ApiHubSearchAuthorizationsTest {
   }
 
   @Test
-  void authorizationNamesTheSourceFactItWasIssuedFor() {
-    authorizations.issue("conv-1", "fact-a", "getInventory", "confirmed catalog miss");
+  void authorizationNamesTheServiceCallItWasIssuedFor() {
+    authorizations.issue("conv-1", "call-inventory", "getInventory", "confirmed catalog miss");
 
     ApiHubSearchAuthorizations.Authorization authorization =
         authorizations.consume("conv-1").orElseThrow();
 
-    assertEquals("fact-a", authorization.sourceFactId());
+    assertEquals("call-inventory", authorization.serviceCallId());
     assertEquals("getInventory", authorization.capabilityQuery());
   }
 
   @Test
   void budgetBoundsTheNumberOfSearches() {
-    authorizations.issue("conv-1", "fact-a", "getInventory", "confirmed catalog miss");
+    authorizations.issue("conv-1", "call-inventory", "getInventory", "confirmed catalog miss");
 
     for (int spent = 0; spent < ApiHubSearchAuthorizations.DEFAULT_QUERY_BUDGET; spent++) {
       assertTrue(authorizations.consume("conv-1").isPresent(), "query " + spent);
@@ -39,10 +39,10 @@ class ApiHubSearchAuthorizationsTest {
   }
 
   @Test
-  void issuingForAnotherFactReplacesTheEarlierScope() {
-    authorizations.issue("conv-1", "fact-a", "getInventory", "confirmed catalog miss");
-    authorizations.issue("conv-1", "fact-b", "createInvoice", "confirmed catalog miss");
+  void issuingForAnotherCallReplacesTheEarlierScope() {
+    authorizations.issue("conv-1", "call-inventory", "getInventory", "confirmed catalog miss");
+    authorizations.issue("conv-1", "call-invoice", "createInvoice", "confirmed catalog miss");
 
-    assertEquals("fact-b", authorizations.consume("conv-1").orElseThrow().sourceFactId());
+    assertEquals("call-invoice", authorizations.consume("conv-1").orElseThrow().serviceCallId());
   }
 }

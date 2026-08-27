@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOp
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
@@ -324,7 +325,8 @@ class RequirementDraftToolTest {
                 null,
                 sampleFacts()));
 
-    assertTrue(result.contains("catalogBinding was missing"));
+    assertFalse(result.contains("catalogBinding"), result);
+    assertTrue(result.contains("resolveApiOperation"), result);
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
     assertNull(draft.catalogBinding());
@@ -353,10 +355,11 @@ class RequirementDraftToolTest {
                         "Petstore Ext",
                         "GET /store/inventory"))));
 
-    assertTrue(result.contains("catalogBinding was missing"), result);
+    assertFalse(result.contains("catalogBinding"), result);
+    assertTrue(result.contains("serviceCallId="), result);
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
-    assertEquals(List.of(RequirementDraftTool.BINDING_REQUIRED_OPEN_QUESTION), draft.openQuestions());
+    assertTrue(draft.openQuestions().getFirst().contains("serviceCallId="), draft.openQuestions().getFirst());
   }
 
   @Test
@@ -365,18 +368,8 @@ class RequirementDraftToolTest {
     RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
-    RequirementFact inventory =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "Petstore Ext",
-            "GET /store/inventory");
-    RequirementFact invoice =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "Billing",
-            "POST /invoices");
+    RequirementFact inventory = serviceCallFact("call-inventory", "Petstore Ext", "GET /store/inventory");
+    RequirementFact invoice = serviceCallFact("call-invoice", "Billing", "POST /invoices");
     resolutions.remember("draft-conv", assessment(inventory));
 
     tool.captureRequirementDraft(
@@ -392,7 +385,10 @@ class RequirementDraftToolTest {
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
     String question = draft.openQuestions().getFirst();
-    assertTrue(question.contains("POST /invoices"), question);
+    assertTrue(question.contains("serviceCallId=call-invoice"), question);
+    assertTrue(question.contains("participant=Billing"), question);
+    assertTrue(question.contains("operation=POST /invoices"), question);
+    assertFalse(question.contains("call-inventory"), question);
     assertFalse(question.contains("/store/inventory"), question);
   }
 
@@ -402,18 +398,8 @@ class RequirementDraftToolTest {
     RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
-    RequirementFact inventory =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "Petstore Ext",
-            "GET /store/inventory");
-    RequirementFact invoice =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "Billing",
-            "POST /invoices");
+    RequirementFact inventory = serviceCallFact("call-inventory", "Petstore Ext", "GET /store/inventory");
+    RequirementFact invoice = serviceCallFact("call-invoice", "Billing", "POST /invoices");
     resolutions.remember("draft-conv", assessment(inventory));
     resolutions.remember("draft-conv", assessment(invoice));
 
@@ -430,6 +416,76 @@ class RequirementDraftToolTest {
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
     assertTrue(draft.openQuestions().isEmpty());
+    assertNull(draft.catalogBinding());
+    assertEquals(2, draft.serviceCalls().size());
+    assertEquals("call-inventory", draft.serviceCalls().get(0).serviceCallId());
+    assertEquals("call-invoice", draft.serviceCalls().get(1).serviceCallId());
+    assertEquals(
+        "op-call-inventory",
+        draft.serviceCalls().get(0).catalogBinding().integrationOperationId());
+    assertEquals(
+        "op-call-invoice",
+        draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
+  }
+
+  @Test
+  void captureIsReadyWhenListedCatalogOperationsCoverEachServiceCall() {
+    ConversationCatalogCache cache =
+        new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = new RequirementDraftTool(store, null, cache, null, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    cache.rememberSystems(
+        "draft-conv",
+        List.of(
+            new CatalogRestClient.SystemDto("sys-om", "OM", "EXTERNAL", "http"),
+            new CatalogRestClient.SystemDto("sys-wfm", "Salesforce WFM", "EXTERNAL", "http")));
+    cache.rememberSpecifications(
+        "draft-conv",
+        List.of(
+            new CatalogRestClient.SpecificationDto("spec-om", "swagger", "group-om", "sys-om"),
+            new CatalogRestClient.SpecificationDto("spec-wfm", "swagger", "group-wfm", "sys-wfm")));
+    cache.rememberOperation(
+        "draft-conv",
+        new CatalogRestClient.OperationDto(
+            "op-onTaskResult", "onTaskResult", "POST", "/onTaskResult", "spec-om"));
+    cache.rememberOperation(
+        "draft-conv",
+        new CatalogRestClient.OperationDto(
+            "op-createTask", "createTask", "POST", "/createTask", "spec-wfm"));
+    RequirementFact omCall = serviceCallFact("call-om-result", "OM", "onTaskResult");
+    RequirementFact wfmCall =
+        serviceCallFact("call-wfm-create-task", "Salesforce WFM", "createTask");
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Bind OM and Salesforce WFM. Do not use APIHub.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(omCall, wfmCall)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.openQuestions().isEmpty());
+    assertNull(draft.catalogBinding());
+    assertEquals(2, draft.serviceCalls().size());
+    RequirementServiceCall storedOm = draft.serviceCalls().get(0);
+    RequirementServiceCall storedWfm = draft.serviceCalls().get(1);
+    assertEquals("call-om-result", storedOm.serviceCallId());
+    assertEquals("call-wfm-create-task", storedWfm.serviceCallId());
+    assertEquals("op-onTaskResult", storedOm.catalogBinding().integrationOperationId());
+    assertEquals("op-createTask", storedWfm.catalogBinding().integrationOperationId());
+    assertTrue(
+        resolutions.forServiceCall("draft-conv", "call-om-result").orElseThrow().isResolved());
+    assertTrue(
+        resolutions
+            .forServiceCall("draft-conv", "call-wfm-create-task")
+            .orElseThrow()
+            .isResolved());
   }
 
   @Test
@@ -503,21 +559,339 @@ class RequirementDraftToolTest {
     assertTrue(question.contains("op-v2"), question);
   }
 
+  @Test
+  void captureAllowsTwoCallsToShareOneCatalogOperation() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact first = serviceCallFact("call-om-result", "OM", "onTaskResult");
+    RequirementFact second = serviceCallFact("call-om-again", "OM", "onTaskResult");
+    CatalogBindingMatcher.CatalogMatch shared = sharedOmMatch();
+    resolutions.remember("draft-conv", resolved(first, shared));
+    resolutions.remember("draft-conv", resolved(second, shared));
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Notify OM twice",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(first, second)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertEquals(2, draft.serviceCalls().size());
+    assertEquals("op-shared", draft.serviceCalls().get(0).catalogBinding().integrationOperationId());
+    assertEquals("op-shared", draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
+    assertEquals("call-om-result", draft.serviceCalls().get(0).serviceCallId());
+    assertEquals("call-om-again", draft.serviceCalls().get(1).serviceCallId());
+  }
+
+  @Test
+  void captureRetainsBindingsWhenCallsAreReordered() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact om = serviceCallFact("call-om-result", "OM", "onTaskResult");
+    RequirementFact wfm = serviceCallFact("call-wfm-create-task", "Salesforce WFM", "createTask");
+    resolutions.remember("draft-conv", assessment(om));
+    resolutions.remember("draft-conv", assessment(wfm));
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM then WFM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(om, wfm)));
+    store.beginTurn("draft-conv");
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "WFM then OM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(wfm, om)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertEquals("call-wfm-create-task", draft.serviceCalls().get(0).serviceCallId());
+    assertEquals("call-om-result", draft.serviceCalls().get(1).serviceCallId());
+    assertEquals(
+        "op-call-wfm-create-task",
+        draft.serviceCalls().get(0).catalogBinding().integrationOperationId());
+    assertEquals(
+        "op-call-om-result",
+        draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
+  }
+
+  @Test
+  void captureClearsOnlyEditedCallBinding() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact om = serviceCallFact("call-om-result", "OM", "onTaskResult");
+    RequirementFact wfm = serviceCallFact("call-wfm-create-task", "Salesforce WFM", "createTask");
+    resolutions.remember("draft-conv", assessment(om));
+    resolutions.remember("draft-conv", assessment(wfm));
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM then WFM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(om, wfm)));
+    store.beginTurn("draft-conv");
+    RequirementFact editedOm = serviceCallFact("call-om-result", "OM", "getOrder");
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM getOrder then WFM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(editedOm, wfm)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertEquals("call-om-result", draft.serviceCalls().get(0).serviceCallId());
+    assertNull(draft.serviceCalls().get(0).catalogBinding());
+    assertEquals("call-wfm-create-task", draft.serviceCalls().get(1).serviceCallId());
+    assertEquals(
+        "op-call-wfm-create-task",
+        draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
+  }
+
+  @Test
+  void captureRemovesDeletedCallAndAssessment() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact om = serviceCallFact("call-om-result", "OM", "onTaskResult");
+    RequirementFact wfm = serviceCallFact("call-wfm-create-task", "Salesforce WFM", "createTask");
+    resolutions.remember("draft-conv", assessment(om));
+    resolutions.remember("draft-conv", assessment(wfm));
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM then WFM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(om, wfm)));
+    store.beginTurn("draft-conv");
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM only",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(om)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(1, draft.serviceCalls().size());
+    assertEquals("call-om-result", draft.serviceCalls().getFirst().serviceCallId());
+    assertTrue(draft.serviceCalls().getFirst().catalogBinding() != null);
+    assertTrue(resolutions.forServiceCall("draft-conv", "call-om-result").isPresent());
+    assertTrue(resolutions.forServiceCall("draft-conv", "call-wfm-create-task").isEmpty());
+  }
+
+  @Test
+  void repeatedCaptureKeepsBindingTimestamp() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact om = serviceCallFact("call-om-result", "OM", "onTaskResult");
+    Instant observedAt = Instant.parse("2026-08-27T10:15:00Z");
+    resolutions.remember("draft-conv", resolvedAt(om, assessment(om).binding(), observedAt));
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Call OM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(om)));
+    Instant stored =
+        store.get("draft-conv").orElseThrow().serviceCalls().getFirst().catalogBinding().observedAt();
+    store.beginTurn("draft-conv");
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Call OM",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            List.of(om)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(stored, draft.serviceCalls().getFirst().catalogBinding().observedAt());
+    assertEquals(observedAt, draft.serviceCalls().getFirst().catalogBinding().observedAt());
+  }
+
+  @Test
+  void captureRejectsDuplicateServiceCallId() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact first =
+        new RequirementFact(
+            "fact-om-1",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "Call OM onTaskResult",
+            "OM",
+            "onTaskResult",
+            "",
+            "",
+            "",
+            "call-om-result");
+    RequirementFact duplicate =
+        new RequirementFact(
+            "fact-om-2",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "Call OM onTaskResult again",
+            "OM",
+            "onTaskResult",
+            "",
+            "",
+            "",
+            "call-om-result");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Notify OM twice with the same call id",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(first, duplicate)));
+
+    assertTrue(result.contains("call-om-result"), result);
+    assertTrue(result.contains("duplicate"), result.toLowerCase());
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
+  void unresolvedMessageNamesServiceCallIdParticipantAndOperation() {
+    RequirementDraftTool tool = new RequirementDraftTool(store);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact om = serviceCallFact("call-om-result", "OM", "onTaskResult");
+    RequirementFact wfm = serviceCallFact("call-wfm-create-task", "Salesforce WFM", "createTask");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Bind OM and Salesforce WFM",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(om, wfm)));
+
+    assertFalse(result.contains("catalogBinding"), result);
+    assertTrue(
+        result.contains("serviceCallId=call-om-result, participant=OM, operation=onTaskResult"),
+        result);
+    assertTrue(
+        result.contains(
+            "serviceCallId=call-wfm-create-task, participant=Salesforce WFM, operation=createTask"),
+        result);
+    assertTrue(result.contains("resolveApiOperation"), result);
+  }
+
   private static ServiceCallAssessment assessment(RequirementFact call) {
-    return ServiceCallAssessment.resolved(
-        call.sourceFactId(),
-        new ServiceCallAssessment.Intent(call.text(), call.capabilityKey(), null, null, null),
+    return resolved(
+        call,
         new CatalogBindingMatcher.CatalogMatch(
-            "sys-" + call.sourceFactId().substring(0, 4),
+            "sys-" + call.serviceCallId(),
             "group-1",
             "spec-1",
-            "op-" + call.sourceFactId().substring(0, 4),
-            call.capabilityKey(),
+            "op-" + call.serviceCallId(),
+            call.participant(),
             "http",
             "GET",
             "/probe",
             "probe",
             "catalog-read:probe"));
+  }
+
+  private static ServiceCallAssessment resolved(
+      RequirementFact call, CatalogBindingMatcher.CatalogMatch match) {
+    return resolvedAt(call, match, Instant.parse("2026-08-27T09:00:00Z"));
+  }
+
+  private static ServiceCallAssessment resolvedAt(
+      RequirementFact call, CatalogBindingMatcher.CatalogMatch match, Instant observedAt) {
+    return new ServiceCallAssessment(
+        call.serviceCallId(),
+        call.sourceFactId(),
+        new ServiceCallAssessment.Intent(
+            call.text(), call.participant(), call.operation(), call.httpMethod(), call.path()),
+        ServiceCallAssessment.Outcome.RESOLVED,
+        match,
+        List.of(),
+        List.of(),
+        match.evidenceRef(),
+        observedAt);
+  }
+
+  private static CatalogBindingMatcher.CatalogMatch sharedOmMatch() {
+    return new CatalogBindingMatcher.CatalogMatch(
+        "sys-om",
+        "group-om",
+        "spec-om",
+        "op-shared",
+        "OM",
+        "http",
+        "POST",
+        "/onTaskResult",
+        "onTaskResult",
+        "catalog-read:om");
+  }
+
+  private static RequirementFact serviceCallFact(
+      String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        serviceCallId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
   }
 
   @Test
@@ -538,13 +912,13 @@ class RequirementDraftToolTest {
                 new ApiHubRequirementRefs(
                     "pkg", "1.0", "op-get", null, "rest", null, null),
                 new ResolvedCatalogBinding("sys-1", "spec-1", "group-1", "op-1"),
-                sampleFacts()));
+                List.of(serviceCallFact("call-inventory", "Petstore Ext", "getInventory"))));
 
     assertTrue(result.contains("Requirement draft captured"));
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertEquals("sys-1", draft.catalogBinding().systemId());
-    assertEquals("op-1", draft.catalogBinding().integrationOperationId());
-    assertEquals("EXTERNAL", draft.catalogBinding().systemType());
+    assertNull(draft.catalogBinding());
+    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
+    assertEquals("op-1", draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
     assertNull(draft.apiHubCandidate());
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
   }

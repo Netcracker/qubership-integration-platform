@@ -26,7 +26,8 @@ public record RequirementDraft(
     List<RequirementFact> facts,
     boolean importIntent,
     DesignMode designModeHint,
-    List<RequirementServiceCall> serviceCalls) {
+    List<RequirementServiceCall> serviceCalls,
+    String apiHubCandidateServiceCallId) {
 
   public RequirementDraft {
     decision = decision != null ? decision : decisionFromComplete(complete);
@@ -52,6 +53,10 @@ public record RequirementDraft(
     } else if (serviceCalls.size() > 1) {
       catalogBinding = null;
     }
+    apiHubCandidateServiceCallId =
+        apiHubCandidateServiceCallId == null || apiHubCandidateServiceCallId.isBlank()
+            ? null
+            : apiHubCandidateServiceCallId.trim();
     complete = decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
   }
 
@@ -231,15 +236,93 @@ public record RequirementDraft(
         facts,
         importIntent,
         designModeHint,
-        List.of());
+        List.of(),
+        null);
+  }
+
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      ResolvedCatalogBinding catalogBinding,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      DesignMode designModeHint,
+      List<RequirementServiceCall> serviceCalls) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        catalogBinding,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        designModeHint,
+        serviceCalls,
+        null);
   }
 
   public boolean readyForPlan() {
-    return decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
+    return decision == DraftDecision.READY_FOR_PLAN
+        && openQuestions.isEmpty()
+        && allServiceCallsResolved();
+  }
+
+  /** True when every active service call has a binding whose {@code serviceCallId} matches. */
+  public boolean allServiceCallsResolved() {
+    if (serviceCalls.isEmpty()) {
+      return true;
+    }
+    for (RequirementServiceCall call : serviceCalls) {
+      if (call.catalogBinding() == null
+          || !call.serviceCallId().equals(call.catalogBinding().serviceCallId())) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public boolean hasPendingImport() {
-    return apiHubCandidate != null && catalogBinding == null;
+    if (apiHubCandidate == null) {
+      return false;
+    }
+    if (apiHubCandidateServiceCallId != null) {
+      return serviceCalls.stream()
+          .filter(call -> apiHubCandidateServiceCallId.equals(call.serviceCallId()))
+          .findFirst()
+          .map(call -> call.catalogBinding() == null)
+          .orElse(true);
+    }
+    if (!serviceCalls.isEmpty()) {
+      return !allServiceCallsResolved();
+    }
+    return catalogBinding == null;
+  }
+
+  /** True when the call this pending import belongs to already has a catalog binding. */
+  public boolean selectedImportCallAlreadyBound() {
+    if (catalogBinding != null) {
+      return true;
+    }
+    if (apiHubCandidateServiceCallId != null) {
+      return serviceCalls.stream()
+          .anyMatch(
+              call ->
+                  apiHubCandidateServiceCallId.equals(call.serviceCallId())
+                      && call.catalogBinding() != null);
+    }
+    return !serviceCalls.isEmpty() && allServiceCallsResolved();
   }
 
   public String planningText() {
@@ -276,7 +359,61 @@ public record RequirementDraft(
         facts,
         false,
         designModeHint,
-        serviceCalls);
+        serviceCalls,
+        null);
+  }
+
+  /**
+   * Replaces the catalog binding for one service call. Other calls keep their bindings. Ready for
+   * plan only when every remaining call is bound.
+   */
+  public RequirementDraft withBoundServiceCall(String serviceCallId, CatalogBindingHint hint) {
+    String id = serviceCallId == null ? "" : serviceCallId.trim();
+    List<RequirementServiceCall> next = new ArrayList<>();
+    boolean replaced = false;
+    for (RequirementServiceCall call : serviceCalls) {
+      if (!replaced && call.serviceCallId().equals(id)) {
+        next.add(
+            new RequirementServiceCall(
+                call.serviceCallId(),
+                call.sourceFactId(),
+                call.participant(),
+                call.operation(),
+                hint));
+        replaced = true;
+      } else {
+        next.add(call);
+      }
+    }
+    if (!replaced && next.size() == 1 && next.getFirst().catalogBinding() == null) {
+      RequirementServiceCall only = next.getFirst();
+      next =
+          List.of(
+              new RequirementServiceCall(
+                  only.serviceCallId(),
+                  only.sourceFactId(),
+                  only.participant(),
+                  only.operation(),
+                  hint));
+    }
+    boolean resolved =
+        next.stream().allMatch(call -> call.catalogBinding() != null) || next.isEmpty();
+    return new RequirementDraft(
+        resolved,
+        assembledText,
+        resolved ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
+        resolved ? List.of() : openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        null,
+        null,
+        false,
+        facts,
+        false,
+        designModeHint,
+        next,
+        null);
   }
 
   public RequirementDraft withAwaitingPlanContinuation(boolean awaiting) {
@@ -294,7 +431,8 @@ public record RequirementDraft(
         facts,
         importIntent,
         designModeHint,
-        serviceCalls);
+        serviceCalls,
+        apiHubCandidateServiceCallId);
   }
 
   /**
@@ -302,6 +440,11 @@ public record RequirementDraft(
    * the reader as a decision, so nothing is pinned as an open question.
    */
   public RequirementDraft withApiHubCandidate(ApiHubRequirementRefs candidate) {
+    return withApiHubCandidate(candidate, apiHubCandidateServiceCallId);
+  }
+
+  public RequirementDraft withApiHubCandidate(
+      ApiHubRequirementRefs candidate, String serviceCallId) {
     return new RequirementDraft(
         false,
         assembledText,
@@ -316,7 +459,8 @@ public record RequirementDraft(
         facts,
         true,
         designModeHint,
-        serviceCalls);
+        serviceCalls,
+        serviceCallId);
   }
 
   /** Clears the pending candidate while keeping {@link #importIntent()} for re-gather. */
@@ -335,7 +479,8 @@ public record RequirementDraft(
         facts,
         importIntent,
         designModeHint,
-        serviceCalls);
+        serviceCalls,
+        apiHubCandidateServiceCallId);
   }
 
   public RequirementDraft withImportIntent(boolean intent) {
@@ -353,7 +498,8 @@ public record RequirementDraft(
         facts,
         intent,
         designModeHint,
-        serviceCalls);
+        serviceCalls,
+        apiHubCandidateServiceCallId);
   }
 
   public RequirementDraft withFacts(List<RequirementFact> nextFacts) {
@@ -371,7 +517,8 @@ public record RequirementDraft(
         nextFacts,
         importIntent,
         designModeHint,
-        List.of());
+        List.of(),
+        apiHubCandidateServiceCallId);
   }
 
   private static DraftDecision decisionFromComplete(boolean complete) {

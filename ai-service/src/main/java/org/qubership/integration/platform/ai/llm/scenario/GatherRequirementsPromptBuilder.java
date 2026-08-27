@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Builds the gather-agent user message for both the legacy GATHER_REQUIREMENTS scenario and the
@@ -145,9 +146,34 @@ public class GatherRequirementsPromptBuilder {
     return """
 
         <current-requirement-draft decision="%s">
-        %s%s
+        %s%s%s
         </current-requirement-draft>
         """
-        .formatted(current.decision(), current.assembledText(), openQuestions);
+        .formatted(
+            current.decision(), current.assembledText(), openQuestions, serviceCallsBlock(current));
+  }
+
+  private static String serviceCallsBlock(RequirementDraft current) {
+    if (current.serviceCalls().isEmpty()) {
+      return "";
+    }
+    StringBuilder body =
+        new StringBuilder(
+            "\nService calls (reuse serviceCallId when editing the same semantic call;"
+                + " allocate a new id only for a new occurrence):\n");
+    for (RequirementServiceCall call : current.serviceCalls()) {
+      body.append("- serviceCallId=")
+          .append(call.serviceCallId())
+          .append(", sourceFactId=")
+          .append(call.sourceFactId())
+          .append(", participant=")
+          .append(call.participant())
+          .append(", operation=")
+          .append(call.operation())
+          .append(", resolved=")
+          .append(call.catalogBinding() != null)
+          .append('\n');
+    }
+    return body.toString();
   }
 }

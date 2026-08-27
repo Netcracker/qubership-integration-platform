@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class SpecificationImportCapabilityTest {
 
@@ -135,9 +136,9 @@ class SpecificationImportCapabilityTest {
         (RequirementDraft) completed.outcome().candidates().get(0).payload();
     assertNull(produced.apiHubCandidate());
     assertFalse(produced.importIntent());
-    assertEquals("sys", produced.catalogBinding().systemId());
+    assertEquals("sys", produced.serviceCalls().getFirst().catalogBinding().systemId());
     verify(gateway).importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class));
-    verify(store).applyImportResult(eq("conv-1"), any());
+    verify(store).applyImportResult(eq("conv-1"), any(), any());
   }
 
   @Test
@@ -164,6 +165,82 @@ class SpecificationImportCapabilityTest {
         (RequirementDraft) completed.outcome().candidates().get(0).payload();
     assertNull(produced.apiHubCandidate());
     assertTrue(produced.importIntent());
+  }
+
+  @Test
+  void importUpdatesOnlyTheSelectedServiceCallAndSurvivesReconstruction() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    ConversationCatalogCache catalogCache = mock(ConversationCatalogCache.class);
+    RequirementFact om =
+        new RequirementFact(
+            "call-om-result",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "Call OM onTaskResult",
+            "OM",
+            "onTaskResult",
+            "",
+            "",
+            "",
+            "call-om-result");
+    RequirementFact wfm =
+        new RequirementFact(
+            "call-wfm-create-task",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "Call Salesforce WFM createTask",
+            "Salesforce WFM",
+            "createTask",
+            "",
+            "",
+            "",
+            "call-wfm-create-task");
+    RequirementDraft draft =
+        new RequirementDraft(
+                false,
+                "Call OM then Salesforce WFM",
+                DraftDecision.NEEDS_INPUT,
+                List.of(),
+                "brainstorming",
+                "1",
+                null,
+                candidate(),
+                null,
+                false,
+                List.of(om, wfm),
+                true)
+            .withApiHubCandidate(candidate(), "call-om-result");
+    store.put("conv-1", draft);
+    ApiHubSpecificationImportResult result =
+        new ApiHubSpecificationImportResult(
+            "sys-om", "spec-om", "group-om", "imp-1", "OM", Optional.of("op-onTaskResult"));
+    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class)))
+        .thenReturn(Uni.createFrom().item(result));
+
+    CapabilitySignal.Completed completed =
+        run(
+            new SpecificationImportCapability(gateway, store, catalogCache),
+            Map.of("approvedDraft", draft, "userText", ChatEvent.IMPORT_MARKER));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    RequirementDraft produced =
+        (RequirementDraft) completed.outcome().candidates().get(0).payload();
+    assertNull(produced.apiHubCandidate());
+    assertEquals(2, produced.serviceCalls().size());
+    RequirementServiceCall storedOm = produced.serviceCalls().get(0);
+    RequirementServiceCall storedWfm = produced.serviceCalls().get(1);
+    assertEquals("call-om-result", storedOm.serviceCallId());
+    assertEquals("sys-om", storedOm.catalogBinding().systemId());
+    assertEquals("call-wfm-create-task", storedWfm.serviceCallId());
+    assertNull(storedWfm.catalogBinding());
+    assertFalse(produced.readyForPlan());
+
+    RequirementDraft reread = store.get("conv-1").orElseThrow();
+    assertEquals("sys-om", reread.serviceCalls().get(0).catalogBinding().systemId());
+    assertNull(reread.serviceCalls().get(1).catalogBinding());
   }
 
   private static SpecificationImportCapability capability(
