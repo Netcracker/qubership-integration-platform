@@ -23,16 +23,6 @@ public record SemanticEntryPoint(
     presentation = presentation == null ? new Presentation(null, null) : presentation;
   }
 
-  public SemanticEntryPoint(String entryPointId, String triggerNodeId) {
-    this(
-        entryPointId,
-        triggerNodeId,
-        "op-shared",
-        0,
-        new SemanticProvenance(List.of()),
-        new Presentation(null, null));
-  }
-
   /** Human-readable labels that do not change execution. */
   public record Presentation(String label, String description) {}
 }

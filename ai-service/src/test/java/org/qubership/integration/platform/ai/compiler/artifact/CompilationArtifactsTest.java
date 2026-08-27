@@ -21,7 +21,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 
 class CompilationArtifactsTest {
@@ -193,7 +192,7 @@ class CompilationArtifactsTest {
 
   private static ChainSemanticRevision sampleSemanticRevision() {
     return SemanticFixtures.revision(
-        List.of(new SemanticEntryPoint("http-in", "trigger-http")));
+        List.of(SemanticFixtures.entry("http-in", "trigger-http")));
   }
 
   private Revision append(

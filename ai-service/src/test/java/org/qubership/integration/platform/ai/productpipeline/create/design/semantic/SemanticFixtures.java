@@ -16,40 +16,40 @@ public final class SemanticFixtures {
 
   private SemanticFixtures() {}
 
+  public static SemanticEntryPoint entry(String entryPointId, String triggerNodeId) {
+    return new SemanticEntryPoint(
+        entryPointId,
+        triggerNodeId,
+        "op-shared",
+        0,
+        new SemanticProvenance(List.of()),
+        new SemanticEntryPoint.Presentation(null, null));
+  }
+
   public static ChainSemanticRevision revision(List<SemanticEntryPoint> entryPoints) {
     List<SemanticEntryPoint> completed = new ArrayList<>();
     List<SemanticNode> nodes = new ArrayList<>();
     List<SemanticExecutionEdge> edges = new ArrayList<>();
     for (int index = 0; index < entryPoints.size(); index++) {
       SemanticEntryPoint source = entryPoints.get(index);
-      String targetNodeId =
-          source.initialTargetNodeId() == null || source.initialTargetNodeId().isBlank()
-              ? "op-shared"
-              : source.initialTargetNodeId();
-      SemanticProvenance provenance =
-          source.provenance() == null
-              ? new SemanticProvenance(List.of("fact-" + source.entryPointId()))
-              : source.provenance();
-      SemanticEntryPoint.Presentation presentation =
-          source.presentation() == null
-              ? new SemanticEntryPoint.Presentation(source.entryPointId(), null)
-              : source.presentation();
       completed.add(
           new SemanticEntryPoint(
               source.entryPointId(),
               source.triggerNodeId(),
-              targetNodeId,
+              source.initialTargetNodeId(),
               index,
-              provenance,
-              presentation));
+              source.provenance(),
+              source.presentation()));
       nodes.add(
           new SemanticNode.Trigger(
-              source.triggerNodeId(), capabilityKey(source.triggerNodeId()), provenance));
+              source.triggerNodeId(),
+              capabilityKey(source.triggerNodeId()),
+              source.provenance()));
       edges.add(
           new SemanticExecutionEdge(
               "edge-" + source.entryPointId(),
               source.triggerNodeId(),
-              targetNodeId,
+              source.initialTargetNodeId(),
               null,
               null,
               null));
