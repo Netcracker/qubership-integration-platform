@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanProjector;
@@ -90,8 +91,9 @@ class BriefMappingReviewTest {
         BriefMappingReview.afterApprovedMappingChange(approved, updated, plan);
 
     assertTrue(impact.briefReopened());
+    assertEquals(Set.of("map-init"), impact.changedMappingIntentIds());
     assertTrue(impact.invalidatedPlanStepIds().contains("step-transform-map-init"));
-    assertTrue(impact.invalidatedPlanStepIds().contains("step-script"));
+    assertFalse(impact.invalidatedPlanStepIds().contains("step-script"));
     assertFalse(impact.invalidatedPlanStepIds().contains("step-trigger"));
   }
 
