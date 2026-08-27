@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -81,6 +82,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionPhase;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolutions;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -109,6 +113,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
@@ -398,6 +403,54 @@ class CreateChainSharedDesignRuntimeIT {
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
     assertTrue(hasKind(Kind.REQUIREMENT_DRAFT));
     assertTrue(hasKind(Kind.REQUIREMENT_BRIEF));
+  }
+
+  @Test
+  void omAndSalesforceCallsKeepIndependentCatalogResolutions() {
+    CreateChainTestOrchestrator runtime = runtimeWithOmWfmDesignStack();
+    startV2(runtime);
+
+    runtime
+        .acceptInput(new AcceptInputCommand(RUN_ID, "Call Order Management then Salesforce WFM"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    approveLatestWaiting(runtime);
+
+    runtime
+        .acceptInput(new AcceptInputCommand(RUN_ID, "Derive minimal IDS"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    assertEquals("design-planning", loadRun().run().currentStageId(), () -> runDebug());
+    approveLatestWaiting(runtime);
+    assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status(), () -> runDebug());
+
+    implementApprovedPlan(runtime);
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status(), () -> runDebug());
+
+    CatalogBindingResolutions resolutions =
+        artifactStore.payload(
+            artifactStore.history(RUN_ID, Kind.CATALOG_BINDING_RESOLUTIONS).stream()
+                .reduce((a, b) -> b)
+                .orElseThrow(),
+            CatalogBindingResolutions.class);
+    assertEquals(2, resolutions.resolutions().size(), resolutions.toString());
+    CatalogBindingResolution om =
+        resolutions.resolutions().stream()
+            .filter(binding -> "op-result".equals(binding.integrationOperationId()))
+            .findFirst()
+            .orElseThrow();
+    CatalogBindingResolution wfm =
+        resolutions.resolutions().stream()
+            .filter(binding -> "op-create".equals(binding.integrationOperationId()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("sys-om", om.systemId());
+    assertEquals("sys-wfm", wfm.systemId());
+    assertFalse(om.serviceCallStepId().equals(wfm.serviceCallStepId()));
   }
 
   @Test
@@ -833,7 +886,7 @@ class CreateChainSharedDesignRuntimeIT {
         new StageCapabilityRegistry(
             List.of(
                 designInputCapability(),
-                discoveryStub(),
+                discoveryStub(List.of()),
                 analysisStub(approvedBrief()),
                 designPlanningCapability(),
                 designExecutionCapability(),
@@ -841,6 +894,72 @@ class CreateChainSharedDesignRuntimeIT {
         new ProductPipelineProfileCatalog(List.of(v2Profile)),
         stubPinResolver(),
         clock), runStore);
+  }
+
+  private CreateChainTestOrchestrator runtimeWithOmWfmDesignStack() {
+    omWfmCatalogStubs().run();
+    return new CreateChainTestOrchestrator(
+        new ProductPipelineRunSupport(
+            runStore,
+            artifactStore,
+            new StageCapabilityRegistry(
+                List.of(
+                    designInputCapability(),
+                    discoveryStub(List.of(omBindingHint(), wfmBindingHint())),
+                    analysisStub(omWfmBrief()),
+                    designPlanningCapability(),
+                    designExecutionCapability(),
+                    materializationCapability)),
+            new ProductPipelineProfileCatalog(List.of(v2Profile)),
+            stubPinResolver(),
+            clock),
+        runStore);
+  }
+
+  private Runnable omWfmCatalogStubs() {
+    return () -> {
+      when(catalogReadTool.searchCatalogSystems("Order Management"))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.SystemDto(
+                      "sys-om", "Order Management", "EXTERNAL", "http")));
+      when(catalogReadTool.searchCatalogSystems("Salesforce WFM"))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.SystemDto(
+                      "sys-wfm", "Salesforce WFM", "EXTERNAL", "http")));
+      when(catalogReadTool.searchCatalogSystems("sys-om"))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.SystemDto(
+                      "sys-om", "Order Management", "EXTERNAL", "http")));
+      when(catalogReadTool.searchCatalogSystems("sys-wfm"))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.SystemDto(
+                      "sys-wfm", "Salesforce WFM", "EXTERNAL", "http")));
+      when(catalogReadTool.getApiSpecifications("sys-om"))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.SpecificationDto("spec-om", "2024.4", "sg-om", "sys-om")));
+      when(catalogReadTool.getApiSpecifications("sys-wfm"))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.SpecificationDto(
+                      "spec-wfm", "2024.4", "sg-wfm", "sys-wfm")));
+      when(catalogReadTool.listCatalogOperations("spec-om", "sys-om", null))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.OperationDto(
+                      "op-result", "onTaskResult", "POST", "/tasks/result", "spec-om")));
+      when(catalogReadTool.listCatalogOperations("spec-wfm", "sys-wfm", null))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.OperationDto(
+                      "op-create", "createTask", "POST", "/sobjects/Task", "spec-wfm")));
+      when(approvedCompilerExecutionRunner.execute(any(), any(), anyList(), any(), any(), any()))
+          .thenReturn(successfulEngineResult());
+    };
   }
 
   private static CompilerRunPinResolver stubPinResolver() {
@@ -859,8 +978,9 @@ class CreateChainSharedDesignRuntimeIT {
     return new DesignPlanningCapability(
         (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
           plannerCalls.incrementAndGet();
-          if (input != null && input.contains("Orders API")) {
-            return ordersPlannerReport();
+          if (input != null
+              && (input.contains("Orders API") || input.contains("Order Management"))) {
+            return input.contains("Order Management") ? omWfmPlannerReport() : ordersPlannerReport();
           }
           return petsPlannerReport();
         },
@@ -885,6 +1005,10 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   private StageCapability discoveryStub() {
+    return discoveryStub(List.of());
+  }
+
+  private StageCapability discoveryStub(List<CatalogBindingHint> hints) {
     return new StageCapability() {
       @Override
       public String capabilityId() {
@@ -899,14 +1023,15 @@ class CreateChainSharedDesignRuntimeIT {
             RequirementDiscoveryCapability.stageRequiresApproval(context)
                 ? StageOutcomeClass.CANDIDATE
                 : StageOutcomeClass.SUCCEEDED;
+        List<ArtifactCandidate> candidates = new ArrayList<>();
+        candidates.add(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of()));
+        for (CatalogBindingHint hint : hints) {
+          candidates.add(new ArtifactCandidate(Kind.CATALOG_BINDING_HINT, hint, List.of()));
+        }
         return Multi.createFrom()
             .item(
                 new CapabilitySignal.Completed(
-                    new StageOutcome(
-                        outcomeClass,
-                        List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())),
-                        "discovered",
-                        null)));
+                    new StageOutcome(outcomeClass, candidates, "discovered", null)));
       }
     };
   }
@@ -1187,6 +1312,110 @@ class CreateChainSharedDesignRuntimeIT {
         .trim();
   }
 
+  private static String omWfmPlannerReport() {
+    return """
+        1. Analyze requirements and name chain OM to Salesforce WFM (cip-requirement-analyzer + cip-naming-generator)
+        2. Resolve External integration target Order Management from the retrieved spec (binding for cip-service-call-generator)
+        3. Resolve External integration target Salesforce WFM from the retrieved spec (binding for cip-service-call-generator)
+        4. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
+        5. Generate Service Call element for Order Management.onTaskResult bound to the retrieved spec (cip-service-call-generator)
+        6. Generate Service Call element for Salesforce WFM.createTask bound to the retrieved spec (cip-service-call-generator)
+        7. Generate execution structure and element ordering (cip-structure-generator)
+        8. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        9. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+        .trim();
+  }
+
+  private static RequirementBrief omWfmBrief() {
+    RequirementFact trigger =
+        httpTrigger(
+            "trigger-1",
+            "http-trigger",
+            "HTTP POST /tasks",
+            "POST",
+            "/tasks",
+            "");
+    RequirementFact omFact =
+        serviceCall(
+            "fact-om",
+            "http-service-call",
+            "Call Order Management onTaskResult",
+            "Order Management",
+            "onTaskResult",
+            "call-om-result");
+    RequirementFact wfmFact =
+        serviceCall(
+            "fact-wfm",
+            "http-service-call",
+            "Call Salesforce WFM createTask",
+            "Salesforce WFM",
+            "createTask",
+            "call-wfm-create-task");
+    return new RequirementBrief(
+            "OM to Salesforce WFM",
+            List.of("HTTP POST /tasks"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Call OM then Salesforce WFM",
+            "draft-1",
+            "draft",
+            List.of(trigger, omFact, wfmFact),
+            List.of())
+        .withServiceCalls(
+            List.of(
+                new RequirementServiceCall(
+                    "call-om-result",
+                    "fact-om",
+                    "Order Management",
+                    "onTaskResult",
+                    omBindingHint()),
+                new RequirementServiceCall(
+                    "call-wfm-create-task",
+                    "fact-wfm",
+                    "Salesforce WFM",
+                    "createTask",
+                    wfmBindingHint())));
+  }
+
+  private static CatalogBindingHint omBindingHint() {
+    return new CatalogBindingHint(
+        "2",
+        "call-om-result",
+        "fact-om",
+        "onTaskResult",
+        "sys-om",
+        "sg-om",
+        "spec-om",
+        "op-result",
+        "http",
+        "POST",
+        "/tasks/result",
+        "2024.4",
+        FIXED,
+        "evidence-om");
+  }
+
+  private static CatalogBindingHint wfmBindingHint() {
+    return new CatalogBindingHint(
+        "2",
+        "call-wfm-create-task",
+        "fact-wfm",
+        "createTask",
+        "sys-wfm",
+        "sg-wfm",
+        "spec-wfm",
+        "op-create",
+        "http",
+        "POST",
+        "/sobjects/Task",
+        "2024.4",
+        FIXED,
+        "evidence-wfm");
+  }
+
   private static ResolvedCompilerDag sampleDag() {
     return new ResolvedCompilerDag(
         List.of(
@@ -1369,6 +1598,16 @@ class CreateChainSharedDesignRuntimeIT {
 
   private static RequirementFact serviceCall(
       String id, String capabilityKey, String text, String participant, String operation) {
+    return serviceCall(id, capabilityKey, text, participant, operation, "");
+  }
+
+  private static RequirementFact serviceCall(
+      String id,
+      String capabilityKey,
+      String text,
+      String participant,
+      String operation,
+      String serviceCallId) {
     return new RequirementFact(
         id,
         RequirementFactPolarity.POSITIVE,
@@ -1379,7 +1618,8 @@ class CreateChainSharedDesignRuntimeIT {
         operation,
         "",
         "",
-        "");
+        "",
+        serviceCallId);
   }
 
   private static RequirementDataMapping mapping(

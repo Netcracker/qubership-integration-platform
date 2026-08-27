@@ -7,17 +7,20 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class BriefFlowExtractorTest {
 
@@ -511,10 +514,11 @@ class BriefFlowExtractorTest {
     NormalizedDesignFlow projected = extractor.withMappings(brief, authored);
 
     NormalizedDesignFlow.Step serviceCall =
-        authored.steps().stream()
+        projected.steps().stream()
             .filter(step -> "service-call".equalsIgnoreCase(step.kind()))
             .findFirst()
             .orElseThrow();
+    assertEquals("call-1", serviceCall.sourceFactIds().getFirst());
     assertTrue(projected.dataMappings().isEmpty(), projected.dataMappings().toString());
     assertEquals(1, projected.connections().size());
     assertEquals("step-trigger", projected.connections().getFirst().fromStepId());
@@ -572,6 +576,158 @@ class BriefFlowExtractorTest {
                     connection.fromStepId().contains("820d45e2")
                         || connection.toStepId().contains("b96b0eea")),
         projected.connections().toString());
+  }
+
+  @Test
+  void mapsServiceCallIdToGeneratedStepProvenance() {
+    RequirementBrief brief =
+        omWfmBrief(
+            List.of(
+                boundCall(
+                    "call-om-result",
+                    "fact-om",
+                    "Order Management",
+                    "onTaskResult",
+                    "op-om"),
+                boundCall(
+                    "call-wfm-create-task",
+                    "fact-wfm",
+                    "Salesforce WFM",
+                    "createTask",
+                    "op-wfm")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals(List.of("call-om-result", "fact-om"), flow.steps().get(0).sourceFactIds());
+    assertEquals("onTaskResult", flow.steps().get(0).operationQuery());
+    assertEquals(
+        List.of("call-wfm-create-task", "fact-wfm"), flow.steps().get(1).sourceFactIds());
+    assertEquals("createTask", flow.steps().get(1).operationQuery());
+  }
+
+  @Test
+  void reorderingCallsDoesNotSwapBindings() {
+    RequirementServiceCall om =
+        boundCall("call-om-result", "fact-om", "Order Management", "onTaskResult", "op-om");
+    RequirementServiceCall wfm =
+        boundCall(
+            "call-wfm-create-task", "fact-wfm", "Salesforce WFM", "createTask", "op-wfm");
+    RequirementBrief reordered = omWfmBrief(List.of(wfm, om));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(
+                BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(reordered))
+            .flow();
+
+    assertEquals("call-wfm-create-task", flow.steps().get(0).sourceFactIds().getFirst());
+    assertEquals("createTask", flow.steps().get(0).operationQuery());
+    assertEquals("call-om-result", flow.steps().get(1).sourceFactIds().getFirst());
+    assertEquals("onTaskResult", flow.steps().get(1).operationQuery());
+  }
+
+  @Test
+  void mapsDuplicateOperationsToDistinctSteps() {
+    RequirementBrief brief =
+        brief(
+                "OM twice",
+                List.of("HTTP POST /tasks"),
+                "Call onTaskResult twice",
+                List.of(
+                    httpEndpoint("trigger-1", "HTTP POST /tasks", "POST", "/tasks", ""),
+                    serviceCallFact(
+                        "fact-om", "call-om-result", "Order Management", "onTaskResult"),
+                    serviceCallFact(
+                        "fact-om-again", "call-om-again", "Order Management", "onTaskResult")),
+                List.of())
+            .withServiceCalls(
+                List.of(
+                    boundCall(
+                        "call-om-result",
+                        "fact-om",
+                        "Order Management",
+                        "onTaskResult",
+                        "op-shared"),
+                    boundCall(
+                        "call-om-again",
+                        "fact-om-again",
+                        "Order Management",
+                        "onTaskResult",
+                        "op-shared")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals(2, flow.steps().size());
+    assertEquals("call-om-result", flow.steps().get(0).sourceFactIds().getFirst());
+    assertEquals("call-om-again", flow.steps().get(1).sourceFactIds().getFirst());
+    assertEquals("onTaskResult", flow.steps().get(0).operationQuery());
+    assertEquals("onTaskResult", flow.steps().get(1).operationQuery());
+  }
+
+  @Test
+  void withMappingsMatchesAuthoredStepsByServiceCallIdNotPosition() {
+    RequirementBrief brief =
+        omWfmBrief(
+            List.of(
+                boundCall(
+                    "call-om-result",
+                    "fact-om",
+                    "Order Management",
+                    "onTaskResult",
+                    "op-om"),
+                boundCall(
+                    "call-wfm-create-task",
+                    "fact-wfm",
+                    "Salesforce WFM",
+                    "createTask",
+                    "op-wfm")));
+    NormalizedDesignFlow authored =
+        new NormalizedDesignFlow(
+            "1",
+            "flow-1",
+            "OM to Salesforce WFM",
+            "",
+            new NormalizedDesignFlow.Trigger(
+                "http", "client", "HTTP", "/tasks", "POST", List.of("trigger-1")),
+            List.of(
+                new NormalizedDesignFlow.Participant(
+                    "client", "Client", "EXTERNAL", List.of("trigger-1")),
+                new NormalizedDesignFlow.Participant(
+                    "wfm", "Salesforce WFM", "EXTERNAL", List.of("call-wfm-create-task")),
+                new NormalizedDesignFlow.Participant(
+                    "om", "Order Management", "EXTERNAL", List.of("call-om-result"))),
+            List.of(
+                new NormalizedDesignFlow.Step(
+                    "step-wfm",
+                    "service-call",
+                    "client",
+                    "wfm",
+                    "createTask",
+                    "",
+                    List.of("call-wfm-create-task", "fact-wfm")),
+                new NormalizedDesignFlow.Step(
+                    "step-om",
+                    "service-call",
+                    "client",
+                    "om",
+                    "onTaskResult",
+                    "",
+                    List.of("call-om-result", "fact-om"))),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of());
+
+    NormalizedDesignFlow projected = extractor.withMappings(brief, authored);
+
+    assertEquals("step-trigger", projected.connections().getFirst().fromStepId());
+    assertEquals("step-om", projected.connections().getFirst().toStepId());
+    assertEquals("step-om", projected.connections().get(1).fromStepId());
+    assertEquals("step-wfm", projected.connections().get(1).toStepId());
   }
 
   @Test
@@ -724,6 +880,62 @@ class BriefFlowExtractorTest {
         "",
         "",
         "");
+  }
+
+  private static RequirementBrief omWfmBrief(List<RequirementServiceCall> serviceCalls) {
+    return brief(
+            "OM to Salesforce WFM",
+            List.of("HTTP POST /tasks"),
+            "Call OM then Salesforce WFM",
+            List.of(
+                httpEndpoint("trigger-1", "HTTP POST /tasks", "POST", "/tasks", ""),
+                serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult"),
+                serviceCallFact(
+                    "fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask")),
+            List.of())
+        .withServiceCalls(serviceCalls);
+  }
+
+  private static RequirementFact serviceCallFact(
+      String sourceFactId, String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        sourceFactId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "http-service-call",
+        "Call " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
+  }
+
+  private static RequirementServiceCall boundCall(
+      String serviceCallId,
+      String sourceFactId,
+      String participant,
+      String operation,
+      String integrationOperationId) {
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            "2",
+            serviceCallId,
+            sourceFactId,
+            operation,
+            "sys-" + serviceCallId,
+            "sg-" + serviceCallId,
+            "spec-" + serviceCallId,
+            integrationOperationId,
+            "http",
+            "POST",
+            "/tasks",
+            "2024.4",
+            Instant.parse("2026-08-27T12:00:00Z"),
+            "evidence-" + serviceCallId);
+    return new RequirementServiceCall(
+        serviceCallId, sourceFactId, participant, operation, hint);
   }
 
   private static RequirementDataMapping leftoverHashMapping(

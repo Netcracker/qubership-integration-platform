@@ -56,9 +56,13 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
 
   private BindingResolutionResult resolveStep(
       NormalizedDesignFlow flow, NormalizedDesignFlow.Step step, List<CatalogBindingHint> hints) {
-    Optional<CatalogBindingHint> hint = findHint(step, hints);
-    if (hint.isPresent()) {
-      CatalogBindingHint observed = hint.get();
+    HintLookup lookup = findHint(step, hints);
+    if (lookup.failureReason() != null) {
+      return new BindingResolutionResult.Failed(
+          step.stepId(), lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
+    }
+    if (lookup.hint() != null) {
+      CatalogBindingHint observed = lookup.hint();
       Optional<CatalogBindingMatcher.CatalogMatch> revalidated =
           matcher.revalidateHint(
               flow,
@@ -108,23 +112,80 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
             match.evidenceRef()));
   }
 
-  private static Optional<CatalogBindingHint> findHint(
+  private static HintLookup findHint(
       NormalizedDesignFlow.Step step, List<CatalogBindingHint> hints) {
-    String query = CatalogStrings.blankToNull(step.operationQuery());
+    List<CatalogBindingHint> v2Hints = new ArrayList<>();
+    List<CatalogBindingHint> v1Hints = new ArrayList<>();
     for (CatalogBindingHint hint : hints) {
       if (hint == null) {
         continue;
       }
+      if ("2".equals(hint.schemaVersion())) {
+        v2Hints.add(hint);
+      } else {
+        v1Hints.add(hint);
+      }
+    }
+    if (!v2Hints.isEmpty()) {
+      List<CatalogBindingHint> matches = new ArrayList<>();
+      for (CatalogBindingHint hint : v2Hints) {
+        if (step.sourceFactIds().contains(hint.serviceCallId())) {
+          matches.add(hint);
+        }
+      }
+      if (matches.size() == 1) {
+        return HintLookup.found(matches.getFirst());
+      }
+      String callId = callIdForStep(step, matches);
+      if (matches.size() > 1) {
+        return HintLookup.failed(
+            "multiple catalog binding hints for serviceCallId="
+                + callId
+                + " on step "
+                + step.stepId());
+      }
+      return HintLookup.failed(
+          "no catalog binding hint for serviceCallId=" + callId + " on step " + step.stepId());
+    }
+    String query = CatalogStrings.blankToNull(step.operationQuery());
+    for (CatalogBindingHint hint : v1Hints) {
       if (query != null && query.equals(hint.operationQuery())) {
-        return Optional.of(hint);
+        return HintLookup.found(hint);
       }
       for (String factId : step.sourceFactIds()) {
-        if (factId != null && factId.equals(hint.serviceCallSourceFactId())) {
-          return Optional.of(hint);
+        if (factId != null && factId.equals(hint.serviceCallId())) {
+          return HintLookup.found(hint);
         }
       }
     }
-    return Optional.empty();
+    return HintLookup.none();
+  }
+
+  private static String callIdForStep(
+      NormalizedDesignFlow.Step step, List<CatalogBindingHint> matches) {
+    if (!matches.isEmpty()) {
+      return matches.getFirst().serviceCallId();
+    }
+    for (String factId : step.sourceFactIds()) {
+      if (factId != null && !factId.isBlank()) {
+        return factId;
+      }
+    }
+    return step.stepId();
+  }
+
+  private record HintLookup(CatalogBindingHint hint, String failureReason) {
+    static HintLookup found(CatalogBindingHint hint) {
+      return new HintLookup(hint, null);
+    }
+
+    static HintLookup none() {
+      return new HintLookup(null, null);
+    }
+
+    static HintLookup failed(String reason) {
+      return new HintLookup(null, reason);
+    }
   }
 
   static void requireMatchingApproval(ApprovalRecordV2 approval) {

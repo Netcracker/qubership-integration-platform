@@ -269,7 +269,7 @@ public final class DesignExecutionBriefFactory {
     if (bindings == null || bindings.isEmpty()) {
       return "";
     }
-    StringBuilder body = new StringBuilder("Resolved catalog binding:\n");
+    StringBuilder body = new StringBuilder("Resolved catalog bindings:\n");
     for (CatalogBindingResolution binding : bindings) {
       if (binding == null) {
         continue;

@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementTriggerRole;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Design-path ({@code create-chain@2}) coverage for leftover mapping rows on a requirement brief.
@@ -24,6 +25,7 @@ public final class DesignRequirementBriefCoverageValidator {
   public void validate(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
     RequirementBrief normalized = DesignRequirementDataMappingNormalizer.normalize(brief);
+    requireUniqueServiceCallSteps(normalized);
     List<RequirementFact> outboundCalls =
         positiveFacts(normalized, RequirementFactKind.SERVICE_CALL);
     List<RequirementFact> triggers =
@@ -68,6 +70,33 @@ public final class DesignRequirementBriefCoverageValidator {
    */
   public RequirementBrief withPassThroughForMissingEdges(RequirementBrief brief) {
     return retainTopologyBoundMappings(brief);
+  }
+
+  private static void requireUniqueServiceCallSteps(RequirementBrief brief) {
+    LinkedHashSet<String> seen = new LinkedHashSet<>();
+    if (!brief.serviceCalls().isEmpty()) {
+      for (RequirementServiceCall call : brief.serviceCalls()) {
+        if (call == null || call.serviceCallId() == null || call.serviceCallId().isBlank()) {
+          throw new IllegalArgumentException("service call is missing serviceCallId");
+        }
+        rememberUniqueCallId(seen, call.serviceCallId());
+      }
+      return;
+    }
+    for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.SERVICE_CALL)) {
+      String id =
+          fact.serviceCallId() == null || fact.serviceCallId().isBlank()
+              ? fact.sourceFactId()
+              : fact.serviceCallId();
+      rememberUniqueCallId(seen, id);
+    }
+  }
+
+  private static void rememberUniqueCallId(Set<String> seen, String serviceCallId) {
+    if (!seen.add(serviceCallId)) {
+      throw new IllegalArgumentException(
+          "serviceCallId=" + serviceCallId + " does not map to a unique service-call step");
+    }
   }
 
   private static List<RequirementDataMapping> topologyBoundMappings(RequirementBrief brief) {

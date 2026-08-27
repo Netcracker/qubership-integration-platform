@@ -39,6 +39,81 @@ class ExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void matchesV2HintByServiceCallId() {
+    stubExactCatalogHit("Salesforce WFM", "sys-wfm", "sg-wfm", "spec-wfm", "op-create", "POST", "/tasks");
+    CatalogBindingHint omHint =
+        v2Hint("call-om-result", "fact-om", "onTaskResult", "sys-om", "op-result");
+    CatalogBindingHint wfmHint =
+        v2Hint("call-wfm-create-task", "fact-wfm", "onTaskResult", "sys-wfm", "op-create");
+    NormalizedDesignFlow flow =
+        sampleFlowOneCall(
+            "call-wfm",
+            "Salesforce WFM",
+            "onTaskResult",
+            List.of("call-wfm-create-task", "fact-wfm"));
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, flow, List.of(omHint, wfmHint), approved());
+
+    BindingResolutionResult.Resolved resolved =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
+    assertEquals("call-wfm", resolved.binding().serviceCallStepId());
+    assertEquals("sys-wfm", resolved.binding().systemId());
+    assertEquals("op-create", resolved.binding().integrationOperationId());
+  }
+
+  @Test
+  void doesNotMatchDuplicateOperationByQuery() {
+    when(catalogReadTool.searchCatalogSystems("Order Management"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SystemDto("sys-om", "Order Management", "EXTERNAL", "http")));
+    when(catalogReadTool.searchCatalogSystems("Salesforce WFM"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SystemDto(
+                    "sys-wfm", "Salesforce WFM", "EXTERNAL", "http")));
+    when(catalogReadTool.getApiSpecifications("sys-om"))
+        .thenReturn(
+            List.of(new CatalogRestClient.SpecificationDto("spec-om", "2024.4", "sg-om", "sys-om")));
+    when(catalogReadTool.getApiSpecifications("sys-wfm"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationDto("spec-wfm", "2024.4", "sg-wfm", "sys-wfm")));
+    when(catalogReadTool.listCatalogOperations("spec-om", "sys-om", null))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.OperationDto(
+                    "op-result", "onTaskResult", "POST", "/tasks/result", "spec-om")));
+    when(catalogReadTool.listCatalogOperations("spec-wfm", "sys-wfm", null))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.OperationDto(
+                    "op-create", "onTaskResult", "POST", "/tasks", "spec-wfm")));
+    CatalogBindingHint omHint =
+        v2Hint("call-om-result", "fact-om", "onTaskResult", "sys-om", "op-result");
+    CatalogBindingHint wfmHint =
+        v2Hint("call-wfm-create-task", "fact-wfm", "onTaskResult", "sys-wfm", "op-create");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(
+            CONVERSATION_ID,
+            sampleFlowTwoDuplicateQueries(),
+            List.of(omHint, wfmHint),
+            approved());
+
+    assertEquals(2, results.size());
+    BindingResolutionResult.Resolved first =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(0));
+    BindingResolutionResult.Resolved second =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(1));
+    assertEquals("step-om", first.binding().serviceCallStepId());
+    assertEquals("op-result", first.binding().integrationOperationId());
+    assertEquals("step-wfm", second.binding().serviceCallStepId());
+    assertEquals("op-create", second.binding().integrationOperationId());
+  }
+
+  @Test
   void exactLocalMatchDoesNotTouchApiHubOrImport() {
     stubExactCatalogHit("Petstore Ext", "sys-1", "sg-1", "spec-1", "op-1", "GET", "/pets");
 
@@ -226,6 +301,12 @@ class ExecutorCatalogBindingAdapterTest {
   }
 
   private static NormalizedDesignFlow sampleFlowOneCall() {
+    return sampleFlowOneCall("call-1", "Petstore Ext", "GET /pets", List.of("fact-1"));
+  }
+
+  private static NormalizedDesignFlow sampleFlowOneCall(
+      String stepId, String participant, String operationQuery, List<String> sourceFactIds) {
+    String participantId = participant.toLowerCase().replace(' ', '-');
     return new NormalizedDesignFlow(
         "1",
         "flow-1",
@@ -236,21 +317,83 @@ class ExecutorCatalogBindingAdapterTest {
         List.of(
             new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of("fact-t")),
             new NormalizedDesignFlow.Participant(
-                "petstore", "Petstore Ext", "EXTERNAL", List.of("fact-1"))),
+                participantId, participant, "EXTERNAL", sourceFactIds)),
         List.of(
             new NormalizedDesignFlow.Step(
-                "call-1",
+                stepId,
                 "service-call",
                 "client",
-                "petstore",
-                "GET /pets",
+                participantId,
+                operationQuery,
                 "",
-                List.of("fact-1"))),
+                sourceFactIds)),
         List.of(),
         List.of(),
         List.of(),
         List.of(),
         List.of());
+  }
+
+  private static NormalizedDesignFlow sampleFlowTwoDuplicateQueries() {
+    return new NormalizedDesignFlow(
+        "1",
+        "flow-om-wfm",
+        "OM to Salesforce WFM",
+        "",
+        new NormalizedDesignFlow.Trigger(
+            "http", "client", "HTTP", "/tasks", "POST", List.of("fact-t")),
+        List.of(
+            new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of("fact-t")),
+            new NormalizedDesignFlow.Participant(
+                "om", "Order Management", "EXTERNAL", List.of("call-om-result")),
+            new NormalizedDesignFlow.Participant(
+                "wfm", "Salesforce WFM", "EXTERNAL", List.of("call-wfm-create-task"))),
+        List.of(
+            new NormalizedDesignFlow.Step(
+                "step-om",
+                "service-call",
+                "client",
+                "om",
+                "onTaskResult",
+                "",
+                List.of("call-om-result", "fact-om")),
+            new NormalizedDesignFlow.Step(
+                "step-wfm",
+                "service-call",
+                "client",
+                "wfm",
+                "onTaskResult",
+                "",
+                List.of("call-wfm-create-task", "fact-wfm"))),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private static CatalogBindingHint v2Hint(
+      String serviceCallId,
+      String sourceFactId,
+      String operationQuery,
+      String systemId,
+      String integrationOperationId) {
+    String suffix = systemId.startsWith("sys-") ? systemId.substring("sys-".length()) : systemId;
+    return new CatalogBindingHint(
+        "2",
+        serviceCallId,
+        sourceFactId,
+        operationQuery,
+        systemId,
+        "sg-" + suffix,
+        "spec-" + suffix,
+        integrationOperationId,
+        "http",
+        "POST",
+        "/tasks",
+        "2024.4",
+        FIXED,
+        "evidence-" + serviceCallId);
   }
 
   private static NormalizedDesignFlow sampleFlowTwoCalls() {

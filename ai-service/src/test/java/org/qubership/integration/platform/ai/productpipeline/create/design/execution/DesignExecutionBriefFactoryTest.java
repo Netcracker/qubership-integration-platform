@@ -61,6 +61,7 @@ class DesignExecutionBriefFactoryTest {
     assertTrue(brief.inputs().stream().anyMatch(i -> i.contains("systemId=sys-1")));
     assertTrue(brief.constraints().stream().anyMatch(c -> c.contains("test-role")));
     assertTrue(brief.approvedDraftText().contains("integrationOperationId: op-1"));
+    assertTrue(brief.approvedDraftText().contains("Resolved catalog bindings"));
     assertTrue(brief.facts().stream().anyMatch(f -> f.text().contains("/health-proxy")));
     RequirementFact triggerFact =
         brief.facts().stream()
@@ -167,6 +168,40 @@ class DesignExecutionBriefFactoryTest {
     assertTrue(
         brief.dataMappings().getFirst().rules().stream()
             .anyMatch(rule -> rule.targetPath().equals("$.headers.X-Request-Id")));
+  }
+
+  @Test
+  void formatsResolvedCatalogBindingsAsPlural() {
+    NormalizedDesignFlow flow = minimalFlow();
+    CatalogBindingResolution first =
+        new CatalogBindingResolution(
+            "step-om",
+            CatalogBindingResolution.Source.EXISTING_CATALOG,
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-result",
+            null,
+            "2024.4",
+            "evidence-om");
+    CatalogBindingResolution second =
+        new CatalogBindingResolution(
+            "step-wfm",
+            CatalogBindingResolution.Source.EXISTING_CATALOG,
+            "sys-wfm",
+            "sg-wfm",
+            "spec-wfm",
+            "op-create",
+            null,
+            "2024.4",
+            "evidence-wfm");
+
+    RequirementBrief brief =
+        DesignExecutionBriefFactory.build(null, flow, List.of(first, second));
+
+    assertTrue(brief.approvedDraftText().startsWith("Resolved catalog bindings"));
+    assertTrue(brief.approvedDraftText().contains("serviceCallStepId: step-om"));
+    assertTrue(brief.approvedDraftText().contains("serviceCallStepId: step-wfm"));
   }
 
   @Test
