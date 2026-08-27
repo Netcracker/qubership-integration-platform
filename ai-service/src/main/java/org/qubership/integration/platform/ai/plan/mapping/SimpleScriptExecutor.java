@@ -37,6 +37,17 @@ public final class SimpleScriptExecutor {
     }
   }
 
+  static String applyNode(ChainPlanNode node, String jsonBody) {
+    try {
+      JsonNode input = JSON.readTree(jsonBody == null ? "{}" : jsonBody);
+      ObjectNode output = JSON.createObjectNode();
+      applyScript(input, output, MappingExecutionSite.scriptBody(node));
+      return JSON.writeValueAsString(output);
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot apply generated script mapping to the payload", e);
+    }
+  }
+
   private static void applyScript(JsonNode input, ObjectNode output, String script) {
     if (script == null || script.isBlank()) {
       return;

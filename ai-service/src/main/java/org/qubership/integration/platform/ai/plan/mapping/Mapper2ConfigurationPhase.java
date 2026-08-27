@@ -4,8 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -26,15 +28,27 @@ public final class Mapper2ConfigurationPhase {
   private Mapper2ConfigurationPhase() {}
 
   public static ChainPlanGraph configure(ChainPlanGraph graph, RequirementBrief brief) {
+    return configure(graph, brief, intentIds(brief));
+  }
+
+  /**
+   * Configure mapper-2 shells for the given intent ids only. Other sites keep their existing
+   * configuration so a change on one boundary cannot rewrite another.
+   */
+  public static ChainPlanGraph configure(
+      ChainPlanGraph graph, RequirementBrief brief, Set<String> mappingIntentIds) {
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
-    if (brief == null || brief.mappingIntents().isEmpty()) {
+    if (brief == null
+        || brief.mappingIntents().isEmpty()
+        || mappingIntentIds == null
+        || mappingIntentIds.isEmpty()) {
       return graph;
     }
     ChainPlanGraph current = graph;
     for (MappingIntent intent : brief.mappingIntents()) {
-      if (!isMapper2Intent(intent)) {
+      if (!mappingIntentIds.contains(intent.mappingIntentId()) || !isMapper2Intent(intent)) {
         continue;
       }
       ChainPlanNode site = requireSite(current, intent.mappingIntentId());
@@ -75,6 +89,19 @@ public final class Mapper2ConfigurationPhase {
         List.of(),
         List.of(),
         "Configure existing mapper-2 shells from approved mapping intents");
+  }
+
+  private static Set<String> intentIds(RequirementBrief brief) {
+    if (brief == null) {
+      return Set.of();
+    }
+    Set<String> ids = new LinkedHashSet<>();
+    for (MappingIntent intent : brief.mappingIntents()) {
+      if (intent != null && !intent.mappingIntentId().isBlank()) {
+        ids.add(intent.mappingIntentId());
+      }
+    }
+    return ids;
   }
 
   private static boolean isMapper2Intent(MappingIntent intent) {

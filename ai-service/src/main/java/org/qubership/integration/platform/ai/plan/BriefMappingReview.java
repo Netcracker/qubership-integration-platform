@@ -82,11 +82,11 @@ public final class BriefMappingReview {
     Objects.requireNonNull(approved, "approved");
     Objects.requireNonNull(updated, "updated");
     if (approved.mappingIntents().equals(updated.mappingIntents())) {
-      return new MappingChangeImpact(updated, false, List.of());
+      return new MappingChangeImpact(updated, false, List.of(), Set.of());
     }
     Set<String> changedIds = changedIntentIds(approved, updated);
     List<String> invalidated = invalidatedPlanStepIds(plan, changedIds);
-    return new MappingChangeImpact(updated, true, invalidated);
+    return new MappingChangeImpact(updated, true, invalidated, changedIds);
   }
 
   public static List<String> invalidatedPlanStepIds(
@@ -137,30 +137,20 @@ public final class BriefMappingReview {
         return true;
       }
     }
-    return ownsTransformForChangedIntent(step, changedMappingIntentIds);
-  }
-
-  /**
-   * Transform and script plan steps depend on every mapping intent until a transform shell carries
-   * {@code mappingIntentId} in its plan-step text. Ticket 05 attaches the identifier to the
-   * execution site; plan invalidation still matches skill owners as a safety net.
-   */
-  private static boolean ownsTransformForChangedIntent(
-      DesignExecutionPlan.Step step, Set<String> changedMappingIntentIds) {
-    if (changedMappingIntentIds.isEmpty()) {
-      return false;
-    }
-    List<String> owners = step.owningSkillIds();
-    return owners.contains("cip-script-generator")
-        || owners.contains("cip-transformation-generator");
+    return false;
   }
 
   public record MappingChangeImpact(
-      RequirementBrief brief, boolean briefReopened, List<String> invalidatedPlanStepIds) {
+      RequirementBrief brief,
+      boolean briefReopened,
+      List<String> invalidatedPlanStepIds,
+      Set<String> changedMappingIntentIds) {
 
     public MappingChangeImpact {
       invalidatedPlanStepIds =
           invalidatedPlanStepIds == null ? List.of() : List.copyOf(invalidatedPlanStepIds);
+      changedMappingIntentIds =
+          changedMappingIntentIds == null ? Set.of() : Set.copyOf(changedMappingIntentIds);
     }
   }
 }

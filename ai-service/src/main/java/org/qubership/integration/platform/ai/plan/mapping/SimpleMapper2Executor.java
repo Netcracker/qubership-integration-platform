@@ -19,12 +19,23 @@ public final class SimpleMapper2Executor {
       ObjectNode output = JSON.createObjectNode();
       if (graph != null) {
         for (ChainPlanNode node : graph.nodes()) {
-          if (!MappingExecutionSite.isConfigured(node)) {
+          if (!MappingExecutionSite.isMapper2(node) || !MappingExecutionSite.isConfigured(node)) {
             continue;
           }
           applyActions(input, output, MappingExecutionSite.mappingDescription(node));
         }
       }
+      return JSON.writeValueAsString(output);
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot apply mapper-2 mapping to the payload", e);
+    }
+  }
+
+  static String applyNode(ChainPlanNode node, String jsonBody) {
+    try {
+      JsonNode input = JSON.readTree(jsonBody == null ? "{}" : jsonBody);
+      ObjectNode output = JSON.createObjectNode();
+      applyActions(input, output, MappingExecutionSite.mappingDescription(node));
       return JSON.writeValueAsString(output);
     } catch (Exception e) {
       throw new IllegalStateException("Cannot apply mapper-2 mapping to the payload", e);

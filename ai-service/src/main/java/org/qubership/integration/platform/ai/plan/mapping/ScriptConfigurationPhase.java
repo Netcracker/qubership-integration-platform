@@ -1,8 +1,10 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -22,20 +24,33 @@ public final class ScriptConfigurationPhase {
   private ScriptConfigurationPhase() {}
 
   public static ChainPlanGraph configure(ChainPlanGraph graph, RequirementBrief brief) {
+    return configure(graph, brief, intentIds(brief));
+  }
+
+  /**
+   * Configure script shells for the given intent ids only. Other sites keep their existing
+   * configuration so a change on one boundary cannot rewrite another.
+   */
+  public static ChainPlanGraph configure(
+      ChainPlanGraph graph, RequirementBrief brief, Set<String> mappingIntentIds) {
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
-    if (brief == null || brief.mappingIntents().isEmpty()) {
+    if (brief == null
+        || brief.mappingIntents().isEmpty()
+        || mappingIntentIds == null
+        || mappingIntentIds.isEmpty()) {
       return graph;
     }
     ChainPlanGraph current = graph;
     for (MappingIntent intent : brief.mappingIntents()) {
-      if (!isScriptIntent(intent)) {
+      if (!mappingIntentIds.contains(intent.mappingIntentId()) || !isScriptIntent(intent)) {
         continue;
       }
       ChainPlanNode site = requireSite(current, intent.mappingIntentId());
       current =
-          current.withNodeProperty(site.nodeId(), MappingExecutionSite.SCRIPT_PROPERTY, generateScript(intent));
+          current.withNodeProperty(
+              site.nodeId(), MappingExecutionSite.SCRIPT_PROPERTY, generateScript(intent));
     }
     return current;
   }
@@ -78,6 +93,19 @@ public final class ScriptConfigurationPhase {
     }
     body.append("exchange.in.body = new groovy.json.JsonBuilder(target).toString()\n");
     return body.toString();
+  }
+
+  private static Set<String> intentIds(RequirementBrief brief) {
+    if (brief == null) {
+      return Set.of();
+    }
+    Set<String> ids = new LinkedHashSet<>();
+    for (MappingIntent intent : brief.mappingIntents()) {
+      if (intent != null && !intent.mappingIntentId().isBlank()) {
+        ids.add(intent.mappingIntentId());
+      }
+    }
+    return ids;
   }
 
   private static boolean isScriptIntent(MappingIntent intent) {
