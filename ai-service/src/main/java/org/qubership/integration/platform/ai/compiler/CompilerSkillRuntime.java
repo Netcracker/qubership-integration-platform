@@ -49,6 +49,7 @@ import org.qubership.integration.platform.ai.plan.ValidationResultTool;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ElementSkeleton;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
@@ -354,7 +355,8 @@ public class CompilerSkillRuntime {
     }
 
     ValidationResult deterministic =
-        compilerPlanValidator.validate(new PlanGraphValidationInput(graph));
+        compilerPlanValidator.validate(
+            new PlanGraphValidationInput(graph, mappingIntents(conversationId)));
     ValidationResult merged = ValidationResultMerger.merge(captured, deterministic);
 
     boolean capturedPlan = merged.valid();
@@ -884,7 +886,8 @@ public class CompilerSkillRuntime {
           .failure(new IllegalStateException("ChainPlanGraph is required for plan-validator"));
     }
     ValidationResult result =
-        compilerPlanValidator.validate(new PlanGraphValidationInput(inputGraph));
+        compilerPlanValidator.validate(
+            new PlanGraphValidationInput(inputGraph, mappingIntents(conversationId)));
     captureSession.accept(
         CaptureKey.conversation(CaptureSlot.VALIDATION_RESULT, conversationId),
         result,
@@ -1348,5 +1351,14 @@ public class CompilerSkillRuntime {
         .get(SkillArtifactType.CHAIN_PLAN_GRAPH)
         .map(a -> ((SkillArtifactPayload.ChainPlanGraphPayload) a.payload()).graph())
         .orElseThrow(() -> new IllegalStateException("CHAIN_PLAN_GRAPH is required"));
+  }
+
+  private List<MappingIntent> mappingIntents(String conversationId) {
+    return captureSession
+        .get(
+            CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
+            RequirementBrief.class)
+        .map(RequirementBrief::mappingIntents)
+        .orElse(List.of());
   }
 }

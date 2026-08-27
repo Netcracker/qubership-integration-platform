@@ -141,8 +141,9 @@ public final class BriefMappingReview {
   }
 
   /**
-   * Transform and script plan steps depend on every mapping intent until ticket 05 attaches
-   * {@code mappingIntentId} to the execution site.
+   * Transform and script plan steps depend on every mapping intent until a transform shell carries
+   * {@code mappingIntentId} in its plan-step text. Ticket 05 attaches the identifier to the
+   * execution site; plan invalidation still matches skill owners as a safety net.
    */
   private static boolean ownsTransformForChangedIntent(
       DesignExecutionPlan.Step step, Set<String> changedMappingIntentIds) {
