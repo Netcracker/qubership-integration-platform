@@ -75,7 +75,9 @@ public class RoutesGetterService {
                     try {
                         String targetURL = SimpleHttpUriUtils.extractProtocolAndDomainWithPort(ElementUtils.getPropertyAsString(sender, CamelOptions.URI));
 
-                        String gatewayPrefix = String.format("/%s/%s/%s", sender.getType(), sender.getOriginalId(), getEncodedURL(getHttpConnectionTimeout(sender), targetURL));
+                        String gatewayPrefix = String.format("/%s/%s/%s", sender.getType(),
+                            sender.getOriginalId().orElseGet(sender::getId),
+                            getEncodedURL(getHttpConnectionTimeout(sender), targetURL));
 
                         Route.RouteBuilder builder = Route.builder()
                                 .id(UUID.randomUUID().toString())
@@ -134,7 +136,7 @@ public class RoutesGetterService {
 
             List<Element> elements = systemsIds.get(service.getId());
             for (Element element : elements) {
-                String gatewayPrefix = String.format("/system/%s", element.getOriginalId());
+                String gatewayPrefix = String.format("/system/%s", element.getOriginalId().orElseGet(element::getId));
 
                 routes.add(Route.builder()
                         .id(UUID.randomUUID().toString())

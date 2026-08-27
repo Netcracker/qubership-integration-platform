@@ -1,10 +1,10 @@
-{{#if parent}}
-    {{#if-element-type parent not-equals='reuse'}}
+{{#if parent.present}}
+    {{#if-element-type parent.get not-equals='reuse'}}
         <setProperty name="internalProperty_{{property 'reuseElementId'}}_currentReuseReferenceParentId">
             <constant>{{parent-identifier}}</constant>
         </setProperty>
         <setProperty name="internalProperty_{{property 'reuseElementId'}}_hasIntermediateParents">
-            <constant>{{has-intermediate-children parent}}</constant>
+            <constant>{{has-intermediate-children parent.get}}</constant>
         </setProperty>
     {{/if-element-type}}
 {{/if}}

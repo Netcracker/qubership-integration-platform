@@ -1,2 +1,2 @@
-<from uri="direct:{{originalId}}" />
+<from uri="direct:{{#if originalId.present}}{{originalId.get}}{{else}}{{id}}{{/if}}" />
 <toD uri='direct:{{identifier}}'/>
