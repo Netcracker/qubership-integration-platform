@@ -71,6 +71,18 @@ public final class MappingExecutionSiteValidator {
                   "cip-structure-generator",
                   List.of(site.nodeId())));
         }
+        if (incomingCount(graph, site.nodeId()) > 1) {
+          issues.add(
+              blocker(
+                  "mapping-site-merge-" + site.nodeId(),
+                  "Transform node '"
+                      + site.nodeId()
+                      + "' has more than one incoming edge. A merge is control flow only. Place"
+                      + " the mapping on one source-to-target boundary, or add an explicit"
+                      + " aggregation step.",
+                  "cip-structure-generator",
+                  List.of(site.nodeId())));
+        }
         if (!MappingExecutionSite.isConfigured(site)) {
           issues.add(unconfiguredIssue(site));
         }
@@ -128,6 +140,19 @@ public final class MappingExecutionSiteValidator {
       sites.computeIfAbsent(mappingIntentId, ignored -> new ArrayList<>()).add(node);
     }
     return sites;
+  }
+
+  private static int incomingCount(ChainPlanGraph graph, String nodeId) {
+    int count = 0;
+    if (graph.edges() == null) {
+      return 0;
+    }
+    for (ChainPlanEdge edge : graph.edges()) {
+      if (nodeId.equals(edge.toNodeId())) {
+        count++;
+      }
+    }
+    return count;
   }
 
   private static Set<String> reachableNodeIds(ChainPlanGraph graph) {
