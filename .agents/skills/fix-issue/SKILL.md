@@ -209,6 +209,33 @@ When lenses disagree, the contract and the measurement decide. Not a majority.
 A blocking finding, meaning a reproduced regression, goes back to gate 4. Everything else goes
 into the report as a note. Do not widen the change because a reviewer found something adjacent.
 
+### A second round, and only over what changed
+
+One round is the default. A second is earned by exactly one thing: **a confirmed finding changed
+the code.** The diff the lenses read no longer exists, and whatever replaced it has been reviewed
+by nobody.
+
+The count of findings is not the trigger, and neither is how alarming they sounded. Findings that
+did not survive reproduction changed nothing, so they earn no second round: the same lenses over
+an unchanged diff return the same answers at the same cost.
+
+Round two is narrower than round one, never wider:
+
+- it reads the delta since round one, not the whole diff again;
+- it runs the lens whose finding was confirmed, because the fix landed in its territory;
+- it adds one fresh lens only when what was confirmed was a regression the fix itself introduced,
+  since that means the change has effects the author did not model;
+- lenses that came back clean are not repeated. They read the parts nobody has touched since.
+
+**Two rounds is the ceiling.** A blocking finding confirmed in round two means the change is not
+understood well enough to deliver: stop, `ai:needs-human`, and say what round two found. A third
+round is the spiral gate 4 already refuses.
+
+Both runs so far bear this out. On the snapshots table every finding fell to reproduction, the
+diff never moved, and a second round would have re-read an identical patch. On the helper tree a
+confirmed finding put three new declarations and a dropped type annotation into the diff, and
+nothing reviewed those.
+
 ## Gate 5: deliver
 
 Commit with a Conventional Commits subject referencing the issue, push the branch, open a
