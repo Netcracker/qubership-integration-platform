@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -21,7 +20,12 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSys
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 
 class ExecutorCatalogBindingAdapterTest {
@@ -35,7 +39,9 @@ class ExecutorCatalogBindingAdapterTest {
   @BeforeEach
   void setUp() {
     catalogReadTool = mock(CatalogSystemReadTool.class);
-    adapter = new DefaultExecutorCatalogBindingAdapter(new CatalogBindingMatcher(catalogReadTool));
+    adapter =
+        new DefaultExecutorCatalogBindingAdapter(
+            mock(CatalogBindingMatcher.class), catalogReadTool);
   }
 
   @Test
@@ -43,17 +49,21 @@ class ExecutorCatalogBindingAdapterTest {
     stubExactCatalogHit("Salesforce WFM", "sys-wfm", "sg-wfm", "spec-wfm", "op-create", "POST", "/tasks");
     CatalogBindingHint omHint =
         v2Hint("call-om-result", "fact-om", "onTaskResult", "sys-om", "op-result");
-    CatalogBindingHint wfmHint =
-        v2Hint("call-wfm-create-task", "fact-wfm", "onTaskResult", "sys-wfm", "op-create");
-    NormalizedDesignFlow flow =
-        sampleFlowOneCall(
+    CatalogBindingHint wfmHint = v2Hint("call-wfm", "fact-wfm", "onTaskResult", "sys-wfm", "op-create");
+    ChainSemanticRevision revision =
+        SemanticFixtures.linear(
+            "WFM",
+            "revision-wfm",
+            "trigger-http",
+            "node-wfm",
             "call-wfm",
-            "Salesforce WFM",
             "onTaskResult",
-            List.of("call-wfm-create-task", "fact-wfm"));
+            "Salesforce WFM",
+            List.of(),
+            List.of());
 
     List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, flow, List.of(omHint, wfmHint), approved());
+        adapter.resolve(CONVERSATION_ID, revision, List.of(omHint, wfmHint), approved());
 
     BindingResolutionResult.Resolved resolved =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
@@ -64,11 +74,11 @@ class ExecutorCatalogBindingAdapterTest {
 
   @Test
   void doesNotMatchDuplicateOperationByQuery() {
-    when(catalogReadTool.searchCatalogSystems("Order Management"))
+    when(catalogReadTool.searchCatalogSystems("sys-om"))
         .thenReturn(
             List.of(
                 new CatalogRestClient.SystemDto("sys-om", "Order Management", "EXTERNAL", "http")));
-    when(catalogReadTool.searchCatalogSystems("Salesforce WFM"))
+    when(catalogReadTool.searchCatalogSystems("sys-wfm"))
         .thenReturn(
             List.of(
                 new CatalogRestClient.SystemDto(
@@ -91,14 +101,14 @@ class ExecutorCatalogBindingAdapterTest {
                 new CatalogRestClient.OperationDto(
                     "op-create", "onTaskResult", "POST", "/tasks", "spec-wfm")));
     CatalogBindingHint omHint =
-        v2Hint("call-om-result", "fact-om", "onTaskResult", "sys-om", "op-result");
+        v2Hint("step-om", "fact-om", "onTaskResult", "sys-om", "op-result");
     CatalogBindingHint wfmHint =
-        v2Hint("call-wfm-create-task", "fact-wfm", "onTaskResult", "sys-wfm", "op-create");
+        v2Hint("step-wfm", "fact-wfm", "onTaskResult", "sys-wfm", "op-create");
 
     List<BindingResolutionResult> results =
         adapter.resolve(
             CONVERSATION_ID,
-            sampleFlowTwoDuplicateQueries(),
+            twoCalls("step-om", "onTaskResult", "step-wfm", "onTaskResult"),
             List.of(omHint, wfmHint),
             approved());
 
@@ -118,7 +128,7 @@ class ExecutorCatalogBindingAdapterTest {
     stubExactCatalogHit("Petstore Ext", "sys-1", "sg-1", "spec-1", "op-1", "GET", "/pets");
 
     List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), approved());
 
     BindingResolutionResult.Resolved resolved =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
@@ -134,26 +144,13 @@ class ExecutorCatalogBindingAdapterTest {
     when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
 
     List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), approved());
 
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
     assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
     assertEquals("call-1", failed.serviceCallId());
     assertTrue(failed.reason().contains("requirement gathering"), failed.reason());
-  }
-
-  @Test
-  void catalogOnlyMissFailsWithoutCallingApiHub() {
-    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-
-    List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleCatalogOnlyFlow(), List.of(), approved());
-
-    BindingResolutionResult.Failed failed =
-        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
-    assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
-    assertTrue(failed.reason().contains("no catalog binding"), failed.reason());
   }
 
   @Test
@@ -170,7 +167,7 @@ class ExecutorCatalogBindingAdapterTest {
                 new CatalogRestClient.OperationDto("op-b", "findPetsB", "GET", "/pets", "spec-1")));
 
     List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), approved());
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), approved());
 
     BindingResolutionResult.NeedsInput needsInput =
         assertInstanceOf(BindingResolutionResult.NeedsInput.class, results.getFirst());
@@ -181,9 +178,9 @@ class ExecutorCatalogBindingAdapterTest {
 
   @Test
   void twoServiceCallsResolveIndependently() {
-    when(catalogReadTool.searchCatalogSystems("Orders"))
+    when(catalogReadTool.searchCatalogSystems("GET /orders/{id}"))
         .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-o", "Orders", "EXTERNAL", "http")));
-    when(catalogReadTool.searchCatalogSystems("Billing"))
+    when(catalogReadTool.searchCatalogSystems("GET /invoices/{id}"))
         .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-b", "Billing", "EXTERNAL", "http")));
     when(catalogReadTool.getApiSpecifications("sys-o"))
         .thenReturn(
@@ -203,7 +200,11 @@ class ExecutorCatalogBindingAdapterTest {
                     "op-b", "getInvoice", "GET", "/invoices/{id}", "spec-b")));
 
     List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowTwoCalls(), List.of(), approved());
+        adapter.resolve(
+            CONVERSATION_ID,
+            twoCalls("call-orders", "GET /orders/{id}", "call-billing", "GET /invoices/{id}"),
+            List.of(),
+            approved());
 
     assertEquals(2, results.size());
     BindingResolutionResult.Resolved first =
@@ -230,7 +231,6 @@ class ExecutorCatalogBindingAdapterTest {
             "2024.4",
             FIXED,
             "hint-stale");
-    // The approved operation is gone; another operation answers the same query.
     when(catalogReadTool.searchCatalogSystems(anyString()))
         .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
     when(catalogReadTool.getApiSpecifications("sys-1"))
@@ -241,7 +241,7 @@ class ExecutorCatalogBindingAdapterTest {
             List.of(new CatalogRestClient.OperationDto("op-1", "findPets", "GET", "/pets", "spec-1")));
 
     List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(stale), approved());
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(stale), approved());
 
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
@@ -253,13 +253,13 @@ class ExecutorCatalogBindingAdapterTest {
   void rejectsResolveWithoutMatchingApproval() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> adapter.resolve(CONVERSATION_ID, sampleFlowOneCall(), List.of(), null));
+        () -> adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), null));
     assertThrows(
         IllegalArgumentException.class,
         () ->
             adapter.resolve(
                 CONVERSATION_ID,
-                sampleFlowOneCall(),
+                sampleOneCall(),
                 List.of(),
                 new ApprovalRecordV2(
                     new CompilationArtifacts.Reference(
@@ -316,78 +316,6 @@ class ExecutorCatalogBindingAdapterTest {
         null);
   }
 
-  private static NormalizedDesignFlow sampleFlowOneCall() {
-    return sampleFlowOneCall("call-1", "Petstore Ext", "GET /pets", List.of("fact-1"));
-  }
-
-  private static NormalizedDesignFlow sampleFlowOneCall(
-      String stepId, String participant, String operationQuery, List<String> sourceFactIds) {
-    String participantId = participant.toLowerCase().replace(' ', '-');
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-1",
-        "Pending pets",
-        "",
-        new NormalizedDesignFlow.Trigger(
-            "http", "client", "HTTP", "/get-pending-pets", "GET", List.of("fact-t")),
-        List.of(
-            new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of("fact-t")),
-            new NormalizedDesignFlow.Participant(
-                participantId, participant, "EXTERNAL", sourceFactIds)),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                stepId,
-                "service-call",
-                "client",
-                participantId,
-                operationQuery,
-                "",
-                sourceFactIds)),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of());
-  }
-
-  private static NormalizedDesignFlow sampleFlowTwoDuplicateQueries() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-om-wfm",
-        "OM to Salesforce WFM",
-        "",
-        new NormalizedDesignFlow.Trigger(
-            "http", "client", "HTTP", "/tasks", "POST", List.of("fact-t")),
-        List.of(
-            new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of("fact-t")),
-            new NormalizedDesignFlow.Participant(
-                "om", "Order Management", "EXTERNAL", List.of("call-om-result")),
-            new NormalizedDesignFlow.Participant(
-                "wfm", "Salesforce WFM", "EXTERNAL", List.of("call-wfm-create-task"))),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "step-om",
-                "service-call",
-                "client",
-                "om",
-                "onTaskResult",
-                "",
-                List.of("call-om-result", "fact-om")),
-            new NormalizedDesignFlow.Step(
-                "step-wfm",
-                "service-call",
-                "client",
-                "wfm",
-                "onTaskResult",
-                "",
-                List.of("call-wfm-create-task", "fact-wfm"))),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of());
-  }
-
   private static CatalogBindingHint v2Hint(
       String serviceCallId,
       String sourceFactId,
@@ -412,59 +340,50 @@ class ExecutorCatalogBindingAdapterTest {
         "evidence-" + serviceCallId);
   }
 
-  private static NormalizedDesignFlow sampleFlowTwoCalls() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-2",
+  private static ChainSemanticRevision sampleOneCall() {
+    return SemanticFixtures.linear(
+        "Pets",
+        "revision-pets",
+        "trigger-http",
+        "node-call",
+        "call-1",
+        "GET /pets",
+        "Petstore Ext",
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision twoCalls(
+      String firstCallId, String firstOperation, String secondCallId, String secondOperation) {
+    ChainSemanticRevision template = SemanticFixtures.linearOrders();
+    return new ChainSemanticRevision(
+        template.schemaVersion(),
+        "revision-two-calls",
         "Orders and billing",
-        "",
-        new NormalizedDesignFlow.Trigger(
-            "http", "client", "HTTP", "/sync", "POST", List.of("fact-t")),
+        template.compilerContractVersion(),
         List.of(
-            new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of("fact-t")),
-            new NormalizedDesignFlow.Participant("orders", "Orders", "EXTERNAL", List.of("fact-o")),
-            new NormalizedDesignFlow.Participant(
-                "billing", "Billing", "EXTERNAL", List.of("fact-b"))),
+            new SemanticEntryPoint(
+                "entry-1",
+                "trigger-http",
+                "node-first",
+                0,
+                new SemanticProvenance(List.of()),
+                new SemanticEntryPoint.Presentation("Orders", null))),
         List.of(
-            new NormalizedDesignFlow.Step(
-                "call-orders",
-                "service-call",
-                "client",
-                "orders",
-                "GET /orders/{id}",
-                "",
-                List.of("fact-o")),
-            new NormalizedDesignFlow.Step(
-                "call-billing",
-                "service-call",
-                "client",
-                "billing",
-                "GET /invoices/{id}",
-                "",
-                List.of("fact-b"))),
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "node-first", firstCallId, firstOperation, new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "node-second", secondCallId, secondOperation, new SemanticProvenance(List.of()))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge("edge-1", "trigger-http", "node-first", null, null, null),
+            new SemanticExecutionEdge("edge-2", "node-first", "node-second", null, null, null)),
         List.of(),
         List.of(),
         List.of(),
         List.of(),
         List.of());
   }
-
-  private static NormalizedDesignFlow sampleCatalogOnlyFlow() {
-    NormalizedDesignFlow flow = sampleFlowOneCall();
-    return new NormalizedDesignFlow(
-        flow.schemaVersion(),
-        flow.flowId(),
-        flow.chainName(),
-        flow.description(),
-        flow.trigger(),
-        flow.participants(),
-        flow.steps(),
-        flow.connections(),
-        flow.transformations(),
-        flow.dataMappings(),
-        flow.constraints(),
-        flow.assumptions(),
-        NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY);
-  }
-
 }

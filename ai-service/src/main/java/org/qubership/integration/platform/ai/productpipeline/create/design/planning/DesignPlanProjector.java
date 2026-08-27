@@ -13,12 +13,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.IdsDocumentParser;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
@@ -45,16 +49,18 @@ public final class DesignPlanProjector {
   }
 
   public DesignExecutionPlan project(
-      DesignPlanReport report,
-      NormalizedDesignFlow flow,
-      ResolvedCompilerDag pinnedDag,
-      String compilerCatalogHash,
-      Map<String, String> pinnedSkillHashes,
-      Map<String, String> pinnedAddonHashes) {
+      DesignPlanReport report, ChainSemanticRevision revision, CompilerRunPin pin) {
     Objects.requireNonNull(report, "report");
-    Objects.requireNonNull(flow, "flow");
-    Objects.requireNonNull(pinnedDag, "pinnedDag");
-    Objects.requireNonNull(compilerCatalogHash, "compilerCatalogHash");
+    Objects.requireNonNull(revision, "revision");
+    Objects.requireNonNull(pin, "pin");
+    ResolvedCompilerDag pinnedDag = pin.resolvedDag();
+    Objects.requireNonNull(pinnedDag, "pin.resolvedDag");
+    String compilerCatalogHash = pin.pipelineIndexDigest();
+    Objects.requireNonNull(compilerCatalogHash, "pin.pipelineIndexDigest");
+    String semanticRevisionId = pin.subjectRevisionId();
+    Objects.requireNonNull(semanticRevisionId, "pin.subjectRevisionId");
+    String designInputHash = pin.subjectSha256();
+    Objects.requireNonNull(designInputHash, "pin.subjectSha256");
 
     ParsedPlannerReport parsed = parser.parse(report.markdown());
     Map<String, ResolvedCompilerNode> nodesBySkill = indexNodes(pinnedDag);
@@ -64,9 +70,8 @@ public final class DesignPlanProjector {
     validateUnknownSkills(parsed, nodesBySkill);
     validateNoCatalogCycles(nodesBySkill, selectedSkills(parsed));
     validateTriggerCoverage(parsed);
-    validateScriptMappingCoverage(parsed, flow);
-    validateParticipants(parsed, flow);
-    validateBindingResolutionPolicy(parsed, flow);
+    validateScriptMappingCoverage(parsed, revision);
+    validateParticipants(parsed, revision);
 
     List<DesignExecutionPlan.Step> steps = new ArrayList<>();
     Map<String, List<String>> stepsByOwner = new LinkedHashMap<>();
@@ -87,7 +92,7 @@ public final class DesignPlanProjector {
               parsedStep.toPlanOwnerKind(),
               parsedStep.owningSkillIds(),
               parsedStep.toolOperationRefs(),
-              mapParticipantRefs(parsedStep.participantRefs(), flow),
+              mapParticipantRefs(parsedStep.participantRefs()),
               parsedStep.operationQueryRefs(),
               dependsOn,
               required,
@@ -107,41 +112,22 @@ public final class DesignPlanProjector {
 
     String apiRelease = parsed.apiRelease() == null ? "UNSPECIFIED" : parsed.apiRelease();
     String sourceReportHash = sha256(report.markdown());
-    String designInputHash = sha256(flow.flowId() + '|' + flow.chainName());
 
     return new DesignExecutionPlan(
         report.schemaVersion(),
-        flow.flowId(),
+        semanticRevisionId,
         CipDesignPlannerAdapter.SKILL_ID,
-        "normalized-design-flow/" + flow.flowId(),
+        "chain-semantic-revision/" + semanticRevisionId,
         designInputHash,
         apiRelease,
         BINDING_RESOLUTION_POLICY,
         steps,
         "design-plan-report",
         sourceReportHash,
-        pinnedSkillHashes == null ? Map.of() : pinnedSkillHashes,
-        pinnedAddonHashes == null ? Map.of() : pinnedAddonHashes,
+        pin.skillSha256ById() == null ? Map.of() : pin.skillSha256ById(),
+        pin.addonSha256ById() == null ? Map.of() : pin.addonSha256ById(),
         compilerCatalogHash,
         BINDING_RESOLUTION_POLICY_HASH);
-  }
-
-  private static void validateBindingResolutionPolicy(
-      ParsedPlannerReport parsed, NormalizedDesignFlow flow) {
-    if (flow.bindingResolutionPolicy()
-        != NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY) {
-      return;
-    }
-    List<Integer> forbiddenSteps =
-        parsed.steps().stream()
-            .filter(step -> step.ownerKind() == ParsedPlannerReport.OwnerKind.APIHUB_TOOL)
-            .map(ParsedPlannerReport.Step::reportOrdinal)
-            .toList();
-    if (!forbiddenSteps.isEmpty()) {
-      throw new PlannerReportFormatException(
-          "CATALOG_ONLY forbids APIHub planner steps; remove steps " + forbiddenSteps
-              + " and plan the existing catalog binding with cip-service-call-generator");
-    }
   }
 
   private static Map<String, ResolvedCompilerNode> indexNodes(ResolvedCompilerDag dag) {
@@ -286,15 +272,8 @@ public final class DesignPlanProjector {
   }
 
   private static void validateScriptMappingCoverage(
-      ParsedPlannerReport parsed, NormalizedDesignFlow flow) {
-    boolean requiresTransform = false;
-    for (NormalizedDesignFlow.DataMapping mapping : flow.dataMappings()) {
-      if (mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT) {
-        requiresTransform = true;
-        break;
-      }
-    }
-    if (!requiresTransform) {
+      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
+    if (revision.mappingIntents().isEmpty()) {
       return;
     }
     boolean covered =
@@ -310,41 +289,53 @@ public final class DesignPlanProjector {
   }
 
   private static void validateParticipants(
-      ParsedPlannerReport parsed, NormalizedDesignFlow flow) {
-    Set<String> known = new LinkedHashSet<>();
-    for (NormalizedDesignFlow.Participant participant : flow.participants()) {
-      known.add(participant.participantId());
-      known.add(participant.displayName());
-    }
+      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
+    Set<String> known = knownIdentities(revision);
     for (ParsedPlannerReport.Step step : parsed.steps()) {
       for (String hint : step.participantRefs()) {
-        // The planner reads the IDS, so it names a participant the way the diagram writes it — the
-        // bare alias, CIP. The flow carries the normalized id, p-cip. Comparing the raw hint
-        // against the normalized id refuses a reference that points at a participant which is
-        // right there, so normalize both sides. An invented name still matches nothing.
         if (!known.contains(hint)
             && !known.contains(IdsDocumentParser.normalizeParticipantId(hint))) {
           throw new PlannerContractException(
-              "planner report references participant absent from normalized flow: " + hint);
+              "planner report references a participant that is absent from the semantic revision: "
+                  + hint);
         }
       }
     }
   }
 
-  private static List<String> mapParticipantRefs(
-      List<String> hints, NormalizedDesignFlow flow) {
-    if (hints.isEmpty()) {
-      return List.of();
+  private static Set<String> knownIdentities(ChainSemanticRevision revision) {
+    Set<String> known = new LinkedHashSet<>();
+    known.add(revision.chainIdentity());
+    known.add(revision.chainIdentity() + " Service");
+    known.add(revision.chainIdentity() + " API");
+    known.add("Client");
+    known.add("CIP");
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
+      known.add(entry.entryPointId());
+      known.add(entry.triggerNodeId());
+      known.add(entry.initialTargetNodeId());
+      if (entry.presentation() != null && entry.presentation().label() != null) {
+        known.add(entry.presentation().label());
+      }
     }
-    Map<String, String> byDisplay = new HashMap<>();
-    for (NormalizedDesignFlow.Participant participant : flow.participants()) {
-      byDisplay.put(participant.displayName(), participant.participantId());
+    for (SemanticNode node : revision.nodes()) {
+      known.add(node.nodeId());
+      if (node instanceof SemanticNode.ServiceCall call) {
+        known.add(call.serviceCallId());
+        known.add(call.operation());
+      } else if (node instanceof SemanticNode.Trigger trigger) {
+        known.add(trigger.capabilityKey());
+      } else if (node instanceof SemanticNode.Operation operation) {
+        known.add(operation.elementType());
+      }
     }
-    LinkedHashSet<String> refs = new LinkedHashSet<>();
-    for (String hint : hints) {
-      refs.add(byDisplay.getOrDefault(hint, hint));
-    }
-    return List.copyOf(refs);
+    known.addAll(revision.constraints());
+    known.addAll(revision.assumptions());
+    return known;
+  }
+
+  private static List<String> mapParticipantRefs(List<String> hints) {
+    return hints == null ? List.of() : List.copyOf(hints);
   }
 
   private static String stableStepId(ParsedPlannerReport.Step step) {
@@ -432,7 +423,7 @@ public final class DesignPlanProjector {
   private static List<String> deriveRequiredArtifacts(
       ParsedPlannerReport.Step step, Map<String, ResolvedCompilerNode> nodesBySkill) {
     if (step.ownerKind() == ParsedPlannerReport.OwnerKind.APIHUB_TOOL) {
-      return List.of("NORMALIZED_DESIGN_FLOW");
+      return List.of(Kind.CHAIN_SEMANTIC_REVISION.name());
     }
     LinkedHashSet<String> required = new LinkedHashSet<>();
     for (String skillId : step.owningSkillIds()) {
@@ -442,7 +433,7 @@ public final class DesignPlanProjector {
       }
     }
     if (required.isEmpty()) {
-      required.add("NORMALIZED_DESIGN_FLOW");
+      required.add(Kind.CHAIN_SEMANTIC_REVISION.name());
     }
     return List.copyOf(required);
   }

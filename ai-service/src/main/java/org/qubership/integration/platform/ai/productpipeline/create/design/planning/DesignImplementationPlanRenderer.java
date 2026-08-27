@@ -6,7 +6,8 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 
 /**
  * Renders the user-facing {@link ImplementationPlan} from the exact planner report and typed
@@ -15,10 +16,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 public final class DesignImplementationPlanRenderer {
 
   public ImplementationPlan render(
-      DesignPlanReport report, DesignExecutionPlan projection, NormalizedDesignFlow flow) {
+      DesignPlanReport report, DesignExecutionPlan projection, ChainSemanticRevision revision) {
     Objects.requireNonNull(report, "report");
     Objects.requireNonNull(projection, "projection");
-    Objects.requireNonNull(flow, "flow");
+    Objects.requireNonNull(revision, "revision");
 
     List<String> endpointFacts = new ArrayList<>();
     List<String> branchFacts = new ArrayList<>();
@@ -30,7 +31,7 @@ public final class DesignImplementationPlanRenderer {
     List<String> dependencyProvenance = new ArrayList<>();
 
     StringBuilder body = new StringBuilder();
-    body.append("# Implementation plan: ").append(flow.chainName()).append('\n');
+    body.append("# Implementation plan: ").append(revision.chainIdentity()).append('\n');
     body.append('\n');
     body.append("Schema version: ").append(ImplementationPlan.SCHEMA_VERSION_2).append('\n');
     body.append("Binding resolution policy: ")
@@ -73,37 +74,28 @@ public final class DesignImplementationPlanRenderer {
       }
     }
 
-    if (flow.trigger() != null) {
-      String triggerFact =
-          "Trigger "
-              + flow.trigger().kind()
-              + " via "
-              + flow.trigger().sourceParticipantId()
-              + (flow.trigger().interfaceName() == null
-                  ? ""
-                  : " interface " + flow.trigger().interfaceName());
+    if (!revision.entryPoints().isEmpty()) {
+      String triggerFact = "Trigger " + revision.chainIdentity();
+      String label = revision.entryPoints().getFirst().presentation().label();
+      if (label != null && !label.isBlank()) {
+        triggerFact = triggerFact + " interface " + label;
+      }
       endpointFacts.add(triggerFact);
       body.append('\n').append("## Trigger").append('\n').append("- ").append(triggerFact).append('\n');
     }
 
-    List<NormalizedDesignFlow.DataMapping> explicitMappings =
-        flow.dataMappings().stream()
-            .filter(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT)
-            .toList();
-    if (!explicitMappings.isEmpty()) {
+    if (!revision.mappingIntents().isEmpty()) {
       body.append('\n').append("## Approved mapping intents").append('\n');
-      for (NormalizedDesignFlow.DataMapping mapping : explicitMappings) {
+      for (MappingIntent mapping : revision.mappingIntents()) {
         String mappingFact =
-            mapping.mappingId()
-                + " ["
-                + mapping.mode()
-                + "] "
-                + mapping.fromStepId()
+            mapping.mappingIntentId()
+                + " "
+                + mapping.sourceRef()
                 + " -> "
-                + mapping.toStepId();
+                + mapping.targetRef();
         scriptOutcomes.add(mappingFact);
         body.append("- ").append(mappingFact).append('\n');
-        for (NormalizedDesignFlow.MappingRule rule : mapping.rules()) {
+        for (var rule : mapping.rules()) {
           body.append("  - ")
               .append(rule.sourcePath())
               .append(" -> ")

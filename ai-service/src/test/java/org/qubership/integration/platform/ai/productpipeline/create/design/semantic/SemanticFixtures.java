@@ -86,6 +86,85 @@ public final class SemanticFixtures {
         List.of());
   }
 
+  /** Linear HTTP trigger plus one service call, with no mapping intents. */
+  public static ChainSemanticRevision linearOrders() {
+    return linear(
+        "Orders",
+        "revision-orders",
+        "trigger-http",
+        "node-call",
+        "call-1",
+        "createOrder",
+        "Orders API",
+        List.of(),
+        List.of());
+  }
+
+  /** Same as {@link #linearOrders()} plus one explicit mapping intent. */
+  public static ChainSemanticRevision linearOrdersWithMapping() {
+    return linear(
+        "Orders",
+        "revision-orders",
+        "trigger-http",
+        "node-call",
+        "call-1",
+        "createOrder",
+        "Orders API",
+        List.of(
+            new MappingIntent(
+                "map-init",
+                "edge-1",
+                MappingPort.OUTPUT,
+                "edge-1",
+                MappingPort.REQUEST,
+                List.of(new MappingIntentRule("id", "customerId", null)))),
+        List.of());
+  }
+
+  public static ChainSemanticRevision linear(
+      String chainIdentity,
+      String revisionId,
+      String triggerNodeId,
+      String callNodeId,
+      String serviceCallId,
+      String operation,
+      String entryLabel,
+      List<MappingIntent> mappingIntents,
+      List<String> constraints) {
+    List<MappingIntent> intents = mappingIntents == null ? List.of() : List.copyOf(mappingIntents);
+    String mappingId = intents.isEmpty() ? null : intents.getFirst().mappingIntentId();
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        revisionId,
+        chainIdentity,
+        CONTRACT.contractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "entry-1",
+                triggerNodeId,
+                callNodeId,
+                0,
+                new SemanticProvenance(List.of()),
+                new SemanticEntryPoint.Presentation(entryLabel, null))),
+        List.of(
+            new SemanticNode.Trigger(
+                triggerNodeId, "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                callNodeId,
+                serviceCallId,
+                operation,
+                new SemanticProvenance(List.of("fact-call")))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-1", triggerNodeId, callNodeId, null, null, mappingId)),
+        List.of(),
+        intents,
+        constraints == null ? List.of() : List.copyOf(constraints),
+        List.of(),
+        List.of());
+  }
+
   public static SemanticRegion.Split asyncSplitOneBranch() {
     return new SemanticRegion.Split(
         "region-async-split",

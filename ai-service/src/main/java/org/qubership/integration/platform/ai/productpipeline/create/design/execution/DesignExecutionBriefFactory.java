@@ -3,64 +3,52 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
-import org.qubership.integration.platform.ai.plan.RequirementFactKind;
-import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
 /**
  * Builds the requirement brief seeded into compiler DAG execution for design-execution.
  *
- * <p>Prefers the approved analysis brief when present, then enriches it with normalized-flow
- * trigger/step facts and resolved catalog binding ids so generator skills see design intent
- * without inventing values. On a repair turn, the halt evidence and the prior chain-plan graph
- * fold into the same brief text rather than a second path the generator skills would need to know
- * about.
+ * <p>The brief stays user context. The compiled graph is the compiler input. This factory prefers
+ * the stored analysis brief, appends resolved catalog binding ids, and uses the revision identity
+ * only when no stored brief exists. It does not invent trigger or step facts from the revision.
  */
 public final class DesignExecutionBriefFactory {
-
-  private static final Set<String> HTTP_METHODS =
-      Set.of("GET", "POST", "PUT", "PATCH", "DELETE");
 
   private DesignExecutionBriefFactory() {}
 
   public static RequirementBrief build(
       RequirementBrief storedBrief,
-      NormalizedDesignFlow flow,
+      ChainSemanticRevision revision,
       List<CatalogBindingResolution> bindings) {
-    Objects.requireNonNull(flow, "flow");
+    Objects.requireNonNull(revision, "revision");
     List<CatalogBindingResolution> resolved =
         bindings == null ? List.of() : List.copyOf(bindings);
     if (storedBrief != null) {
-      return enrich(storedBrief, flow, resolved);
+      return enrich(storedBrief, revision, resolved);
     }
-    return fromFlow(flow, resolved);
+    return fromRevision(revision, resolved);
   }
 
   /**
    * Same brief, plus the halt evidence and the chain-plan graph the failing attempt produced.
    * {@code repairEvidence} and {@code priorGraph} are null on a first turn, in which case this
-   * returns exactly what {@link #build(RequirementBrief, NormalizedDesignFlow, List)} does — the
-   * compiler DAG reads the seed text off {@code approvedDraftText}, so the halt findings and the
-   * prior graph go there rather than through a separate path the generator skills never see.
+   * returns exactly what {@link #build(RequirementBrief, ChainSemanticRevision, List)} does.
    */
   public static RequirementBrief build(
       RequirementBrief storedBrief,
-      NormalizedDesignFlow flow,
+      ChainSemanticRevision revision,
       List<CatalogBindingResolution> bindings,
       StageRepairEvidence repairEvidence,
       ChainPlanGraph priorGraph) {
-    RequirementBrief brief = build(storedBrief, flow, bindings);
+    RequirementBrief brief = build(storedBrief, revision, bindings);
     if (repairEvidence == null || !repairEvidence.hasEvidence()) {
       return brief;
     }
@@ -115,134 +103,47 @@ public final class DesignExecutionBriefFactory {
   }
 
   private static RequirementBrief enrich(
-      RequirementBrief brief, NormalizedDesignFlow flow, List<CatalogBindingResolution> bindings) {
+      RequirementBrief brief,
+      ChainSemanticRevision revision,
+      List<CatalogBindingResolution> bindings) {
     LinkedHashSet<String> inputs = new LinkedHashSet<>(brief.inputs());
     LinkedHashSet<String> constraints = new LinkedHashSet<>(brief.constraints());
-    List<RequirementFact> facts = new ArrayList<>(brief.facts());
-
-    appendFlowSignals(flow, inputs, constraints, facts);
+    constraints.addAll(revision.constraints());
     appendBindingInputs(bindings, inputs);
-
     String draftText =
-        firstNonBlank(brief.approvedDraftText(), formatBindingBlock(bindings), formatFlowSeed(flow));
+        firstNonBlank(brief.approvedDraftText(), formatBindingBlock(bindings));
     return RequirementBriefProjector.project(
         new RequirementBrief(
-            firstNonBlank(brief.goal(), flow.chainName()),
+            firstNonBlank(brief.goal(), revision.chainIdentity()),
             List.copyOf(inputs),
             List.copyOf(constraints),
-            brief.assumptions(),
+            brief.assumptions().isEmpty() ? revision.assumptions() : brief.assumptions(),
             brief.citations(),
-            firstNonBlank(brief.summary(), flow.description()),
+            firstNonBlank(brief.summary(), revision.chainIdentity()),
             brief.approvedDraftReference(),
             draftText,
-            List.copyOf(facts),
-            flow.dataMappings().isEmpty() ? brief.dataMappings() : dataMappingsFrom(flow)));
+            List.copyOf(brief.facts()),
+            brief.dataMappings()));
   }
 
-  private static RequirementBrief fromFlow(
-      NormalizedDesignFlow flow, List<CatalogBindingResolution> bindings) {
+  private static RequirementBrief fromRevision(
+      ChainSemanticRevision revision, List<CatalogBindingResolution> bindings) {
     LinkedHashSet<String> inputs = new LinkedHashSet<>();
-    LinkedHashSet<String> constraints = new LinkedHashSet<>(flow.constraints());
+    LinkedHashSet<String> constraints = new LinkedHashSet<>(revision.constraints());
     List<RequirementFact> facts = new ArrayList<>();
-    appendFlowSignals(flow, inputs, constraints, facts);
     appendBindingInputs(bindings, inputs);
-    String summary =
-        firstNonBlank(flow.description(), "Implement chain " + flow.chainName() + " from approved design flow");
     return RequirementBriefProjector.project(
         new RequirementBrief(
-            flow.chainName(),
+            revision.chainIdentity(),
             List.copyOf(inputs),
             List.copyOf(constraints),
-            flow.assumptions(),
+            revision.assumptions(),
             List.of(),
-            summary,
+            revision.chainIdentity(),
             null,
-            firstNonBlank(formatBindingBlock(bindings), formatFlowSeed(flow)),
+            formatBindingBlock(bindings),
             List.copyOf(facts),
-            dataMappingsFrom(flow)));
-  }
-
-  private static List<RequirementDataMapping> dataMappingsFrom(NormalizedDesignFlow flow) {
-    return flow.dataMappings().stream()
-        .map(
-            mapping ->
-                new RequirementDataMapping(
-                    mapping.mappingId(),
-                    mapping.stage() == null
-                        ? null
-                        : RequirementDataMapping.Stage.valueOf(mapping.stage().name()),
-                    mapping.fromStepId(),
-                    mapping.toStepId(),
-                    RequirementDataMapping.Mode.valueOf(mapping.mode().name()),
-                    mapping.rules().stream()
-                        .map(
-                            rule ->
-                                new RequirementDataMapping.Rule(
-                                    rule.sourcePath(), rule.targetPath(), rule.expression()))
-                        .toList(),
-                    mapping.sourceFactIds()))
-        .toList();
-  }
-
-  private static void appendFlowSignals(
-      NormalizedDesignFlow flow,
-      LinkedHashSet<String> inputs,
-      LinkedHashSet<String> constraints,
-      List<RequirementFact> facts) {
-    NormalizedDesignFlow.Trigger trigger = flow.trigger();
-    if (trigger != null) {
-      String method = blankToNull(trigger.operationName());
-      String path = blankToNull(trigger.endpointOrTopic());
-      if (path != null) {
-        boolean kafka = "kafka".equalsIgnoreCase(trigger.kind());
-        String endpoint = method == null ? path : method + " " + path;
-        inputs.add(endpoint);
-        facts.add(
-            new RequirementFact(
-                "design-flow-trigger",
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.ENDPOINT,
-                kafka ? "kafka-trigger-2" : "http-trigger",
-                endpoint,
-                "",
-                nullToEmpty(trigger.operationName()),
-                kafka ? path : "",
-                kafka ? "" : httpMethodFromTrigger(trigger),
-                kafka ? "" : path));
-      }
-    }
-    for (NormalizedDesignFlow.Step step : flow.steps()) {
-      if (step == null || step.kind() == null) {
-        continue;
-      }
-      String label =
-          firstNonBlank(step.operationQuery(), step.description(), step.kind());
-      inputs.add(step.kind() + ": " + label);
-      RequirementFactKind kind =
-          "script".equalsIgnoreCase(step.kind())
-              ? RequirementFactKind.BEHAVIOR
-              : RequirementFactKind.SERVICE_CALL;
-      if ("script".equalsIgnoreCase(step.kind()) || "service-call".equalsIgnoreCase(step.kind())) {
-        boolean serviceCall = "service-call".equalsIgnoreCase(step.kind());
-        facts.add(
-            new RequirementFact(
-                "design-flow-" + step.stepId(),
-                RequirementFactPolarity.POSITIVE,
-                kind,
-                serviceCall ? "http-service-call" : "script",
-                label,
-                serviceCall ? participantDisplayName(flow, step.toParticipantId()) : "",
-                serviceCall ? nullToEmpty(step.operationQuery()) : "",
-                "",
-                "",
-                ""));
-      }
-    }
-    for (String constraint : flow.constraints()) {
-      if (constraint != null && !constraint.isBlank()) {
-        constraints.add(constraint.trim());
-      }
-    }
+            List.of()));
   }
 
   private static void appendBindingInputs(
@@ -293,29 +194,6 @@ public final class DesignExecutionBriefFactory {
     return body.toString().trim();
   }
 
-  private static String formatFlowSeed(NormalizedDesignFlow flow) {
-    StringBuilder body = new StringBuilder();
-    body.append("Chain: ").append(flow.chainName()).append('\n');
-    if (flow.trigger() != null) {
-      body.append("Trigger: ")
-          .append(nullToEmpty(flow.trigger().operationName()))
-          .append(' ')
-          .append(nullToEmpty(flow.trigger().endpointOrTopic()))
-          .append('\n');
-    }
-    for (NormalizedDesignFlow.Step step : flow.steps()) {
-      if (step == null) {
-        continue;
-      }
-      body.append("Step ")
-          .append(step.kind())
-          .append(": ")
-          .append(firstNonBlank(step.operationQuery(), step.description(), step.stepId()))
-          .append('\n');
-    }
-    return body.toString().trim();
-  }
-
   private static String firstNonBlank(String... values) {
     if (values == null) {
       return "";
@@ -326,34 +204,5 @@ public final class DesignExecutionBriefFactory {
       }
     }
     return "";
-  }
-
-  private static String httpMethodFromTrigger(NormalizedDesignFlow.Trigger trigger) {
-    String operation = blankToNull(trigger.operationName());
-    if (operation == null) {
-      return "";
-    }
-    String upper = operation.toUpperCase(Locale.ROOT);
-    return HTTP_METHODS.contains(upper) ? upper : "";
-  }
-
-  private static String participantDisplayName(NormalizedDesignFlow flow, String participantId) {
-    if (participantId == null || participantId.isBlank()) {
-      return "";
-    }
-    for (NormalizedDesignFlow.Participant participant : flow.participants()) {
-      if (participantId.equals(participant.participantId())) {
-        return participant.displayName();
-      }
-    }
-    return "";
-  }
-
-  private static String blankToNull(String value) {
-    return value == null || value.isBlank() ? null : value.trim();
-  }
-
-  private static String nullToEmpty(String value) {
-    return value == null ? "" : value.trim();
   }
 }

@@ -89,12 +89,17 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.CipDesignPlannerAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.CipDesignPlannerReportParser;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignImplementationPlanRenderer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanProjector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCapability;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
@@ -215,7 +220,7 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
+  @Disabled("PROVIDED IDS is fail-closed; do not restore it as a success path")
   void provideBypassesRequirementStagesPlansAndExecutesAfterApproval() {
     CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(runtime);
@@ -257,7 +262,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void generateRequiresBriefAndIdsApprovalBeforeExecution() {
     CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(runtime);
@@ -273,43 +277,11 @@ class CreateChainSharedDesignRuntimeIT {
     assertEquals("requirement-analysis", loadRun().run().currentStageId());
 
     List<PipelineSignal> afterBriefApprove = approveLatestWaitingReturning(runtime);
-    assertEquals(RunStatus.WAITING_FOR_INPUT, loadRun().run().status());
-    assertEquals("design-input", loadRun().run().currentStageId());
-    assertTrue(
-        afterBriefApprove.stream()
-            .filter(PipelineSignal.WaitingForInput.class::isInstance)
-            .map(PipelineSignal.WaitingForInput.class::cast)
-            .anyMatch(
-                waiting ->
-                    waiting.prompt() != null
-                        && !waiting.prompt().isBlank()
-                        && (waiting
-                                .prompt()
-                                .toLowerCase(java.util.Locale.ROOT)
-                                .contains("integration design")
-                            || waiting.prompt().toLowerCase(java.util.Locale.ROOT).contains("ids"))),
-        () -> "brief Agree must surface IDS path choice, signals=" + afterBriefApprove);
-
-    List<PipelineSignal> afterGenerate =
-        runtime
-            .acceptInput(new AcceptInputCommand(RUN_ID, "Generate full IDS"))
-            .collect()
-            .asList()
-            .await()
-            .indefinitely();
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
     assertEquals("design-input", loadRun().run().currentStageId());
-    assertEquals(IdsDocument.Mode.GENERATED, latestIds().mode());
-    String idsMarkdown = latestIds().markdown();
-    assertTrue(
-        afterGenerate.stream()
-            .filter(PipelineSignal.Message.class::isInstance)
-            .map(PipelineSignal.Message.class::cast)
-            .anyMatch(
-                message ->
-                    message.text() != null
-                        && message.text().contains(idsMarkdown.substring(0, Math.min(80, idsMarkdown.length())))),
-        () -> "IDS approval wait must stream IDS markdown, signals=" + afterGenerate);
+    assertTrue(hasKind(Kind.CHAIN_SEMANTIC_REVISION));
+    assertEquals(IdsDocument.Mode.DERIVED, latestIds().mode());
+    assertFalse(latestIds().markdown().isBlank(), () -> "signals=" + afterBriefApprove);
 
     approveLatestWaiting(runtime);
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
@@ -319,7 +291,7 @@ class CreateChainSharedDesignRuntimeIT {
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
     assertTrue(hasKind(Kind.IDS_DOCUMENT));
     assertTrue(hasKind(Kind.IMPLEMENTATION_PLAN));
-    assertEquals(IdsDocument.Mode.GENERATED, latestIds().mode());
+    assertEquals(IdsDocument.Mode.DERIVED, latestIds().mode());
 
     implementApprovedPlan(runtime);
     assertEquals(
@@ -332,7 +304,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void deriveProducesIdsWithoutIdsApprovalWaitThenExecutes() {
     CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(deriveCatalogHitStubs());
     startV2(runtime);
@@ -358,19 +329,10 @@ class CreateChainSharedDesignRuntimeIT {
         latestIds().mode(),
         () -> "signals=" + afterDerive + " status=" + loadRun().run().status());
     assertTrue(hasKind(Kind.IDS_DOCUMENT));
-    assertTrue(hasKind(Kind.NORMALIZED_DESIGN_FLOW));
-    // DERIVE finalizes design-input without an IDS approval wait.
-    assertTrue(
-        loadRun().run().stages().stream()
-            .filter(s -> "design-input".equals(s.stageId()))
-            .findFirst()
-            .orElseThrow()
-            .status()
-            != org.qubership.integration.platform.ai.productpipeline.store.StageStatus
-                .WAITING_FOR_APPROVAL);
-    // The mapping-mirroring assertion lived here while DERIVE rendered the flow deterministically
-    // from brief facts. Authoring moved to the generator, which can be instructed not to invent
-    // mappings but cannot be prevented from it, so there is no longer a contract to assert.
+    assertTrue(hasKind(Kind.CHAIN_SEMANTIC_REVISION));
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
+    assertEquals("design-input", loadRun().run().currentStageId());
+    approveLatestWaiting(runtime);
 
     assertEquals(
         RunStatus.WAITING_FOR_APPROVAL,
@@ -410,7 +372,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void omAndSalesforceCallsKeepIndependentCatalogResolutions() {
     CreateChainTestOrchestrator runtime = runtimeWithOmWfmDesignStack();
     startV2(runtime);
@@ -429,6 +390,8 @@ class CreateChainSharedDesignRuntimeIT {
         .asList()
         .await()
         .indefinitely();
+    assertEquals("design-input", loadRun().run().currentStageId(), () -> runDebug());
+    approveLatestWaiting(runtime);
     assertEquals("design-planning", loadRun().run().currentStageId(), () -> runDebug());
     approveLatestWaiting(runtime);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status(), () -> runDebug());
@@ -459,7 +422,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void catalogHitCallOrderSkipsApiHubAndImport() {
     CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(runtime);
@@ -478,7 +440,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void catalogMissAtExecutionStopsWithoutSearchingOrImporting() {
     when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
     when(approvedCompilerExecutionRunner.execute(any(), any(), anyList(), any(), any(), any()))
@@ -498,7 +459,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void ambiguousCatalogResultWaitsForInputWithoutApiHub() {
     when(catalogReadTool.searchCatalogSystems(anyString()))
         .thenReturn(
@@ -524,7 +484,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void missingMappingIntentDefaultsToPassThroughBeforePlannerInvocation() {
     DesignInputCapability designInput = designInputCapability();
     StageCapability discovery = discoveryStub();
@@ -568,7 +527,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void refinementOfApprovedCandidateInvalidatesExecution() {
     CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(runtime);
@@ -590,7 +548,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void restartResumesFromImplementationApprovalWithoutReplanning() {
     CreateChainTestOrchestrator first = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(first);
@@ -627,7 +584,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void restartResumesFromIdsApprovalWithoutReplanning() {
     CreateChainTestOrchestrator first = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(first);
@@ -638,16 +594,9 @@ class CreateChainSharedDesignRuntimeIT {
         .await()
         .indefinitely();
     approveLatestWaiting(first);
-    first
-        .acceptInput(new AcceptInputCommand(RUN_ID, "Generate full IDS"))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
     assertEquals("design-input", loadRun().run().currentStageId());
-    assertEquals(IdsDocument.Mode.GENERATED, latestIds().mode());
+    assertEquals(IdsDocument.Mode.DERIVED, latestIds().mode());
     long revision = loadRun().run().runRevision();
     plannerCalls.set(0);
 
@@ -672,7 +621,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void restartResumesFromWaitingForMaterializationWithoutReExecutingGenerators() {
     AtomicInteger materializationCalls = new AtomicInteger();
     materializationCapability =
@@ -751,7 +699,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void validationFailureDoesNotInvokeMaterialization() {
     when(catalogReadTool.searchCatalogSystems(anyString()))
         .thenReturn(
@@ -786,7 +733,6 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  @Disabled("T10: design-planning still consumes normalized-design-flow")
   void readbackMismatchOmitsDesignExecutionResult() {
     StageCapability failingMaterialization =
         new StageCapability() {
@@ -985,7 +931,14 @@ class CreateChainSharedDesignRuntimeIT {
 
   private DesignInputCapability designInputCapability() {
     return new DesignInputCapability(
-        (conversationId, prompt) -> Multi.createFrom().empty(),
+        (conversationId, prompt) -> {
+          if (prompt != null && prompt.contains("Order Management")) {
+            ProductCapabilityCaptureContext.offerSemantic(omWfmRevision());
+          } else {
+            ProductCapabilityCaptureContext.offerSemantic(petsRevision());
+          }
+          return Multi.createFrom().empty();
+        },
         new DefaultChainSemanticIdsRenderer());
   }
 
@@ -1013,7 +966,8 @@ class CreateChainSharedDesignRuntimeIT {
     CipDesignExecutorJavaAdapter adapter =
         new CipDesignExecutorJavaAdapter(
             approvedCompilerExecutionRunner,
-            new DefaultExecutorCatalogBindingAdapter(new CatalogBindingMatcher(catalogReadTool)),
+            new DefaultExecutorCatalogBindingAdapter(
+                mock(CatalogBindingMatcher.class), catalogReadTool),
             artifactStore,
             planValidator);
     return new DesignExecutionCapability(artifactStore, adapter);
@@ -1090,13 +1044,15 @@ class CreateChainSharedDesignRuntimeIT {
   private void seedApprovedImplementationWaiting(CreateChainTestOrchestrator runtime) {
     startV2(runtime);
     runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, VALID_IDS))
+        .acceptInput(new AcceptInputCommand(RUN_ID, "Create a pets HTTP integration"))
         .collect()
         .asList()
         .await()
         .indefinitely();
     approveLatestWaiting(runtime);
-    assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
+    approveLatestWaiting(runtime);
+    approveLatestWaiting(runtime);
+    assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status(), () -> runDebug());
   }
 
   private void approveLatestWaiting(CreateChainTestOrchestrator runtime) {
@@ -1164,12 +1120,56 @@ class CreateChainSharedDesignRuntimeIT {
         IdsDocument.class);
   }
 
-  private NormalizedDesignFlow latestFlow() {
-    return artifactStore.payload(
-        artifactStore.history(RUN_ID, Kind.NORMALIZED_DESIGN_FLOW).stream()
-            .reduce((a, b) -> b)
-            .orElseThrow(),
-        NormalizedDesignFlow.class);
+  private static ChainSemanticRevision petsRevision() {
+    return SemanticFixtures.linear(
+        "Pets",
+        "revision-pets",
+        "trigger-http",
+        "node-call",
+        "call-1",
+        "GET /pets",
+        "Petstore Ext",
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision omWfmRevision() {
+    ChainSemanticRevision template = SemanticFixtures.linearOrders();
+    return new ChainSemanticRevision(
+        template.schemaVersion(),
+        "revision-om-wfm",
+        "OM to Salesforce WFM",
+        template.compilerContractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "entry-1",
+                "trigger-http",
+                "node-om",
+                0,
+                new SemanticProvenance(List.of()),
+                new SemanticEntryPoint.Presentation("Order Management", null))),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "node-om",
+                "call-om-result",
+                "onTaskResult",
+                new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "node-wfm",
+                "call-wfm-create-task",
+                "createTask",
+                new SemanticProvenance(List.of()))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge("edge-1", "trigger-http", "node-om", null, null, null),
+            new SemanticExecutionEdge("edge-2", "node-om", "node-wfm", null, null, null)),
+        List.of(),
+        List.of(),
+        List.of("Salesforce WFM"),
+        List.of(),
+        List.of());
   }
 
   private DesignExecutionCheckpoint latestExecutionCheckpoint() {

@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTri
 import org.qubership.integration.platform.ai.qipknowledge.artifact.DecisionTrace;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ElementSkeleton;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
@@ -46,7 +47,8 @@ public sealed interface SkillArtifactPayload
         SkillArtifactPayload.ReconcileResultPayload,
         SkillArtifactPayload.ChainEditIntentPayload,
         SkillArtifactPayload.ServiceCallBindingsPayload,
-        SkillArtifactPayload.CatalogChainSnapshotPayload {
+        SkillArtifactPayload.CatalogChainSnapshotPayload,
+        SkillArtifactPayload.ChainSemanticRevisionPayload {
 
   record RawUserRequestPayload(String effectiveText, List<String> attachmentObjectKeys)
       implements SkillArtifactPayload {}
@@ -100,5 +102,8 @@ public sealed interface SkillArtifactPayload
   }
 
   record CatalogChainSnapshotPayload(ChainCatalogFacts facts) implements SkillArtifactPayload {}
+
+  record ChainSemanticRevisionPayload(ChainSemanticRevision revision)
+      implements SkillArtifactPayload {}
 
 }

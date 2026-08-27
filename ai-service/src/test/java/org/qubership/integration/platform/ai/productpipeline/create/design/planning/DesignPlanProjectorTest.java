@@ -7,12 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
+import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class DesignPlanProjectorTest {
@@ -23,17 +26,18 @@ class DesignPlanProjectorTest {
   void projectsCatalogDerivedDependenciesInReportOrder() {
     String reportMarkdown = validReport();
     DesignPlanReport report = new DesignPlanReport("1", reportMarkdown);
-    NormalizedDesignFlow flow = sampleFlow();
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
     ResolvedCompilerDag dag = sampleDag();
 
     DesignExecutionPlan projected =
         projector.project(
             report,
-            flow,
-            dag,
-            "catalog-hash",
-            Map.of("cip-design-planner", "skill-hash"),
-            Map.of("cip-design-planner", "addon-hash"));
+            revision,
+            samplePin(
+                revision,
+                dag,
+                Map.of("cip-design-planner", "skill-hash"),
+                Map.of("cip-design-planner", "addon-hash")));
 
     List<List<String>> expectedCatalogDependencies =
         List.of(
@@ -90,11 +94,8 @@ class DesignPlanProjectorTest {
     DesignExecutionPlan projected =
         projector.project(
             new DesignPlanReport("1", reportWithoutScripts),
-            sampleFlow(),
-            sampleDag(),
-            "catalog-hash",
-            Map.of(),
-            Map.of());
+            SemanticFixtures.linearOrders(),
+            samplePin(SemanticFixtures.linearOrders(), sampleDag()));
 
     assertEquals(10, projected.steps().size());
   }
@@ -112,66 +113,14 @@ class DesignPlanProjectorTest {
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
             .trim();
-    NormalizedDesignFlow base = sampleFlow();
-    NormalizedDesignFlow emptyMappings =
-        new NormalizedDesignFlow(
-            base.schemaVersion(),
-            base.flowId(),
-            base.chainName(),
-            base.description(),
-            base.trigger(),
-            base.participants(),
-            base.steps(),
-            base.connections(),
-            base.transformations(),
-            List.of(),
-            base.constraints(),
-            base.assumptions());
 
     DesignExecutionPlan projected =
         projector.project(
             new DesignPlanReport("1", reportWithoutStageScripts),
-            emptyMappings,
-            sampleDag(),
-            "catalog-hash",
-            Map.of(),
-            Map.of());
+            SemanticFixtures.linearOrders(),
+            samplePin(SemanticFixtures.linearOrders(), sampleDag()));
 
     assertEquals(6, projected.steps().size());
-  }
-
-  @Test
-  void rejectsApiHubStepsForCatalogOnlyFlow() {
-    NormalizedDesignFlow base = sampleFlow();
-    NormalizedDesignFlow catalogOnly =
-        new NormalizedDesignFlow(
-            base.schemaVersion(),
-            base.flowId(),
-            base.chainName(),
-            base.description(),
-            base.trigger(),
-            base.participants(),
-            base.steps(),
-            base.connections(),
-            base.transformations(),
-            base.dataMappings(),
-            base.constraints(),
-            base.assumptions(),
-            NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY);
-
-    PlannerReportFormatException ex =
-        assertThrows(
-            PlannerReportFormatException.class,
-            () ->
-                projector.project(
-                    new DesignPlanReport("1", validReport()),
-                    catalogOnly,
-                    sampleDag(),
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
-
-    assertTrue(ex.getMessage().contains("CATALOG_ONLY forbids APIHub planner steps"));
   }
 
   @Test
@@ -192,11 +141,8 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    sampleFlow(),
-                    sampleDag(),
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
+                    SemanticFixtures.linearOrders(),
+                    samplePin(SemanticFixtures.linearOrders(), sampleDag())));
     assertTrue(ex.getMessage().contains("unknown skill"));
   }
 
@@ -261,11 +207,8 @@ class DesignPlanProjectorTest {
     DesignExecutionPlan projected =
         projector.project(
             new DesignPlanReport("1", validReport()),
-            sampleFlow(),
-            dagWithoutChainValidator,
-            "catalog-hash",
-            Map.of(),
-            Map.of());
+            SemanticFixtures.linearOrders(),
+            samplePin(SemanticFixtures.linearOrders(), dagWithoutChainValidator));
 
     DesignExecutionPlan.Step validateStep = projected.steps().getLast();
     assertEquals(
@@ -333,11 +276,8 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    sampleFlow(),
-                    dagWithoutValidators,
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
+                    SemanticFixtures.linearOrders(),
+                    samplePin(SemanticFixtures.linearOrders(), dagWithoutValidators)));
     assertTrue(ex.getMessage().contains("unknown skill"));
     assertTrue(ex.getMessage().contains("cip-chain-validator"));
   }
@@ -360,11 +300,8 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    sampleFlow(),
-                    sampleDag(),
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
+                    SemanticFixtures.linearOrders(),
+                    samplePin(SemanticFixtures.linearOrders(), sampleDag())));
     assertTrue(ex.getMessage().contains("trigger"));
   }
 
@@ -390,11 +327,8 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    sampleFlow(),
-                    sampleDag(),
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
+                    SemanticFixtures.linearOrders(),
+                    samplePin(SemanticFixtures.linearOrders(), sampleDag())));
     assertTrue(ex.getMessage().contains("trigger coverage"));
     assertTrue(ex.getMessage().contains("cip-trigger-generator"));
   }
@@ -418,11 +352,8 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    flowWithExplicitInitialization(),
-                    sampleDag(),
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
+                    SemanticFixtures.linearOrdersWithMapping(),
+                    samplePin(SemanticFixtures.linearOrdersWithMapping(), sampleDag())));
     assertTrue(ex.getMessage().contains("script"));
   }
 
@@ -451,11 +382,8 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    sampleFlow(),
-                    sampleDag(),
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
+                    SemanticFixtures.linearOrders(),
+                    samplePin(SemanticFixtures.linearOrders(), sampleDag())));
     assertTrue(ex.getMessage().contains("participant"));
   }
 
@@ -515,11 +443,8 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    sampleFlow(),
-                    cyclic,
-                    "catalog-hash",
-                    Map.of(),
-                    Map.of()));
+                    SemanticFixtures.linearOrders(),
+                    samplePin(SemanticFixtures.linearOrders(), cyclic)));
     assertTrue(ex.getMessage().contains("cycle"));
   }
 
@@ -542,85 +467,34 @@ class DesignPlanProjectorTest {
         .trim();
   }
 
-  private static NormalizedDesignFlow sampleFlow() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-1",
-        "Orders",
-        "Create order",
-        new NormalizedDesignFlow.Trigger(
-            "http",
-            "p-client",
-            "Orders API",
-            "/orders",
-            "createOrder",
-            List.of("fact-trigger")),
-        List.of(
-            new NormalizedDesignFlow.Participant(
-                "p-client", "Client", "EXTERNAL", List.of("fact-p")),
-            new NormalizedDesignFlow.Participant(
-                "p-orders", "Orders Service", "EXTERNAL", List.of("fact-p")),
-            new NormalizedDesignFlow.Participant(
-                "p-orders-api", "Orders API", "EXTERNAL", List.of("fact-p"))),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "step-call",
-                "service-call",
-                "p-client",
-                "p-orders",
-                "createOrder",
-                "Create order",
-                List.of("fact-step"))),
-        List.of(),
-        List.of(),
-        List.of(
-            new NormalizedDesignFlow.DataMapping(
-                "map-init",
-                NormalizedDesignFlow.MappingStage.INITIALIZATION,
-                "step-trigger",
-                "step-call",
-                NormalizedDesignFlow.MappingMode.PASS_THROUGH,
-                List.of(),
-                List.of("fact-map")),
-            new NormalizedDesignFlow.DataMapping(
-                "map-response",
-                NormalizedDesignFlow.MappingStage.RESPONSE,
-                "step-call",
-                "step-response",
-                NormalizedDesignFlow.MappingMode.PASS_THROUGH,
-                List.of(),
-                List.of("fact-map"))),
-        List.of(),
-        List.of());
+  private static CompilerRunPin samplePin(
+      ChainSemanticRevision revision, ResolvedCompilerDag dag) {
+    return samplePin(revision, dag, Map.of(), Map.of());
   }
 
-  private static NormalizedDesignFlow flowWithExplicitInitialization() {
-    NormalizedDesignFlow flow = sampleFlow();
-    NormalizedDesignFlow.DataMapping initialization = flow.dataMappings().getFirst();
-    return new NormalizedDesignFlow(
-        flow.schemaVersion(),
-        flow.flowId(),
-        flow.chainName(),
-        flow.description(),
-        flow.trigger(),
-        flow.participants(),
-        flow.steps(),
-        flow.connections(),
-        flow.transformations(),
-        List.of(
-            new NormalizedDesignFlow.DataMapping(
-                initialization.mappingId(),
-                initialization.stage(),
-                initialization.fromStepId(),
-                initialization.toStepId(),
-                NormalizedDesignFlow.MappingMode.EXPLICIT,
-                List.of(
-                    new NormalizedDesignFlow.MappingRule(
-                        "$.id", "$.customerId", null, List.of("fact-map"))),
-                initialization.sourceFactIds()),
-            flow.dataMappings().get(1)),
-        flow.constraints(),
-        flow.assumptions());
+  private static CompilerRunPin samplePin(
+      ChainSemanticRevision revision,
+      ResolvedCompilerDag dag,
+      Map<String, String> skillHashes,
+      Map<String, String> addonHashes) {
+    return new CompilerRunPin(
+        "compiler",
+        "1",
+        "pkg-digest",
+        1,
+        "1",
+        "catalog-hash",
+        dag,
+        List.of(),
+        skillHashes,
+        addonHashes,
+        List.of(),
+        Kind.CHAIN_SEMANTIC_REVISION.name(),
+        revision.schemaVersion(),
+        revision.revisionId(),
+        "design-input-hash",
+        revision.compilerContractVersion(),
+        "contract-sha");
   }
 
   private static ResolvedCompilerDag sampleDag() {

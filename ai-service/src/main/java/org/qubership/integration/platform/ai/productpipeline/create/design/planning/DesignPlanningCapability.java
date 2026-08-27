@@ -26,7 +26,10 @@ import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 
 /**
  * Shared create-chain design-planning capability. Runs the pinned planner, projects the catalog
@@ -101,7 +104,7 @@ public class DesignPlanningCapability implements StageCapability {
     DesignExecutionPlan projection = null;
     try {
       IdsDocument ids = requireIds(context);
-      NormalizedDesignFlow flow = requireFlow(context);
+      ChainSemanticRevision revision = requireRevision(context);
       RunManifest runManifest = requireRunManifest(context);
       CompilerRunPin pin = requireCompilerPin(runManifest);
       String pinnedSkillHash = pin.skillSha256ById().get(CipDesignPlannerAdapter.SKILL_ID);
@@ -120,30 +123,27 @@ public class DesignPlanningCapability implements StageCapability {
           planner.plan(
               new PlannerRequest(
                   context.conversationId(),
-                  buildPlannerInput(ids, flow, release),
+                  buildPlannerInput(ids, revision, release),
                   pinnedSkillHash,
                   repairEvidenceText));
-      projection =
-          projector.project(
-              report,
-              flow,
-              pin.resolvedDag(),
-              pin.pipelineIndexDigest(),
-              pin.skillSha256ById(),
-              pin.addonSha256ById());
-      ImplementationPlan rendering = renderer.render(report, projection, flow);
+      projection = projector.project(report, revision, pin);
+      ImplementationPlan rendering = renderer.render(report, projection, revision);
 
       Reference idsRef = requireInputRef(context.inputRefs(), Kind.IDS_DOCUMENT);
-      Reference flowRef = requireInputRef(context.inputRefs(), Kind.NORMALIZED_DESIGN_FLOW);
+      Reference revisionRef = requireInputRef(context.inputRefs(), Kind.CHAIN_SEMANTIC_REVISION);
 
       List<ArtifactCandidate> candidates = new ArrayList<>();
       candidates.add(new ArtifactCandidate(Kind.IDS_DOCUMENT, ids, List.of(idsRef)));
-      candidates.add(new ArtifactCandidate(Kind.NORMALIZED_DESIGN_FLOW, flow, List.of(flowRef)));
-      candidates.add(new ArtifactCandidate(Kind.DESIGN_PLAN_REPORT, report, List.of(idsRef, flowRef)));
       candidates.add(
-          new ArtifactCandidate(Kind.DESIGN_EXECUTION_PLAN, projection, List.of(idsRef, flowRef)));
+          new ArtifactCandidate(Kind.CHAIN_SEMANTIC_REVISION, revision, List.of(revisionRef)));
       candidates.add(
-          new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN, rendering, List.of(idsRef, flowRef)));
+          new ArtifactCandidate(Kind.DESIGN_PLAN_REPORT, report, List.of(idsRef, revisionRef)));
+      candidates.add(
+          new ArtifactCandidate(
+              Kind.DESIGN_EXECUTION_PLAN, projection, List.of(idsRef, revisionRef)));
+      candidates.add(
+          new ArtifactCandidate(
+              Kind.IMPLEMENTATION_PLAN, rendering, List.of(idsRef, revisionRef)));
 
       return new CapabilitySignal.Completed(
           new StageOutcome(
@@ -211,12 +211,12 @@ public class DesignPlanningCapability implements StageCapability {
     throw new PlannerContractException("IDS_DOCUMENT is required for design planning");
   }
 
-  private static NormalizedDesignFlow requireFlow(StageExecutionContext context) {
-    Object value = context.attributes().get("normalizedDesignFlow");
-    if (value instanceof NormalizedDesignFlow flow) {
-      return flow;
+  private static ChainSemanticRevision requireRevision(StageExecutionContext context) {
+    Object value = context.attributes().get("chainSemanticRevision");
+    if (value instanceof ChainSemanticRevision revision) {
+      return revision;
     }
-    throw new PlannerContractException("NORMALIZED_DESIGN_FLOW is required for design planning");
+    throw new PlannerContractException("CHAIN_SEMANTIC_REVISION is required for design planning");
   }
 
   private static RunManifest requireRunManifest(StageExecutionContext context) {
@@ -285,104 +285,92 @@ public class DesignPlanningCapability implements StageCapability {
   }
 
   /**
-   * Shows the planner the flow its report is checked against.
+   * Shows the planner the semantic revision its report is checked against.
    *
-   * <p>{@link DesignPlanProjector} rejects a report that names a participant outside the flow,
-   * that covers no trigger, or that leaves an explicit mapping intent without a transform step. The
-   * prose IDS alone does not carry those names, so a planner given only the IDS has to guess them.
+   * <p>{@link DesignPlanProjector} rejects a report that names a participant outside the revision,
+   * that covers no trigger, or that leaves a mapping intent without a transform step. The prose IDS
+   * alone does not carry those names, so a planner given only the IDS has to guess them.
    */
-  static String buildPlannerInput(IdsDocument ids, NormalizedDesignFlow flow, String release) {
+  static String buildPlannerInput(
+      IdsDocument ids, ChainSemanticRevision revision, String release) {
     return """
         API release: %s
-        Flow id: %s
-        Chain name: %s
+        Semantic revision id: %s
+        Chain identity: %s
 
         %s
 
         %s
         """
-        .formatted(release, flow.flowId(), flow.chainName(), describeFlow(flow), ids.markdown())
+        .formatted(
+            release,
+            revision.revisionId(),
+            revision.chainIdentity(),
+            describeRevision(revision),
+            ids.markdown())
         .trim();
   }
 
-  private static String describeFlow(NormalizedDesignFlow flow) {
+  private static String describeRevision(ChainSemanticRevision revision) {
     StringBuilder text = new StringBuilder();
-    text.append("Normalized design flow. The plan is validated against it.\n\n");
+    text.append("Chain semantic revision. The plan is validated against it.\n\n");
 
-    text.append("Binding resolution policy: ")
-        .append(flow.bindingResolutionPolicy())
-        .append("\n");
-    if (flow.bindingResolutionPolicy()
-        == NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_ONLY) {
-      text.append(
-          "APIHub lookup, APIHub specification retrieval, API import, and replacement API search "
-              + "are forbidden for this flow. Reuse the existing catalog binding.\n");
-    }
+    text.append("Known identities. Reference only these names:\n");
+    text.append("- ").append(revision.chainIdentity()).append('\n');
+    text.append("- ").append(revision.chainIdentity()).append(" Service\n");
+    text.append("- ").append(revision.chainIdentity()).append(" API\n");
+    text.append("- Client\n");
+    text.append("- CIP\n");
 
-    text.append("Participants. Reference only these, by id or display name:\n");
-    for (NormalizedDesignFlow.Participant participant : flow.participants()) {
+    text.append("\nEntry points:\n");
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
       text.append("- ")
-          .append(participant.participantId())
-          .append(" (")
-          .append(participant.displayName())
-          .append(", ")
-          .append(participant.systemType())
-          .append(")\n");
+          .append(entry.entryPointId())
+          .append(" trigger ")
+          .append(entry.triggerNodeId())
+          .append(" -> ")
+          .append(entry.initialTargetNodeId());
+      if (entry.presentation() != null && entry.presentation().label() != null) {
+        text.append(" (").append(entry.presentation().label()).append(')');
+      }
+      text.append('\n');
     }
-
-    NormalizedDesignFlow.Trigger trigger = flow.trigger();
-    text.append("\nTrigger: ")
-        .append(trigger.kind())
-        .append(trigger.operationName() == null ? "" : " " + trigger.operationName())
-        .append(trigger.endpointOrTopic() == null ? "" : " " + trigger.endpointOrTopic())
-        .append(" from ")
-        .append(trigger.sourceParticipantId())
-        .append("\nThe trigger is not one of the steps below. Plan a step for it and give that step")
+    text.append("The trigger is not one of the nodes below. Plan a step for it and give that step")
         .append(" cip-trigger-generator as an owning skill.\n");
 
-    text.append("\nSteps:\n");
-    for (NormalizedDesignFlow.Step step : flow.steps()) {
-      text.append("- ")
-          .append(step.stepId())
-          .append(" (")
-          .append(step.kind())
-          .append(") ")
-          .append(step.fromParticipantId())
-          .append(" -> ")
-          .append(step.toParticipantId())
-          .append(": ")
-          .append(step.operationQuery())
-          .append("\n");
+    text.append("\nNodes:\n");
+    for (SemanticNode node : revision.nodes()) {
+      text.append("- ").append(node.nodeId()).append(" (").append(node.kind()).append(')');
+      if (node instanceof SemanticNode.ServiceCall call) {
+        text.append(" serviceCallId=")
+            .append(call.serviceCallId())
+            .append(" operation=")
+            .append(call.operation());
+      } else if (node instanceof SemanticNode.Trigger trigger) {
+        text.append(" capability=").append(trigger.capabilityKey());
+      }
+      text.append('\n');
     }
 
-    List<NormalizedDesignFlow.DataMapping> explicitMappings =
-        flow.dataMappings().stream()
-            .filter(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT)
-            .toList();
-    if (explicitMappings.isEmpty()) {
-      text.append("\nNo explicit mapping intents. Do not plan mapping scripts.\n");
+    if (revision.mappingIntents().isEmpty()) {
+      text.append("\nNo mapping intents. Do not plan mapping scripts.\n");
     } else {
       text.append(
-          "\nExplicit mapping intents. Each needs a cip-script-generator or"
+          "\nMapping intents. Each needs a cip-script-generator or"
               + " cip-transformation-generator step naming the mapping id:\n");
-      for (NormalizedDesignFlow.DataMapping mapping : explicitMappings) {
+      for (MappingIntent mapping : revision.mappingIntents()) {
         text.append("- ")
-            .append(mapping.mappingId())
+            .append(mapping.mappingIntentId())
             .append(" ")
-            .append(mapping.fromStepId())
+            .append(mapping.sourceRef())
             .append(" -> ")
-            .append(mapping.toStepId())
-            .append("\n");
-        for (NormalizedDesignFlow.MappingRule rule : mapping.rules()) {
-          text.append("  - ")
-              .append(rule.sourcePath())
-              .append(" -> ")
-              .append(rule.targetPath());
-          if (rule.expression() != null) {
-            text.append(" | expression: ").append(rule.expression());
-          }
-          text.append('\n');
-        }
+            .append(mapping.targetRef())
+            .append('\n');
+      }
+    }
+    for (String constraint : revision.constraints()) {
+      if (constraint != null && !constraint.isBlank()) {
+        text.append("Constraint: ").append(constraint.trim()).append('\n');
       }
     }
     return text.toString();

@@ -42,7 +42,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
 /**
  * create-chain@2 design-execution stage. Resolves the implementation {@link ApprovalRecordV2} and
@@ -175,7 +175,7 @@ public class DesignExecutionCapability implements StageCapability {
       if (resolved.error() != null) {
         return completedSignal(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error()));
       }
-      if (injectRecoveryFault(context.runId(), resolved.inputs().flow().chainName())) {
+      if (injectRecoveryFault(context.runId(), resolved.inputs().revision().chainIdentity())) {
         return completedSignal(
             StageOutcome.of(
                 StageOutcomeClass.VALIDATION_FAILURE,
@@ -237,18 +237,22 @@ public class DesignExecutionCapability implements StageCapability {
 
   private ResolvedInputs resolveInputs(StageExecutionContext context) {
     Optional<Reference> idsRef = findSingle(context.inputRefs(), Kind.IDS_DOCUMENT);
-    Optional<Reference> flowRef = findSingle(context.inputRefs(), Kind.NORMALIZED_DESIGN_FLOW);
+    Optional<Reference> revisionRef = findSingle(context.inputRefs(), Kind.CHAIN_SEMANTIC_REVISION);
     Optional<Reference> reportRef = findSingle(context.inputRefs(), Kind.DESIGN_PLAN_REPORT);
     Optional<Reference> planRef = findSingle(context.inputRefs(), Kind.DESIGN_EXECUTION_PLAN);
     Optional<Reference> implementationRef =
         findSingle(context.inputRefs(), Kind.IMPLEMENTATION_PLAN);
     Optional<Reference> manifestRef = findSingle(context.inputRefs(), Kind.RUN_MANIFEST);
     if (idsRef.isEmpty()
-        || flowRef.isEmpty()
+        || revisionRef.isEmpty()
         || reportRef.isEmpty()
         || planRef.isEmpty()
         || implementationRef.isEmpty()
         || manifestRef.isEmpty()) {
+      if (revisionRef.isEmpty()) {
+        return ResolvedInputs.error(
+            "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution");
+      }
       return ResolvedInputs.error("design execution inputs are incomplete");
     }
 
@@ -260,8 +264,9 @@ public class DesignExecutionCapability implements StageCapability {
     }
 
     IdsDocument ids = attributeOrLoad(context, "idsDocument", idsRef.get(), IdsDocument.class);
-    NormalizedDesignFlow flow =
-        attributeOrLoad(context, "normalizedDesignFlow", flowRef.get(), NormalizedDesignFlow.class);
+    ChainSemanticRevision revision =
+        attributeOrLoad(
+            context, "chainSemanticRevision", revisionRef.get(), ChainSemanticRevision.class);
     DesignPlanReport report =
         attributeOrLoad(context, "designPlanReport", reportRef.get(), DesignPlanReport.class);
     DesignExecutionPlan plan =
@@ -274,14 +279,18 @@ public class DesignExecutionCapability implements StageCapability {
             ? context.runManifest()
             : artifactStore
                 .get(context.runId(), manifestRef.get())
-                .map(revision -> artifactStore.payload(revision, RunManifest.class))
+                .map(stored -> artifactStore.payload(stored, RunManifest.class))
                 .orElse(null);
     if (ids == null
-        || flow == null
+        || revision == null
         || report == null
         || plan == null
         || implementationPlan == null
         || runManifest == null) {
+      if (revision == null) {
+        return ResolvedInputs.error(
+            "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution");
+      }
       return ResolvedInputs.error("design execution payloads are missing");
     }
 
@@ -289,7 +298,7 @@ public class DesignExecutionCapability implements StageCapability {
     DesignExecutionCheckpoint prior =
         artifactStore
             .latest(context.runId(), Kind.DESIGN_EXECUTION_CHECKPOINT)
-            .map(revision -> artifactStore.payload(revision, DesignExecutionCheckpoint.class))
+            .map(stored -> artifactStore.payload(stored, DesignExecutionCheckpoint.class))
             .orElse(null);
 
     // Repair turn: fold the halt evidence and the graph the failing attempt left behind into the
@@ -310,8 +319,8 @@ public class DesignExecutionCapability implements StageCapability {
             reportRef.get(),
             plan,
             planRef.get(),
-            flow,
-            flowRef.get(),
+            revision,
+            revisionRef.get(),
             ids,
             idsRef.get(),
             implementationPlan,
@@ -336,7 +345,7 @@ public class DesignExecutionCapability implements StageCapability {
         .priorOutput(Kind.CHAIN_PLAN_GRAPH)
         .flatMap(ref -> artifactStore.get(context.runId(), ref))
         .or(() -> artifactStore.latest(context.runId(), Kind.CHAIN_PLAN_GRAPH))
-        .map(revision -> artifactStore.payload(revision, ChainPlanGraph.class))
+        .map(stored -> artifactStore.payload(stored, ChainPlanGraph.class))
         .orElse(null);
   }
 

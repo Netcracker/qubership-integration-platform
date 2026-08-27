@@ -45,7 +45,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProducerOwne
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
@@ -404,6 +403,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                   List.of()));
     }
     List<Reference> inputs = inputResolution.inputs();
+    verifyPinnedSemanticRevision(runId, stage, inputs);
     StageCapability capability = capabilities.require(stage.capabilityId());
     String attemptId = UUID.randomUUID().toString();
     StageExecutionContext context =
@@ -1134,15 +1134,58 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             "designEntryRoute", artifactStore.payload(revision.get(), DesignEntryRoute.class));
       } else if (ref.kind() == Kind.IDS_DOCUMENT && !attributes.containsKey("idsDocument")) {
         attributes.put("idsDocument", artifactStore.payload(revision.get(), IdsDocument.class));
-      } else if (ref.kind() == Kind.NORMALIZED_DESIGN_FLOW
-          && !attributes.containsKey("normalizedDesignFlow")) {
+      } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION
+          && !attributes.containsKey("chainSemanticRevision")) {
         attributes.put(
-            "normalizedDesignFlow",
-            artifactStore.payload(revision.get(), NormalizedDesignFlow.class));
+            "chainSemanticRevision",
+            artifactStore.payload(revision.get(), ChainSemanticRevision.class));
       }
     }
     attributesByRun.put(runId, attributes);
     return attributes;
+  }
+
+  /**
+   * Restart and live execute both re-check the approved semantic pin with the 2-arg verifier. The
+   * 3-arg form would load a newer contract and reject a valid restart.
+   */
+  private void verifyPinnedSemanticRevision(
+      String runId, ProfileStage stage, List<Reference> inputs) {
+    boolean consumesSemantic =
+        stage.consumes().stream()
+            .anyMatch(ref -> ref != null && "chain-semantic-revision".equals(ref.type()));
+    if (!consumesSemantic) {
+      return;
+    }
+    ChainSemanticRevision live = null;
+    ApprovalRecordV2 semanticApproval = null;
+    for (Reference ref : inputs) {
+      if (ref == null || ref.kind() == null) {
+        continue;
+      }
+      if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
+        live =
+            artifactStore
+                .get(runId, ref)
+                .map(stored -> artifactStore.payload(stored, ChainSemanticRevision.class))
+                .orElse(null);
+      }
+      if (ref.kind() == Kind.APPROVAL_RECORD) {
+        Optional<Revision> stored = artifactStore.get(runId, ref);
+        if (stored.isEmpty() || !"2".equals(stored.get().schemaVersion())) {
+          continue;
+        }
+        ApprovalRecordV2 approval =
+            artifactStore.payload(stored.get(), ApprovalRecordV2.class);
+        if (approval != null
+            && Kind.CHAIN_SEMANTIC_REVISION.name().equals(approval.subjectArtifactKind())) {
+          semanticApproval = approval;
+        }
+      }
+    }
+    if (live != null && semanticApproval != null) {
+      verifyApproval(semanticApproval, live);
+    }
   }
 
   /**
@@ -1404,6 +1447,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return types;
   }
 
+  private static String artifactEnvelopeSchema(Kind kind, ArtifactTypeRef typeRef) {
+    if (kind == Kind.CHAIN_SEMANTIC_REVISION) {
+      return ChainSemanticRevision.CURRENT_SCHEMA_VERSION;
+    }
+    return String.valueOf(typeRef.schemaVersion());
+  }
+
   private static boolean isProducedKind(ProfileStage stage, Kind kind) {
     return declaredProduces(stage).stream().anyMatch(typeRef -> typeRef.matches(kind));
   }
@@ -1450,7 +1500,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               new AppendCommand(
                   runId,
                   kind,
-                  String.valueOf(candidate.typeRef().schemaVersion()),
+                  artifactEnvelopeSchema(kind, candidate.typeRef()),
                   stage.capabilityId() == null ? "bypass" : stage.capabilityId(),
                   "1",
                   candidate.candidate().payload(),

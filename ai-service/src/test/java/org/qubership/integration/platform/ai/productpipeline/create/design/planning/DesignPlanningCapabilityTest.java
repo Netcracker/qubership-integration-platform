@@ -54,7 +54,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunP
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
@@ -171,7 +172,7 @@ class DesignPlanningCapabilityTest {
     assertFalse(beforeKinds.contains(Kind.COMPILER_VALIDATION_BUNDLE));
 
     Reference idsRef = refOf(beforeApproval, Kind.IDS_DOCUMENT);
-    Reference flowRef = refOf(beforeApproval, Kind.NORMALIZED_DESIGN_FLOW);
+    Reference revisionRef = refOf(beforeApproval, Kind.CHAIN_SEMANTIC_REVISION);
     Reference reportRef = refOf(beforeApproval, Kind.DESIGN_PLAN_REPORT);
     Reference projectionRef = refOf(beforeApproval, Kind.DESIGN_EXECUTION_PLAN);
     Reference implementationPlanRef = refOf(beforeApproval, Kind.IMPLEMENTATION_PLAN);
@@ -179,7 +180,7 @@ class DesignPlanningCapabilityTest {
 
     // Same refs as the seed stage — no duplicate IDS/flow revisions.
     assertEquals(refOf(currentStage("seed"), Kind.IDS_DOCUMENT), idsRef);
-    assertEquals(refOf(currentStage("seed"), Kind.NORMALIZED_DESIGN_FLOW), flowRef);
+    assertEquals(refOf(currentStage("seed"), Kind.CHAIN_SEMANTIC_REVISION), revisionRef);
 
     runtime
         .approve(
@@ -192,7 +193,7 @@ class DesignPlanningCapabilityTest {
 
     ApprovalRecordV2 approval = latestApprovalV2();
     assertEquals(
-        Set.of(idsRef, flowRef, reportRef, projectionRef, implementationPlanRef),
+        Set.of(idsRef, revisionRef, reportRef, projectionRef, implementationPlanRef),
         Set.copyOf(approval.approvedCandidates()));
     assertEquals(implementationPlanRef, approval.target());
     assertEquals(ApprovalPolicy.CATALOG_FIRST_V1, approval.bindingResolutionPolicy());
@@ -397,17 +398,19 @@ class DesignPlanningCapabilityTest {
   @Test
   void rendererPreservesPlannerReportTextInOrder() {
     DesignPlanReport report = new DesignPlanReport("1", validReport());
+    ChainSemanticRevision revision = sampleRevision();
     DesignExecutionPlan projection =
         new DesignPlanProjector()
             .project(
                 report,
-                sampleFlow(),
-                sampleDag(),
-                "catalog-hash",
-                Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
-                Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash"));
+                revision,
+                samplePin(
+                    revision,
+                    sampleDag(),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash")));
     ImplementationPlan plan =
-        new DesignImplementationPlanRenderer().render(report, projection, sampleFlow());
+        new DesignImplementationPlanRenderer().render(report, projection, revision);
 
     int previousIndex = -1;
     for (DesignExecutionPlan.Step step : projection.steps()) {
@@ -424,10 +427,9 @@ class DesignPlanningCapabilityTest {
   @Test
   void plannerInputDoesNotRequestScriptsForPassThroughMappings() {
     String input =
-        DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleFlow(), "2024.4");
+        DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleRevision(), "2024.4");
 
-    assertTrue(input.contains("Binding resolution policy: CATALOG_FIRST"), input);
-    assertTrue(input.contains("No explicit mapping intents. Do not plan mapping scripts."), input);
+    assertTrue(input.contains("No mapping intents. Do not plan mapping scripts."), input);
   }
 
   @Test
@@ -529,9 +531,10 @@ class DesignPlanningCapabilityTest {
 
   private StageExecutionContext sampleContext() {
     IdsDocument ids = sampleIds();
-    NormalizedDesignFlow flow = sampleFlow();
+    ChainSemanticRevision revision = sampleRevision();
     Reference idsRef = new Reference(Kind.IDS_DOCUMENT, "ids-1", "ids-hash");
-    Reference flowRef = new Reference(Kind.NORMALIZED_DESIGN_FLOW, "flow-1", "flow-hash");
+    Reference revisionRef =
+        new Reference(Kind.CHAIN_SEMANTIC_REVISION, revision.revisionId(), "revision-hash");
     return new StageExecutionContext(
         RUN_ID,
         "conv-1",
@@ -540,8 +543,8 @@ class DesignPlanningCapabilityTest {
         "attempt-1",
         profile,
         sampleManifest(),
-        List.of(idsRef, flowRef),
-        Map.of("idsDocument", ids, "normalizedDesignFlow", flow));
+        List.of(idsRef, revisionRef),
+        Map.of("idsDocument", ids, "chainSemanticRevision", revision));
   }
 
   /** Appends a plan report the way the runtime records the output of a halted planning attempt. */
@@ -611,7 +614,7 @@ class DesignPlanningCapabilityTest {
                 List.of(new ArtifactTypeRef("user-input", 1)),
                 List.of(
                     new ArtifactTypeRef("ids-document", 1),
-                    new ArtifactTypeRef("normalized-design-flow", 1)),
+                    new ArtifactTypeRef("chain-semantic-revision", 1)),
                 null,
                 null,
                 new RetryPolicy(0, 1L)),
@@ -620,7 +623,7 @@ class DesignPlanningCapabilityTest {
                 DesignPlanningCapability.CAPABILITY_ID,
                 List.of(
                     new ArtifactTypeRef("ids-document", 1),
-                    new ArtifactTypeRef("normalized-design-flow", 1),
+                    new ArtifactTypeRef("chain-semantic-revision", 1),
                     new ArtifactTypeRef("run-manifest", 1)),
                 List.of(),
                 List.of(
@@ -632,7 +635,7 @@ class DesignPlanningCapabilityTest {
                     new ArtifactTypeRef("implementation-plan", 2),
                     List.of(
                         new ArtifactTypeRef("ids-document", 1),
-                        new ArtifactTypeRef("normalized-design-flow", 1),
+                        new ArtifactTypeRef("chain-semantic-revision", 1),
                         new ArtifactTypeRef("design-plan-report", 1),
                         new ArtifactTypeRef("design-execution-plan", 1),
                         new ArtifactTypeRef("implementation-plan", 2)),
@@ -679,12 +682,12 @@ class DesignPlanningCapabilityTest {
             Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
             Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash"),
             List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null));
+            Kind.CHAIN_SEMANTIC_REVISION.name(),
+            sampleRevision().schemaVersion(),
+            sampleRevision().revisionId(),
+            "design-input-hash",
+            sampleRevision().compilerContractVersion(),
+            "contract-sha"));
   }
 
   private static String readFixture(String path) throws Exception {
@@ -720,8 +723,33 @@ class DesignPlanningCapabilityTest {
         """);
   }
 
-  private static NormalizedDesignFlow sampleFlow() {
-    return DesignPlanProjectorTestSupport.sampleFlow();
+  private static ChainSemanticRevision sampleRevision() {
+    return SemanticFixtures.linearOrders();
+  }
+
+  private static CompilerRunPin samplePin(
+      ChainSemanticRevision revision,
+      ResolvedCompilerDag dag,
+      Map<String, String> skillHashes,
+      Map<String, String> addonHashes) {
+    return new CompilerRunPin(
+        "compiler",
+        "1",
+        "digest",
+        2,
+        "1",
+        "catalog-hash",
+        dag,
+        List.of(DesignPlanningCapability.CAPABILITY_ID),
+        skillHashes,
+        addonHashes,
+        List.of(),
+        Kind.CHAIN_SEMANTIC_REVISION.name(),
+        revision.schemaVersion(),
+        revision.revisionId(),
+        "design-input-hash",
+        revision.compilerContractVersion(),
+        "contract-sha");
   }
 
   private static ResolvedCompilerDag sampleDag() {
@@ -754,7 +782,7 @@ class DesignPlanningCapabilityTest {
                       List.of(
                           new ArtifactCandidate(Kind.IDS_DOCUMENT, sampleIds(), List.of()),
                           new ArtifactCandidate(
-                              Kind.NORMALIZED_DESIGN_FLOW, sampleFlow(), List.of())),
+                              Kind.CHAIN_SEMANTIC_REVISION, sampleRevision(), List.of())),
                       "seeded design inputs",
                       null)));
     }
@@ -779,58 +807,6 @@ class DesignPlanningCapabilityTest {
           If you agree, reply **Agree** or **Execute plan** to proceed.
           """
           .trim();
-    }
-
-    private static NormalizedDesignFlow sampleFlow() {
-      return new NormalizedDesignFlow(
-          "1",
-          "flow-1",
-          "Orders",
-          "Create order",
-          new NormalizedDesignFlow.Trigger(
-              "http",
-              "p-client",
-              "Orders API",
-              "/orders",
-              "createOrder",
-              List.of("fact-trigger")),
-          List.of(
-              new NormalizedDesignFlow.Participant(
-                  "p-client", "Client", "EXTERNAL", List.of("fact-p")),
-              new NormalizedDesignFlow.Participant(
-                  "p-orders", "Orders Service", "EXTERNAL", List.of("fact-p")),
-              new NormalizedDesignFlow.Participant(
-                  "p-orders-api", "Orders API", "EXTERNAL", List.of("fact-p"))),
-          List.of(
-              new NormalizedDesignFlow.Step(
-                  "step-call",
-                  "service-call",
-                  "p-client",
-                  "p-orders",
-                  "createOrder",
-                  "Create order",
-                  List.of("fact-step"))),
-          List.of(),
-          List.of(),
-          List.of(
-              new NormalizedDesignFlow.DataMapping(
-                  "map-init",
-                  NormalizedDesignFlow.MappingStage.INITIALIZATION,
-                  "step-trigger",
-                  "step-call",
-                  NormalizedDesignFlow.MappingMode.PASS_THROUGH,
-                  List.of(),
-                  List.of("fact-map")),
-              new NormalizedDesignFlow.DataMapping(
-                  "map-response",
-                  NormalizedDesignFlow.MappingStage.RESPONSE,
-                  "step-call",
-                  "step-response",
-                  NormalizedDesignFlow.MappingMode.PASS_THROUGH,
-                  List.of(),
-                  List.of("fact-map"))),
-          List.of(),
-          List.of());
     }
 
     private static ResolvedCompilerDag sampleDag() {

@@ -68,7 +68,7 @@ stages:
     capabilityId: design-planning
     consumes:
       - { type: ids-document, schemaVersion: 1 }
-      - { type: normalized-design-flow, schemaVersion: 1 }
+      - { type: chain-semantic-revision, schemaVersion: 1 }
       - { type: run-manifest, schemaVersion: 1 }
     produces:
       - { type: design-plan-report, schemaVersion: 1 }
@@ -80,7 +80,7 @@ stages:
       bindingResolutionPolicyHash: ce160e1a62abc9d33b117338b10134e6cf8eeb5065ba6e5392a42b7f9cd17421
       candidateSet:
         - { type: ids-document, schemaVersion: 1 }
-        - { type: normalized-design-flow, schemaVersion: 1 }
+        - { type: chain-semantic-revision, schemaVersion: 1 }
         - { type: design-plan-report, schemaVersion: 1 }
         - { type: design-execution-plan, schemaVersion: 1 }
         - { type: implementation-plan, schemaVersion: 2 }
@@ -89,7 +89,7 @@ stages:
     capabilityId: design-execution
     consumes:
       - { type: ids-document, schemaVersion: 1 }
-      - { type: normalized-design-flow, schemaVersion: 1 }
+      - { type: chain-semantic-revision, schemaVersion: 1 }
       - { type: design-plan-report, schemaVersion: 1 }
       - { type: design-execution-plan, schemaVersion: 1 }
       - { type: implementation-plan, schemaVersion: 2 }

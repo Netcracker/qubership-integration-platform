@@ -62,7 +62,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase;
@@ -87,7 +88,7 @@ class CipDesignExecutorJavaAdapterTest {
   private CipDesignExecutorJavaAdapter adapter;
 
   private Reference idsRef;
-  private Reference flowRef;
+  private Reference revisionRef;
   private Reference reportRef;
   private Reference planRef;
   private Reference implementationRef;
@@ -95,7 +96,7 @@ class CipDesignExecutorJavaAdapterTest {
   private Reference approvalRef;
 
   private DesignExecutionPlan approvedPlan;
-  private NormalizedDesignFlow flow;
+  private ChainSemanticRevision revision;
   private RunManifest manifest;
   private List<CatalogBindingResolution> bindings;
   private DesignPlanReport report;
@@ -115,14 +116,15 @@ class CipDesignExecutorJavaAdapterTest {
         .thenReturn(new ValidationResult(true, List.of(), "ok"));
     adapter = new CipDesignExecutorJavaAdapter(runner, bindingAdapter, artifactStore, planValidator);
 
-    flow = sampleFlow();
+    revision = sampleRevision();
     approvedPlan = samplePlan(List.of("cip-trigger-generator"), "catalog-hash", "addon-hash-trigger");
     manifest = sampleManifest("catalog-hash", "skill-hash-trigger", "addon-hash-trigger");
     bindings = List.of(sampleBinding());
     report = new DesignPlanReport("1", "# plan\n");
 
     idsRef = append(Kind.IDS_DOCUMENT, "1", sampleIds());
-    flowRef = append(Kind.NORMALIZED_DESIGN_FLOW, "1", flow);
+    revisionRef =
+        append(Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision);
     reportRef = append(Kind.DESIGN_PLAN_REPORT, "1", report);
     planRef = append(Kind.DESIGN_EXECUTION_PLAN, "1", approvedPlan);
     implementationRef = append(Kind.IMPLEMENTATION_PLAN, "1", new ImplementationPlan("plan text"));
@@ -131,7 +133,7 @@ class CipDesignExecutorJavaAdapterTest {
         new ApprovalRecordV2(
             implementationRef,
             implementationRef.contentHash(),
-            List.of(idsRef, flowRef, reportRef, planRef, implementationRef),
+            List.of(idsRef, revisionRef, reportRef, planRef, implementationRef),
             "tester",
             "approved",
             FIXED,
@@ -145,9 +147,9 @@ class CipDesignExecutorJavaAdapterTest {
             null);
     approvalRef = append(Kind.APPROVAL_RECORD, "2", approval);
 
-    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(flow), anyList(), any()))
+    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
         .thenReturn(List.of(new BindingResolutionResult.Resolved(bindings.getFirst())));
-    when(runner.execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), any()))
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
         .thenReturn(successfulEngineResult(List.of("cip-trigger-generator")));
   }
 
@@ -218,9 +220,9 @@ class CipDesignExecutorJavaAdapterTest {
     DesignExecutionPlan badPlan =
         new DesignExecutionPlan(
             "1",
-            "flow-1",
+            "revision-orders",
             "cip-design-planner",
-            "normalized-design-flow/flow-1",
+            "chain-semantic-revision/revision-orders",
             "design-input-hash",
             "2024.4",
             ApprovalPolicy.CATALOG_FIRST_V1,
@@ -266,33 +268,18 @@ class CipDesignExecutorJavaAdapterTest {
 
   @Test
   void mappingIntentMismatchDoesNotInvokeRunner() {
-    NormalizedDesignFlow changedFlow =
-        new NormalizedDesignFlow(
-            flow.schemaVersion(),
-            flow.flowId(),
-            flow.chainName(),
-            flow.description(),
-            flow.trigger(),
-            flow.participants(),
-            flow.steps(),
-            flow.connections(),
-            flow.transformations(),
-            List.of(),
-            flow.constraints(),
-            flow.assumptions());
     ExecutionResult result =
-        adapter.executeAfterApproval(baseInputs().withFlow(changedFlow, flowRef));
+        adapter.executeAfterApproval(
+            baseInputs().withRevision(SemanticFixtures.linearOrdersWithMapping(), revisionRef));
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
-    assertTrue(
-        result.message().toLowerCase().contains("mapping")
-            || result.message().toLowerCase().contains("flow"));
+    assertTrue(result.message().toLowerCase().contains("mapping"));
     verifyNoInteractions(runner);
   }
 
   @Test
   void engineSkillOutsideClosureIsRejected() {
-    when(runner.execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), any()))
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
         .thenReturn(successfulEngineResult(List.of("cip-script-generator")));
 
     ExecutionResult result = adapter.executeAfterApproval(baseInputs());
@@ -319,7 +306,7 @@ class CipDesignExecutorJavaAdapterTest {
         new ApprovalRecordV2(
             implementationRef,
             implementationRef.contentHash(),
-            List.of(idsRef, flowRef, reportRef, depPlanRef, implementationRef),
+            List.of(idsRef, revisionRef, reportRef, depPlanRef, implementationRef),
             "tester",
             "approved",
             FIXED,
@@ -333,7 +320,7 @@ class CipDesignExecutorJavaAdapterTest {
             null);
     Reference depApprovalRef = append(Kind.APPROVAL_RECORD, "2", depApproval);
 
-    when(runner.execute(eq(planWithDependencyOwner), eq(flow), eq(bindings), eq(manifestWithDependency), any()))
+    when(runner.execute(eq(planWithDependencyOwner), eq(revision), eq(bindings), eq(manifestWithDependency), any()))
         .thenReturn(
             successfulEngineResult(List.of("cip-naming-generator", "cip-trigger-generator")));
 
@@ -347,8 +334,8 @@ class CipDesignExecutorJavaAdapterTest {
             reportRef,
             planWithDependencyOwner,
             depPlanRef,
-            flow,
-            flowRef,
+            revision,
+            revisionRef,
             sampleIds(),
             idsRef,
             new ImplementationPlan("plan text"),
@@ -377,7 +364,7 @@ class CipDesignExecutorJavaAdapterTest {
             "skill-hash-naming",
             "addon-hash-naming");
     Reference depManifestRef = append(Kind.RUN_MANIFEST, "1", manifestWithDependency);
-    when(runner.execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifestWithDependency), any()))
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifestWithDependency), any()))
         .thenReturn(successfulEngineResult(List.of("cip-script-generator")));
 
     ExecutionInputs inputs =
@@ -390,8 +377,8 @@ class CipDesignExecutorJavaAdapterTest {
             reportRef,
             approvedPlan,
             planRef,
-            flow,
-            flowRef,
+            revision,
+            revisionRef,
             sampleIds(),
             idsRef,
             new ImplementationPlan("plan text"),
@@ -414,7 +401,7 @@ class CipDesignExecutorJavaAdapterTest {
     ExecutionResult result = adapter.executeAfterApproval(baseInputs());
 
     assertEquals(StageOutcomeClass.CANDIDATE, result.outcomeClass());
-    verify(runner).execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), any());
+    verify(runner).execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any());
     assertEquals(DesignExecutionPhase.WAITING_FOR_MATERIALIZATION, result.checkpoint().phase());
   }
 
@@ -495,7 +482,7 @@ class CipDesignExecutorJavaAdapterTest {
 
   @Test
   void ineligibleCompilerBundlePutsMergedFindingsOnFailureResult() {
-    when(runner.execute(eq(approvedPlan), eq(flow), eq(bindings), eq(manifest), any()))
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
         .thenReturn(ineligibleCompilerEngineResult());
 
     ExecutionResult result = adapter.executeAfterApproval(baseInputs());
@@ -619,7 +606,7 @@ class CipDesignExecutorJavaAdapterTest {
             List.of());
     when(runner.execute(
             eq(approvedPlan),
-            eq(flow),
+            eq(revision),
             eq(bindings),
             eq(manifest),
             eq("attempt-1"),
@@ -636,7 +623,7 @@ class CipDesignExecutorJavaAdapterTest {
     verify(runner)
         .execute(
             eq(approvedPlan),
-            eq(flow),
+            eq(revision),
             eq(bindings),
             eq(manifest),
             eq("attempt-1"),
@@ -668,8 +655,8 @@ class CipDesignExecutorJavaAdapterTest {
         reportRef,
         approvedPlan,
         planRef,
-        flow,
-        flowRef,
+        revision,
+        revisionRef,
         sampleIds(),
         idsRef,
         new ImplementationPlan("plan text"),
@@ -791,9 +778,9 @@ class CipDesignExecutorJavaAdapterTest {
     Map<String, String> addonHashes = Map.of("cip-trigger-generator", addonHash);
     return new DesignExecutionPlan(
         "1",
-        "flow-1",
+        "revision-orders",
         "cip-design-planner",
-        "normalized-design-flow/flow-1",
+        "chain-semantic-revision/revision-orders",
         "design-input-hash",
         "2024.4",
         ApprovalPolicy.CATALOG_FIRST_V1,
@@ -806,30 +793,8 @@ class CipDesignExecutorJavaAdapterTest {
         ApprovalPolicy.CATALOG_FIRST_V1_HASH);
   }
 
-  private static NormalizedDesignFlow sampleFlow() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-1",
-        "Pets",
-        "",
-        new NormalizedDesignFlow.Trigger("http", "client", "HTTP", "/pets", "GET", List.of()),
-        List.of(new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of())),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "call-1", "service-call", "client", "petstore", "GET /pets", "", List.of())),
-        List.of(),
-        List.of(),
-        List.of(
-            new NormalizedDesignFlow.DataMapping(
-                "map-1",
-                NormalizedDesignFlow.MappingStage.CONVERSION,
-                "call-1",
-                "call-1",
-                NormalizedDesignFlow.MappingMode.EXPLICIT,
-                List.of(new NormalizedDesignFlow.MappingRule("$.id", "$.petId", null, List.of())),
-                List.of())),
-        List.of(),
-        List.of());
+  private static ChainSemanticRevision sampleRevision() {
+    return SemanticFixtures.linearOrders();
   }
 
   private static IdsDocument sampleIds() {

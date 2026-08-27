@@ -31,4 +31,32 @@ public record CompilerRunPin(
     runtimeArtifactSchemas =
         runtimeArtifactSchemas == null ? List.of() : List.copyOf(runtimeArtifactSchemas);
   }
+
+  /**
+   * Copies this pin's DAG closure and overlays the semantic subject from {@code semanticPin}.
+   * Create-chain runs already hold a DAG pin; T06 semantic resolve fills only subject fields.
+   */
+  public CompilerRunPin withSemanticSubject(CompilerRunPin semanticPin) {
+    if (semanticPin == null) {
+      throw new IllegalArgumentException("semanticPin is required");
+    }
+    return new CompilerRunPin(
+        compilerPackageId,
+        compilerPackageVersion,
+        compilerPackageDigest,
+        pipelineIndexSchemaVersion,
+        pipelineIndexVersion,
+        pipelineIndexDigest,
+        resolvedDag,
+        capabilityClosure,
+        skillSha256ById,
+        addonSha256ById,
+        runtimeArtifactSchemas,
+        semanticPin.subjectArtifactKind(),
+        semanticPin.subjectSchemaVersion(),
+        semanticPin.subjectRevisionId(),
+        semanticPin.subjectSha256(),
+        semanticPin.compilerContractVersion(),
+        semanticPin.compilerContractSha256());
+  }
 }
