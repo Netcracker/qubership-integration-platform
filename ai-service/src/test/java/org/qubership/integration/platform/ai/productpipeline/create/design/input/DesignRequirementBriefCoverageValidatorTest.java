@@ -19,11 +19,57 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class DesignRequirementBriefCoverageValidatorTest {
 
   private final DesignRequirementBriefCoverageValidator designValidator =
       new DesignRequirementBriefCoverageValidator();
+
+  @Test
+  void rejectsServiceCallWithoutUniqueStep() {
+    RequirementFact sharedFirst =
+        new RequirementFact(
+            "fact-om",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "http-service-call",
+            "Call Order Management onTaskResult",
+            "Order Management",
+            "onTaskResult",
+            "",
+            "",
+            "",
+            "call-om-result");
+    RequirementFact sharedSecond =
+        new RequirementFact(
+            "fact-om-again",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "http-service-call",
+            "Call Order Management onTaskResult again",
+            "Order Management",
+            "onTaskResult",
+            "",
+            "",
+            "",
+            "call-om-result");
+    RequirementBrief brief =
+        briefWithFacts(
+            List.of(httpTrigger(), sharedFirst, sharedSecond),
+            List.of(),
+            List.of(
+                new RequirementServiceCall(
+                    "call-om-result", "fact-om", "Order Management", "onTaskResult"),
+                new RequirementServiceCall(
+                    "call-om-result", "fact-om-again", "Order Management", "onTaskResult")));
+
+    IllegalArgumentException thrown =
+        assertThrows(IllegalArgumentException.class, () -> designValidator.validate(brief));
+
+    assertTrue(thrown.getMessage().contains("call-om-result"), thrown.getMessage());
+    assertTrue(thrown.getMessage().toLowerCase().contains("unique"), thrown.getMessage());
+  }
 
   @Test
   void kafkaAsyncTriggerWithNoIntentsDoesNotRequireInitializationEdge() {
@@ -345,8 +391,24 @@ class DesignRequirementBriefCoverageValidatorTest {
     return briefWithFacts(List.of(trigger, call("call-1"), call("call-2")), mappings);
   }
 
+  private static RequirementFact httpTrigger() {
+    return new RequirementFact(
+        "trigger-1",
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.ENDPOINT,
+        "http-trigger",
+        "GET /orders");
+  }
+
   private static RequirementBrief briefWithFacts(
       List<RequirementFact> facts, List<RequirementDataMapping> mappings) {
+    return briefWithFacts(facts, mappings, List.of());
+  }
+
+  private static RequirementBrief briefWithFacts(
+      List<RequirementFact> facts,
+      List<RequirementDataMapping> mappings,
+      List<RequirementServiceCall> serviceCalls) {
     return new RequirementBrief(
         "Order flow",
         List.of(),
@@ -357,7 +419,11 @@ class DesignRequirementBriefCoverageValidatorTest {
         "ref",
         "draft",
         facts,
-        mappings);
+        mappings,
+        List.of(),
+        serviceCalls,
+        List.of(),
+        List.of());
   }
 
   private static RequirementFact kafkaCapability(String id, String capabilityKey) {

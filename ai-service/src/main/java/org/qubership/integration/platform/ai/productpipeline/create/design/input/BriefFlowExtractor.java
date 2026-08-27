@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Maps an approved {@link RequirementBrief} into a single {@link NormalizedDesignFlow}.
@@ -54,7 +55,7 @@ public final class BriefFlowExtractor {
     }
 
     List<RequirementFact> endpoints = triggerFacts(brief);
-    List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
+    List<RequirementServiceCall> calls = serviceCalls(brief);
     boolean scriptOnly = calls.isEmpty() && isScriptOnlyBrief(brief);
 
     RequirementFact triggerFact = endpoints.isEmpty() ? null : endpoints.getFirst();
@@ -152,7 +153,7 @@ public final class BriefFlowExtractor {
         }
       }
     } else {
-      for (RequirementFact call : calls) {
+      for (RequirementServiceCall call : calls) {
         ServiceCallIdentity identity = serviceCallFrom(call);
         if (identity == null) {
           if (trimToNull(call.participant()) == null) {
@@ -164,7 +165,8 @@ public final class BriefFlowExtractor {
           continue;
         }
         String stepId = "step-" + index++;
-        intentToStep.put(call.sourceFactId(), stepId);
+        List<String> provenance = provenanceIds(call);
+        putIntentIds(intentToStep, call, stepId);
         String targetId = participantId(identity.participantDisplayName());
         if (firstTargetDisplayName == null) {
           firstTargetDisplayName = identity.participantDisplayName();
@@ -172,10 +174,7 @@ public final class BriefFlowExtractor {
         participants.putIfAbsent(
             targetId,
             new NormalizedDesignFlow.Participant(
-                targetId,
-                identity.participantDisplayName(),
-                "EXTERNAL",
-                List.of(call.sourceFactId())));
+                targetId, identity.participantDisplayName(), "EXTERNAL", provenance));
         steps.add(
             new NormalizedDesignFlow.Step(
                 stepId,
@@ -184,7 +183,7 @@ public final class BriefFlowExtractor {
                 targetId,
                 identity.operationQuery(),
                 "",
-                List.of(call.sourceFactId())));
+                provenance));
       }
     }
 
@@ -239,7 +238,7 @@ public final class BriefFlowExtractor {
     Objects.requireNonNull(brief, "brief");
     Objects.requireNonNull(authoredFlow, "authoredFlow");
     List<RequirementFact> endpoints = triggerFacts(brief);
-    List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
+    List<RequirementServiceCall> calls = serviceCalls(brief);
     List<NormalizedDesignFlow.Step> serviceCallSteps =
         authoredFlow.steps().stream()
             .filter(step -> "service-call".equalsIgnoreCase(step.kind()))
@@ -258,12 +257,11 @@ public final class BriefFlowExtractor {
     if (!endpoints.isEmpty()) {
       intentToStep.put(endpoints.getFirst().sourceFactId(), "step-trigger");
     }
-    for (int i = 0; i < calls.size(); i++) {
-      intentToStep.put(calls.get(i).sourceFactId(), serviceCallSteps.get(i).stepId());
-    }
+    mapServiceCallsToAuthoredSteps(calls, serviceCallSteps, intentToStep);
+    List<NormalizedDesignFlow.Step> steps = overlayCallProvenance(authoredFlow.steps(), calls, intentToStep);
     List<NormalizedDesignFlow.DataMapping> mappings = explicitMappings(brief, intentToStep);
     List<NormalizedDesignFlow.Connection> connections =
-        passThroughConnections(brief, intentToStep, authoredFlow.steps());
+        passThroughConnections(brief, intentToStep, steps);
     if (mappings.isEmpty() && connections.isEmpty()) {
       mappings = authoredFlow.dataMappings();
       connections = authoredFlow.connections();
@@ -275,7 +273,7 @@ public final class BriefFlowExtractor {
         authoredFlow.description(),
         authoredFlow.trigger(),
         authoredFlow.participants(),
-        authoredFlow.steps(),
+        steps,
         connections,
         authoredFlow.transformations(),
         mappings,
@@ -356,10 +354,10 @@ public final class BriefFlowExtractor {
     if (!triggerFacts(brief).isEmpty()) {
       chain.add("step-trigger");
     }
-    List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
+    List<RequirementServiceCall> calls = serviceCalls(brief);
     if (!calls.isEmpty()) {
-      for (RequirementFact call : calls) {
-        String stepId = intentToStep.get(call.sourceFactId());
+      for (RequirementServiceCall call : calls) {
+        String stepId = stepIdForCall(intentToStep, call);
         if (stepId != null) {
           chain.add(stepId);
         }
@@ -588,13 +586,163 @@ public final class BriefFlowExtractor {
     return KAFKA_TRIGGER_KEYS.contains(key);
   }
 
-  private static ServiceCallIdentity serviceCallFrom(RequirementFact fact) {
-    String participant = trimToNull(fact.participant());
-    String operation = trimToNull(fact.operation());
+  private static ServiceCallIdentity serviceCallFrom(RequirementServiceCall call) {
+    String participant = trimToNull(call.participant());
+    String operation = trimToNull(call.operation());
     if (participant == null || operation == null) {
       return null;
     }
     return new ServiceCallIdentity(participant, operation);
+  }
+
+  private static List<RequirementServiceCall> serviceCalls(RequirementBrief brief) {
+    if (!brief.serviceCalls().isEmpty()) {
+      return brief.serviceCalls();
+    }
+    List<RequirementServiceCall> calls = new ArrayList<>();
+    for (RequirementFact fact : positive(brief, RequirementFactKind.SERVICE_CALL)) {
+      String serviceCallId =
+          trimToNull(fact.serviceCallId()) == null ? fact.sourceFactId() : fact.serviceCallId();
+      calls.add(
+          new RequirementServiceCall(
+              serviceCallId, fact.sourceFactId(), fact.participant(), fact.operation()));
+    }
+    return List.copyOf(calls);
+  }
+
+  private static List<String> provenanceIds(RequirementServiceCall call) {
+    List<String> ids = new ArrayList<>();
+    String serviceCallId = trimToNull(call.serviceCallId());
+    if (serviceCallId != null) {
+      ids.add(serviceCallId);
+    }
+    String sourceFactId = trimToNull(call.sourceFactId());
+    if (sourceFactId != null && !sourceFactId.equals(serviceCallId)) {
+      ids.add(sourceFactId);
+    }
+    if (ids.isEmpty() && sourceFactId != null) {
+      ids.add(sourceFactId);
+    }
+    return List.copyOf(ids);
+  }
+
+  private static void putIntentIds(
+      Map<String, String> intentToStep, RequirementServiceCall call, String stepId) {
+    for (String id : provenanceIds(call)) {
+      intentToStep.put(id, stepId);
+    }
+  }
+
+  private static String stepIdForCall(
+      Map<String, String> intentToStep, RequirementServiceCall call) {
+    String byCallId = intentToStep.get(call.serviceCallId());
+    if (byCallId != null) {
+      return byCallId;
+    }
+    return intentToStep.get(call.sourceFactId());
+  }
+
+  /**
+   * Maps each brief service call onto an authored service-call step by provenance id. List position
+   * is not identity: reordering calls or repeating an operation must not swap bindings.
+   */
+  private static void mapServiceCallsToAuthoredSteps(
+      List<RequirementServiceCall> calls,
+      List<NormalizedDesignFlow.Step> serviceCallSteps,
+      Map<String, String> intentToStep) {
+    List<RequirementServiceCall> unmatchedCalls = new ArrayList<>(calls);
+    List<NormalizedDesignFlow.Step> unmatchedSteps = new ArrayList<>(serviceCallSteps);
+    for (RequirementServiceCall call : List.copyOf(unmatchedCalls)) {
+      List<NormalizedDesignFlow.Step> matches = new ArrayList<>();
+      for (NormalizedDesignFlow.Step step : unmatchedSteps) {
+        if (stepClaimsCall(step, call)) {
+          matches.add(step);
+        }
+      }
+      if (matches.size() > 1) {
+        throw new IllegalArgumentException(ambiguousStepMapping(call, matches));
+      }
+      if (matches.size() == 1) {
+        assignCallStep(intentToStep, unmatchedCalls, unmatchedSteps, call, matches.getFirst());
+      }
+    }
+    if (unmatchedCalls.size() == 1 && unmatchedSteps.size() == 1) {
+      assignCallStep(
+          intentToStep, unmatchedCalls, unmatchedSteps, unmatchedCalls.getFirst(), unmatchedSteps.getFirst());
+    }
+    if (!unmatchedCalls.isEmpty()) {
+      throw new IllegalArgumentException(
+          "serviceCallId="
+              + unmatchedCalls.getFirst().serviceCallId()
+              + " does not map to a unique service-call step");
+    }
+  }
+
+  private static List<NormalizedDesignFlow.Step> overlayCallProvenance(
+      List<NormalizedDesignFlow.Step> steps,
+      List<RequirementServiceCall> calls,
+      Map<String, String> intentToStep) {
+    if (calls.isEmpty()) {
+      return steps;
+    }
+    Map<String, RequirementServiceCall> byStepId = new LinkedHashMap<>();
+    for (RequirementServiceCall call : calls) {
+      String stepId = stepIdForCall(intentToStep, call);
+      if (stepId != null) {
+        byStepId.put(stepId, call);
+      }
+    }
+    List<NormalizedDesignFlow.Step> overlaid = new ArrayList<>();
+    for (NormalizedDesignFlow.Step step : steps) {
+      RequirementServiceCall call = byStepId.get(step.stepId());
+      if (call == null) {
+        overlaid.add(step);
+        continue;
+      }
+      overlaid.add(
+          new NormalizedDesignFlow.Step(
+              step.stepId(),
+              step.kind(),
+              step.fromParticipantId(),
+              step.toParticipantId(),
+              step.operationQuery(),
+              step.description(),
+              provenanceIds(call)));
+    }
+    return List.copyOf(overlaid);
+  }
+
+  private static void assignCallStep(
+      Map<String, String> intentToStep,
+      List<RequirementServiceCall> unmatchedCalls,
+      List<NormalizedDesignFlow.Step> unmatchedSteps,
+      RequirementServiceCall call,
+      NormalizedDesignFlow.Step step) {
+    putIntentIds(intentToStep, call, step.stepId());
+    unmatchedCalls.remove(call);
+    unmatchedSteps.remove(step);
+  }
+
+  private static boolean stepClaimsCall(
+      NormalizedDesignFlow.Step step, RequirementServiceCall call) {
+    List<String> ids = step.sourceFactIds();
+    String serviceCallId = trimToNull(call.serviceCallId());
+    String sourceFactId = trimToNull(call.sourceFactId());
+    return (serviceCallId != null && ids.contains(serviceCallId))
+        || (sourceFactId != null && ids.contains(sourceFactId));
+  }
+
+  private static String ambiguousStepMapping(
+      RequirementServiceCall call, List<NormalizedDesignFlow.Step> matches) {
+    List<String> stepIds = new ArrayList<>();
+    for (NormalizedDesignFlow.Step step : matches) {
+      stepIds.add(step.stepId());
+    }
+    return "serviceCallId="
+        + call.serviceCallId()
+        + " maps to multiple service-call steps ("
+        + String.join(", ", stepIds)
+        + ")";
   }
 
   private static String participantId(String displayName) {
