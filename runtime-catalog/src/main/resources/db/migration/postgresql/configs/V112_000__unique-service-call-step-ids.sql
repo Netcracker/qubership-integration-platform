@@ -3,6 +3,10 @@
 -- handler and 'Validations--<element id>' per response validation. Numbering the repeats is enough:
 -- the id only has to differ, and it keeps the '<name>--<element id>' shape the engine parses.
 --
+-- Only snapshots that back a deployment are rewritten. An installation can hold hundreds of thousands
+-- of snapshots, and rewriting all of them would hold up service startup. Deploying an older snapshot
+-- built before the fix still fails; rebuild the chain to get one from the fixed template.
+--
 -- The document is rebuilt from the text around the step ids rather than re-serialized, so every byte
 -- outside the rewritten id attributes stays as it was. Splitting on the step ids and matching them
 -- give two interleaved sequences -- part 1, id 1, part 2, id 2, ... -- which the join on ordinality
@@ -12,8 +16,9 @@ WITH affected AS (
            xml_configuration                             AS xml,
            'id="(?:Handle response|Validations)--[^"]*"' AS step_id_pattern
     FROM catalog.snapshots
-    WHERE strpos(xml_configuration, 'id="Handle response--') > 0
-       OR strpos(xml_configuration, 'id="Validations--') > 0
+    WHERE EXISTS (SELECT 1 FROM catalog.deployments d WHERE d.snapshot_id = snapshots.id)
+      AND (strpos(xml_configuration, 'id="Handle response--') > 0
+           OR strpos(xml_configuration, 'id="Validations--') > 0)
 ),
 -- every step id in document order, numbered per snapshot and per id, so repeats get 2, 3, ...
 step_ids AS (
