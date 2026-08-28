@@ -136,16 +136,16 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
             // merged in -- deduping by host alone would silently drop every port but one, even
             // within this single call.
             routes.stream()
-                .map(route -> EgressTarget.parse(route.getPath()))
-                .collect(Collectors.toMap(
-                    target -> target.host() + ":" + target.port(),
-                    Function.identity(),
-                    (first, second) -> first))
-                .values()
-                .forEach(this::upsertHostResources);
+                    .map(route -> EgressTarget.parse(route.getPath()))
+                    .collect(Collectors.toMap(
+                            target -> target.host() + ":" + target.port(),
+                            Function.identity(),
+                            (first, second) -> first))
+                    .values()
+                    .forEach(this::upsertHostResources);
         } catch (KubeApiConflictException e) {
             throw new ControlPlaneException(
-                "Failed to update host-keyed egress resources after " + MAX_MERGE_ATTEMPTS + " attempts", e);
+                    "Failed to update host-keyed egress resources after " + MAX_MERGE_ATTEMPTS + " attempts", e);
         }
     }
 

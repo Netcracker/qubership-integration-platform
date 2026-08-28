@@ -319,6 +319,15 @@ public class MicroDomainResourceBuildContextFactory {
      * {@link #putHttpRouteRulesToBuildCache} (three fixed, per-domain-named CRs), there's no way to
      * know in advance which hosts this build's routes will touch, so every existing one is fetched
      * and seeded; {@code EgressRouteResourceBuilder} looks up only the keys it actually needs.
+     *
+     * <p>Skipping this call is safe only while {@code EgressRouteResourceBuilder} skips generating
+     * those resources, which is why both read the same {@code qip.istio.host-resources.enabled}.
+     * Keep the two gates in step. A build that generates a {@code ServiceEntry} or
+     * {@code DestinationRule} from an unseeded cache sees an empty existing spec, and since the
+     * document is written with a PUT, every field it does not carry is deleted from the cluster --
+     * an operator's {@code tls.credentialName} and every other domain's ports along with it. The
+     * write also loses the {@code resourceVersion} precondition recorded here, so it falls back to
+     * a write-time read and stops detecting a concurrent update.
      */
     private void putHostResourceSpecsToBuildCache(
             ResourceBuildContext<List<Snapshot>> context,
