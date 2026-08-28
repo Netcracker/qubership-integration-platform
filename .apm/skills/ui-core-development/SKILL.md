@@ -5,58 +5,100 @@ description: Core development standards for the Qubership Integration Platform U
 
 # UI Core Development
 
-Use this skill for everyday development in `ui/`.
+Everyday development in `ui/` — a React + TypeScript SPA for visual integration chain management.
 
-## Engineering principles
+The application targets two runtimes, browser and VS Code webview, and four theme modes. Every UI
+decision has to hold in all of them; see the `ui-theme-and-vscode-webview` skill.
 
-- Treat code as production-quality: follow SOLID and DRY.
-- Reuse existing project components and abstractions before introducing new ones.
-- Prefer Ant Design components over raw HTML when equivalent UI exists.
-- For Ant Design tables and similar typed APIs, use explicit and meaningful generic types.
+## Stack
 
-## Quality gates
+Check `package.json` for versions; what matters is which library owns which concern:
 
-- Keep changes free of lint and formatting issues.
-- If linter/prettier reports unrelated pre-existing violations outside your change, do not expand scope to fix them unless requested.
+- **Components:** Ant Design v6. Prefer it over raw HTML wherever an equivalent exists, and give
+  its generic APIs explicit record types (`Table<Chain>`, not `Table<any>`).
+- **Graph:** `@xyflow/react` (ReactFlow v12) with ELK.js autolayout.
+- **Forms:** Ant Design `Form` for regular forms, `@rjsf/antd` for chain element parameters.
+- **Data fetching:** `@tanstack/react-query`. Library data is loaded once with `staleTime: Infinity`.
+- **HTTP:** Axios wrapped in `axios-rate-limit`, in `src/api/rest/restApi.ts`.
+- **Editor:** `@monaco-editor/react`. **Routing:** `react-router-dom` v7. **Build:** Vite v6.
 
-## Project context
+## Commands
 
-- The UI is a React + TypeScript SPA for integration-chain management.
-- Runtime targets are browser and VS Code webview.
-- All UI decisions must be compatible with light, dark, high-contrast, and VS Code webview modes.
+```bash
+npm run lint            # eslint .
+npm run format:check    # prettier --check
+npm run check-types     # tsc --noEmit — a CI gate; lint alone does not catch type errors
+npm run test            # jest
+npm run build           # fetch-docs + vite build (the app bundle)
+```
 
-## Common commands
+Run targeted tests while iterating:
 
-- Build: `npm run build`
-- Test: `npm run test`
-- Lint: `npm run lint`
-- Format check: `npm run format:check`
+```bash
+npm test -- --testPathPattern=tests/api/restApi
+npm test -- --testNamePattern="should parse"
+```
 
-Use targeted tests when possible:
+`eslint`, `prettier`, and `jest` resolve config from the working directory — run them from `ui/`,
+not from the repository root, where `eslint` fails with a migration-guide error instead of linting.
 
-- Single file: `npm test -- --testPathPattern=tests/api/restApi`
-- By test name: `npm test -- --testNamePattern="should parse"`
+Keep your own changes clean of lint and format issues. Pre-existing violations in files outside your
+change stay as they are unless the user asks for them.
 
-## UI package map
+## Two build outputs
 
-Use this as a quick orientation when placing new code:
+`npm run build` produces the standalone web app. `npm run build:lib:all` produces the library bundle
+in `dist-lib/` that the VS Code extension loads (external + bundled + types + `fix-preload.mjs`).
+A change that only passes the app build can still break the extension — build both when touching
+exports, entry points, or Vite config.
 
-- `src/api/`: API interface, REST/VS Code implementations, business types
-- `src/components/`: React components (table/modal/graph/mapper/admin tools/notifications)
-- `src/hooks/`: custom hooks, including `useTableInfiniteScroll.ts` for a table that loads the next page when a
-  sentinel row scrolls into view. Reuse it rather than writing a new observer; `src/pages/Sessions.tsx` still carries
-  an inline copy from before the hook existed, so a search turns up two implementations.
-- `src/hooks/testing/`: the hooks the testing screens share — `useTestingEntityList` for a list, `useTestingBulkActions`
-  for its toolbar, `useTestingEntityEditor` for an editor page.
-- `src/misc/`: utility functions
-- `src/theme/`: Ant Design tokens and semantic color system
-- `src/styles/`: global CSS and overrides
-- `src/pages/`: route-level components
-- `src/permissions/`: access control functions/components
+## The fetch-docs trap
+
+`npm run fetch-docs` wipes and rewrites `public/doc`. Vite resolves `public/` against an index taken
+at startup, so a dev server that was already running keeps serving the SPA fallback for `/doc/*.json`
+and the documentation page reports "Document Not Found". Restart the dev server after re-fetching.
+
+## Where code goes
+
+```text
+src/
+├── api/          — ApiClient interface, REST and VS Code implementations, all business types
+├── components/   — React components (see below)
+├── hooks/        — data-fetching, theme, graph, and filter hooks
+│   └── testing/  — the hooks the testing screens share
+├── pages/        — route-level components
+├── mapper/       — data-mapping model and logic
+├── misc/         — pure utility functions
+├── permissions/  — access-control components and functions
+├── theme/        — Ant Design tokens, semantic colors, theme lifecycle
+├── styles/       — global CSS: theme variables, antd overrides, reactflow theme
+├── icons/        — IconProvider and icon registry
+├── diagrams/     — sequence and DDS diagram generation
+├── ai/           — AI panel
+└── config/       — runtime app configuration
+```
+
+Under `src/components/`: `table/`, `modal/`, `graph/`, `mapper/`, `services/`, `sessions/`,
+`admin_tools/`, `dev_tools/`, `elements_library/`, `notifications/`, `labels/`, `logging/`,
+`chains/`, `documentation/`, `testing/`, `deployment_runtime_states/`, `ai/`.
+
+Reuse existing components and helpers before adding new ones — the table, modal, and permission
+layers all have shared primitives, and duplicating them is the most common review comment.
+
+Two hooks under `src/hooks/` are worth knowing before you write your own:
+
+- `useTableInfiniteScroll.ts` loads the next page when a sentinel row scrolls into view. Reuse it
+  rather than writing a new observer; `src/pages/Sessions.tsx` still carries an inline copy from
+  before the hook existed, so a search turns up two implementations.
+- `src/hooks/testing/` holds what the testing screens share — `useTestingEntityList` for a list,
+  `useTestingBulkActions` for its toolbar, `useTestingEntityEditor` for an editor page.
 
 ## Testing style
 
-- Prefer unit test descriptions in the style `should ... when ...` where applicable.
+Name unit tests `should ... when ...` where it fits:
+
+- should show full URI when no path component exists
+- should export participants with names
 
 ## jsdom prerequisites
 
