@@ -219,6 +219,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_multi_response_handlers.xml"
                 ),
                 Arguments.of(
+                        "HTTP Trigger element with idempotency",
+                        "/testData/input/builder/templates/http_trigger_idempotency.yml",
+                        "/testData/output/builder/templates/http_trigger_idempotency.xml"
+                ),
+                Arguments.of(
                         "SFTP Download element",
                         "/testData/input/builder/templates/sftp_download.yml",
                         "/testData/output/builder/templates/sftp_download.xml"
