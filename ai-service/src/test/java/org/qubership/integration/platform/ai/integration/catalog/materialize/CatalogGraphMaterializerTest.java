@@ -549,6 +549,29 @@ class CatalogGraphMaterializerTest {
     assertEquals("catalog-script-1", result.materializationMap().nodeIdToElementId().get("script-1"));
   }
 
+  @Test
+  void returnsFailureResultBeforeOwnershipValidationWhenElementCreationFails() {
+    ChainPlanGraph desired = twoNodeGraph();
+    ChainPlanGraph current =
+        new ChainPlanGraph(
+            desired.schemaVersion(),
+            desired.chain(),
+            List.of(desired.nodes().get(0)),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            CHAIN_ID, Map.of("trigger-1", "catalog-trigger-1"), Map.of(), Map.of());
+    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
+        .thenThrow(new IllegalStateException("catalog refused"));
+
+    CatalogGraphMaterializeResult result =
+        materializer.apply(CHAIN_ID, current, desired, map);
+
+    assertFalse(result.succeeded());
+    assertEquals(List.of("script-1"), result.failedNodeIds());
+    assertEquals("catalog refused", result.error());
+  }
+
   private void stubMatchingImport(ChainPlanGraph desired, MaterializationMap map) {
     stubMatchingImport(desired, map, List.of());
   }
