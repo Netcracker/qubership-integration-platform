@@ -285,11 +285,11 @@ describe("TestCasePage request tab", () => {
     fireEvent.keyDown(value, { key: "Enter", keyCode: 13 });
 
     // Committing the cell reaches the draft the editor holds, which is what
-    // opens Save; the cell keeps the value it was given.
+    // opens Save; the cell closes its editor and shows the value it was given.
     await waitFor(() =>
       expect(screen.getByTestId("test-case-save")).not.toBeDisabled(),
     );
-    expect(within(section).getByDisplayValue("off")).toBeInTheDocument();
+    expect(within(section).getByText("off")).toBeInTheDocument();
   });
 
   // The parameters a case carries are worth seeing without a click; the ones it
