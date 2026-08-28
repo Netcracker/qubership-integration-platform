@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import io.smallrye.mutiny.Context;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
@@ -18,6 +20,13 @@ public final class ProductCapabilityCaptureContext {
 
   private static final ThreadLocal<Binding> THREAD_BINDING = new ThreadLocal<>();
   private static final ThreadLocal<Context> THREAD_CONTEXT = new ThreadLocal<>();
+
+  /**
+   * Bindings by conversation id. LangChain4j runs a blocking {@code @Tool} on a pooled worker
+   * thread that did not call {@code bind*}, and that thread may still carry an earlier stage's
+   * binding, so a thread-local alone is both lossy and unsafe at the tool boundary.
+   */
+  private static final Map<String, Binding> BY_CONVERSATION = new ConcurrentHashMap<>();
 
   private ProductCapabilityCaptureContext() {}
 
@@ -99,8 +108,50 @@ public final class ProductCapabilityCaptureContext {
   }
 
   public static void unbind() {
+    Binding binding = THREAD_BINDING.get();
+    if (binding != null && binding.conversationId() != null) {
+      BY_CONVERSATION.remove(binding.conversationId(), binding);
+    }
     THREAD_BINDING.remove();
     THREAD_CONTEXT.remove();
+  }
+
+  /**
+   * Releases a design binding by id. A capability that binds and releases on different threads
+   * cannot rely on {@link #unbind()}, which only sees the thread it runs on.
+   */
+  public static void unbind(String conversationId) {
+    if (conversationId != null && !conversationId.isBlank()) {
+      BY_CONVERSATION.remove(conversationId.trim());
+    }
+    unbind();
+  }
+
+  /**
+   * Binding for one conversation.
+   *
+   * <p>A pooled worker thread can still hold a binding from an earlier stage of the same
+   * conversation. The conversation registry is therefore authoritative whenever an id is known.
+   */
+  public static Optional<Binding> binding(String conversationId) {
+    String id = conversationId == null ? "" : conversationId.trim();
+    if (!id.isEmpty()) {
+      return Optional.ofNullable(BY_CONVERSATION.get(id));
+    }
+    return Optional.ofNullable(THREAD_BINDING.get());
+  }
+
+  public static Optional<Binding> designBinding(String conversationId) {
+    return binding(conversationId).filter(found -> found.mode() == Mode.DESIGN);
+  }
+
+  /** Approved draft for one conversation, immune to a stale binding on this worker thread. */
+  public static Optional<RequirementDraft> approvedDraft(String conversationId) {
+    return binding(conversationId).map(Binding::approvedDraft).filter(draft -> draft != null);
+  }
+
+  public static boolean isBound(String conversationId) {
+    return binding(conversationId).isPresent();
   }
 
   public static boolean isBound() {
@@ -134,45 +185,48 @@ public final class ProductCapabilityCaptureContext {
   }
 
   public static void offerDraft(RequirementDraft draft) {
-    current()
-        .ifPresent(
-            binding -> {
-              if (binding.mode() != Mode.DISCOVERY) {
-                return;
-              }
-              binding.draftCandidate().set(draft);
-              if (binding.onCandidate() != null) {
-                binding.onCandidate().accept(draft);
-              }
-            });
+    current().ifPresent(binding -> offerDraft(binding, draft));
+  }
+
+  /** Offers against an explicit binding, for a tool that resolved it by conversation id. */
+  public static void offerDraft(Binding binding, RequirementDraft draft) {
+    if (binding == null || binding.mode() != Mode.DISCOVERY) {
+      return;
+    }
+    binding.draftCandidate().set(draft);
+    if (binding.onCandidate() != null) {
+      binding.onCandidate().accept(draft);
+    }
   }
 
   public static void offerBrief(RequirementBrief brief) {
-    current()
-        .ifPresent(
-            binding -> {
-              if (binding.mode() != Mode.ANALYSIS) {
-                return;
-              }
-              binding.briefCandidate().set(brief);
-              if (binding.onCandidate() != null) {
-                binding.onCandidate().accept(brief);
-              }
-            });
+    current().ifPresent(binding -> offerBrief(binding, brief));
+  }
+
+  /** Offers against an explicit binding, for a tool that resolved it by conversation id. */
+  public static void offerBrief(Binding binding, RequirementBrief brief) {
+    if (binding == null || binding.mode() != Mode.ANALYSIS) {
+      return;
+    }
+    binding.briefCandidate().set(brief);
+    if (binding.onCandidate() != null) {
+      binding.onCandidate().accept(brief);
+    }
   }
 
   public static void offerSemantic(ChainSemanticRevision revision) {
-    current()
-        .ifPresent(
-            binding -> {
-              if (binding.mode() != Mode.DESIGN) {
-                return;
-              }
-              binding.semanticCandidate().set(revision);
-              if (binding.onCandidate() != null) {
-                binding.onCandidate().accept(revision);
-              }
-            });
+    current().ifPresent(binding -> offerSemantic(binding, revision));
+  }
+
+  /** Offers against an explicit binding, for a tool that resolved it by conversation id. */
+  public static void offerSemantic(Binding binding, ChainSemanticRevision revision) {
+    if (binding == null || binding.mode() != Mode.DESIGN) {
+      return;
+    }
+    binding.semanticCandidate().set(revision);
+    if (binding.onCandidate() != null) {
+      binding.onCandidate().accept(revision);
+    }
   }
 
   public static Context attachedContext() {
@@ -183,5 +237,8 @@ public final class ProductCapabilityCaptureContext {
   private static void install(Binding binding, Context context) {
     THREAD_BINDING.set(binding);
     THREAD_CONTEXT.set(context);
+    if (binding.conversationId() != null && !binding.conversationId().isBlank()) {
+      BY_CONVERSATION.put(binding.conversationId(), binding);
+    }
   }
 }

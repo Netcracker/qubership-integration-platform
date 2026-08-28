@@ -7,14 +7,19 @@ import static org.mockito.Mockito.mock;
 
 import dev.langchain4j.exception.ToolArgumentsException;
 import io.smallrye.mutiny.Multi;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
@@ -94,6 +99,56 @@ class CaptureRepairRunnerTest {
     assertEquals(0, tokens.size());
     assertEquals(2, calls.get());
     assertTrue(captured.get());
+  }
+
+  @Test
+  void repairAttemptKeepsToolBindingsOnItsSubscriptionThread() throws Exception {
+    AtomicInteger calls = new AtomicInteger();
+    AtomicBoolean captured = new AtomicBoolean(false);
+    List<String> conversationIds = new ArrayList<>();
+    List<String> parentSkillIds = new ArrayList<>();
+    ExecutorService worker = Executors.newSingleThreadExecutor();
+    worker.submit(ToolSession::clear).get();
+    ToolSession.bind("conv-1");
+    ToolInvocationSink.bind(event -> {}, "skill:cip-trigger-generator", "conv-1");
+    try {
+      runner
+          .runWithRepair(
+              message ->
+                  Multi.createFrom()
+                      .item("token")
+                      .onItem()
+                      .invoke(
+                          ignored -> {
+                            conversationIds.add(ToolSession.resolveConversationId());
+                            parentSkillIds.add(
+                                ToolInvocationSink.currentParentSkillId().orElse(null));
+                            if (calls.incrementAndGet() == 1) {
+                              feedbackStore.recordPatchValidationFailure(
+                                  "conv-1", "cip-trigger-generator", "invalid HTTP method");
+                            } else {
+                              captured.set(true);
+                            }
+                          })
+                      .runSubscriptionOn(worker),
+              captured::get,
+              () -> feedbackStore.lastPatchFailure("conv-1", "cip-trigger-generator"),
+              () -> {},
+              "captureGraphPatch",
+              "initial")
+          .collect()
+          .asList()
+          .await()
+          .indefinitely();
+    } finally {
+      ToolInvocationSink.unbind();
+      ToolSession.clear();
+      worker.shutdownNow();
+    }
+
+    assertEquals(List.of("conv-1", "conv-1"), conversationIds);
+    assertEquals(
+        List.of("skill:cip-trigger-generator", "skill:cip-trigger-generator"), parentSkillIds);
   }
 
   @Test

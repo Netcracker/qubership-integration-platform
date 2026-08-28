@@ -38,6 +38,18 @@ class ConversationCatalogCacheProvenanceTest {
         "an id the catalog never returned stays unknown");
   }
 
+  @Test
+  void findOperationDecodesPercentEncodedIds() {
+    ConversationCatalogCache cache = new ConversationCatalogCache(null);
+    CatalogRestClient.OperationDto listed =
+        new CatalogRestClient.OperationDto(
+            "WFMS Create Work Order", "WFMS Create Work Order", "POST", "/workOrder", MODEL_ID);
+    cache.rememberOperation(CONVERSATION, listed);
+
+    assertTrue(cache.findOperation(CONVERSATION, "WFMS Create Work Order").isPresent());
+    assertTrue(cache.findOperation(CONVERSATION, "WFMS%20Create%20Work%20Order").isPresent());
+  }
+
   private static CatalogRestClient.OperationDto operation() {
     return new CatalogRestClient.OperationDto(
         MODEL_ID + "-getInventory", "getInventory", "GET", "/store/inventory", MODEL_ID);

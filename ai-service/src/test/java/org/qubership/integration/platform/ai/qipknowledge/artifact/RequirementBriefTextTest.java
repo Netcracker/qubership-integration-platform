@@ -42,6 +42,66 @@ class RequirementBriefTextTest {
   }
 
   @Test
+  void showsEachFactIdSoDesignCaptureCanCopySourceFactIds() {
+    RequirementFact fact =
+        new RequirementFact(
+            "fact-trigger",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.ENDPOINT,
+            "http-trigger",
+            "Internal HTTP GET /health-proxy trigger");
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Proxy inventory",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Proxy inventory health data",
+            null,
+            null,
+            List.of(fact));
+
+    String formatted = RequirementBriefText.format(brief);
+
+    assertTrue(
+        formatted.contains(
+            "[POSITIVE] Internal HTTP GET /health-proxy trigger sourceFactId=fact-trigger"),
+        formatted);
+  }
+
+  /** The capability key used to lead the line, and a model copied it as the entry point id. */
+  @Test
+  void labelsTheEntryPointIdSoItCannotBeConfusedWithTheCapabilityKey() {
+    RequirementBrief brief =
+        new RequirementBrief("Proxy inventory", List.of(), List.of(), List.of(), List.of(), "")
+            .withFacts(List.of());
+    RequirementBrief withEntryPoint =
+        new RequirementBrief(
+            brief.goal(),
+            brief.inputs(),
+            brief.constraints(),
+            brief.assumptions(),
+            brief.citations(),
+            "Proxy inventory health data",
+            null,
+            null,
+            List.of(),
+            List.of(),
+            List.of(
+                new RequirementEntryPoint(
+                    "fact-trigger", "fact-trigger", "http-trigger", "", "GET", "/health-proxy", "")),
+            List.of(),
+            List.of(),
+            List.of());
+
+    String formatted = RequirementBriefText.format(withEntryPoint);
+
+    assertTrue(
+        formatted.contains("- entryPointId=fact-trigger capabilityKey=http-trigger"), formatted);
+  }
+
+  @Test
   void returnsEmptyForNullBrief() {
     assertEquals("", RequirementBriefText.format(null));
   }

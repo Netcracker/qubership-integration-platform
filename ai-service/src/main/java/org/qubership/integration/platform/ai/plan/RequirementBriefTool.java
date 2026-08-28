@@ -95,6 +95,8 @@ public class RequirementBriefTool {
       goal and summary cannot both be blank.
       Facts from the approved draft are pinned by the server (stable sourceFactId values). Focus\
        on goal, summary, inputs, constraints, and assumptions.
+      Omit facts when an approved draft exists. If you emit a SERVICE_CALL fact, include\
+       serviceCallId.
       When there are no positive SERVICE_CALL facts, leave dataMappings empty. Do not invent\
        mappings. If you emit a mapping, it must include stage and at least one sourceFactId.
       When no transformation was requested, leave dataMappings empty. The server records that as\
@@ -146,14 +148,15 @@ public class RequirementBriefTool {
       }
 
       RequirementBrief brief = toRequirementBrief(capture);
+      // A pooled worker can still carry another conversation's binding, so resolve by id.
       Optional<RequirementDraft> approved =
-          ProductCapabilityCaptureContext.approvedDraft()
+          ProductCapabilityCaptureContext.approvedDraft(conversationId)
               .or(() -> draftStore.get(conversationId).filter(RequirementDraft::readyForPlan));
       if (approved.isPresent()) {
         // LLM often paraphrases or omits sourceFactId. Draft facts are already normalized —
         // pin them so coverage cannot fail on id drift while keeping the agent's prose fields.
         brief = pinApprovedDraftFacts(brief, approved.get());
-      } else if (ProductCapabilityCaptureContext.isBound()) {
+      } else if (ProductCapabilityCaptureContext.isBound(conversationId)) {
         String message = "approved draft is required before capturing a requirement brief";
         return finish(conversationId, startMs, message);
       }
@@ -191,7 +194,9 @@ public class RequirementBriefTool {
       String accepted =
           captureSession.accept(key, brief, successMessage, DUPLICATE_CAPTURE_MESSAGE);
       feedbackStore.clearPlan(conversationId);
-      ProductCapabilityCaptureContext.offerBrief(brief);
+      RequirementBrief captured = brief;
+      ProductCapabilityCaptureContext.binding(conversationId)
+          .ifPresent(bound -> ProductCapabilityCaptureContext.offerBrief(bound, captured));
 
       LOG.infof(
           "captureRequirementBrief: stored brief conversationId=%s goal='%s' facts=%d",

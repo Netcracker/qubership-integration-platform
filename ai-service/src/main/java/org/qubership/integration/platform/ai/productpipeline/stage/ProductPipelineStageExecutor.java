@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -75,6 +76,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
  * with the runtime or Flow.
  */
 public final class ProductPipelineStageExecutor implements StageExecutor {
+
+  private static final Logger LOG =
+      Logger.getLogger(ProductPipelineStageExecutor.class);
 
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
@@ -267,6 +271,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .deferred(
             () -> {
               ProductPipelineRunDocument doc = requireRun(runId);
+              LOG.infof(
+                  "stage entered: runId=%s, stageId=%s, runStatus=%s",
+                  runId, expectedStageId, doc.run().status());
               if (!expectedStageId.equals(doc.run().currentStageId())) {
                 return Uni.createFrom()
                     .failure(
@@ -288,7 +295,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                     .item(replaySettledDecision(doc, expectedStageId, expected));
               }
               return executeRunningStage(runId, doc);
-            });
+            })
+        .invoke(
+            result ->
+                LOG.infof(
+                    "stage settled: runId=%s, stageId=%s, decision=%s",
+                    runId, expectedStageId, result.decision()))
+        .onFailure()
+        .invoke(
+            error ->
+                LOG.errorf(error, "stage failed: runId=%s, stageId=%s", runId, expectedStageId));
   }
 
   /**

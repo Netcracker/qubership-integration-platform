@@ -28,11 +28,11 @@ public record RequirementFact(
         String serviceCallId) {
 
   public RequirementFact {
-    Objects.requireNonNull(polarity, "polarity");
-    if (text == null || text.isBlank()) {
-      throw new IllegalArgumentException("text is required");
+    // LLM tool JSON omits fields; throwing here becomes ToolArgumentsException before the tool runs.
+    if (polarity == null) {
+      polarity = RequirementFactPolarity.POSITIVE;
     }
-    text = text.trim();
+    text = blankToEmpty(text);
     // LLM tool calls often omit kind; default from polarity so capture still succeeds.
     if (kind == null) {
       kind =
@@ -50,16 +50,23 @@ public record RequirementFact(
     httpMethod = blankToEmpty(httpMethod);
     path = blankToEmpty(path);
     if (kind == RequirementFactKind.SERVICE_CALL) {
-      String trimmedCallId = blankToEmpty(serviceCallId);
-      if (trimmedCallId.isEmpty()) {
-        throw new IllegalArgumentException("serviceCallId is required for SERVICE_CALL facts");
+      serviceCallId = blankToEmpty(serviceCallId);
+      if (sourceFactId == null || sourceFactId.isBlank()) {
+        sourceFactId =
+            serviceCallId.isEmpty()
+                ? deriveSourceFactId(
+                    polarity,
+                    identitySeed(kind, text, participant, operation, topic, httpMethod, path))
+                : serviceCallId;
+      } else {
+        sourceFactId = sourceFactId.trim();
       }
-      serviceCallId = trimmedCallId;
-      sourceFactId =
-          sourceFactId == null || sourceFactId.isBlank() ? serviceCallId : sourceFactId.trim();
     } else {
       if (sourceFactId == null || sourceFactId.isBlank()) {
-        sourceFactId = deriveSourceFactId(polarity, text);
+        sourceFactId =
+            deriveSourceFactId(
+                polarity,
+                identitySeed(kind, text, participant, operation, topic, httpMethod, path));
       } else {
         sourceFactId = sourceFactId.trim();
       }
@@ -139,6 +146,22 @@ public record RequirementFact(
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException("SHA-256 unavailable", e);
     }
+  }
+
+  private static String identitySeed(
+      RequirementFactKind kind,
+      String text,
+      String participant,
+      String operation,
+      String topic,
+      String httpMethod,
+      String path) {
+    if (!text.isEmpty()) {
+      return text;
+    }
+    String seed =
+        String.join("\n", kind.name(), participant, operation, topic, httpMethod, path);
+    return seed.isBlank() ? kind.name() : seed;
   }
 
   private static String blankToEmpty(String value) {

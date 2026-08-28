@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
@@ -51,6 +52,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
  */
 @ApplicationScoped
 public class CreateChainApplicationFacade {
+
+  private static final Logger LOG =
+      Logger.getLogger(CreateChainApplicationFacade.class);
 
   private static final Pattern INTERNAL_TOKEN =
       Pattern.compile(
@@ -314,9 +318,10 @@ public class CreateChainApplicationFacade {
     }
     if (status != RunStatus.WAITING_FOR_APPROVAL) {
       if (alreadyApproved(doc, command)) {
-        return Optional.of(new ApproveCreateChainOutcome.DuplicateApproval());
+        return rejected(command, doc, new ApproveCreateChainOutcome.DuplicateApproval());
       }
-      return Optional.of(new ApproveCreateChainOutcome.NotWaitingForApproval(mapStatus(status)));
+      return rejected(
+          command, doc, new ApproveCreateChainOutcome.NotWaitingForApproval(mapStatus(status)));
     }
 
     Reference expected = approvableReference(doc);
@@ -325,20 +330,49 @@ public class CreateChainApplicationFacade {
     if (providedKind.isEmpty()
         || providedKind.get() != expected.kind()
         || !expectedTypeEquals(expectedType, command.artifactType())) {
-      return Optional.of(
+      return rejected(
+          command,
+          doc,
           new ApproveCreateChainOutcome.WrongArtifactType(expectedType, command.artifactType()));
     }
     if (!expected.contentHash().equals(command.artifactHash())) {
-      return Optional.of(
+      return rejected(
+          command,
+          doc,
           new ApproveCreateChainOutcome.WrongArtifactHash(
               expected.contentHash(), command.artifactHash()));
     }
     if (command.revision() != doc.run().runRevision()) {
-      return Optional.of(
+      return rejected(
+          command,
+          doc,
           new ApproveCreateChainOutcome.StaleRevision(
               command.revision(), doc.run().runRevision()));
     }
     return Optional.empty();
+  }
+
+  /**
+   * Names a rejected approve. Every rejection above is silent, so an approve that never advances
+   * the run leaves no trace of why.
+   */
+  private static Optional<ApproveCreateChainOutcome> rejected(
+      ApproveCreateChainArtifactCommand command,
+      ProductPipelineRunDocument doc,
+      ApproveCreateChainOutcome outcome) {
+    LOG.warnf(
+        "approve rejected: taskId=%s, runId=%s, stageId=%s, runStatus=%s, artifactType=%s,"
+            + " artifactHash=%s, revision=%d, runRevision=%d, outcome=%s",
+        command.taskId(),
+        doc.run().runId(),
+        doc.run().currentStageId(),
+        doc.run().status(),
+        command.artifactType(),
+        command.artifactHash(),
+        command.revision(),
+        doc.run().runRevision(),
+        outcome);
+    return Optional.of(outcome);
   }
 
   /**
@@ -390,12 +424,25 @@ public class CreateChainApplicationFacade {
             .loadByConversation(taskId)
             .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
     if (approveAlreadyApplied(doc, command)) {
+      LOG.infof(
+          "approve already applied, nothing to stream: taskId=%s, runId=%s, stageId=%s,"
+              + " artifactHash=%s",
+          taskId, doc.run().runId(), doc.run().currentStageId(), command.artifactHash());
       return Multi.createFrom().empty();
     }
     if (doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT) {
       return streamBlockedRecovery(taskId, doc, command);
     }
     Reference expected = approvableReference(doc);
+    LOG.infof(
+        "approve accepted: taskId=%s, runId=%s, stageId=%s, artifactType=%s, artifactHash=%s,"
+            + " runRevision=%d",
+        taskId,
+        doc.run().runId(),
+        doc.run().currentStageId(),
+        command.artifactType(),
+        command.artifactHash(),
+        doc.run().runRevision());
     return mapSignals(
         taskId,
         runtime.approve(

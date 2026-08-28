@@ -233,7 +233,7 @@ public class ConversationCatalogCache {
 
   public Optional<CatalogRestClient.OperationDto> findOperation(
       String conversationId, String operationId) {
-    String opId = CatalogStrings.blankToNull(operationId);
+    String opId = CatalogStrings.percentDecode(operationId);
     if (blankConversation(conversationId) || opId == null) {
       return Optional.empty();
     }

@@ -467,6 +467,76 @@ class RequirementBriefToolTest {
   }
 
   @Test
+  void pinsApprovedDraftWhenCaptureJsonOmitsServiceCallId() throws Exception {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    RequirementFact omFact =
+        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
+    CatalogBindingHint omHint =
+        catalogHint(
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            observedAt);
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Call OM onTaskResult",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(omFact),
+            false,
+            List.of(
+                new RequirementServiceCall(
+                    "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint)));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-brief", approved);
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    tool =
+        new RequirementBriefTool(
+            captureSession,
+            draftStore,
+            mapper,
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
+
+    RequirementBriefCapture capture =
+        mapper.readValue(
+            """
+            {
+              "goal": "Call OM onTaskResult",
+              "summary": "summary only",
+              "facts": [
+                {
+                  "polarity": "POSITIVE",
+                  "kind": "SERVICE_CALL",
+                  "text": "Call Order Management onTaskResult"
+                }
+              ]
+            }
+            """,
+            RequirementBriefCapture.class);
+
+    String result = tool.captureRequirementBrief(capture);
+
+    assertTrue(result.contains("Requirement brief captured"), result);
+    RequirementBrief stored = getBrief("conv-brief").orElseThrow();
+    assertEquals(List.of(omFact), stored.facts());
+    assertEquals("call-om-result", stored.serviceCalls().getFirst().serviceCallId());
+    assertEquals("op-om", stored.serviceCalls().getFirst().catalogBinding().integrationOperationId());
+  }
+
+  @Test
   void toolDescriptionLeavesMappingsEmptyWithoutServiceCallFacts() throws Exception {
     Tool tool =
         RequirementBriefTool.class
@@ -477,6 +547,8 @@ class RequirementBriefToolTest {
     assertTrue(description.contains("\"dataMappings\": []"), description);
     assertTrue(description.contains("no positive SERVICE_CALL"), description);
     assertTrue(description.contains("leave dataMappings empty"), description);
+    assertTrue(description.contains("Omit facts when an approved draft exists"), description);
+    assertTrue(description.contains("serviceCallId"), description);
     assertTrue(description.contains("stage"), description);
     assertTrue(description.contains("sourceFactId"), description);
   }

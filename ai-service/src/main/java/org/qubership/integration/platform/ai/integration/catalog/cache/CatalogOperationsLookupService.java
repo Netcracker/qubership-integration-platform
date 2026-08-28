@@ -71,6 +71,10 @@ public class CatalogOperationsLookupService {
         CatalogSystemToolNames.OPS, specificationId, cache, conversationIdFromMdc());
   }
 
+  public Optional<CatalogRestClient.OperationDto> findRememberedOperation(String operationId) {
+    return cache.findOperation(conversationIdFromMdc(), operationId);
+  }
+
   private static String conversationIdFromMdc() {
     String fromMdc = MDC.get(ChatMdc.CONVERSATION_ID);
     return fromMdc != null ? fromMdc.trim() : "";

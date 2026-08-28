@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -21,9 +20,6 @@ import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompiler
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
-import org.qubership.integration.platform.ai.plan.RequirementFact;
-import org.qubership.integration.platform.ai.plan.RequirementFactKind;
-import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -32,21 +28,11 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
@@ -121,12 +107,12 @@ class DesignInputCapabilityTest {
                     "userText",
                     "ignored agent prose after the tool call",
                     "requirementBrief",
-                    approvedBrief())));
-    assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
     assertEquals(Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
     ChainSemanticRevision revision = semanticPayload(prepared);
     IdsDocument ids = idsPayload(prepared);
-    assertEquals(linearRevision().revisionId(), revision.revisionId());
+    assertTrue(revision.revisionId().startsWith("semantic-"), revision.revisionId());
     assertTrue(ids.markdown().contains("sequenceDiagram"));
     assertTrue(ids.markdown().contains("autonumber"));
     assertEquals(CanonicalPayloadHash.sha256Hex(revision), ids.normalizedFlowHash());
@@ -135,7 +121,9 @@ class DesignInputCapabilityTest {
 
   @Test
   void authoringPromptCopiesPluralSourceFactIds() {
-    String prompt = DesignInputCapability.authoringPrompt(approvedBrief(), CONTRACT);
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
     assertTrue(prompt.contains("sourceFactIds"), prompt);
   }
 
@@ -149,7 +137,7 @@ class DesignInputCapabilityTest {
                 "design-input",
                 Map.of(
                     "requirementBrief",
-                    approvedBrief())));
+                    ChainSemanticCaptureFixtures.approvedBrief())));
     ChainSemanticRevision stored = semanticPayload(prepared);
     IdsDocument ids = idsPayload(prepared);
     String digest = CanonicalPayloadHash.sha256Hex(stored);
@@ -177,7 +165,7 @@ class DesignInputCapabilityTest {
                 "design-input",
                 Map.of(
                     "requirementBrief",
-                    approvedBrief())));
+                    ChainSemanticCaptureFixtures.approvedBrief())));
     ChainSemanticRevision stored = semanticPayload(prepared);
     String digest = CanonicalPayloadHash.sha256Hex(stored);
     IdsDocument edited =
@@ -198,8 +186,8 @@ class DesignInputCapabilityTest {
                     "idsDocument",
                     edited,
                     "requirementBrief",
-                    approvedBrief())));
-    assertEquals(StageOutcomeClass.CANDIDATE, second.outcomeClass());
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, second.outcomeClass());
     ChainSemanticRevision secondStored = semanticPayload(second);
     assertEquals(stored.revisionId(), secondStored.revisionId());
     assertEquals(digest, CanonicalPayloadHash.sha256Hex(secondStored));
@@ -219,7 +207,7 @@ class DesignInputCapabilityTest {
                 "design-input",
                 Map.of(
                     "requirementBrief",
-                    approvedBrief())));
+                    ChainSemanticCaptureFixtures.approvedBrief())));
     assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
     assertTrue(prepared.candidates().isEmpty());
   }
@@ -228,7 +216,7 @@ class DesignInputCapabilityTest {
     ChainSemanticCaptureTool captureTool = captureTool();
     return new DesignInputCapability(
         (conversationId, prompt) -> {
-          captureTool.captureChainSemanticRevision(linearRevision());
+          captureTool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
           return Multi.createFrom().item("ignored agent text after the tool call");
         },
         new DefaultChainSemanticIdsRenderer());
@@ -260,6 +248,7 @@ class DesignInputCapabilityTest {
                 CONTRACT.sha256(),
                 addons));
     return new ChainSemanticCaptureTool(
+        new ChainSemanticCaptureAdapter(new ChainSemanticCanonicalizer()),
         new DefaultChainSemanticRevisionValidator(),
         new ClasspathCompilerContractRepository(),
         pack,
@@ -325,99 +314,5 @@ class DesignInputCapabilityTest {
         .map(c -> (ChainSemanticRevision) c.payload())
         .findFirst()
         .orElseThrow();
-  }
-
-  private static RequirementBrief approvedBrief() {
-    return new RequirementBrief(
-        "Orders",
-        List.of("HTTP POST /orders"),
-        List.of(),
-        List.of(),
-        List.of(),
-        "Create order",
-        "draft-1",
-        "draft",
-        List.of(
-            new RequirementFact(
-                "trigger-1",
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.ENDPOINT,
-                "http-trigger",
-                "HTTP POST /orders",
-                "",
-                "createOrder",
-                "",
-                "POST",
-                "/orders",
-                ""),
-            new RequirementFact(
-                "fact-call",
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.SERVICE_CALL,
-                "http-service-call",
-                "Create an order via Orders API",
-                "Orders API",
-                "getOrder",
-                "",
-                "",
-                "",
-                "call-1")),
-        List.of(),
-        List.of(
-            new RequirementEntryPoint(
-                "http-in", "trigger-1", "http-trigger", "", "POST", "/orders", "createOrder")),
-        List.of(new RequirementServiceCall("call-1", "fact-call", "Orders API", "getOrder")),
-        List.of(),
-        List.of());
-  }
-
-  private static ChainSemanticRevision linearRevision() {
-    return new ChainSemanticRevision(
-        CONTRACT.semanticSchemaVersion(),
-        "revision-1",
-        "chain-greetings",
-        CONTRACT.contractVersion(),
-        List.of(
-            new SemanticEntryPoint(
-                "http-in",
-                "trigger-http",
-                "op-shared",
-                0,
-                new SemanticProvenance(List.of("trigger-1")),
-                null)),
-        List.of(
-            new SemanticNode.Trigger(
-                "trigger-http", "http-trigger", new SemanticProvenance(List.of("trigger-1"))),
-            new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of())),
-            new SemanticNode.ServiceCall(
-                "node-call", "call-1", "getOrder", new SemanticProvenance(List.of("fact-call")))),
-        List.of(),
-        List.of(
-            new SemanticExecutionEdge(
-                "edge-entry",
-                "trigger-http",
-                "op-shared",
-                null,
-                new SemanticRoute.Sequence(),
-                null),
-            new SemanticExecutionEdge(
-                "edge-call",
-                "op-shared",
-                "node-call",
-                null,
-                new SemanticRoute.Sequence(),
-                "map-body")),
-        List.of(),
-        List.of(
-            new MappingIntent(
-                "map-body",
-                "edge-call",
-                MappingPort.OUTPUT,
-                "edge-call",
-                MappingPort.REQUEST,
-                List.of(new MappingIntentRule("id", "orderId", null)))),
-        List.of(),
-        List.of(),
-        List.of());
   }
 }

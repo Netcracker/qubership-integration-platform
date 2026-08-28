@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCr
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogDependencyDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemFilter;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemSearchRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogTransferElementsRequest;
 
@@ -170,6 +171,15 @@ public interface CatalogRestClient {
   @POST
   @Path("/v1/systems/search")
   List<SystemDto> searchSystems(CatalogSystemSearchRequest body);
+
+  /**
+   * Narrows services by an AND-set of predicates, resolved in SQL. Unlike {@code /v1/systems/search}
+   * this can filter on values below the service — {@code URL} joins through to operation paths —
+   * so a lookup that knows an operation need not read every service to find it.
+   */
+  @POST
+  @Path("/v1/systems/filter")
+  List<SystemDto> filterSystems(List<CatalogSystemFilter> body);
 
   @GET
   @Path("/v1/systems/{systemId}")

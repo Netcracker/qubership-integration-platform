@@ -257,6 +257,13 @@ public class RequirementDraftTool {
                 + " conversationId=%s",
             conversationId);
       }
+      String missingTextError = validateFactText(facts);
+      if (missingTextError != null) {
+        LOG.warnf(
+            "captureRequirementDraft: validation failed conversationId=%s reason=%s",
+            conversationId, missingTextError);
+        return finish(conversationId, startMs, missingTextError);
+      }
       String duplicateFactError = validateUniqueFacts(facts);
       if (duplicateFactError != null) {
         LOG.warnf(
@@ -829,6 +836,18 @@ public class RequirementDraftTool {
                 fact != null
                     && fact.polarity() == RequirementFactPolarity.POSITIVE
                     && fact.kind() == RequirementFactKind.SERVICE_CALL);
+  }
+
+  private static String validateFactText(List<RequirementFact> facts) {
+    if (facts == null || facts.isEmpty()) {
+      return null;
+    }
+    for (RequirementFact fact : facts) {
+      if (fact != null && fact.text().isBlank()) {
+        return "text is required for every fact";
+      }
+    }
+    return null;
   }
 
   private static String validateUniqueFacts(List<RequirementFact> facts) {

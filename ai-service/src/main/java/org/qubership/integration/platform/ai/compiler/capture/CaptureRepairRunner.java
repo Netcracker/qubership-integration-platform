@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.compiler.capture;
 
+import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -9,6 +10,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 /** Runs agent chat streams with bounded capture repair turns. */
@@ -132,8 +135,15 @@ public class CaptureRepairRunner {
       Runnable onBeforeRepairRetry,
       int repairAttemptsBudget) {
     int boundedBudget = Math.max(0, repairAttemptsBudget);
+    Context toolSessionContext = ToolSession.attachedContext();
+    Context toolSinkContext = ToolInvocationSink.attachedContext();
+    Function<String, Multi<String>> boundAgentChat =
+        message ->
+            ToolInvocationSink.propagateBinding(
+                toolSinkContext,
+                ToolSession.propagateBinding(toolSessionContext, agentChat.apply(message)));
     return runAttempt(
-        agentChat,
+        boundAgentChat,
         captureAccepted,
         lastFailure,
         onToolArgumentsFailure,
