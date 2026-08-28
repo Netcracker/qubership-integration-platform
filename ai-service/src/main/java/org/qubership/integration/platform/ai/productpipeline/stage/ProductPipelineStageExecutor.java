@@ -603,7 +603,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               resolution.failure(),
               List.of(),
               emitted,
-              true,
+              false,
+              false,
               null);
         }
         List<Reference> refs =
@@ -675,6 +676,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               outcome.candidates(),
               emitted,
               false,
+              true,
               outcome.recoveryCause());
         }
         technicalRetriesByStage.put(key, used + 1);
@@ -702,6 +704,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             outcome.candidates(),
             emitted,
             true,
+            true,
             outcome.recoveryCause());
       }
       case POLICY_FAILURE, MISSING_MANDATORY_INPUT -> {
@@ -716,6 +719,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             outcome.candidates(),
             emitted,
             false,
+            true,
             outcome.recoveryCause());
       }
     };
@@ -730,6 +734,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       List<ArtifactCandidate> candidates,
       List<PipelineSignal> emitted,
       boolean diagnoseOwner,
+      boolean producerRepairAllowed,
       RecoveryCause recoveryCause) {
     boolean internal = outcomeClass == StageOutcomeClass.INTERNAL_FAILURE;
     String evidence = evidenceText(outcomeClass, message, doc.run().runId());
@@ -770,16 +775,18 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RecoveryAttemptKey observingKey =
         recoveryLedger.key(stage.stageId(), cause, artifactIdentity, doc.transitions());
     ProducerOwnedRecovery.Route recovery =
-        ProducerOwnedRecovery.route(
-            new ProducerOwnedRecovery.Request(
-                stage.stageId(),
-                outcomeClass,
-                cause,
-                closed,
-                catalogHasBeenWritten(doc.run().runId()),
-                recoveryLedger.repairsUsed(doc.transitions(), observingKey, InputOrigin.TRUSTED),
-                recoveryLedger.limits().maxSemanticRepairs(),
-                Optional.empty()));
+        producerRepairAllowed
+            ? ProducerOwnedRecovery.route(
+                new ProducerOwnedRecovery.Request(
+                    stage.stageId(),
+                    outcomeClass,
+                    cause,
+                    closed,
+                    catalogHasBeenWritten(doc.run().runId()),
+                    recoveryLedger.repairsUsed(doc.transitions(), observingKey, InputOrigin.TRUSTED),
+                    recoveryLedger.limits().maxSemanticRepairs(),
+                    Optional.empty()))
+            : new ProducerOwnedRecovery.Route(ProducerOwnedRecovery.Action.PARK, "");
     putRunAttribute(
         doc.run().runId(),
         ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
