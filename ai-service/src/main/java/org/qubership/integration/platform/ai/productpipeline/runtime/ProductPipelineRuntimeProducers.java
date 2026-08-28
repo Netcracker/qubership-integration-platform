@@ -34,7 +34,6 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
-import org.qubership.integration.platform.ai.llm.agent.DesignInputPromptAgent;
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
@@ -45,7 +44,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.RequirementD
 import org.qubership.integration.platform.ai.productpipeline.create.SpecificationImportCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.flow.ProvidedIdsFlow;
 import org.qubership.integration.platform.ai.productpipeline.create.flow.ProvidedIdsFlowOrchestrator;
@@ -168,7 +166,6 @@ public class ProductPipelineRuntimeProducers {
       StageCapabilityRegistry capabilities,
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
-      DesignInputPromptAgent designInputPromptAgent,
       ApprovalPromptAgent approvalPromptAgent,
       FailureNarrativeAgent failureNarrativeAgent,
       S3Service s3Service,
@@ -182,7 +179,6 @@ public class ProductPipelineRuntimeProducers {
         profileCatalog,
         compilerRunPinResolver,
         Clock.systemUTC(),
-        new DesignInputIdsPathPrompts(designInputPromptAgent),
         new ApprovalPrompts(approvalPromptAgent),
             s3Service,
             new FailureNarrative(

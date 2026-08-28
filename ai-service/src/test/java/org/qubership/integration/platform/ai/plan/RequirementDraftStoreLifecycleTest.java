@@ -106,7 +106,6 @@ class RequirementDraftStoreLifecycleTest {
                 serviceCallFact(
                     "fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask")),
             false,
-            null,
             List.of(
                 new RequirementServiceCall(
                     "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint),

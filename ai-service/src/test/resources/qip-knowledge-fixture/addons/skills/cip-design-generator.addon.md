@@ -11,12 +11,11 @@
 
 ## Applicability in ai-service
 
-- Authors a derived IDS view through `DesignGeneratorSkillAgent` from the approved brief and its
+- Authors a derived IDS view from the approved brief and its
   resolved catalog bindings. It has no APIHub tools. The IDS `sequenceDiagram` is an approval
   rendering of the pinned semantic revision. It is not compiler input, and markdown extraction
   does not feed planning or compilation.
-- The template reaches the classpath from the upstream skill at build time (`pom.xml` execution
-  `copy-ids-template-from-skill`). There is no second copy to keep in step.
+- The template is owned by the upstream skill. ai-service does not copy it onto the classpath.
 - Rejects invented operation bindings and non-sequence Mermaid diagrams in the generated IDS.
 - Not a GraphPatch skill. Do not invent empty GraphPatch examples.
 
@@ -24,10 +23,10 @@
 
 These apply to every IDS this skill authors for ai-service.
 
-**Where they are enforced:** `DesignGeneratorSkillAgent` takes the upstream template as its system
-message and holds no knowledge tool, so this file never reaches it. The rules below are carried by
-`DesignInputCapability.authoringPrompt`, which builds the agent's user message. Change them there;
-this section records the intent so the two do not drift apart silently.
+**Where they are enforced:** `ChainSemanticIdsRenderer` renders the IDS approval view from the
+pinned semantic revision. The rules below are carried by `DesignInputCapability.authoringPrompt`,
+which builds the agent's user message. Change them there; this section records the intent so the
+two do not drift apart silently.
 
 ### API resolution is complete before IDS authoring
 

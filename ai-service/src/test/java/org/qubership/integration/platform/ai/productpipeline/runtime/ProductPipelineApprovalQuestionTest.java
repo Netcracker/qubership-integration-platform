@@ -216,7 +216,6 @@ class ProductPipelineApprovalQuestionTest {
             Clock.fixed(FIXED, ZoneOffset.UTC),
             null,
             null,
-            null,
             new FailureNarrative(agent, maxCalls, timeout));
     runtime = new CreateChainTestOrchestrator(support, runStore);
     runtime

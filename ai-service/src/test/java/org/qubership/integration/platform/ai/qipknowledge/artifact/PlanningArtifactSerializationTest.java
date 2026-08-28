@@ -1,13 +1,11 @@
 package org.qubership.integration.platform.ai.qipknowledge.artifact;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 
@@ -105,54 +103,5 @@ class PlanningArtifactSerializationTest {
 
     assertEquals(original, restored);
     assertEquals(IdsDocument.Mode.PROVIDED, restored.mode());
-  }
-
-  @Test
-  void roundTripsNormalizedDesignFlowAndNormalizesNullCollections() throws Exception {
-    NormalizedDesignFlow original =
-        new NormalizedDesignFlow(
-            "1",
-            "flow-1",
-            "Orders",
-            "Create order",
-            new NormalizedDesignFlow.Trigger(
-                "http", "p-client", "Orders API", "/orders", "createOrder", List.of("f1")),
-            List.of(
-                new NormalizedDesignFlow.Participant(
-                    "p-client", "Client", "EXTERNAL", List.of("f2"))),
-            List.of(
-                new NormalizedDesignFlow.Step(
-                    "step-1",
-                    "service-call",
-                    "p-client",
-                    "p-orders",
-                    "create order",
-                    "Call orders",
-                    List.of("f3"))),
-            null,
-            null,
-            List.of(
-                new NormalizedDesignFlow.DataMapping(
-                    "map-1",
-                    NormalizedDesignFlow.MappingStage.RESPONSE,
-                    "step-1",
-                    "step-response",
-                    NormalizedDesignFlow.MappingMode.EXPLICIT,
-                    List.of(
-                        new NormalizedDesignFlow.MappingRule(
-                            "$.id", "$.orderId", null, List.of("f4"))),
-                    List.of("f5"))),
-            List.of(),
-            null);
-
-    NormalizedDesignFlow restored =
-        objectMapper.readValue(
-            objectMapper.writeValueAsString(original), NormalizedDesignFlow.class);
-
-    assertEquals(original, restored);
-    assertTrue(restored.connections().isEmpty());
-    assertTrue(restored.transformations().isEmpty());
-    assertTrue(restored.assumptions().isEmpty());
-    assertEquals(NormalizedDesignFlow.MappingMode.EXPLICIT, restored.dataMappings().get(0).mode());
   }
 }

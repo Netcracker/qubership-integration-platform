@@ -36,7 +36,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
@@ -488,9 +487,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return null;
     }
     String operationQuery = call.text().trim();
-    NormalizedDesignFlow probe = probeFlowForFact(call, operationQuery);
+    String serviceName =
+        call.capabilityKey() == null || call.capabilityKey().isBlank()
+            ? "service"
+            : call.capabilityKey();
     CatalogBindingMatcher.MatchResult match =
-        catalogBindingMatcher.match(probe, probe.steps().getFirst());
+        catalogBindingMatcher.match(serviceName, operationQuery, null, null);
     if (!(match instanceof CatalogBindingMatcher.MatchResult.Exact exact)) {
       return null;
     }
@@ -566,39 +568,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
         binding.specificationId(),
         operationId,
         "requirement-draft-binding:" + operationId);
-  }
-
-  private static NormalizedDesignFlow probeFlowForFact(RequirementFact fact, String operationQuery) {
-    String participantId = "svc";
-    String label =
-        fact.capabilityKey() == null || fact.capabilityKey().isBlank()
-            ? "service"
-            : fact.capabilityKey();
-    return new NormalizedDesignFlow(
-        "1",
-        "hint-probe",
-        "hint-probe",
-        "",
-        new NormalizedDesignFlow.Trigger(
-            "http", "client", null, null, null, List.of(fact.sourceFactId())),
-        List.of(
-            new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of()),
-            new NormalizedDesignFlow.Participant(
-                participantId, label, "EXTERNAL", List.of(fact.sourceFactId()))),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "call-1",
-                "service-call",
-                "client",
-                participantId,
-                operationQuery,
-                "",
-                List.of(fact.sourceFactId()))),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of());
   }
 
   private Multi<ChatEvent> runGather(

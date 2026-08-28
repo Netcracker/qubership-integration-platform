@@ -42,8 +42,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandida
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerDiagnosis;
 import org.qubership.integration.platform.ai.productpipeline.create.ProducerOwnedRecovery;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
@@ -1128,10 +1127,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           && !attributes.containsKey("requirementBrief")) {
         attributes.put(
             "requirementBrief", artifactStore.payload(revision.get(), RequirementBrief.class));
-      } else if (ref.kind() == Kind.DESIGN_ENTRY_ROUTE
-          && !attributes.containsKey("designEntryRoute")) {
-        attributes.put(
-            "designEntryRoute", artifactStore.payload(revision.get(), DesignEntryRoute.class));
       } else if (ref.kind() == Kind.IDS_DOCUMENT && !attributes.containsKey("idsDocument")) {
         attributes.put("idsDocument", artifactStore.payload(revision.get(), IdsDocument.class));
       } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION
@@ -1244,11 +1239,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         attributes.get("approvedDraft") instanceof RequirementDraft requirementDraft
             ? requirementDraft
             : null;
-    DesignEntryRoute route =
-        attributes.get("designEntryRoute") instanceof DesignEntryRoute designEntryRoute
-            ? designEntryRoute
-            : null;
-    return skip.evaluate(new SkipPolicy.SkipEvaluationContext(draft, route));
+    return skip.evaluate(new SkipPolicy.SkipEvaluationContext(draft));
   }
 
   private DeclaredInputResolution resolveDeclaredInputs(
@@ -1787,7 +1778,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     Object brief = attributes.get("requirementBrief");
     if (brief instanceof RequirementBrief requirementBrief) {
-      return DesignInputIdsPathPrompts.languageReference(requirementBrief);
+      return MappingGapWait.languageReference(requirementBrief);
     }
     Object discovery = attributes.get("discoveryUserText");
     if (discovery instanceof String text && !text.isBlank()) {

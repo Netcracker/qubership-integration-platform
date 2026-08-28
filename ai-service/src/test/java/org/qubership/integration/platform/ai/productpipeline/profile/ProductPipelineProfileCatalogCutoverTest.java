@@ -19,10 +19,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -45,7 +47,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductCapab
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DefaultChainSemanticIdsRenderer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -83,6 +84,19 @@ class ProductPipelineProfileCatalogCutoverTest {
   }
 
   @Test
+  void catalogHasNoLegacyIdsCompilerSourceTypes() throws Exception {
+    List<String> names = allProfileArtifactNames();
+    assertFalse(names.contains("normalized-design-flow"));
+    assertFalse(names.contains("design-mode"));
+    assertFalse(names.contains("design-entry-route"));
+    List<String> kindNames =
+        Arrays.stream(CompilationArtifacts.Kind.values()).map(Enum::name).toList();
+    assertFalse(kindNames.contains(screamingType("normalized-design-flow")));
+    assertFalse(kindNames.contains(screamingType("design-mode")));
+    assertFalse(kindNames.contains(screamingType("design-entry-route")));
+  }
+
+  @Test
   void createChainV2ProfileMatchesCutoverContract() throws Exception {
     ProductPipelineProfile v2 = parseClasspath("create-chain-v2.yaml");
     assertEquals("2", v2.profileVersion());
@@ -106,9 +120,9 @@ class ProductPipelineProfileCatalogCutoverTest {
         List.of(new ArtifactTypeRef("requirement-brief", 1)),
         v2.compilerPipeline().preSatisfiedArtifacts());
     assertEquals(
-        List.of(
-            new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("ids-document", 1)),
-        stage(v2, "design-input").optionalConsumes());
+        List.of(new ArtifactTypeRef("requirement-brief", 1)),
+        stage(v2, "design-input").consumes());
+    assertEquals(List.of(), stage(v2, "design-input").optionalConsumes());
     assertEquals(
         List.of(new ArtifactTypeRef("catalog-binding-hint", 1)),
         stage(v2, "design-execution").optionalConsumes());
@@ -232,15 +246,8 @@ class ProductPipelineProfileCatalogCutoverTest {
     StageOutcome captured =
         outcome(
             designInput,
-            designInputContext(
-                DesignEntryRoute.STANDARD,
-                "Generate full IDS",
-                approvedBriefWithMappings(),
-                null));
-    StageOutcome provide =
-        outcome(
-            designInput,
-            designInputContext(DesignEntryRoute.PROVIDE, null, null, providedIdsDocument()));
+            designInputContext("Generate full IDS", approvedBriefWithMappings(), null));
+    StageOutcome provide = outcome(designInput, idsEntryContext(VALID_IDS));
 
     List<String> waitingForApprovalStages = waitingStages(captured, "design-input");
     List<String> waitingForApprovalStagesProvide = waitingStages(provide, "design-input");
@@ -274,12 +281,10 @@ class ProductPipelineProfileCatalogCutoverTest {
   }
 
   private static StageExecutionContext designInputContext(
-      DesignEntryRoute route,
       String userText,
       RequirementBrief brief,
       org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument ids) {
     java.util.HashMap<String, Object> attributes = new java.util.HashMap<>();
-    attributes.put("designEntryRoute", route);
     if (userText != null) {
       attributes.put("userText", userText);
     }
@@ -301,30 +306,17 @@ class ProductPipelineProfileCatalogCutoverTest {
         Map.copyOf(attributes));
   }
 
-  private static StageExecutionContext planningContext(String runId, DesignEntryRoute route) {
+  private static StageExecutionContext idsEntryContext(String userText) {
     return new StageExecutionContext(
-        runId,
-        "conv-" + runId,
-        "design-planning",
+        "run-ids-entry",
+        "conv-ids-entry",
+        "ids-entry",
         "exec-1",
         "attempt-1",
         new ProductPipelineProfile(1, "create-chain", "2", List.of(), List.of(), null, List.of()),
         null,
         List.of(),
-        Map.of("designEntryRoute", route));
-  }
-
-  private static org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument
-      providedIdsDocument() {
-    return new org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument(
-        "1",
-        org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument.Mode
-            .PROVIDED,
-        "user-ids",
-        "hash",
-        "pending-normalization",
-        "ids-entry@1",
-        VALID_IDS);
+        Map.of("userText", userText));
   }
 
   private static RequirementBrief approvedBriefWithMappings() {
@@ -396,6 +388,47 @@ class ProductPipelineProfileCatalogCutoverTest {
       RequirementDataMapping.Mode mode,
       List<String> sourceFactIds) {
     return new RequirementDataMapping(id, stage, from, to, mode, List.of(), sourceFactIds);
+  }
+
+  private static List<String> allProfileArtifactNames() throws Exception {
+    List<String> names = new ArrayList<>();
+    addProfileArtifactNames(names, parseClasspath("create-chain-v1.yaml"));
+    addProfileArtifactNames(names, parseClasspath("create-chain-v2.yaml"));
+    return names;
+  }
+
+  private static void addProfileArtifactNames(
+      List<String> names, ProductPipelineProfile profile) {
+    addTypeNames(names, profile.runInputs());
+    if (profile.compilerPipeline() != null) {
+      addTypeNames(names, profile.compilerPipeline().preSatisfiedArtifacts());
+      addTypeNames(names, profile.compilerPipeline().requiredTerminalArtifacts());
+    }
+    for (ProfileStage stage : profile.stages()) {
+      addTypeNames(names, stage.consumes());
+      addTypeNames(names, stage.optionalConsumes());
+      addTypeNames(names, stage.produces());
+      addTypeNames(names, stage.optionalProduces());
+      if (stage.approval() != null) {
+        if (stage.approval().artifact() != null) {
+          names.add(stage.approval().artifact().type());
+        }
+        addTypeNames(names, stage.approval().candidateSet());
+      }
+    }
+  }
+
+  private static String screamingType(String kebab) {
+    return kebab.replace('-', '_').toUpperCase(java.util.Locale.ROOT);
+  }
+
+  private static void addTypeNames(List<String> names, List<ArtifactTypeRef> refs) {
+    if (refs == null) {
+      return;
+    }
+    for (ArtifactTypeRef ref : refs) {
+      names.add(ref.type());
+    }
   }
 
   private static ProfileStage stage(ProductPipelineProfile profile, String stageId) {

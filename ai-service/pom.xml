@@ -367,31 +367,6 @@
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.3.1</version>
                 <executions>
-                    <!--
-                        The public template keeps Quarkus build-time annotation processing working
-                        without private assets. A full build replaces it with the template from the
-                        cip-design-generator skill.
-                    -->
-                    <execution>
-                        <id>copy-ids-template-from-skill</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <skip>${qip.ai.qipknowledge.build.skip}</skip>
-                            <outputDirectory>${project.build.outputDirectory}/product-pipelines/templates</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${project.basedir}/../integration-platform-skills/.apm/skills/cip-design-generator/templates</directory>
-                                    <includes>
-                                        <include>ids_template.md</include>
-                                    </includes>
-                                </resource>
-                            </resources>
-                            <overwrite>true</overwrite>
-                        </configuration>
-                    </execution>
                     <execution>
                         <id>stage-certified-knowledge-export</id>
                         <phase>process-classes</phase>

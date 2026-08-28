@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.productpipeline.profile;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,7 +11,6 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequiremen
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 
 class SkipPolicyTest {
 
@@ -99,47 +97,6 @@ class SkipPolicyTest {
   }
 
   @Test
-  void acceptsProvidedDesignRouteAsKnownCondition() {
-    assertDoesNotThrow(
-        () ->
-            SkipPolicy.requireKnownConditions(
-                new SkipPolicy(List.of(SkipPolicy.PROVIDED_DESIGN_ROUTE))));
-  }
-
-  @Test
-  void providedDesignRouteReturnsNoOutputWithoutDraftPassthrough() {
-    SkipPolicy routeSkip = new SkipPolicy(List.of(SkipPolicy.PROVIDED_DESIGN_ROUTE));
-    Optional<SkipPolicy.SkipAction> action =
-        routeSkip.evaluate(
-            new SkipPolicy.SkipEvaluationContext(null, DesignEntryRoute.PROVIDE));
-    assertEquals(Optional.of(SkipPolicy.SkipAction.NO_OUTPUT), action);
-
-    assertTrue(
-        routeSkip
-            .evaluate(new SkipPolicy.SkipEvaluationContext(null, DesignEntryRoute.STANDARD))
-            .isEmpty());
-  }
-
-  @Test
-  void importStageWhenAnyPrefersProvidedRouteOverNullDraftNoApihub() {
-    // Mirrors create-chain@2 import-stage skip order: no-apihub before provided-design-route.
-    SkipPolicy importSkip =
-        new SkipPolicy(
-            List.of(
-                SkipPolicy.NO_APIHUB_CANDIDATE,
-                SkipPolicy.CATALOG_BINDING_PRESENT,
-                SkipPolicy.PROVIDED_DESIGN_ROUTE));
-    assertEquals(
-        Optional.of(SkipPolicy.SkipAction.NO_OUTPUT),
-        importSkip.evaluate(
-            new SkipPolicy.SkipEvaluationContext(null, DesignEntryRoute.PROVIDE)));
-    assertTrue(
-        importSkip
-            .evaluate(new SkipPolicy.SkipEvaluationContext(null, DesignEntryRoute.STANDARD))
-            .isEmpty());
-  }
-
-  @Test
   void noApihubCandidateStillReturnsRequirementDraftPassthrough() {
     SkipPolicy skip = new SkipPolicy(List.of(SkipPolicy.NO_APIHUB_CANDIDATE));
     RequirementDraft draft =
@@ -158,7 +115,7 @@ class SkipPolicyTest {
             false);
     assertEquals(
         Optional.of(SkipPolicy.SkipAction.REQUIREMENT_DRAFT_PASSTHROUGH),
-        skip.evaluate(new SkipPolicy.SkipEvaluationContext(draft, DesignEntryRoute.STANDARD)));
+        skip.evaluate(new SkipPolicy.SkipEvaluationContext(draft)));
   }
 
   private static ApiHubRequirementRefs candidate() {

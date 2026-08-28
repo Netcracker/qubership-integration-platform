@@ -271,7 +271,6 @@ class HaltExitGuaranteeMatrixTest {
             Clock.fixed(FIXED, ZoneOffset.UTC),
             null,
             null,
-            null,
             new FailureNarrative(agent, maxCalls, timeout));
     runtime = new CreateChainTestOrchestrator(support, runStore);
     startThroughAnalysisApproval();
@@ -301,7 +300,6 @@ class HaltExitGuaranteeMatrixTest {
             null,
             null,
             Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
             null,
             null,
             new FailureNarrative(agent));

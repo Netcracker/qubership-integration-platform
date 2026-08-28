@@ -23,12 +23,12 @@ class CreateChainImportStageProfileTest {
 
   @Test
   void importStageMutatesRequirementDraftInPlaceWithSkipAndConfirmGateOnV1() throws Exception {
-    assertImportStageContract(loadCreateChain("create-chain-v1.yaml"), false);
+    assertImportStageContract(loadCreateChain("create-chain-v1.yaml"));
   }
 
   @Test
   void importStageMutatesRequirementDraftInPlaceWithSkipAndConfirmGateOnV2() throws Exception {
-    assertImportStageContract(loadCreateChain("create-chain-v2.yaml"), true);
+    assertImportStageContract(loadCreateChain("create-chain-v2.yaml"));
   }
 
   private static void assertImportStageOrder(ProductPipelineProfile profile) {
@@ -45,8 +45,7 @@ class CreateChainImportStageProfileTest {
     assertEquals(importStage + 1, analysis);
   }
 
-  private static void assertImportStageContract(
-      ProductPipelineProfile profile, boolean expectProvidedDesignRouteSkip) {
+  private static void assertImportStageContract(ProductPipelineProfile profile) {
     ProfileStage importStage =
         profile.stages().stream()
             .filter(stage -> "import-stage".equals(stage.stageId()))
@@ -63,10 +62,6 @@ class CreateChainImportStageProfileTest {
         importStage.skip().whenAny().contains(SkipPolicy.NO_APIHUB_CANDIDATE));
     assertTrue(
         importStage.skip().whenAny().contains(SkipPolicy.CATALOG_BINDING_PRESENT));
-    if (expectProvidedDesignRouteSkip) {
-      assertTrue(
-          importStage.skip().whenAny().contains(SkipPolicy.PROVIDED_DESIGN_ROUTE));
-    }
   }
 
   private static ProductPipelineProfile loadCreateChain(String resourceName) throws Exception {

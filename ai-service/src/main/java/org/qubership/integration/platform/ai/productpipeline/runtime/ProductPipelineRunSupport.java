@@ -47,8 +47,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandida
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.PauseQuestionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
@@ -142,7 +141,6 @@ public final class ProductPipelineRunSupport {
   private final ProductPipelineProfileCatalog profileCatalog;
   private final CompilerRunPinResolver compilerRunPinResolver;
   private final Clock clock;
-  private final DesignInputIdsPathPrompts idsPathPrompts;
   private final ApprovalPrompts approvalPrompts;
   /** Optional; when present, IDS approval also offers a storage download link. */
   private final S3Service s3Service;
@@ -188,7 +186,6 @@ public final class ProductPipelineRunSupport {
         profileCatalog,
         compilerRunPinResolver,
         clock,
-        null,
         null);
   }
 
@@ -199,26 +196,6 @@ public final class ProductPipelineRunSupport {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       Clock clock,
-      DesignInputIdsPathPrompts idsPathPrompts) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        idsPathPrompts,
-        null);
-  }
-
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock,
-      DesignInputIdsPathPrompts idsPathPrompts,
       ApprovalPrompts approvalPrompts) {
     this(
         runStore,
@@ -227,7 +204,6 @@ public final class ProductPipelineRunSupport {
         profileCatalog,
         compilerRunPinResolver,
         clock,
-        idsPathPrompts,
         approvalPrompts,
         null);
   }
@@ -239,7 +215,6 @@ public final class ProductPipelineRunSupport {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       Clock clock,
-      DesignInputIdsPathPrompts idsPathPrompts,
       ApprovalPrompts approvalPrompts,
       S3Service s3Service) {
     this(
@@ -249,7 +224,6 @@ public final class ProductPipelineRunSupport {
         profileCatalog,
         compilerRunPinResolver,
         clock,
-        idsPathPrompts,
         approvalPrompts,
         s3Service,
         null);
@@ -262,7 +236,6 @@ public final class ProductPipelineRunSupport {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       Clock clock,
-      DesignInputIdsPathPrompts idsPathPrompts,
       ApprovalPrompts approvalPrompts,
       S3Service s3Service,
       FailureNarrative failureNarrative) {
@@ -273,7 +246,6 @@ public final class ProductPipelineRunSupport {
         profileCatalog,
         compilerRunPinResolver,
         clock,
-        idsPathPrompts,
         approvalPrompts,
         s3Service,
         failureNarrative,
@@ -287,7 +259,6 @@ public final class ProductPipelineRunSupport {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       Clock clock,
-      DesignInputIdsPathPrompts idsPathPrompts,
       ApprovalPrompts approvalPrompts,
       S3Service s3Service,
       FailureNarrative failureNarrative,
@@ -299,7 +270,6 @@ public final class ProductPipelineRunSupport {
         profileCatalog,
         compilerRunPinResolver,
         clock,
-        idsPathPrompts,
         approvalPrompts,
         s3Service,
         failureNarrative,
@@ -314,7 +284,6 @@ public final class ProductPipelineRunSupport {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       Clock clock,
-      DesignInputIdsPathPrompts idsPathPrompts,
       ApprovalPrompts approvalPrompts,
       S3Service s3Service,
       FailureNarrative failureNarrative,
@@ -327,7 +296,6 @@ public final class ProductPipelineRunSupport {
         profileCatalog,
         compilerRunPinResolver,
         clock,
-        idsPathPrompts,
         approvalPrompts,
         s3Service,
         failureNarrative,
@@ -343,7 +311,6 @@ public final class ProductPipelineRunSupport {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       Clock clock,
-      DesignInputIdsPathPrompts idsPathPrompts,
       ApprovalPrompts approvalPrompts,
       S3Service s3Service,
       FailureNarrative failureNarrative,
@@ -356,8 +323,6 @@ public final class ProductPipelineRunSupport {
     this.profileCatalog = profileCatalog;
     this.compilerRunPinResolver = compilerRunPinResolver;
     this.clock = Objects.requireNonNull(clock, "clock");
-    this.idsPathPrompts =
-        idsPathPrompts == null ? new DesignInputIdsPathPrompts() : idsPathPrompts;
     this.approvalPrompts = approvalPrompts == null ? new ApprovalPrompts() : approvalPrompts;
     this.s3Service = s3Service;
     this.profilesByRun = idleCache(cacheIdleTimeout);
@@ -656,17 +621,6 @@ public final class ProductPipelineRunSupport {
                       command.runId(), ignored -> new ConcurrentHashMap<>());
               if (!haltCardClick) {
                 attributes.put("userText", command.text());
-                // Only design-input may latch GENERATE/DERIVE. Keywords only here: acceptInput may
-                // run on the Vert.x event loop, so blocking LLM classify is forbidden. Full LLM
-                // classify runs later in DesignInputCapability on the worker pool.
-                if ("design-input".equals(doc.run().currentStageId())) {
-                  DesignMode idsPathChoice =
-                      DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords(command.text());
-                  if (idsPathChoice == DesignMode.GENERATE || idsPathChoice == DesignMode.DERIVE) {
-                    attributes.put(
-                        DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR, idsPathChoice);
-                  }
-                }
                 // Leak checks must cover the original requirement ask, not later clarifications
                 // or process instructions sent while discovery is WAITING_FOR_INPUT.
                 Object priorDiscovery = attributes.get("discoveryUserText");
@@ -2220,17 +2174,6 @@ public final class ProductPipelineRunSupport {
     if (!requirementInputs.isEmpty()) {
       attributes.put("userText", requirementInputs.get(requirementInputs.size() - 1).text());
       attributes.put("discoveryUserText", requirementInputs.get(0).text());
-      if ("design-input".equals(doc.run().currentStageId())) {
-        for (int i = requirementInputs.size() - 1; i >= 0; i--) {
-          DesignMode idsPathChoice =
-              DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords(
-                  requirementInputs.get(i).text());
-          if (idsPathChoice == DesignMode.GENERATE || idsPathChoice == DesignMode.DERIVE) {
-            attributes.put(DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR, idsPathChoice);
-            break;
-          }
-        }
-      }
     }
     if (!followUps.isEmpty()) {
       attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, followUps.get(followUps.size() - 1).text());
@@ -2492,7 +2435,6 @@ public final class ProductPipelineRunSupport {
       return;
     }
     attributes.remove("userText");
-    attributes.remove(DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR);
   }
 
   private String approvalPromptFor(String runId, String stageId) {
@@ -2528,7 +2470,7 @@ public final class ProductPipelineRunSupport {
     }
     Object brief = attributes.get("requirementBrief");
     if (brief instanceof RequirementBrief requirementBrief) {
-      return DesignInputIdsPathPrompts.languageReference(requirementBrief);
+      return MappingGapWait.languageReference(requirementBrief);
     }
     Object discovery = attributes.get("discoveryUserText");
     if (discovery instanceof String text && !text.isBlank()) {

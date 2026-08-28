@@ -239,9 +239,8 @@ public final class CreateChainA2aStateMapper {
   }
 
   /**
-   * Appends the text tokens an A2A client must echo. Chat has Yes/No and Pass through buttons; A2A
-   * has only the status message, so the keywords that latch {@code pendingDesignMode} travel with
-   * the question.
+   * Appends the text tokens an A2A client must echo. Chat has Pass through buttons; A2A has only
+   * the status message, so mapping-gap keywords travel with the question.
    */
   static String clarifyInstruction(CreateChainPendingAction.Clarify clarify) {
     Objects.requireNonNull(clarify, "clarify");
@@ -250,9 +249,6 @@ public final class CreateChainA2aStateMapper {
             ? PipelineGates.gateOf(clarify.reason()).orElse("")
             : clarify.gateId();
     String reason = PipelineGates.strip(clarify.reason() == null ? "" : clarify.reason());
-    if (PipelineGates.IDS_PATH_CHOICE.equals(gate)) {
-      return reason + "\nReply \"yes\" or \"no\".";
-    }
     if (PipelineGates.MAPPING_GAP.equals(gate)) {
       StringBuilder text = new StringBuilder(reason);
       for (String edge : clarify.missingEvidence()) {

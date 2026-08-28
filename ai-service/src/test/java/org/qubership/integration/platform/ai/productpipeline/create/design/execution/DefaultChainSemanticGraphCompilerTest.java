@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
-import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogSystemFinder;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -48,8 +47,7 @@ class DefaultChainSemanticGraphCompilerTest {
   private final ChainSemanticGraphCompiler compiler =
       new DefaultChainSemanticGraphCompiler(
           new DefaultChainSemanticRevisionValidator(),
-          new CatalogBindingMatcher(
-              mock(CatalogSystemReadTool.class), mock(CatalogSystemFinder.class)));
+          new CatalogBindingMatcher(mock(CatalogSystemReadTool.class)));
 
   @Test
   void compilesConditionReconvergenceAsIndependentInvocations() {

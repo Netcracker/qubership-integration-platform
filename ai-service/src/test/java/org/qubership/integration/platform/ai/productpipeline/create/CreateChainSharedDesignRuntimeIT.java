@@ -86,7 +86,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolutions;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.CipDesignPlannerAdapter;
@@ -848,7 +847,7 @@ class CreateChainSharedDesignRuntimeIT {
     };
   }
 
-  /** Catalog hit for BriefFlowExtractor DERIVE flows (Petstore Ext + GET /pets query). */
+  /** Catalog hit for Petstore Ext GET /pets derive flows. */
   private Runnable deriveCatalogHitStubs() {
     return () -> {
       when(catalogReadTool.searchCatalogSystems(anyString()))
