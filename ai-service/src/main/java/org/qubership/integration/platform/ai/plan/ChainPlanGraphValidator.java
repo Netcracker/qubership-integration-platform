@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.RuntimeDescriptorConstraints;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -906,7 +907,13 @@ public class ChainPlanGraphValidator {
       if (element == null || element.runtimeDescriptor() == null) {
         continue;
       }
-      CatalogElementDescriptor descriptor = descriptorLoader.load(elementType);
+      CatalogElementDescriptor descriptor;
+      try {
+        descriptor = descriptorLoader.load(elementType);
+      } catch (CatalogElementDescriptorException ignored) {
+        errors.add("Required runtime descriptor is missing: " + elementType);
+        continue;
+      }
       RuntimeDescriptorConstraints expected = element.runtimeDescriptor();
       if (!expected.type().equals(descriptor.name())) {
         errors.add(descriptorMismatch(elementType, "type"));
