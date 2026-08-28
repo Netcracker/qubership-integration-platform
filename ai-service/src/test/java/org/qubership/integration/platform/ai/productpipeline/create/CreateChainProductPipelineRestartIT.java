@@ -199,6 +199,53 @@ class CreateChainProductPipelineRestartIT {
   }
 
   @Test
+  void historicalProductCreateChainV2BindingResumesAfterRestart() throws Exception {
+    RunManifest originalManifest = runManifestV2();
+    String historicalJson =
+        """
+        {
+          "conversationId":"%s",
+          "mode":"PRODUCT",
+          "productRunId":"%s",
+          "runManifest":%s,
+          "createdAt":"2026-07-24T12:00:00Z"
+        }
+        """
+            .formatted(
+                CONVERSATION_ID,
+                originalManifest.runId(),
+                mapper.writeValueAsString(originalManifest));
+    blobStore.put(
+        "product-pipeline-create-bindings/" + CONVERSATION_ID + ".json",
+        historicalJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+    CreateRunBindingStore restartedStore = new CreateRunBindingStore(blobStore, mapper);
+    CompilerRunPinResolver pinResolver = org.mockito.Mockito.mock(CompilerRunPinResolver.class);
+    org.mockito.Mockito.when(
+            pinResolver.resolve(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenThrow(new IllegalStateException("must not resolve a new pin on resume"));
+    CreateRunSelectionService selection =
+        new CreateRunSelectionService(
+            "2026.1",
+            conversationId -> {
+              throw new IllegalStateException("must not create a new binding on resume");
+            },
+            restartedStore,
+            new ProductPipelineProfileCatalog(List.of(createChainProfile, createChainV2Profile)),
+            pinResolver,
+            clock);
+
+    CreateRunSelectionService.CreateRunSelection resumed =
+        selection.selectOrCreate(CONVERSATION_ID);
+
+    assertEquals(originalManifest.runId(), resumed.productRunId());
+    assertEquals(originalManifest, resumed.runManifest());
+    assertEquals("2", resumed.runManifest().profileVersion());
+    assertEquals("create-chain", resumed.runManifest().profileId());
+  }
+
+  @Test
   void newCreateBindingSelectsCreateChainV2() {
     CreateRunBindingStore bindingStore = new CreateRunBindingStore(blobStore, mapper);
     CompilerRunPinResolver pinResolver = org.mockito.Mockito.mock(CompilerRunPinResolver.class);
@@ -264,6 +311,30 @@ class CreateChainProductPipelineRestartIT {
     verify(catalog, never()).applyGraph(any(), any(), any());
     assertEquals(0, chainCreates.get());
     assertEquals(0, elementCreates.get());
+  }
+
+  @Test
+  void resumesFromNodeIdOnlyCheckpointAndRebuildsOwnershipOnApply() {
+    stubCatalogHappyPath();
+    seedChainCheckpointNodeIdsOnly();
+    PreparedInputs prepared = appendHappyPathInputs();
+
+    MaterializationCapability reconstructed = materializationCapability();
+    CapabilitySignal.Completed completed =
+        completed(reconstructed.execute(materializationContext(prepared)));
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+
+    org.mockito.Mockito.verify(catalog).applyGraph(any(), any(), any());
+    MaterializationMap owned =
+        completed.outcome().candidates().stream()
+            .filter(candidate -> candidate.kind() == Kind.MATERIALIZATION_MAP)
+            .map(candidate -> (MaterializationMap) candidate.payload())
+            .findFirst()
+            .orElseThrow();
+    assertEquals(
+        Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"),
+        owned.nodeIdToElementId());
+    assertEquals("catalog-trigger-1", owned.semanticEdgeOwnerElementIds().get("edge-1"));
   }
 
   private MaterializationCapability materializationCapability() {
@@ -348,7 +419,9 @@ class CreateChainProductPipelineRestartIT {
                               "catalog-chain-1",
                               Map.of(
                                   "trigger-1", "catalog-trigger-1",
-                                  "script-1", "catalog-script-1"), Map.of(), Map.of()),
+                                  "script-1", "catalog-script-1"),
+                              Map.of("edge-1", "catalog-trigger-1"),
+                              Map.of()),
                           List.of("trigger-1", "script-1"),
                           List.of(),
                           null,
@@ -366,6 +439,27 @@ class CreateChainProductPipelineRestartIT {
 
   private void stubCatalogAfterElements() {
     when(factsService.load("catalog-chain-1")).thenReturn(matchingFacts());
+  }
+
+  private void seedChainCheckpointNodeIdsOnly() {
+    MaterializationMap map =
+        new MaterializationMap(
+            "catalog-chain-1",
+            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"),
+            Map.of(),
+            Map.of());
+    artifactStore.append(
+        new AppendCommand(
+            RUN_ID,
+            Kind.MATERIALIZATION_CHECKPOINT,
+            "1",
+            MaterializationCapability.CAPABILITY_ID,
+            "1",
+            new MaterializationCheckpoint(
+                1, RUN_ID, "catalog-chain-1", MaterializationPhase.CHAIN, map, null, Map.of()),
+            List.of(),
+            null,
+            provenance()));
   }
 
   private void seedElementsCheckpoint() {
@@ -562,6 +656,31 @@ class CreateChainProductPipelineRestartIT {
             "sha256:certificate"),
         "24.4",
         List.of(new ArtifactTypeRef("implementation-plan", 2)),
+        null);
+  }
+
+  private RunManifest runManifestV2() {
+    return new RunManifest(
+        RUN_ID,
+        null,
+        List.of(),
+        "product",
+        createChainV2Profile.profileId(),
+        createChainV2Profile.profileVersion(),
+        "profile-sha",
+        "baseline",
+        "baseline-sha",
+        List.of(new DependencyClosureEntry("materialization", "1", "skill-catalog-sha")),
+        "closure-sha",
+        new KnowledgePackageRef(
+            "knowledge-1",
+            "1",
+            "1.0.0",
+            "checksum",
+            "CERTIFIED",
+            "sha256:certificate"),
+        "24.4",
+        List.of(new ArtifactTypeRef("user-input", 1)),
         null);
   }
 

@@ -21,6 +21,7 @@ types:
   - { type: compiler-validation-bundle, schemaVersion: 1 }
   - { type: materialization-checkpoint, schemaVersion: 1 }
   - { type: materialization-result, schemaVersion: 1 }
+  - { type: materialization-map, schemaVersion: 1 }
   - { type: catalog-chain-snapshot, schemaVersion: 1 }
   - { type: reconcile-result, schemaVersion: 1 }
   - { type: design-mode, schemaVersion: 1 }

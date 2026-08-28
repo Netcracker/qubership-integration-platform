@@ -109,6 +109,7 @@ class CreateChainArtifactContractsTest {
             "COMPILER_VALIDATION_BUNDLE",
             "MATERIALIZATION_CHECKPOINT",
             "MATERIALIZATION_RESULT",
+            "MATERIALIZATION_MAP",
             "CATALOG_CHAIN_SNAPSHOT",
             "RECONCILE_RESULT")) {
       assertNotNull(Kind.valueOf(name));

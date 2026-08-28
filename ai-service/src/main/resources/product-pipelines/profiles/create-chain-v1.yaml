@@ -70,6 +70,7 @@ stages:
       - { type: approval-record, schemaVersion: 2 }
     produces:
       - { type: materialization-result, schemaVersion: 1 }
+      - { type: materialization-map, schemaVersion: 1 }
       - { type: catalog-chain-snapshot, schemaVersion: 1 }
       - { type: reconcile-result, schemaVersion: 1 }
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }

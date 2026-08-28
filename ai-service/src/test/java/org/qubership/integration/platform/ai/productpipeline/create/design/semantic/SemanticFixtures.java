@@ -157,10 +157,152 @@ public final class SemanticFixtures {
         List.of(),
         List.of(
             new SemanticExecutionEdge(
-                "edge-1", triggerNodeId, callNodeId, null, null, mappingId)),
+                "edge-1",
+                triggerNodeId,
+                callNodeId,
+                null,
+                new SemanticRoute.Sequence(),
+                mappingId)),
         List.of(),
         intents,
         constraints == null ? List.of() : List.copyOf(constraints),
+        List.of(),
+        List.of());
+  }
+
+  /**
+   * Two independent entry points that share one downstream operation. Each trigger starts its own
+   * exchange; the shared node is not a barrier join.
+   */
+  public static ChainSemanticRevision twoEntrySharedDownstream() {
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        "revision-two-entry",
+        "Two entry shared downstream",
+        CONTRACT.contractVersion(),
+        List.of(
+            entry("http-in", "trigger-http"),
+            entry("kafka-in", "trigger-kafka")),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Trigger(
+                "trigger-kafka", "kafka-trigger-2", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "op-shared", "script", new SemanticProvenance(List.of()))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-http-in",
+                "trigger-http",
+                "op-shared",
+                null,
+                new SemanticRoute.Sequence(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-kafka-in",
+                "trigger-kafka",
+                "op-shared",
+                null,
+                new SemanticRoute.Sequence(),
+                null)),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  /**
+   * Condition with if/else branches that reconverge on {@code script-common}. Each branch invokes
+   * that node independently.
+   */
+  public static ChainSemanticRevision conditionReconvergence() {
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        "revision-reconverge",
+        "Condition reconverge",
+        CONTRACT.contractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "http-in",
+                "trigger-http",
+                "condition-1",
+                0,
+                new SemanticProvenance(List.of()),
+                new SemanticEntryPoint.Presentation(null, null))),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "condition-1", "condition", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "script-true", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "script-false", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "script-common", "script", new SemanticProvenance(List.of()))),
+        List.of(
+            new SemanticRegion.Condition(
+                "region-condition",
+                "condition-1",
+                List.of(
+                    new SemanticBranch.Condition(
+                        "true-branch",
+                        ConditionBranchRole.IF,
+                        "status == 'ok'",
+                        1,
+                        "script-true",
+                        List.of("script-true")),
+                    new SemanticBranch.Condition(
+                        "false-branch",
+                        ConditionBranchRole.ELSE,
+                        null,
+                        0,
+                        "script-false",
+                        List.of("script-false"))),
+                "script-common")),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-entry",
+                "trigger-http",
+                "condition-1",
+                null,
+                new SemanticRoute.Sequence(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-true",
+                "condition-1",
+                "script-true",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("true-branch"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-false",
+                "condition-1",
+                "script-false",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("false-branch"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-true-join",
+                "script-true",
+                "script-common",
+                "region-condition",
+                new SemanticRoute.Reconverge(List.of("true-branch")),
+                null),
+            new SemanticExecutionEdge(
+                "edge-false-join",
+                "script-false",
+                "script-common",
+                "region-condition",
+                new SemanticRoute.Reconverge(List.of("false-branch")),
+                null)),
+        List.of(
+            new SemanticContainment("condition-1", "script-true", "if"),
+            new SemanticContainment("condition-1", "script-false", "else")),
+        List.of(),
+        List.of(),
         List.of(),
         List.of());
   }

@@ -62,6 +62,7 @@ public class ProductChainMaterializer {
                 ? Map.of()
                 : current.materializationMap().nodeIdToElementId());
     MaterializationPhase phase = current.completedPhase();
+    MaterializationMap owned = current.materializationMap();
 
     if (phase == null) {
       chainId = ensureChain(inputs, executionKey);
@@ -73,7 +74,8 @@ public class ProductChainMaterializer {
         || phase == MaterializationPhase.PROPERTIES
         || phase == MaterializationPhase.CONNECTIONS) {
       appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN, map, null);
-      map = applyGraph(inputs, chainId, map);
+      owned = applyGraph(inputs, chainId, map);
+      map = new LinkedHashMap<>(owned.nodeIdToElementId());
       current = appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.ELEMENTS, map, null);
       phase = current.completedPhase();
     }
@@ -85,21 +87,10 @@ public class ProductChainMaterializer {
       phase = current.completedPhase();
     }
 
-    if (phase == MaterializationPhase.READ_BACK
-        || phase == MaterializationPhase.RECONCILE
-        || phase == MaterializationPhase.COMPLETE) {
-      return new MaterializationResult(
-          SCHEMA_VERSION,
-          chainId,
-          new MaterializationMap(chainId, Map.copyOf(map), Map.of(), Map.of()),
-          inputs.approvedGraphDigest(),
-          phase);
-    }
-
     return new MaterializationResult(
         SCHEMA_VERSION,
         chainId,
-        new MaterializationMap(chainId, Map.copyOf(map), Map.of(), Map.of()),
+        copyOwned(chainId, owned, map),
         inputs.approvedGraphDigest(),
         phase);
   }
@@ -107,10 +98,8 @@ public class ProductChainMaterializer {
   public MaterializationResult markReconciled(Inputs inputs, MaterializationResult current) {
     Objects.requireNonNull(inputs, "inputs");
     Objects.requireNonNull(current, "current");
-    Map<String, String> map =
-        current.materializationMap() == null
-            ? Map.of()
-            : current.materializationMap().nodeIdToElementId();
+    MaterializationMap owned = current.materializationMap();
+    Map<String, String> map = owned == null ? Map.of() : owned.nodeIdToElementId();
     appendCheckpoint(
         inputs,
         inputs.runId(),
@@ -121,7 +110,7 @@ public class ProductChainMaterializer {
     return new MaterializationResult(
         SCHEMA_VERSION,
         current.chainId(),
-        new MaterializationMap(current.chainId(), Map.copyOf(map), Map.of(), Map.of()),
+        copyOwned(current.chainId(), owned, map),
         current.approvedGraphDigest(),
         MaterializationPhase.RECONCILE);
   }
@@ -129,16 +118,14 @@ public class ProductChainMaterializer {
   public MaterializationResult markComplete(Inputs inputs, MaterializationResult current) {
     Objects.requireNonNull(inputs, "inputs");
     Objects.requireNonNull(current, "current");
-    Map<String, String> map =
-        current.materializationMap() == null
-            ? Map.of()
-            : current.materializationMap().nodeIdToElementId();
+    MaterializationMap owned = current.materializationMap();
+    Map<String, String> map = owned == null ? Map.of() : owned.nodeIdToElementId();
     appendCheckpoint(
         inputs, inputs.runId(), current.chainId(), MaterializationPhase.COMPLETE, map, null);
     return new MaterializationResult(
         SCHEMA_VERSION,
         current.chainId(),
-        new MaterializationMap(current.chainId(), Map.copyOf(map), Map.of(), Map.of()),
+        copyOwned(current.chainId(), owned, map),
         current.approvedGraphDigest(),
         MaterializationPhase.COMPLETE);
   }
@@ -155,9 +142,12 @@ public class ProductChainMaterializer {
         .indefinitely();
   }
 
-  private Map<String, String> applyGraph(Inputs inputs, String chainId, Map<String, String> existingMap) {
-    Map<String, String> seededMap = seedMaterializationMapFromReadBack(inputs.graph(), chainId, existingMap);
-    MaterializationMap checkpointMap = new MaterializationMap(chainId, Map.copyOf(seededMap), Map.of(), Map.of());
+  private MaterializationMap applyGraph(
+      Inputs inputs, String chainId, Map<String, String> existingMap) {
+    Map<String, String> seededMap =
+        seedMaterializationMapFromReadBack(inputs.graph(), chainId, existingMap);
+    MaterializationMap checkpointMap =
+        new MaterializationMap(chainId, Map.copyOf(seededMap), Map.of(), Map.of());
     ChainPlanGraph desired = inputs.graph();
     ChainPlanGraph current = CatalogGraphMaterializer.emptyCurrent(desired);
     CatalogGraphMaterializeResult result =
@@ -167,7 +157,24 @@ public class ProductChainMaterializer {
           "graph materialization failed: "
               + (result.error() == null ? result.failedNodeIds() : result.error()));
     }
-    return new LinkedHashMap<>(result.materializationMap().nodeIdToElementId());
+    MaterializationMap owned = result.materializationMap();
+    return new MaterializationMap(
+        chainId,
+        owned.nodeIdToElementId(),
+        owned.semanticEdgeOwnerElementIds(),
+        owned.mappingIntentExecutionNodeIds());
+  }
+
+  private static MaterializationMap copyOwned(
+      String chainId, MaterializationMap owned, Map<String, String> nodeIds) {
+    if (owned == null) {
+      return new MaterializationMap(chainId, Map.copyOf(nodeIds), Map.of(), Map.of());
+    }
+    return new MaterializationMap(
+        chainId,
+        owned.nodeIdToElementId(),
+        owned.semanticEdgeOwnerElementIds(),
+        owned.mappingIntentExecutionNodeIds());
   }
 
   private Map<String, String> seedMaterializationMapFromReadBack(
