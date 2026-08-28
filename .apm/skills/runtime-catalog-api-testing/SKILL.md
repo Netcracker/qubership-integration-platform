@@ -5,7 +5,7 @@ description: Test and verify runtime-catalog changes through its HTTP API agains
 
 # Testing runtime-catalog through its API
 
-Verify a runtime-catalog change end to end against the running local stack. This catches the class
+Verify a runtime-catalog change end-to-end against the running local stack. This catches the class
 of bug that unit tests with mocked repositories cannot: Hibernate cascade and session identity,
 transaction boundaries, Flyway correctness, Consul publishing, and request validation.
 
@@ -88,7 +88,7 @@ field fails loudly instead of silently. The non-obvious contracts:
 | Create chain | `POST /v1/chains` with `{"name", "labels": []}`. Omitting `labels` has caused a `getLabels()` NPE — keep it explicit. |
 | Delete chain | `DELETE /v1/chains/{id}` returns 200. Deleting a folder cascades to its children. |
 | Create folder | `POST /v1/folders` with `{"name", "parentId"}`. |
-| Export chain | `GET /v1/catalog/export/chain/{id}` returns a zip; unzip and assert on the `*.chain.qip.yaml` inside. |
+| Export chain | `GET /v1/catalog/export/chain/{id}` returns a ZIP; unzip and assert on the `*.chain.qip.yaml` inside. |
 | Import | `POST /v3/import` multipart, field name `file`, returns **202** + `importId`. The status endpoint returns **404 until the session registers**; poll `GET /v3/import/{importId}` until `done`/`completion == 100`. A 200 status body can still report per-chain failures — check `result.chains[].status` for `ERROR`. |
 | Count chains | `GET /v1/chains/count` returns `{"chainsCount": N}`, not a bare number. |
 | List folders | `GET /v1/folders` returns **root** folders only. Assert on nested folders through SQL. |

@@ -67,7 +67,7 @@ cut -d= -f1 infrastructure/qip-dev.env | diff - <(cut -d= -f1 infrastructure/qip
 
 When the fix is a change to `FILTER_REGEX_EXCLUDE` in `.github/super-linter.env`,
 compile the pattern and test it against real paths before pushing. It is one
-long regex on a single line, and an invalid or over-broad edit either breaks the
+long regular expression on a single line, and an invalid or over-broad edit either breaks the
 job or silently stops linting files it should still cover:
 
 ```python

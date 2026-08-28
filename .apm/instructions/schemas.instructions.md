@@ -37,7 +37,7 @@ mvn -pl schemas test                           # JUnit 5 + networknt json-schema
 1. **clean** — removes `assets/`, `types/`, `dist/`.
 2. **`SchemaResolver.resolveAllSchemas()`** — for each `element/*.schema.yaml` (excluding `element.schema.yaml`), dereferences cross-refs under `http://qubership.org/schemas/product/qip/`, inlines nested `$ref`s, removes nested `$id`s, and writes the flattened result to `assets/`. Returns a `Map<elementType, yamlString>`.
 3. **`generateTypes()`** — copies all `qip-model` schemas to a temp dir, rewrites `$ref`/`$id` to local paths, compiles each to TypeScript via `json-schema-to-typescript`, and emits `types/**/*.d.ts` plus a conflict-deduplicated `types/index.d.ts` (common-properties win on name collisions).
-4. **`generateRuntimeIndex()`** — writes `dist/index.mjs` exporting the frozen `schemasByType` map (`{ "http-trigger": "<resolved yaml>", … }`, alphabetically sorted) and `dist/index.d.ts` (`SchemaType` union + `schemasByType` typing, re-exporting `../types/index`).
+4. **`generateRuntimeIndex()`** — writes `dist/index.mjs` exporting the frozen `schemasByType` map (`{ "http-trigger": "<resolved yaml>", … }`, alphabetically sorted) and `dist/index.d.ts` (`SchemaType` union + `schemasByType` typing, which also exports `../types/index`).
 
 ### Conventions
 

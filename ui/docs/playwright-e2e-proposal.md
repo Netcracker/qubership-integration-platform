@@ -18,7 +18,7 @@ example that prompted this note. Both of its complaints are of that kind:
    is open.
 
 Neither is reachable from `jsdom`. It has no layout engine, no cascade resolution for the
-Ant Design token stylesheet, and no notion of a computed pixel size. A Jest suite can assert
+Ant Design token CSS, and no notion of a computed pixel size. A Jest suite can assert
 that `<EntityLabels>` received three labels; it cannot assert that they came out 12px in one
 state and 14px in another.
 
@@ -127,7 +127,7 @@ Two details worth settling before anyone writes YAML:
   `-Dsonar.tests=src`, and the Jest suites already live outside `src` in `ui/tests/`. A new
   `ui/e2e/` directory falls outside both, so it will not enter the quality gate and will not
   dilute the coverage number that `qualitygate.wait=true` blocks on.
-- **Jest will collect the e2e specs unless told not to.** `ui/jest.config.ts` sets
+- **Jest will collect the end-to-end specs unless told not to.** `ui/jest.config.ts` sets
   `testMatch: ["**/__tests__/**/*.?([mc])[jt]s?(x)", "**/?(*.)+(spec|test).?([mc])[jt]s?(x)"]`
   against the workspace root, so `ui/e2e/specs/snapshots.spec.ts` matches. Add `e2e/` to
   `testPathIgnorePatterns`, or `npm test` starts trying to run Playwright specs in `jsdom`.
@@ -172,7 +172,7 @@ has earned trust.
 ## Alternatives
 
 **Keep the scratch approach.** The agent writes a throwaway Playwright script per issue,
-outside git. Zero cost to the team, and evidence still lands in the pull request. What it
+outside Git. Zero cost to the team, and evidence still lands in the pull request. What it
 loses is accumulation: the check that proves #679 is fixed disappears the moment the pull
 request merges, so nothing stops a later refactor from bringing it back.
 

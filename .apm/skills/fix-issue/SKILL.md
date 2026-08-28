@@ -3,7 +3,7 @@ name: fix-issue
 description: Take a GitHub issue labeled ready-for-agent, fix it end to end against the running local stack, and deliver a branch, a pull request, an evidence report, and an autonomy label. Use when asked to work an issue by number or URL, or to run the autonomous issue pipeline.
 ---
 
-# Working a GitHub issue end to end
+# Working a GitHub issue end-to-end
 
 Gates 0 through 6, in order, with a review gate between 4 and 5. Each gate either stops the run
 or hands off to the next one. The label you apply at the end is a function of the gate you
@@ -86,7 +86,7 @@ nohup npm -w @netcracker/qip-ui run dev > /tmp/vite.log 2>&1 &
 - 8080 answering 502 means Vite is down, not that the app is broken.
 - `npm run dev` fetches documentation over the network before Vite starts; the first run is slow.
 - `vite` is hoisted to the repo-root `node_modules/.bin`, not `ui/node_modules/.bin`.
-- **Write every git command as `git -C <repo> ...`, without exception.** The shell working
+- **Write every Git command as `git -C <repo> ...`, without exception.** The shell working
   directory persists between commands, so a `git stash` or `git checkout` issued from a scratch
   directory fails quietly, and the "before" frame then captures the fixed code with nothing
   looking wrong. This was written as "use absolute paths" and got violated three times across
@@ -115,7 +115,7 @@ Prefix every seeded entity with a unique run token and delete it when the run en
 ### Capture the evidence
 
 Use Playwright from a scratch directory. Never add it to `ui/package.json`: the workspace has
-no e2e infrastructure and no CI job to run one, so a browser download would be imposed on the
+no end-to-end infrastructure and no CI job to run one, so a browser download would be imposed on the
 whole team for a tool only this pipeline uses.
 
 ```bash
@@ -285,7 +285,7 @@ curl -sS -X POST -H "Authorization: Bearer $(gh auth token)" -H "Accept: applica
   "https://uploads.github.com/user-attachments/assets?name=before.png&content_type=image/png&repository_id=$RID"
 ```
 
-It returns `{"url": "https://github.com/user-attachments/assets/<uuid>"}` for a markdown image
+It returns `{"url": "https://github.com/user-attachments/assets/<uuid>"}` for a Markdown image
 tag. The endpoint is undocumented, so treat a failure as expected: fall back to the numbers and
 the reproduction script, and say in the report that images could not be attached.
 

@@ -80,4 +80,4 @@ the number past the threshold before pushing again.
 
 For a duplication condition, `api/duplications/show?key=<componentKey>&pullRequest=$N`
 prints the exact blocks and their partner files, which is the only practical way
-to tell a real copy-paste from two files that merely share a shape.
+to tell real duplication from two files that merely share a shape.

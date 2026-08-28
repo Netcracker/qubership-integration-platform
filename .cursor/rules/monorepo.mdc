@@ -5,7 +5,7 @@ globs: "**/*"
 
 ### Monorepo nature
 
-Each top-level directory is a former standalone repository, consolidated with its full git
+Each top-level directory is a former standalone repository, consolidated with its full Git
 history. Module guidance ships as APM instructions under `.apm/instructions/`, one file per
 module, scoped by `applyTo` to that module's path:
 

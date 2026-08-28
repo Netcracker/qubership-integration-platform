@@ -87,7 +87,7 @@ Two kinds of form:
   and `getValueProps` on `Form.Item`.
 - **Chain element parameter forms** are generated from JSON Schema with `@rjsf/antd`, validated by
   `@rjsf/validator-ajv8`. The schemas come from the `schemasByType` map exported by
-  `@netcracker/qip-schemas` and re-exported through
+  `@netcracker/qip-schemas` and surfaced through
   `src/components/modal/chain_element/chainElementSchemaModules.ts`; the element type is the key
   (`http-trigger`). Custom fields and widgets belong under
   `src/components/modal/chain_element/field/` and `.../widget/`.

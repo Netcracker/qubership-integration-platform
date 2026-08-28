@@ -32,7 +32,7 @@ five kinds, exports and re-imports through the three v1 endpoint families, then 
 discovered by nothing, and the import answers 204.
 
 Two things in it are load bearing and were measured, not read: every import hop deletes first (an import over a live id
-is an `UPDATE`, so "the ids are there" cannot fail otherwise), and it imports the **original archive bytes** (a flat
+is an `UPDATE`, so "the IDs are there" cannot fail otherwise), and it imports the **original archive bytes** (a flat
 archive imports as 204 with an empty body, because `ArchiveWriter` builds `services/<id>/` unconditionally).
 
 The flag goes on through a throwaway compose override plus `up -d --no-deps --force-recreate`. `--no-deps` matters:
