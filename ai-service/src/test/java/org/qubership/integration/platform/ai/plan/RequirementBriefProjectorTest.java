@@ -43,7 +43,8 @@ class RequirementBriefProjectorTest {
             "getPetById",
             "",
             "",
-            "");
+            "",
+            "call-1");
     RequirementFact behavior =
         new RequirementFact(
             "req-1",

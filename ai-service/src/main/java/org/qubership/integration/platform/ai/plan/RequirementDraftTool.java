@@ -171,6 +171,11 @@ public class RequirementDraftTool {
       (do not put apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave
       openQuestions empty; the server offers the import as a decision card.
       Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
+      Set idsRequested from what the author says about the Integration Design Specification:
+      true when they ask for one, false when they say they do not want one. Leave it out while
+      they have not said either way. If it is still unset when the requirements are otherwise
+      ready, ask once whether to produce the specification and record the answer on the next
+      capture; do not ask again after that.
       After a successful READY_FOR_PLAN capture in this turn, do not call captureRequirementDraft
       again and do not repeat the ready-for-planning assistant text.
       {
@@ -275,33 +280,10 @@ public class RequirementDraftTool {
         return finish(conversationId, startMs, duplicateCallError);
       }
 
-      ResolvedCatalogBinding binding =
-          ResolvedCatalogBinding.enrichFromCache(
-              catalogCache, conversationId, resolveCatalogBinding(capture, previous));
-      String bindingError = validateCatalogBinding(conversationId, binding);
-      if (bindingError != null) {
-        // ADR 0001: prefer API Hub candidate (capture / previous / cache backfill) over a bad
-        // catalogBinding. Agents often pass catalogBinding after searchApiOperations instead of
-        // apiHubCandidate; rejecting the whole capture blocked IMPORT_PENDING.
-        ApiHubRequirementRefs recoverable =
-            resolveApiHubCandidate(capture, previous, conversationId);
-        if (recoverable != null) {
-          LOG.warnf(
-              "captureRequirementDraft: ignoring invalid catalogBinding conversationId=%s"
-                  + " reason=%s (preferring apiHubCandidate packageId=%s)",
-              conversationId, bindingError, recoverable.packageId());
-          binding = null;
-        } else {
-          LOG.warnf(
-              "captureRequirementDraft: catalogBinding rejected conversationId=%s reason=%s",
-              conversationId, bindingError);
-          return finish(conversationId, startMs, bindingError);
-        }
-      }
       ApiHubRequirementRefs candidate =
-          binding != null ? null : resolveApiHubCandidate(capture, previous, conversationId);
+          resolveApiHubCandidate(capture, previous, conversationId);
 
-      if (decision == DraftDecision.BLOCKED && candidate != null && binding == null) {
+      if (decision == DraftDecision.BLOCKED && candidate != null) {
         // Agents often set BLOCKED after an empty catalog search even when searchApiOperations
         // already returned a clear package (candidate backfilled into ConversationApiHubCache).
         softDowngradedBlockedWithCandidate = true;
@@ -313,12 +295,12 @@ public class RequirementDraftTool {
             candidate.packageId());
       }
 
-      if (candidate != null && binding == null) {
+      if (candidate != null) {
         // The pending import is offered as a decision, so it is not an open question to answer.
         openQuestions = List.of();
       }
 
-      if (decision == DraftDecision.READY_FOR_PLAN && candidate != null && binding == null) {
+      if (decision == DraftDecision.READY_FOR_PLAN && candidate != null) {
         softDowngradedForImport = true;
         decision = DraftDecision.NEEDS_INPUT;
         LOG.warnf(
@@ -332,19 +314,12 @@ public class RequirementDraftTool {
       recordAssessmentsFromListedOperations(positiveCalls, conversationId);
       List<RequirementServiceCall> reconciledCalls =
           reconcileServiceCalls(facts, previous, conversationId);
-      ResolvedCatalogBinding storedBinding =
-          reconciledCalls.size() == 1 && reconciledCalls.getFirst().catalogBinding() == null
-              ? binding
-              : null;
       List<RequirementServiceCall> unresolvedCalls =
-          storedBinding != null
-              ? List.of()
-              : reconciledCalls.stream().filter(call -> call.catalogBinding() == null).toList();
+          reconciledCalls.stream().filter(call -> call.catalogBinding() == null).toList();
       // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
       // below stays for drafts whose facts carry no SERVICE_CALL kind at all.
       boolean bindingMissing =
           positiveCalls.isEmpty()
-              && binding == null
               && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
       if (decision == DraftDecision.READY_FOR_PLAN
           && (!unresolvedCalls.isEmpty() || bindingMissing)) {
@@ -360,7 +335,7 @@ public class RequirementDraftTool {
             conversationId);
       }
 
-      String invalidDecision = validateDecision(decision, openQuestions, candidate, binding);
+      String invalidDecision = validateDecision(decision, openQuestions, candidate);
       if (invalidDecision != null) {
         LOG.warnf(
             "captureRequirementDraft: validation failed conversationId=%s reason=%s",
@@ -368,13 +343,16 @@ public class RequirementDraftTool {
         return finish(conversationId, startMs, invalidDecision);
       }
 
-      boolean importIntent =
-          binding != null
-              ? false
-              : (candidate != null || (previous != null && previous.importIntent()));
+      boolean importIntent = candidate != null || (previous != null && previous.importIntent());
 
-      String owningCallId =
-          candidate != null && previous != null ? previous.apiHubCandidateServiceCallId() : null;
+      String owningCallId = null;
+      if (candidate != null) {
+        if (previous != null && previous.apiHubCandidateServiceCallId() != null) {
+          owningCallId = previous.apiHubCandidateServiceCallId();
+        } else if (reconciledCalls.size() == 1) {
+          owningCallId = reconciledCalls.getFirst().serviceCallId();
+        }
+      }
       RequirementDraft draft =
           new RequirementDraft(
               softDowngradedForFacts
@@ -390,12 +368,12 @@ public class RequirementDraftTool {
               sourceSkillVersion(conversationId),
               sourceSkillHash(conversationId),
               candidate,
-              storedBinding,
               false,
               facts,
               importIntent,
               reconciledCalls,
-              owningCallId);
+              owningCallId,
+              idsRequested(capture, previous));
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
       if (resolutions != null) {
@@ -411,7 +389,7 @@ public class RequirementDraftTool {
       LOG.infof(
           "captureRequirementDraft: stored draft conversationId=%s decision=%s complete=%s"
               + " openQuestions=%d facts=%d sourceSkill=%s sourceVersion=%s sourceHash=%s textChars=%d"
-              + " hasCatalogBinding=%s hasApiHubCandidate=%s softDowngradedForFacts=%s"
+              + " hasApiHubCandidate=%s softDowngradedForFacts=%s"
               + " softDowngradedForImport=%s softDowngradedForBinding=%s"
               + " softDowngradedBlockedWithCandidate=%s",
           conversationId,
@@ -423,7 +401,6 @@ public class RequirementDraftTool {
           draft.sourceSkillVersion(),
           draft.sourceSkillHash(),
           draft.assembledText().length(),
-          draft.catalogBinding() != null,
           draft.apiHubCandidate() != null,
           softDowngradedForFacts,
           softDowngradedForImport,
@@ -487,9 +464,8 @@ public class RequirementDraftTool {
   private static String validateDecision(
       DraftDecision decision,
       List<String> openQuestions,
-      ApiHubRequirementRefs candidate,
-      ResolvedCatalogBinding binding) {
-    boolean pendingImport = candidate != null && binding == null;
+      ApiHubRequirementRefs candidate) {
+    boolean pendingImport = candidate != null;
     if (decision == DraftDecision.NEEDS_INPUT && openQuestions.isEmpty() && !pendingImport) {
       return "openQuestions is required when decision=NEEDS_INPUT";
     }
@@ -499,7 +475,7 @@ public class RequirementDraftTool {
     if (candidate != null && !candidate.hasImportableRefs()) {
       return "apiHubCandidate must include packageId, version, and operationId or documentId";
     }
-    if (decision == DraftDecision.READY_FOR_PLAN && candidate != null && binding == null) {
+    if (decision == DraftDecision.READY_FOR_PLAN && candidate != null) {
       return "READY_FOR_PLAN is not allowed while apiHubCandidate is pending import;"
           + " use NEEDS_INPUT until the user imports the specification";
     }
@@ -545,6 +521,17 @@ public class RequirementDraftTool {
               hint));
     }
     return List.copyOf(reconciled);
+  }
+
+  /**
+   * The author's IDS answer, kept across turns. A capture that says nothing does not erase an
+   * answer an earlier turn already recorded.
+   */
+  private static Boolean idsRequested(RequirementDraftCapture capture, RequirementDraft previous) {
+    if (capture != null && capture.idsRequested() != null) {
+      return capture.idsRequested();
+    }
+    return previous == null ? null : previous.idsRequested();
   }
 
   private static CatalogBindingHint bindingFor(
@@ -864,55 +851,12 @@ public class RequirementDraftTool {
     Set<String> seen = new LinkedHashSet<>();
     for (RequirementFact fact : positiveServiceCalls(facts)) {
       String id = fact.serviceCallId();
-      if (id.isEmpty()) {
-        continue;
+      if (id == null || id.isBlank()) {
+        return "serviceCallId is required for every SERVICE_CALL fact";
       }
       if (!seen.add(id)) {
         return "duplicate serviceCallId in facts: " + id;
       }
-    }
-    return null;
-  }
-
-  private String validateCatalogBinding(String conversationId, ResolvedCatalogBinding binding) {
-    if (binding == null) {
-      return null;
-    }
-    String systemId = CatalogStrings.blankToNull(binding.systemId());
-    String specificationId = CatalogStrings.blankToNull(binding.specificationId());
-    if (systemId == null || specificationId == null) {
-      return "catalogBinding requires systemId and specificationId from catalog tools";
-    }
-    if (catalogCache == null) {
-      return null;
-    }
-    if (!catalogCache.hasRememberedSystems(conversationId)) {
-      return "catalogBinding rejected: call searchCatalogSystems first, then set IDs from tool"
-          + " results (do not invent UUIDs)";
-    }
-    if (catalogCache.findSystem(conversationId, systemId).isEmpty()) {
-      return "catalogBinding.systemId was not returned by searchCatalogSystems in this"
-          + " conversation";
-    }
-    if (catalogCache.hasRememberedSpecifications(conversationId)
-        && !catalogCache.isKnownSpecificationId(conversationId, specificationId)) {
-      return "catalogBinding.specificationId was not returned by getApiSpecifications in this"
-          + " conversation";
-    }
-    String operationId = CatalogStrings.blankToNull(binding.integrationOperationId());
-    if (operationId != null
-        && catalogCache.hasRememberedSpecifications(conversationId)
-        && catalogCache.findOperation(conversationId, operationId).isEmpty()) {
-      return "catalogBinding.integrationOperationId was not returned by listCatalogOperations"
-          + " in this conversation";
-    }
-    String systemType = CatalogStrings.blankToNull(binding.systemType());
-    if (systemType == null) {
-      return "catalogBinding.systemType could not be resolved from catalog tools;"
-          + " call searchCatalogSystems first";
-    }
-    if (!ResolvedCatalogBinding.isAllowedSystemType(systemType)) {
-      return "catalogBinding.systemType must be INTERNAL, EXTERNAL, or IMPLEMENTED";
     }
     return null;
   }
@@ -931,26 +875,6 @@ public class RequirementDraftTool {
       return null;
     }
     return apiHubCache.latestCandidate(conversationId).orElse(null);
-  }
-
-  private static ResolvedCatalogBinding resolveCatalogBinding(
-      RequirementDraftCapture capture, RequirementDraft previous) {
-    if (capture.catalogBinding() != null) {
-      return capture.catalogBinding();
-    }
-    if (previous == null) {
-      return null;
-    }
-    ApiHubRequirementRefs candidate =
-        capture.apiHubCandidate() != null
-            ? capture.apiHubCandidate()
-            : previous.apiHubCandidate();
-    if (candidate != null
-        && previous.apiHubCandidate() != null
-        && !Objects.equals(previous.apiHubCandidate().packageId(), candidate.packageId())) {
-      return null;
-    }
-    return previous.catalogBinding();
   }
 
   private String sourceSkillVersion(String conversationId) {

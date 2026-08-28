@@ -6,9 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.DOMAIN_FAILURE;
-import static org.qubership.integration.platform.ai.productpipeline.create.design.execution.BindingResolutionResult.WAITING_FOR_INPUT;
 
 import java.time.Instant;
 import java.util.List;
@@ -126,9 +127,10 @@ class ExecutorCatalogBindingAdapterTest {
   @Test
   void exactLocalMatchDoesNotTouchApiHubOrImport() {
     stubExactCatalogHit("Petstore Ext", "sys-1", "sg-1", "spec-1", "op-1", "GET", "/pets");
+    CatalogBindingHint hint = v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1");
 
     List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), approved());
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(hint), approved());
 
     BindingResolutionResult.Resolved resolved =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
@@ -137,108 +139,87 @@ class ExecutorCatalogBindingAdapterTest {
     assertEquals("sg-1", resolved.binding().specificationGroupId());
     assertEquals("spec-1", resolved.binding().specificationId());
     assertEquals("op-1", resolved.binding().integrationOperationId());
+    verify(catalogReadTool).searchCatalogSystems("sys-1");
   }
 
   @Test
-  void catalogMissStopsInsteadOfImporting() {
-    when(catalogReadTool.searchCatalogSystems(anyString())).thenReturn(List.of());
-
+  void missingHintFailsWithoutCatalogSearch() {
     List<BindingResolutionResult> results =
         adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), approved());
 
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
-    assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
     assertEquals("call-1", failed.serviceCallId());
-    assertTrue(failed.reason().contains("requirement gathering"), failed.reason());
+    assertTrue(failed.reason().contains("no catalog binding hint"), failed.reason());
+    verify(catalogReadTool, never()).searchCatalogSystems(anyString());
   }
 
   @Test
-  void ambiguousCatalogMatchWaitsForInputWithoutApiHub() {
-    when(catalogReadTool.searchCatalogSystems(anyString()))
-        .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
-    when(catalogReadTool.getApiSpecifications("sys-1"))
-        .thenReturn(
-            List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
+  void nonV2HintIsRejected() {
+    CatalogBindingHint v1 =
+        new CatalogBindingHint(
+            "1",
+            "call-1",
+            "fact-1",
+            "getInventory",
+            "sys-1",
+            "sg-1",
+            "spec-1",
+            "op-1",
+            "http",
+            "GET",
+            "/store/inventory",
+            "catalog",
+            FIXED,
+            "catalog-read:sys-1/spec-1/op-1");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(v1), approved());
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertTrue(failed.reason().contains("schemaVersion=2"), failed.reason());
+  }
+
+  @Test
+  void oneSystemTwoOperationsResolveByServiceCallId() {
+    stubExactCatalogHit(
+        "Petstore Ext", "sys-1", "sg-1", "spec-1", "op-inv", "GET", "/store/inventory");
     when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
         .thenReturn(
             List.of(
-                new CatalogRestClient.OperationDto("op-a", "findPetsA", "GET", "/pets", "spec-1"),
-                new CatalogRestClient.OperationDto("op-b", "findPetsB", "GET", "/pets", "spec-1")));
-
-    List<BindingResolutionResult> results =
-        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), approved());
-
-    BindingResolutionResult.NeedsInput needsInput =
-        assertInstanceOf(BindingResolutionResult.NeedsInput.class, results.getFirst());
-    assertEquals(WAITING_FOR_INPUT, needsInput.outcomeClass());
-    assertEquals("call-1", needsInput.serviceCallId());
-    assertEquals(List.of("op-a", "op-b"), needsInput.candidateIds());
-  }
-
-  @Test
-  void twoServiceCallsResolveIndependently() {
-    when(catalogReadTool.searchCatalogSystems("GET /orders/{id}"))
-        .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-o", "Orders", "EXTERNAL", "http")));
-    when(catalogReadTool.searchCatalogSystems("GET /invoices/{id}"))
-        .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-b", "Billing", "EXTERNAL", "http")));
-    when(catalogReadTool.getApiSpecifications("sys-o"))
-        .thenReturn(
-            List.of(new CatalogRestClient.SpecificationDto("spec-o", "orders", "sg-o", "sys-o")));
-    when(catalogReadTool.getApiSpecifications("sys-b"))
-        .thenReturn(
-            List.of(new CatalogRestClient.SpecificationDto("spec-b", "billing", "sg-b", "sys-b")));
-    when(catalogReadTool.listCatalogOperations("spec-o", "sys-o", null))
-        .thenReturn(
-            List.of(
                 new CatalogRestClient.OperationDto(
-                    "op-o", "getOrder", "GET", "/orders/{id}", "spec-o")));
-    when(catalogReadTool.listCatalogOperations("spec-b", "sys-b", null))
-        .thenReturn(
-            List.of(
+                    "op-inv", "getInventory", "GET", "/store/inventory", "spec-1"),
                 new CatalogRestClient.OperationDto(
-                    "op-b", "getInvoice", "GET", "/invoices/{id}", "spec-b")));
+                    "op-pet", "getPetById", "GET", "/pet/{petId}", "spec-1")));
+    CatalogBindingHint inv =
+        v2Hint("call-inv", "fact-inv", "GET /store/inventory", "sys-1", "op-inv");
+    CatalogBindingHint pet =
+        v2Hint("call-pet", "fact-pet", "GET /pet/{petId}", "sys-1", "op-pet");
 
     List<BindingResolutionResult> results =
         adapter.resolve(
             CONVERSATION_ID,
-            twoCalls("call-orders", "GET /orders/{id}", "call-billing", "GET /invoices/{id}"),
-            List.of(),
+            twoCalls("call-inv", "GET /store/inventory", "call-pet", "GET /pet/{petId}"),
+            List.of(inv, pet),
             approved());
 
-    assertEquals(2, results.size());
-    BindingResolutionResult.Resolved first =
-        assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(0));
-    BindingResolutionResult.Resolved second =
-        assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(1));
-    assertEquals("call-orders", first.binding().serviceCallId());
-    assertEquals("sys-o", first.binding().systemId());
-    assertEquals("call-billing", second.binding().serviceCallId());
-    assertEquals("sys-b", second.binding().systemId());
+    assertEquals(
+        "op-inv",
+        ((BindingResolutionResult.Resolved) results.get(0))
+            .binding()
+            .integrationOperationId());
+    assertEquals(
+        "op-pet",
+        ((BindingResolutionResult.Resolved) results.get(1))
+            .binding()
+            .integrationOperationId());
   }
 
   @Test
   void staleHintStopsInsteadOfSelectingAnotherOperation() {
     CatalogBindingHint stale =
-        new CatalogBindingHint(
-            "1",
-            "fact-1",
-            "GET /pets",
-            "sys-stale",
-            "sg-stale",
-            "spec-stale",
-            "op-stale",
-            "2024.4",
-            FIXED,
-            "hint-stale");
-    when(catalogReadTool.searchCatalogSystems(anyString()))
-        .thenReturn(List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
-    when(catalogReadTool.getApiSpecifications("sys-1"))
-        .thenReturn(
-            List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-    when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
-        .thenReturn(
-            List.of(new CatalogRestClient.OperationDto("op-1", "findPets", "GET", "/pets", "spec-1")));
+        v2Hint("call-1", "fact-1", "GET /pets", "sys-stale", "op-stale");
 
     List<BindingResolutionResult> results =
         adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(stale), approved());
@@ -247,6 +228,9 @@ class ExecutorCatalogBindingAdapterTest {
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
     assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
     assertTrue(failed.reason().contains("op-stale"), failed.reason());
+    assertTrue(
+        failed.reason().contains("the approved catalog binding no longer resolves"),
+        failed.reason());
   }
 
   @Test
@@ -287,7 +271,7 @@ class ExecutorCatalogBindingAdapterTest {
       String opId,
       String method,
       String path) {
-    when(catalogReadTool.searchCatalogSystems(anyString()))
+    when(catalogReadTool.searchCatalogSystems(systemId))
         .thenReturn(List.of(new CatalogRestClient.SystemDto(systemId, systemName, "EXTERNAL", "http")));
     when(catalogReadTool.getApiSpecifications(systemId))
         .thenReturn(

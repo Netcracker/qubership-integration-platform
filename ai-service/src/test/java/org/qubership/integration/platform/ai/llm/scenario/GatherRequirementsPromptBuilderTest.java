@@ -81,7 +81,6 @@ class GatherRequirementsPromptBuilderTest {
             "1",
             null,
             null,
-            null,
             false,
             List.of(
                 serviceCall("call-om-result", "OM", "onTaskResult"),

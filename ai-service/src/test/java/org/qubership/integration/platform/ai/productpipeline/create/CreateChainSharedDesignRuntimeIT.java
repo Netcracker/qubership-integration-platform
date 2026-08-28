@@ -283,14 +283,11 @@ class CreateChainSharedDesignRuntimeIT {
 
     List<PipelineSignal> afterBriefApprove = approveLatestWaitingReturning(runtime);
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
-    assertEquals("design-input", loadRun().run().currentStageId());
+    // design-input has no gate of its own; the brief approval carries the run to the plan gate.
+    assertEquals("design-planning", loadRun().run().currentStageId());
     assertTrue(hasKind(Kind.CHAIN_SEMANTIC_REVISION));
     assertEquals(IdsDocument.Mode.DERIVED, latestIds().mode());
     assertFalse(latestIds().markdown().isBlank(), () -> "signals=" + afterBriefApprove);
-
-    approveLatestWaiting(runtime);
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
-    assertEquals("design-planning", loadRun().run().currentStageId());
 
     approveLatestWaiting(runtime);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
@@ -357,10 +354,6 @@ class CreateChainSharedDesignRuntimeIT {
         () -> "signals=" + afterDerive + " status=" + loadRun().run().status());
     assertTrue(hasKind(Kind.IDS_DOCUMENT));
     assertTrue(hasKind(Kind.CHAIN_SEMANTIC_REVISION));
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
-    assertEquals("design-input", loadRun().run().currentStageId());
-    approveLatestWaiting(runtime);
-
     assertEquals(
         RunStatus.WAITING_FOR_APPROVAL,
         loadRun().run().status(),
@@ -417,8 +410,6 @@ class CreateChainSharedDesignRuntimeIT {
         .asList()
         .await()
         .indefinitely();
-    assertEquals("design-input", loadRun().run().currentStageId(), () -> runDebug());
-    approveLatestWaiting(runtime);
     assertEquals("design-planning", loadRun().run().currentStageId(), () -> runDebug());
     approveLatestWaiting(runtime);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status(), () -> runDebug());
@@ -549,7 +540,9 @@ class CreateChainSharedDesignRuntimeIT {
         .await()
         .indefinitely();
 
-    assertEquals(0, plannerCalls.get());
+    // design-input no longer parks at a gate, so both the brief approval and this turn carry the
+    // run through to the planner.
+    assertEquals(2, plannerCalls.get());
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
   }
 
@@ -611,7 +604,7 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  void restartResumesFromIdsApprovalWithoutReplanning() {
+  void restartResumesFromThePlanGateWithoutReplanning() {
     CreateChainTestOrchestrator first = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(first);
     first
@@ -622,7 +615,7 @@ class CreateChainSharedDesignRuntimeIT {
         .indefinitely();
     approveLatestWaiting(first);
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
-    assertEquals("design-input", loadRun().run().currentStageId());
+    assertEquals("design-planning", loadRun().run().currentStageId());
     assertEquals(IdsDocument.Mode.DERIVED, latestIds().mode());
     long revision = loadRun().run().runRevision();
     plannerCalls.set(0);
@@ -637,14 +630,10 @@ class CreateChainSharedDesignRuntimeIT {
         .indefinitely();
 
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
-    assertEquals("design-input", loadRun().run().currentStageId());
-    assertEquals(revision, loadRun().run().runRevision());
-    assertEquals(0, plannerCalls.get());
-
-    approveLatestWaiting(restarted);
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
     assertEquals("design-planning", loadRun().run().currentStageId());
-    assertEquals(1, plannerCalls.get());
+    assertEquals(revision, loadRun().run().runRevision());
+    // The restart replays the settled gate instead of replanning.
+    assertEquals(0, plannerCalls.get());
   }
 
   @Test
@@ -1103,7 +1092,6 @@ class CreateChainSharedDesignRuntimeIT {
         .asList()
         .await()
         .indefinitely();
-    approveLatestWaiting(runtime);
     approveLatestWaiting(runtime);
     approveLatestWaiting(runtime);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status(), () -> runDebug());
@@ -1721,7 +1709,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   private static RequirementFact serviceCall(
       String id, String capabilityKey, String text, String participant, String operation) {
-    return serviceCall(id, capabilityKey, text, participant, operation, "");
+    return serviceCall(id, capabilityKey, text, participant, operation, id);
   }
 
   private static RequirementFact serviceCall(

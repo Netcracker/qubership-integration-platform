@@ -127,16 +127,14 @@ class ProductPipelineProfileCatalogCutoverTest {
         List.of(new ArtifactTypeRef("catalog-binding-hint", 1)),
         stage(v2, "design-execution").optionalConsumes());
     assertEquals(
-        List.of(new ArtifactTypeRef("catalog-binding-hint", 1)),
+        List.of(new ArtifactTypeRef("catalog-binding-hint", 1), new ArtifactTypeRef("ids-bypass", 1)),
         stage(v2, "requirement-discovery").optionalProduces());
+    assertNull(stage(v2, "design-input").approval());
     assertEquals(
         List.of(
             new ArtifactTypeRef("chain-semantic-revision", 1),
             new ArtifactTypeRef("ids-document", 1)),
-        stage(v2, "design-input").approval().candidateSet());
-    assertEquals(
-        new ArtifactTypeRef("chain-semantic-revision", 1),
-        stage(v2, "design-input").approval().artifact());
+        stage(v2, "design-input").produces());
     assertEquals(
         "CATALOG_FIRST_V1", stage(v2, "design-planning").approval().bindingResolutionPolicy());
     assertNull(stage(v2, "requirement-discovery").approval());
@@ -223,7 +221,7 @@ class ProductPipelineProfileCatalogCutoverTest {
   }
 
   @Test
-  void fixedApprovalPolicyWaitsForSemanticDesignInput() {
+  void semanticDesignInputCompletesWithoutItsOwnGate() {
     var revision =
         SemanticFixtures.revision(
             List.of(SemanticFixtures.entry("http-in", "trigger-http")));
@@ -249,11 +247,8 @@ class ProductPipelineProfileCatalogCutoverTest {
             designInputContext("Generate full IDS", approvedBriefWithMappings(), null));
     StageOutcome provide = outcome(designInput, idsEntryContext(VALID_IDS));
 
-    List<String> waitingForApprovalStages = waitingStages(captured, "design-input");
-    List<String> waitingForApprovalStagesProvide = waitingStages(provide, "design-input");
-
-    assertTrue(waitingForApprovalStages.contains("design-input"));
-    assertTrue(waitingForApprovalStagesProvide.stream().noneMatch("design-input"::equals));
+    // design-input completes instead of gating; the plan gate approves the topology with the plan.
+    assertEquals(StageOutcomeClass.SUCCEEDED, captured.outcomeClass());
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, provide.outcomeClass());
   }
 
@@ -377,7 +372,17 @@ class ProductPipelineProfileCatalogCutoverTest {
   private static RequirementFact fact(
       String id, RequirementFactKind kind, String capabilityKey) {
     return new RequirementFact(
-        id, RequirementFactPolarity.POSITIVE, kind, capabilityKey, "statement " + id);
+        id,
+        RequirementFactPolarity.POSITIVE,
+        kind,
+        capabilityKey,
+        "statement " + id,
+        "",
+        "",
+        "",
+        "",
+        "",
+        kind == RequirementFactKind.SERVICE_CALL ? id : "");
   }
 
   private static RequirementDataMapping mapping(

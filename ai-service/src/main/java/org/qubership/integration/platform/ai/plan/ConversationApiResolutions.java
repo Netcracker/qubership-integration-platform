@@ -51,15 +51,6 @@ public class ConversationApiResolutions {
     return Optional.ofNullable(byServiceCall(conversationId).get(callId));
   }
 
-  /**
-   * @deprecated Use {@link #forServiceCall(String, String)}. Kept for one release so in-flight
-   *     discovery work can migrate without an all-at-once edit.
-   */
-  @Deprecated
-  public Optional<ServiceCallAssessment> forFact(String conversationId, String sourceFactId) {
-    return forServiceCall(conversationId, sourceFactId);
-  }
-
   /** Drops assessments whose service-call ids are no longer in the captured draft. */
   public void retainServiceCalls(String conversationId, Set<String> serviceCallIds) {
     String id = CatalogStrings.blankToNull(conversationId);

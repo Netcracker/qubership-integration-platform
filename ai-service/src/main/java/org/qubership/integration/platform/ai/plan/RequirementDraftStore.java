@@ -200,14 +200,16 @@ public class RequirementDraftStore {
     }
     String owner = resolveImportOwner(current, serviceCallId);
     if (owner == null || current.serviceCalls().isEmpty()) {
-      put(conversationId, current.withCatalogBinding(binding));
       return;
     }
     RequirementServiceCall target =
         current.serviceCalls().stream()
             .filter(call -> owner.equals(call.serviceCallId()))
             .findFirst()
-            .orElse(current.serviceCalls().getFirst());
+            .orElse(null);
+    if (target == null) {
+      return;
+    }
     CatalogBindingHint hint = hintFromImport(target, binding);
     put(conversationId, current.withBoundServiceCall(target.serviceCallId(), hint));
   }
@@ -290,7 +292,6 @@ public class RequirementDraftStore {
               next.sourceSkillVersion(),
               next.sourceSkillHash(),
               next.apiHubCandidate(),
-              next.catalogBinding(),
               next.awaitingPlanContinuation(),
               next.facts(),
               true,

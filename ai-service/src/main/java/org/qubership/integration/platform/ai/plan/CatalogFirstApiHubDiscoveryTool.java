@@ -109,11 +109,10 @@ public class CatalogFirstApiHubDiscoveryTool {
     String sourceFactId =
         RequirementFact.deriveSourceFactId(RequirementFactPolarity.POSITIVE, factText);
     String conversationId = ChainPlanTool.resolveConversationId();
-    String resolvedCallId = resolveServiceCallId(conversationId, serviceCallId, sourceFactId);
+    String resolvedCallId = resolveServiceCallId(serviceCallId);
     if (resolvedCallId == null) {
       return error(
-          "serviceCallId is required when the draft has several service calls. Pass the id of"
-              + " the call you are resolving: "
+          "serviceCallId is required. Pass the id of the call you are resolving: "
               + listedServiceCallIds(conversationId));
     }
     ServiceCallAssessment.Intent intent =
@@ -226,20 +225,8 @@ public class CatalogFirstApiHubDiscoveryTool {
     }
   }
 
-  private String resolveServiceCallId(
-      String conversationId, String serviceCallId, String derivedFactId) {
-    String explicit = CatalogStrings.blankToNull(serviceCallId);
-    if (explicit != null) {
-      return explicit;
-    }
-    List<String> active = activeServiceCallIds(conversationId);
-    if (active.size() > 1) {
-      return null;
-    }
-    if (active.size() == 1) {
-      return active.getFirst();
-    }
-    return derivedFactId;
+  private String resolveServiceCallId(String serviceCallId) {
+    return CatalogStrings.blankToNull(serviceCallId);
   }
 
   private List<String> activeServiceCallIds(String conversationId) {

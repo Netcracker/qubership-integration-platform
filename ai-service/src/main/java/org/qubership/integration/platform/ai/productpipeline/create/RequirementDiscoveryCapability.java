@@ -3,10 +3,8 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -14,19 +12,13 @@ import io.smallrye.mutiny.Context;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
-import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsAgentCall;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
-import org.qubership.integration.platform.ai.plan.ConversationApiResolutions;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
-import org.qubership.integration.platform.ai.plan.RequirementFact;
-import org.qubership.integration.platform.ai.plan.RequirementFactKind;
-import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
-import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
-import org.qubership.integration.platform.ai.plan.ServiceCallAssessment;
+import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -34,7 +26,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
@@ -53,38 +44,20 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final RequirementDraftStore draftStore;
   private final GatherRequirementsPromptBuilder promptBuilder;
   private final BiFunction<String, String, Multi<ChatEvent>> gatherRunner;
-  private final CatalogBindingMatcher catalogBindingMatcher;
-  private final ConversationApiResolutions conversationResolutions;
 
   @Inject
   public RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
-      GatherRequirementsPromptBuilder promptBuilder,
-      CatalogBindingMatcher catalogBindingMatcher,
-      ConversationApiResolutions conversationResolutions) {
-    this(
-        gatherRequirementsAgent,
-        draftStore,
-        promptBuilder,
-        null,
-        catalogBindingMatcher,
-        conversationResolutions);
-  }
-
-  /** Test helper without catalog binding matcher. */
-  RequirementDiscoveryCapability(
-      GatherRequirementsAgent gatherRequirementsAgent,
-      RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder) {
-    this(gatherRequirementsAgent, draftStore, promptBuilder, null, null, null);
+    this(gatherRequirementsAgent, draftStore, promptBuilder, null);
   }
 
   RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner) {
-    this(gatherRequirementsAgent, draftStore, null, gatherRunner, null, null);
+    this(gatherRequirementsAgent, draftStore, null, gatherRunner);
   }
 
   RequirementDiscoveryCapability(
@@ -92,37 +65,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner) {
-    this(gatherRequirementsAgent, draftStore, promptBuilder, gatherRunner, null, null);
-  }
-
-  RequirementDiscoveryCapability(
-      GatherRequirementsAgent gatherRequirementsAgent,
-      RequirementDraftStore draftStore,
-      GatherRequirementsPromptBuilder promptBuilder,
-      BiFunction<String, String, Multi<ChatEvent>> gatherRunner,
-      CatalogBindingMatcher catalogBindingMatcher) {
-    this(
-        gatherRequirementsAgent,
-        draftStore,
-        promptBuilder,
-        gatherRunner,
-        catalogBindingMatcher,
-        null);
-  }
-
-  RequirementDiscoveryCapability(
-      GatherRequirementsAgent gatherRequirementsAgent,
-      RequirementDraftStore draftStore,
-      GatherRequirementsPromptBuilder promptBuilder,
-      BiFunction<String, String, Multi<ChatEvent>> gatherRunner,
-      CatalogBindingMatcher catalogBindingMatcher,
-      ConversationApiResolutions conversationResolutions) {
     this.gatherRequirementsAgent = gatherRequirementsAgent;
     this.draftStore = Objects.requireNonNull(draftStore, "draftStore");
     this.promptBuilder = promptBuilder;
     this.gatherRunner = gatherRunner;
-    this.catalogBindingMatcher = catalogBindingMatcher;
-    this.conversationResolutions = conversationResolutions;
   }
 
   @Override
@@ -183,7 +129,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                                     skillId, List.of(completeDiscovery(context, captured))));
                       } finally {
                         SkillActivitySupport.clearParents();
-                        ProductCapabilityCaptureContext.unbind();
+                        ProductCapabilityCaptureContext.unbind(conversationId);
                         ToolSession.clear();
                       }
                     })
@@ -191,7 +137,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                 .recoverWithMulti(
                     error -> {
                       SkillActivitySupport.clearParents();
-                      ProductCapabilityCaptureContext.unbind();
+                      ProductCapabilityCaptureContext.unbind(conversationId);
                       ToolSession.clear();
                       return Multi.createFrom()
                           .items(
@@ -240,7 +186,17 @@ public class RequirementDiscoveryCapability implements StageCapability {
     // stage declares catalog-binding-hint (optionalProduces or produces). create-chain@1 does not,
     // so it stays on REQUIREMENT_DRAFT alone and avoids unknown-candidate CONTRACT_FAILURE.
     if (stageDeclaresCatalogBindingHint(context)) {
-      candidates.addAll(exactCatalogBindingHints(draft, conversationId));
+      candidates.addAll(exactCatalogBindingHints(draft));
+    }
+    if (Boolean.FALSE.equals(draft.idsRequested()) && stageDeclaresIdsBypass(context)) {
+      candidates.add(
+          new ArtifactCandidate(
+              CompilationArtifacts.Kind.IDS_BYPASS,
+              new IdsBypass(
+                  "author-declined",
+                  context.profile().profileId(),
+                  context.profile().profileVersion()),
+              List.of()));
     }
     // create-chain@1 gates on draft approval (CANDIDATE). create-chain@2 has no discovery
     // approval, so SUCCEEDED advances to requirement-analysis without WAITING_FOR_APPROVAL.
@@ -278,6 +234,22 @@ public class RequirementDiscoveryCapability implements StageCapability {
         .anyMatch(RequirementDiscoveryCapability::declaresCatalogBindingHintProduce);
   }
 
+  /**
+   * True when the active stage may produce {@code ids-bypass}. The artifact records that the
+   * author declined the specification, and the runtime reads it to keep the document out of chat.
+   */
+  static boolean stageDeclaresIdsBypass(StageExecutionContext context) {
+    if (context == null || context.profile() == null || context.stageId() == null) {
+      return false;
+    }
+    return context.profile().stages().stream()
+        .filter(stage -> context.stageId().equals(stage.stageId()))
+        .anyMatch(
+            stage ->
+                declaresKind(stage.optionalProduces(), CompilationArtifacts.Kind.IDS_BYPASS)
+                    || declaresKind(stage.produces(), CompilationArtifacts.Kind.IDS_BYPASS));
+  }
+
   private static boolean declaresCatalogBindingHintProduce(ProfileStage stage) {
     if (stage == null) {
       return false;
@@ -304,27 +276,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
    *
    * <p>Schema {@code 2} drafts store the frozen catalog identity on each
    * {@link RequirementServiceCall}. Discovery copies those hints; it does not search the catalog,
-   * rank operations, or read {@link ConversationApiResolutions}. Restarting between capture and this
-   * stage therefore cannot drop a binding that already landed on the draft.
+   * rank operations, or read the conversation resolution cache. Restarting between capture and
+   * this stage therefore cannot drop a binding that already landed on the draft.
    *
-   * <p>A v1 single-call draft that was never normalized still uses the previous pairing and
-   * read-only catalog probe. That branch is not used once {@code serviceCalls} already carry
-   * bindings.
    */
-  List<ArtifactCandidate> exactCatalogBindingHints(RequirementDraft draft, String conversationId) {
+  List<ArtifactCandidate> exactCatalogBindingHints(RequirementDraft draft) {
     if (draft == null) {
       return List.of();
     }
-    List<ArtifactCandidate> fromDraft = hintsFromBoundServiceCalls(draft);
-    if (!fromDraft.isEmpty()) {
-      return fromDraft;
-    }
-    if (draft.serviceCalls().size() > 1) {
-      // v2 multi-call records exist but are unbound. Do not recover bindings from conversation
-      // memory or catalog search.
-      return List.of();
-    }
-    return v1ExactCatalogBindingHints(draft, conversationId);
+    return hintsFromBoundServiceCalls(draft);
   }
 
   private static List<ArtifactCandidate> hintsFromBoundServiceCalls(RequirementDraft draft) {
@@ -336,238 +296,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
       }
       hints.add(
           new ArtifactCandidate(
-              CompilationArtifacts.Kind.CATALOG_BINDING_HINT, frozenHint(hint), List.of()));
+              CompilationArtifacts.Kind.CATALOG_BINDING_HINT, hint, List.of()));
     }
     return hints;
-  }
-
-  private static CatalogBindingHint frozenHint(CatalogBindingHint hint) {
-    if ("2".equals(hint.schemaVersion())) {
-      return hint;
-    }
-    return new CatalogBindingHint(
-        "2",
-        hint.serviceCallId(),
-        hint.sourceFactId(),
-        hint.operationQuery(),
-        hint.systemId(),
-        hint.specificationGroupId(),
-        hint.specificationId(),
-        hint.integrationOperationId(),
-        hint.protocol(),
-        hint.method(),
-        hint.path(),
-        hint.release(),
-        hint.observedAt(),
-        hint.evidenceRef());
-  }
-
-  /**
-   * v1 compatibility: old single-call drafts that have not yet been normalized to {@code
-   * serviceCalls}. Pair by assessment, named resolution, the legacy singleton, or a read-only
-   * catalog probe. Never queries API Hub.
-   */
-  private List<ArtifactCandidate> v1ExactCatalogBindingHints(
-      RequirementDraft draft, String conversationId) {
-    if (draft.facts().isEmpty()) {
-      return List.of();
-    }
-    List<RequirementFact> calls = positiveServiceCallFacts(draft);
-    if (calls.isEmpty()) {
-      return List.of();
-    }
-    List<CatalogBindingMatcher.CatalogMatch> resolved =
-        conversationResolutions == null ? List.of() : conversationResolutions.resolved(conversationId);
-    List<ArtifactCandidate> hints = new ArrayList<>();
-    for (RequirementFact call : calls) {
-      ArtifactCandidate hint =
-          hintForCall(call, calls.size(), conversationId, resolved, draft.catalogBinding());
-      if (hint != null) {
-        hints.add(hint);
-      }
-    }
-    return hints;
-  }
-
-  private ArtifactCandidate hintForCall(
-      RequirementFact call,
-      int callCount,
-      String conversationId,
-      List<CatalogBindingMatcher.CatalogMatch> resolved,
-      ResolvedCatalogBinding draftBinding) {
-    // The assessment this fact owns is the answer. Everything below it reads identity out of the
-    // fact sentence, which only works while the sentence happens to name the operation.
-    CatalogBindingMatcher.CatalogMatch assessed = assessedBinding(conversationId, call);
-    if (assessed != null) {
-      return hintCandidate(
-          call,
-          assessed.systemId(),
-          assessed.specificationGroupId(),
-          assessed.specificationId(),
-          assessed.integrationOperationId(),
-          assessed.evidenceRef());
-    }
-    CatalogBindingMatcher.CatalogMatch named = onlyResolutionNamedBy(call, resolved);
-    if (named != null) {
-      return hintCandidate(
-          call,
-          named.systemId(),
-          named.specificationGroupId(),
-          named.specificationId(),
-          named.integrationOperationId(),
-          named.evidenceRef());
-    }
-    if (callCount == 1) {
-      ArtifactCandidate approved = approvedBindingHint(call, draftBinding);
-      if (approved != null) {
-        return approved;
-      }
-    }
-    return probedHint(call);
-  }
-
-  /** The binding this fact's own assessment resolved to, or null when it has none. */
-  private CatalogBindingMatcher.CatalogMatch assessedBinding(
-      String conversationId, RequirementFact call) {
-    if (conversationResolutions == null) {
-      return null;
-    }
-    return conversationResolutions
-        .forFact(conversationId, call.sourceFactId())
-        .filter(ServiceCallAssessment::isResolved)
-        .map(ServiceCallAssessment::binding)
-        .orElse(null);
-  }
-
-  /**
-   * The one resolution this fact names, or null when it names none or more than one.
-   *
-   * <p>Containment, not equality: the fact is a sentence, and the operation name, method, and path
-   * sit somewhere inside it. Trailing punctuation and the words around them therefore cost nothing.
-   * The candidates are the operations already read out of the catalog, so this picks from a short
-   * closed set rather than reading identity out of prose.
-   */
-  private static CatalogBindingMatcher.CatalogMatch onlyResolutionNamedBy(
-      RequirementFact call, List<CatalogBindingMatcher.CatalogMatch> resolved) {
-    String text = call.text().toLowerCase(Locale.ROOT);
-    CatalogBindingMatcher.CatalogMatch only = null;
-    for (CatalogBindingMatcher.CatalogMatch candidate : resolved) {
-      if (candidate == null || !factNames(text, candidate)) {
-        continue;
-      }
-      if (only != null
-          && !Objects.equals(only.integrationOperationId(), candidate.integrationOperationId())) {
-        return null;
-      }
-      only = candidate;
-    }
-    return only;
-  }
-
-  private static boolean factNames(
-      String lowercaseFactText, CatalogBindingMatcher.CatalogMatch match) {
-    String operationName = match.operationName();
-    if (operationName != null
-        && !operationName.isBlank()
-        && lowercaseFactText.contains(operationName.toLowerCase(Locale.ROOT))) {
-      return true;
-    }
-    String method = match.method();
-    String path = match.path();
-    return method != null
-        && !method.isBlank()
-        && path != null
-        && !path.isBlank()
-        && lowercaseFactText.contains(method.toLowerCase(Locale.ROOT))
-        && lowercaseFactText.contains(path.toLowerCase(Locale.ROOT));
-  }
-
-  private ArtifactCandidate probedHint(RequirementFact call) {
-    if (catalogBindingMatcher == null) {
-      return null;
-    }
-    String operationQuery = call.text().trim();
-    String serviceName =
-        call.capabilityKey() == null || call.capabilityKey().isBlank()
-            ? "service"
-            : call.capabilityKey();
-    CatalogBindingMatcher.MatchResult match =
-        catalogBindingMatcher.match(serviceName, operationQuery, null, null);
-    if (!(match instanceof CatalogBindingMatcher.MatchResult.Exact exact)) {
-      return null;
-    }
-    CatalogBindingMatcher.CatalogMatch hit = exact.match();
-    return hintCandidate(
-        call,
-        hit.systemId(),
-        hit.specificationGroupId(),
-        hit.specificationId(),
-        hit.integrationOperationId(),
-        hit.evidenceRef());
-  }
-
-  private static ArtifactCandidate hintCandidate(
-      RequirementFact call,
-      String systemId,
-      String specificationGroupId,
-      String specificationId,
-      String integrationOperationId,
-      String evidenceRef) {
-    CatalogBindingHint hint =
-        new CatalogBindingHint(
-            "1",
-            call.sourceFactId(),
-            call.text().trim(),
-            systemId,
-            specificationGroupId,
-            specificationId,
-            integrationOperationId,
-            "catalog",
-            Instant.now(),
-            evidenceRef);
-    return new ArtifactCandidate(CompilationArtifacts.Kind.CATALOG_BINDING_HINT, hint, List.of());
-  }
-
-  private static List<RequirementFact> positiveServiceCallFacts(RequirementDraft draft) {
-    List<RequirementFact> calls = new ArrayList<>();
-    for (RequirementFact fact : draft.facts()) {
-      if (fact == null
-          || fact.polarity() != RequirementFactPolarity.POSITIVE
-          || fact.kind() != RequirementFactKind.SERVICE_CALL
-          || fact.text() == null
-          || fact.text().isBlank()) {
-        continue;
-      }
-      calls.add(fact);
-    }
-    return calls;
-  }
-
-  /**
-   * Turns the draft's resolved binding into a hint keyed on the outbound call it belongs to.
-   *
-   * <p>An incomplete binding produces nothing. The catalog refuses a service call whose ids
-   * disagree, so half a hierarchy is worse than no hint at all.
-   */
-  private static ArtifactCandidate approvedBindingHint(
-      RequirementFact call, ResolvedCatalogBinding binding) {
-    if (binding == null) {
-      return null;
-    }
-    String operationId = binding.optionalOperationId().orElse(null);
-    if (operationId == null
-        || CatalogStrings.blankToNull(binding.systemId()) == null
-        || CatalogStrings.blankToNull(binding.specificationGroupId()) == null
-        || CatalogStrings.blankToNull(binding.specificationId()) == null) {
-      return null;
-    }
-    return hintCandidate(
-        call,
-        binding.systemId(),
-        binding.specificationGroupId(),
-        binding.specificationId(),
-        operationId,
-        "requirement-draft-binding:" + operationId);
   }
 
   private Multi<ChatEvent> runGather(

@@ -135,6 +135,12 @@ public class SelectApiHubCandidateTool {
                 "serviceCallId is required when several service calls are unresolved: "
                     + String.join(", ", unresolvedCallIds(previous))));
       }
+      if (owningCallId != null && resolvedOperationId == null) {
+        return finish(
+            conversationId,
+            startMs,
+            errorJson("operationId is required when selecting a candidate for a service call"));
+      }
 
       if (apiHubCache != null) {
         apiHubCache.rememberCandidate(conversationId, candidate);
@@ -171,15 +177,15 @@ public class SelectApiHubCandidateTool {
                 "unknown",
                 "unknown",
                 candidate,
-                null,
                 false,
                 List.of(),
                 true,
-                null);
+                null,
+                owningCallId);
       }
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
-      ProductCapabilityCaptureContext.offerDraft(draft);
+      offerDraftForConversation(conversationId, draft);
 
       ObjectNode root = objectMapper.createObjectNode();
       root.put("ok", true);
@@ -213,24 +219,10 @@ public class SelectApiHubCandidateTool {
     RequirementDraft previous = store.get(conversationId).orElse(null);
     RequirementDraft draft = previous;
     if (draft == null) {
-      String assembled =
-          "Bound existing catalog service for "
-              + (CatalogStrings.blankToNull(candidate.packageName()) != null
-                  ? candidate.packageName()
-                  : candidate.packageId());
-      draft =
-          new RequirementDraft(
-                  false,
-                  assembled,
-                  DraftDecision.READY_FOR_PLAN,
-                  List.of(),
-                  RequirementDraftTool.SOURCE_SKILL_ID,
-                  "unknown")
-              .withCatalogBinding(binding);
-      store.put(conversationId, draft);
+      return errorJson("Cannot bind an existing catalog operation without an owning service call");
     }
     store.markCaptured(conversationId);
-    ProductCapabilityCaptureContext.offerDraft(draft);
+    offerDraftForConversation(conversationId, draft);
 
     ObjectNode root = objectMapper.createObjectNode();
     root.put("ok", true);
@@ -258,6 +250,12 @@ public class SelectApiHubCandidateTool {
   private static String resolveOwningServiceCallId(RequirementDraft previous, String serviceCallId) {
     String explicit = CatalogStrings.blankToNull(serviceCallId);
     if (explicit != null) {
+      if (previous == null
+          || previous.serviceCalls().stream()
+              .noneMatch(call -> explicit.equals(call.serviceCallId()))) {
+        throw new IllegalArgumentException(
+            "serviceCallId '" + explicit + "' does not exist on the active draft");
+      }
       return explicit;
     }
     if (previous == null) {
@@ -313,4 +311,10 @@ public class SelectApiHubCandidateTool {
       return "{\"ok\":false,\"tool\":\"" + TOOL_NAME + "\",\"error\":\"" + message + "\"}";
     }
   }
+  /** Offers to the binding of this conversation, never to whatever this worker thread carries. */
+  private static void offerDraftForConversation(String conversationId, RequirementDraft draft) {
+    ProductCapabilityCaptureContext.binding(conversationId)
+        .ifPresent(bound -> ProductCapabilityCaptureContext.offerDraft(bound, draft));
+  }
+
 }

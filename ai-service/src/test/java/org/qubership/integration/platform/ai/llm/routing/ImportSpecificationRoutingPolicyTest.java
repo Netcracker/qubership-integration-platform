@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.llm.routing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +17,8 @@ import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class ImportSpecificationRoutingPolicyTest {
 
@@ -45,26 +49,7 @@ class ImportSpecificationRoutingPolicyTest {
     // pinned open question. The decision's scenario hint alone still advances the import.
     draftStore.put(
         CONVERSATION_ID,
-        new RequirementDraft(
-            false,
-            "Create a CIP HTTP proxy for Geographic Site Care API",
-            DraftDecision.NEEDS_INPUT,
-            List.of(),
-            null,
-            null,
-            null,
-            new ApiHubRequirementRefs(
-                "S.CustParty.Care.GeoSite",
-                "2026.2@1",
-                "geographicSiteManagement-v4-geographicSite-_id_-get",
-                "api",
-                "rest",
-                null,
-                null),
-            null,
-            false,
-            List.of(),
-            true));
+        pendingDraft("Create a CIP HTTP proxy for Geographic Site Care API"));
 
     Optional<ScenarioRouter.RoutingOutcome> outcome =
         ImportSpecificationRoutingPolicy.tryResolveManagedImportRouting(
@@ -132,6 +117,20 @@ class ImportSpecificationRoutingPolicyTest {
     assertTrue(outcome.isEmpty());
   }
 
+  @Test
+  void scenarioHintForBoundSelectedCallReturnsAlreadyImported() {
+    draftStore.put(CONVERSATION_ID, alreadyBoundDraft());
+
+    Optional<ScenarioRouter.RoutingOutcome> outcome =
+        ImportSpecificationRoutingPolicy.tryResolveManagedImportRouting(
+            importDecisionRequest(), CONVERSATION_ID, draftStore);
+
+    assertTrue(outcome.isPresent());
+    assertNull(outcome.get().scenarioType());
+    assertEquals(
+        ImportSpecificationRoutingPolicy.ALREADY_IMPORTED_MESSAGE, outcome.get().terminalMessage());
+  }
+
   private static ChatRequest agreeRequest() {
     ChatRequest request = new ChatRequest();
     request.setResolvedEffectiveUserText("Agree");
@@ -147,9 +146,15 @@ class ImportSpecificationRoutingPolicyTest {
   }
 
   private static RequirementDraft pendingDraft() {
+    return pendingDraft("GeoSite proxy");
+  }
+
+  private static RequirementDraft pendingDraft(String assembledText) {
+    RequirementServiceCall call =
+        new RequirementServiceCall("call-1", "fact-1", "GeoSite", "getGeographicSite");
     return new RequirementDraft(
         false,
-        "GeoSite proxy",
+        assembledText,
         DraftDecision.NEEDS_INPUT,
         List.of(),
         null,
@@ -163,7 +168,48 @@ class ImportSpecificationRoutingPolicyTest {
             "rest",
             null,
             null),
-        null,
-        false);
+        false,
+        List.of(),
+        true,
+        List.of(call),
+        "call-1",
+        null);
+  }
+
+  private static RequirementDraft alreadyBoundDraft() {
+    RequirementServiceCall call =
+        new RequirementServiceCall("call-1", "fact-1", "GeoSite", "getGeographicSite");
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            "2",
+            "call-1",
+            "fact-1",
+            "getGeographicSite",
+            "system-1",
+            "group-1",
+            "specification-1",
+            "operation-1",
+            null,
+            null,
+            null,
+            "catalog",
+            Instant.EPOCH,
+            "test");
+    return new RequirementDraft(
+            false,
+            "GeoSite proxy",
+            DraftDecision.NEEDS_INPUT,
+            List.of(),
+            null,
+            null,
+            null,
+            pendingDraft().apiHubCandidate(),
+            false,
+            List.of(),
+            true,
+            List.of(call),
+            "call-1",
+            null)
+        .withBoundServiceCall("call-1", hint);
   }
 }

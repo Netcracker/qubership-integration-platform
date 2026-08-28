@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,8 +37,10 @@ import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -131,6 +134,7 @@ class RequirementAnalysisCapabilityTest {
 
   @Test
   void prefersPostImportDraftFromStoreOverStaleNeedsInputAttribute() {
+    RequirementFact call = serviceCall("call-greeting", "Greetings", "getGreeting");
     RequirementDraft staleDiscovery =
         new RequirementDraft(
             false,
@@ -141,14 +145,28 @@ class RequirementAnalysisCapabilityTest {
             "1",
             null,
             null,
-            null,
             false,
-            RequirementFactFixtures.greetingsApprovedDraft().facts(),
+            List.of(call),
             false);
+    RequirementServiceCall serviceCall = staleDiscovery.serviceCalls().getFirst();
     RequirementDraft postImport =
-        staleDiscovery.withCatalogBinding(
-            new org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding(
-                "sys-1", "spec-1", "group-1", "op-1"));
+        staleDiscovery.withBoundServiceCall(
+            serviceCall.serviceCallId(),
+            new CatalogBindingHint(
+                "2",
+                serviceCall.serviceCallId(),
+                serviceCall.sourceFactId(),
+                serviceCall.operation().isBlank() ? "service-call" : serviceCall.operation(),
+                "sys-1",
+                "group-1",
+                "spec-1",
+                "op-1",
+                null,
+                null,
+                null,
+                "catalog",
+                Instant.EPOCH,
+                "test"));
     assertTrue(postImport.readyForPlan());
     assertFalse(staleDiscovery.readyForPlan());
 
@@ -261,7 +279,6 @@ class RequirementAnalysisCapabilityTest {
             "1",
             null,
             null,
-            null,
             false,
             List.of(
                 RequirementFact.of(
@@ -269,11 +286,8 @@ class RequirementAnalysisCapabilityTest {
                     RequirementFactKind.ENDPOINT,
                     "http-trigger",
                     "HTTP POST /orders"),
-                RequirementFact.of(
-                    RequirementFactPolarity.POSITIVE,
-                    RequirementFactKind.SERVICE_CALL,
-                    "http-service-call",
-                    "Inventory API: reserve stock")));
+                serviceCall(
+                    "call-inventory", "Inventory API", "Inventory API: reserve stock")));
     String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
 
     assertTrue(message.contains("Pass-through is the absence of a mapping intent"));
@@ -294,7 +308,6 @@ class RequirementAnalysisCapabilityTest {
             List.of(),
             "brainstorming",
             "1",
-            null,
             null,
             null,
             false,
@@ -891,6 +904,22 @@ class RequirementAnalysisCapabilityTest {
         "approved-draft",
         approved.planningText(),
         approved.facts());
+  }
+
+  private static RequirementFact serviceCall(
+      String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        serviceCallId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
   }
 
   private static FakeKnowledgeClient knowledgeWithMandatoryObjects() {

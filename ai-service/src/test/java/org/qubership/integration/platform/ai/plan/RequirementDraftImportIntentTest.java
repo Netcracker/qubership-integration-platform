@@ -7,9 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 
 class RequirementDraftImportIntentTest {
 
@@ -74,17 +76,27 @@ class RequirementDraftImportIntentTest {
   }
 
   @Test
-  void withCatalogBindingClearsCandidateAndImportIntent() {
+  void withBoundServiceCallClearsCandidateAndImportIntent() {
+    RequirementFact call = sampleCall();
     RequirementDraft draft =
-        new RequirementDraft(false, "GeoSite proxy")
-            .withImportIntent(true)
-            .withApiHubCandidate(sampleCandidate())
-            .withCatalogBinding(
-                new ResolvedCatalogBinding("sys-1", "spec-1", "group-1", "op-1"));
+        new RequirementDraft(
+                false,
+                "GeoSite proxy",
+                DraftDecision.NEEDS_INPUT,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                false,
+                List.of(call),
+                true)
+            .withApiHubCandidate(sampleCandidate(), call.serviceCallId())
+            .withBoundServiceCall(call.serviceCallId(), sampleHint(call));
 
     assertNull(draft.apiHubCandidate());
     assertFalse(draft.importIntent());
-    assertEquals("sys-1", draft.catalogBinding().systemId());
+    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
     // Ticket 10: binding no longer opens a "Continue" prose gate after import.
     assertFalse(draft.awaitingPlanContinuation());
     assertFalse(draft.hasPendingImport());
@@ -93,6 +105,7 @@ class RequirementDraftImportIntentTest {
   @Test
   void withApiHubCandidateLeavesOpenQuestionsEmptyWhilePending() {
     // The import reaches the reader as a decision card, not a pinned open question.
+    RequirementFact call = sampleCall();
     RequirementDraft draft =
         new RequirementDraft(
                 false,
@@ -100,8 +113,13 @@ class RequirementDraftImportIntentTest {
                 DraftDecision.NEEDS_INPUT,
                 List.of("What trigger?", "What response?"),
                 null,
-                null)
-            .withApiHubCandidate(sampleCandidate());
+                null,
+                null,
+                null,
+                false,
+                List.of(call),
+                false)
+            .withApiHubCandidate(sampleCandidate(), call.serviceCallId());
 
     assertTrue(draft.openQuestions().isEmpty());
     assertTrue(draft.importIntent());
@@ -118,91 +136,6 @@ class RequirementDraftImportIntentTest {
     RequirementDraft draft = store.get("conv-seed").orElseThrow();
     assertTrue(draft.importIntent());
     assertTrue(draft.assembledText().contains("S.CustParty.Care.GeoSite"));
-  }
-
-  @Test
-  void legacySingletonPromotesToOnlyServiceCall() throws Exception {
-    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-    String legacy =
-        """
-        {
-          "complete": true,
-          "assembledText": "HTTP then Petstore Ext getInventory",
-          "decision": "READY_FOR_PLAN",
-          "openQuestions": [],
-          "catalogBinding": {
-            "systemId": "sys-1",
-            "specificationId": "spec-1",
-            "specificationGroupId": "group-1",
-            "integrationOperationId": "op-1"
-          },
-          "facts": [
-            {
-              "polarity": "POSITIVE",
-              "kind": "SERVICE_CALL",
-              "text": "Petstore Ext getInventory",
-              "participant": "Petstore Ext",
-              "operation": "getInventory"
-            }
-          ]
-        }
-        """;
-
-    RequirementDraft draft = mapper.readValue(legacy, RequirementDraft.class);
-
-    assertEquals(1, draft.serviceCalls().size());
-    assertEquals("getInventory", draft.serviceCalls().getFirst().operation());
-    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
-    assertEquals("op-1", draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
-    assertFalse(draft.serviceCalls().getFirst().serviceCallId().isBlank());
-    assertNull(draft.catalogBinding());
-  }
-
-  @Test
-  void legacySingletonDoesNotBindMultipleServiceCalls() throws Exception {
-    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-    String legacy =
-        """
-        {
-          "complete": false,
-          "assembledText": "Call OM then Salesforce WFM",
-          "decision": "NEEDS_INPUT",
-          "openQuestions": [],
-          "catalogBinding": {
-            "systemId": "sys-shared",
-            "specificationId": "spec-shared",
-            "specificationGroupId": "group-shared",
-            "integrationOperationId": "op-shared"
-          },
-          "facts": [
-            {
-              "polarity": "POSITIVE",
-              "kind": "SERVICE_CALL",
-              "text": "Call OM onTaskResult",
-              "participant": "Order Management",
-              "operation": "onTaskResult",
-              "serviceCallId": "call-om-result"
-            },
-            {
-              "polarity": "POSITIVE",
-              "kind": "SERVICE_CALL",
-              "text": "Call Salesforce WFM createTask",
-              "participant": "Salesforce WFM",
-              "operation": "createTask",
-              "serviceCallId": "call-wfm-create-task"
-            }
-          ]
-        }
-        """;
-
-    RequirementDraft draft = mapper.readValue(legacy, RequirementDraft.class);
-
-    assertEquals(2, draft.serviceCalls().size());
-    assertEquals("call-om-result", draft.serviceCalls().get(0).serviceCallId());
-    assertEquals("call-wfm-create-task", draft.serviceCalls().get(1).serviceCallId());
-    assertNull(draft.serviceCalls().get(0).catalogBinding());
-    assertNull(draft.serviceCalls().get(1).catalogBinding());
-    assertNull(draft.catalogBinding());
   }
 
   @Test
@@ -225,5 +158,38 @@ class RequirementDraftImportIntentTest {
         "rest",
         null,
         null);
+  }
+
+  private static RequirementFact sampleCall() {
+    return new RequirementFact(
+        "call-geosite",
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        "getGeographicSite",
+        "GeoSite",
+        "getGeographicSite",
+        "",
+        "",
+        "",
+        "call-geosite");
+  }
+
+  private static CatalogBindingHint sampleHint(RequirementFact call) {
+    return new CatalogBindingHint(
+        "2",
+        call.serviceCallId(),
+        call.sourceFactId(),
+        call.operation().isBlank() ? "service-call" : call.operation(),
+        "sys-1",
+        "group-1",
+        "spec-1",
+        "op-1",
+        null,
+        null,
+        null,
+        "catalog",
+        Instant.EPOCH,
+        "test");
   }
 }

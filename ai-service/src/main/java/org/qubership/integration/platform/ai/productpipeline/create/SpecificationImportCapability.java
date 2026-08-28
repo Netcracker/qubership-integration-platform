@@ -116,7 +116,7 @@ public class SpecificationImportCapability implements StageCapability {
           draftStore.applyImportResult(
               conversationId, draft.apiHubCandidateServiceCallId(), binding);
           RequirementDraft updated =
-              draftStore.get(conversationId).orElseGet(() -> draft.withCatalogBinding(binding));
+              draftStore.get(conversationId).orElse(draft);
           LOG.infof(
               "specification-import bound existing catalog conversationId=%s systemId=%s",
               conversationId, binding.systemId());
@@ -163,9 +163,7 @@ public class SpecificationImportCapability implements StageCapability {
                               draftStore.applyImportResult(
                                   conversationId, draft.apiHubCandidateServiceCallId(), binding);
                               RequirementDraft updated =
-                                  draftStore
-                                      .get(conversationId)
-                                      .orElseGet(() -> draft.withCatalogBinding(binding));
+                                  draftStore.get(conversationId).orElse(draft);
                               LOG.infof(
                                   "specification-import succeeded conversationId=%s systemId=%s",
                                   conversationId, binding.systemId());

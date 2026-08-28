@@ -334,7 +334,8 @@ class RequirementBriefToolTest {
             "getPetById",
             "",
             "",
-            "");
+            "",
+            "call-1");
 
     String result =
         tool.captureRequirementBrief(
@@ -402,7 +403,6 @@ class RequirementBriefToolTest {
             List.of(),
             "brainstorming",
             "1",
-            null,
             null,
             null,
             false,

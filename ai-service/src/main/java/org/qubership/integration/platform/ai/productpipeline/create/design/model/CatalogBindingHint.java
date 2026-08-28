@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.model;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.Instant;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
@@ -12,7 +10,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
  */
 public record CatalogBindingHint(
     String schemaVersion,
-    @JsonAlias("serviceCallSourceFactId") String serviceCallId,
+    String serviceCallId,
     String sourceFactId,
     String operationQuery,
     String systemId,
@@ -48,35 +46,6 @@ public record CatalogBindingHint(
     evidenceRef = DesignArtifacts.requireText(evidenceRef, "evidenceRef");
   }
 
-  /** Compatibility constructor for v1 hints that keyed the call by source fact id. */
-  public CatalogBindingHint(
-      String schemaVersion,
-      String serviceCallSourceFactId,
-      String operationQuery,
-      String systemId,
-      String specificationGroupId,
-      String specificationId,
-      String integrationOperationId,
-      String release,
-      Instant observedAt,
-      String evidenceRef) {
-    this(
-        schemaVersion,
-        serviceCallSourceFactId,
-        serviceCallSourceFactId,
-        operationQuery,
-        systemId,
-        specificationGroupId,
-        specificationId,
-        integrationOperationId,
-        null,
-        null,
-        null,
-        release,
-        observedAt,
-        evidenceRef);
-  }
-
   public static CatalogBindingHint from(
       RequirementServiceCall call,
       CatalogBindingMatcher.CatalogMatch match,
@@ -100,13 +69,6 @@ public record CatalogBindingHint(
         release,
         observedAt,
         match.evidenceRef());
-  }
-
-  /** v1 JSON and older callers still read this name; same value as {@link #serviceCallId()}. */
-  @JsonIgnore
-  @Deprecated
-  public String serviceCallSourceFactId() {
-    return serviceCallId;
   }
 
   private static String operationQuery(

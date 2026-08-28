@@ -7,13 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+import java.util.Optional;
 import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import java.util.List;
-import java.util.Optional;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.ApiHubExistingCatalogBinder;
@@ -33,6 +35,7 @@ class SelectApiHubCandidateToolTest {
   void selectStoresCandidateOnDraftAndCache() {
     MDC.put(ChatMdc.CONVERSATION_ID, "select-conv");
     store.beginTurn("select-conv");
+    RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
     store.put(
         "select-conv",
         new RequirementDraft(
@@ -42,7 +45,11 @@ class SelectApiHubCandidateToolTest {
             List.of("Which criteria?"),
             RequirementDraftTool.SOURCE_SKILL_ID,
             "pack",
-            "hash"));
+            "hash",
+            null,
+            false,
+            List.of(call),
+            false));
 
     String result =
         tool.selectApiHubCandidate(
@@ -52,7 +59,7 @@ class SelectApiHubCandidateToolTest {
             null,
             "rest",
             "Party Management",
-            null);
+            call.serviceCallId());
 
     assertTrue(result.contains("\"ok\":true"));
     assertTrue(result.contains("S.ProdCat.PartyMgmt"));
@@ -90,6 +97,7 @@ class SelectApiHubCandidateToolTest {
   void selectBindsExistingCatalogInsteadOfImportConfirm() {
     MDC.put(ChatMdc.CONVERSATION_ID, "select-bound");
     store.beginTurn("select-bound");
+    RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
     store.put(
         "select-bound",
         new RequirementDraft(
@@ -99,7 +107,11 @@ class SelectApiHubCandidateToolTest {
             List.of("Which criteria?"),
             RequirementDraftTool.SOURCE_SKILL_ID,
             "pack",
-            "hash"));
+            "hash",
+            null,
+            false,
+            List.of(call),
+            false));
 
     ApiHubExistingCatalogBinder binder = mock(ApiHubExistingCatalogBinder.class);
     when(binder.resolve(eq("select-bound"), any()))
@@ -117,7 +129,7 @@ class SelectApiHubCandidateToolTest {
             null,
             "rest",
             "Party Management",
-            null);
+            call.serviceCallId());
 
     assertTrue(result.contains("\"ok\":true"));
     assertTrue(result.contains("catalogBinding"));
@@ -126,7 +138,7 @@ class SelectApiHubCandidateToolTest {
     RequirementDraft draft = store.get("select-bound").orElseThrow();
     assertTrue(draft.readyForPlan());
     assertFalse(draft.hasPendingImport());
-    assertEquals("sys-1", draft.catalogBinding().systemId());
+    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
   }
 
   @Test
@@ -156,7 +168,6 @@ class SelectApiHubCandidateToolTest {
             "pack",
             "hash",
             null,
-            null,
             false,
             List.of(
                 serviceCall("call-om-result", "OM", "onTaskResult"),
@@ -177,6 +188,119 @@ class SelectApiHubCandidateToolTest {
     assertTrue(result.contains("serviceCallId is required"), result);
     assertTrue(result.contains("call-om-result"), result);
     assertTrue(result.contains("call-wfm-create-task"), result);
+  }
+
+  @Test
+  void selectRejectsUnknownServiceCallIdForOneCallDraft() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "select-one");
+    store.beginTurn("select-one");
+    RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
+    RequirementDraft original =
+        new RequirementDraft(
+            false,
+            "Call Party Management",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Select the operation"),
+            RequirementDraftTool.SOURCE_SKILL_ID,
+            "pack",
+            "hash",
+            null,
+            false,
+            List.of(call),
+            false);
+    store.put("select-one", original);
+
+    String result =
+        tool.selectApiHubCandidate(
+            "S.ProdCat.PartyMgmt",
+            "2026.2@1",
+            "party-search",
+            null,
+            "rest",
+            "Party Management",
+            "unknown-call");
+
+    assertTrue(result.contains("\"ok\":false"), result);
+    assertTrue(result.contains("unknown-call"), result);
+    assertEquals(original, store.get("select-one").orElseThrow());
+    assertTrue(apiHubCache.latestCandidate("select-one").isEmpty());
+  }
+
+  @Test
+  void selectRejectsUnknownServiceCallIdForTwoCallDraft() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "select-two");
+    store.beginTurn("select-two");
+    RequirementDraft original =
+        new RequirementDraft(
+            false,
+            "Call OM then Salesforce WFM",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Select the operations"),
+            RequirementDraftTool.SOURCE_SKILL_ID,
+            "pack",
+            "hash",
+            null,
+            false,
+            List.of(
+                serviceCall("call-om-result", "OM", "onTaskResult"),
+                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
+            false);
+    store.put("select-two", original);
+
+    String result =
+        tool.selectApiHubCandidate(
+            "S.ProdCat.PartyMgmt",
+            "2026.2@1",
+            "party-search",
+            null,
+            "rest",
+            "Party Management",
+            "unknown-call");
+
+    assertTrue(result.contains("\"ok\":false"), result);
+    assertTrue(result.contains("unknown-call"), result);
+    assertEquals(original, store.get("select-two").orElseThrow());
+    assertTrue(apiHubCache.latestCandidate("select-two").isEmpty());
+  }
+
+  @Test
+  void selectRejectsDocumentOnlyCandidateBeforeCatalogLookupForOwnedCall() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "select-document");
+    store.beginTurn("select-document");
+    RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
+    RequirementDraft original =
+        new RequirementDraft(
+            false,
+            "Call Party Management",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Select the operation"),
+            RequirementDraftTool.SOURCE_SKILL_ID,
+            "pack",
+            "hash",
+            null,
+            false,
+            List.of(call),
+            false);
+    store.put("select-document", original);
+    ApiHubExistingCatalogBinder binder = mock(ApiHubExistingCatalogBinder.class);
+    SelectApiHubCandidateTool documentTool =
+        new SelectApiHubCandidateTool(store, apiHubCache, binder);
+
+    String result =
+        documentTool.selectApiHubCandidate(
+            "S.ProdCat.PartyMgmt",
+            "2026.2@1",
+            null,
+            "api",
+            "rest",
+            "Party Management",
+            call.serviceCallId());
+
+    assertTrue(result.contains("\"ok\":false"), result);
+    assertTrue(result.contains("operationId is required"), result);
+    assertEquals(original, store.get("select-document").orElseThrow());
+    assertTrue(apiHubCache.latestCandidate("select-document").isEmpty());
+    verify(binder, never()).resolve(any(), any());
   }
 
   private static RequirementFact serviceCall(
