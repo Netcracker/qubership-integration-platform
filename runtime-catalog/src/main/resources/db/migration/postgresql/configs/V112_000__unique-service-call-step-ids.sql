@@ -49,3 +49,11 @@ SET xml_configuration = rebuilt.xml
 FROM rebuilt
 WHERE snapshots.id = rebuilt.id
   AND snapshots.xml_configuration <> rebuilt.xml;
+
+-- A chain keeps the hash of the archive it was last imported from, and an import with hash validation
+-- skips a chain whose hash still matches. Clearing the hash makes the next import process every chain
+-- instead of skipping it, so re-importing with a snapshot or deploy action rebuilds the chain from the
+-- fixed template. That is the way out for the snapshots this migration leaves alone.
+UPDATE catalog.chains
+SET last_import_hash = NULL
+WHERE last_import_hash IS NOT NULL;
