@@ -206,6 +206,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_http.xml"
                 ),
                 Arguments.of(
+                        "AMQP MaaS Service Call element",
+                        "/testData/input/builder/templates/service_call_amqp_maas.yml",
+                        "/testData/output/builder/templates/service_call_amqp_maas.xml"
+                ),
+                Arguments.of(
                         "SFTP Download element",
                         "/testData/input/builder/templates/sftp_download.yml",
                         "/testData/output/builder/templates/sftp_download.xml"
