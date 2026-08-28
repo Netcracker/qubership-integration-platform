@@ -9,12 +9,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
+import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -36,6 +38,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
  */
 @ApplicationScoped
 public class DesignInputCapability implements StageCapability {
+
+  private static final Logger LOG = Logger.getLogger(DesignInputCapability.class);
 
   public static final String CAPABILITY_ID = "design-input";
   public static final String SKILL_ID = "chain-semantic-design";
@@ -154,30 +158,41 @@ public class DesignInputCapability implements StageCapability {
           }
         });
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
+    String agentText;
     try {
-      runDesignAgent(context.conversationId(), authoringPrompt(brief, contract));
+      agentText = runDesignAgent(context.conversationId(), authoringPrompt(brief, contract));
     } finally {
-      ProductCapabilityCaptureContext.unbind();
+      ProductCapabilityCaptureContext.unbind(context.conversationId());
       ToolSession.clear();
     }
     ChainSemanticRevision revision = captured.get();
     if (revision == null) {
+      // The stage message alone cannot tell "the model never called the tool" from "the tool
+      // rejected every attempt". The agent's closing text separates the two.
+      LOG.warnf(
+          "design-input captured nothing: runId=%s, conversationId=%s, agentText=%s",
+          context.runId(),
+          context.conversationId(),
+          AiTraceLog.previewOneLine(agentText, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS));
       return StageOutcome.of(
           StageOutcomeClass.NEEDS_INPUT,
           "Design did not capture a chain semantic revision. The agent must call"
               + " captureChainSemanticRevision before finishing.");
     }
     IdsDocument ids = idsRenderer.render(revision, contract);
+    // The stage carries no approval policy of its own: the topology is approved together with the
+    // implementation plan, so design-input completes instead of opening a gate. The IDS document
+    // stays a planner input either way; whether a reader sees it is decided at the plan gate.
     return new StageOutcome(
-        StageOutcomeClass.CANDIDATE,
+        StageOutcomeClass.SUCCEEDED,
         List.of(
             new ArtifactCandidate(Kind.CHAIN_SEMANTIC_REVISION, revision, List.of()),
             new ArtifactCandidate(Kind.IDS_DOCUMENT, ids, List.of())),
-        "semantic revision ready for approval",
+        "semantic revision ready for planning",
         null);
   }
 
-  private void runDesignAgent(String conversationId, String prompt) {
+  private String runDesignAgent(String conversationId, String prompt) {
     Multi<String> stream;
     if (designRunner != null) {
       stream = designRunner.apply(conversationId, prompt);
@@ -186,7 +201,7 @@ public class DesignInputCapability implements StageCapability {
     } else {
       stream = Multi.createFrom().empty();
     }
-    stream.collect().asList().await().indefinitely();
+    return String.join("", stream.collect().asList().await().indefinitely());
   }
 
   static String authoringPrompt(RequirementBrief brief, CompilerContract contract) {
@@ -198,7 +213,9 @@ public class DesignInputCapability implements StageCapability {
         .append(contract.contractVersion())
         .append("\nSemantic schema version: ")
         .append(contract.semanticSchemaVersion())
-        .append("\n\nResolved catalog bindings:");
+        .append(
+            "\n\nService call nodes the server has already created. Reference them from edges and"
+                + " containment by these node ids:");
     boolean anyBinding = false;
     for (RequirementServiceCall call : brief.serviceCalls()) {
       CatalogBindingHint hint = call.catalogBinding();
@@ -207,12 +224,10 @@ public class DesignInputCapability implements StageCapability {
       }
       anyBinding = true;
       prompt
-          .append("\n- ")
+          .append("\n- nodeId=")
           .append(call.serviceCallId())
-          .append(" systemId=")
-          .append(hint.systemId())
-          .append(" specificationId=")
-          .append(hint.specificationId())
+          .append(" operation=")
+          .append(call.operation())
           .append(" integrationOperationId=")
           .append(hint.integrationOperationId());
     }
@@ -220,8 +235,16 @@ public class DesignInputCapability implements StageCapability {
       prompt.append("\n- none");
     }
     prompt.append(
-        "\n\nCall captureChainSemanticRevision once. Copy entryPointId, sourceFactIds, and"
-            + " serviceCallId from the brief. Do not mint occurrence ids.");
+        """
+
+        Call captureChainSemanticRevision once. Copy entryPointId, sourceFactIds, and\
+         mappingIntentId from the brief, taking the value after each matching `=` sign; an entry\
+         point renders as entryPointId=<id> capabilityKey=<key>, so do not send the capability key\
+         as the id. Do not mint occurrence ids. The server derives the\
+         revision id, every edge id, both versions above, the catalog capability behind each entry\
+         point, and every service call node, so leave them out. List each node you do author under\
+         triggers or operations, and each control-flow region under the list that matches its kind;\
+         omit the region lists when the chain is linear.""");
     return prompt.toString();
   }
 

@@ -28,6 +28,8 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicy;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -148,6 +150,19 @@ class CompilerGraphPatchToolTest {
                     CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, "cip-trigger-generator"),
                 GraphPatch.class)
             .isEmpty());
+  }
+
+  @Test
+  void resolvesCapabilityFromToolSinkWhenWorkerHasNoMdc() {
+    MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
+    ToolSession.bind(CONVERSATION_ID);
+    ToolInvocationSink.bind(event -> {}, "skill:" + CAPABILITY_ID, CONVERSATION_ID);
+    try {
+      assertEquals(CAPABILITY_ID, CompilerGraphPatchTool.resolveCapabilityId());
+    } finally {
+      ToolInvocationSink.unbind();
+      ToolSession.clear();
+    }
   }
 
   @Test

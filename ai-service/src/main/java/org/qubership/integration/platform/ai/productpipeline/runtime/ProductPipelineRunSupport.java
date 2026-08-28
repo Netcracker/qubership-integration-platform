@@ -1884,6 +1884,7 @@ public final class ProductPipelineRunSupport {
   private Multi<PipelineSignal> applyContinue(
       String runId, StageDecision.Continue decision, List<PipelineSignal> signals) {
     ProductPipelineProfile profile = profilesByRun.get(runId);
+    pinSemanticRevisionOf(runId, decision.stageId());
     ProductPipelineRunDocument doc = requireRun(runId);
     String next = nextStageId(profile, decision.stageId());
     commitMove(doc, next, markStageRunning(doc, next), "advance after success");
@@ -2302,10 +2303,11 @@ public final class ProductPipelineRunSupport {
     String subjectSha256 = null;
     String compilerContractVersion = null;
     String compilerContractSha256 = null;
-    if (target.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
+    Reference semanticRef = semanticSubject(target, approvedCandidates);
+    if (semanticRef != null) {
       ChainSemanticRevision revision =
           artifactStore
-              .get(runId, target)
+              .get(runId, semanticRef)
               .map(stored -> artifactStore.payload(stored, ChainSemanticRevision.class))
               .orElseThrow(
                   () ->
@@ -2337,6 +2339,56 @@ public final class ProductPipelineRunSupport {
         subjectSha256,
         compilerContractVersion,
         compilerContractSha256);
+  }
+
+  /**
+   * The semantic revision this approval pins: the gate's own subject when the gate approves it,
+   * otherwise the one inside the approved candidate set. {@code design-execution} verifies the
+   * revision digest against the approval, so the pin has to survive approving the plan instead.
+   */
+  private static Reference semanticSubject(Reference target, List<Reference> approvedCandidates) {
+    if (target != null && target.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
+      return target;
+    }
+    if (approvedCandidates == null) {
+      return null;
+    }
+    return approvedCandidates.stream()
+        .filter(ref -> ref != null && ref.kind() == Kind.CHAIN_SEMANTIC_REVISION)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * Pins the semantic revision as soon as the stage that produced it completes. Planning reads the
+   * pin before any approval happens, so waiting for the approval to write it would leave the run
+   * with nothing to plan against.
+   */
+  private void pinSemanticRevisionOf(String runId, String stageId) {
+    ProfileStage stage = stageOf(runId, stageId);
+    if (stage == null
+        || stage.produces().stream()
+            .noneMatch(ref -> ref != null && ref.matches(Kind.CHAIN_SEMANTIC_REVISION))) {
+      return;
+    }
+    artifactStore
+        .latest(runId, Kind.CHAIN_SEMANTIC_REVISION)
+        .map(stored -> artifactStore.payload(stored, ChainSemanticRevision.class))
+        .ifPresent(
+            revision ->
+                persistCombinedSemanticPin(
+                    runId, revision, new ClasspathCompilerContractRepository().require(CompilerContract.V1)));
+  }
+
+  private ProfileStage stageOf(String runId, String stageId) {
+    ProductPipelineProfile profile = profilesByRun.get(runId);
+    if (profile == null || stageId == null) {
+      return null;
+    }
+    return profile.stages().stream()
+        .filter(stage -> stageId.equals(stage.stageId()))
+        .findFirst()
+        .orElse(null);
   }
 
   private void persistCombinedSemanticPin(
@@ -2627,12 +2679,19 @@ public final class ProductPipelineRunSupport {
    * wait so chat shows the candidate instead of only an Agree CTA. Trailing blank lines separate
    * the Message from the following WaitingForApproval token (adjacent chat tokens, no separator).
    */
+  /**
+   * Shows the IDS document at whichever gate is open. It is a reader's view of the design, not the
+   * subject of any gate, and an {@code IDS_BYPASS} on the run means the author asked not to see it.
+   */
   private void emitIdsDocumentForReview(
       String runId, Reference approvable, List<PipelineSignal> emitted) {
-    if (approvable == null || approvable.kind() != Kind.IDS_DOCUMENT) {
+    if (artifactStore.latest(runId, Kind.IDS_BYPASS).isPresent()) {
       return;
     }
-    Optional<Revision> revision = artifactStore.get(runId, approvable);
+    Optional<Revision> revision =
+        approvable != null && approvable.kind() == Kind.IDS_DOCUMENT
+            ? artifactStore.get(runId, approvable)
+            : artifactStore.latest(runId, Kind.IDS_DOCUMENT);
     if (revision.isEmpty()) {
       return;
     }

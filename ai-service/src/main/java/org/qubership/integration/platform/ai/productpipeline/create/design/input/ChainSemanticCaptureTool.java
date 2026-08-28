@@ -6,30 +6,34 @@ import jakarta.inject.Inject;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
-import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevisionValidator;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 
 /**
- * Stores one validated semantic revision in {@link ProductCapabilityCaptureContext}. Duplicate
- * capture fails closed and does not replace the stored candidate.
+ * Stores one validated semantic revision in {@link ProductCapabilityCaptureContext}. The model
+ * sends a tolerant {@link ChainSemanticCapture}; {@link ChainSemanticCaptureAdapter} projects it
+ * onto the canonical revision, which is then validated and preflighted. Duplicate capture fails
+ * closed and does not replace the stored candidate.
  */
 @ApplicationScoped
 public class ChainSemanticCaptureTool {
+
+  private static final Logger LOG = Logger.getLogger(ChainSemanticCaptureTool.class);
+
+  static final String TOOL_NAME = "captureChainSemanticRevision";
 
   static final String DUPLICATE_CAPTURE_MESSAGE =
       "Chain semantic revision already captured. Do not call captureChainSemanticRevision again;"
@@ -39,6 +43,7 @@ public class ChainSemanticCaptureTool {
       "Chain semantic revision captured. Do not call captureChainSemanticRevision again;"
           + " finish this turn without further tool calls.";
 
+  private final ChainSemanticCaptureAdapter adapter;
   private final ChainSemanticRevisionValidator validator;
   private final CompilerContractRepository contractRepository;
   private final QipKnowledgePackRepository knowledgePackRepository;
@@ -46,10 +51,12 @@ public class ChainSemanticCaptureTool {
 
   @Inject
   public ChainSemanticCaptureTool(
+      ChainSemanticCaptureAdapter adapter,
       ChainSemanticRevisionValidator validator,
       CompilerContractRepository contractRepository,
       QipKnowledgePackRepository knowledgePackRepository,
       CatalogElementDescriptorLoader descriptorLoader) {
+    this.adapter = Objects.requireNonNull(adapter, "adapter");
     this.validator = Objects.requireNonNull(validator, "validator");
     this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
     this.knowledgePackRepository =
@@ -58,33 +65,67 @@ public class ChainSemanticCaptureTool {
   }
 
   @Tool("""
-      Capture the typed chain semantic revision for this design-input turn.
+      Capture the chain topology for this design-input turn.
       Do not pass conversationId. The server binds capture to the current design session.
-      Copy entryPointId, sourceFactIds, and serviceCallId from the approved requirement brief.
-      Do not mint occurrence ids. Call this once, then finish the turn.""")
-  public String captureChainSemanticRevision(ChainSemanticRevision revision) {
-    if (revision == null) {
-      return "revision is required";
+      Copy entryPointId, sourceFactIds, serviceCallId, and mappingIntentId from the approved
+      requirement brief. Do not mint occurrence ids.
+      The server owns every id it can derive: leave out revision ids, edge ids, schema versions,
+      and compiler contract versions, and leave out catalog values it reads from the brief.
+      List each node in the list that matches its kind: triggers, serviceCalls, or operations.
+      List each control-flow region in the list that matches its kind, and omit the region lists
+      when the chain is linear.
+      Call this once, then finish the turn.""")
+  public String captureChainSemanticRevision(ChainSemanticCapture capture) {
+    long startMs = System.currentTimeMillis();
+    String conversationId = ToolSession.resolveConversationId();
+    ToolTraceLog.logToolInvoke(LOG, TOOL_NAME, conversationId, shape(capture));
+    String result = capture(capture, conversationId);
+    ToolTraceLog.logToolComplete(
+        LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, result);
+    return result;
+  }
+
+  /** Counts only, so a rejected capture is diagnosable without logging brief content. */
+  private static String shape(ChainSemanticCapture capture) {
+    if (capture == null) {
+      return "null";
     }
-    var binding = ProductCapabilityCaptureContext.current().orElse(null);
-    if (binding == null
-        || binding.mode() != ProductCapabilityCaptureContext.Mode.DESIGN) {
+    return "entryPoints=%d triggers=%d operations=%d regions=%d edges=%d"
+        .formatted(
+            capture.entryPoints().size(),
+            capture.triggers().size(),
+            capture.operations().size(),
+            capture.sequenceRegions().size()
+                + capture.conditionRegions().size()
+                + capture.splitRegions().size()
+                + capture.loopRegions().size()
+                + capture.retryRegions().size()
+                + capture.errorScopeRegions().size(),
+            capture.edges().size());
+  }
+
+  private String capture(ChainSemanticCapture capture, String conversationId) {
+    if (capture == null) {
+      return "capture is required";
+    }
+    // LangChain4j runs this tool on a pooled worker thread that never called bindDesign, and that
+    // thread may still carry an earlier stage's binding, so resolve by conversation id.
+    var binding = ProductCapabilityCaptureContext.designBinding(conversationId).orElse(null);
+    if (binding == null) {
       return "Design capture is not bound. Call captureChainSemanticRevision only during"
           + " design-input.";
     }
-    if (ProductCapabilityCaptureContext.semanticCandidate().isPresent()) {
+    if (binding.semanticCandidate().get() != null) {
       return DUPLICATE_CAPTURE_MESSAGE;
     }
     RequirementBrief brief = binding.approvedBrief();
     if (brief == null) {
       return "Approved requirement brief is required before capturing a semantic revision";
     }
-    String ownershipError = ownershipError(revision, brief);
-    if (ownershipError != null) {
-      return ownershipError;
-    }
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
+    ChainSemanticRevision revision;
     try {
+      revision = adapter.adapt(capture, binding.runId(), brief, contract);
       validator.validate(revision, contract);
     } catch (IllegalArgumentException ex) {
       return ex.getMessage();
@@ -93,71 +134,8 @@ public class ChainSemanticCaptureTool {
     if (preflightError != null) {
       return preflightError;
     }
-    ProductCapabilityCaptureContext.offerSemantic(revision);
+    ProductCapabilityCaptureContext.offerSemantic(binding, revision);
     return CAPTURED_MESSAGE;
-  }
-
-  private static String ownershipError(ChainSemanticRevision revision, RequirementBrief brief) {
-    Set<String> entryPointIds = new HashSet<>();
-    for (RequirementEntryPoint entryPoint : brief.entryPoints()) {
-      if (entryPoint != null && !entryPoint.entryPointId().isBlank()) {
-        entryPointIds.add(entryPoint.entryPointId());
-      }
-    }
-    for (SemanticEntryPoint entry : revision.entryPoints()) {
-      if (!entryPointIds.contains(entry.entryPointId())) {
-        return "Entry point '"
-            + entry.entryPointId()
-            + "' is not in the approved requirement brief";
-      }
-    }
-    Set<String> factIds = new HashSet<>();
-    for (RequirementFact fact : brief.facts()) {
-      if (fact != null && fact.sourceFactId() != null && !fact.sourceFactId().isBlank()) {
-        factIds.add(fact.sourceFactId());
-      }
-    }
-    for (SemanticEntryPoint entry : revision.entryPoints()) {
-      String missing = missingFact(entry.provenance(), factIds);
-      if (missing != null) {
-        return missing;
-      }
-    }
-    for (SemanticNode node : revision.nodes()) {
-      String missing = missingFact(node.provenance(), factIds);
-      if (missing != null) {
-        return missing;
-      }
-    }
-    Set<String> serviceCallIds = new HashSet<>();
-    for (RequirementServiceCall call : brief.serviceCalls()) {
-      if (call != null && !call.serviceCallId().isBlank()) {
-        serviceCallIds.add(call.serviceCallId());
-      }
-    }
-    for (SemanticNode node : revision.nodes()) {
-      if (node instanceof SemanticNode.ServiceCall call
-          && !serviceCallIds.contains(call.serviceCallId())) {
-        return "serviceCallId '"
-            + call.serviceCallId()
-            + "' is not in the approved requirement brief";
-      }
-    }
-    return null;
-  }
-
-  private static String missingFact(SemanticProvenance provenance, Set<String> factIds) {
-    if (provenance == null) {
-      return null;
-    }
-    for (String sourceFactId : provenance.sourceFactIds()) {
-      if (!factIds.contains(sourceFactId)) {
-        return "Provenance sourceFactId '"
-            + sourceFactId
-            + "' is not in the approved requirement brief";
-      }
-    }
-    return null;
   }
 
   private String preflight(ChainSemanticRevision revision, CompilerContract contract) {

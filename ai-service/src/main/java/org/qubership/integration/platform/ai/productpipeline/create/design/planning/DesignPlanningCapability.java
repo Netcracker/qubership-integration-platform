@@ -8,8 +8,10 @@ import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -37,6 +39,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
  */
 @ApplicationScoped
 public class DesignPlanningCapability implements StageCapability {
+
+  private static final Logger LOG = Logger.getLogger(DesignPlanningCapability.class);
 
   public static final String CAPABILITY_ID = "design-planning";
 
@@ -98,6 +102,24 @@ public class DesignPlanningCapability implements StageCapability {
   }
 
   private CapabilitySignal.Completed executeBlocking(StageExecutionContext context) {
+    long startMs = System.currentTimeMillis();
+    LOG.infof(
+        "design-planning started: runId=%s, conversationId=%s",
+        context.runId(), context.conversationId());
+    CapabilitySignal.Completed completed = planBlocking(context);
+    LOG.infof(
+        "design-planning finished: runId=%s, conversationId=%s, durationMs=%d, outcome=%s,"
+            + " candidates=%d, message=%s",
+        context.runId(),
+        context.conversationId(),
+        System.currentTimeMillis() - startMs,
+        completed.outcome().outcomeClass(),
+        completed.outcome().candidates().size(),
+        AiTraceLog.previewOneLine(completed.outcome().message(), 400));
+    return completed;
+  }
+
+  private CapabilitySignal.Completed planBlocking(StageExecutionContext context) {
     // Held outside the try so a rejection after the planner answered still hands the halt the
     // artifact it is about. Without that, the next attempt reads the complaint and nothing else.
     DesignPlanReport report = null;

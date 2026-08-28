@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCr
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogDependencyDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemFilter;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemSearchRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogTransferElementsRequest;
 
@@ -239,6 +240,11 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   @Override
   public List<SystemDto> searchSystems(CatalogSystemSearchRequest body) {
     throw new UnsupportedOperationException("searchSystems");
+  }
+
+  @Override
+  public List<SystemDto> filterSystems(List<CatalogSystemFilter> body) {
+    throw new UnsupportedOperationException("filterSystems");
   }
 
   @Override

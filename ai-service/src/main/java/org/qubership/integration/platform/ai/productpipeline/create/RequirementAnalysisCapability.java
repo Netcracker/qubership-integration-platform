@@ -286,7 +286,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                     SKILL_ID, SkillActivitySupport.wrapTerminal(SKILL_ID, List.copyOf(terminal))));
       } finally {
         SkillActivitySupport.clearParents();
-        ProductCapabilityCaptureContext.unbind();
+        ProductCapabilityCaptureContext.unbind(context.conversationId());
         ToolSession.clear();
       }
     }
@@ -296,7 +296,7 @@ public class RequirementAnalysisCapability implements StageCapability {
       agentStream =
           ToolSession.propagateBinding(toolSessionContext, runAnalyzer(context, approved));
     } catch (KnowledgeClientException e) {
-      ProductCapabilityCaptureContext.unbind();
+      ProductCapabilityCaptureContext.unbind(context.conversationId());
       ToolSession.clear();
       StageOutcomeClass outcomeClass =
           e.kind() == KnowledgeFailureKind.KNOWLEDGE_NOT_FOUND
@@ -342,7 +342,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                                             context, approved, workspace, brief))));
                       } finally {
                         SkillActivitySupport.clearParents();
-                        ProductCapabilityCaptureContext.unbind();
+                        ProductCapabilityCaptureContext.unbind(context.conversationId());
                         ToolSession.clear();
                       }
                     })
@@ -350,7 +350,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .recoverWithMulti(
                     error -> {
                       SkillActivitySupport.clearParents();
-                      ProductCapabilityCaptureContext.unbind();
+                      ProductCapabilityCaptureContext.unbind(context.conversationId());
                       ToolSession.clear();
                       return Multi.createFrom()
                           .items(

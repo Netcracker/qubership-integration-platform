@@ -13,6 +13,8 @@ import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -48,8 +50,7 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
  * the same turn.
  *
  * <p>
- * Conversation id and capability id are bound from MDC by the runtime, not from
- * the model.
+ * Conversation id and capability id are bound by the runtime, not supplied by the model.
  */
 @ApplicationScoped
 public class CompilerGraphPatchTool {
@@ -561,11 +562,16 @@ public class CompilerGraphPatchTool {
 
   static String resolveCapabilityId() {
     Object mdcValue = MDC.get(CompilerSkillMdc.CAPABILITY_ID);
-    if (mdcValue == null) {
-      return null;
+    if (mdcValue != null) {
+      String id = mdcValue.toString().trim();
+      if (!id.isBlank()) {
+        return id;
+      }
     }
-    String id = mdcValue.toString().trim();
-    return id.isBlank() ? null : id;
+    return ToolInvocationSink.currentParentSkillId()
+        .map(EvidenceIds::strip)
+        .filter(id -> !id.isBlank())
+        .orElse(null);
   }
 
   private static boolean hasPatchOperations(GraphPatch patch) {

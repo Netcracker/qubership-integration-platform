@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -11,11 +12,12 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequiremen
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
-import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateProductPipelineCoordinator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class ConversationPhaseResolverTest {
 
@@ -42,21 +44,33 @@ class ConversationPhaseResolverTest {
   @Test
   void pendingApiHubCandidateResolvesToImportPending() {
     PlanCompilationTestSupport.Runtime runtime = PlanCompilationTestSupport.memory();
+    RequirementServiceCall call =
+        new RequirementServiceCall("call-1", "fact-1", "GeoSite", "getGeographicSite");
     runtime
         .requirementDraftStore()
         .put(
             CONVERSATION_ID,
-            new RequirementDraft(false, "GeoSite proxy")
-                .withImportIntent(true)
-                .withApiHubCandidate(
-                    new ApiHubRequirementRefs(
-                        "S.CustParty.Care.GeoSite",
-                        "2026.2@1",
-                        "geographicSiteManagement-v4-geographicSite-_id_-get",
-                        "api",
-                        "rest",
-                        null,
-                        null)));
+            new RequirementDraft(
+                false,
+                "GeoSite proxy",
+                DraftDecision.NEEDS_INPUT,
+                List.of(),
+                null,
+                null,
+                null,
+                new ApiHubRequirementRefs(
+                    "S.CustParty.Care.GeoSite",
+                    "2026.2@1",
+                    "geographicSiteManagement-v4-geographicSite-_id_-get",
+                    "api",
+                    "rest",
+                    null,
+                    null),
+                false,
+                List.of(),
+                true,
+                List.of(call),
+                "call-1"));
     ConversationPhaseResolver resolver = runtime.phaseResolver();
 
     assertEquals(ConversationPhase.IMPORT_PENDING, resolver.resolve(CONVERSATION_ID));
@@ -83,29 +97,53 @@ class ConversationPhaseResolverTest {
         .requirementDraftStore()
         .put(
             CONVERSATION_ID,
-            new RequirementDraft(
-                true,
-                "GeoSite proxy",
-                DraftDecision.READY_FOR_PLAN,
-                List.of(),
-                null,
-                null,
-                null,
-                new ApiHubRequirementRefs(
-                    "S.CustParty.Care.GeoSite",
-                    "2026.2@1",
-                    "op-get",
-                    "api",
-                    "rest",
-                    null,
-                    null),
-                new ResolvedCatalogBinding("sys-1", "spec-1", "group-1", "op-1"),
-                false,
-                List.of(),
-                false));
+            boundDraft());
     ConversationPhaseResolver resolver = runtime.phaseResolver();
 
     assertEquals(ConversationPhase.PLAN_DRAFT, resolver.resolve(CONVERSATION_ID));
+  }
+
+  private static RequirementDraft boundDraft() {
+    RequirementServiceCall call =
+        new RequirementServiceCall("call-1", "fact-1", "GeoSite", "getGeographicSite");
+    return new RequirementDraft(
+            true,
+            "GeoSite proxy",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            null,
+            new ApiHubRequirementRefs(
+                "S.CustParty.Care.GeoSite",
+                "2026.2@1",
+                "op-get",
+                "api",
+                "rest",
+                null,
+                null),
+            false,
+            List.of(),
+            false,
+            List.of(call),
+            "call-1")
+        .withBoundServiceCall(
+            "call-1",
+            new CatalogBindingHint(
+                "2",
+                "call-1",
+                "fact-1",
+                "getGeographicSite",
+                "sys-1",
+                "group-1",
+                "spec-1",
+                "op-1",
+                null,
+                null,
+                null,
+                "catalog",
+                Instant.EPOCH,
+                "test"));
   }
 
   @Test

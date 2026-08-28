@@ -55,6 +55,8 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("Follow the compiler process skill and the brainstorming addon"));
     assertTrue(input.contains("pinned response locale en"));
     assertTrue(input.contains("Create chain named Greetings via script"));
+    assertTrue(input.contains("resolveApiOperation"));
+    assertTrue(input.contains("searchCatalogSystems does not bind"));
     assertFalse(input.contains("searchCatalogSystems, getApiSpecifications, and listCatalogOperations"));
   }
 

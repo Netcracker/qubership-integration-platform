@@ -52,8 +52,22 @@ public final class CreateChainPublicArtifactTypes {
       case VALIDATION_REPORT, "plan-validation-result" -> Optional.of(Kind.PLAN_VALIDATION_RESULT);
       case MATERIALIZATION_RESULT -> Optional.of(Kind.MATERIALIZATION_RESULT);
       case FAILURE_REPORT, "failure-record" -> Optional.of(Kind.FAILURE_RECORD);
-      default -> Optional.empty();
+      default -> fromWireName(normalized);
     };
+  }
+
+  /**
+   * Inverse of {@link #toApprovalType} for a kind with no public name. Approval asks for the wire
+   * name of such a kind, so refusing to read it back rejected the caller's own echo: an approval
+   * of {@code chain-semantic-revision} failed as WrongArtifactType against itself.
+   */
+  private static Optional<Kind> fromWireName(String normalized) {
+    for (Kind kind : Kind.values()) {
+      if (toPublicType(kind).isEmpty() && wireName(kind).equals(normalized)) {
+        return Optional.of(kind);
+      }
+    }
+    return Optional.empty();
   }
 
   /** Public type for approval waits, including requirement-brief when that stage waits. */

@@ -236,7 +236,6 @@ class CreateProductPipelineRefineBeforeAgreeIT {
                 "1",
                 null,
                 null,
-                null,
                 false,
                 base.facts());
         return Multi.createFrom()

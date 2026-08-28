@@ -70,9 +70,11 @@ public class GatherRequirementsPromptBuilder {
           Follow the compiler process skill and the brainstorming addon below for requirement
           discovery behavior (catalog/API Hub, capture decisions, facts, platform defaults,
           clarifying-question overrides). Do not write files, commit changes, invoke implementation
-          skills, or run the compiler spine. Call captureRequirementDraft every turn. Reply in the
-          pinned response locale %s. This locale is authoritative; do not infer another language
-          from conversation history or embedded text.
+          skills, or run the compiler spine. Call captureRequirementDraft every turn.
+          searchCatalogSystems does not bind a SERVICE_CALL; after you pick a catalog operation,
+          call resolveApiOperation with serviceCallId. Reply in the pinned response locale %s. This
+          locale is authoritative; do not infer another language from conversation history or
+          embedded text.
           </service-runtime-envelope>
           %s
           %s

@@ -25,6 +25,8 @@ stages:
       - { type: requirement-draft, schemaVersion: 2 }
     optionalProduces:
       - { type: catalog-binding-hint, schemaVersion: 1 }
+      # Present when the author declined the specification; the IDS then stays out of chat.
+      - { type: ids-bypass, schemaVersion: 1 }
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: import-stage
     capabilityId: specification-import
@@ -48,11 +50,6 @@ stages:
     produces:
       - { type: chain-semantic-revision, schemaVersion: 1 }
       - { type: ids-document, schemaVersion: 1 }
-    approval:
-      artifact: { type: chain-semantic-revision, schemaVersion: 1 }
-      candidateSet:
-        - { type: chain-semantic-revision, schemaVersion: 1 }
-        - { type: ids-document, schemaVersion: 1 }
     retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
   - stageId: design-planning
     capabilityId: design-planning

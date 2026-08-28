@@ -331,6 +331,40 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureRejectsFactWithoutText() {
+    RequirementDraftTool tool = new RequirementDraftTool(store);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact endpoint =
+        new RequirementFact(
+            null,
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.ENDPOINT,
+            "http-trigger",
+            "",
+            "",
+            "Internal health proxy endpoint",
+            "",
+            "GET",
+            "/health-proxy",
+            "");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "HTTP GET /health-proxy then Petstore Ext getInventory",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(endpoint)));
+
+    assertTrue(result.contains("text is required for every fact"), result);
+    assertTrue(store.get("draft-conv").isEmpty());
+    assertFalse(store.wasCapturedThisTurn("draft-conv"));
+  }
+
+  @Test
   void captureNamesTheServiceCallThatIsStillUnresolved() {
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);

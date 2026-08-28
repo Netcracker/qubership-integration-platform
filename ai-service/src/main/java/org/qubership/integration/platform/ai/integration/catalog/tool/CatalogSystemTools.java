@@ -29,10 +29,11 @@ public class CatalogSystemTools {
   }
 
   @Tool("Search QIP catalog services (API Repository systems) by name substring. Call FIRST when"
-      + " binding service-call from design: if a match exists, use systemId with"
-      + " getApiSpecifications then listCatalogOperations. Only use APIHub"
+      + " locating a service: if a match exists, use systemId with getApiSpecifications then"
+      + " listCatalogOperations. Search does not record a SERVICE_CALL binding; call"
+      + " resolveApiOperation with serviceCallId to record the match. Only use APIHub"
       + " (searchApiOperations) when no suitable catalog service is found and APIHub is"
-      + " available. Returns JSON: { ok, tool, data: SystemDto[] }.")
+      + " available. Returns JSON: { ok, tool, message, data: SystemDto[] }.")
   public String searchCatalogSystems(
       @P("Substring to match service name (catalog searchCondition)") String searchCondition) {
     long startMs = System.currentTimeMillis();
@@ -76,7 +77,9 @@ public class CatalogSystemTools {
   }
 
   @Tool("Get API specifications (models) for a catalog system. Use systemId returned by"
-      + " searchCatalogSystems. Returns JSON: { ok, tool, data: SpecificationDto[] }.")
+      + " searchCatalogSystems. This listing does not record a SERVICE_CALL binding; call"
+      + " resolveApiOperation with serviceCallId after you pick an operation. Returns JSON:"
+      + " { ok, tool, message, data: SpecificationDto[] }.")
   public String getApiSpecifications(
       @P("Catalog system UUID from searchCatalogSystems result") String systemId) {
     long startMs = System.currentTimeMillis();
@@ -95,8 +98,9 @@ public class CatalogSystemTools {
   }
 
   @Tool("List operations for a catalog specification. Use specificationId (model id) returned by"
-      + " getApiSpecifications. Optional searchFilter for name substring. Returns JSON: { ok,"
-      + " tool, data: OperationDto[] }.")
+      + " getApiSpecifications. Optional searchFilter for name substring. This listing does not"
+      + " record a SERVICE_CALL binding; call resolveApiOperation with serviceCallId to record"
+      + " the match. Returns JSON: { ok, tool, message, data: OperationDto[] }.")
   public String listCatalogOperations(
       @P("Specification UUID from getApiSpecifications result") String specificationId,
       @P("Optional system UUID for context") String systemId,

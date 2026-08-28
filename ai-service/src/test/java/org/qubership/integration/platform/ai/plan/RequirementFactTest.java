@@ -3,9 +3,6 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -63,15 +60,55 @@ class RequirementFactTest {
   }
 
   @Test
-  void rejectsServiceCallWithoutServiceCallIdFromLlmToolCall() {
-    assertThrows(
-        JsonMappingException.class,
-        () ->
-            mapper.readValue(
-                """
-                {"polarity":"POSITIVE","kind":"SERVICE_CALL","text":"Petstore Ext getInventory"}
-                """,
-                RequirementFact.class));
+  void deserializesEndpointThatPutsProseInOperationAndOmitsText() throws Exception {
+    RequirementFact fact =
+        mapper.readValue(
+            """
+            {
+              "polarity":"POSITIVE",
+              "kind":"ENDPOINT",
+              "capabilityKey":"http-trigger",
+              "httpMethod":"GET",
+              "path":"/health-proxy",
+              "operation":"Internal health proxy endpoint"
+            }
+            """,
+            RequirementFact.class);
+
+    assertEquals(RequirementFactKind.ENDPOINT, fact.kind());
+    assertEquals("GET", fact.httpMethod());
+    assertEquals("/health-proxy", fact.path());
+    assertEquals("Internal health proxy endpoint", fact.operation());
+    assertEquals("", fact.text());
+    assertFalse(fact.sourceFactId().isBlank());
+  }
+
+  @Test
+  void deserializesWhenPolarityIsOmitted() throws Exception {
+    RequirementFact fact =
+        mapper.readValue(
+            """
+            {"kind":"GOAL","text":"Create chain named HealthProxy."}
+            """,
+            RequirementFact.class);
+
+    assertEquals(RequirementFactPolarity.POSITIVE, fact.polarity());
+    assertEquals(RequirementFactKind.GOAL, fact.kind());
+  }
+
+  @Test
+  void deserializesServiceCallWithoutServiceCallIdForLaterToolValidation() throws Exception {
+    RequirementFact fact =
+        mapper.readValue(
+            """
+            {"polarity":"POSITIVE","kind":"SERVICE_CALL","text":"Petstore Ext getInventory"}
+            """,
+            RequirementFact.class);
+
+    assertEquals(RequirementFactKind.SERVICE_CALL, fact.kind());
+    assertEquals("", fact.serviceCallId());
+    assertFalse(fact.sourceFactId().isBlank());
+    assertNotEquals("Petstore Ext getInventory", fact.serviceCallId());
   }
 
   @Test
@@ -114,16 +151,17 @@ class RequirementFactTest {
   }
 
   @Test
-  void rejectsServiceCallWithoutServiceCallIdEvenWhenSourceFactIdExists() {
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            new RequirementFact(
-                "fact-inventory",
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.SERVICE_CALL,
-                "",
-                "Petstore Ext getInventory"));
+  void doesNotCopySourceFactIdOntoMissingServiceCallId() {
+    RequirementFact fact =
+        new RequirementFact(
+            "fact-inventory",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "Petstore Ext getInventory");
+
+    assertEquals("fact-inventory", fact.sourceFactId());
+    assertEquals("", fact.serviceCallId());
   }
 
   @Test

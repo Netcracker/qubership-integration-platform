@@ -39,11 +39,10 @@ public final class RequirementBriefText {
     body.append("Entry points:");
     for (var entryPoint : entryPoints) {
       body.append('\n')
-          .append("- ")
-          .append(entryPoint.capabilityKey())
-          .append(" [")
+          .append("- entryPointId=")
           .append(entryPoint.entryPointId())
-          .append(']');
+          .append(" capabilityKey=")
+          .append(entryPoint.capabilityKey());
     }
   }
 
@@ -57,7 +56,7 @@ public final class RequirementBriefText {
     }
     body.append("Service calls:");
     for (var serviceCall : serviceCalls) {
-      body.append('\n').append("- ").append(serviceCall.serviceCallId());
+      body.append('\n').append("- serviceCallId=").append(serviceCall.serviceCallId());
       if (!serviceCall.participant().isBlank() || !serviceCall.operation().isBlank()) {
         body.append(' ')
             .append(serviceCall.participant())
@@ -178,6 +177,10 @@ public final class RequirementBriefText {
       String prefix =
           fact.polarity() == RequirementFactPolarity.NEGATIVE ? "[NEGATIVE] " : "[POSITIVE] ";
       body.append('\n').append("- ").append(prefix).append(fact.text().trim());
+      // Design capture is told to copy sourceFactIds from the brief, so the ids have to be here.
+      if (fact.sourceFactId() != null && !fact.sourceFactId().isBlank()) {
+        body.append(" sourceFactId=").append(fact.sourceFactId());
+      }
     }
   }
 
