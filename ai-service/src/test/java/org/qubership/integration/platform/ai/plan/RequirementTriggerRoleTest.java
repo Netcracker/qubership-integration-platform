@@ -75,7 +75,8 @@ class RequirementTriggerRoleTest {
             "getPetById",
             "",
             "",
-            "");
+            "",
+            "call-1");
 
     List<RequirementFact> canonical = RequirementTriggerRole.canonicalize(List.of(kafka, call));
 
@@ -99,7 +100,8 @@ class RequirementTriggerRoleTest {
             "getPetById",
             "user/events",
             "",
-            "");
+            "",
+            "trigger-1");
 
     IllegalArgumentException thrown =
         assertThrows(

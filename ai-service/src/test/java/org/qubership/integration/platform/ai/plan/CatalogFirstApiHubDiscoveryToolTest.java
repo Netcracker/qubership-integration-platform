@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -317,7 +318,6 @@ class CatalogFirstApiHubDiscoveryToolTest {
             "1",
             null,
             null,
-            null,
             false,
             List.of(
                 serviceCall("call-om-result", "OM", "onTaskResult"),
@@ -342,10 +342,85 @@ class CatalogFirstApiHubDiscoveryToolTest {
               "");
     }
 
+    assertNotNull(result);
     assertTrue(result.contains("ERROR"), result);
     assertTrue(result.contains("serviceCallId is required"), result);
     assertTrue(result.contains("call-om-result"), result);
     assertTrue(result.contains("call-wfm-create-task"), result);
+    verifyNoInteractions(matcher);
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void omittedServiceCallIdDoesNotStoreFactDerivedAssessment() {
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    CatalogFirstApiHubDiscoveryTool discovery = tool(matcher, apiHub, resolutions);
+
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-no-draft")) {
+      result =
+          discovery.resolveApiOperation(
+              null,
+              "Call OM onTaskResult",
+              "OM",
+              "onTaskResult",
+              "",
+              "",
+              null,
+              null,
+              "");
+    }
+
+    assertNotNull(result);
+    assertTrue(result.contains("ERROR"), result);
+    assertTrue(result.contains("serviceCallId is required"), result);
+    assertTrue(resolutions.assessments("conv-no-draft").isEmpty());
+    verifyNoInteractions(matcher);
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void omittedServiceCallIdDoesNotUseTheOnlyDraftCall() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.put(
+        "conv-one",
+        new RequirementDraft(
+            false,
+            "Call OM",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Resolve the operation"),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(serviceCall("call-om-result", "OM", "onTaskResult")),
+            false));
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    CatalogFirstApiHubDiscoveryTool discovery = tool(matcher, apiHub, resolutions, store);
+
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-one")) {
+      result =
+          discovery.resolveApiOperation(
+              "",
+              "Call OM onTaskResult",
+              "OM",
+              "onTaskResult",
+              "",
+              "",
+              null,
+              null,
+              "");
+    }
+
+    assertTrue(result.contains("ERROR"), result);
+    assertTrue(result.contains("serviceCallId is required"), result);
+    assertTrue(resolutions.assessments("conv-one").isEmpty());
     verifyNoInteractions(matcher);
     verifyNoInteractions(apiHub);
   }

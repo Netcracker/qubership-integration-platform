@@ -43,7 +43,7 @@ class RequirementDraftToolTest {
 
     String result =
         tool.captureRequirementDraft(
-            new RequirementDraftCapture(true, "HTTP GET /orders returns status", DraftDecision.READY_FOR_PLAN, List.of(), null, null, sampleFacts()));
+            new RequirementDraftCapture(true, "HTTP GET /orders returns status", DraftDecision.READY_FOR_PLAN, List.of(), null, sampleFacts()));
 
     assertTrue(result.contains("Requirement draft captured"));
     assertTrue(store.wasCapturedThisTurn("draft-conv"));
@@ -68,7 +68,6 @@ class RequirementDraftToolTest {
                   DraftDecision.READY_FOR_PLAN,
                   List.of(),
                   null,
-                  null,
                   sampleFacts()));
       assertTrue(result.contains("Requirement draft captured"));
     }
@@ -82,7 +81,7 @@ class RequirementDraftToolTest {
     store.beginTurn("draft-conv");
 
     tool.captureRequirementDraft(
-        new RequirementDraftCapture(true, "HTTP GET /orders returns status", DraftDecision.READY_FOR_PLAN, List.of(), null, null, sampleFacts()));
+        new RequirementDraftCapture(true, "HTTP GET /orders returns status", DraftDecision.READY_FOR_PLAN, List.of(), null, sampleFacts()));
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals("cip_compiler_v2", draft.sourceSkillVersion());
@@ -107,7 +106,7 @@ class RequirementDraftToolTest {
             "old_hash"));
 
     tool.captureRequirementDraft(
-        new RequirementDraftCapture(true, "HTTP GET /orders returns status", DraftDecision.READY_FOR_PLAN, List.of(), null, null, sampleFacts()));
+        new RequirementDraftCapture(true, "HTTP GET /orders returns status", DraftDecision.READY_FOR_PLAN, List.of(), null, sampleFacts()));
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals("old_pack", draft.sourceSkillVersion());
@@ -126,7 +125,6 @@ class RequirementDraftToolTest {
                 "HTTP GET /orders returns status",
                 DraftDecision.READY_FOR_PLAN,
                 List.of("Which response fields should be returned?"),
-                null,
                 null,
                 sampleFacts()));
 
@@ -167,8 +165,7 @@ class RequirementDraftToolTest {
                 List.of(),
                 new ApiHubRequirementRefs(
                     "S.ProdCat.PartyMgmt", "2026.2@1", "op-get", null, "rest", null, null),
-                null,
-                sampleFacts()));
+                List.of(serviceCallFact("call-party", "Party Management", "getParty"))));
 
     assertTrue(result.contains("pending"));
     assertTrue(result.contains("offered the import as a decision"));
@@ -206,8 +203,7 @@ class RequirementDraftToolTest {
                 DraftDecision.NEEDS_INPUT,
                 List.of("Reply Import specification to import the API."),
                 null,
-                null,
-                sampleFacts()));
+                List.of(serviceCallFact("call-geosite", "Geographic Site", "getSite"))));
 
     assertTrue(result.contains("Requirement draft captured"));
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
@@ -241,8 +237,7 @@ class RequirementDraftToolTest {
                 DraftDecision.BLOCKED,
                 List.of("Could you provide the search criteria?"),
                 null,
-                null,
-                sampleFacts()));
+                List.of(serviceCallFact("call-party", "Party Management", "getParty"))));
 
     assertTrue(result.contains("not BLOCKED"));
     assertTrue(result.contains("offered the import as a decision"));
@@ -265,7 +260,6 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             sampleFacts()));
 
     String second =
@@ -276,34 +270,11 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                null,
                 sampleFacts()));
 
     assertTrue(second.contains("already READY_FOR_PLAN"));
     assertTrue(second.contains("Do not call captureRequirementDraft again"));
     assertEquals(DraftDecision.READY_FOR_PLAN, store.get("draft-conv").orElseThrow().decision());
-  }
-
-  @Test
-  void planningTextIncludesResolvedCatalogBinding() {
-    store.put(
-        "draft-conv",
-        new RequirementDraft(
-            true,
-            "Party lookup proxy",
-            DraftDecision.READY_FOR_PLAN,
-            List.of(),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "pack",
-            "hash",
-            null,
-            new ResolvedCatalogBinding("sys-1", "spec-1", "group-1", "op-1", "EXTERNAL"),
-            false));
-
-    RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertTrue(draft.planningText().contains("Resolved catalog binding:"));
-    assertTrue(draft.planningText().contains("systemId: sys-1"));
-    assertTrue(draft.planningText().contains("systemType: EXTERNAL"));
   }
 
   @Test
@@ -322,22 +293,27 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                null,
                 sampleFacts()));
 
     assertFalse(result.contains("catalogBinding"), result);
     assertTrue(result.contains("resolveApiOperation"), result);
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
-    assertNull(draft.catalogBinding());
     assertEquals(List.of(RequirementDraftTool.BINDING_REQUIRED_OPEN_QUESTION), draft.openQuestions());
   }
 
   @Test
-  void captureRequiresBindingForEveryServiceCallEvenBeforeCatalogToolsWereUsed() {
+  void captureRejectsServiceCallWithoutServiceCallId() {
     RequirementDraftTool tool = new RequirementDraftTool(store);
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
+    RequirementFact call = mock(RequirementFact.class);
+    when(call.sourceFactId()).thenReturn("fact-inventory");
+    when(call.polarity()).thenReturn(RequirementFactPolarity.POSITIVE);
+    when(call.kind()).thenReturn(RequirementFactKind.SERVICE_CALL);
+    when(call.capabilityKey()).thenReturn("");
+    when(call.text()).thenReturn("GET /store/inventory");
+    when(call.serviceCallId()).thenReturn("");
 
     String result =
         tool.captureRequirementDraft(
@@ -347,19 +323,11 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                null,
-                List.of(
-                    RequirementFact.of(
-                        RequirementFactPolarity.POSITIVE,
-                        RequirementFactKind.SERVICE_CALL,
-                        "Petstore Ext",
-                        "GET /store/inventory"))));
+                List.of(call)));
 
-    assertFalse(result.contains("catalogBinding"), result);
-    assertTrue(result.contains("serviceCallId="), result);
-    RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
-    assertTrue(draft.openQuestions().getFirst().contains("serviceCallId="), draft.openQuestions().getFirst());
+    assertTrue(result.contains("serviceCallId is required"), result);
+    assertTrue(store.get("draft-conv").isEmpty());
+    assertFalse(store.wasCapturedThisTurn("draft-conv"));
   }
 
   @Test
@@ -378,7 +346,6 @@ class RequirementDraftToolTest {
             "Read stock, then raise an invoice",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             List.of(inventory, invoice)));
 
@@ -410,13 +377,11 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             List.of(inventory, invoice)));
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
     assertTrue(draft.openQuestions().isEmpty());
-    assertNull(draft.catalogBinding());
     assertEquals(2, draft.serviceCalls().size());
     assertEquals("call-inventory", draft.serviceCalls().get(0).serviceCallId());
     assertEquals("call-invoice", draft.serviceCalls().get(1).serviceCallId());
@@ -465,13 +430,11 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             List.of(omCall, wfmCall)));
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
     assertTrue(draft.openQuestions().isEmpty());
-    assertNull(draft.catalogBinding());
     assertEquals(2, draft.serviceCalls().size());
     RequirementServiceCall storedOm = draft.serviceCalls().get(0);
     RequirementServiceCall storedWfm = draft.serviceCalls().get(1);
@@ -495,11 +458,7 @@ class RequirementDraftToolTest {
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
     RequirementFact call =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "Billing",
-            "Raise an invoice somewhere in Billing");
+        serviceCallFact("call-invoice", "Billing", "Raise an invoice somewhere in Billing");
     resolutions.remember(
         "draft-conv",
         ServiceCallAssessment.incomplete(
@@ -512,7 +471,6 @@ class RequirementDraftToolTest {
             "Raise an invoice",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             List.of(call)));
 
@@ -530,11 +488,7 @@ class RequirementDraftToolTest {
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
     RequirementFact call =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "Petstore Ext",
-            "GET /store/inventory");
+        serviceCallFact("call-inventory", "Petstore Ext", "GET /store/inventory");
     resolutions.remember(
         "draft-conv",
         ServiceCallAssessment.ambiguous(
@@ -548,7 +502,6 @@ class RequirementDraftToolTest {
             "Read stock levels",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             List.of(call)));
 
@@ -578,7 +531,6 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             List.of(first, second)));
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
@@ -607,7 +559,6 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             List.of(om, wfm)));
     store.beginTurn("draft-conv");
 
@@ -617,7 +568,6 @@ class RequirementDraftToolTest {
             "WFM then OM",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             List.of(wfm, om)));
 
@@ -650,7 +600,6 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             List.of(om, wfm)));
     store.beginTurn("draft-conv");
     RequirementFact editedOm = serviceCallFact("call-om-result", "OM", "getOrder");
@@ -661,7 +610,6 @@ class RequirementDraftToolTest {
             "OM getOrder then WFM",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             List.of(editedOm, wfm)));
 
@@ -692,7 +640,6 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             List.of(om, wfm)));
     store.beginTurn("draft-conv");
 
@@ -702,7 +649,6 @@ class RequirementDraftToolTest {
             "OM only",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             List.of(om)));
 
@@ -730,7 +676,6 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            null,
             List.of(om)));
     Instant stored =
         store.get("draft-conv").orElseThrow().serviceCalls().getFirst().catalogBinding().observedAt();
@@ -742,7 +687,6 @@ class RequirementDraftToolTest {
             "Call OM",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             List.of(om)));
 
@@ -790,7 +734,6 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                null,
                 List.of(first, duplicate)));
 
     assertTrue(result.contains("call-om-result"), result);
@@ -813,7 +756,6 @@ class RequirementDraftToolTest {
                 "Bind OM and Salesforce WFM",
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
-                null,
                 null,
                 List.of(om, wfm)));
 
@@ -895,147 +837,6 @@ class RequirementDraftToolTest {
   }
 
   @Test
-  void captureStoresVerifiedCatalogBindingAndClearsApiHubCandidate() {
-    ConversationCatalogCache cache = new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
-    RequirementDraftTool tool = RequirementDraftTool.withCache(store, cache);
-    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
-    store.beginTurn("draft-conv");
-    seedCatalogCache(cache, "draft-conv");
-
-    String result =
-        tool.captureRequirementDraft(
-            new RequirementDraftCapture(
-                true,
-                "Proxy Petstore Ext getInventory",
-                DraftDecision.READY_FOR_PLAN,
-                List.of(),
-                new ApiHubRequirementRefs(
-                    "pkg", "1.0", "op-get", null, "rest", null, null),
-                new ResolvedCatalogBinding("sys-1", "spec-1", "group-1", "op-1"),
-                List.of(serviceCallFact("call-inventory", "Petstore Ext", "getInventory"))));
-
-    assertTrue(result.contains("Requirement draft captured"));
-    RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertNull(draft.catalogBinding());
-    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
-    assertEquals("op-1", draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
-    assertNull(draft.apiHubCandidate());
-    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
-  }
-
-  @Test
-  void captureIgnoresBogusCatalogBindingWhenApiHubCacheHasHit() {
-    ConversationCatalogCache catalogCache =
-        new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
-    ConversationApiHubCache apiHubCache = new ConversationApiHubCache();
-    apiHubCache.rememberCandidate(
-        "draft-conv",
-        new ApiHubRequirementRefs(
-            "S.CustParty.Care.GeoSite",
-            "2026.2@1",
-            "geographicSiteManagement-v4-geographicSite-_id_-get",
-            "api",
-            "rest",
-            "Geographic Site",
-            null));
-    RequirementDraftTool tool = RequirementDraftTool.withCaches(store, catalogCache, apiHubCache);
-    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
-    store.beginTurn("draft-conv");
-
-    String result =
-        tool.captureRequirementDraft(
-            new RequirementDraftCapture(
-                true,
-                "Import Geographic Site specification from APIHub into CIP catalog",
-                DraftDecision.READY_FOR_PLAN,
-                List.of(),
-                null,
-                new ResolvedCatalogBinding("sys-fake", "spec-fake", "group-fake", "op-fake"),
-                sampleFacts()));
-
-    assertTrue(result.contains("pending") || result.contains("Requirement draft captured"));
-    RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertNull(draft.catalogBinding());
-    assertTrue(draft.hasPendingImport());
-    assertTrue(draft.importIntent());
-    assertEquals("S.CustParty.Care.GeoSite", draft.apiHubCandidate().packageId());
-    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
-    assertTrue(draft.openQuestions().isEmpty());
-  }
-
-  @Test
-  void captureIgnoresIncompleteCatalogBindingWhenApiHubCandidateProvided() {
-    ConversationCatalogCache catalogCache =
-        new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
-    RequirementDraftTool tool = RequirementDraftTool.withCaches(store, catalogCache, null);
-    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
-    store.beginTurn("draft-conv");
-
-    String result =
-        tool.captureRequirementDraft(
-            new RequirementDraftCapture(
-                false,
-                "Import Geographic Site specification from APIHub",
-                DraftDecision.NEEDS_INPUT,
-                List.of("Which system?"),
-                new ApiHubRequirementRefs(
-                    "S.CustParty.Care.GeoSite", "2026.2@1", "op-get", "api", "rest", null, null),
-                new ResolvedCatalogBinding(null, null, null, null),
-                sampleFacts()));
-
-    assertTrue(result.contains("Requirement draft captured") || result.contains("pending"));
-    RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertNull(draft.catalogBinding());
-    assertTrue(draft.hasPendingImport());
-    assertEquals("S.CustParty.Care.GeoSite", draft.apiHubCandidate().packageId());
-  }
-
-  @Test
-  void captureRejectsInventedCatalogBindingWithoutToolCache() {
-    ConversationCatalogCache cache = new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
-    RequirementDraftTool tool = RequirementDraftTool.withCache(store, cache);
-    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
-    store.beginTurn("draft-conv");
-
-    String result =
-        tool.captureRequirementDraft(
-            new RequirementDraftCapture(
-                true,
-                "Proxy Petstore Ext getInventory",
-                DraftDecision.READY_FOR_PLAN,
-                List.of(),
-                null,
-                new ResolvedCatalogBinding("sys-fake", "spec-fake", "group-fake", "op-fake"),
-                sampleFacts()));
-
-    assertTrue(result.contains("searchCatalogSystems first"));
-    assertTrue(store.get("draft-conv").isEmpty());
-  }
-
-  @Test
-  void captureRejectsCatalogBindingSystemNotInCache() {
-    ConversationCatalogCache cache = new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
-    RequirementDraftTool tool = RequirementDraftTool.withCache(store, cache);
-    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
-    store.beginTurn("draft-conv");
-    seedCatalogCache(cache, "draft-conv");
-
-    String result =
-        tool.captureRequirementDraft(
-            new RequirementDraftCapture(
-                true,
-                "Proxy other service",
-                DraftDecision.READY_FOR_PLAN,
-                List.of(),
-                null,
-                new ResolvedCatalogBinding("sys-other", "spec-1", "group-1", "op-1"),
-                sampleFacts()));
-
-    assertTrue(result.contains("searchCatalogSystems"));
-    assertTrue(store.get("draft-conv").isEmpty());
-  }
-
-  @Test
   void readyForPlanWithoutFactsSoftDowngradesToNeedsInput() {
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
@@ -1047,7 +848,6 @@ class RequirementDraftToolTest {
                 "HTTP GET /greetings returns Hello via script; no service calls",
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
-                null,
                 null,
                 List.of()));
 
@@ -1075,7 +875,6 @@ class RequirementDraftToolTest {
                 "Consume Kafka user events and look up a pet",
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
-                null,
                 null,
                 List.of(
                     new RequirementFact(
@@ -1114,7 +913,6 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                null,
                 List.of(
                     new RequirementFact(
                         "trigger-1",
@@ -1126,7 +924,8 @@ class RequirementDraftToolTest {
                         "getPetById",
                         "user/events",
                         "",
-                        ""),
+                        "",
+                        "call-trigger"),
                     RequirementFact.of(
                         RequirementFactPolarity.NEGATIVE,
                         RequirementFactKind.CONSTRAINT,

@@ -446,7 +446,13 @@ class DesignRequirementBriefCoverageValidatorTest {
         RequirementFactPolarity.POSITIVE,
         RequirementFactKind.SERVICE_CALL,
         "service-call",
-        "Outbound call " + id);
+        "Outbound call " + id,
+        "External service",
+        "call",
+        "",
+        "",
+        "",
+        id);
   }
 
   private static RequirementDataMapping initialization() {

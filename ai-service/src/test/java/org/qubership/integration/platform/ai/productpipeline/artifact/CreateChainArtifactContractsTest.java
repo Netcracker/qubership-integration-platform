@@ -164,13 +164,17 @@ class CreateChainArtifactContractsTest {
 
     CatalogBindingHint hint =
         new CatalogBindingHint(
-            "1",
+            "2",
+            "call-1",
             "fact-1",
             "get order",
             "sys-1",
             "sg-1",
             "spec-1",
             "op-1",
+            "http",
+            "GET",
+            "/orders/{id}",
             "2024.4",
             FIXED_INSTANT,
             "evidence-1");
@@ -330,7 +334,7 @@ class CreateChainArtifactContractsTest {
   }
 
   @Test
-  void readsV1HintServiceCallSourceFactIdAsServiceCallId() throws Exception {
+  void rejectsV1HintServiceCallSourceFactId() {
     String v1 =
         """
         {
@@ -347,11 +351,8 @@ class CreateChainArtifactContractsTest {
         }
         """;
 
-    CatalogBindingHint hint = mapper.readValue(v1, CatalogBindingHint.class);
-
-    assertEquals("fact-1", hint.serviceCallId());
-    assertEquals("fact-1", hint.sourceFactId());
-    assertEquals("get order", hint.operationQuery());
+    assertThrows(
+        Exception.class, () -> mapper.readValue(v1, CatalogBindingHint.class));
   }
 
   @Test

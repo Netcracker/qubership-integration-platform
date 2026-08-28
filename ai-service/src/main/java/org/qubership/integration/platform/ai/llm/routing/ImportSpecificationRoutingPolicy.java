@@ -33,7 +33,7 @@ public final class ImportSpecificationRoutingPolicy {
       return Optional.of(ScenarioRouter.RoutingOutcome.scenario(ScenarioType.CREATE_CHAIN_PLAN));
     }
 
-    if (draft.catalogBinding() != null && hint == ScenarioType.IMPORT_SPECIFICATION) {
+    if (draft.selectedImportCallAlreadyBound() && hint == ScenarioType.IMPORT_SPECIFICATION) {
       return Optional.of(ScenarioRouter.RoutingOutcome.terminal(ALREADY_IMPORTED_MESSAGE));
     }
 

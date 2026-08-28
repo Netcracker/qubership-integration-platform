@@ -232,7 +232,6 @@ class CanonicalSemanticCreateChainIT {
         .indefinitely();
     approveLatestWaiting(first);
     approveLatestWaiting(first);
-    approveLatestWaiting(first);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
 
     ChainSemanticRevision before = latestRevision();
@@ -280,7 +279,6 @@ class CanonicalSemanticCreateChainIT {
         .asList()
         .await()
         .indefinitely();
-    approveLatestWaiting(runtime);
     approveLatestWaiting(runtime);
     approveLatestWaiting(runtime);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
@@ -959,7 +957,7 @@ class CanonicalSemanticCreateChainIT {
         "",
         "",
         "",
-        "");
+        id);
   }
 
   private static RequirementDataMapping mapping(

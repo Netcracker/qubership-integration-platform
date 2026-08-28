@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -99,7 +100,6 @@ class RequirementDraftStoreLifecycleTest {
             "1",
             null,
             null,
-            null,
             false,
             List.of(
                 serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult"),
@@ -136,7 +136,6 @@ class RequirementDraftStoreLifecycleTest {
     assertEquals("op-shared", recovered.serviceCalls().get(1).catalogBinding().integrationOperationId());
     assertEquals("sys-om", recovered.serviceCalls().get(0).catalogBinding().systemId());
     assertEquals("sys-wfm", recovered.serviceCalls().get(1).catalogBinding().systemId());
-    assertNull(recovered.catalogBinding());
   }
 
   @Test
@@ -147,6 +146,84 @@ class RequirementDraftStoreLifecycleTest {
     RequirementDraft recovered = runtime(blobStore).store().get("conversation-1").orElseThrow();
 
     assertEquals("saved draft", recovered.assembledText());
+  }
+
+  @Test
+  void applyImportResultDoesNotBindOneCallDraftForUnknownOwner() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft draft =
+        draftWithCalls(serviceCallFact("fact-om", "call-om-result", "OM", "onTaskResult"));
+    store.put("conversation-1", draft);
+
+    store.applyImportResult(
+        "conversation-1",
+        "unknown-call",
+        new ResolvedCatalogBinding("sys-imported", "spec-imported", "group-imported", "op-imported"));
+
+    RequirementDraft unchanged = store.get("conversation-1").orElseThrow();
+    assertNull(unchanged.serviceCalls().getFirst().catalogBinding());
+  }
+
+  @Test
+  void applyImportResultDoesNotBindTwoCallDraftForUnknownOwner() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft draft =
+        draftWithCalls(
+            serviceCallFact("fact-om", "call-om-result", "OM", "onTaskResult"),
+            serviceCallFact(
+                "fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask"));
+    store.put("conversation-1", draft);
+
+    store.applyImportResult(
+        "conversation-1",
+        "unknown-call",
+        new ResolvedCatalogBinding("sys-imported", "spec-imported", "group-imported", "op-imported"));
+
+    RequirementDraft unchanged = store.get("conversation-1").orElseThrow();
+    assertNull(unchanged.serviceCalls().get(0).catalogBinding());
+    assertNull(unchanged.serviceCalls().get(1).catalogBinding());
+  }
+
+  @Test
+  void withBoundServiceCallReturnsSameDraftForUnknownOwner() {
+    RequirementDraft draft =
+        draftWithCalls(serviceCallFact("fact-om", "call-om-result", "OM", "onTaskResult"));
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            "2",
+            "unknown-call",
+            "fact-unknown",
+            "unknown",
+            "sys-imported",
+            "group-imported",
+            "spec-imported",
+            "op-imported",
+            "http",
+            "POST",
+            "/unknown",
+            "2024.4",
+            Instant.EPOCH,
+            "test");
+
+    RequirementDraft unchanged = draft.withBoundServiceCall("unknown-call", hint);
+
+    assertSame(draft, unchanged);
+    assertNull(unchanged.serviceCalls().getFirst().catalogBinding());
+  }
+
+  private static RequirementDraft draftWithCalls(RequirementFact... calls) {
+    return new RequirementDraft(
+        false,
+        "Call external systems",
+        DraftDecision.NEEDS_INPUT,
+        List.of("Resolve calls"),
+        "brainstorming",
+        "1",
+        null,
+        null,
+        false,
+        List.of(calls),
+        false);
   }
 
   private static RequirementFact serviceCallFact(

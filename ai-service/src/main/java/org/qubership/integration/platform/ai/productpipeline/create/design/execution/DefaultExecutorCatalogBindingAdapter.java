@@ -4,11 +4,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
@@ -29,9 +26,6 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPol
  */
 @ApplicationScoped
 public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBindingAdapter {
-
-  private static final Pattern METHOD_PATH =
-      Pattern.compile("(?i)\\b(GET|POST|PUT|PATCH|DELETE)\\s+(/\\S+)");
 
   private final CatalogBindingMatcher matcher;
   private final CatalogSystemReadTool catalogReadTool;
@@ -57,7 +51,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     List<BindingResolutionResult> results = new ArrayList<>();
     List<CatalogBindingResolution> resolved = new ArrayList<>();
     for (SemanticNode.ServiceCall call : calls) {
-      BindingResolutionResult result = resolveCall(revision, call, hintList);
+      BindingResolutionResult result = resolveCall(call, hintList);
       results.add(result);
       if (result instanceof BindingResolutionResult.Resolved success) {
         resolved.add(success.binding());
@@ -70,42 +64,24 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
   }
 
   private BindingResolutionResult resolveCall(
-      ChainSemanticRevision revision,
-      SemanticNode.ServiceCall call,
-      List<CatalogBindingHint> hints) {
+      SemanticNode.ServiceCall call, List<CatalogBindingHint> hints) {
     HintLookup lookup = findHint(call, hints);
     if (lookup.failureReason() != null) {
       return new BindingResolutionResult.Failed(
           call.serviceCallId(), lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
     }
-    if (lookup.hint() != null) {
-      CatalogBindingHint observed = lookup.hint();
-      Optional<CatalogBindingMatcher.CatalogMatch> revalidated = revalidateHint(observed);
-      if (revalidated.isPresent()) {
-        return toExisting(call.serviceCallId(), revalidated.get(), observed.release());
-      }
-      return new BindingResolutionResult.Failed(
-          call.serviceCallId(),
-          "the approved catalog binding no longer resolves (operation "
-              + observed.integrationOperationId()
-              + "); resolve this service call again before execution",
-          StageOutcomeClass.DOMAIN_FAILURE,
-          "catalog operation");
-    }
-
-    CatalogBindingMatcher.MatchResult match =
-        matchOperation(call.operation(), resolveRelease(revision));
-    if (match instanceof CatalogBindingMatcher.MatchResult.Exact exact) {
-      return toExisting(call.serviceCallId(), exact.match(), resolveRelease(revision));
-    }
-    if (match instanceof CatalogBindingMatcher.MatchResult.Ambiguous ambiguous) {
-      return new BindingResolutionResult.NeedsInput(call.serviceCallId(), ambiguous.candidateIds());
+    CatalogBindingHint observed = lookup.hint();
+    Optional<CatalogBindingMatcher.CatalogMatch> revalidated = revalidateHint(observed);
+    if (revalidated.isPresent()) {
+      return toExisting(call.serviceCallId(), revalidated.get(), observed.release());
     }
     return new BindingResolutionResult.Failed(
         call.serviceCallId(),
-        "no catalog binding for this service call; resolve it during requirement gathering,"
-            + " where API Hub discovery and specification import happen",
-        StageOutcomeClass.DOMAIN_FAILURE);
+        "the approved catalog binding no longer resolves (operation "
+            + observed.integrationOperationId()
+            + "); resolve this service call again before execution",
+        StageOutcomeClass.DOMAIN_FAILURE,
+        "catalog operation");
   }
 
   private Optional<CatalogBindingMatcher.CatalogMatch> revalidateHint(CatalogBindingHint hint) {
@@ -151,62 +127,6 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
             hint.evidenceRef()));
   }
 
-  private CatalogBindingMatcher.MatchResult matchOperation(String operation, String release) {
-    String query = CatalogStrings.blankToNull(operation);
-    if (query == null) {
-      return new CatalogBindingMatcher.MatchResult.None();
-    }
-    ParsedQuery parsed = parseQuery(query);
-    List<CatalogBindingMatcher.CatalogMatch> hits = new ArrayList<>();
-    for (CatalogRestClient.SystemDto system : catalogReadTool.searchCatalogSystems(query)) {
-      if (system == null || CatalogStrings.blankToNull(system.id()) == null) {
-        continue;
-      }
-      for (CatalogRestClient.SpecificationDto spec :
-          catalogReadTool.getApiSpecifications(system.id())) {
-        if (spec == null
-            || CatalogStrings.blankToNull(spec.id()) == null
-            || CatalogStrings.blankToNull(spec.specificationGroupId()) == null) {
-          continue;
-        }
-        if (release != null
-            && CatalogStrings.blankToNull(spec.name()) != null
-            && !spec.name().toLowerCase(Locale.ROOT).contains(release.toLowerCase(Locale.ROOT))) {
-          continue;
-        }
-        for (CatalogRestClient.OperationDto op :
-            catalogReadTool.listCatalogOperations(spec.id(), system.id(), null)) {
-          if (op == null || CatalogStrings.blankToNull(op.id()) == null) {
-            continue;
-          }
-          if (!operationAgrees(parsed, query, op)) {
-            continue;
-          }
-          hits.add(
-              new CatalogBindingMatcher.CatalogMatch(
-                  system.id(),
-                  spec.specificationGroupId(),
-                  spec.id(),
-                  op.id(),
-                  system.name(),
-                  system.protocol(),
-                  op.method(),
-                  op.path(),
-                  op.name(),
-                  "catalog-read:" + system.id() + "/" + spec.id() + "/" + op.id()));
-        }
-      }
-    }
-    if (hits.isEmpty()) {
-      return new CatalogBindingMatcher.MatchResult.None();
-    }
-    if (hits.size() == 1) {
-      return new CatalogBindingMatcher.MatchResult.Exact(hits.getFirst());
-    }
-    return new CatalogBindingMatcher.MatchResult.Ambiguous(
-        hits.stream().map(CatalogBindingMatcher.CatalogMatch::integrationOperationId).toList());
-  }
-
   private static BindingResolutionResult.Resolved toExisting(
       String serviceCallId, CatalogBindingMatcher.CatalogMatch match, String release) {
     return new BindingResolutionResult.Resolved(
@@ -224,54 +144,32 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
 
   private static HintLookup findHint(
       SemanticNode.ServiceCall call, List<CatalogBindingHint> hints) {
-    List<CatalogBindingHint> v2Hints = new ArrayList<>();
-    List<CatalogBindingHint> v1Hints = new ArrayList<>();
+    List<CatalogBindingHint> matches = new ArrayList<>();
     for (CatalogBindingHint hint : hints) {
       if (hint == null) {
         continue;
       }
-      if ("2".equals(hint.schemaVersion())) {
-        v2Hints.add(hint);
-      } else {
-        v1Hints.add(hint);
-      }
-    }
-    if (!v2Hints.isEmpty()) {
-      List<CatalogBindingHint> matches = new ArrayList<>();
-      for (CatalogBindingHint hint : v2Hints) {
-        if (call.serviceCallId().equals(hint.serviceCallId())) {
-          matches.add(hint);
-        }
-      }
-      if (matches.size() == 1) {
-        return HintLookup.found(matches.getFirst());
-      }
-      if (matches.size() > 1) {
-        return HintLookup.failed(
-            "multiple catalog binding hints for serviceCallId=" + call.serviceCallId());
-      }
-      return HintLookup.failed(
-          "no catalog binding hint for serviceCallId=" + call.serviceCallId());
-    }
-    String query = CatalogStrings.blankToNull(call.operation());
-    for (CatalogBindingHint hint : v1Hints) {
-      if (query != null && query.equals(hint.operationQuery())) {
-        return HintLookup.found(hint);
+      if (!"2".equals(hint.schemaVersion())) {
+        return HintLookup.failed("catalog binding hint must use schemaVersion=2");
       }
       if (call.serviceCallId().equals(hint.serviceCallId())) {
-        return HintLookup.found(hint);
+        matches.add(hint);
       }
     }
-    return HintLookup.none();
+    if (matches.size() == 1) {
+      return HintLookup.found(matches.getFirst());
+    }
+    if (matches.size() > 1) {
+      return HintLookup.failed(
+          "multiple catalog binding hints for serviceCallId=" + call.serviceCallId());
+    }
+    return HintLookup.failed(
+        "no catalog binding hint for serviceCallId=" + call.serviceCallId());
   }
 
   private record HintLookup(CatalogBindingHint hint, String failureReason) {
     static HintLookup found(CatalogBindingHint hint) {
       return new HintLookup(hint, null);
-    }
-
-    static HintLookup none() {
-      return new HintLookup(null, null);
     }
 
     static HintLookup failed(String reason) {
@@ -301,78 +199,4 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     return calls;
   }
 
-  private static String resolveRelease(ChainSemanticRevision revision) {
-    String fromRevision = keyedValue(revision, "release");
-    if (fromRevision != null) {
-      return fromRevision;
-    }
-    return keyedValue(revision, "version");
-  }
-
-  private static String keyedValue(ChainSemanticRevision revision, String key) {
-    String prefix = key.toLowerCase(Locale.ROOT) + ":";
-    for (String line : revision.constraints()) {
-      String value = keyedValue(line, prefix);
-      if (value != null) {
-        return value;
-      }
-    }
-    for (String line : revision.assumptions()) {
-      String value = keyedValue(line, prefix);
-      if (value != null) {
-        return value;
-      }
-    }
-    return null;
-  }
-
-  private static String keyedValue(String line, String prefix) {
-    if (line == null) {
-      return null;
-    }
-    String trimmed = line.trim();
-    if (trimmed.toLowerCase(Locale.ROOT).startsWith(prefix)) {
-      String value = trimmed.substring(prefix.length()).trim();
-      return value.isEmpty() ? null : value;
-    }
-    return null;
-  }
-
-  private static ParsedQuery parseQuery(String operationQuery) {
-    Matcher matcher = METHOD_PATH.matcher(operationQuery);
-    String method = null;
-    String path = null;
-    if (matcher.find()) {
-      method = matcher.group(1).toUpperCase(Locale.ROOT);
-      path = matcher.group(2);
-    }
-    return new ParsedQuery(method, path, operationQuery.trim());
-  }
-
-  private static boolean operationAgrees(
-      ParsedQuery parsed, String operationQuery, CatalogRestClient.OperationDto op) {
-    if (parsed.method() != null
-        && CatalogStrings.blankToNull(op.method()) != null
-        && !parsed.method().equalsIgnoreCase(op.method().trim())) {
-      return false;
-    }
-    if (parsed.path() != null
-        && CatalogStrings.blankToNull(op.path()) != null
-        && !parsed.path().equalsIgnoreCase(op.path().trim())) {
-      return false;
-    }
-    if (parsed.method() != null && parsed.path() != null) {
-      return true;
-    }
-    String needle = operationQuery.toLowerCase(Locale.ROOT);
-    return containsIgnoreCase(op.name(), needle)
-        || containsIgnoreCase(op.id(), needle)
-        || containsIgnoreCase(op.path(), needle);
-  }
-
-  private static boolean containsIgnoreCase(String value, String needle) {
-    return value != null && value.toLowerCase(Locale.ROOT).contains(needle);
-  }
-
-  private record ParsedQuery(String method, String path, String raw) {}
 }

@@ -51,17 +51,12 @@ public record RequirementFact(
     path = blankToEmpty(path);
     if (kind == RequirementFactKind.SERVICE_CALL) {
       String trimmedCallId = blankToEmpty(serviceCallId);
-      if (!trimmedCallId.isEmpty()) {
-        serviceCallId = trimmedCallId;
-        sourceFactId =
-            sourceFactId == null || sourceFactId.isBlank() ? serviceCallId : sourceFactId.trim();
-      } else if (sourceFactId == null || sourceFactId.isBlank()) {
-        sourceFactId = deriveSourceFactId(polarity, text);
-        serviceCallId = sourceFactId;
-      } else {
-        sourceFactId = sourceFactId.trim();
-        serviceCallId = sourceFactId;
+      if (trimmedCallId.isEmpty()) {
+        throw new IllegalArgumentException("serviceCallId is required for SERVICE_CALL facts");
       }
+      serviceCallId = trimmedCallId;
+      sourceFactId =
+          sourceFactId == null || sourceFactId.isBlank() ? serviceCallId : sourceFactId.trim();
     } else {
       if (sourceFactId == null || sourceFactId.isBlank()) {
         sourceFactId = deriveSourceFactId(polarity, text);

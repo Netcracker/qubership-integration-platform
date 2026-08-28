@@ -28,7 +28,7 @@ public final class RequirementBriefCoverageValidator {
 
     List<RequirementFact> draftFacts = approvedDraft.facts();
     List<RequirementFact> briefFacts = brief.facts();
-    // Catalog import (withCatalogBinding) may promote a draft to READY_FOR_PLAN before gather
+    // Catalog import may promote a draft to READY_FOR_PLAN before gather
     // distilled explicit facts — typically when the turn only captured an APIHub candidate.
     // Coverage is then a no-op: there are no sourceFactId values to pin or mismatch.
     if (draftFacts.isEmpty()) {
@@ -96,8 +96,11 @@ public final class RequirementBriefCoverageValidator {
 
   /**
    * Empty brief service-call lists stay a coverage no-op so v1 briefs that only pin facts still
-   * pass. A non-empty list must cover every draft {@code serviceCallId} and must not attach a
-   * binding that names a different call.
+   * pass. A non-empty list must cover every draft {@code serviceCallId}, and every call must carry
+   * a catalog binding that names it.
+   *
+   * <p>Requiring the binding here is what keeps an unbound call from reaching design execution,
+   * where nothing upstream can still resolve it and the run can only ask the author again.
    */
   private static Optional<String> validateServiceCalls(
       RequirementDraft approvedDraft, RequirementBrief brief) {
@@ -127,7 +130,17 @@ public final class RequirementBriefCoverageValidator {
                 + call.operation());
       }
       CatalogBindingHint hint = call.catalogBinding();
-      if (hint != null && !call.serviceCallId().equals(hint.serviceCallId())) {
+      if (hint == null) {
+        return Optional.of(
+            "requirement brief service call has no catalog binding, serviceCallId="
+                + call.serviceCallId()
+                + ", participant="
+                + call.participant()
+                + ", operation="
+                + call.operation()
+                + "; bind it to a catalog operation before approving the brief");
+      }
+      if (!call.serviceCallId().equals(hint.serviceCallId())) {
         return Optional.of(
             "requirement brief catalog binding serviceCallId="
                 + hint.serviceCallId()

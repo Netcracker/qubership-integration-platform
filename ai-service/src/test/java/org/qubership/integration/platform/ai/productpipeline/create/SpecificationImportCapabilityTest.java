@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Uni;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,6 +33,7 @@ import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class SpecificationImportCapabilityTest {
@@ -117,7 +119,9 @@ class SpecificationImportCapabilityTest {
     RequirementDraft draft = pendingDraft();
     ResolvedCatalogBinding binding =
         new ResolvedCatalogBinding("sys", "spec", "group", "op", "INTERNAL");
-    RequirementDraft bound = draft.withCatalogBinding(binding);
+    RequirementServiceCall call = draft.serviceCalls().getFirst();
+    RequirementDraft bound =
+        draft.withBoundServiceCall(call.serviceCallId(), bindingHint(call, binding));
     // resolveDraft prefers the store (ADR SoT); return pending first, then bound after apply.
     when(store.get("conv-1")).thenReturn(Optional.of(draft), Optional.of(bound));
     ApiHubSpecificationImportResult result =
@@ -208,7 +212,6 @@ class SpecificationImportCapabilityTest {
                 "1",
                 null,
                 candidate(),
-                null,
                 false,
                 List.of(om, wfm),
                 true)
@@ -271,6 +274,25 @@ class SpecificationImportCapabilityTest {
 
   private static RequirementDraft readyDraft(
       ApiHubRequirementRefs candidate, ResolvedCatalogBinding binding) {
+    if (binding != null) {
+      RequirementFact fact =
+          serviceCall("call-geosite", "GeoSite", "GeoSite catalog");
+      RequirementDraft draft =
+          new RequirementDraft(
+              true,
+              "HTTP GET /greetings",
+              DraftDecision.READY_FOR_PLAN,
+              List.of(),
+              "brainstorming",
+              "1",
+              null,
+              candidate,
+              false,
+              List.of(fact),
+              false);
+      RequirementServiceCall call = draft.serviceCalls().getFirst();
+      return draft.withBoundServiceCall(call.serviceCallId(), bindingHint(call, binding));
+    }
     return new RequirementDraft(
         true,
         "HTTP GET /greetings",
@@ -280,7 +302,6 @@ class SpecificationImportCapabilityTest {
         "1",
         null,
         candidate,
-        binding,
         false,
         List.of(
             RequirementFact.of(
@@ -301,15 +322,44 @@ class SpecificationImportCapabilityTest {
         "1",
         null,
         candidate(),
-        null,
         false,
-        List.of(
-            RequirementFact.of(
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.SERVICE_CALL,
-                "geosite",
-                "GeoSite catalog")),
+        List.of(serviceCall("call-geosite", "GeoSite", "GeoSite catalog")),
         true);
+  }
+
+  private static RequirementFact serviceCall(
+      String serviceCallId, String participant, String operation) {
+    return new RequirementFact(
+        serviceCallId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.SERVICE_CALL,
+        "",
+        operation,
+        participant,
+        operation,
+        "",
+        "",
+        "",
+        serviceCallId);
+  }
+
+  private static CatalogBindingHint bindingHint(
+      RequirementServiceCall call, ResolvedCatalogBinding binding) {
+    return new CatalogBindingHint(
+        "2",
+        call.serviceCallId(),
+        call.sourceFactId(),
+        call.operation().isBlank() ? "service-call" : call.operation(),
+        binding.systemId(),
+        binding.specificationGroupId(),
+        binding.specificationId(),
+        binding.integrationOperationId(),
+        null,
+        null,
+        null,
+        "catalog",
+        Instant.EPOCH,
+        "test");
   }
 
   private static ApiHubRequirementRefs candidate() {

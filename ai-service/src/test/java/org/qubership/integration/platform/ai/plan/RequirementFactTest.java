@@ -3,7 +3,9 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -61,15 +63,15 @@ class RequirementFactTest {
   }
 
   @Test
-  void acceptsServiceCallKindFromLlmToolCall() throws Exception {
-    RequirementFact fact =
-        mapper.readValue(
-            """
-            {"polarity":"POSITIVE","kind":"SERVICE_CALL","text":"Petstore Ext getInventory"}
-            """,
-            RequirementFact.class);
-
-    assertEquals(RequirementFactKind.SERVICE_CALL, fact.kind());
+  void rejectsServiceCallWithoutServiceCallIdFromLlmToolCall() {
+    assertThrows(
+        JsonMappingException.class,
+        () ->
+            mapper.readValue(
+                """
+                {"polarity":"POSITIVE","kind":"SERVICE_CALL","text":"Petstore Ext getInventory"}
+                """,
+                RequirementFact.class));
   }
 
   @Test
@@ -96,34 +98,32 @@ class RequirementFactTest {
               "openQuestions": [],
               "facts": [
                 {"polarity":"POSITIVE","kind":"ENDPOINT","text":"GET /health-proxy"},
-                {"polarity":"POSITIVE","kind":"SERVICE_CALL","text":"Petstore Ext getInventory"}
-              ],
-              "catalogBinding": {
-                "systemId": "sys-1",
-                "specificationId": "spec-1",
-                "specificationGroupId": "group-1",
-                "integrationOperationId": "op-1"
-              }
+                {
+                  "polarity":"POSITIVE",
+                  "kind":"SERVICE_CALL",
+                  "text":"Petstore Ext getInventory",
+                  "serviceCallId":"call-inventory"
+                }
+              ]
             }
             """,
             RequirementDraftCapture.class);
 
     assertEquals(DraftDecision.READY_FOR_PLAN, capture.decision());
     assertEquals(RequirementFactKind.SERVICE_CALL, capture.facts().get(1).kind());
-    assertEquals("op-1", capture.catalogBinding().integrationOperationId());
   }
 
   @Test
-  void serviceCallIdDefaultsToLegacySourceFactId() {
-    RequirementFact fact =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "",
-            "Petstore Ext getInventory");
-
-    assertFalse(fact.sourceFactId().isBlank());
-    assertEquals(fact.sourceFactId(), fact.serviceCallId());
+  void rejectsServiceCallWithoutServiceCallIdEvenWhenSourceFactIdExists() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            new RequirementFact(
+                "fact-inventory",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.SERVICE_CALL,
+                "",
+                "Petstore Ext getInventory"));
   }
 
   @Test

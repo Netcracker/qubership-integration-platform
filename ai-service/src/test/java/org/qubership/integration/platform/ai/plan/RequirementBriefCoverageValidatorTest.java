@@ -18,10 +18,7 @@ class RequirementBriefCoverageValidatorTest {
 
   @Test
   void emptyApprovedDraftFactsAreCoverageNoOp() {
-    RequirementDraft approved =
-        new RequirementDraft(true, "Proxy Geographic Site GET-by-id")
-            .withCatalogBinding(
-                new ResolvedCatalogBinding("sys-1", "spec-1", "group-1", "op-1", "INTERNAL"));
+    RequirementDraft approved = new RequirementDraft(true, "Proxy Geographic Site GET-by-id");
     RequirementBrief brief =
         new RequirementBrief(
             "Proxy Geographic Site",
@@ -59,7 +56,6 @@ class RequirementBriefCoverageValidatorTest {
             null,
             null,
             null,
-            null,
             false,
             List.of(fact),
             false);
@@ -83,18 +79,14 @@ class RequirementBriefCoverageValidatorTest {
   @Test
   void v1BriefWithoutMappingsRemainsCoverageCompatible() {
     RequirementFact fact =
-        RequirementFact.of(
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "service-call",
-            "Call retrieveGeographicSite");
+        serviceCallFact(
+            "call-geosite", "call-geosite", "GeoSite", "retrieveGeographicSite");
     RequirementDraft approvedV1Draft =
         new RequirementDraft(
             true,
             "Proxy Geographic Site",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             null,
             null,
@@ -130,19 +122,13 @@ class RequirementBriefCoverageValidatorTest {
             "http-trigger",
             "POST /demo/pet-inventory/check");
     RequirementFact serviceCall =
-        new RequirementFact(
-            "call-1",
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "service-call",
-            "Petstore Ext: GET /store/inventory");
+        serviceCallFact("call-1", "call-1", "Petstore Ext", "GET /store/inventory");
     RequirementDraft approved =
         new RequirementDraft(
             true,
             "Pet Inventory Check",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             null,
             null,
@@ -188,19 +174,13 @@ class RequirementBriefCoverageValidatorTest {
             "quartz-scheduler",
             "Run hourly");
     RequirementFact serviceCall =
-        new RequirementFact(
-            "call-1",
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "service-call",
-            "Petstore Ext: GET /store/inventory");
+        serviceCallFact("call-1", "call-1", "Petstore Ext", "GET /store/inventory");
     RequirementDraft approved =
         new RequirementDraft(
             true,
             "Dual-trigger inventory",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
-            null,
             null,
             null,
             null,
@@ -312,6 +292,36 @@ class RequirementBriefCoverageValidatorTest {
     assertTrue(error.orElseThrow().contains("call-wfm-create-task"), error.orElseThrow());
   }
 
+  @Test
+  void rejectsAServiceCallWithoutACatalogBinding() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    RequirementFact omFact =
+        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
+    CatalogBindingHint omHint =
+        catalogHint(
+            "call-om-result",
+            "fact-om",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            observedAt);
+    RequirementServiceCall boundCall =
+        new RequirementServiceCall(
+            "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint);
+    RequirementServiceCall unboundCall =
+        new RequirementServiceCall("call-om-result", "fact-om", "Order Management", "onTaskResult");
+    RequirementDraft approved = approvedDraft(List.of(omFact), List.of(boundCall));
+    RequirementBrief brief = briefWithCalls(approved, List.of(omFact), List.of(unboundCall));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("no catalog binding"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("call-om-result"), error.orElseThrow());
+  }
+
   private static RequirementDraft approvedDraft(
       List<RequirementFact> facts, List<RequirementServiceCall> serviceCalls) {
     return new RequirementDraft(
@@ -321,7 +331,6 @@ class RequirementBriefCoverageValidatorTest {
         List.of(),
         "brainstorming",
         "1",
-        null,
         null,
         null,
         false,

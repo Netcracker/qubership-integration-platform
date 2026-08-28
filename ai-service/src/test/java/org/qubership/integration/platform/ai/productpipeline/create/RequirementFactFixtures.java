@@ -150,7 +150,6 @@ public final class RequirementFactFixtures {
         "1",
         null,
         null,
-        null,
         false,
         greetingsFacts());
   }
@@ -163,7 +162,6 @@ public final class RequirementFactFixtures {
         List.of(),
         "brainstorming",
         "1",
-        null,
         null,
         null,
         false,

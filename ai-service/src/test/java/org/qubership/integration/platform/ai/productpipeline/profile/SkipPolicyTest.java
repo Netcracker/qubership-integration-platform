@@ -4,13 +4,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
-import org.qubership.integration.platform.ai.plan.ResolvedCatalogBinding;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 
 class SkipPolicyTest {
 
@@ -30,7 +34,6 @@ class SkipPolicyTest {
             "1",
             null,
             null,
-            null,
             false,
             List.of(),
             false);
@@ -39,20 +42,50 @@ class SkipPolicyTest {
 
   @Test
   void skipsWhenCatalogBindingPresent() {
+    RequirementFact call =
+        new RequirementFact(
+            "call-geosite",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.SERVICE_CALL,
+            "",
+            "getGeographicSite",
+            "GeoSite",
+            "getGeographicSite",
+            "",
+            "",
+            "",
+            "call-geosite");
     RequirementDraft draft =
         new RequirementDraft(
-            true,
-            "bound",
-            DraftDecision.READY_FOR_PLAN,
-            List.of(),
-            "brainstorming",
-            "1",
-            null,
-            candidate(),
-            new ResolvedCatalogBinding("sys", "spec", "group", "op"),
-            false,
-            List.of(),
-            false);
+                true,
+                "bound",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                "brainstorming",
+                "1",
+                null,
+                candidate(),
+                false,
+                List.of(call),
+                false)
+            .withApiHubCandidate(candidate(), call.serviceCallId())
+            .withBoundServiceCall(
+                call.serviceCallId(),
+                new CatalogBindingHint(
+                    "2",
+                    call.serviceCallId(),
+                    call.sourceFactId(),
+                    "service-call",
+                    "sys",
+                    "group",
+                    "spec",
+                    "op",
+                    null,
+                    null,
+                    null,
+                    "catalog",
+                    Instant.EPOCH,
+                    "test"));
     assertTrue(policy.matches(draft));
   }
 
@@ -68,7 +101,6 @@ class SkipPolicyTest {
             "1",
             null,
             candidate(),
-            null,
             false,
             List.of(),
             true);
@@ -85,7 +117,6 @@ class SkipPolicyTest {
             List.of("What API Hub package should we import?"),
             "brainstorming",
             "1",
-            null,
             null,
             null,
             false,
@@ -107,7 +138,6 @@ class SkipPolicyTest {
             List.of(),
             "brainstorming",
             "1",
-            null,
             null,
             null,
             false,
