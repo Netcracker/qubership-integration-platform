@@ -588,7 +588,13 @@ class ProductPipelineApprovalTest {
 
   private ProductPipelineRunDocument runAndExpectFailure(
       StageOutcome outcome, ApprovalPolicy approvalPolicy, List<ArtifactTypeRef> produces) {
-    return runAndExpectHalt(outcome, approvalPolicy, produces, PipelineGates.STAGE_RETRY);
+    ScriptedCapability capability = new ScriptedCapability(outcome);
+    ProductPipelineRunDocument doc =
+        runAndExpectHalt(capability, approvalPolicy, produces, PipelineGates.STAGE_RETRY);
+    String prompt = doc.transitions().get(doc.transitions().size() - 1).reason();
+    assertEquals(1, capability.completedCalls());
+    assertTrue(PipelineGates.guardOf(prompt).isEmpty());
+    return doc;
   }
 
   /**
@@ -598,18 +604,26 @@ class ProductPipelineApprovalTest {
   private ProductPipelineRunDocument runAndExpectInternalFailure(
       StageOutcome outcome, ApprovalPolicy approvalPolicy, List<ArtifactTypeRef> produces) {
     return runAndExpectHalt(
-        outcome, approvalPolicy, produces, PipelineGates.STAGE_INTERNAL_FAILURE);
+        new ScriptedCapability(outcome),
+        approvalPolicy,
+        produces,
+        PipelineGates.STAGE_INTERNAL_FAILURE);
   }
 
   private ProductPipelineRunDocument runAndExpectHalt(
-      StageOutcome outcome,
+      ScriptedCapability capability,
       ApprovalPolicy approvalPolicy,
       List<ArtifactTypeRef> produces,
       String expectedGate) {
-    configureRuntime(profile(approvalPolicy, produces), new ScriptedCapability(outcome));
+    configureRuntime(profile(approvalPolicy, produces), capability);
     startRun();
     List<PipelineSignal> signals =
-        runtime.acceptInput(new AcceptInputCommand(RUN_ID, "candidate")).collect().asList().await().indefinitely();
+        runtime
+            .acceptInput(new AcceptInputCommand(RUN_ID, "candidate"))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
     PipelineSignal.WaitingForInput waiting =
         signals.stream()
             .filter(PipelineSignal.WaitingForInput.class::isInstance)
@@ -779,9 +793,14 @@ class ProductPipelineApprovalTest {
 
   private static final class ScriptedCapability implements StageCapability {
     private final Queue<StageOutcome> outcomes;
+    private int completedCalls;
 
     private ScriptedCapability(StageOutcome... outcomes) {
       this.outcomes = new ArrayDeque<>(List.of(outcomes));
+    }
+
+    private int completedCalls() {
+      return completedCalls;
     }
 
     @Override
@@ -797,6 +816,7 @@ class ProductPipelineApprovalTest {
                 new CapabilitySignal.Completed(
                     StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "need user input")));
       }
+      completedCalls++;
       StageOutcome outcome =
           outcomes.isEmpty()
               ? StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "no scripted outcome configured")
