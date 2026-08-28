@@ -370,6 +370,35 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void verifyPersistedPinRejectsOldSemanticSchema() {
+    ChainSemanticRevision revision = twoEntryRevision();
+    CompilerRunPin pin = resolver.resolve("run-semantic-1", revision, v1Contract());
+    CompilerRunPin oldSchema =
+        new CompilerRunPin(
+            pin.compilerPackageId(),
+            pin.compilerPackageVersion(),
+            pin.compilerPackageDigest(),
+            pin.pipelineIndexSchemaVersion(),
+            pin.pipelineIndexVersion(),
+            pin.pipelineIndexDigest(),
+            pin.resolvedDag(),
+            pin.capabilityClosure(),
+            pin.skillSha256ById(),
+            pin.addonSha256ById(),
+            pin.runtimeArtifactSchemas(),
+            pin.subjectArtifactKind(),
+            "normalized-design-flow/v1",
+            pin.subjectRevisionId(),
+            pin.subjectSha256(),
+            pin.compilerContractVersion(),
+            pin.compilerContractSha256());
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> resolver.verifyPersistedPin(oldSchema, revision));
+    assertTrue(error.getMessage().contains("Approved semantic schema version does not match"));
+  }
+
+  @Test
   void restartDoesNotRecomputeContractDigestAgainstNewerContract() {
     ChainSemanticRevision revision = twoEntryRevision();
     CompilerContract contract = v1Contract();

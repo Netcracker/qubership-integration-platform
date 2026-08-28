@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +23,7 @@ import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ContainmentRole;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -552,6 +554,24 @@ class ChainPlanGraphValidatorTest {
 
     assertEquals(
         "Runtime descriptor is incompatible with compiler contract: condition container",
+        error.getMessage());
+  }
+
+  @Test
+  void rejectsMissingRuntimeDescriptor() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    when(loader.load(anyString()))
+        .thenThrow(new CatalogElementDescriptorException("http-trigger", "not found."));
+    ChainPlanGraphValidator missingValidator = new ChainPlanGraphValidator(schemaService, loader);
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                missingValidator.validate(compiledConditionGraph(), CONTRACT, conditionRevision()));
+
+    assertTrue(
+        error.getMessage().contains("Required runtime descriptor is missing:"),
         error.getMessage());
   }
 
