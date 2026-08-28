@@ -5,7 +5,13 @@ globs: "vscode-extension/**"
 
 ### Project Overview
 
-QIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code extension for visually editing QIP chains and services stored as local `*.qip.yaml` files. It embeds `@netcracker/qip-ui` (`^1.0.0`) as a webview bundle and validates against `@netcracker/qip-schemas`. Built as a **web extension** (runs in the `webworker` extension host — no Node runtime, no network). Stack: TypeScript `^5.9.3`, VS Code Extension API (`engines.vscode: ^1.120.0`), Webpack `^5.99.7`, Jest `^29.7.0`. Ships as an npm package to GitHub Packages (`@netcracker:registry=https://npm.pkg.github.com/`); it is NOT published to the VS Code Marketplace.
+QIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code
+extension for visually editing QIP chains and services stored as local `*.qip.yaml` files. It embeds
+`@netcracker/qip-ui` (`^1.0.0`) as a webview bundle and validates against `@netcracker/qip-schemas`. Built as
+a **web extension** (runs in the `webworker` extension host — no Node runtime, no network). Stack: TypeScript
+`^5.9.3`, VS Code Extension API (`engines.vscode: ^1.120.0`), Webpack `^5.99.7`, Jest `^29.7.0`. Ships as an
+npm package to GitHub Packages (`@netcracker:registry=https://npm.pkg.github.com/`); it is NOT published to
+the VS Code Marketplace.
 
 ### Build & Test Commands
 
@@ -47,7 +53,15 @@ Two webpack outputs (`webpack.config.js` exports an array):
 
 **Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
 
-**Custom editors & commands:** `package.json` registers seven custom text editors, one per file pattern — `*.chain.qip.yaml`, `*.service.qip.yaml`, `*.external-service.qip.yaml`, `*.internal-service.qip.yaml`, `*.implemented-service.qip.yaml`, `*.context-service.qip.yaml`, `*.mcp-service.qip.yaml` — plus a `qip-main` explorer tree view and commands (`qip.open`, `qip.createChain`, `qip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff view (proposed `customEditorDiffs` API). `editorViewTypes.ts:getEditorViewTypeForUri` is the single uri → view type resolver; `qip.revealInExplorer` goes through it too, so a new editor type needs no second suffix chain. A slash-free `filenamePattern` matches within one name segment, so `*.service.qip.yaml` does not claim `x.external-service.qip.yaml` — the same reason `.context-service.` has always been safe.
+**Custom editors & commands:** `package.json` registers seven custom text editors, one per file pattern —
+`*.chain.qip.yaml`, `*.service.qip.yaml`, `*.external-service.qip.yaml`, `*.internal-service.qip.yaml`,
+`*.implemented-service.qip.yaml`, `*.context-service.qip.yaml`, `*.mcp-service.qip.yaml` — plus a `qip-main`
+explorer tree view and commands (`qip.open`, `qip.createChain`, `qip.createService`, delete/reveal, etc.). The
+chain editor additionally supports an inline diff view (proposed `customEditorDiffs` API).
+`editorViewTypes.ts:getEditorViewTypeForUri` is the single uri → view type resolver; `qip.revealInExplorer`
+goes through it too, so a new editor type needs no second suffix chain. A slash-free `filenamePattern` matches
+within one name segment, so `*.service.qip.yaml` does not claim `x.external-service.qip.yaml` — the same
+reason `.context-service.` has always been safe.
 
 **Dual-format read, single-format write.** The extension reads both `.specification.<app>.yaml` (legacy
 `specificationSources[]` with `fileName`/`mainSource`) and `.api.<app>.yaml` (current `specifications[]` with

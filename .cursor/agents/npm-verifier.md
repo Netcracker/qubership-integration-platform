@@ -132,7 +132,7 @@ CSS module, or a JSON fixture. Say so when you do.
 State the verdict first, then the evidence. Keep failing output verbatim and trimmed to
 the relevant lines — the caller fixes the code, so guessing at the cause wastes their time.
 
-```
+```text
 VERDICT: fail (types)
 
 Scope:   ui (3 files changed)

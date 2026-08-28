@@ -1,6 +1,6 @@
 ---
 description: "Runtime catalog service: layers, mapper DSL, build and test commands, conventions."
-applyTo: "runtime-catalog/src/**"
+applyTo: "runtime-catalog/**"
 ---
 
 ### Build & Test Commands
@@ -96,7 +96,7 @@ This service is the **central brain** of the Qubership Integration Platform (QIP
 
 #### Key Role in Deployment Pipeline
 
-```
+```text
 Chain definition (UI/import) → Runtime Catalog compiles → Camel XML (Handlebars) → Publishes to Consul KV → Engine detects update → Fetches full config → Creates Camel routes
 ```
 

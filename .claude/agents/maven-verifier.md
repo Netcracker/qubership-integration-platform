@@ -120,7 +120,7 @@ Not every red build is a code problem:
 
 State the verdict first, then the evidence, trimmed to the lines that matter.
 
-```
+```text
 VERDICT: fail (tests)
 
 Scope:      runtime-catalog (2 files changed)

@@ -42,7 +42,7 @@ to `ui/package.json`. This document argues the other option: adopt it properly.
 
 ## Proposed shape
 
-```
+```text
 ui/
   e2e/
     fixtures/           # deterministic API responses
