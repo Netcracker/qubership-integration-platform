@@ -51,9 +51,23 @@ WHERE snapshots.id = rebuilt.id
   AND snapshots.xml_configuration <> rebuilt.xml;
 
 -- A chain keeps the hash of the archive it was last imported from, and an import with hash validation
--- skips a chain whose hash still matches. Clearing the hash makes the next import process every chain
--- instead of skipping it, so re-importing with a snapshot or deploy action rebuilds the chain from the
--- fixed template. That is the way out for the snapshots this migration leaves alone.
+-- skips a chain whose hash still matches. Clearing the hash makes the next import process the chain
+-- instead of skipping it, so re-importing with a snapshot or deploy action rebuilds it from the fixed
+-- template. That is the way out for the snapshots left alone above, so only chains that still hold one
+-- need it -- the rewritten snapshots are already fixed by the time this runs.
 UPDATE catalog.chains
 SET last_import_hash = NULL
-WHERE last_import_hash IS NOT NULL;
+WHERE last_import_hash IS NOT NULL
+  -- driven from the chain so the search stops at its first still-broken snapshot
+  AND EXISTS (SELECT 1
+              FROM catalog.snapshots s
+              WHERE s.chain_id = chains.id
+                AND (strpos(s.xml_configuration, 'id="Handle response--') > 0
+                     OR strpos(s.xml_configuration, 'id="Validations--') > 0)
+                -- a snapshot is still broken when one of its step ids appears more than once
+                AND EXISTS (SELECT 1
+                            FROM regexp_matches(s.xml_configuration,
+                                                'id="(?:Handle response|Validations)--[^"]*"',
+                                                'g') AS m(step_id)
+                            GROUP BY m.step_id
+                            HAVING count(*) > 1));
