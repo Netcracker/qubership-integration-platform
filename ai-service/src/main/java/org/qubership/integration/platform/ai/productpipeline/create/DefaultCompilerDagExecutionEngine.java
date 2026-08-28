@@ -29,6 +29,9 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecut
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
 import org.qubership.integration.platform.ai.compiler.ChainEditSkillContext;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.plan.CompilerOrchestrationService;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
@@ -51,13 +54,16 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ClasspathQipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutor;
 import org.qubership.integration.platform.ai.skill.executor.SkillRunStatus;
@@ -93,6 +99,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   private final GraphAssemblyService graphAssemblyService;
   private final CompilerValidationPipeline compilerValidationPipeline;
   private final ProductPipelineArtifactStore artifactStore;
+  private final ChainPlanGraphValidator graphValidator;
+  private final CompilerContractRepository contractRepository;
 
   @Inject
   @SuppressWarnings("java:S107")
@@ -107,7 +115,9 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       CanonicalGraphDigest canonicalGraphDigest,
       GraphAssemblyService graphAssemblyService,
       CompilerValidationPipeline compilerValidationPipeline,
-      ProductPipelineArtifactStore artifactStore) {
+      ProductPipelineArtifactStore artifactStore,
+      ChainPlanGraphValidator graphValidator,
+      CompilerContractRepository contractRepository) {
     this.workspaceStore = Objects.requireNonNull(workspaceStore, "workspaceStore");
     this.skillRegistry = Objects.requireNonNull(skillRegistry, "skillRegistry");
     this.javaAdapterRegistry = Objects.requireNonNull(javaAdapterRegistry, "javaAdapterRegistry");
@@ -122,6 +132,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     this.compilerValidationPipeline =
         Objects.requireNonNull(compilerValidationPipeline, "compilerValidationPipeline");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
+    this.graphValidator = Objects.requireNonNull(graphValidator, "graphValidator");
+    this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
     this.scheduler = new CompilerDerivedPlanningScheduler(skillRegistry, javaAdapterRegistry);
   }
 
@@ -147,7 +159,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         new CanonicalGraphDigest(new ObjectMapper()),
         graphAssemblyService,
         compilerValidationPipeline,
-        artifactStore);
+        artifactStore,
+        new ChainPlanGraphValidator(
+            DeterministicElementSchemaService.createForUnitTests(new ObjectMapper())),
+        new ClasspathCompilerContractRepository());
   }
 
   @SuppressWarnings("java:S107")
@@ -271,6 +286,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             for (SkillArtifact output : outputs) {
               workspaceStore.putArtifact(workspaceId, output);
             }
+            validateProducedGraph(engineRequest, workspace, outputs);
             state = applyCompletion(state, node, outputs);
             executed.add(node.skillId());
             skillProgress.accept(node.skillId(), "completed");
@@ -307,7 +323,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     if (!stopAfterAssemblyAndMandatoryValidators(dag, state)) {
       throw new IllegalStateException("contract failure: planner stopped before mandatory nodes completed");
     }
-    return toResult(workspaceId, executed, patchLedger.build(), degradations);
+    return toResult(engineRequest, workspaceId, executed, patchLedger.build(), degradations);
   }
 
   private static CompilerPlanningRequest toPlanningRequest(
@@ -1029,6 +1045,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   }
 
   private CompilerDagExecutionResult toResult(
+      CompilerDagExecutionRequest request,
       String conversationId,
       List<String> executedSkillIds,
       PlanningPatchLedger patchLedger,
@@ -1049,18 +1066,75 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             .get(SkillArtifactType.COMPILER_VALIDATION_BUNDLE)
             .map(a -> ((SkillArtifactPayload.CompilerValidationBundlePayload) a.payload()).bundle())
             .orElse(null);
+    Set<String> present = new LinkedHashSet<>();
+    for (SkillArtifactType type : workspace.presentTypes()) {
+      present.add(type.name());
+    }
     LOG.infof(
         "Compiler DAG execution completed conversationId=%s executed=%s",
         conversationId, executedSkillIds);
-    return new CompilerDagExecutionResult(
-        StageOutcomeClass.SUCCEEDED,
-        null,
-        List.copyOf(executedSkillIds),
-        patchLedger,
-        graph,
-        assemblyResult,
-        validationBundle,
-        List.copyOf(degradations));
+    CompilerDagExecutionResult result =
+        new CompilerDagExecutionResult(
+            StageOutcomeClass.SUCCEEDED,
+            null,
+            List.copyOf(executedSkillIds),
+            patchLedger,
+            graph,
+            assemblyResult,
+            validationBundle,
+            List.copyOf(degradations),
+            present);
+    failClosedOnContract(request, workspace, result);
+    return result;
+  }
+
+  private void validateProducedGraph(
+      CompilerDagExecutionRequest request, SkillWorkspace workspace, List<SkillArtifact> outputs) {
+    if (request.semanticRevision() == null || outputs == null) {
+      return;
+    }
+    boolean producedGraph = false;
+    for (SkillArtifact output : outputs) {
+      if (output != null && output.type() == SkillArtifactType.CHAIN_PLAN_GRAPH) {
+        producedGraph = true;
+        break;
+      }
+    }
+    if (!producedGraph) {
+      return;
+    }
+    validateGraphAgainstContract(request, workspace);
+  }
+
+  private void failClosedOnContract(
+      CompilerDagExecutionRequest request,
+      SkillWorkspace workspace,
+      CompilerDagExecutionResult result) {
+    if (request.semanticRevision() == null) {
+      return;
+    }
+    pinRuntimeDescriptors();
+    validateGraphAgainstContract(request, workspace);
+    CompilerContract contract = contractRepository.require(CompilerContract.V1);
+    result.requireArtifacts(contract.requiredArtifacts());
+  }
+
+  private void validateGraphAgainstContract(
+      CompilerDagExecutionRequest request, SkillWorkspace workspace) {
+    ChainPlanGraph graph =
+        workspace
+            .get(SkillArtifactType.CHAIN_PLAN_GRAPH)
+            .map(a -> ((SkillArtifactPayload.ChainPlanGraphPayload) a.payload()).graph())
+            .orElse(null);
+    CompilerContract contract = contractRepository.require(CompilerContract.V1);
+    graphValidator.validate(graph, contract, request.semanticRevision());
+  }
+
+  private void pinRuntimeDescriptors() {
+    if (packRepository instanceof ClasspathQipKnowledgePackRepository classpathPack) {
+      classpathPack.requireRuntimeDescriptorVersion();
+      classpathPack.requireRuntimeDescriptorDigest();
+    }
   }
 
   private record PinnedRunContext(RunManifest manifest, CompilerRunPin pin) {

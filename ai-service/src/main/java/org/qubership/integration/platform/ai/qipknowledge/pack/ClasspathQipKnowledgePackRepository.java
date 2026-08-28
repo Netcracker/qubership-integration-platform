@@ -167,6 +167,29 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
     return pinned;
   }
 
+  /**
+   * Returns the compiler contract version pinned next to runtime descriptor constraints.
+   * Missing pins fail closed.
+   */
+  public String requireRuntimeDescriptorVersion() {
+    QipKnowledgePackManifest manifest = loadManifest();
+    String version = manifest.compilerContractVersion();
+    if (version == null || version.isBlank()) {
+      throw new IllegalStateException(
+          "Compiler knowledge index is missing compilerContractVersion for version "
+              + activeVersion.normalized());
+    }
+    return version;
+  }
+
+  /**
+   * Returns the digest of the compiler contract that carries runtime descriptor constraints.
+   * Missing or mismatched pins fail closed.
+   */
+  public String requireRuntimeDescriptorDigest() {
+    return requireCompilerContractDigest();
+  }
+
   private <T> T readJson(String fileName, Class<T> type) {
     try {
       return objectMapper.readValue(readResource(fileName), type);
