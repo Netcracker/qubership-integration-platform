@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>1.2.2</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-all-fixed-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
