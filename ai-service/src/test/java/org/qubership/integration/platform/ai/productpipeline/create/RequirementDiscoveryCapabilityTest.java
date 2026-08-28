@@ -771,7 +771,6 @@ class RequirementDiscoveryCapabilityTest {
                 inventoryCall,
                 invoiceCall),
             false,
-            null,
             List.of(
                 new RequirementServiceCall(
                     inventoryCall.serviceCallId(),
@@ -926,7 +925,6 @@ class RequirementDiscoveryCapabilityTest {
                 omCall,
                 wfmCall),
             false,
-            null,
             List.of(
                 new RequirementServiceCall(
                     "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint),
@@ -1039,7 +1037,6 @@ class RequirementDiscoveryCapabilityTest {
                 "Create pending pets chain"),
             call),
         false,
-        null,
         List.of(
             new RequirementServiceCall(
                 call.serviceCallId(), call.sourceFactId(), "Petstore Ext", "GET /pets", hint)));

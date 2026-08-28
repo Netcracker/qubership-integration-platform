@@ -327,7 +327,6 @@ class RequirementBriefCoverageValidatorTest {
         false,
         facts,
         false,
-        null,
         serviceCalls);
   }
 

@@ -68,7 +68,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageRep
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningDegradations;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.FakeFailureNarrativeAgent;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
@@ -417,7 +416,7 @@ class ProductPipelineStageExecutorTest {
                     "needs-route",
                     List.of(
                         new ArtifactTypeRef("user-input", 1),
-                        new ArtifactTypeRef("design-entry-route", 1)),
+                        new ArtifactTypeRef("chain-semantic-revision", 1)),
                     List.of(new ArtifactTypeRef("requirement-brief", 1)),
                     null,
                     null,
@@ -444,7 +443,7 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
     StageDecision.WaitForInput wait = (StageDecision.WaitForInput) result.decision();
     assertEquals("collect", wait.stageId());
-    assertTrue(wait.prompt().contains("design-entry-route"));
+    assertTrue(wait.prompt().contains("chain-semantic-revision"));
     assertEquals(0, capabilityCalls.get());
     ProductPipelineRunDocument doc = requireRun();
     assertEquals(RunStatus.WAITING_FOR_INPUT, doc.run().status());
@@ -540,19 +539,19 @@ class ProductPipelineStageExecutorTest {
                     "route",
                     "route-cap",
                     List.of(new ArtifactTypeRef("user-input", 1)),
-                    List.of(new ArtifactTypeRef("design-entry-route", 1)),
+                    List.of(new ArtifactTypeRef("requirement-draft", 1)),
                     null,
                     null,
                     new RetryPolicy(0, 1L)),
                 new ProfileStage(
                     "skipped",
                     "skipped-cap",
-                    List.of(new ArtifactTypeRef("design-entry-route", 1)),
-                    List.of(),
+                    List.of(new ArtifactTypeRef("requirement-draft", 1)),
+                    List.of(new ArtifactTypeRef("requirement-draft", 1)),
                     null,
                     null,
                     new RetryPolicy(0, 1L),
-                    new SkipPolicy(List.of(SkipPolicy.PROVIDED_DESIGN_ROUTE))),
+                    new SkipPolicy(List.of(SkipPolicy.NO_APIHUB_CANDIDATE))),
                 new ProfileStage(
                     "done",
                     "done-cap",
@@ -566,7 +565,7 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime =
         newRuntime(
             profile,
-            routeProvide("route-cap", routeCalls),
+            routeDraft("route-cap", routeCalls),
             succeeding("skipped-cap", skippedCalls),
             succeeding("done-cap", doneCalls));
     startAndRecordInput(runtime, profile);
@@ -3368,7 +3367,6 @@ class ProductPipelineStageExecutorTest {
             Clock.fixed(FIXED, ZoneOffset.UTC),
             null,
             null,
-            null,
             narrative),
         runStore);
   }
@@ -3393,7 +3391,6 @@ class ProductPipelineStageExecutorTest {
             null,
             null,
             Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
             null,
             null,
             new FailureNarrative(),
@@ -3474,7 +3471,7 @@ class ProductPipelineStageExecutorTest {
 
   private static ProductPipelineProfile analysisThenDesignInputProfile() {
     ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
-    ArtifactTypeRef flow = new ArtifactTypeRef("normalized-design-flow", 1);
+    ArtifactTypeRef flow = new ArtifactTypeRef("chain-semantic-revision", 1);
     return new ProductPipelineProfile(
         1,
         "analysis-then-design-input",
@@ -3838,7 +3835,7 @@ class ProductPipelineStageExecutorTest {
                 null,
                 null,
                 new RetryPolicy(0, 1L),
-                new SkipPolicy(List.of(SkipPolicy.PROVIDED_DESIGN_ROUTE)))),
+                new SkipPolicy(List.of(SkipPolicy.NO_APIHUB_CANDIDATE)))),
         new TerminalPolicy("work", "PLAN_APPROVED"),
         List.of("fail-cap"));
   }
@@ -4189,7 +4186,7 @@ class ProductPipelineStageExecutorTest {
         });
   }
 
-  private static StageCapability routeProvide(String id, AtomicInteger calls) {
+  private static StageCapability routeDraft(String id, AtomicInteger calls) {
     return capability(
         id,
         context -> {
@@ -4201,8 +4198,10 @@ class ProductPipelineStageExecutorTest {
                           StageOutcomeClass.SUCCEEDED,
                           List.of(
                               new ArtifactCandidate(
-                                  Kind.DESIGN_ENTRY_ROUTE, DesignEntryRoute.PROVIDE, List.of())),
-                          "provide route",
+                                  Kind.REQUIREMENT_DRAFT,
+                                  new RequirementDraft(true, "draft"),
+                                  List.of())),
+                          "draft ready",
                           null)));
         });
   }

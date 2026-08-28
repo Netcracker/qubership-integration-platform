@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto;
-import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogSystemFinder;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -55,8 +54,7 @@ class SemanticMaterializationParityTest {
   private final ChainSemanticGraphCompiler compiler =
       new DefaultChainSemanticGraphCompiler(
           new DefaultChainSemanticRevisionValidator(),
-          new CatalogBindingMatcher(
-              mock(CatalogSystemReadTool.class), mock(CatalogSystemFinder.class)));
+          new CatalogBindingMatcher(mock(CatalogSystemReadTool.class)));
 
   private CatalogGraphMaterializerTestHarness harness;
 

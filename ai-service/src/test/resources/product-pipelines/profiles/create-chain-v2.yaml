@@ -15,20 +15,16 @@ stages:
   - stageId: ids-entry
     capabilityId: design-input
     consumes: [{ type: user-input, schemaVersion: 1 }]
-    produces: [{ type: design-entry-route, schemaVersion: 1 }]
-    optionalProduces:
-      - { type: ids-document, schemaVersion: 1 }
+    produces: []
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: requirement-discovery
     capabilityId: requirement-discovery
     consumes:
       - { type: user-input, schemaVersion: 1 }
-      - { type: design-entry-route, schemaVersion: 1 }
     produces:
       - { type: requirement-draft, schemaVersion: 2 }
     optionalProduces:
       - { type: catalog-binding-hint, schemaVersion: 1 }
-    skip: { whenAny: [provided-design-route] }
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: import-stage
     capabilityId: specification-import
@@ -38,23 +34,17 @@ stages:
       whenAny:
         - no-apihub-candidate
         - catalog-binding-present
-        - provided-design-route
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: requirement-analysis
     capabilityId: requirement-analysis
     consumes:
       - { type: requirement-draft, schemaVersion: 2 }
-      - { type: design-entry-route, schemaVersion: 1 }
     produces: [{ type: requirement-brief, schemaVersion: 1 }]
     approval: { artifact: { type: requirement-brief, schemaVersion: 1 } }
-    skip: { whenAny: [provided-design-route] }
     retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
   - stageId: design-input
     capabilityId: design-input
-    consumes: [{ type: design-entry-route, schemaVersion: 1 }]
-    optionalConsumes:
-      - { type: requirement-brief, schemaVersion: 1 }
-      - { type: ids-document, schemaVersion: 1 }
+    consumes: [{ type: requirement-brief, schemaVersion: 1 }]
     produces:
       - { type: chain-semantic-revision, schemaVersion: 1 }
       - { type: ids-document, schemaVersion: 1 }

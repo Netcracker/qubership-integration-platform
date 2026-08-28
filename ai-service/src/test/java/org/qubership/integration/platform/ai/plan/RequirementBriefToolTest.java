@@ -408,7 +408,6 @@ class RequirementBriefToolTest {
             false,
             List.of(omFact, wfmFact),
             false,
-            null,
             List.of(omCall, wfmCall));
     RequirementDraftStore draftStore = new RequirementDraftStore();
     draftStore.put("conv-brief", approved);

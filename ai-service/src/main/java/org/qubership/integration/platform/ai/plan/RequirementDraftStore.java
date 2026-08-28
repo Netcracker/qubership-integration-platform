@@ -294,7 +294,6 @@ public class RequirementDraftStore {
               next.awaitingPlanContinuation(),
               next.facts(),
               true,
-              next.designModeHint(),
               next.serviceCalls(),
               next.apiHubCandidateServiceCallId());
     }

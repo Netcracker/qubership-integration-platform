@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /** Iterative requirement vision accumulated before the compiler spine runs. */
@@ -25,7 +24,6 @@ public record RequirementDraft(
     boolean awaitingPlanContinuation,
     List<RequirementFact> facts,
     boolean importIntent,
-    DesignMode designModeHint,
     List<RequirementServiceCall> serviceCalls,
     String apiHubCandidateServiceCallId) {
 
@@ -221,39 +219,6 @@ public record RequirementDraft(
       boolean awaitingPlanContinuation,
       List<RequirementFact> facts,
       boolean importIntent,
-      DesignMode designModeHint) {
-    this(
-        complete,
-        assembledText,
-        decision,
-        openQuestions,
-        sourceSkillId,
-        sourceSkillVersion,
-        sourceSkillHash,
-        apiHubCandidate,
-        catalogBinding,
-        awaitingPlanContinuation,
-        facts,
-        importIntent,
-        designModeHint,
-        List.of(),
-        null);
-  }
-
-  public RequirementDraft(
-      boolean complete,
-      String assembledText,
-      DraftDecision decision,
-      List<String> openQuestions,
-      String sourceSkillId,
-      String sourceSkillVersion,
-      String sourceSkillHash,
-      ApiHubRequirementRefs apiHubCandidate,
-      ResolvedCatalogBinding catalogBinding,
-      boolean awaitingPlanContinuation,
-      List<RequirementFact> facts,
-      boolean importIntent,
-      DesignMode designModeHint,
       List<RequirementServiceCall> serviceCalls) {
     this(
         complete,
@@ -268,7 +233,6 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         importIntent,
-        designModeHint,
         serviceCalls,
         null);
   }
@@ -358,7 +322,6 @@ public record RequirementDraft(
         false,
         facts,
         false,
-        designModeHint,
         serviceCalls,
         null);
   }
@@ -411,7 +374,6 @@ public record RequirementDraft(
         false,
         facts,
         false,
-        designModeHint,
         next,
         null);
   }
@@ -430,7 +392,6 @@ public record RequirementDraft(
         awaiting,
         facts,
         importIntent,
-        designModeHint,
         serviceCalls,
         apiHubCandidateServiceCallId);
   }
@@ -458,7 +419,6 @@ public record RequirementDraft(
         false,
         facts,
         true,
-        designModeHint,
         serviceCalls,
         serviceCallId);
   }
@@ -478,7 +438,6 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         importIntent,
-        designModeHint,
         serviceCalls,
         apiHubCandidateServiceCallId);
   }
@@ -497,7 +456,6 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         intent,
-        designModeHint,
         serviceCalls,
         apiHubCandidateServiceCallId);
   }
@@ -516,7 +474,6 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         nextFacts,
         importIntent,
-        designModeHint,
         List.of(),
         apiHubCandidateServiceCallId);
   }

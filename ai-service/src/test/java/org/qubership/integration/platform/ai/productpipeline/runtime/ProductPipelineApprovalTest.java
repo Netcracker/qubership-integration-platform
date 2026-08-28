@@ -635,7 +635,6 @@ class ProductPipelineApprovalTest {
             null,
             Clock.fixed(FIXED, ZoneOffset.UTC),
             null,
-            null,
             s3Service), runStore);
     this.profile = profile;
   }

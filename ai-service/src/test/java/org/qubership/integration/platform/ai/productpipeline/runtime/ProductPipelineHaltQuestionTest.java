@@ -176,7 +176,6 @@ class ProductPipelineHaltQuestionTest {
             Clock.fixed(FIXED, ZoneOffset.UTC),
             null,
             null,
-            null,
             new FailureNarrative(agent));
     runtime = new CreateChainTestOrchestrator(support, runStore);
     runtime

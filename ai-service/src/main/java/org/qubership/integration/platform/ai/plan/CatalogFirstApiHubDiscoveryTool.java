@@ -16,7 +16,6 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
@@ -126,9 +125,9 @@ public class CatalogFirstApiHubDiscoveryTool {
           conversationId, ServiceCallAssessment.incomplete(resolvedCallId, sourceFactId, intent));
     }
 
-    NormalizedDesignFlow flow = probeFlow(intent, release);
-    NormalizedDesignFlow.Step step = flow.steps().getFirst();
-    CatalogBindingMatcher.MatchResult result = catalogBindingMatcher.match(flow, step);
+    CatalogBindingMatcher.MatchResult result =
+        catalogBindingMatcher.match(
+            intent.systemHint(), intent.operationQuery(), null, release);
     if (result instanceof CatalogBindingMatcher.MatchResult.Exact exact) {
       rememberCatalogEvidence(conversationId, intent.systemHint(), exact.match());
       return remember(
@@ -283,36 +282,5 @@ public class CatalogFirstApiHubDiscoveryTool {
     } catch (Exception ignored) {
       return "{\"status\":\"ERROR\"}";
     }
-  }
-
-  private static NormalizedDesignFlow probeFlow(
-      ServiceCallAssessment.Intent intent, String release) {
-    String service = intent.systemHint() == null ? "service" : intent.systemHint();
-    List<String> constraints =
-        CatalogStrings.blankToNull(release) == null ? List.of() : List.of("release: " + release);
-    return new NormalizedDesignFlow(
-        "1",
-        "requirement-api-resolution",
-        "requirement-api-resolution",
-        "",
-        new NormalizedDesignFlow.Trigger("http", "client", null, null, null, List.of()),
-        List.of(
-            new NormalizedDesignFlow.Participant("client", "Client", "EXTERNAL", List.of()),
-            new NormalizedDesignFlow.Participant("service", service, "EXTERNAL", List.of())),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "service-call",
-                "service-call",
-                "client",
-                "service",
-                intent.operationQuery(),
-                "",
-                List.of())),
-        List.of(),
-        List.of(),
-        List.of(),
-        constraints,
-        List.of(),
-        NormalizedDesignFlow.BindingResolutionPolicy.CATALOG_FIRST);
   }
 }

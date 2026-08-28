@@ -24,7 +24,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -125,38 +124,18 @@ public class DesignInputCapability implements StageCapability {
     if (!"design-input".equals(context.stageId())) {
       return null;
     }
-    if (designEntryRoute(context) == DesignEntryRoute.PROVIDE) {
-      return null;
-    }
     return SKILL_ID;
   }
 
   private StageOutcome enterRoute(StageExecutionContext context) {
     String userText = context.attributeAsString("userText");
     if (userText != null && userText.contains(IDS_FLOW_MARKER)) {
-      IdsDocument document =
-          provisionalIdsDocument(userText, IdsDocument.Mode.PROVIDED, "user-ids", "ids-entry@1");
-      return new StageOutcome(
-          StageOutcomeClass.SUCCEEDED,
-          List.of(
-              new ArtifactCandidate(Kind.DESIGN_ENTRY_ROUTE, DesignEntryRoute.PROVIDE, List.of()),
-              new ArtifactCandidate(Kind.IDS_DOCUMENT, document, List.of())),
-          "provide route selected",
-          null);
+      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, PROVIDED_IDS_REJECTED);
     }
-    return new StageOutcome(
-        StageOutcomeClass.SUCCEEDED,
-        List.of(
-            new ArtifactCandidate(Kind.DESIGN_ENTRY_ROUTE, DesignEntryRoute.STANDARD, List.of())),
-        "standard route selected",
-        null);
+    return StageOutcome.of(StageOutcomeClass.SUCCEEDED, "standard route selected");
   }
 
   private StageOutcome prepareDesign(StageExecutionContext context) {
-    DesignEntryRoute route = designEntryRoute(context);
-    if (route == DesignEntryRoute.PROVIDE) {
-      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, PROVIDED_IDS_REJECTED);
-    }
     RequirementBrief brief = requirementBrief(context);
     if (brief == null) {
       return StageOutcome.of(
@@ -244,27 +223,6 @@ public class DesignInputCapability implements StageCapability {
         "\n\nCall captureChainSemanticRevision once. Copy entryPointId, sourceFactIds, and"
             + " serviceCallId from the brief. Do not mint occurrence ids.");
     return prompt.toString();
-  }
-
-  private static IdsDocument provisionalIdsDocument(
-      String markdown, IdsDocument.Mode mode, String sourceReference, String rendererVersion) {
-    String sourceHash = DesignContentHashes.sha256(markdown);
-    return new IdsDocument(
-        "1",
-        mode,
-        sourceReference,
-        sourceHash,
-        "pending-normalization",
-        rendererVersion,
-        markdown);
-  }
-
-  private static DesignEntryRoute designEntryRoute(StageExecutionContext context) {
-    Object value = context.attributes().get("designEntryRoute");
-    if (value instanceof DesignEntryRoute route) {
-      return route;
-    }
-    return DesignEntryRoute.STANDARD;
   }
 
   private static RequirementBrief requirementBrief(StageExecutionContext context) {

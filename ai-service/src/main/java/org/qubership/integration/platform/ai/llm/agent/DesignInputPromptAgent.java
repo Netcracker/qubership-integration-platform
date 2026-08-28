@@ -5,33 +5,13 @@ import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
 
 /**
- * Authors design-input WaitingForInput prompts and classifies short user replies into pipeline
- * modes. Display text matches the conversation language; return tokens for classifiers stay English
- * enum labels.
+ * Authors design-input WaitingForInput prompts and classifies short user replies. Display text
+ * matches the conversation language; return tokens for classifiers stay English enum labels.
  */
 @RegisterAiService(
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface DesignInputPromptAgent {
-
-  @UserMessage(
-      """
-Write a short chat question asking whether the user wants an integration design document (IDS) \
-for their approved requirements. Write in the pinned response locale {responseLocale}. This locale
-is authoritative; do not infer a different language from the reference text. Preserve product terms:
----
-{reference}
----
-The UI shows Yes / No buttons below the question — do not tell the reader which word to type or \
-reply with, and do not list the two options yourself.
-
-Say nothing about what happens when the answer is no. The pipeline continues either way, and \
-describing the internal shortcut turns a plain choice into a comparison the reader cannot make. \
-Do not mention a minimal, derived, short, or partial document, and do not invent a third option.
-
-Reply with only the user-facing question text. No markdown fences, no quotes, no preamble.\
-""")
-  String askIdsPathChoice(String responseLocale, String reference);
 
   @UserMessage(
       """
@@ -51,23 +31,6 @@ preamble, no bullet list.\
 """)
   String askMappingGap(
       String responseLocale, String reference, String missingEdges, String pendingMode);
-
-  @UserMessage(
-      """
-Classify the user's reply about generating an integration design document (IDS).
-Reply with exactly one token: GENERATE, DERIVE, or NONE.
-- GENERATE = yes / generate the full IDS / create the design document / I want IDS
-- DERIVE = no / skip / don't create / don't want / I don't want a design document / \
-no IDS needed / skip IDS / skip design / no design document / proceed without IDS / \
-skip full generation / derive a minimal IDS from the brief
-- NONE = unrelated or unclear
-User reply:
----
-{userText}
----
-Reply with only GENERATE, DERIVE, or NONE.\
-""")
-  String classifyIdsPathChoice(String userText);
 
   @UserMessage(
       """

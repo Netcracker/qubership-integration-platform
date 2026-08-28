@@ -21,7 +21,6 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchAuth
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 
 class CatalogFirstApiHubDiscoveryToolTest {
 
@@ -29,7 +28,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void exactCatalogMatchDoesNotQueryApiHub() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(NormalizedDesignFlow.class), any(NormalizedDesignFlow.Step.class)))
+    when(matcher.match(any(), any(), any(), any()))
         .thenReturn(
             new CatalogBindingMatcher.MatchResult.Exact(
                 new CatalogBindingMatcher.CatalogMatch(
@@ -63,7 +62,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void catalogMissUsesApiHubDiscovery() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(NormalizedDesignFlow.class), any(NormalizedDesignFlow.Step.class)))
+    when(matcher.match(any(), any(), any(), any()))
         .thenReturn(new CatalogBindingMatcher.MatchResult.None());
     when(apiHub.searchApiOperations(
             eq("getInventory"), eq("rest"), eq("2024.4"), eq(0), eq(100), eq(null)))
@@ -104,7 +103,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void everyServiceCallKeepsItsOwnAssessment() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(NormalizedDesignFlow.class), any(NormalizedDesignFlow.Step.class)))
+    when(matcher.match(any(), any(), any(), any()))
         .thenReturn(
             new CatalogBindingMatcher.MatchResult.Exact(
                 new CatalogBindingMatcher.CatalogMatch(
@@ -162,7 +161,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void apiHubSearchesOnlyForTheCallTheCatalogCouldNotAnswer() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(NormalizedDesignFlow.class), any(NormalizedDesignFlow.Step.class)))
+    when(matcher.match(any(), any(), any(), any()))
         .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(petstoreMatch()))
         .thenReturn(new CatalogBindingMatcher.MatchResult.None());
     CatalogFirstApiHubDiscoveryTool tool = tool(matcher, apiHub);
@@ -197,7 +196,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void noApiHubCallWhenEveryOperationIsInTheCatalog() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(NormalizedDesignFlow.class), any(NormalizedDesignFlow.Step.class)))
+    when(matcher.match(any(), any(), any(), any()))
         .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(petstoreMatch()));
     CatalogFirstApiHubDiscoveryTool tool = tool(matcher, apiHub);
 
@@ -231,7 +230,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void anApiHubFailureLeavesResolvedCallsAlone() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(NormalizedDesignFlow.class), any(NormalizedDesignFlow.Step.class)))
+    when(matcher.match(any(), any(), any(), any()))
         .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(petstoreMatch()))
         .thenReturn(new CatalogBindingMatcher.MatchResult.None());
     when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any()))
@@ -275,7 +274,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void vagueCapabilitySearchesByTheOperationHintNotTheSentence() {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(matcher.match(any(NormalizedDesignFlow.class), any(NormalizedDesignFlow.Step.class)))
+    when(matcher.match(any(), any(), any(), any()))
         .thenReturn(new CatalogBindingMatcher.MatchResult.None());
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-vague")) {

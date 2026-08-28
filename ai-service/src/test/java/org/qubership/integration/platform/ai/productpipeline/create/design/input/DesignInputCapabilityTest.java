@@ -31,7 +31,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
@@ -83,22 +82,21 @@ class DesignInputCapabilityTest {
   void sharedCapabilitySelectsEnterRouteAndPrepareDesignByStageId() {
     DesignInputCapability capability = capturingCapability();
     StageOutcome entry = outcome(capability, context("ids-entry", Map.of("userText", VALID_IDS)));
-    assertEquals(StageOutcomeClass.SUCCEEDED, entry.outcomeClass());
-    assertTrue(entry.candidates().stream().anyMatch(c -> c.kind() == Kind.DESIGN_ENTRY_ROUTE));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, entry.outcomeClass());
+    assertEquals(DesignInputCapability.PROVIDED_IDS_REJECTED, entry.message());
 
     StageOutcome unsupported = outcome(capability, context("other-stage", Map.of()));
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, unsupported.outcomeClass());
   }
 
   @Test
-  void idsEntryEmitsStandardRouteWithoutIdsDocument() {
+  void idsEntrySucceedsWithoutIdsDocument() {
     DesignInputCapability capability = capturingCapability();
     StageOutcome entry =
         outcome(
             capability,
             context("ids-entry", Map.of("userText", "Create an orders HTTP integration")));
     assertEquals(StageOutcomeClass.SUCCEEDED, entry.outcomeClass());
-    assertEquals(DesignEntryRoute.STANDARD, routePayload(entry));
     assertTrue(entry.candidates().stream().noneMatch(c -> c.kind() == Kind.IDS_DOCUMENT));
   }
 
@@ -106,23 +104,9 @@ class DesignInputCapabilityTest {
   void providedIdsFailsClosed() {
     DesignInputCapability capability = capturingCapability();
     StageOutcome entry = outcome(capability, context("ids-entry", Map.of("userText", VALID_IDS)));
-    IdsDocument provided =
-        entry.candidates().stream()
-            .filter(c -> c.kind() == Kind.IDS_DOCUMENT)
-            .map(c -> (IdsDocument) c.payload())
-            .findFirst()
-            .orElseThrow();
-    StageOutcome prepared =
-        outcome(
-            capability,
-            context(
-                "design-input",
-                Map.of("designEntryRoute", DesignEntryRoute.PROVIDE, "idsDocument", provided)));
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
-    assertEquals(
-        "IDS is an approval view; provide requirements that can produce a semantic revision",
-        prepared.message());
-    assertTrue(prepared.candidates().isEmpty());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, entry.outcomeClass());
+    assertEquals(DesignInputCapability.PROVIDED_IDS_REJECTED, entry.message());
+    assertTrue(entry.candidates().isEmpty());
   }
 
   @Test
@@ -134,8 +118,6 @@ class DesignInputCapabilityTest {
             context(
                 "design-input",
                 Map.of(
-                    "designEntryRoute",
-                    DesignEntryRoute.STANDARD,
                     "userText",
                     "ignored agent prose after the tool call",
                     "requirementBrief",
@@ -166,8 +148,6 @@ class DesignInputCapabilityTest {
             context(
                 "design-input",
                 Map.of(
-                    "designEntryRoute",
-                    DesignEntryRoute.STANDARD,
                     "requirementBrief",
                     approvedBrief())));
     ChainSemanticRevision stored = semanticPayload(prepared);
@@ -185,8 +165,6 @@ class DesignInputCapabilityTest {
     assertEquals(digest, CanonicalPayloadHash.sha256Hex(stored));
     assertNotEquals(ids.markdown(), edited.markdown());
     assertEquals(digest, edited.normalizedFlowHash());
-    assertFalse(
-        prepared.candidates().stream().anyMatch(c -> c.kind() == Kind.NORMALIZED_DESIGN_FLOW));
   }
 
   @Test
@@ -198,8 +176,6 @@ class DesignInputCapabilityTest {
             context(
                 "design-input",
                 Map.of(
-                    "designEntryRoute",
-                    DesignEntryRoute.STANDARD,
                     "requirementBrief",
                     approvedBrief())));
     ChainSemanticRevision stored = semanticPayload(prepared);
@@ -219,16 +195,15 @@ class DesignInputCapabilityTest {
             context(
                 "design-input",
                 Map.of(
-                    "designEntryRoute",
-                    DesignEntryRoute.PROVIDE,
                     "idsDocument",
                     edited,
                     "requirementBrief",
                     approvedBrief())));
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, second.outcomeClass());
-    assertTrue(second.candidates().isEmpty());
-    assertEquals(linearRevision().revisionId(), stored.revisionId());
-    assertEquals(digest, CanonicalPayloadHash.sha256Hex(stored));
+    assertEquals(StageOutcomeClass.CANDIDATE, second.outcomeClass());
+    ChainSemanticRevision secondStored = semanticPayload(second);
+    assertEquals(stored.revisionId(), secondStored.revisionId());
+    assertEquals(digest, CanonicalPayloadHash.sha256Hex(secondStored));
+    assertNotEquals(edited.markdown(), idsPayload(second).markdown());
   }
 
   @Test
@@ -243,8 +218,6 @@ class DesignInputCapabilityTest {
             context(
                 "design-input",
                 Map.of(
-                    "designEntryRoute",
-                    DesignEntryRoute.STANDARD,
                     "requirementBrief",
                     approvedBrief())));
     assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
@@ -336,14 +309,6 @@ class DesignInputCapabilityTest {
 
   private static Set<Kind> kinds(StageOutcome outcome) {
     return outcome.candidates().stream().map(ArtifactCandidate::kind).collect(Collectors.toSet());
-  }
-
-  private static DesignEntryRoute routePayload(StageOutcome outcome) {
-    return outcome.candidates().stream()
-        .filter(c -> c.kind() == Kind.DESIGN_ENTRY_ROUTE)
-        .map(c -> (DesignEntryRoute) c.payload())
-        .findFirst()
-        .orElseThrow();
   }
 
   private static IdsDocument idsPayload(StageOutcome outcome) {

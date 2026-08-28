@@ -14,11 +14,9 @@ class ProductPipelineProfileOptionalArtifactsTest {
       ArtifactSchemaRegistry.of(
           new ArtifactTypeRef("user-input", 1),
           new ArtifactTypeRef("run-manifest", 1),
-          new ArtifactTypeRef("design-entry-route", 1),
           new ArtifactTypeRef("ids-document", 1),
           new ArtifactTypeRef("requirement-brief", 1),
-          new ArtifactTypeRef("design-mode", 1),
-          new ArtifactTypeRef("normalized-design-flow", 1),
+          new ArtifactTypeRef("chain-semantic-revision", 1),
           new ArtifactTypeRef("approval-record", 2));
 
   private static final Set<String> CAPABILITIES = Set.of("design-input", "noop");
@@ -39,7 +37,7 @@ class ProductPipelineProfileOptionalArtifactsTest {
                         new ArtifactTypeRef("user-input", 1),
                         new ArtifactTypeRef("run-manifest", 1)),
                     List.of(),
-                    List.of(new ArtifactTypeRef("design-entry-route", 1)),
+                    List.of(),
                     List.of(new ArtifactTypeRef("ids-document", 1)),
                     null,
                     null,
@@ -66,7 +64,7 @@ class ProductPipelineProfileOptionalArtifactsTest {
                     "design-input",
                     List.of(new ArtifactTypeRef("requirement-brief", 1)),
                     List.of(new ArtifactTypeRef("requirement-brief", 1)),
-                    List.of(new ArtifactTypeRef("design-mode", 1)),
+                    List.of(new ArtifactTypeRef("chain-semantic-revision", 1)),
                     List.of(),
                     null,
                     null,
@@ -96,7 +94,7 @@ class ProductPipelineProfileOptionalArtifactsTest {
                     "design-input",
                     List.of(new ArtifactTypeRef("user-input", 1)),
                     List.of(),
-                    List.of(new ArtifactTypeRef("design-entry-route", 1)),
+                    List.of(),
                     List.of(new ArtifactTypeRef("ids-document", 1)),
                     null,
                     null,
@@ -105,13 +103,10 @@ class ProductPipelineProfileOptionalArtifactsTest {
                 new ProfileStage(
                     "design-input",
                     "design-input",
-                    List.of(new ArtifactTypeRef("design-entry-route", 1)),
+                    List.of(new ArtifactTypeRef("user-input", 1)),
                     List.of(new ArtifactTypeRef("ids-document", 1)),
-                    List.of(
-                        new ArtifactTypeRef("design-mode", 1),
-                        new ArtifactTypeRef("ids-document", 1),
-                        new ArtifactTypeRef("normalized-design-flow", 1)),
-                    List.of(),
+                    List.of(new ArtifactTypeRef("chain-semantic-revision", 1)),
+                    List.of(new ArtifactTypeRef("ids-document", 1)),
                     null,
                     null,
                     new RetryPolicy(0, 1L),

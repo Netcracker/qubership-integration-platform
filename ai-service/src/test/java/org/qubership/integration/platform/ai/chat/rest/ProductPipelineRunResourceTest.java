@@ -410,15 +410,7 @@ class ProductPipelineRunResourceTest {
     assertTrue(
         kinds.contains(
             org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind
-                .DESIGN_MODE));
-    assertTrue(
-        kinds.contains(
-            org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind
                 .IDS_DOCUMENT));
-    assertTrue(
-        kinds.contains(
-            org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind
-                .NORMALIZED_DESIGN_FLOW));
     assertTrue(
         kinds.contains(
             org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind

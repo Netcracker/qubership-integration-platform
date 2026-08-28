@@ -18,7 +18,7 @@ import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -1110,8 +1110,7 @@ public class CreateChainApplicationFacade {
     String prompt = publicPrompt(waitPrompt);
     if (!prompt.isBlank()) {
       if (PipelineGates.MAPPING_GAP.equals(gateId)) {
-        DesignInputIdsPathPrompts.MappingGapView view =
-            DesignInputIdsPathPrompts.parseMappingGapWait(prompt);
+        MappingGapWait.View view = MappingGapWait.parse(prompt);
         return new CreateChainPendingAction.Clarify(
             view.question(), view.missingEdges(), gateId);
       }

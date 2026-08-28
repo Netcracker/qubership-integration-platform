@@ -7,7 +7,7 @@
 - Runtime mode: `JAVA_ADAPTER`
 - Status: `reviewed`
 - Adapter: `cip-design-executor`
-- Input artifacts: `IDS_DOCUMENT`, `NORMALIZED_DESIGN_FLOW`, `DESIGN_PLAN_REPORT`,
+- Input artifacts: `IDS_DOCUMENT`, `CHAIN_SEMANTIC_REVISION`, `DESIGN_PLAN_REPORT`,
   `DESIGN_EXECUTION_PLAN`, `IMPLEMENTATION_PLAN`, `APPROVAL_RECORD`, `RUN_MANIFEST`
 - Output artifacts: `CATALOG_BINDING_RESOLUTIONS`, `CHAIN_PLAN_GRAPH`,
   `GRAPH_ASSEMBLY_RESULT`, `PLAN_VALIDATION_RESULT`, `COMPILER_VALIDATION_BUNDLE`,
@@ -27,7 +27,7 @@
 | Runtime Optimization | Pinned run context and `CompilerSkillContextBuilder` |
 | Preconditions | Approval, report, projection, provenance, catalog, and pin verification |
 | APIHub retrieval | `ExecutorCatalogBindingAdapter`: catalog lookup, then APIHub retrieval and import on a miss |
-| Requirements normalization | Approved normalized flow and typed data mappings |
+| Requirements normalization | Approved semantic revision and typed data mappings |
 | Generator delegation | Execute the approved owning-skill closure and collect ordered graph patches |
 | Assembly | Build `ChainPlanGraph` and `GraphAssemblyResult` from those patches |
 | Validation | Produce fresh graph, plan, compiler, and executor validation results |

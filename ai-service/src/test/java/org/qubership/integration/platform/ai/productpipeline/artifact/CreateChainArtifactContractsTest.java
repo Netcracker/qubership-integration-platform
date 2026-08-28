@@ -27,16 +27,13 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolutions;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionTrace;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ExecutorValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ElementRole;
@@ -120,10 +117,8 @@ class CreateChainArtifactContractsTest {
   void compilationArtifactsKindContainsSharedDesignAdditions() {
     for (String name :
         List.of(
-            "DESIGN_MODE",
-            "DESIGN_ENTRY_ROUTE",
             "IDS_DOCUMENT",
-            "NORMALIZED_DESIGN_FLOW",
+            "CHAIN_SEMANTIC_REVISION",
             "CATALOG_BINDING_HINT",
             "DESIGN_PLAN_REPORT",
             "DESIGN_EXECUTION_PLAN",
@@ -156,9 +151,6 @@ class CreateChainArtifactContractsTest {
 
   @Test
   void sharedDesignArtifactsRoundTripThroughProductStore() {
-    assertEquals(DesignMode.DERIVE, roundTrip(Kind.DESIGN_MODE, DesignMode.DERIVE));
-    assertEquals(DesignEntryRoute.PROVIDE, roundTrip(Kind.DESIGN_ENTRY_ROUTE, DesignEntryRoute.PROVIDE));
-
     IdsDocument ids =
         new IdsDocument(
             "1",
@@ -169,9 +161,6 @@ class CreateChainArtifactContractsTest {
             "renderer-1",
             "# IDS\n");
     assertEquals(ids, roundTrip(Kind.IDS_DOCUMENT, ids));
-
-    NormalizedDesignFlow flow = sampleFlow();
-    assertEquals(flow, roundTrip(Kind.NORMALIZED_DESIGN_FLOW, flow));
 
     CatalogBindingHint hint =
         new CatalogBindingHint(
@@ -367,30 +356,6 @@ class CreateChainArtifactContractsTest {
 
   @Test
   void missingCollectionsNormalizeToImmutableEmptyLists() {
-    NormalizedDesignFlow flow =
-        new NormalizedDesignFlow(
-            "1",
-            "flow-1",
-            "Orders",
-            "desc",
-            new NormalizedDesignFlow.Trigger("http", "p-client", "API", "/orders", "create", null),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    assertTrue(flow.participants().isEmpty());
-    assertTrue(flow.steps().isEmpty());
-    assertTrue(flow.connections().isEmpty());
-    assertTrue(flow.transformations().isEmpty());
-    assertTrue(flow.dataMappings().isEmpty());
-    assertTrue(flow.constraints().isEmpty());
-    assertTrue(flow.assumptions().isEmpty());
-    assertTrue(flow.trigger().sourceFactIds().isEmpty());
-    assertThrows(UnsupportedOperationException.class, () -> flow.steps().add(null));
-
     DesignExecutionPlan projection =
         new DesignExecutionPlan(
             "1",
@@ -473,22 +438,6 @@ class CreateChainArtifactContractsTest {
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            new NormalizedDesignFlow(
-                "1",
-                " ",
-                "Orders",
-                "desc",
-                new NormalizedDesignFlow.Trigger("http", "p", "i", "/x", "op", List.of()),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of()));
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
             new DesignExecutionPlan.Step(
                 " ",
                 1,
@@ -525,40 +474,6 @@ class CreateChainArtifactContractsTest {
         "closure-sha256");
   }
 
-  private static NormalizedDesignFlow sampleFlow() {
-    return new NormalizedDesignFlow(
-        "1",
-        "flow-1",
-        "Orders",
-        "Create order",
-        new NormalizedDesignFlow.Trigger(
-            "http", "p-client", "Orders API", "/orders", "createOrder", List.of("fact-trigger")),
-        List.of(
-            new NormalizedDesignFlow.Participant("p-client", "Client", "EXTERNAL", List.of("fact-p"))),
-        List.of(
-            new NormalizedDesignFlow.Step(
-                "step-1",
-                "service-call",
-                "p-client",
-                "p-orders",
-                "create order",
-                "Call orders",
-                List.of("fact-step"))),
-        List.of(),
-        List.of(),
-        List.of(
-            new NormalizedDesignFlow.DataMapping(
-                "map-1",
-                NormalizedDesignFlow.MappingStage.INITIALIZATION,
-                "step-trigger",
-                "step-1",
-                NormalizedDesignFlow.MappingMode.PASS_THROUGH,
-                List.of(),
-                List.of("fact-map"))),
-        List.of("rbac"),
-        List.of("single flow"));
-  }
-
   private static DesignExecutionPlan sampleExecutionPlan() {
     return new DesignExecutionPlan(
         "1",
@@ -579,7 +494,7 @@ class CreateChainArtifactContractsTest {
                 List.of("p-client"),
                 List.of(),
                 List.of(),
-                List.of("NORMALIZED_DESIGN_FLOW"),
+                List.of("CHAIN_SEMANTIC_REVISION"),
                 List.of("GRAPH_PATCH_ARTIFACT"))),
         "report-ref",
         "report-hash",
