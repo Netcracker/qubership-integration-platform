@@ -8,13 +8,26 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ContainmentRole;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.RuntimeDescriptorConstraints;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticContainment;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
@@ -49,10 +62,18 @@ public class ChainPlanGraphValidator {
       "log-record");
 
   private final DeterministicElementSchemaService schemaService;
+  private final CatalogElementDescriptorLoader descriptorLoader;
+
+  public ChainPlanGraphValidator(DeterministicElementSchemaService schemaService) {
+    this(schemaService, null);
+  }
 
   @Inject
-  public ChainPlanGraphValidator(DeterministicElementSchemaService schemaService) {
+  public ChainPlanGraphValidator(
+      DeterministicElementSchemaService schemaService,
+      CatalogElementDescriptorLoader descriptorLoader) {
     this.schemaService = schemaService;
+    this.descriptorLoader = descriptorLoader;
   }
 
   public static boolean isTriggerElementType(String type) {
@@ -90,6 +111,36 @@ public class ChainPlanGraphValidator {
     checkTriggerFlow(graph.nodes(), graph.edges(), errors);
 
     return errors;
+  }
+
+  /**
+   * Fail-closed contract validation after a semantic compile. Structural {@link #validate(ChainPlanGraph)}
+   * stays for callers that have no revision and must not hide these violations.
+   */
+  public void validate(
+      ChainPlanGraph graph, CompilerContract contract, ChainSemanticRevision expectedRevision) {
+    Objects.requireNonNull(contract, "contract");
+    Objects.requireNonNull(expectedRevision, "expectedRevision");
+    if (graph == null) {
+      throw new IllegalStateException("Chain plan graph is required for contract validation");
+    }
+    List<String> errors = new ArrayList<>();
+    if (graph.nodes() == null || graph.nodes().isEmpty()) {
+      errors.add("nodes must not be empty");
+      throw new IllegalStateException(String.join("; ", errors));
+    }
+    Set<String> knownIds = collectNodeIds(graph.nodes(), errors);
+    checkParentRefs(graph.nodes(), knownIds, errors);
+    checkExecutionDagAcyclic(graph, errors);
+    checkRootsMatchEntryPoints(graph, expectedRevision, errors);
+    checkSemanticNodesRepresented(graph, expectedRevision, errors);
+    checkSemanticEdgesRepresented(graph, expectedRevision, errors);
+    checkRuntimeTypes(graph, expectedRevision, errors);
+    checkContractCardinality(graph, contract, expectedRevision, errors);
+    checkRuntimeDescriptors(graph, contract, errors);
+    if (!errors.isEmpty()) {
+      throw new IllegalStateException(String.join("; ", errors));
+    }
   }
 
   /**
@@ -648,5 +699,245 @@ public class ChainPlanGraphValidator {
                 List.copyOf(invalidRefs)));
       }
     }
+  }
+
+  private static void checkExecutionDagAcyclic(ChainPlanGraph graph, List<String> errors) {
+    Map<String, List<String>> outgoing = new HashMap<>();
+    if (graph.edges() != null) {
+      for (ChainPlanEdge edge : graph.edges()) {
+        if (edge.fromNodeId() == null || edge.toNodeId() == null) {
+          continue;
+        }
+        outgoing.computeIfAbsent(edge.fromNodeId(), ignored -> new ArrayList<>()).add(edge.toNodeId());
+      }
+    }
+    Set<String> visiting = new HashSet<>();
+    Set<String> visited = new HashSet<>();
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node.nodeId() != null && hasExecutionCycle(node.nodeId(), outgoing, visiting, visited)) {
+        errors.add("execution cycle detected");
+        return;
+      }
+    }
+  }
+
+  private static boolean hasExecutionCycle(
+      String nodeId,
+      Map<String, List<String>> outgoing,
+      Set<String> visiting,
+      Set<String> visited) {
+    if (visited.contains(nodeId)) {
+      return false;
+    }
+    if (!visiting.add(nodeId)) {
+      return true;
+    }
+    for (String next : outgoing.getOrDefault(nodeId, List.of())) {
+      if (hasExecutionCycle(next, outgoing, visiting, visited)) {
+        return true;
+      }
+    }
+    visiting.remove(nodeId);
+    visited.add(nodeId);
+    return false;
+  }
+
+  private static void checkRootsMatchEntryPoints(
+      ChainPlanGraph graph, ChainSemanticRevision revision, List<String> errors) {
+    Set<String> incoming = new HashSet<>();
+    if (graph.edges() != null) {
+      for (ChainPlanEdge edge : graph.edges()) {
+        if (edge.toNodeId() != null) {
+          incoming.add(edge.toNodeId());
+        }
+      }
+    }
+    Set<String> roots = new HashSet<>();
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node.nodeId() != null && !incoming.contains(node.nodeId())) {
+        roots.add(node.nodeId());
+      }
+    }
+    Set<String> entryTriggers = new HashSet<>();
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
+      entryTriggers.add(entry.triggerNodeId());
+    }
+    if (!roots.equals(entryTriggers)) {
+      errors.add("graph roots do not match semantic entry points");
+    }
+  }
+
+  private static void checkSemanticNodesRepresented(
+      ChainPlanGraph graph, ChainSemanticRevision revision, List<String> errors) {
+    Map<String, Integer> counts = new HashMap<>();
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node.nodeId() == null || node.nodeId().isBlank()) {
+        continue;
+      }
+      counts.merge(node.nodeId(), 1, Integer::sum);
+    }
+    for (SemanticNode node : revision.nodes()) {
+      int count = counts.getOrDefault(node.nodeId(), 0);
+      if (count == 0) {
+        errors.add("semantic node " + node.nodeId() + " is not represented");
+      } else if (count > 1) {
+        errors.add("semantic node " + node.nodeId() + " is represented more than once");
+      }
+    }
+  }
+
+  private static void checkSemanticEdgesRepresented(
+      ChainPlanGraph graph, ChainSemanticRevision revision, List<String> errors) {
+    Map<String, Integer> counts = new HashMap<>();
+    if (graph.edges() != null) {
+      for (ChainPlanEdge edge : graph.edges()) {
+        if (edge.edgeId() == null || edge.edgeId().isBlank()) {
+          continue;
+        }
+        counts.merge(edge.edgeId(), 1, Integer::sum);
+      }
+    }
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      int count = counts.getOrDefault(edge.edgeId(), 0);
+      if (count == 0) {
+        errors.add("semantic edge " + edge.edgeId() + " is not represented");
+      } else if (count > 1) {
+        errors.add("semantic edge " + edge.edgeId() + " is represented more than once");
+      }
+    }
+  }
+
+  private static void checkRuntimeTypes(
+      ChainPlanGraph graph, ChainSemanticRevision revision, List<String> errors) {
+    Map<String, ChainPlanNode> nodesById = indexNodes(graph.nodes());
+    for (SemanticNode node : revision.nodes()) {
+      ChainPlanNode planNode = nodesById.get(node.nodeId());
+      if (planNode == null) {
+        continue;
+      }
+      String expected = semanticElementType(node);
+      String actual = trim(planNode.type());
+      if (!expected.equals(actual)) {
+        errors.add(
+            "node '"
+                + node.nodeId()
+                + "' type '"
+                + actual
+                + "' does not match contract type '"
+                + expected
+                + "'");
+      }
+    }
+  }
+
+  private static String semanticElementType(SemanticNode node) {
+    return switch (node) {
+      case SemanticNode.Trigger trigger -> trigger.capabilityKey();
+      case SemanticNode.ServiceCall ignored -> "service-call";
+      case SemanticNode.Operation operation -> operation.elementType();
+    };
+  }
+
+  private static void checkContractCardinality(
+      ChainPlanGraph graph,
+      CompilerContract contract,
+      ChainSemanticRevision revision,
+      List<String> errors) {
+    Map<String, Map<String, Integer>> roleCounts = new HashMap<>();
+    for (SemanticContainment containment : revision.containment()) {
+      roleCounts
+          .computeIfAbsent(containment.parentNodeId(), ignored -> new HashMap<>())
+          .merge(containment.role(), 1, Integer::sum);
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      String elementType = trim(node.type());
+      if (elementType == null) {
+        continue;
+      }
+      ElementContract element = contract.elements().get(elementType);
+      if (element == null || element.containmentRoles().isEmpty()) {
+        continue;
+      }
+      Map<String, Integer> present = roleCounts.getOrDefault(node.nodeId(), Map.of());
+      for (Map.Entry<String, ContainmentRole> required : element.containmentRoles().entrySet()) {
+        int count = present.getOrDefault(required.getKey(), 0);
+        ContainmentRole role = required.getValue();
+        if (count < role.min()) {
+          errors.add(cardinalityBelowMin(elementType, required.getKey(), count, role.min()));
+        } else if (role.max() != null && count > role.max()) {
+          errors.add(
+              elementType
+                  + " role "
+                  + required.getKey()
+                  + " has "
+                  + count
+                  + " child; the contract allows at most "
+                  + role.max()
+                  + " (cardinality)");
+        }
+      }
+    }
+  }
+
+  private static String cardinalityBelowMin(
+      String elementType, String role, int count, int min) {
+    return elementType
+        + " role "
+        + role
+        + " has "
+        + count
+        + " child; the contract requires at least "
+        + min
+        + " (cardinality)";
+  }
+
+  private void checkRuntimeDescriptors(
+      ChainPlanGraph graph, CompilerContract contract, List<String> errors) {
+    if (descriptorLoader == null) {
+      return;
+    }
+    Set<String> seen = new HashSet<>();
+    for (ChainPlanNode node : graph.nodes()) {
+      String elementType = trim(node.type());
+      if (elementType == null || elementType.isEmpty() || !seen.add(elementType)) {
+        continue;
+      }
+      ElementContract element = contract.elements().get(elementType);
+      if (element == null || element.runtimeDescriptor() == null) {
+        continue;
+      }
+      CatalogElementDescriptor descriptor = descriptorLoader.load(elementType);
+      RuntimeDescriptorConstraints expected = element.runtimeDescriptor();
+      if (!expected.type().equals(descriptor.name())) {
+        errors.add(descriptorMismatch(elementType, "type"));
+      }
+      if (expected.container() != descriptor.container()) {
+        errors.add(descriptorMismatch(elementType, "container"));
+      }
+      if (expected.deprecated() != descriptor.deprecated()) {
+        errors.add(descriptorMismatch(elementType, "deprecated"));
+      }
+      if (expected.minimumChildren() != null) {
+        int actualMin = minimumChildren(descriptor);
+        if (actualMin != expected.minimumChildren()) {
+          errors.add(descriptorMismatch(elementType, "minimumChildren"));
+        }
+      }
+    }
+  }
+
+  private static String descriptorMismatch(String elementType, String field) {
+    return "Runtime descriptor is incompatible with compiler contract: %s %s"
+        .formatted(elementType, field);
+  }
+
+  private static int minimumChildren(CatalogElementDescriptor descriptor) {
+    if (descriptor.allowedChildren() == null || descriptor.allowedChildren().isEmpty()) {
+      return 0;
+    }
+    return descriptor.allowedChildren().values().stream()
+        .mapToInt(CatalogChildQuantity::minimum)
+        .min()
+        .orElse(0);
   }
 }

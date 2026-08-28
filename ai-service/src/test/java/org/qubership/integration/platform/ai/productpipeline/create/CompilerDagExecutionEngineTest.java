@@ -22,14 +22,25 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
@@ -204,6 +215,81 @@ class CompilerDagExecutionEngineTest {
   @Test
   void engineImplementsSharedInterface() {
     assertTrue(engine instanceof CompilerDagExecutionEngine);
+  }
+
+  @Test
+  void requireArtifactsFailsClosedWhenMaterializationMapIsMissing() {
+    CompilerDagExecutionResult result =
+        new CompilerDagExecutionResult(
+            StageOutcomeClass.SUCCEEDED,
+            null,
+            List.of(),
+            null,
+            graphForAssembly(),
+            null,
+            null,
+            List.of(),
+            Set.of("CHAIN_SEMANTIC_REVISION", "CHAIN_PLAN_GRAPH"));
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                result.requireArtifacts(
+                    Set.of("CHAIN_SEMANTIC_REVISION", "CHAIN_PLAN_GRAPH", "MATERIALIZATION_MAP")));
+
+    assertEquals(
+        "Compiler run completed without required artifact: MATERIALIZATION_MAP", error.getMessage());
+  }
+
+  @Test
+  void successFailsClosedWhenMaterializationMapIsMissing() {
+    String conversationId = "conv-missing-mmap";
+    ChainSemanticRevision revision = simpleRevision();
+    ChainPlanGraph graph = simpleGraph();
+    ResolvedCompilerDag dag = dagWithMandatoryValidation();
+    when(skillRegistry.require("cip-pattern-selector")).thenReturn(new PatternExecutor());
+    stubAssemblyAndValidator(dag);
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_SEMANTIC_REVISION,
+            CompilerExecutionSeed.SEMANTIC_COMPILER_PRODUCER,
+            new SkillArtifactPayload.ChainSemanticRevisionPayload(revision)));
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_PLAN_GRAPH,
+            CompilerExecutionSeed.SEMANTIC_COMPILER_PRODUCER,
+            new SkillArtifactPayload.ChainPlanGraphPayload(graph)));
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_STRUCTURE,
+            "seed",
+            new SkillArtifactPayload.ChainStructurePayload(
+                new ChainStructure(graph, List.of(), List.of()))));
+
+    CompilerDagExecutionRequest request =
+        new CompilerDagExecutionRequest(
+            "run-1",
+            conversationId,
+            manifestFor(dag),
+            brief(),
+            revision,
+            dag,
+            List.of(),
+            List.of(),
+            List.of());
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> engine.execute(request, (skillId, status) -> {}).await().indefinitely());
+
+    assertTrue(
+        error.getMessage().contains("Compiler run completed without required artifact: MATERIALIZATION_MAP"),
+        error.getMessage());
   }
 
   @Test
@@ -579,6 +665,45 @@ class CompilerDagExecutionEngineTest {
                     new org.qubership.integration.platform.ai.plan.model.PlanProperty(
                         "externalRoute", "false")))),
         List.of());
+  }
+
+  private static ChainSemanticRevision simpleRevision() {
+    return new ChainSemanticRevision(
+        ChainSemanticRevision.CURRENT_SCHEMA_VERSION,
+        "revision-1",
+        "Sales",
+        CompilerContract.V1,
+        List.of(
+            new SemanticEntryPoint(
+                "entry-1",
+                "trigger",
+                "script-1",
+                0,
+                new SemanticProvenance(List.of()),
+                null)),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation("script-1", "script", new SemanticProvenance(List.of()))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "e1", "trigger", "script-1", null, new SemanticRoute.Sequence(), null)),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainPlanGraph simpleGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Sales", null, null, null, "revision-1", CompilerContract.V1),
+        List.of(
+            new ChainPlanNode("trigger", "http-trigger", "trigger", null, null, List.of()),
+            new ChainPlanNode("script-1", "script", "script-1", null, null, List.of())),
+        List.of(new ChainPlanEdge("e1", "trigger", "script-1", null)));
   }
 
   private static final class CountingXsltExecutor implements SkillExecutor {

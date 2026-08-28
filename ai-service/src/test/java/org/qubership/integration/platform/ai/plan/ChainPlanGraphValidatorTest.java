@@ -2,21 +2,42 @@ package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ContainmentRole;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptor;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticBranch;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticContainment;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 @ExtendWith(MockitoExtension.class)
@@ -473,6 +494,72 @@ class ChainPlanGraphValidatorTest {
     assertTrue(errors.stream().anyMatch(error -> error.contains("must have an outgoing edge")));
   }
 
+  @Test
+  void rejectsDroppedSemanticEdge() {
+    ChainSemanticRevision revision = conditionRevision();
+    ChainPlanGraph compiledGraph = compiledConditionGraph();
+    ChainPlanGraph missingEdge = removeEdge(compiledGraph, "edge-false-join");
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> validator.validate(missingEdge, CONTRACT, revision));
+
+    assertTrue(error.getMessage().contains("semantic edge edge-false-join is not represented"));
+  }
+
+  @Test
+  void rejectsExecutionCycle() {
+    ChainPlanGraph cyclic =
+        replaceEdge(
+            compiledConditionGraph(),
+            "edge-true",
+            new ChainPlanEdge("edge-true", "script-common", "script-true", "condition-1"));
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> validator.validate(cyclic, CONTRACT, conditionRevision()));
+
+    assertTrue(error.getMessage().contains("execution cycle detected"));
+  }
+
+  @Test
+  void rejectsWrongBranchCardinality() {
+    CompilerContract strictIf = contractWithConditionIfMin(2);
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> validator.validate(compiledConditionGraph(), strictIf, conditionRevision()));
+
+    assertTrue(error.getMessage().toLowerCase(java.util.Locale.ROOT).contains("cardinality"));
+  }
+
+  @Test
+  void rejectsRuntimeDescriptorDrift() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    when(loader.load("http-trigger")).thenReturn(matchingDescriptor("http-trigger", false));
+    when(loader.load("script")).thenReturn(matchingDescriptor("script", false));
+    when(loader.load("condition")).thenReturn(matchingDescriptor("condition", false));
+    ChainPlanGraphValidator driftValidator = new ChainPlanGraphValidator(schemaService, loader);
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                driftValidator.validate(compiledConditionGraph(), CONTRACT, conditionRevision()));
+
+    assertEquals(
+        "Runtime descriptor is incompatible with compiler contract: condition container",
+        error.getMessage());
+  }
+
+  @Test
+  void acceptsCompiledConditionGraph() {
+    validator.validate(compiledConditionGraph(), CONTRACT, conditionRevision());
+  }
+
   private static ChainPlanGraph graphWithHttpTriggerProperty(PlanProperty... properties) {
     return new ChainPlanGraph(
         "1.0",
@@ -482,5 +569,161 @@ class ChainPlanGraphValidatorTest {
                 "n1", "http-trigger", "HTTP Trigger", null, null, List.of(properties)),
             new ChainPlanNode("script-1", "script", "Return", null, null, List.of())),
         List.of(new ChainPlanEdge("e1", "n1", "script-1", null)));
+  }
+
+  private static final CompilerContract CONTRACT =
+      new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+
+  private static ChainPlanGraph compiledConditionGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection(
+            "chain-greetings", null, null, null, "revision-1", CONTRACT.contractVersion()),
+        List.of(
+            new ChainPlanNode("trigger-http", "http-trigger", "trigger-http", null, null, List.of()),
+            new ChainPlanNode("condition-1", "condition", "condition-1", null, null, List.of()),
+            new ChainPlanNode("script-true", "script", "script-true", "condition-1", null, List.of()),
+            new ChainPlanNode(
+                "script-false", "script", "script-false", "condition-1", null, List.of()),
+            new ChainPlanNode(
+                "script-common", "script", "script-common", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("edge-entry", "trigger-http", "condition-1", null),
+            new ChainPlanEdge("edge-true", "condition-1", "script-true", "condition-1"),
+            new ChainPlanEdge("edge-false", "condition-1", "script-false", "condition-1"),
+            new ChainPlanEdge("edge-true-join", "script-true", "script-common", "condition-1"),
+            new ChainPlanEdge("edge-false-join", "script-false", "script-common", "condition-1")));
+  }
+
+  private static ChainPlanGraph removeEdge(ChainPlanGraph graph, String edgeId) {
+    List<ChainPlanEdge> edges = new ArrayList<>();
+    for (ChainPlanEdge edge : graph.edges()) {
+      if (!edgeId.equals(edge.edgeId())) {
+        edges.add(edge);
+      }
+    }
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), graph.nodes(), List.copyOf(edges));
+  }
+
+  private static ChainPlanGraph replaceEdge(
+      ChainPlanGraph graph, String edgeId, ChainPlanEdge replacement) {
+    List<ChainPlanEdge> edges = new ArrayList<>();
+    for (ChainPlanEdge edge : graph.edges()) {
+      edges.add(edgeId.equals(edge.edgeId()) ? replacement : edge);
+    }
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), graph.nodes(), List.copyOf(edges));
+  }
+
+  private static CompilerContract contractWithConditionIfMin(int min) {
+    Map<String, ElementContract> elements = new LinkedHashMap<>(CONTRACT.elements());
+    ElementContract condition = elements.get("condition");
+    Map<String, ContainmentRole> roles = new LinkedHashMap<>(condition.containmentRoles());
+    roles.put("if", new ContainmentRole(min, null));
+    elements.put(
+        "condition",
+        new ElementContract(
+            roles,
+            condition.requiredProperties(),
+            condition.materializationRuleId(),
+            condition.runtimeDescriptor()));
+    return new CompilerContract(
+        CONTRACT.contractVersion(),
+        CONTRACT.semanticSchemaVersion(),
+        elements,
+        CONTRACT.topology(),
+        CONTRACT.requiredArtifacts(),
+        CONTRACT.requiredAddons(),
+        CONTRACT.requiredKnowledgeFragments(),
+        CONTRACT.sha256());
+  }
+
+  private static CatalogElementDescriptor matchingDescriptor(String type, boolean container) {
+    return new CatalogElementDescriptor(
+        type, container, Map.of(), List.of(), false, "priority", false, false, false, true);
+  }
+
+  private static ChainSemanticRevision conditionRevision() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode condition =
+        new SemanticNode.Operation("condition-1", "condition", new SemanticProvenance(List.of()));
+    SemanticNode trueBranch =
+        new SemanticNode.Operation("script-true", "script", new SemanticProvenance(List.of()));
+    SemanticNode falseBranch =
+        new SemanticNode.Operation("script-false", "script", new SemanticProvenance(List.of()));
+    SemanticNode join =
+        new SemanticNode.Operation("script-common", "script", new SemanticProvenance(List.of()));
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        "revision-1",
+        "chain-greetings",
+        CONTRACT.contractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "http-in",
+                "trigger-http",
+                "condition-1",
+                0,
+                new SemanticProvenance(List.of()),
+                null)),
+        List.of(trigger, condition, trueBranch, falseBranch, join),
+        List.of(
+            new SemanticRegion.Condition(
+                "region-condition",
+                "condition-1",
+                List.of(
+                    new SemanticBranch.Condition(
+                        "true-branch",
+                        ConditionBranchRole.IF,
+                        "status == 'ok'",
+                        1,
+                        "script-true",
+                        List.of("script-true")),
+                    new SemanticBranch.Condition(
+                        "false-branch",
+                        ConditionBranchRole.ELSE,
+                        null,
+                        0,
+                        "script-false",
+                        List.of("script-false"))),
+                "script-common")),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-entry", "trigger-http", "condition-1", null, new SemanticRoute.Sequence(), null),
+            new SemanticExecutionEdge(
+                "edge-true",
+                "condition-1",
+                "script-true",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("true-branch"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-false",
+                "condition-1",
+                "script-false",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("false-branch"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-true-join",
+                "script-true",
+                "script-common",
+                "region-condition",
+                new SemanticRoute.Reconverge(List.of("true-branch")),
+                null),
+            new SemanticExecutionEdge(
+                "edge-false-join",
+                "script-false",
+                "script-common",
+                "region-condition",
+                new SemanticRoute.Reconverge(List.of("false-branch")),
+                null)),
+        List.of(
+            new SemanticContainment("condition-1", "script-true", "if"),
+            new SemanticContainment("condition-1", "script-false", "else")),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
   }
 }

@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.qipknowledge.validation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -53,8 +54,10 @@ class MaterializationRequirementsValidatorTest {
             ownerGenerator: cip-routing-generator
             requiredProperties:
               - condition
+              - foo
             examples:
               condition: "${exchangeProperty.lang} == 'ru'"
+              foo: "overlay-only"
         """);
 
     System.setProperty(ADDON_PACK_ROOT_PROPERTY, addonRoot.toString());
@@ -111,5 +114,32 @@ class MaterializationRequirementsValidatorTest {
     assertFalse(issues.get(0).message().isBlank());
     assertEquals("cip-routing-generator", issues.get(0).ownerCapabilityId());
     assertTrue(issues.get(0).message().contains("condition"));
+  }
+
+  @Test
+  void ignoresAddonOverlayRequiredPropertiesThatAreNotOnTheContract() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", "Demo"),
+            List.of(
+                new ChainPlanNode(
+                    "if-1",
+                    "if",
+                    "If",
+                    null,
+                    null,
+                    List.of(new PlanProperty("condition", "${lang} == 'ru'")))),
+            List.of());
+
+    var issues = validator.validate(graph);
+    assertTrue(
+        issues.stream().noneMatch(issue -> issue.message().contains("'foo'")),
+        issues.toString());
+  }
+
+  @Test
+  void nullGraphFailsClosedWhenContractIsPresent() {
+    assertThrows(IllegalStateException.class, () -> validator.validate(null));
   }
 }
