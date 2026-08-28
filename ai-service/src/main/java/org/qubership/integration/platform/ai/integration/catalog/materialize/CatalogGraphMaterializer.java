@@ -274,21 +274,24 @@ public class CatalogGraphMaterializer {
         adoptedGeneratedCatalogIds(createAttempt, nodeIdToElementId, written);
 
     MaterializationMap owned = completeOwnership(desiredGraph, map);
-    requireOwnership(desiredGraph, owned);
-
-    return new CatalogGraphMaterializeResult(
-        owned,
-        List.copyOf(changed),
-        List.copyOf(failed),
-        error,
-        List.copyOf(removedElementIds),
-        List.copyOf(written),
-        changedKeysByNodeId,
-        createdEdges,
-        recreatableEdges,
-        List.copyOf(completedTransfers),
-        adoptedGeneratedCatalogIds,
-        false);
+    CatalogGraphMaterializeResult result =
+        new CatalogGraphMaterializeResult(
+            owned,
+            List.copyOf(changed),
+            List.copyOf(failed),
+            error,
+            List.copyOf(removedElementIds),
+            List.copyOf(written),
+            changedKeysByNodeId,
+            createdEdges,
+            recreatableEdges,
+            List.copyOf(completedTransfers),
+            adoptedGeneratedCatalogIds,
+            false);
+    if (result.succeeded()) {
+      requireOwnership(desiredGraph, owned);
+    }
+    return result;
   }
 
   /** Empty current graph for CREATE after chain publication. */
