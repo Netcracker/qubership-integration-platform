@@ -288,12 +288,20 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         serviceEntry.put("kind", "ServiceEntry");
         serviceEntry.withObjectProperty("metadata").put("name", name);
 
-        ObjectNode spec = serviceEntry.withObjectProperty("spec");
-        spec.withArray("hosts").add(targets.get(0).host());
-        spec.put("location", "MESH_EXTERNAL");
-        spec.put("resolution", "DNS");
-        ArrayNode ports = spec.withArray("ports");
-        mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(), newPorts)
+        ObjectNode spec = mutableSpecCopy(existingSpec);
+        serviceEntry.set("spec", spec);
+        spec.putArray("hosts").add(targets.get(0).host());
+        // location and resolution are defaults, not owned fields: an operator who moves the host
+        // to MESH_INTERNAL, or off DNS resolution, keeps that choice across deploys.
+        if (!spec.hasNonNull("location")) {
+            spec.put("location", "MESH_EXTERNAL");
+        }
+        if (!spec.hasNonNull("resolution")) {
+            spec.put("resolution", "DNS");
+        }
+        ArrayNode ports = spec.putArray("ports");
+        mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(),
+                newPorts, yamlMapper.createObjectNode())
                 .forEach(ports::add);
 
         appendYamlDocument(out, serviceEntry, "ServiceEntry " + name);
@@ -315,26 +323,80 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         List<JsonNode> newPortLevelSettings = targets.stream().map(target -> {
             ObjectNode newPortLevelSetting = yamlMapper.createObjectNode();
             newPortLevelSetting.putObject("port").put("number", target.port());
-            ObjectNode tls = newPortLevelSetting.putObject("tls");
-            tls.put("mode", "SIMPLE");
-            tls.put("sni", target.host());
+            newPortLevelSetting.putObject("tls").put("sni", target.host());
             return (JsonNode) newPortLevelSetting;
         }).toList();
+
+        // tls.mode is a default, not an owned field: an operator who switches a port to MUTUAL
+        // keeps that choice across deploys. DISABLE is the one exception; see clearDisabledTlsMode.
+        ObjectNode portLevelSettingDefaults = yamlMapper.createObjectNode();
+        portLevelSettingDefaults.putObject("tls").put("mode", "SIMPLE");
 
         ObjectNode destinationRule = yamlMapper.createObjectNode();
         destinationRule.put("apiVersion", NETWORKING_ISTIO_API_GROUP + "/" + NETWORKING_ISTIO_API_VERSION);
         destinationRule.put("kind", "DestinationRule");
         destinationRule.withObjectProperty("metadata").put("name", name);
 
-        ObjectNode spec = destinationRule.withObjectProperty("spec");
+        ObjectNode spec = mutableSpecCopy(existingSpec);
+        destinationRule.set("spec", spec);
         spec.put("host", targets.get(0).host());
-        ArrayNode portLevelSettings = spec.withObjectProperty("trafficPolicy").withArray("portLevelSettings");
-        JsonNode existingPortLevelSettings = existingSpec.path("trafficPolicy").path("portLevelSettings");
+        JsonNode existingPortLevelSettings = clearDisabledTlsMode(
+                existingSpec.path("trafficPolicy").path("portLevelSettings"),
+                targets.stream().map(EgressTarget::port).collect(Collectors.toSet()));
+        ArrayNode portLevelSettings = spec.withObjectProperty("trafficPolicy").putArray("portLevelSettings");
         mergedEntries(existingPortLevelSettings,
-                entry -> entry.path("port").path("number").asInt(), newPortLevelSettings)
+                entry -> entry.path("port").path("number").asInt(),
+                newPortLevelSettings, portLevelSettingDefaults)
                 .forEach(portLevelSettings::add);
 
         appendYamlDocument(out, destinationRule, "DestinationRule " + name);
+    }
+
+    /**
+     * {@code portLevelSettings} with {@code tls.mode: DISABLE} dropped from the entries for
+     * {@code ports}, so the {@code SIMPLE} default lands on them as if it had never been set.
+     *
+     * <p>{@code tls.mode} is otherwise the operator's to set, and {@code MUTUAL} survives untouched.
+     * {@code DISABLE} does not, because it turns off TLS origination while the route still points at
+     * an HTTPS port: the gateway would send cleartext to a TLS listener and every request on that
+     * route would fail, with nothing in the {@code DestinationRule} to explain why. Entries for
+     * other ports are left exactly as they are, {@code DISABLE} included, since this build does not
+     * manage them.
+     */
+    private JsonNode clearDisabledTlsMode(JsonNode portLevelSettings, Set<Integer> ports) {
+        if (!portLevelSettings.isArray()) {
+            return portLevelSettings;
+        }
+        ArrayNode cleared = yamlMapper.createArrayNode();
+        for (JsonNode entry : portLevelSettings) {
+            if (entry.isObject()
+                    && ports.contains(entry.path("port").path("number").asInt())
+                    && "DISABLE".equals(entry.path("tls").path("mode").asText(null))) {
+                ObjectNode withoutMode = ((ObjectNode) entry).deepCopy();
+                withoutMode.withObjectProperty("tls").remove("mode");
+                cleared.add(withoutMode);
+            } else {
+                cleared.add(entry);
+            }
+        }
+        return cleared;
+    }
+
+    /**
+     * A mutable deep copy of the spec seeded into the build cache, or an empty object when nothing
+     * was seeded (the object doesn't exist yet, or nothing seeds this cache at all).
+     *
+     * <p>The caller overwrites only the fields it owns on top of this copy, so every other field
+     * survives the deploy: {@code trafficPolicy.tls} (including {@code credentialName}),
+     * {@code connectionPool}, {@code outlierDetection}, {@code subsets}, and {@code exportTo} on a
+     * {@code DestinationRule}; {@code endpoints}, {@code addresses}, and {@code workloadSelector}
+     * on a {@code ServiceEntry}. Building a fresh node instead drops them. {@code MicroDomainService}
+     * writes the generated document with a PUT, so a field absent from it is deleted from the
+     * cluster: an operator's hand-added client certificate disappears the next time any chain
+     * touches that host.
+     */
+    private ObjectNode mutableSpecCopy(JsonNode existingSpec) {
+        return existingSpec.isObject() ? ((ObjectNode) existingSpec).deepCopy() : yamlMapper.createObjectNode();
     }
 
     /**
@@ -358,28 +420,96 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     }
 
     /**
-     * Returns {@code existingList}'s entries with any entry sharing a key (per {@code keyExtractor})
-     * with one of {@code newEntries} removed, plus {@code newEntries} appended in order -- i.e.
-     * add-or-replace-by-key, never duplicate. {@code newEntries} carries every port of a single host
+     * Returns {@code existingList}'s entries, with any entry sharing a key (per {@code keyExtractor})
+     * with one of {@code newEntries} folded into that new entry and appended in its place -- i.e.
+     * add-or-merge-by-key, never duplicate. {@code newEntries} carries every port of a single host
      * because that host's {@code ServiceEntry}/{@code DestinationRule} is one object; replacing one
      * port at a time would need one document per port under the same name, and only the
      * last-applied one would survive. {@code existingList} may be a Jackson {@code MissingNode}
      * (absent field); that's treated as an empty list, not an error.
      */
     private List<JsonNode> mergedEntries(
-            JsonNode existingList, Function<JsonNode, Integer> keyExtractor, List<JsonNode> newEntries
+            JsonNode existingList, Function<JsonNode, Integer> keyExtractor, List<JsonNode> newEntries,
+            JsonNode entryDefaults
     ) {
         Set<Integer> newKeys = newEntries.stream().map(keyExtractor).collect(Collectors.toSet());
+        Map<Integer, JsonNode> collidingEntries = new LinkedHashMap<>();
         List<JsonNode> merged = new ArrayList<>();
         if (existingList.isArray()) {
             for (JsonNode entry : existingList) {
-                if (!newKeys.contains(keyExtractor.apply(entry))) {
+                Integer key = keyExtractor.apply(entry);
+                if (newKeys.contains(key)) {
+                    collidingEntries.put(key, entry);
+                } else {
                     merged.add(entry);
                 }
             }
         }
-        merged.addAll(newEntries);
+        for (JsonNode newEntry : newEntries) {
+            merged.add(foldOntoExistingEntry(
+                    collidingEntries.get(keyExtractor.apply(newEntry)), newEntry, entryDefaults));
+        }
         return merged;
+    }
+
+    /**
+     * {@code newEntry} folded onto a copy of {@code existingEntry}, with {@code entryDefaults}
+     * filling in only what neither of them supplies.
+     *
+     * <p>Replacing the colliding entry outright instead would discard every field this builder does
+     * not write. The entry is where an operator configures the connection to that one port:
+     * {@code tls.credentialName}, {@code tls.caCertificates}, {@code tls.subjectAltNames},
+     * {@code connectionPool}, and {@code outlierDetection} on a {@code DestinationRule};
+     * {@code targetPort} on a {@code ServiceEntry}. Folding keeps them.
+     *
+     * <p>The three arguments carry the three levels of ownership. {@code newEntry} holds the fields
+     * this builder owns outright and rewrites on every deploy. {@code entryDefaults} holds the
+     * fields it seeds on creation and then leaves alone, so an operator's later edit sticks.
+     * Everything else belongs to whoever wrote it and is copied across untouched.
+     */
+    private JsonNode foldOntoExistingEntry(JsonNode existingEntry, JsonNode newEntry, JsonNode entryDefaults) {
+        ObjectNode folded = existingEntry != null && existingEntry.isObject()
+                ? ((ObjectNode) existingEntry).deepCopy()
+                : yamlMapper.createObjectNode();
+        deepMerge(folded, newEntry);
+        applyDefaults(folded, entryDefaults);
+        return folded;
+    }
+
+    /**
+     * {@code base}, mutated in place, with every property of {@code overrides} folded on top.
+     * Nested objects recurse, so a key absent from {@code overrides} survives at any depth. Every
+     * other value, arrays included, is replaced outright: array elements have no identity to merge
+     * on. Values are copied in, never aliased, so {@code overrides} is safe to reuse.
+     */
+    private static void deepMerge(ObjectNode base, JsonNode overrides) {
+        for (Map.Entry<String, JsonNode> property : overrides.properties()) {
+            JsonNode baseValue = base.get(property.getKey());
+            if (baseValue != null && baseValue.isObject() && property.getValue().isObject()) {
+                deepMerge((ObjectNode) baseValue, property.getValue());
+            } else {
+                base.set(property.getKey(), property.getValue().deepCopy());
+            }
+        }
+    }
+
+    /**
+     * {@code base}, mutated in place, gaining every property of {@code defaults} it does not
+     * already carry. The mirror image of {@link #deepMerge}: it recurses the same way, but an
+     * existing value always wins, so a default is written once and never rewritten.
+     */
+    private static void applyDefaults(ObjectNode base, JsonNode defaults) {
+        if (!defaults.isObject()) {
+            return;
+        }
+        for (Map.Entry<String, JsonNode> property : defaults.properties()) {
+            JsonNode baseValue = base.get(property.getKey());
+            if (baseValue != null && baseValue.isObject() && property.getValue().isObject()) {
+                applyDefaults((ObjectNode) baseValue, property.getValue());
+            } else if (baseValue == null || baseValue.isNull()) {
+                base.set(property.getKey(), property.getValue().deepCopy());
+            }
+        }
     }
 
     private void appendYamlDocument(StringBuilder out, ObjectNode document, String description) {

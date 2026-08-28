@@ -242,6 +242,247 @@ class EgressRouteResourceBuilderTest {
         assertTrue(result.contains("number: 9443"));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void buildPreservesDestinationRuleFieldsItDoesNotManage() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com:9443/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("https://api.example.com").hostResourceName();
+        Map<String, Object> existingSpec = existingDestinationRuleSpec(portLevelSetting(8443));
+        Map<String, Object> trafficPolicy =
+                new LinkedHashMap<>((Map<String, Object>) existingSpec.get("trafficPolicy"));
+        trafficPolicy.put("tls", Map.of("mode", "MUTUAL", "credentialName", "operator-client-cert"));
+        trafficPolicy.put("connectionPool", Map.of("http", Map.of("http2MaxRequests", 200)));
+        existingSpec.put("trafficPolicy", trafficPolicy);
+        existingSpec.put("exportTo", List.of("."));
+        existingSpec.put("subsets", List.of(Map.of("name", "operator-subset")));
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.destinationRuleCacheKey(hostResourceName), existingSpec);
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("credentialName: operator-client-cert"));
+        assertTrue(result.contains("http2MaxRequests: 200"));
+        assertTrue(result.contains("name: operator-subset"));
+        assertTrue(result.contains("exportTo:"));
+        // The managed list is replaced, not appended to: merging into a copy that already holds
+        // the seeded 8443 setting must not carry it twice.
+        assertEqualsOccurrences(1, "number: 8443", result);
+        assertTrue(result.contains("number: 9443"));
+    }
+
+    @Test
+    void buildPreservesServiceEntryFieldsItDoesNotManage() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("http://api.example.com:9080/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("http://api.example.com").hostResourceName();
+        Map<String, Object> existingSpec = existingServiceEntrySpec(port(8080, "http-8080", "HTTP"));
+        existingSpec.put("exportTo", List.of("."));
+        existingSpec.put("workloadSelector", Map.of("labels", Map.of("app", "operator-owned")));
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.serviceEntryCacheKey(hostResourceName), existingSpec);
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("workloadSelector:"));
+        assertTrue(result.contains("app: operator-owned"));
+        assertTrue(result.contains("exportTo:"));
+        // hosts is replaced, not appended to, so the host is listed once.
+        assertEqualsOccurrences(1, "- api.example.com", result);
+        assertEqualsOccurrences(1, "number: 8080", result);
+        assertTrue(result.contains("number: 9080"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void buildFoldsANewTlsSettingIntoTheExistingEntryForTheSamePort() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-a")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("https://api.example.com").hostResourceName();
+        // Port 443 is the port the route above targets, so this entry collides with the generated one.
+        Map<String, Object> collidingEntry = new LinkedHashMap<>();
+        collidingEntry.put("port", Map.of("number", 443));
+        collidingEntry.put("tls", new LinkedHashMap<>(Map.of(
+                "mode", "MUTUAL",
+                "credentialName", "operator-client-cert",
+                "subjectAltNames", List.of("spiffe://api.example.com"))));
+        collidingEntry.put("connectionPool", Map.of("tcp", Map.of("maxConnections", 50)));
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.destinationRuleCacheKey(hostResourceName),
+                existingDestinationRuleSpec(collidingEntry));
+
+        String result = builder.build(context);
+        String destinationRule = destinationRuleSection(result);
+
+        assertTrue(destinationRule.contains("credentialName: operator-client-cert"));
+        assertTrue(destinationRule.contains("spiffe://api.example.com"));
+        assertTrue(destinationRule.contains("maxConnections: 50"));
+        // tls.mode is seeded on creation and left alone afterwards, so the operator's choice stands.
+        assertTrue(destinationRule.contains("mode: MUTUAL"));
+        assertFalse(destinationRule.contains("mode: SIMPLE"));
+        // sni stays owned by the builder, so it is rewritten on every deploy.
+        assertTrue(destinationRule.contains("sni: api.example.com"));
+        assertEqualsOccurrences(1, "number: 443", destinationRule);
+    }
+
+    @Test
+    void buildFoldsANewPortIntoTheExistingServiceEntryPortWithTheSameNumber() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("http://api.example.com:9080/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("http://api.example.com").hostResourceName();
+        Map<String, Object> collidingPort = port(9080, "stale-name", "HTTP");
+        collidingPort.put("targetPort", 8443);
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.serviceEntryCacheKey(hostResourceName),
+                existingServiceEntrySpec(collidingPort));
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("targetPort: 8443"));
+        // name is a field the builder owns, so its value replaces the stale one.
+        assertTrue(result.contains("name: http-9080"));
+        assertFalse(result.contains("stale-name"));
+        assertEqualsOccurrences(1, "number: 9080", result);
+    }
+
+    private String destinationRuleSection(String result) {
+        int index = result.indexOf("kind: DestinationRule");
+        return index == -1 ? "" : result.substring(index);
+    }
+
+    @Test
+    void buildKeepsAnExistingResolution() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("http://api.example.com:9080/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("http://api.example.com").hostResourceName();
+        Map<String, Object> existingSpec = existingServiceEntrySpec(port(8080, "http-8080", "HTTP"));
+        existingSpec.put("resolution", "STATIC");
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.serviceEntryCacheKey(hostResourceName), existingSpec);
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("resolution: STATIC"));
+        assertFalse(result.contains("resolution: DNS"));
+    }
+
+    @Test
+    void buildSetsLocationAndResolutionWhenTheServiceEntryDoesNotExistYet() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("http://api.example.com:9080/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        String result = builder.build(contextWithSnapshot("snap-1"));
+
+        assertTrue(result.contains("location: MESH_EXTERNAL"));
+        assertTrue(result.contains("resolution: DNS"));
+    }
+
+    @Test
+    void buildKeepsAnExistingLocation() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("http://api.example.com:9080/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("http://api.example.com").hostResourceName();
+        Map<String, Object> existingSpec = existingServiceEntrySpec(port(8080, "http-8080", "HTTP"));
+        existingSpec.put("location", "MESH_INTERNAL");
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.serviceEntryCacheKey(hostResourceName), existingSpec);
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("location: MESH_INTERNAL"));
+        assertFalse(result.contains("location: MESH_EXTERNAL"));
+    }
+
+    @Test
+    void buildRewritesADisabledTlsMode() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-a")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("https://api.example.com").hostResourceName();
+        Map<String, Object> disabledEntry = new LinkedHashMap<>();
+        disabledEntry.put("port", Map.of("number", 443));
+        disabledEntry.put("tls", new LinkedHashMap<>(Map.of(
+                "mode", "DISABLE", "credentialName", "operator-client-cert")));
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.destinationRuleCacheKey(hostResourceName),
+                existingDestinationRuleSpec(disabledEntry));
+
+        String result = builder.build(context);
+        String destinationRule = destinationRuleSection(result);
+
+        // DISABLE would leave the gateway sending cleartext at an HTTPS port, so it is the one mode
+        // the builder overrules.
+        assertTrue(destinationRule.contains("mode: SIMPLE"));
+        assertFalse(destinationRule.contains("mode: DISABLE"));
+        // Overruling the mode does not cost the operator anything else on that entry.
+        assertTrue(destinationRule.contains("credentialName: operator-client-cert"));
+    }
+
+    @Test
+    void buildLeavesADisabledTlsModeOnAPortItDoesNotManage() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com:9443/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("https://api.example.com").hostResourceName();
+        Map<String, Object> disabledEntry = new LinkedHashMap<>();
+        disabledEntry.put("port", Map.of("number", 443));
+        disabledEntry.put("tls", Map.of("mode", "DISABLE"));
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.destinationRuleCacheKey(hostResourceName),
+                existingDestinationRuleSpec(disabledEntry));
+
+        String result = builder.build(context);
+        String destinationRule = destinationRuleSection(result);
+
+        assertTrue(destinationRule.contains("mode: DISABLE"));
+        assertTrue(destinationRule.contains("mode: SIMPLE"));
+    }
+
+    @Test
+    void buildSetsTlsModeWhenTheExistingEntryHasNone() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-a")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("https://api.example.com").hostResourceName();
+        Map<String, Object> entryWithoutMode = new LinkedHashMap<>();
+        entryWithoutMode.put("port", Map.of("number", 443));
+        entryWithoutMode.put("tls", Map.of("credentialName", "operator-client-cert"));
+        context.getBuildCache().put(
+                EgressRouteResourceBuilder.destinationRuleCacheKey(hostResourceName),
+                existingDestinationRuleSpec(entryWithoutMode));
+
+        String result = builder.build(context);
+        String destinationRule = destinationRuleSection(result);
+
+        assertTrue(destinationRule.contains("mode: SIMPLE"));
+        assertTrue(destinationRule.contains("credentialName: operator-client-cert"));
+    }
+
     private Map<String, Object> port(int number, String name, String protocol) {
         Map<String, Object> port = new LinkedHashMap<>();
         port.put("number", number);

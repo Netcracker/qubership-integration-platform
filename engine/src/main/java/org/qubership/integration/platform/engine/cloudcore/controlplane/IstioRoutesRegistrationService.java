@@ -345,12 +345,20 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
 
         upsertHostResource(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, SERVICE_ENTRIES_PLURAL,
                 "ServiceEntry", name, existingSpec -> {
-                    ObjectNode spec = objectMapper.createObjectNode();
+                    ObjectNode spec = mutableSpecCopy(existingSpec);
                     spec.putArray("hosts").add(target.host());
-                    spec.put("location", "MESH_EXTERNAL");
-                    spec.put("resolution", "DNS");
+                    // location and resolution are defaults, not owned fields: an operator who moves
+                    // the host to MESH_INTERNAL, or off DNS resolution, keeps that choice across
+                    // deploys.
+                    if (!spec.hasNonNull("location")) {
+                        spec.put("location", "MESH_EXTERNAL");
+                    }
+                    if (!spec.hasNonNull("resolution")) {
+                        spec.put("resolution", "DNS");
+                    }
                     ArrayNode ports = spec.putArray("ports");
-                    mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(), newPort)
+                    mergedEntries(existingSpec.path("ports"), entry -> entry.path("number").asInt(),
+                            newPort, objectMapper.createObjectNode())
                             .forEach(ports::add);
                     return spec;
                 });
@@ -359,43 +367,158 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     private void upsertDestinationRule(String name, EgressTarget target) {
         ObjectNode newPortLevelSetting = objectMapper.createObjectNode();
         newPortLevelSetting.putObject("port").put("number", target.port());
-        ObjectNode tls = newPortLevelSetting.putObject("tls");
-        tls.put("mode", "SIMPLE");
-        tls.put("sni", target.host());
+        newPortLevelSetting.putObject("tls").put("sni", target.host());
+
+        // tls.mode is a default, not an owned field: an operator who switches this port to MUTUAL
+        // keeps that choice across deploys. DISABLE is the one exception; see clearDisabledTlsMode.
+        ObjectNode portLevelSettingDefaults = objectMapper.createObjectNode();
+        portLevelSettingDefaults.putObject("tls").put("mode", "SIMPLE");
 
         upsertHostResource(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, DESTINATION_RULES_PLURAL,
                 "DestinationRule", name, existingSpec -> {
-                    ObjectNode spec = objectMapper.createObjectNode();
+                    ObjectNode spec = mutableSpecCopy(existingSpec);
                     spec.put("host", target.host());
-                    ArrayNode portLevelSettings = spec.putObject("trafficPolicy").putArray("portLevelSettings");
-                    JsonNode existingPortLevelSettings = existingSpec.path("trafficPolicy").path("portLevelSettings");
+                    JsonNode existingPortLevelSettings = clearDisabledTlsMode(
+                            existingSpec.path("trafficPolicy").path("portLevelSettings"), target.port());
+                    ArrayNode portLevelSettings =
+                            spec.withObjectProperty("trafficPolicy").putArray("portLevelSettings");
                     mergedEntries(existingPortLevelSettings,
-                            entry -> entry.path("port").path("number").asInt(), newPortLevelSetting)
+                            entry -> entry.path("port").path("number").asInt(),
+                            newPortLevelSetting, portLevelSettingDefaults)
                             .forEach(portLevelSettings::add);
                     return spec;
                 });
     }
 
     /**
-     * Returns {@code existingList}'s entries with any entry sharing {@code newEntry}'s key (per
-     * {@code keyExtractor}) removed, plus {@code newEntry} appended -- i.e. add-or-replace-by-key,
-     * never duplicate. {@code existingList} may be a Jackson {@code MissingNode} (absent field);
-     * that's treated as an empty list, not an error.
+     * {@code portLevelSettings} with {@code tls.mode: DISABLE} dropped from the entry for
+     * {@code port}, so the {@code SIMPLE} default lands on it as if it had never been set.
+     *
+     * <p>{@code tls.mode} is otherwise the operator's to set, and {@code MUTUAL} survives untouched.
+     * {@code DISABLE} does not, because it turns off TLS origination while the route still points at
+     * an HTTPS port: the gateway would send cleartext to a TLS listener and every request on that
+     * route would fail, with nothing in the {@code DestinationRule} to explain why. Entries for
+     * other ports are left exactly as they are, {@code DISABLE} included, since this deploy does not
+     * manage them.
+     */
+    private JsonNode clearDisabledTlsMode(JsonNode portLevelSettings, int port) {
+        if (!portLevelSettings.isArray()) {
+            return portLevelSettings;
+        }
+        ArrayNode cleared = objectMapper.createArrayNode();
+        for (JsonNode entry : portLevelSettings) {
+            if (entry.isObject()
+                    && entry.path("port").path("number").asInt() == port
+                    && "DISABLE".equals(entry.path("tls").path("mode").asText(null))) {
+                ObjectNode withoutMode = ((ObjectNode) entry).deepCopy();
+                withoutMode.withObjectProperty("tls").remove("mode");
+                cleared.add(withoutMode);
+            } else {
+                cleared.add(entry);
+            }
+        }
+        return cleared;
+    }
+
+    /**
+     * A mutable deep copy of the live spec, or an empty object when the resource does not exist yet.
+     *
+     * <p>The caller overwrites only the fields it owns on top of this copy, so every other field
+     * survives the deploy: {@code trafficPolicy.tls} (including {@code credentialName}),
+     * {@code connectionPool}, {@code outlierDetection}, {@code subsets}, and {@code exportTo} on a
+     * {@code DestinationRule}; {@code endpoints}, {@code addresses}, and {@code workloadSelector}
+     * on a {@code ServiceEntry}. Building a fresh node instead drops them. The write is a PUT, so
+     * a field absent from the document is deleted from the cluster: an operator's hand-added client
+     * certificate disappears the next time any chain touches that host.
+     */
+    private ObjectNode mutableSpecCopy(JsonNode existingSpec) {
+        return existingSpec.isObject() ? ((ObjectNode) existingSpec).deepCopy() : objectMapper.createObjectNode();
+    }
+
+    /**
+     * Returns {@code existingList}'s entries, with the entry sharing {@code newEntry}'s key (per
+     * {@code keyExtractor}) folded into {@code newEntry} and appended in its place -- i.e.
+     * add-or-merge-by-key, never duplicate. {@code existingList} may be a Jackson
+     * {@code MissingNode} (absent field); that's treated as an empty list, not an error.
      */
     private List<JsonNode> mergedEntries(
-        JsonNode existingList, ToIntFunction<JsonNode> keyExtractor, JsonNode newEntry
+        JsonNode existingList, ToIntFunction<JsonNode> keyExtractor, JsonNode newEntry, JsonNode entryDefaults
     ) {
         int newKey = keyExtractor.applyAsInt(newEntry);
         List<JsonNode> merged = new ArrayList<>();
+        JsonNode collidingEntry = null;
         if (existingList.isArray()) {
             for (JsonNode entry : existingList) {
-                if (keyExtractor.applyAsInt(entry) != newKey) {
+                if (keyExtractor.applyAsInt(entry) == newKey) {
+                    collidingEntry = entry;
+                } else {
                     merged.add(entry);
                 }
             }
         }
-        merged.add(newEntry);
+        merged.add(foldOntoExistingEntry(collidingEntry, newEntry, entryDefaults));
         return merged;
+    }
+
+    /**
+     * {@code newEntry} folded onto a copy of {@code existingEntry}, with {@code entryDefaults}
+     * filling in only what neither of them supplies.
+     *
+     * <p>Replacing the colliding entry outright instead would discard every field this service does
+     * not write. The entry is where an operator configures the connection to that one port:
+     * {@code tls.credentialName}, {@code tls.caCertificates}, {@code tls.subjectAltNames},
+     * {@code connectionPool}, and {@code outlierDetection} on a {@code DestinationRule};
+     * {@code targetPort} on a {@code ServiceEntry}. Folding keeps them.
+     *
+     * <p>The three arguments carry the three levels of ownership. {@code newEntry} holds the fields
+     * this service owns outright and rewrites on every deploy. {@code entryDefaults} holds the
+     * fields it seeds on creation and then leaves alone, so an operator's later edit sticks.
+     * Everything else belongs to whoever wrote it and is copied across untouched.
+     */
+    private JsonNode foldOntoExistingEntry(JsonNode existingEntry, JsonNode newEntry, JsonNode entryDefaults) {
+        ObjectNode folded = existingEntry != null && existingEntry.isObject()
+                ? ((ObjectNode) existingEntry).deepCopy()
+                : objectMapper.createObjectNode();
+        deepMerge(folded, newEntry);
+        applyDefaults(folded, entryDefaults);
+        return folded;
+    }
+
+    /**
+     * {@code base}, mutated in place, with every property of {@code overrides} folded on top.
+     * Nested objects recurse, so a key absent from {@code overrides} survives at any depth. Every
+     * other value, arrays included, is replaced outright: array elements have no identity to merge
+     * on. Values are copied in, never aliased, so {@code overrides} is safe to reuse across the
+     * conflict retries in {@link #upsertHostResource}.
+     */
+    private static void deepMerge(ObjectNode base, JsonNode overrides) {
+        for (Map.Entry<String, JsonNode> property : overrides.properties()) {
+            JsonNode baseValue = base.get(property.getKey());
+            if (baseValue != null && baseValue.isObject() && property.getValue().isObject()) {
+                deepMerge((ObjectNode) baseValue, property.getValue());
+            } else {
+                base.set(property.getKey(), property.getValue().deepCopy());
+            }
+        }
+    }
+
+    /**
+     * {@code base}, mutated in place, gaining every property of {@code defaults} it does not
+     * already carry. The mirror image of {@link #deepMerge}: it recurses the same way, but an
+     * existing value always wins, so a default is written once and never rewritten.
+     */
+    private static void applyDefaults(ObjectNode base, JsonNode defaults) {
+        if (!defaults.isObject()) {
+            return;
+        }
+        for (Map.Entry<String, JsonNode> property : defaults.properties()) {
+            JsonNode baseValue = base.get(property.getKey());
+            if (baseValue != null && baseValue.isObject() && property.getValue().isObject()) {
+                applyDefaults((ObjectNode) baseValue, property.getValue());
+            } else if (baseValue == null || baseValue.isNull()) {
+                base.set(property.getKey(), property.getValue().deepCopy());
+            }
+        }
     }
 
     /**

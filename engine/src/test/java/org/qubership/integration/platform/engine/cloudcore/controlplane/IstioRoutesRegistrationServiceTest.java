@@ -478,6 +478,312 @@ class IstioRoutesRegistrationServiceTest {
         assertEquals(Set.of(8443, 9443), portNumbers);
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesPreservesDestinationRuleFieldsItDoesNotManage() {
+        KubeCustomObject existing = existingDestinationRule(portLevelSetting(8443));
+        Map<String, Object> trafficPolicy = new LinkedHashMap<>(
+                (Map<String, Object>) existing.getSpec().get("trafficPolicy"));
+        trafficPolicy.put("tls", Map.of("mode", "MUTUAL", "credentialName", "operator-client-cert"));
+        trafficPolicy.put("connectionPool", Map.of("http", Map.of("http2MaxRequests", 200)));
+        existing.getSpec().put("trafficPolicy", trafficPolicy);
+        existing.getSpec().put("exportTo", List.of("."));
+        existing.getSpec().put("subsets", List.of(Map.of("name", "operator-subset")));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existing));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        Map<String, Object> writtenSpec = captor.getAllValues().stream()
+                .filter(r -> "destinationrules".equals(r.getResourceNamePlural())).findFirst().orElseThrow()
+                .getBody().getSpec();
+
+        assertEquals(List.of("."), writtenSpec.get("exportTo"));
+        assertEquals(List.of(Map.of("name", "operator-subset")), writtenSpec.get("subsets"));
+        Map<String, Object> writtenTrafficPolicy = (Map<String, Object>) writtenSpec.get("trafficPolicy");
+        assertEquals(Map.of("mode", "MUTUAL", "credentialName", "operator-client-cert"),
+                writtenTrafficPolicy.get("tls"));
+        assertEquals(Map.of("http", Map.of("http2MaxRequests", 200)), writtenTrafficPolicy.get("connectionPool"));
+        // The managed list is replaced, not appended to: merging into a copy that already holds the
+        // seeded 8443 setting must not carry it twice.
+        List<Map<String, Object>> portLevelSettings =
+                (List<Map<String, Object>>) writtenTrafficPolicy.get("portLevelSettings");
+        assertEquals(2, portLevelSettings.size());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesPreservesServiceEntryFieldsItDoesNotManage() {
+        KubeCustomObject existing = existingServiceEntry(port(8443, "https-8443", "HTTPS"));
+        existing.getSpec().put("exportTo", List.of("."));
+        existing.getSpec().put("workloadSelector", Map.of("labels", Map.of("app", "operator-owned")));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existing));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        Map<String, Object> writtenSpec = captor.getAllValues().stream()
+                .filter(r -> "serviceentries".equals(r.getResourceNamePlural())).findFirst().orElseThrow()
+                .getBody().getSpec();
+
+        assertEquals(List.of("."), writtenSpec.get("exportTo"));
+        assertEquals(Map.of("labels", Map.of("app", "operator-owned")), writtenSpec.get("workloadSelector"));
+        // hosts is replaced, not appended to, so the host is listed once.
+        assertEquals(List.of("api.example.com"), writtenSpec.get("hosts"));
+        assertEquals(2, ((List<Map<String, Object>>) writtenSpec.get("ports")).size());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesFoldsANewTlsSettingIntoTheExistingEntryForTheSamePort() {
+        // Port 443 is the port the route below targets, so this entry collides with the generated one.
+        Map<String, Object> collidingEntry = new LinkedHashMap<>();
+        collidingEntry.put("port", Map.of("number", 443));
+        collidingEntry.put("tls", new LinkedHashMap<>(Map.of(
+                "mode", "MUTUAL",
+                "credentialName", "operator-client-cert",
+                "subjectAltNames", List.of("spiffe://api.example.com"))));
+        collidingEntry.put("connectionPool", Map.of("tcp", Map.of("maxConnections", 50)));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingDestinationRule(collidingEntry)));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        Map<String, Object> trafficPolicy = (Map<String, Object>) captor.getAllValues().stream()
+                .filter(r -> "destinationrules".equals(r.getResourceNamePlural())).findFirst().orElseThrow()
+                .getBody().getSpec().get("trafficPolicy");
+        List<Map<String, Object>> portLevelSettings =
+                (List<Map<String, Object>>) trafficPolicy.get("portLevelSettings");
+
+        assertEquals(1, portLevelSettings.size());
+        Map<String, Object> written = portLevelSettings.get(0);
+        assertEquals(Map.of("tcp", Map.of("maxConnections", 50)), written.get("connectionPool"));
+        Map<String, Object> tls = (Map<String, Object>) written.get("tls");
+        assertEquals("operator-client-cert", tls.get("credentialName"));
+        assertEquals(List.of("spiffe://api.example.com"), tls.get("subjectAltNames"));
+        // tls.mode is seeded on creation and left alone afterwards, so the operator's choice stands.
+        assertEquals("MUTUAL", tls.get("mode"));
+        // sni stays owned by the service, so it is rewritten on every deploy.
+        assertEquals("api.example.com", tls.get("sni"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesFoldsANewPortIntoTheExistingServiceEntryPortWithTheSameNumber() {
+        Map<String, Object> collidingPort = port(443, "stale-name", "HTTPS");
+        collidingPort.put("targetPort", 8443);
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingServiceEntry(collidingPort)));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        List<Map<String, Object>> ports = (List<Map<String, Object>>) captor.getAllValues().stream()
+                .filter(r -> "serviceentries".equals(r.getResourceNamePlural())).findFirst().orElseThrow()
+                .getBody().getSpec().get("ports");
+
+        assertEquals(1, ports.size());
+        assertEquals(8443, ports.get(0).get("targetPort"));
+        // name is a field the service owns, so its value replaces the stale one.
+        assertEquals("https-443", ports.get(0).get("name"));
+    }
+
+    @Test
+    void postEgressGatewayRoutesKeepsAnExistingResolution() {
+        KubeCustomObject existing = existingServiceEntry(port(443, "https-443", "HTTPS"));
+        existing.getSpec().put("resolution", "STATIC");
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existing));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        service.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        assertEquals("STATIC", writtenSpec("serviceentries").get("resolution"));
+    }
+
+    @Test
+    void postEgressGatewayRoutesSetsLocationAndResolutionWhenTheServiceEntryDoesNotExistYet() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+
+        service.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        assertEquals("MESH_EXTERNAL", writtenSpec("serviceentries").get("location"));
+        assertEquals("DNS", writtenSpec("serviceentries").get("resolution"));
+    }
+
+    @Test
+    void postEgressGatewayRoutesKeepsAnExistingLocation() {
+        KubeCustomObject existing = existingServiceEntry(port(443, "https-443", "HTTPS"));
+        existing.getSpec().put("location", "MESH_INTERNAL");
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existing));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        service.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        assertEquals("MESH_INTERNAL", writtenSpec("serviceentries").get("location"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesRewritesADisabledTlsMode() {
+        Map<String, Object> disabledEntry = new LinkedHashMap<>();
+        disabledEntry.put("port", Map.of("number", 443));
+        disabledEntry.put("tls", new LinkedHashMap<>(Map.of(
+                "mode", "DISABLE", "credentialName", "operator-client-cert")));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingDestinationRule(disabledEntry)));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        service.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        Map<String, Object> tls = (Map<String, Object>) portLevelSettingFor(443).get("tls");
+        // DISABLE would leave the gateway sending cleartext at an HTTPS port, so it is the one mode
+        // the service overrules.
+        assertEquals("SIMPLE", tls.get("mode"));
+        // Overruling the mode does not cost the operator anything else on that entry.
+        assertEquals("operator-client-cert", tls.get("credentialName"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesLeavesADisabledTlsModeOnAPortItDoesNotManage() {
+        Map<String, Object> disabledEntry = new LinkedHashMap<>();
+        disabledEntry.put("port", Map.of("number", 443));
+        disabledEntry.put("tls", Map.of("mode", "DISABLE"));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingDestinationRule(disabledEntry)));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        service.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        assertEquals("DISABLE", ((Map<String, Object>) portLevelSettingFor(443).get("tls")).get("mode"));
+        assertEquals("SIMPLE", ((Map<String, Object>) portLevelSettingFor(9443).get("tls")).get("mode"));
+    }
+
+    // The default tls.mode is folded into a copy of the live entry, never into the node the service
+    // reuses across conflict retries. Aliasing it would promote the default to an owned field after
+    // the first attempt, so the second attempt would overwrite an operator's MUTUAL with SIMPLE.
+    // Only a retry that reads different state each time can catch that, which is what this sets up.
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesDoesNotCarryTheDefaultTlsModeIntoARetry() {
+        Map<String, Object> entryWithoutTls = new LinkedHashMap<>();
+        entryWithoutTls.put("port", Map.of("number", 443));
+        entryWithoutTls.put("connectionPool", Map.of("tcp", Map.of("maxConnections", 50)));
+
+        Map<String, Object> entryWithMutualTls = new LinkedHashMap<>();
+        entryWithMutualTls.put("port", Map.of("number", 443));
+        entryWithMutualTls.put("tls", new LinkedHashMap<>(Map.of(
+                "mode", "MUTUAL", "credentialName", "operator-client-cert")));
+
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingDestinationRule(entryWithoutTls)))
+                .thenReturn(Optional.of(existingDestinationRule(entryWithMutualTls)));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+        doThrow(new KubeApiConflictException("conflict")).doNothing()
+                .when(kubeOperator)
+                .createOrReplaceCustomObject(argThat(r -> "destinationrules".equals(r.getResourceNamePlural())));
+
+        service.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        Map<String, Object> lastWrite = captor.getAllValues().stream()
+                .filter(r -> "destinationrules".equals(r.getResourceNamePlural()))
+                .reduce((first, second) -> second).orElseThrow()
+                .getBody().getSpec();
+        Map<String, Object> trafficPolicy = (Map<String, Object>) lastWrite.get("trafficPolicy");
+        Map<String, Object> tls = (Map<String, Object>)
+                ((List<Map<String, Object>>) trafficPolicy.get("portLevelSettings")).get(0).get("tls");
+
+        assertEquals("MUTUAL", tls.get("mode"));
+        assertEquals("operator-client-cert", tls.get("credentialName"));
+    }
+
+    /** The port-level setting for {@code port} in the first DestinationRule write this test made. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> portLevelSettingFor(int port) {
+        Map<String, Object> trafficPolicy = (Map<String, Object>) writtenSpec("destinationrules").get("trafficPolicy");
+        return ((List<Map<String, Object>>) trafficPolicy.get("portLevelSettings")).stream()
+                .filter(setting -> Integer.valueOf(port)
+                        .equals(((Map<String, Object>) setting.get("port")).get("number")))
+                .findFirst().orElseThrow();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postEgressGatewayRoutesSetsTlsModeWhenTheExistingEntryHasNone() {
+        Map<String, Object> entryWithoutMode = new LinkedHashMap<>();
+        entryWithoutMode.put("port", Map.of("number", 443));
+        entryWithoutMode.put("tls", Map.of("credentialName", "operator-client-cert"));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && "destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.of(existingDestinationRule(entryWithoutMode)));
+        when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
+                .thenReturn(Optional.empty());
+
+        service.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        Map<String, Object> trafficPolicy =
+                (Map<String, Object>) writtenSpec("destinationrules").get("trafficPolicy");
+        Map<String, Object> tls = (Map<String, Object>)
+                ((List<Map<String, Object>>) trafficPolicy.get("portLevelSettings")).get(0).get("tls");
+
+        assertEquals("SIMPLE", tls.get("mode"));
+        assertEquals("operator-client-cert", tls.get("credentialName"));
+    }
+
+    /** The spec of the first write this test made to {@code plural}. */
+    private Map<String, Object> writtenSpec(String plural) {
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        return captor.getAllValues().stream()
+                .filter(r -> plural.equals(r.getResourceNamePlural())).findFirst().orElseThrow()
+                .getBody().getSpec();
+    }
+
     private Map<String, Object> port(int number, String name, String protocol) {
         Map<String, Object> port = new LinkedHashMap<>();
         port.put("number", number);
