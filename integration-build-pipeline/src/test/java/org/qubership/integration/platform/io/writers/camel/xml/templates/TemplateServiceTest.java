@@ -41,19 +41,17 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import org.xmlunit.builder.Input;
 import org.xmlunit.matchers.CompareMatcher;
+import org.xmlunit.xpath.JAXPXPathEngine;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -81,7 +79,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(MockitoExtension.class)
 public class TemplateServiceTest {
     private static final String ELEMENT_ID = "dcfd578c-9321-4e9c-b000-6c19550bc6c5";
-    private static final Set<String> ABSTRACT_DEFINITIONS = Set.of("onCompletion", "onException");
 
     private final TemplateService templateService;
     private final ChainMapper chainMapper;
@@ -280,15 +277,7 @@ public class TemplateServiceTest {
     public void applyTemplateTest(String scenario, String inputPath, String outputPath) throws IOException {
         String expected = TestUtils.getResourceFileContent(outputPath);
 
-        Element testData = chainMapper.toEntity(yamlMapper.readValue(
-                        TestUtils.getResourceFileContent(inputPath),
-                        ChainDTO.class
-                ))
-                .getElements().stream()
-                .filter(element -> element.getParent().isEmpty())
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Incorrect test data"));
-        String actual = wrap(templateService.applyTemplate(testData));
+        String actual = wrap(templateService.applyTemplate(readRootElement(inputPath)));
 
         assertThat(actual, CompareMatcher.isIdenticalTo(expected).ignoreWhitespace());
     }
@@ -320,8 +309,16 @@ public class TemplateServiceTest {
     @DisplayName("Test that node ids are unique within a route")
     @ParameterizedTest(name = "#{index} => {0}")
     @MethodSource("applyTemplateTestData")
-    public void nodeIdUniquenessTest(String scenario, String inputPath, String outputPath) throws Exception {
-        Element testData = chainMapper.toEntity(yamlMapper.readValue(
+    public void nodeIdUniquenessTest(String scenario, String inputPath, String outputPath) throws IOException {
+        String route = wrap(templateService.applyTemplate(readRootElement(inputPath)));
+
+        List<String> duplicates = findDuplicateNodeIds(route);
+
+        assertTrue(duplicates.isEmpty(), "Duplicate node ids in a single route: " + duplicates);
+    }
+
+    private Element readRootElement(String inputPath) throws IOException {
+        return chainMapper.toEntity(yamlMapper.readValue(
                         TestUtils.getResourceFileContent(inputPath),
                         ChainDTO.class
                 ))
@@ -329,44 +326,17 @@ public class TemplateServiceTest {
                 .filter(element -> element.getParent().isEmpty())
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Incorrect test data"));
-
-        List<String> duplicates = findDuplicateNodeIds(wrap(templateService.applyTemplate(testData)));
-
-        assertTrue(duplicates.isEmpty(), "Duplicate node ids in a single route: " + duplicates);
     }
 
-    /**
-     * Camel rejects a route that assigns the same id to two nodes, so every id a template emits has to be
-     * unique within the route. Nodes under abstract definitions such as onCompletion form a separate tree
-     * and are skipped, the same way Camel skips them while collecting ids.
-     */
-    private static List<String> findDuplicateNodeIds(String routeXml) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        org.w3c.dom.Element route = factory.newDocumentBuilder()
-                .parse(new ByteArrayInputStream(routeXml.getBytes(StandardCharsets.UTF_8)))
-                .getDocumentElement();
-
+    private static List<String> findDuplicateNodeIds(String routeXml) {
         Set<String> seen = new HashSet<>();
         List<String> duplicates = new ArrayList<>();
-        collectNodeIds(route, seen, duplicates);
-        return duplicates;
-    }
-
-    private static void collectNodeIds(Node node, Set<String> seen, List<String> duplicates) {
-        if (ABSTRACT_DEFINITIONS.contains(node.getNodeName())) {
-            return;
-        }
-        if (node instanceof org.w3c.dom.Element element && element.hasAttribute("id")) {
-            String id = element.getAttribute("id");
-            if (!seen.add(id)) {
-                duplicates.add(id);
+        for (Node id : new JAXPXPathEngine().selectNodes("//@id", Input.fromString(routeXml).build())) {
+            if (!seen.add(id.getNodeValue())) {
+                duplicates.add(id.getNodeValue());
             }
         }
-        NodeList children = node.getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            collectNodeIds(children.item(i), seen, duplicates);
-        }
+        return duplicates;
     }
 
     private String wrap(String xml) {
