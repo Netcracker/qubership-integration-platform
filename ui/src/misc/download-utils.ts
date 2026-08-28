@@ -22,14 +22,22 @@ export async function mergeZipArchives(blobs: Blob[]) {
   return zip.generateAsync({ type: "blob" });
 }
 
-export function getFileFromResponse(response: AxiosResponse<Blob>): File {
+/**
+ * `defaultName` covers a response without a `Content-Disposition` header. Without
+ * it the name falls through to the string "undefined", which `downloadFile`
+ * cannot tell from a real one.
+ */
+export function getFileFromResponse(
+  response: AxiosResponse<Blob>,
+  defaultName = "download",
+): File {
   const contentDisposition = response.headers?.[
     "content-disposition"
   ] as string;
   const fileName = contentDisposition
     ?.replace("attachment; filename=", "")
     .replace(/^"|"$/g, "");
-  return new File([response.data], fileName, {
+  return new File([response.data], fileName || defaultName, {
     type: response.data.type.toString(),
   });
 }

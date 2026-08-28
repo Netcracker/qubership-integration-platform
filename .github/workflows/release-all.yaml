@@ -63,6 +63,7 @@ jobs:
       release-integration-build-pipeline: ${{ steps.check.outputs.integration-build-pipeline }}
       release-runtime-catalog: ${{ steps.check.outputs.runtime-catalog }}
       release-sessions-management: ${{ steps.check.outputs.sessions-management }}
+      release-testing-service: ${{ steps.check.outputs.testing-service }}
       release-ui: ${{ steps.check.outputs.ui }}
       release-vscode-extension: ${{ steps.check.outputs.vscode-extension }}
     steps:
@@ -79,7 +80,7 @@ jobs:
         run: |
           set -eu
           # schemas and checkstyle are released manually (rare cadence) — not part of release-all.
-          ALL_MODULES="engine micro-engine integration-build-pipeline runtime-catalog sessions-management ui vscode-extension"
+          ALL_MODULES="engine micro-engine integration-build-pipeline testing-service runtime-catalog sessions-management ui vscode-extension"
 
           # Normalise input: strip spaces, wrap with commas so we can match whole tokens.
           requested=",${MODULES// /},"
@@ -222,6 +223,21 @@ jobs:
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
+  release-testing-service:
+    needs: prepare
+    if: needs.prepare.outputs.release-testing-service == 'true'
+    permissions:
+      contents: write
+      packages: write
+    # The Go module: no artifact registry to publish to, so its release is the
+    # `testing-service/vX.Y.Z` tag plus the image. Takes no Maven inputs.
+    uses: ./.github/workflows/testing-service-release.yaml
+    with:
+      release-type: ${{ inputs.release-type }}
+      build-docker: ${{ inputs.build-docker }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
   release-ui:
     needs: prepare
     if: needs.prepare.outputs.release-ui == 'true'
@@ -258,6 +274,7 @@ jobs:
       - release-integration-build-pipeline
       - release-runtime-catalog
       - release-sessions-management
+      - release-testing-service
       - release-ui
       - release-vscode-extension
     # Run after every release attempt, regardless of which were skipped/failed,
@@ -305,6 +322,7 @@ jobs:
       - release-integration-build-pipeline
       - release-runtime-catalog
       - release-sessions-management
+      - release-testing-service
       - release-ui
       - release-vscode-extension
     # Not always(): a failed module must not still cut a drop + bump the version.

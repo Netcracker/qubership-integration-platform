@@ -36,6 +36,10 @@
         "doc": "/doc/01__Chains/7__Properties/properties.md"
     },
     {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/testing",
+        "doc": "/doc/01__Chains/8__Testing/testing.md"
+    },
+    {
         "pattern": "/services#external",
         "doc": "/doc/02__Services/1__External/external.md"
     },
@@ -94,6 +98,10 @@
     {
         "pattern": "/admintools/exchanges",
         "doc": "/doc/03__Admin_Tools/8__Live_Exchanges/live_exchanges.md"
+    },
+    {
+        "pattern": "/admintools/testing",
+        "doc": "/doc/03__Admin_Tools/9__Testing/testing.md"
     },
     {
         "pattern": "/devtools/maas/kafka",

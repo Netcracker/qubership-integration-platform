@@ -274,25 +274,19 @@ jobs:
     permissions:
       packages: write
     steps:
+      # The docker-action checks out later, so the tag script needs its own.
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Compute image tags
         id: tags
         env:
           REF_NAME: ${{ github.ref_name }}
           VERSION: ${{ needs.check-version.outputs.release-version }}
-        run: |
-          set -eu
-          # We own every tag here (a custom `tags:` bypasses metadata-action's
-          # auto tagging). The default branch publishes only the moving :latest;
-          # release branches publish the immutable pom version plus a moving
-          # branch tag (e.g. :0.5.7, :release-0.5), never :latest. Strip '/'
-          # (invalid in a docker tag) from the branch ref.
-          if [ "$REF_NAME" = "main" ]; then
-            tags="latest"
-          else
-            branch=$(printf '%s' "$REF_NAME" | tr '/' '-')
-            tags="${VERSION},${branch}"
-          fi
-          echo "list=${tags}" >> "$GITHUB_OUTPUT"
+        run: bash scripts/compute-image-tags.sh
 
       - name: "Docker Build"
         id: docker_build

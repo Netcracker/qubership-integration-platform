@@ -65,6 +65,7 @@ src/
 ├── api/          — ApiClient interface, REST and VS Code implementations, all business types
 ├── components/   — React components (see below)
 ├── hooks/        — data-fetching, theme, graph, and filter hooks
+│   └── testing/  — the hooks the testing screens share
 ├── pages/        — route-level components
 ├── mapper/       — data-mapping model and logic
 ├── misc/         — pure utility functions
@@ -84,9 +85,32 @@ Under `src/components/`: `table/`, `modal/`, `graph/`, `mapper/`, `services/`, `
 Reuse existing components and helpers before adding new ones — the table, modal, and permission
 layers all have shared primitives, and duplicating them is the most common review comment.
 
+Two hooks under `src/hooks/` are worth knowing before you write your own:
+
+- `useTableInfiniteScroll.ts` loads the next page when a sentinel row scrolls into view. Reuse it
+  rather than writing a new observer; `src/pages/Sessions.tsx` still carries an inline copy from
+  before the hook existed, so a search turns up two implementations.
+- `src/hooks/testing/` holds what the testing screens share — `useTestingEntityList` for a list,
+  `useTestingBulkActions` for its toolbar, `useTestingEntityEditor` for an editor page.
+
 ## Testing style
 
 Name unit tests `should ... when ...` where it fits:
 
 - should show full URI when no path component exists
 - should export participants with names
+
+## jsdom prerequisites
+
+jsdom is missing browser APIs that production code and react-router rely on. Two of them are already solved; reuse the
+solutions rather than stubbing again.
+
+- **Data routers.** A suite that renders `createMemoryRouter` must call `installDataRouterGlobals()` from
+  `tests/helpers/dataRouterGlobals.ts` first. jsdom ships no fetch API, and a data router builds a `Request` per
+  navigation, so without it a `useBlocker` suite fails on an error that names none of this.
+- **`crypto.randomUUID`.** jsdom's `crypto` has no `randomUUID`, which production code uses for client-side row and
+  modal keys. `tests/setup/crypto-random-uuid.ts` fills it in and runs globally from `jest.config.ts`, so no suite
+  needs to import it.
+- **`LightweightTable` mock.** `tests/__mocks__/LightweightTable.tsx` renders the custom entries of
+  `rowSelection.selections`, which is what makes "select all that match the filters" reachable from a test. Drive
+  sorting through the columns the component actually supplied rather than typing a column key into the test.

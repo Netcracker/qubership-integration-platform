@@ -6,11 +6,27 @@ global:
   postgres:
     database: postgres
   qip:
+    # Whether this is a live installation. Every service reads it, and it stays
+    # true unless an installation says otherwise: the flag hides what is unsafe
+    # on a live installation rather than enabling anything, so the safe answer
+    # for one that names no mode is the restrictive one.
+    production: true
     ui:
       port: 30080
     variables:
       defaultSecret:
         enabled: false
+    # Turning the testing service off drops its chart and its nginx route: the
+    # route names the service statically, and nginx refuses to start on a name
+    # it cannot resolve.
+    testingService:
+      enabled: true
+      # Endpoint mocking in the engine. With it on, an outbound HTTP call with no
+      # matching mock gets a 404 instead of reaching the real endpoint, so turn it
+      # on only while someone is testing. The engine picks the change up on a
+      # restart; no chain needs a redeploy. It needs enabled: true above, and the
+      # configmap renders it off while the testing service is off.
+      engineMockingEnabled: false
     deploy:
       classic:
         enabled: true

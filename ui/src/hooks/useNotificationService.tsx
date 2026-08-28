@@ -4,7 +4,7 @@ import {
   NotificationItem,
   useNotificationLog,
 } from "../components/notifications/contexts/NotificationLogContext.tsx";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { ApiError } from "../api/apiTypes.ts";
 import { useNotificationApi } from "../components/notifications/contexts/NotificationApiContext.tsx";
 
@@ -35,8 +35,8 @@ interface NotificationService {
     exception: unknown,
   ): void;
 
-  info(message: string, description?: string): void;
-  warning(message: string, description?: string): void;
+  info(message: string, description?: ReactNode): void;
+  warning(message: string, description?: ReactNode): void;
 }
 
 export const useNotificationService = (): NotificationService => {
@@ -68,7 +68,7 @@ export const useNotificationService = (): NotificationService => {
   );
 
   const buildInfoNotification = useCallback(
-    (message: string, description?: string): NotificationItem => ({
+    (message: string, description?: ReactNode): NotificationItem => ({
       type: "info",
       message: message,
       description: description,
@@ -77,7 +77,7 @@ export const useNotificationService = (): NotificationService => {
   );
 
   const buildWarningNotification = useCallback(
-    (message: string, description?: string): NotificationItem => ({
+    (message: string, description?: ReactNode): NotificationItem => ({
       type: "warning",
       message: message,
       description: description,
@@ -123,12 +123,12 @@ export const useNotificationService = (): NotificationService => {
         addToHistory(item);
         notificationApi.error(item);
       },
-      info: (message: string, description?: string) => {
+      info: (message: string, description?: ReactNode) => {
         const item = buildInfoNotification(message, description);
         addToHistory(item);
         notificationApi.info(item);
       },
-      warning: (message: string, description?: string) => {
+      warning: (message: string, description?: ReactNode) => {
         const item = buildWarningNotification(message, description);
         addToHistory(item);
         notificationApi.warning(item);

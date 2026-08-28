@@ -16,6 +16,7 @@ module, scoped by `applyTo` to that module's path:
 - `schemas` — JSON Schema sources + ts-node build/codegen pipeline (npm + Maven publish)
 - `vscode-extension` — offline web extension, embeds `@netcracker/qip-ui`
 - `infrastructure` — Docker Compose + Helm for the local stack
+- `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, with a hand-maintained `testing-service/AGENTS.md`
 - `integration-build-pipeline` — `qip-integration-build-pipeline`, the chain-compilation library runtime-catalog depends on (codegen, parsers, mapper, library, chain, io). No instruction of its own yet.
 
 The `ui` module is covered by the four `ui-*` skills rather than an instruction, because its

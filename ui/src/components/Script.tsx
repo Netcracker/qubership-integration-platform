@@ -258,7 +258,12 @@ function configureGroovyLanguage(monaco: Monaco): void {
   );
 }
 
-export type ScriptProps = React.HTMLAttributes<HTMLElement> & {
+// `onChange` is omitted from the DOM attributes: the editor reports a string,
+// not a FormEvent, and the union of the two makes every caller cast.
+export type ScriptProps = Omit<
+  React.HTMLAttributes<HTMLElement>,
+  "onChange"
+> & {
   value: string;
   onChange?: (value: string) => void;
   mode?: "groovy" | "json";

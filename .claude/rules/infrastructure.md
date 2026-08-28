@@ -90,11 +90,12 @@ docs/adr/                   # architecture decision records (0001 PostgreSQL typ
 | qip-runtime-catalog | 8091 → 8080, 5006 → 5005 | second port = JDWP debug |
 | qip-engine | 8092 → 8080, 5007 → 5005 | mounts `kafka-ssl/client` |
 | qip-sessions-management | 8093 → 8080, 5008 → 5005 | |
+| qip-testing-service | 8095 → 8080 | Go, no debug port; `read_only`, `PRODUCTION_MODE=false` |
 | postgres | 5432 | image `postgres`, user/pass/db `postgres` |
 | opensearch | 9200, 9300 | `opensearchproject/opensearch:2.18.0`, single-node |
 | consul | 8500, 8600 (tcp/udp) | `hashicorp/consul:1.15.4`, `-bootstrap-expect=1` |
 
-All three Java services run Spring profile `development`, build from sibling module dirs, and have actuator healthchecks at `/actuator/health`.
+The three Java services run Spring profile `development`, build from their module dirs, and have actuator healthchecks at `/actuator/health`. `qip-testing-service` is the Go one: it builds from `../testing-service`, runs `read_only`, and answers its healthcheck at `/health`.
 
 ### Platform Context
 

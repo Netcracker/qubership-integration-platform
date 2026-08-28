@@ -12,7 +12,12 @@ local variant of one of these is the most common thing a reviewer sends back.
 
 - Use the Ant Design `Table`, with an explicit record generic on both the table and its columns.
 - In a flex container, add the `flex-table` class.
-- Editable cells use the `InlineEdit` component.
+- Editable cells use the `InlineEdit` component. Its edit commits on **Enter** only: the antd `Form`
+  inside it is rendered with `component={false}`, so the `onBlur` it passes has no element to attach
+  to and clicking away discards the edit. `onFinish` also toggles twice, so the cell stays open after
+  a commit. Every consumer in the workspace inherits both, so document the Enter-only behavior for
+  users rather than working around it per call site, and fix `src/components/InlineEdit.tsx` if the
+  behavior has to change.
 - Text search reuses `normalizeSearchTerm` and `matchesByFields` from
   `src/components/table/tableSearch.ts` instead of a local filter.
 - Building a search haystack over mixed types, do not use `filter(Boolean)` — it drops valid `0` and
@@ -48,6 +53,31 @@ drop `y` entirely, or the empty-state placeholder ends up trapped inside that sp
   object — `{ title, onOk, content?, okText?, okType?, okButtonProps?, ... }` — and wraps
   `modal.confirm`. Returning a promise from `onOk` keeps the dialog in its loading state until the
   action settles, which is what you want for a destructive call.
+- Take `Upload.Dragger` off the root `antd` import. `antd/es/upload/Dragger` is untranspiled ESM and
+  breaks the Jest run; `src/components/modal/ImportSessions.tsx` still imports it that way.
+- A create modal for a testing entity is built on `CreateTestingEntityModal`
+  (`src/components/modal/testing/`), which owns the footer wiring, the saving state, the element
+  preselect and the failure notification. Pass the entity's own nouns, its element predicate, and one
+  `create` callback; keep each modal's defaults in the modal.
+
+## Details drawers
+
+A read-only details drawer for a testing entity is built on `TestingDetailsDrawer`
+(`src/components/testing/`). It takes `sections`, an array of `Descriptions` item lists rendered
+divider-separated, and nothing is optional through a flag: a drawer with no audit footer passes no
+audit section. Reuse the item builders beside it — `idItem`, `chainItem`, `elementItem`,
+`auditSection` — and `DetailsLink`, which owns the navigate idiom every link in these drawers shares.
+
+## Unsaved-changes blockers on editor pages
+
+An editor page that guards navigation keeps its dirty flag in a **ref**, not in state, and reads that
+ref from the `useBlocker` predicate; see `src/pages/testing/TestCasePage.tsx` and
+`src/pages/testing/EndpointMockPage.tsx`. The predicate also exempts navigations that stay under the
+editor's own path, so switching sub-tabs does not prompt.
+
+Do not reach for `src/components/services/useUnsavedChangesWithModal.tsx` here. It reads a state
+flag, so a save that clears the flag and navigates in the same tick is blocked by its own navigation:
+the blocker still sees the render in which the flag was set.
 
 ## Forms
 
