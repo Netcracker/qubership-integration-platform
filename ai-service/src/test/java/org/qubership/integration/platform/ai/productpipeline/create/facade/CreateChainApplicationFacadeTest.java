@@ -177,7 +177,7 @@ class CreateChainApplicationFacadeTest {
 
   @Test
   void typedFollowUpAtHaltStaysOnTheSameRunAndKeepsRetry() {
-    fixture = Fixture.createWithDomainFailureAfterInput();
+    fixture = Fixture.createWithRetryableFailureAfterInput();
     CreateChainApplicationFacade facade = fixture.facade();
     String taskId = "task-halt-follow-up-1";
     String requirements = "create greetings API";
@@ -195,6 +195,8 @@ class CreateChainApplicationFacadeTest {
         assertInstanceOf(CreateChainPendingAction.Clarify.class, halted.pendingAction());
     assertEquals(PipelineGates.STAGE_RETRY, haltCard.gateId());
     String runId = halted.runId();
+    int attemptsAtHalt = fixture.discoveryAttempts();
+    assertEquals(RunStatus.WAITING_FOR_INPUT, fixture.runStore().load(runId).orElseThrow().run().status());
 
     facade
         .continueWithInput(new ContinueCreateChainCommand(taskId, "use a different service"))
@@ -213,7 +215,8 @@ class CreateChainApplicationFacadeTest {
     assertEquals(
         "use a different service",
         fixture.runtime().support().haltFollowUpText(runId).orElseThrow());
-    assertEquals(1, fixture.discoveryAttempts());
+    assertEquals(attemptsAtHalt, fixture.discoveryAttempts());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, fixture.runStore().load(runId).orElseThrow().run().status());
 
     facade
         .continueWithInput(new ContinueCreateChainCommand(taskId, PipelineGates.RETRY_ACTION))
@@ -222,7 +225,7 @@ class CreateChainApplicationFacadeTest {
         .await()
         .indefinitely();
 
-    assertEquals(2, fixture.discoveryAttempts());
+    assertEquals(attemptsAtHalt + 1, fixture.discoveryAttempts());
     assertEquals(requirements, fixture.lastDiscoveryUserText());
     assertEquals("use a different service", fixture.lastDiscoveryFollowUp());
     CreateChainExecutionSnapshot afterRetry = facade.snapshot(taskId).orElseThrow();
@@ -733,7 +736,7 @@ class CreateChainApplicationFacadeTest {
     private final boolean materialize;
     private final boolean blankNeedInputReason;
     private final int needInputTimes;
-    private final boolean domainFailureAfterInput;
+    private final boolean retryableFailureAfterInput;
     private final RequirementDraftStore draftStore;
     private final AtomicInteger discoveryAttempts = new AtomicInteger();
     private final AtomicReference<String> lastDiscoveryUserText = new AtomicReference<>();
@@ -786,7 +789,7 @@ class CreateChainApplicationFacadeTest {
         boolean materialize,
         boolean blankNeedInputReason,
         int needInputTimes,
-        boolean domainFailureAfterInput,
+        boolean retryableFailureAfterInput,
         RequirementDraftStore draftStore) {
       this.blobs = blobs;
       this.mapper = mapper;
@@ -796,7 +799,7 @@ class CreateChainApplicationFacadeTest {
       this.materialize = materialize;
       this.blankNeedInputReason = blankNeedInputReason;
       this.needInputTimes = Math.max(1, needInputTimes);
-      this.domainFailureAfterInput = domainFailureAfterInput;
+      this.retryableFailureAfterInput = retryableFailureAfterInput;
       this.draftStore = draftStore;
     }
 
@@ -812,7 +815,7 @@ class CreateChainApplicationFacadeTest {
       }
     }
 
-    static Fixture createWithDomainFailureAfterInput() {
+    static Fixture createWithRetryableFailureAfterInput() {
       try {
         Fixture base = create(false, false);
         return new Fixture(
@@ -982,7 +985,7 @@ class CreateChainApplicationFacadeTest {
                     new CapabilitySignal.Completed(
                         StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, needInputMessage)));
           }
-          if (domainFailureAfterInput && context.attributeAsString("userText") != null) {
+          if (retryableFailureAfterInput && context.attributeAsString("userText") != null) {
             discoveryAttempts.incrementAndGet();
             lastDiscoveryUserText.set(context.attributeAsString("userText"));
             lastDiscoveryFollowUp.set(
@@ -990,7 +993,9 @@ class CreateChainApplicationFacadeTest {
             return Multi.createFrom()
                 .item(
                     new CapabilitySignal.Completed(
-                        StageOutcome.of(StageOutcomeClass.DOMAIN_FAILURE, "bad domain")));
+                        StageOutcome.of(
+                            StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+                            "catalog discovery transport failed")));
           }
           RequirementDraft draft = RequirementFactFixtures.greetingsApprovedDraft();
           return Multi.createFrom()

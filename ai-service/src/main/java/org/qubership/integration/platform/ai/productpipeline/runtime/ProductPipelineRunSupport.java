@@ -795,12 +795,14 @@ public final class ProductPipelineRunSupport {
 
   /**
    * Typed message at a recoverable halt: same run, original requirements unchanged, Retry still
-   * open. When the text names one stage in the closed candidate set, that owner is used and the
-   * run follows the same Revise path (causal reopen counts against the run budget). Ambiguous
-   * names become an owner-choice card. A named stage outside the set stays halted and lists the
-   * allowed stage ids. A bare go-back reopens the diagnosed owner. Whatever none of those branches
-   * claims goes to {@link #answerQuestionOrStayWaiting}, which answers a question and leaves an
-   * instruction waiting. The next diagnosis turn reads {@link #HALT_FOLLOW_UP_TEXT_ATTR}.
+   * open. At {@link PipelineGates#STAGE_RETRY}, persist the text and re-emit the same halt card;
+   * Retry remains the only action that reruns the stage. When the text names one stage in the
+   * closed candidate set, that owner is used and the run follows the same Revise path (causal
+   * reopen counts against the run budget). Ambiguous names become an owner-choice card. A named
+   * stage outside the set stays halted and lists the allowed stage ids. A bare go-back reopens
+   * the diagnosed owner. Whatever none of those branches claims goes to {@link
+   * #answerQuestionOrStayWaiting}, which answers a question and leaves an instruction waiting. The
+   * next diagnosis turn reads {@link #HALT_FOLLOW_UP_TEXT_ATTR}.
    */
   private Multi<PipelineSignal> recordHaltFollowUp(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
@@ -830,6 +832,11 @@ public final class ProductPipelineRunSupport {
     // Bare go-back confirms reopen; keep a prior correction such as "add rbac".
     if (!OwnerCandidateSet.isBareGoBack(followUp) || priorFollowUp.isBlank()) {
       attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, followUp);
+    }
+    String gate =
+        PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+    if (PipelineGates.STAGE_RETRY.equals(gate)) {
+      return reemitHaltCard(doc);
     }
     List<OwnerCandidate> closed = haltOwnerCandidates(doc);
     List<String> named = OwnerCandidateSet.namedStages(command.text(), closed);
