@@ -279,6 +279,8 @@ qip:
       name: internal-gateway-service
   istio:
     enabled: ${QIP_ISTIO_ENABLED:true}
+    host-resources:
+      enabled: ${QIP_ISTIO_HOST_RESOURCES_ENABLED:true}
   control-plane:
     enabled: ${CONTROL_PLANE_ENABLED:false}
     mesh-type: ${SERVICE_MESH_TYPE:Core}

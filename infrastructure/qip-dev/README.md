@@ -22,6 +22,13 @@ Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` only honor
 `PILOT_ENABLE_ALPHA_GATEWAY_API` is set. Without it the egress `HTTPRoute` is accepted but never
 programmed, and outgoing calls fail with no route.
 
+`QIP_ISTIO_HOST_RESOURCES_ENABLED` (default `true`) controls whether `runtime-catalog` and
+`engine` generate the `ServiceEntry` and `DestinationRule` those routes depend on. Turn it off
+only when something else supplies them. The `HTTPRoute` still names its target with
+`kind: Hostname`, which Istio resolves through a `ServiceEntry`, so without one every egress call
+fails while the route itself still looks healthy. HTTPS targets need the `DestinationRule` too,
+because it originates TLS and nothing else in the generated configuration does.
+
 The chart's gateways listen on these ports:
 
 | Gateway | Service name | Port |

@@ -65,6 +65,9 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     @Value("${spring.application.deployment_version}")
     String bgVersion;
 
+    @Value("${qip.istio.host-resources.enabled:true}")
+    boolean hostResourcesEnabled;
+
     @Autowired
     public EgressRouteResourceBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
@@ -102,7 +105,9 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
         StringBuilder out = new StringBuilder();
         appendEgressHttpRoute(out, context, routes);
-        appendHostResources(out, context, routes);
+        if (hostResourcesEnabled) {
+            appendHostResources(out, context, routes);
+        }
         return out.toString();
     }
 

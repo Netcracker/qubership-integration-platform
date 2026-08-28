@@ -62,6 +62,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     private final String publicGatewayName;
     private final String privateGatewayName;
     private final String egressGatewayName;
+    private final boolean hostResourcesEnabled;
 
     @Autowired
     public IstioRoutesRegistrationService(
@@ -71,7 +72,8 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
             @Value("${qip.chains.external-routes.base-path}") String baseRoutePrefix,
             @Value("${qip.gateway.public.name}") String publicGatewayName,
             @Value("${qip.gateway.private.name}") String privateGatewayName,
-            @Value("${qip.gateway.egress.name}") String egressGatewayName
+            @Value("${qip.gateway.egress.name}") String egressGatewayName,
+            @Value("${qip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
     ) {
         this.kubeOperator = kubeOperator;
         this.objectMapper = objectMapper;
@@ -80,6 +82,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
         this.publicGatewayName = publicGatewayName;
         this.privateGatewayName = privateGatewayName;
         this.egressGatewayName = egressGatewayName;
+        this.hostResourcesEnabled = hostResourcesEnabled;
     }
 
     @Override
@@ -119,26 +122,31 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     @Override
     public synchronized void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint)
             throws ControlPlaneException {
+        if (hostResourcesEnabled) {
+            upsertHostResourcesForRoutes(routes);
+        }
+        mergeTierRoutes(egressTierRequest(endpoint), routes, egressGatewayName,
+                this::egressPathMatch, this::buildEgressRule);
+    }
+
+    private void upsertHostResourcesForRoutes(List<DeploymentRouteUpdate> routes) throws ControlPlaneException {
         try {
             // Dedupe by (host, port), not host alone: two routes can legitimately share a host on
             // different ports, and each such pair must reach upsertHostResources so its port gets
             // merged in -- deduping by host alone would silently drop every port but one, even
             // within this single call.
             routes.stream()
-                    .map(route -> EgressTarget.parse(route.getPath()))
-                    .collect(Collectors.toMap(
-                            target -> target.host() + ":" + target.port(),
-                            Function.identity(),
-                            (first, second) -> first))
-                    .values()
-                    .forEach(this::upsertHostResources);
+                .map(route -> EgressTarget.parse(route.getPath()))
+                .collect(Collectors.toMap(
+                    target -> target.host() + ":" + target.port(),
+                    Function.identity(),
+                    (first, second) -> first))
+                .values()
+                .forEach(this::upsertHostResources);
         } catch (KubeApiConflictException e) {
             throw new ControlPlaneException(
-                    "Failed to update host-keyed egress resources after " + MAX_MERGE_ATTEMPTS + " attempts", e);
+                "Failed to update host-keyed egress resources after " + MAX_MERGE_ATTEMPTS + " attempts", e);
         }
-
-        mergeTierRoutes(egressTierRequest(endpoint), routes, egressGatewayName,
-                this::egressPathMatch, this::buildEgressRule);
     }
 
     private static final int MAX_MERGE_ATTEMPTS = 3;

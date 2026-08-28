@@ -95,7 +95,11 @@ class MicroDomainResourceBuildContextFactoryTest {
         when(httpRoutePublicNamingStrategy.getName(any())).thenReturn(PUBLIC_ROUTE_NAME);
         when(httpRoutePrivateNamingStrategy.getName(any())).thenReturn(PRIVATE_ROUTE_NAME);
         when(httpRouteEgressNamingStrategy.getName(any())).thenReturn(EGRESS_ROUTE_NAME);
-        factory = new MicroDomainResourceBuildContextFactory(
+        factory = factoryWithHostResources(true);
+    }
+
+    private MicroDomainResourceBuildContextFactory factoryWithHostResources(boolean hostResourcesEnabled) {
+        return new MicroDomainResourceBuildContextFactory(
                 snapshotRepository,
                 buildNamingStrategy,
                 microDomainService,
@@ -103,7 +107,8 @@ class MicroDomainResourceBuildContextFactoryTest {
                 sourceDslConfigMapNamingStrategy,
                 httpRoutePublicNamingStrategy,
                 httpRoutePrivateNamingStrategy,
-                httpRouteEgressNamingStrategy);
+                httpRouteEgressNamingStrategy,
+                hostResourcesEnabled);
     }
 
     private ResourceBuildRequest request(ResourceBuildOptions options) {
@@ -341,6 +346,18 @@ class MicroDomainResourceBuildContextFactoryTest {
                 .get(new MicroDomainService.ResourceKey("HTTPRoute", PUBLIC_ROUTE_NAME));
         assertNotNull(observed, "looked-and-absent must be distinguishable from never-looked");
         assertTrue(observed.isEmpty());
+    }
+
+    @Test
+    void skipsHostResourceSpecsWhenHostResourcesAreDisabled() {
+        var built = factoryWithHostResources(false).createResourceBuildContext(buildRequest(DOMAIN), false);
+
+        assertFalse(
+                built.observations().containsKey(new MicroDomainService.ResourceKey("ServiceEntry", "example-com")),
+                "nothing writes host resources when the flag is off, so nothing needs their preconditions");
+        // The flag also spares every build two cluster-wide LIST calls.
+        verify(microDomainService, never()).getExistingServiceEntries();
+        verify(microDomainService, never()).getExistingDestinationRules();
     }
 
     // The test that fails if someone collapses the map to two states.

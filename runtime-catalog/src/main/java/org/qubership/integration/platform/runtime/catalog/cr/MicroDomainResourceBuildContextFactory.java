@@ -22,6 +22,7 @@ import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -49,6 +50,7 @@ public class MicroDomainResourceBuildContextFactory {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
+    private final boolean hostResourcesEnabled;
 
     @Autowired
     public MicroDomainResourceBuildContextFactory(
@@ -70,7 +72,9 @@ public class MicroDomainResourceBuildContextFactory {
             @Qualifier("httpRoutePrivateNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy,
             @Qualifier("httpRouteEgressNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
+
+            @Value("${qip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
     ) {
         this.snapshotRepository = snapshotRepository;
         this.buildNamingStrategy = buildNamingStrategy;
@@ -80,6 +84,7 @@ public class MicroDomainResourceBuildContextFactory {
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
         this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
         this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
+        this.hostResourcesEnabled = hostResourcesEnabled;
     }
 
     /**
@@ -117,7 +122,9 @@ public class MicroDomainResourceBuildContextFactory {
         // appendToExising: ServiceEntry/DestinationRule are shared across every domain that targets
         // a given external host, not scoped to this one, so another domain's existing contribution
         // matters even on this domain's very first build.
-        putHostResourceSpecsToBuildCache(context, observations);
+        if (hostResourcesEnabled) {
+            putHostResourceSpecsToBuildCache(context, observations);
+        }
 
         return new BuildContextWithObservations(context, observations);
     }

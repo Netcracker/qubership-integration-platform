@@ -296,6 +296,8 @@ qip:
     app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   istio:
     enabled: ${QIP_ISTIO_ENABLED:true}
+    host-resources:
+      enabled: ${QIP_ISTIO_HOST_RESOURCES_ENABLED:true}
   control-plane:
     mesh-type: ${SERVICE_MESH_TYPE:Core}
     chain-routes-registration:

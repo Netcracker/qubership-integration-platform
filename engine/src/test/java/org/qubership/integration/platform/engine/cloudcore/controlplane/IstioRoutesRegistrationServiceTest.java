@@ -45,7 +45,7 @@ class IstioRoutesRegistrationServiceTest {
     void setUp() {
         kubeOperator = mock(KubeOperator.class);
         service = new IstioRoutesRegistrationService(kubeOperator, new ObjectMapper(), NAMESPACE, BASE_PATH,
-                "public-gateway", "private-gateway", "egress-gateway");
+                "public-gateway", "private-gateway", "egress-gateway", true);
     }
 
     @Test
@@ -782,6 +782,28 @@ class IstioRoutesRegistrationServiceTest {
         return captor.getAllValues().stream()
                 .filter(r -> plural.equals(r.getResourceNamePlural())).findFirst().orElseThrow()
                 .getBody().getSpec();
+    }
+
+    @Test
+    void postEgressGatewayRoutesSkipsHostResourcesWhenTheyAreDisabled() {
+        IstioRoutesRegistrationService withoutHostResources = new IstioRoutesRegistrationService(
+                kubeOperator, new ObjectMapper(), NAMESPACE, BASE_PATH,
+                "public-gateway", "private-gateway", "egress-gateway", false);
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+
+        withoutHostResources.postEgressGatewayRoutes(List.of(
+                        egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
+                CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
+        List<String> written = captor.getAllValues().stream()
+                .map(KubeCustomObjectRequest::getResourceNamePlural)
+                .toList();
+
+        // The egress HTTPRoute still goes out; only the Istio host resources are left to whoever
+        // owns them when the flag is off.
+        assertEquals(List.of("httproutes"), written);
     }
 
     private Map<String, Object> port(int number, String name, String protocol) {

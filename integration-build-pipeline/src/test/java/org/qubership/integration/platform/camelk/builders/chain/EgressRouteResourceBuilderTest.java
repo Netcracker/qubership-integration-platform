@@ -52,6 +52,7 @@ class EgressRouteResourceBuilderTest {
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "domainLabel", "qip.domain");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersionLabel", "qip.bg-version");
         org.springframework.test.util.ReflectionTestUtils.setField(builder, "bgVersion", "v1");
+        org.springframework.test.util.ReflectionTestUtils.setField(builder, "hostResourcesEnabled", true);
     }
 
     private ResourceBuildContext<List<Snapshot>> contextWithSnapshot(String snapshotId) {
@@ -481,6 +482,23 @@ class EgressRouteResourceBuilderTest {
 
         assertTrue(destinationRule.contains("mode: SIMPLE"));
         assertTrue(destinationRule.contains("credentialName: operator-client-cert"));
+    }
+
+    @Test
+    void buildOmitsHostResourcesWhenTheyAreDisabled() throws Exception {
+        org.springframework.test.util.ReflectionTestUtils.setField(builder, "hostResourcesEnabled", false);
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-a")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        String result = builder.build(contextWithSnapshot("snap-1"));
+
+        assertFalse(result.contains("kind: ServiceEntry"));
+        assertFalse(result.contains("kind: DestinationRule"));
+        // The egress HTTPRoute is still generated; only the Istio host resources are left to
+        // whoever owns them when the flag is off.
+        assertTrue(result.contains("kind: HTTPRoute"));
+        assertTrue(result.contains("value: /system/elem-a"));
     }
 
     private Map<String, Object> port(int number, String name, String protocol) {
