@@ -167,6 +167,7 @@ class CreateChainSharedDesignRuntimeIT {
   private final AtomicInteger discoveryCalls = new AtomicInteger();
   private final AtomicInteger analysisCalls = new AtomicInteger();
   private final AtomicInteger plannerCalls = new AtomicInteger();
+  private ChainSemanticRevision offeredRevision;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -211,12 +212,17 @@ class CreateChainSharedDesignRuntimeIT {
                                 new ArtifactCandidate(
                                     Kind.DESIGN_EXECUTION_RESULT,
                                     Map.of("outcome", "complete"),
+                                    List.of()),
+                                new ArtifactCandidate(
+                                    Kind.MATERIALIZATION_MAP,
+                                    Map.of("chainId", "catalog-chain-1"),
                                     List.of())),
                             "materialized",
                             null))));
     discoveryCalls.set(0);
     analysisCalls.set(0);
     plannerCalls.set(0);
+    offeredRevision = petsRevision();
   }
 
   @Test
@@ -301,6 +307,28 @@ class CreateChainSharedDesignRuntimeIT {
     verify(approvedCompilerExecutionRunner).execute(any(), any(), anyList(), any(), any(), any());
     verify(materializationCapability).execute(any());
     verifyNoInteractions(apiHubMcpTools, catalogMutationGateway);
+  }
+
+  @Test
+  void generatePathPersistsTwoEntrySharedDownstream() {
+    offeredRevision = SemanticFixtures.twoEntrySharedDownstream();
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    startV2(runtime);
+    runGenerateToMaterialized(runtime, "Create a pets HTTP integration");
+    assertPersistedSemanticMatches(offeredRevision);
+    assertTrue(hasKind(Kind.CHAIN_PLAN_GRAPH));
+    assertTrue(hasKind(Kind.MATERIALIZATION_MAP));
+  }
+
+  @Test
+  void generatePathPersistsConditionReconvergence() {
+    offeredRevision = SemanticFixtures.conditionReconvergence();
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    startV2(runtime);
+    runGenerateToMaterialized(runtime, "Create a pets HTTP integration");
+    assertPersistedSemanticMatches(offeredRevision);
+    assertTrue(hasKind(Kind.CHAIN_PLAN_GRAPH));
+    assertTrue(hasKind(Kind.MATERIALIZATION_MAP));
   }
 
   @Test
@@ -656,6 +684,10 @@ class CreateChainSharedDesignRuntimeIT {
                                 new ArtifactCandidate(
                                     Kind.DESIGN_EXECUTION_RESULT,
                                     Map.of("outcome", "complete"),
+                                    List.of()),
+                                new ArtifactCandidate(
+                                    Kind.MATERIALIZATION_MAP,
+                                    Map.of("chainId", "catalog-chain-1"),
                                     List.of())),
                             "materialized",
                             null)));
@@ -935,7 +967,7 @@ class CreateChainSharedDesignRuntimeIT {
           if (prompt != null && prompt.contains("Order Management")) {
             ProductCapabilityCaptureContext.offerSemantic(omWfmRevision());
           } else {
-            ProductCapabilityCaptureContext.offerSemantic(petsRevision());
+            ProductCapabilityCaptureContext.offerSemantic(offeredRevision);
           }
           return Multi.createFrom().empty();
         },
@@ -946,6 +978,14 @@ class CreateChainSharedDesignRuntimeIT {
     return new DesignPlanningCapability(
         (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
           plannerCalls.incrementAndGet();
+          if (offeredRevision != null
+              && "revision-two-entry".equals(offeredRevision.revisionId())) {
+            return twoEntryPlannerReport();
+          }
+          if (offeredRevision != null
+              && "revision-reconverge".equals(offeredRevision.revisionId())) {
+            return reconvergePlannerReport();
+          }
           if (input != null
               && (input.contains("Orders API") || input.contains("Order Management"))) {
             return input.contains("Order Management") ? omWfmPlannerReport() : ordersPlannerReport();
@@ -1043,8 +1083,23 @@ class CreateChainSharedDesignRuntimeIT {
 
   private void seedApprovedImplementationWaiting(CreateChainTestOrchestrator runtime) {
     startV2(runtime);
+    runGenerateToWaitingForImplement(runtime, "Create a pets HTTP integration");
+  }
+
+  private void runGenerateToMaterialized(
+      CreateChainTestOrchestrator runtime, String userText) {
+    runGenerateToWaitingForImplement(runtime, userText);
+    implementApprovedPlan(runtime);
+    assertEquals(
+        RunStatus.CHAIN_MATERIALIZED,
+        loadRun().run().status(),
+        () -> "after generate implement: " + runDebug());
+  }
+
+  private void runGenerateToWaitingForImplement(
+      CreateChainTestOrchestrator runtime, String userText) {
     runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, "Create a pets HTTP integration"))
+        .acceptInput(new AcceptInputCommand(RUN_ID, userText))
         .collect()
         .asList()
         .await()
@@ -1053,6 +1108,26 @@ class CreateChainSharedDesignRuntimeIT {
     approveLatestWaiting(runtime);
     approveLatestWaiting(runtime);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status(), () -> runDebug());
+  }
+
+  private void assertPersistedSemanticMatches(ChainSemanticRevision expected) {
+    ChainSemanticRevision revision = latestRevision();
+    assertEquals(expected.revisionId(), revision.revisionId());
+    assertEquals(
+        expected.nodes().stream().map(SemanticNode::nodeId).toList(),
+        revision.nodes().stream().map(SemanticNode::nodeId).toList());
+    assertEquals(
+        expected.executionEdges().stream().map(SemanticExecutionEdge::edgeId).toList(),
+        revision.executionEdges().stream().map(SemanticExecutionEdge::edgeId).toList());
+    assertTrue(hasKind(Kind.CHAIN_SEMANTIC_REVISION));
+  }
+
+  private ChainSemanticRevision latestRevision() {
+    return artifactStore.payload(
+        artifactStore.history(RUN_ID, Kind.CHAIN_SEMANTIC_REVISION).stream()
+            .reduce((a, b) -> b)
+            .orElseThrow(),
+        ChainSemanticRevision.class);
   }
 
   private void approveLatestWaiting(CreateChainTestOrchestrator runtime) {
@@ -1293,6 +1368,34 @@ class CreateChainSharedDesignRuntimeIT {
             List.of(
                 new CompilerValidationPass(
                     "graph", new ValidationResult(true, List.of(), "ok")))));
+  }
+
+  private static String twoEntryPlannerReport() {
+    return """
+        1. Analyze requirements and name chain Two entry shared downstream (cip-requirement-analyzer + cip-naming-generator)
+        2. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
+        3. Generate Kafka Trigger element with interface Kafka (cip-trigger-generator)
+        4. Generate Script element for shared downstream (cip-script-generator)
+        5. Generate execution structure and element ordering (cip-structure-generator)
+        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        7. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+        .trim();
+  }
+
+  private static String reconvergePlannerReport() {
+    return """
+        1. Analyze requirements and name chain Condition reconverge (cip-requirement-analyzer + cip-naming-generator)
+        2. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
+        3. Generate Script element for Initialization (cip-script-generator)
+        4. Generate Script element for Response (cip-script-generator)
+        5. Generate execution structure and element ordering (cip-structure-generator)
+        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        7. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+        .trim();
   }
 
   private static String petsPlannerReport() {

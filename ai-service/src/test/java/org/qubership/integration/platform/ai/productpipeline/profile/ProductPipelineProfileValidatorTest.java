@@ -367,6 +367,7 @@ class ProductPipelineProfileValidatorTest {
             new ArtifactTypeRef("compiler-validation-bundle", 1),
             new ArtifactTypeRef("approval-record", 2),
             new ArtifactTypeRef("materialization-result", 1),
+            new ArtifactTypeRef("materialization-map", 1),
             new ArtifactTypeRef("catalog-chain-snapshot", 1),
             new ArtifactTypeRef("reconcile-result", 1));
 
@@ -417,6 +418,7 @@ class ProductPipelineProfileValidatorTest {
             new ArtifactTypeRef("compiler-validation-bundle", 1),
             new ArtifactTypeRef("approval-record", 2),
             new ArtifactTypeRef("materialization-result", 1),
+            new ArtifactTypeRef("materialization-map", 1),
             new ArtifactTypeRef("catalog-chain-snapshot", 1),
             new ArtifactTypeRef("reconcile-result", 1));
 

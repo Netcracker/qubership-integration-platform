@@ -466,6 +466,7 @@ class DurableCreateChainFlowInstanceIT {
         .thenAnswer(
             invocation -> {
               ProvidedIdsFlow.RunContext context = invocation.getArgument(0);
+              assertPinnedIdentity(context);
               executions.incrementAndGet();
               String decision = decisions.poll();
               if (decision == null) {
@@ -474,7 +475,13 @@ class DurableCreateChainFlowInstanceIT {
               return context.withDecision(decision);
             });
     when(tasks.restoreAfterInput(any()))
-        .thenAnswer(invocation -> restoreContext(invocation.getArgument(0), "run-looped-restore"));
+        .thenAnswer(
+            invocation -> {
+              ProvidedIdsFlow.RunContext restored =
+                  restoreContext(invocation.getArgument(0), "run-looped-restore");
+              assertPinnedIdentity(restored);
+              return restored;
+            });
 
     WorkflowInstance instance =
         flow.instance(

@@ -121,6 +121,7 @@ stages:
       - { type: run-manifest, schemaVersion: 1 }
     produces:
       - { type: materialization-result, schemaVersion: 1 }
+      - { type: materialization-map, schemaVersion: 1 }
       - { type: catalog-chain-snapshot, schemaVersion: 1 }
       - { type: reconcile-result, schemaVersion: 1 }
       - { type: design-execution-checkpoint, schemaVersion: 1 }

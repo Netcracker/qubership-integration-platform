@@ -201,7 +201,7 @@ class MaterializationCapabilityTest {
         StageOutcomeClass.SUCCEEDED,
         completed.outcome().outcomeClass(),
         () -> String.valueOf(completed.outcome().message()));
-    assertEquals(3, completed.outcome().candidates().size());
+    assertEquals(4, completed.outcome().candidates().size());
     assertTrue(
         signals.stream()
             .anyMatch(

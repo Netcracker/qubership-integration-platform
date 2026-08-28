@@ -202,12 +202,18 @@ public class MaterializationCapability implements StageCapability {
     }
     ArtifactCandidate materializationCandidate =
         new ArtifactCandidate(Kind.MATERIALIZATION_RESULT, complete, evidenceInputs);
+    ArtifactCandidate mapCandidate =
+        new ArtifactCandidate(Kind.MATERIALIZATION_MAP, complete.materializationMap(), evidenceInputs);
     return List.of(
         new CapabilitySignal.Message(ChainMaterializedSummary.format(facts)),
         new CapabilitySignal.Completed(
             new StageOutcome(
                 StageOutcomeClass.SUCCEEDED,
-                List.of(materializationCandidate, snapshotCandidate, reconcileCandidate),
+                List.of(
+                    materializationCandidate,
+                    mapCandidate,
+                    snapshotCandidate,
+                    reconcileCandidate),
                 "chain materialized and reconciled",
                 null)));
   }
@@ -276,6 +282,9 @@ public class MaterializationCapability implements StageCapability {
     }
 
     List<ArtifactCandidate> candidates = new ArrayList<>();
+    candidates.add(
+        new ArtifactCandidate(
+            Kind.MATERIALIZATION_MAP, complete.materializationMap(), evidenceInputs));
     candidates.add(snapshotCandidate);
     candidates.add(reconcileCandidate);
     candidates.addAll(phase6.candidates());
