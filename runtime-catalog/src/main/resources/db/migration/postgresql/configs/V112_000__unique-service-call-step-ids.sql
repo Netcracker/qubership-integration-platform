@@ -2,20 +2,20 @@
 -- before the service call template was fixed repeat 'Handle response--<element id>' per response
 -- handler and 'Validations--<element id>' per response validation. Numbering the repeats is enough:
 -- the id only has to differ, and it keeps the '<name>--<element id>' shape the engine parses.
+--
+-- The document is rebuilt from the text around the step ids rather than re-serialized, so every byte
+-- outside the rewritten id attributes stays as it was. Splitting on the step ids and matching them
+-- give two interleaved sequences -- part 1, id 1, part 2, id 2, ... -- which the join on ordinality
+-- puts back together. There is one more part than id, so the trailing part joins to no id.
 WITH affected AS (
     SELECT id,
-           xml_configuration                            AS xml,
+           xml_configuration                             AS xml,
            'id="(?:Handle response|Validations)--[^"]*"' AS step_id_pattern
     FROM catalog.snapshots
     WHERE strpos(xml_configuration, 'id="Handle response--') > 0
        OR strpos(xml_configuration, 'id="Validations--') > 0
 ),
--- splitting on the step ids and collecting them separately keeps every other byte of the document intact
-fragments AS (
-    SELECT a.id, f.fragment, f.ordinality
-    FROM affected a,
-         regexp_split_to_table(a.xml, a.step_id_pattern) WITH ORDINALITY AS f(fragment, ordinality)
-),
+-- every step id in document order, numbered per snapshot and per id, so repeats get 2, 3, ...
 step_ids AS (
     SELECT a.id,
            s.step_id[1] AS step_id,
@@ -25,17 +25,19 @@ step_ids AS (
          regexp_matches(a.xml, a.step_id_pattern, 'g') WITH ORDINALITY AS s(step_id, ordinality)
 ),
 rebuilt AS (
-    SELECT f.id,
+    SELECT a.id,
            string_agg(
-                   f.fragment || coalesce(
+                   part.fragment || coalesce(
                            CASE s.occurrence
                                WHEN 1 THEN s.step_id
                                ELSE regexp_replace(s.step_id, '--', ' ' || s.occurrence || '--')
                                END, ''),
-                   '' ORDER BY f.ordinality) AS xml
-    FROM fragments f
-             LEFT JOIN step_ids s ON s.id = f.id AND s.ordinality = f.ordinality
-    GROUP BY f.id
+                   '' ORDER BY part.ordinality) AS xml
+    FROM affected a
+             CROSS JOIN LATERAL regexp_split_to_table(a.xml, a.step_id_pattern)
+                 WITH ORDINALITY AS part(fragment, ordinality)
+             LEFT JOIN step_ids s ON s.id = a.id AND s.ordinality = part.ordinality
+    GROUP BY a.id
 )
 UPDATE catalog.snapshots
 SET xml_configuration = rebuilt.xml
