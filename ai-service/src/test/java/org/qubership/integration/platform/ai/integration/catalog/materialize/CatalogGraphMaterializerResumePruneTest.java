@@ -49,7 +49,7 @@ class CatalogGraphMaterializerResumePruneTest {
                 chainId,
                 CatalogGraphMaterializer.emptyCurrent(desired),
                 desired,
-                new MaterializationMap(chainId, Map.copyOf(resumeMap)));
+                new MaterializationMap(chainId, Map.copyOf(resumeMap), Map.of(), Map.of()));
 
     assertTrue(result.succeeded(), result.error());
 

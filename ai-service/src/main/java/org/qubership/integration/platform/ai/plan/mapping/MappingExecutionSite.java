@@ -11,13 +11,17 @@ public final class MappingExecutionSite {
   public static final String ELEMENT_TYPE = "mapper-2";
   public static final String SCRIPT_ELEMENT_TYPE = "script";
   public static final String MAPPING_INTENT_ID_PROPERTY = "mappingIntentId";
+  public static final String SEMANTIC_EDGE_ID_PROPERTY = "semanticEdgeId";
+  public static final String MAPPING_ID_PROPERTY = "mappingId";
   public static final String MAPPING_DESCRIPTION_PROPERTY = "mappingDescription";
   public static final String SCRIPT_PROPERTY = "script";
 
   private MappingExecutionSite() {}
 
   public static boolean isCompilerMetadataKey(String key) {
-    return MAPPING_INTENT_ID_PROPERTY.equals(key);
+    return MAPPING_INTENT_ID_PROPERTY.equals(key)
+        || SEMANTIC_EDGE_ID_PROPERTY.equals(key)
+        || MAPPING_ID_PROPERTY.equals(key);
   }
 
   public static boolean isTransformShell(ChainPlanNode node) {
@@ -38,6 +42,14 @@ public final class MappingExecutionSite {
 
   public static String mappingIntentId(ChainPlanNode node) {
     return propertyValue(node, MAPPING_INTENT_ID_PROPERTY);
+  }
+
+  public static String semanticEdgeId(ChainPlanNode node) {
+    return propertyValue(node, SEMANTIC_EDGE_ID_PROPERTY);
+  }
+
+  public static String mappingId(ChainPlanNode node) {
+    return propertyValue(node, MAPPING_ID_PROPERTY);
   }
 
   public static String mappingDescription(ChainPlanNode node) {

@@ -85,7 +85,7 @@ public class ChainPlanGraphImporter {
 
     return new ImportedChainPlan(
         graph,
-        new MaterializationMap(facts.chainId(), Map.copyOf(nodeIdToElementId)),
+        new MaterializationMap(facts.chainId(), Map.copyOf(nodeIdToElementId), Map.of(), Map.of()),
         canonicalGraphDigest.sha256(graph));
   }
 

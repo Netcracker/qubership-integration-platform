@@ -142,7 +142,7 @@ class ChainPatchWriterRepeatableBranchesTest {
                 new ChainPlanNode("catch-2", "catch-2", "Catch 2", "tcff", null, List.of())),
             List.of());
     MaterializationMap map =
-        new MaterializationMap(CHAIN_ID, Map.of("tcff", "el-tcff", "catch-1", "el-catch-1"));
+        new MaterializationMap(CHAIN_ID, Map.of("tcff", "el-tcff", "catch-1", "el-catch-1"), Map.of(), Map.of());
     GraphPatch patch =
         new GraphPatch(
             "patch-extra-catch",
@@ -219,7 +219,7 @@ class ChainPatchWriterRepeatableBranchesTest {
                         new PlanProperty("priority", "2")))),
             List.of());
     MaterializationMap map =
-        new MaterializationMap(CHAIN_ID, Map.of("cond", "el-cond", "if-1", "el-if-1"));
+        new MaterializationMap(CHAIN_ID, Map.of("cond", "el-cond", "if-1", "el-if-1"), Map.of(), Map.of());
     GraphPatch patch =
         new GraphPatch(
             "patch-extra-if",

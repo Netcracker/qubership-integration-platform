@@ -175,7 +175,7 @@ class ChainPatchHarnessServiceTest {
                 List.of(),
                 List.of(),
                 null,
-                new MaterializationMap(CHAIN_ID, Map.of()),
+                new MaterializationMap(CHAIN_ID, Map.of(), Map.of(), Map.of()),
                 List.of("element-script")));
 
     ChainPatchHarnessResponse response = service.run(removalRequest("delete Normalize payload"));

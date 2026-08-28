@@ -42,6 +42,7 @@ class CatalogGraphTransferParityTest {
 
     CatalogGraphMaterializeResult result = harness.edit(current, desired);
     assertTrue(result.succeeded(), result.error());
+    CatalogGraphParityAssertions.assertOwnership(desired, result.materializationMap());
   }
 
   @Test
@@ -70,6 +71,7 @@ class CatalogGraphTransferParityTest {
 
     CatalogGraphMaterializeResult result = harness.edit(current, desired);
     assertTrue(result.succeeded(), result.error());
+    CatalogGraphParityAssertions.assertOwnership(desired, result.materializationMap());
   }
 
   @Test
@@ -92,6 +94,7 @@ class CatalogGraphTransferParityTest {
 
     CatalogGraphMaterializeResult result = harness.edit(current, desired);
     assertTrue(result.succeeded(), result.error());
+    CatalogGraphParityAssertions.assertOwnership(desired, result.materializationMap());
   }
 
   @Test
@@ -119,6 +122,7 @@ class CatalogGraphTransferParityTest {
 
     CatalogGraphMaterializeResult result = harness.edit(current, desired);
     assertTrue(result.succeeded(), result.error());
+    CatalogGraphParityAssertions.assertOwnership(desired, result.materializationMap());
 
     var imported = harness.importCatalog(result.materializationMap());
     Map<String, String> ids = result.materializationMap().nodeIdToElementId();

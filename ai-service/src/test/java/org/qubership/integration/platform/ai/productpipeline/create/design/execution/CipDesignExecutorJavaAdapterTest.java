@@ -532,7 +532,7 @@ class CipDesignExecutorJavaAdapterTest {
             1,
             "catalog-chain-1",
             new org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap(
-                "catalog-chain-1", Map.of("trigger", "el-1")),
+                "catalog-chain-1", Map.of("trigger", "el-1"), Map.of(), Map.of()),
             request.graphDigest(),
             MaterializationPhase.COMPLETE);
 
@@ -568,7 +568,7 @@ class CipDesignExecutorJavaAdapterTest {
             1,
             "catalog-chain-1",
             new org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap(
-                "catalog-chain-1", Map.of()),
+                "catalog-chain-1", Map.of(), Map.of(), Map.of()),
             "graph-digest",
             MaterializationPhase.COMPLETE);
     Reference snapshotRef = append(Kind.CATALOG_CHAIN_SNAPSHOT, "1", Map.of("chainId", "c1"));

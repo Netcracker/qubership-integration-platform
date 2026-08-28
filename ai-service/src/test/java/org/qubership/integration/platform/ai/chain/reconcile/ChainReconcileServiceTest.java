@@ -32,7 +32,7 @@ class ChainReconcileServiceTest {
   void reportsApprovedPropertyMismatch() {
     ChainPlanGraph plan = graphWithProperty("script-1", "script", "return 200");
     MaterializationMap map =
-        new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"));
+        new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"), Map.of(), Map.of());
     ChainCatalogFacts facts = factsWithProperty("catalog-script-1", "script", "return 500");
 
     ReconcileResult result = service.compare(plan, map, facts);
@@ -59,7 +59,7 @@ class ChainReconcileServiceTest {
                         new PlanProperty("connectTimeout", "120000")))),
             List.of());
     MaterializationMap map =
-        new MaterializationMap("chain-1", Map.of("http-trigger-1", "el-trigger"));
+        new MaterializationMap("chain-1", Map.of("http-trigger-1", "el-trigger"), Map.of(), Map.of());
     ChainCatalogFacts facts =
         new ChainCatalogFacts(
             "chain-1",
@@ -101,7 +101,7 @@ class ChainReconcileServiceTest {
                     List.of(new PlanProperty("httpMethodRestrict", "GET")))),
             List.of());
     MaterializationMap map =
-        new MaterializationMap("chain-1", Map.of("http-trigger-1", "el-trigger"));
+        new MaterializationMap("chain-1", Map.of("http-trigger-1", "el-trigger"), Map.of(), Map.of());
     ChainCatalogFacts facts =
         new ChainCatalogFacts(
             "chain-1",
@@ -144,7 +144,7 @@ class ChainReconcileServiceTest {
             List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
 
     MaterializationMap map =
-        new MaterializationMap("chain-1", Map.of("n1", "el-trigger", "n2", "el-script"));
+        new MaterializationMap("chain-1", Map.of("n1", "el-trigger", "n2", "el-script"), Map.of(), Map.of());
 
     ChainCatalogFacts facts =
         new ChainCatalogFacts(
@@ -176,7 +176,7 @@ class ChainReconcileServiceTest {
             List.of(new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of())),
             List.of());
 
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of(), Map.of(), Map.of());
     ChainCatalogFacts facts = emptyFacts("chain-1");
 
     ReconcileResult result = service.compare(plan, map, facts);
@@ -207,7 +207,7 @@ class ChainReconcileServiceTest {
                 "trigger", "el-trigger",
                 "tcff", "el-tcff",
                 "try", "el-try",
-                "script", "el-script"));
+                "script", "el-script"), Map.of(), Map.of());
 
     ChainCatalogFacts facts =
         new ChainCatalogFacts(
@@ -247,7 +247,7 @@ class ChainReconcileServiceTest {
             List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
 
     MaterializationMap map =
-        new MaterializationMap("chain-1", Map.of("n1", "el-trigger", "n2", "el-script"));
+        new MaterializationMap("chain-1", Map.of("n1", "el-trigger", "n2", "el-script"), Map.of(), Map.of());
 
     ChainCatalogFacts facts =
         new ChainCatalogFacts(
@@ -322,6 +322,6 @@ class ChainReconcileServiceTest {
   }
 
   private static MaterializationMap map() {
-    return new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"));
+    return new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"), Map.of(), Map.of());
   }
 }

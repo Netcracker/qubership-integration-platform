@@ -287,7 +287,7 @@ class ChainPatchWriterPreflightTest {
     for (var node : graph.nodes()) {
       ids.put(node.nodeId(), "catalog-" + node.nodeId());
     }
-    return new MaterializationMap("chain-1", ids);
+    return new MaterializationMap("chain-1", ids, Map.of(), Map.of());
   }
 
   private static GraphPatch touch(String nodeId) {

@@ -1066,7 +1066,7 @@ class ChainPatchWriterTest {
         "chain-1",
         Map.of(
             "element-trigger", "element-trigger",
-            "element-script", "element-script"));
+            "element-script", "element-script"), Map.of(), Map.of());
   }
 
   /** The chain after the patch was applied: the script node already carries the new body. */
@@ -1343,7 +1343,7 @@ class ChainPatchWriterTest {
             Map.of(
                 "element-trigger", "element-trigger",
                 "element-script", "element-script",
-                "element-enrich", "element-enrich")));
+                "element-enrich", "element-enrich"), Map.of(), Map.of()));
   }
 
   private static GraphPatch retargetEdgePatch() {
@@ -1375,7 +1375,7 @@ class ChainPatchWriterTest {
             patched.materializationMap().chainId(),
             Map.of(
                 "element-trigger", "element-trigger",
-                "element-script", "element-script")));
+                "element-script", "element-script"), Map.of(), Map.of()));
   }
 
   /**
@@ -1412,7 +1412,7 @@ class ChainPatchWriterTest {
                 "element-trigger", "catalog-trigger",
                 "element-script", "catalog-script",
                 "alias-trigger", "catalog-trigger",
-                "alias-script", "catalog-script")));
+                "alias-script", "catalog-script"), Map.of(), Map.of()));
   }
 
   private static GraphPatch retargetEdgeToAliasPatch() {
@@ -1458,7 +1458,7 @@ class ChainPatchWriterTest {
             Map.of(
                 "element-if", "element-if",
                 "element-child-a", "element-child-a",
-                "element-child-b", "element-child-b")));
+                "element-child-b", "element-child-b"), Map.of(), Map.of()));
   }
 
   private static GraphPatch retargetStructuralEdgePatch() {
@@ -1635,7 +1635,7 @@ class ChainPatchWriterTest {
             Map.of(
                 "element-trigger", "element-trigger",
                 "element-service-call", "catalog-service-call",
-                "node-try-2", "catalog-try-2")));
+                "node-try-2", "catalog-try-2"), Map.of(), Map.of()));
   }
 
   private static GraphPatch reparentServiceCallUnderTry2Patch() {
@@ -1681,7 +1681,7 @@ class ChainPatchWriterTest {
             Map.of(
                 "node-try-2", "catalog-try-2",
                 "element-call-a", "catalog-call-a",
-                "element-call-b", "catalog-call-b")));
+                "element-call-b", "catalog-call-b"), Map.of(), Map.of()));
   }
 
   private static GraphPatch reparentTwoCallsUnderTry2Patch() {
@@ -1792,7 +1792,7 @@ class ChainPatchWriterTest {
         "chain-1",
         Map.of(
             "element-trigger", "element-trigger",
-            "element-service-call", "catalog-service-call"));
+            "element-service-call", "catalog-service-call"), Map.of(), Map.of());
   }
 
   private static NodePatch addTry2Patch() {

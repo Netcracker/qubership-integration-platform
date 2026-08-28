@@ -130,7 +130,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "trigger-1", "catalog-trigger-1",
-                "script-1", "catalog-script-1")));
+                "script-1", "catalog-script-1"), Map.of(), Map.of()));
 
     ProductChainMaterializer materializer =
         new ProductChainMaterializer(
@@ -160,7 +160,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "trigger-1", "catalog-trigger-1",
-                "script-1", "catalog-script-1")));
+                "script-1", "catalog-script-1"), Map.of(), Map.of()));
     editAdapter.write(
         importedChain(desired),
         new GraphPatch(
@@ -195,7 +195,7 @@ class CatalogGraphMaterializerTest {
                     "service-call",
                     "catalog-service-call",
                     "try-2",
-                    "catalog-try-2")));
+                    "catalog-try-2")), Map.of(), Map.of());
 
     when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
         .thenReturn("catalog-condition", "catalog-if");
@@ -216,7 +216,7 @@ class CatalogGraphMaterializerTest {
                     "service-call", "catalog-service-call",
                     "try-2", "catalog-try-2",
                     "condition-1", "catalog-condition",
-                    "if-1", "catalog-if")));
+                    "if-1", "catalog-if")), Map.of(), Map.of());
     stubMatchingImport(desired, finalMap);
 
     materializer.apply(CHAIN_ID, current, desired, map);
@@ -273,7 +273,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "try-2", "catalog-try-2",
-                "service-call", "catalog-service-call"));
+                "service-call", "catalog-service-call"), Map.of(), Map.of());
     stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
     stubMatchingImport(desired, map);
 
@@ -309,7 +309,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "try-2", "catalog-try-2",
-                "service-call", "catalog-service-call"));
+                "service-call", "catalog-service-call"), Map.of(), Map.of());
     stubSuccessfulTransfer("catalog-service-call", "catalog-try-2");
     ChainPlanGraph staleImport =
         new ChainPlanGraph(
@@ -345,7 +345,7 @@ class CatalogGraphMaterializerTest {
                 new ChainPlanNode("if-1", "if", "If", "condition-1", null, List.of())),
             List.of());
     MaterializationMap map =
-        new MaterializationMap(CHAIN_ID, Map.of("trigger-1", "catalog-trigger-1"));
+        new MaterializationMap(CHAIN_ID, Map.of("trigger-1", "catalog-trigger-1"), Map.of(), Map.of());
     when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
         .thenReturn("catalog-condition", "catalog-if");
     MaterializationMap finalMap =
@@ -354,7 +354,7 @@ class CatalogGraphMaterializerTest {
             Map.of(
                 "trigger-1", "catalog-trigger-1",
                 "condition-1", "catalog-condition",
-                "if-1", "catalog-if"));
+                "if-1", "catalog-if"), Map.of(), Map.of());
     List<ChainCatalogElement> elements = new ArrayList<>(factsElements(desired, finalMap));
     elements.add(
         new ChainCatalogElement(
@@ -397,7 +397,7 @@ class CatalogGraphMaterializerTest {
                 new ChainPlanNode("script-1", "script", "Script", null, null, List.of())),
             List.of());
     MaterializationMap map =
-        new MaterializationMap(CHAIN_ID, Map.of("trigger-1", "catalog-trigger-1"));
+        new MaterializationMap(CHAIN_ID, Map.of("trigger-1", "catalog-trigger-1"), Map.of(), Map.of());
     when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
         .thenReturn("catalog-script-1");
     MaterializationMap finalMap =
@@ -405,7 +405,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "trigger-1", "catalog-trigger-1",
-                "script-1", "catalog-script-1"));
+                "script-1", "catalog-script-1"), Map.of(), Map.of());
     stubMatchingImport(
         new ChainPlanGraph(
             desired.schemaVersion(),
@@ -445,7 +445,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "trigger-1", "catalog-trigger-1",
-                "script-1", "catalog-script-1"));
+                "script-1", "catalog-script-1"), Map.of(), Map.of());
     ChainCatalogFacts facts = importFacts(desired, map);
     List<ChainCatalogDependency> wrongDeps =
         List.of(new ChainCatalogDependency("catalog-script-1", "catalog-trigger-1"));
@@ -491,7 +491,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "trigger-1", "catalog-trigger-1",
-                "removed-node", "catalog-removed"));
+                "removed-node", "catalog-removed"), Map.of(), Map.of());
     when(removalsMaterializer.apply(any(), eq(Set.of("removed-node")), eq(List.of()), any()))
         .thenReturn(
             new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
@@ -538,7 +538,7 @@ class CatalogGraphMaterializerTest {
             CHAIN_ID,
             Map.of(
                 "trigger-1", "catalog-trigger-1",
-                "script-1", "catalog-script-1"));
+                "script-1", "catalog-script-1"), Map.of(), Map.of());
     stubMatchingImport(desired, map);
 
     CatalogGraphMaterializeResult result =
@@ -645,7 +645,7 @@ class CatalogGraphMaterializerTest {
             List.of(desired.nodes().get(0)),
             List.of());
     MaterializationMap map =
-        new MaterializationMap(CHAIN_ID, Map.of("trigger-1", "catalog-trigger-1"));
+        new MaterializationMap(CHAIN_ID, Map.of("trigger-1", "catalog-trigger-1"), Map.of(), Map.of());
     return new PatchedChain(current, desired, map);
   }
 

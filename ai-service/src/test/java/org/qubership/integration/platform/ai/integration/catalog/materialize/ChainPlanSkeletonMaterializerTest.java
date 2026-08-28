@@ -493,7 +493,7 @@ class ChainPlanSkeletonMaterializerTest {
             secondCatch,
             CHAIN_ID,
             new MaterializationMap(
-                CHAIN_ID, Map.of("tcff", "el-tcff", "catch-1", "el-catch-1")));
+                CHAIN_ID, Map.of("tcff", "el-tcff", "catch-1", "el-catch-1"), Map.of(), Map.of()));
 
     assertEquals("el-catch-2", elementId);
     verify(catalogRestClient)
@@ -567,7 +567,7 @@ class ChainPlanSkeletonMaterializerTest {
 
     String elementId =
         materializer.materializeElement(
-            graph, script, CHAIN_ID, new MaterializationMap(CHAIN_ID, Map.of("trigger", "el-trigger")));
+            graph, script, CHAIN_ID, new MaterializationMap(CHAIN_ID, Map.of("trigger", "el-trigger"), Map.of(), Map.of()));
 
     assertEquals("el-script", elementId);
     verify(catalogRestClient)
@@ -583,7 +583,7 @@ class ChainPlanSkeletonMaterializerTest {
         IllegalStateException.class,
         () ->
             materializer.materializeElement(
-                graph, node, CHAIN_ID, new MaterializationMap(CHAIN_ID, Map.of("n1", "el-1"))));
+                graph, node, CHAIN_ID, new MaterializationMap(CHAIN_ID, Map.of("n1", "el-1"), Map.of(), Map.of())));
   }
 
   private static CatalogElementResponseDto containerWithShells() {
@@ -691,7 +691,7 @@ class ChainPlanSkeletonMaterializerTest {
 
     String elementId =
         materializer.materializeElement(
-            graph, tryNode, CHAIN_ID, new MaterializationMap(CHAIN_ID, Map.of("tcff", "el-tcff")));
+            graph, tryNode, CHAIN_ID, new MaterializationMap(CHAIN_ID, Map.of("tcff", "el-tcff"), Map.of(), Map.of()));
 
     assertEquals("el-try", elementId);
     verify(catalogRestClient, org.mockito.Mockito.never())

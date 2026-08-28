@@ -151,7 +151,7 @@ class MaterializationCapabilityTest {
             "catalog-chain-1",
             new MaterializationMap(
                 "catalog-chain-1",
-                Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1")),
+                Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of()),
             prepared.graphDigest(),
             MaterializationPhase.READ_BACK);
     MaterializationResult reconciled =
@@ -492,7 +492,7 @@ class MaterializationCapabilityTest {
             "catalog-chain-1",
             new MaterializationMap(
                 "catalog-chain-1",
-                Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1")),
+                Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of()),
             prepared.request().graphDigest(),
             MaterializationPhase.READ_BACK);
     MaterializationResult reconciled =
@@ -742,7 +742,7 @@ class MaterializationCapabilityTest {
             "catalog-chain-1",
             new MaterializationMap(
                 "catalog-chain-1",
-                Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1")),
+                Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of()),
             prepared.request().graphDigest(),
             MaterializationPhase.READ_BACK);
     MaterializationResult reconciled =

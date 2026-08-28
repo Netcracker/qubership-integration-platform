@@ -93,7 +93,7 @@ final class CatalogGraphMaterializerTestHarness {
         CHAIN_ID,
         CatalogGraphMaterializer.emptyCurrent(desired),
         desired,
-        new MaterializationMap(CHAIN_ID, Map.of()));
+        new MaterializationMap(CHAIN_ID, Map.of(), Map.of(), Map.of()));
   }
 
   CatalogGraphMaterializeResult edit(ChainPlanGraph current, ChainPlanGraph desired) {
@@ -120,7 +120,7 @@ final class CatalogGraphMaterializerTestHarness {
           catalog.createSeededElement(CHAIN_ID, node.type(), parentCatalogId, node.label());
       seededIds.put(node.nodeId(), catalogId);
     }
-    return new MaterializationMap(CHAIN_ID, Map.copyOf(seededIds));
+    return new MaterializationMap(CHAIN_ID, Map.copyOf(seededIds), Map.of(), Map.of());
   }
 
   private static List<ChainPlanNode> parentFirst(List<ChainPlanNode> nodes) {

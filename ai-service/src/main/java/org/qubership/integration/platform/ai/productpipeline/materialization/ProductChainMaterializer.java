@@ -91,7 +91,7 @@ public class ProductChainMaterializer {
       return new MaterializationResult(
           SCHEMA_VERSION,
           chainId,
-          new MaterializationMap(chainId, Map.copyOf(map)),
+          new MaterializationMap(chainId, Map.copyOf(map), Map.of(), Map.of()),
           inputs.approvedGraphDigest(),
           phase);
     }
@@ -99,7 +99,7 @@ public class ProductChainMaterializer {
     return new MaterializationResult(
         SCHEMA_VERSION,
         chainId,
-        new MaterializationMap(chainId, Map.copyOf(map)),
+        new MaterializationMap(chainId, Map.copyOf(map), Map.of(), Map.of()),
         inputs.approvedGraphDigest(),
         phase);
   }
@@ -121,7 +121,7 @@ public class ProductChainMaterializer {
     return new MaterializationResult(
         SCHEMA_VERSION,
         current.chainId(),
-        new MaterializationMap(current.chainId(), Map.copyOf(map)),
+        new MaterializationMap(current.chainId(), Map.copyOf(map), Map.of(), Map.of()),
         current.approvedGraphDigest(),
         MaterializationPhase.RECONCILE);
   }
@@ -138,7 +138,7 @@ public class ProductChainMaterializer {
     return new MaterializationResult(
         SCHEMA_VERSION,
         current.chainId(),
-        new MaterializationMap(current.chainId(), Map.copyOf(map)),
+        new MaterializationMap(current.chainId(), Map.copyOf(map), Map.of(), Map.of()),
         current.approvedGraphDigest(),
         MaterializationPhase.COMPLETE);
   }
@@ -157,7 +157,7 @@ public class ProductChainMaterializer {
 
   private Map<String, String> applyGraph(Inputs inputs, String chainId, Map<String, String> existingMap) {
     Map<String, String> seededMap = seedMaterializationMapFromReadBack(inputs.graph(), chainId, existingMap);
-    MaterializationMap checkpointMap = new MaterializationMap(chainId, Map.copyOf(seededMap));
+    MaterializationMap checkpointMap = new MaterializationMap(chainId, Map.copyOf(seededMap), Map.of(), Map.of());
     ChainPlanGraph desired = inputs.graph();
     ChainPlanGraph current = CatalogGraphMaterializer.emptyCurrent(desired);
     CatalogGraphMaterializeResult result =
@@ -193,7 +193,7 @@ public class ProductChainMaterializer {
             executionKey,
             chainId,
             completedPhase,
-            new MaterializationMap(chainId, Map.copyOf(map)),
+            new MaterializationMap(chainId, Map.copyOf(map), Map.of(), Map.of()),
             pendingNodeId,
             externalKeys);
     artifactStore.append(
@@ -216,7 +216,7 @@ public class ProductChainMaterializer {
         executionKey,
         null,
         null,
-        new MaterializationMap(null, Map.of()),
+        new MaterializationMap(null, Map.of(), Map.of(), Map.of()),
         null,
         Map.of());
   }

@@ -54,9 +54,9 @@ public class ChainPlanConnectionsMaterializer {
     for (ChainPlanEdge edge : graph.edges()) {
       Projection projection = classify(edge, nodesById, map);
       switch (projection.action()) {
-        case SKIP_STRUCTURAL, SKIP_NON_DEPENDENCY -> {
-          /* placement-only or non-catalog edge */ }
-        case FAIL_INVALID -> failedEdgeIds.add(edge.edgeId());
+        case SKIP_STRUCTURAL -> {
+          /* containment is placement, not a catalog dependency */ }
+        case SKIP_NON_DEPENDENCY, FAIL_INVALID -> failedEdgeIds.add(edge.edgeId());
         case CREATE -> {
           if (listDependenciesFailed) {
             failedEdgeIds.add(edge.edgeId());
@@ -123,20 +123,10 @@ public class ChainPlanConnectionsMaterializer {
     }
 
     if (isStructuralBranchEntry(from, to)) {
-      return new Projection(ProjectionAction.SKIP_STRUCTURAL, null, null);
+      return new Projection(ProjectionAction.SKIP_STRUCTURAL, fromElementId, toElementId);
     }
 
-    if (isRootLevel(from, to) || hasSameParent(from, to)) {
-      return new Projection(ProjectionAction.CREATE, fromElementId, toElementId);
-    }
-
-    // Cross-scope edges (e.g. catch-2 → service-call under try-2) are not catalog
-    // dependencies. Placement already encodes containment; failing them blocks
-    // PropertiesApplier and leaves otherwise-valid chains half-configured.
-    LOG.warnf(
-        "Skipping non-dependency cross-scope edge edgeId=%s from=%s to=%s",
-        edge.edgeId(), edge.fromNodeId(), edge.toNodeId());
-    return new Projection(ProjectionAction.SKIP_NON_DEPENDENCY, null, null);
+    return new Projection(ProjectionAction.CREATE, fromElementId, toElementId);
   }
 
   /**
@@ -147,23 +137,6 @@ public class ChainPlanConnectionsMaterializer {
   private static boolean isStructuralBranchEntry(ChainPlanNode from, ChainPlanNode to) {
     String toParent = to.parentNodeId();
     return toParent != null && !toParent.isBlank() && toParent.equals(from.nodeId());
-  }
-
-  private static boolean isRootLevel(ChainPlanNode from, ChainPlanNode to) {
-    return isBlankParent(from.parentNodeId()) && isBlankParent(to.parentNodeId());
-  }
-
-  private static boolean hasSameParent(ChainPlanNode from, ChainPlanNode to) {
-    String fromParent = from.parentNodeId();
-    String toParent = to.parentNodeId();
-    if (fromParent == null || fromParent.isBlank()) {
-      return false;
-    }
-    return fromParent.equals(toParent);
-  }
-
-  private static boolean isBlankParent(String parentNodeId) {
-    return parentNodeId == null || parentNodeId.isBlank();
   }
 
   public enum ProjectionAction {

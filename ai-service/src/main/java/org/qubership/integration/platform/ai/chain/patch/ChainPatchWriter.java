@@ -239,7 +239,7 @@ public class ChainPatchWriter {
             graph,
             nodeIdsToRemove,
             List.of(),
-            new MaterializationMap(map.chainId(), Map.copyOf(expandedMap)))
+            new MaterializationMap(map.chainId(), Map.copyOf(expandedMap), Map.of(), Map.of()))
         .succeeded();
   }
 
