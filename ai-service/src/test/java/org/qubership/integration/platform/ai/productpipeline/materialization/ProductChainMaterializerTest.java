@@ -61,7 +61,7 @@ class ProductChainMaterializerTest {
     MaterializationMap resultMap =
         new MaterializationMap(
             "catalog-chain-1",
-            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"));
+            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of());
     when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo"))
         .thenReturn(io.smallrye.mutiny.Uni.createFrom().item("catalog-chain-1"));
     when(catalog.applyGraph(
@@ -110,7 +110,7 @@ class ProductChainMaterializerTest {
     ProductChainMaterializer.Inputs inputs = inputs();
     MaterializationMap completedElements =
         new MaterializationMap(
-            "catalog-chain-1", Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"));
+            "catalog-chain-1", Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of());
     MaterializationCheckpoint checkpoint =
         new MaterializationCheckpoint(
             1,
@@ -142,7 +142,7 @@ class ProductChainMaterializerTest {
   void legacyPropertiesCheckpointReappliesGraph() {
     ProductChainMaterializer.Inputs inputs = inputs();
     MaterializationMap partialMap =
-        new MaterializationMap("catalog-chain-1", Map.of("trigger-1", "catalog-trigger-1"));
+        new MaterializationMap("catalog-chain-1", Map.of("trigger-1", "catalog-trigger-1"), Map.of(), Map.of());
     MaterializationCheckpoint checkpoint =
         new MaterializationCheckpoint(
             1,
@@ -155,7 +155,7 @@ class ProductChainMaterializerTest {
     MaterializationMap resultMap =
         new MaterializationMap(
             "catalog-chain-1",
-            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"));
+            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of());
     when(catalog.applyGraph(any(), eq(inputs.graph()), any()))
         .thenReturn(
             io.smallrye.mutiny.Uni.createFrom()
@@ -213,7 +213,7 @@ class ProductChainMaterializerTest {
             io.smallrye.mutiny.Uni.createFrom()
                 .item(
                     new CatalogGraphMaterializeResult(
-                        new MaterializationMap("catalog-chain-1", Map.of()),
+                        new MaterializationMap("catalog-chain-1", Map.of(), Map.of(), Map.of()),
                         List.of(),
                         List.of("script-1"),
                         "catalog refused",
@@ -240,7 +240,7 @@ class ProductChainMaterializerTest {
             RUN_ID,
             "catalog-chain-1",
             MaterializationPhase.CHAIN,
-            new MaterializationMap("catalog-chain-1", Map.of("trigger-1", "catalog-trigger-1")),
+            new MaterializationMap("catalog-chain-1", Map.of("trigger-1", "catalog-trigger-1"), Map.of(), Map.of()),
             null,
             Map.of());
     when(factsService.load("catalog-chain-1")).thenReturn(conditionFacts());
@@ -256,7 +256,7 @@ class ProductChainMaterializerTest {
                             Map.of(
                                 "trigger-1", "catalog-trigger-1",
                                 "condition-1", "catalog-condition-1",
-                                "if-1", "catalog-if-1")),
+                                "if-1", "catalog-if-1"), Map.of(), Map.of()),
                         List.of("trigger-1", "condition-1", "if-1"),
                         List.of(),
                         null,
@@ -291,7 +291,7 @@ class ProductChainMaterializerTest {
             MaterializationPhase.CHAIN,
             new MaterializationMap(
                 "catalog-chain-1",
-                Map.of("trigger-1", "catalog-trigger-1", "condition-1", "catalog-condition-1")),
+                Map.of("trigger-1", "catalog-trigger-1", "condition-1", "catalog-condition-1"), Map.of(), Map.of()),
             null,
             Map.of());
     when(factsService.load("catalog-chain-1")).thenReturn(conditionFacts());
@@ -307,7 +307,7 @@ class ProductChainMaterializerTest {
                             Map.of(
                                 "trigger-1", "catalog-trigger-1",
                                 "condition-1", "catalog-condition-1",
-                                "if-1", "catalog-if-1")),
+                                "if-1", "catalog-if-1"), Map.of(), Map.of()),
                         List.of(),
                         List.of(),
                         null,
@@ -340,7 +340,7 @@ class ProductChainMaterializerTest {
                 "catalog-chain-1",
                 Map.of(
                     "trigger-1", "catalog-trigger-1",
-                    "condition-1", "catalog-condition-a")),
+                    "condition-1", "catalog-condition-a"), Map.of(), Map.of()),
             null,
             Map.of());
     when(factsService.load("catalog-chain-1")).thenReturn(twinConditionFacts());
@@ -377,7 +377,7 @@ class ProductChainMaterializerTest {
 
   private static MaterializationCheckpoint beforeChainCheckpoint(String executionKey) {
     return new MaterializationCheckpoint(
-        1, executionKey, null, null, new MaterializationMap(null, Map.of()), null, Map.of());
+        1, executionKey, null, null, new MaterializationMap(null, Map.of(), Map.of(), Map.of()), null, Map.of());
   }
 
   private static ChainPlanGraph graph() {

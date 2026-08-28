@@ -73,7 +73,7 @@ class ChainPlanPropertiesMaterializerTest {
                     "else-shell", "else", "Odd minute", "router", null, List.of())),
             List.of());
     MaterializationMap map =
-        new MaterializationMap("chain-1", Map.of("router", "el-cond", "else-shell", "el-else"));
+        new MaterializationMap("chain-1", Map.of("router", "el-cond", "else-shell", "el-else"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -108,7 +108,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("script", "exchange.setProperty('x', 1)")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -157,7 +157,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("contextPath", "/greetings")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -206,7 +206,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("script", "body")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -242,7 +242,7 @@ class ChainPlanPropertiesMaterializerTest {
                         new PlanProperty("externalRoute", "true"),
                         new PlanProperty("accessControlType", "NONE")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -282,7 +282,7 @@ class ChainPlanPropertiesMaterializerTest {
                         new PlanProperty("contextPath", "/api/v1/orders"),
                         new PlanProperty("httpMethodRestrict", "GET")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -317,7 +317,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("connectTimeout", "30000")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -361,7 +361,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("priority", "0")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("catch-node", "el-catch"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("catch-node", "el-catch"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -393,7 +393,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("script", "body")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -425,7 +425,7 @@ class ChainPlanPropertiesMaterializerTest {
                         new PlanProperty("script", "ok"),
                         new PlanProperty("unknownKey", "drop-me")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -454,7 +454,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("script", "body")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -487,7 +487,7 @@ class ChainPlanPropertiesMaterializerTest {
                     null,
                     List.of(new PlanProperty("integrationOperationId", operationId)))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -532,7 +532,7 @@ class ChainPlanPropertiesMaterializerTest {
                         new PlanProperty("semanticNodeId", "node-a"),
                         new PlanProperty("integrationOperationId", "op-shared")))),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("node-a", "el-1"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("node-a", "el-1"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 
@@ -569,7 +569,7 @@ class ChainPlanPropertiesMaterializerTest {
             new ChainSection("demo-chain", null),
             List.of(new ChainPlanNode("catch-2", "catch-2", "Catch block", "tcf", null, List.of())),
             List.of());
-    MaterializationMap map = new MaterializationMap("chain-1", Map.of("catch-2", "el-catch"));
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("catch-2", "el-catch"), Map.of(), Map.of());
 
     ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
 

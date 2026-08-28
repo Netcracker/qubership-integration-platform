@@ -133,7 +133,7 @@ class ChainPatchWriterOptionalGeneratedChildrenTest {
 
     writer.write(
         new PatchedChain(
-            before, after, new MaterializationMap(CHAIN_ID, Map.of("cond", "el-cond", "if-1", "el-if"))),
+            before, after, new MaterializationMap(CHAIN_ID, Map.of("cond", "el-cond", "if-1", "el-if"), Map.of(), Map.of())),
         patch);
 
     verify(catalogRestClient, never()).deleteElements(any(), any());

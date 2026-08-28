@@ -152,7 +152,7 @@ class ChainPlanRemovalsMaterializerTest {
   }
 
     private static MaterializationMap map(Map<String, String> nodeIdToElementId) {
-        return new MaterializationMap("chain-1", nodeIdToElementId);
+        return new MaterializationMap("chain-1", nodeIdToElementId, Map.of(), Map.of());
     }
 
     private static ChainPlanGraph graph(List<ChainPlanNode> nodes, List<ChainPlanEdge> edges) {

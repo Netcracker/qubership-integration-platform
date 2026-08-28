@@ -348,7 +348,7 @@ class CreateChainProductPipelineRestartIT {
                               "catalog-chain-1",
                               Map.of(
                                   "trigger-1", "catalog-trigger-1",
-                                  "script-1", "catalog-script-1")),
+                                  "script-1", "catalog-script-1"), Map.of(), Map.of()),
                           List.of("trigger-1", "script-1"),
                           List.of(),
                           null,
@@ -372,7 +372,7 @@ class CreateChainProductPipelineRestartIT {
     MaterializationMap map =
         new MaterializationMap(
             "catalog-chain-1",
-            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"));
+            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of());
     artifactStore.append(
         new AppendCommand(
             RUN_ID,

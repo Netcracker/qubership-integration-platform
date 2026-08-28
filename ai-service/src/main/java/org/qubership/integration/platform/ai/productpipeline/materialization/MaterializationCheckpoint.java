@@ -16,12 +16,12 @@ public record MaterializationCheckpoint(
   public MaterializationCheckpoint {
     materializationMap =
         materializationMap == null
-            ? new MaterializationMap(chainId, Map.of())
+            ? new MaterializationMap(chainId, Map.of(), Map.of(), Map.of())
             : new MaterializationMap(
                 materializationMap.chainId(),
-                materializationMap.nodeIdToElementId() == null
-                    ? Map.of()
-                    : Map.copyOf(materializationMap.nodeIdToElementId()));
+                materializationMap.nodeIdToElementId(),
+                materializationMap.semanticEdgeOwnerElementIds(),
+                materializationMap.mappingIntentExecutionNodeIds());
     externalRequestKeys =
         externalRequestKeys == null ? Map.of() : Map.copyOf(externalRequestKeys);
   }

@@ -7,9 +7,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.Projection;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ProjectionAction;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -26,9 +28,32 @@ final class CatalogGraphParityAssertions {
       ImportedChainPlan createImport,
       MaterializationMap editMap,
       ImportedChainPlan editImport) {
+    assertOwnership(desired, createMap);
+    assertOwnership(desired, editMap);
     assertNormalizedGraphsEqual(
         normalize(desired, createMap, createImport),
         normalize(desired, editMap, editImport));
+  }
+
+  static void assertOwnership(ChainPlanGraph desired, MaterializationMap map) {
+    Set<String> nodeIds =
+        desired.nodes().stream().map(ChainPlanNode::nodeId).collect(Collectors.toSet());
+    assertEquals(nodeIds, map.nodeIdToElementId().keySet(), "unowned or extra semantic nodes");
+    Set<String> edgeIds =
+        desired.edges() == null
+            ? Set.of()
+            : desired.edges().stream().map(ChainPlanEdge::edgeId).collect(Collectors.toSet());
+    assertEquals(
+        edgeIds, map.semanticEdgeOwnerElementIds().keySet(), "unowned or extra semantic edges");
+    Set<String> mappingIds =
+        desired.nodes().stream()
+            .map(MappingExecutionSite::mappingIntentId)
+            .filter(id -> id != null && !id.isBlank())
+            .collect(Collectors.toSet());
+    assertEquals(
+        mappingIds,
+        map.mappingIntentExecutionNodeIds().keySet(),
+        "unowned or extra mapping intents");
   }
 
   static NormalizedGraph normalize(
@@ -54,9 +79,27 @@ final class CatalogGraphParityAssertions {
     }
 
     Set<String> dependencyPairs = projectedDependencyPairs(desired, map);
-    Set<String> importedDependencyPairs =
-        projectedDependencyPairs(imported.graph(), imported.materializationMap());
+    Set<String> importedDependencyPairs = importedLogicalPairs(imported, map);
     return new NormalizedGraph(nodes, dependencyPairs, importedDependencyPairs);
+  }
+
+  private static Set<String> importedLogicalPairs(
+      ImportedChainPlan imported, MaterializationMap applyMap) {
+    Map<String, String> catalogToLogical = reverseMap(applyMap);
+    Set<String> pairs = new LinkedHashSet<>();
+    if (imported.graph() == null || imported.graph().edges() == null) {
+      return pairs;
+    }
+    for (ChainPlanEdge edge : imported.graph().edges()) {
+      if (edge == null) {
+        continue;
+      }
+      String from =
+          catalogToLogical.getOrDefault(edge.fromNodeId(), edge.fromNodeId());
+      String to = catalogToLogical.getOrDefault(edge.toNodeId(), edge.toNodeId());
+      pairs.add(logicalPair(from, to));
+    }
+    return pairs;
   }
 
   private static void assertNormalizedGraphsEqual(

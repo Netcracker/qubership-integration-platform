@@ -161,6 +161,8 @@ class DefaultChainSemanticGraphCompilerTest {
         compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
 
     assertEquals("map-body", MappingExecutionSite.mappingIntentId(node(graph, "op-shared")));
+    assertEquals("map-body", MappingExecutionSite.mappingId(node(graph, "op-shared")));
+    assertEquals("edge-call", MappingExecutionSite.semanticEdgeId(node(graph, "op-shared")));
     assertNull(MappingExecutionSite.mappingIntentId(node(graph, "node-call")));
   }
 

@@ -221,6 +221,9 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       String siteId = transformSiteId(edge, nodesById);
       addProperty(
           extraByNode, siteId, MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, edge.mappingId());
+      addProperty(
+          extraByNode, siteId, MappingExecutionSite.SEMANTIC_EDGE_ID_PROPERTY, edge.edgeId());
+      addProperty(extraByNode, siteId, MappingExecutionSite.MAPPING_ID_PROPERTY, edge.mappingId());
     }
   }
 

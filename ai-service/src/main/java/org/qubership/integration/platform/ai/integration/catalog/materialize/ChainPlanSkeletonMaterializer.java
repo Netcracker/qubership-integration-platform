@@ -78,7 +78,7 @@ public class ChainPlanSkeletonMaterializer {
         }
       }
       finishCreatedContainers(chainId, nodeIdToElementId, attempt, cache);
-      return new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));
+      return new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId), Map.of(), Map.of());
     } catch (DesiredGraphDescriptorPreflightException e) {
       throw e;
     } catch (RuntimeException e) {

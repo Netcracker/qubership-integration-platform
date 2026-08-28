@@ -20,10 +20,12 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.ChildlessOptionalContainerPruner;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflight;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.DesiredGraphDescriptorPreflightException;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.Projection;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ProjectionAction;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer.PropertiesApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogTransferElementsRequest;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -95,12 +97,12 @@ public class CatalogGraphMaterializer {
             currentGraph, desiredGraph, "materialize", "catalog-graph-materializer", "");
 
     if (CanonicalGraphDiff.isEmpty(patch)) {
-      return CatalogGraphMaterializeResult.noOp(
-          new MaterializationMap(chainId, copyMap(materializationMap)));
+      MaterializationMap owned = completeOwnership(desiredGraph, materializationMap);
+      requireOwnership(desiredGraph, owned);
+      return CatalogGraphMaterializeResult.noOp(owned);
     }
 
-    MaterializationMap originalMap =
-        new MaterializationMap(chainId, copyMap(materializationMap));
+    MaterializationMap originalMap = copyOf(chainId, materializationMap);
 
     List<String> addedNodeIds = addedNodeIds(desiredGraph, patch);
     Map<String, Set<String>> changedKeysByNodeId = changedKeysByNodeId(patch);
@@ -133,7 +135,7 @@ public class CatalogGraphMaterializer {
                 desiredGraph,
                 node,
                 chainId,
-                new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId)),
+                materializationMap.withNodeIdToElementId(Map.copyOf(nodeIdToElementId)),
                 createAttempt);
         nodeIdToElementId.put(nodeId, elementId);
       } catch (RuntimeException e) {
@@ -157,7 +159,7 @@ public class CatalogGraphMaterializer {
       }
     }
 
-    MaterializationMap map = new MaterializationMap(chainId, Map.copyOf(nodeIdToElementId));
+    MaterializationMap map = materializationMap.withNodeIdToElementId(Map.copyOf(nodeIdToElementId));
     error = error == null ? invalidReplacementError(replacements, currentGraph, desiredGraph, map) : error;
     replacements = catalogReplacements(replacements, currentGraph, desiredGraph, map);
     List<String> written = new ArrayList<>(addedNodeIds);
@@ -271,8 +273,11 @@ public class CatalogGraphMaterializer {
     List<String> adoptedGeneratedCatalogIds =
         adoptedGeneratedCatalogIds(createAttempt, nodeIdToElementId, written);
 
+    MaterializationMap owned = completeOwnership(desiredGraph, map);
+    requireOwnership(desiredGraph, owned);
+
     return new CatalogGraphMaterializeResult(
-        map,
+        owned,
         List.copyOf(changed),
         List.copyOf(failed),
         error,
@@ -294,7 +299,11 @@ public class CatalogGraphMaterializer {
   private static CatalogGraphMaterializeResult failedPreflight(
       String chainId, MaterializationMap materializationMap, String message) {
     return new CatalogGraphMaterializeResult(
-        new MaterializationMap(chainId, copyMap(materializationMap)),
+        new MaterializationMap(
+            chainId,
+            copyOrEmpty(materializationMap.nodeIdToElementId()),
+            copyOrEmpty(materializationMap.semanticEdgeOwnerElementIds()),
+            copyOrEmpty(materializationMap.mappingIntentExecutionNodeIds())),
         List.of(),
         List.of(),
         message,
@@ -308,8 +317,80 @@ public class CatalogGraphMaterializer {
         false);
   }
 
-  private static Map<String, String> copyMap(MaterializationMap map) {
-    return map.nodeIdToElementId() == null ? Map.of() : Map.copyOf(map.nodeIdToElementId());
+  private static MaterializationMap copyOf(String chainId, MaterializationMap map) {
+    return new MaterializationMap(
+        chainId,
+        copyOrEmpty(map.nodeIdToElementId()),
+        copyOrEmpty(map.semanticEdgeOwnerElementIds()),
+        copyOrEmpty(map.mappingIntentExecutionNodeIds()));
+  }
+
+  private static Map<String, String> copyOrEmpty(Map<String, String> map) {
+    return map == null ? Map.of() : Map.copyOf(map);
+  }
+
+  private static MaterializationMap completeOwnership(
+      ChainPlanGraph graph, MaterializationMap map) {
+    Map<String, String> nodeOwners = new LinkedHashMap<>();
+    if (graph.nodes() != null) {
+      for (ChainPlanNode node : graph.nodes()) {
+        if (node == null || node.nodeId() == null) {
+          continue;
+        }
+        String elementId = catalogId(map, node.nodeId());
+        if (elementId != null) {
+          nodeOwners.put(node.nodeId(), elementId);
+        }
+      }
+    }
+    MaterializationMap nodeOwned = map.withNodeIdToElementId(nodeOwners);
+    Map<String, String> edgeOwners = new LinkedHashMap<>();
+    if (graph.edges() != null) {
+      for (ChainPlanEdge edge : graph.edges()) {
+        if (edge == null || edge.edgeId() == null) {
+          continue;
+        }
+        Projection projection = ChainPlanConnectionsMaterializer.project(edge, graph, nodeOwned);
+        if (projection.fromElementId() != null) {
+          edgeOwners.put(edge.edgeId(), projection.fromElementId());
+        }
+      }
+    }
+    Map<String, String> mappingOwners = new LinkedHashMap<>();
+    if (graph.nodes() != null) {
+      for (ChainPlanNode node : graph.nodes()) {
+        String intentId = MappingExecutionSite.mappingIntentId(node);
+        if (intentId != null && !intentId.isBlank()) {
+          mappingOwners.put(intentId, node.nodeId());
+        }
+      }
+    }
+    return nodeOwned.withOwners(nodeOwners, edgeOwners, mappingOwners);
+  }
+
+  private static void requireOwnership(ChainPlanGraph graph, MaterializationMap map) {
+    if (graph.nodes() != null) {
+      for (ChainPlanNode node : graph.nodes()) {
+        if (node == null || node.nodeId() == null) {
+          continue;
+        }
+        if (!map.nodeIdToElementId().containsKey(node.nodeId())) {
+          throw new IllegalStateException(
+              "No materialization owner for semantic node: " + node.nodeId());
+        }
+      }
+    }
+    if (graph.edges() != null) {
+      for (ChainPlanEdge edge : graph.edges()) {
+        if (edge == null || edge.edgeId() == null) {
+          continue;
+        }
+        if (!map.semanticEdgeOwnerElementIds().containsKey(edge.edgeId())) {
+          throw new IllegalStateException(
+              "No materialization owner for semantic edge: " + edge.edgeId());
+        }
+      }
+    }
   }
 
   private static boolean containsEdge(List<ChainPlanEdge> edges, ChainPlanEdge candidate) {

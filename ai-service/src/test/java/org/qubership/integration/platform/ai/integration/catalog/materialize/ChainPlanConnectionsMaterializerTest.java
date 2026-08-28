@@ -48,7 +48,7 @@ class ChainPlanConnectionsMaterializerTest {
                         new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of()),
                         new ChainPlanNode("n2", "http-sender", "Sender", null, null, List.of())),
                 List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
-        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"));
+        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"), Map.of(), Map.of());
         CatalogDependencyDto existing = new CatalogDependencyDto();
         existing.from = "el-1";
         existing.to = "el-2";
@@ -72,7 +72,7 @@ class ChainPlanConnectionsMaterializerTest {
                         new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of()),
                         new ChainPlanNode("n2", "http-sender", "Sender", null, null, List.of())),
                 List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
-        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"));
+        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -93,7 +93,7 @@ class ChainPlanConnectionsMaterializerTest {
                         new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of()),
                         new ChainPlanNode("n2", "http-sender", "Sender", null, null, List.of())),
                 List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
-        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"));
+        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -113,7 +113,7 @@ class ChainPlanConnectionsMaterializerTest {
                         node("trigger", "http-trigger", null),
                         node("tcff", "try-catch-finally-2", null)),
                 List.of(edge("e1", "trigger", "tcff")));
-        MaterializationMap map = new MaterializationMap("chain-1", Map.of("trigger", "el-trigger", "tcff", "el-tcff"));
+        MaterializationMap map = new MaterializationMap("chain-1", Map.of("trigger", "el-trigger", "tcff", "el-tcff"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -137,7 +137,7 @@ class ChainPlanConnectionsMaterializerTest {
                         edge("e2", "if-branch", "call")));
         MaterializationMap map = new MaterializationMap(
                 "chain-1",
-                Map.of("condition", "el-cond", "if-branch", "el-if", "call", "el-call"));
+                Map.of("condition", "el-cond", "if-branch", "el-if", "call", "el-call"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -158,7 +158,7 @@ class ChainPlanConnectionsMaterializerTest {
                         node("call", "service-call", "if-branch")),
                 List.of(edge("e1", "script", "call")));
         MaterializationMap map = new MaterializationMap(
-                "chain-1", Map.of("if-branch", "el-if", "script", "el-script", "call", "el-call"));
+                "chain-1", Map.of("if-branch", "el-if", "script", "el-script", "call", "el-call"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -187,7 +187,7 @@ class ChainPlanConnectionsMaterializerTest {
                         "try", "el-try",
                         "protected", "el-protected",
                         "catch", "el-catch",
-                        "catch-script", "el-catch-script"));
+                        "catch-script", "el-catch-script"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -208,7 +208,7 @@ class ChainPlanConnectionsMaterializerTest {
                         node("call", "service-call", "try")),
                 List.of(edge("e1", "script", "call")));
         MaterializationMap map = new MaterializationMap(
-                "chain-1", Map.of("try", "el-try", "script", "el-script", "call", "el-call"));
+                "chain-1", Map.of("try", "el-try", "script", "el-script", "call", "el-call"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -238,7 +238,7 @@ class ChainPlanConnectionsMaterializerTest {
                 Map.of(
                         "split-branch", "el-split-branch",
                         "branch-script", "el-branch-script",
-                        "call", "el-call"));
+                        "call", "el-call"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -251,7 +251,10 @@ class ChainPlanConnectionsMaterializerTest {
     }
 
     @Test
-    void skipsCrossScopeEdgeWithoutFailing() {
+    void createsCrossScopeEdgeAsCatalogDependency() {
+        when(catalogRestClient.createConnection(any(), any()))
+                .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
         ChainPlanGraph graph = graph(
                 List.of(
                         node("trigger", "http-trigger", null),
@@ -260,17 +263,25 @@ class ChainPlanConnectionsMaterializerTest {
                 List.of(edge("e-cross", "trigger", "protected")));
         MaterializationMap map = new MaterializationMap(
                 "chain-1",
-                Map.of("trigger", "el-trigger", "try", "el-try", "protected", "el-protected"));
+                Map.of("trigger", "el-trigger", "try", "el-try", "protected", "el-protected"),
+                Map.of(),
+                Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
-        assertEquals(0, result.createdCount());
+        assertEquals(1, result.createdCount());
         assertTrue(result.failedEdgeIds().isEmpty());
-        verify(catalogRestClient, never()).createConnection(any(), any());
+        verify(catalogRestClient)
+                .createConnection(
+                        eq("chain-1"),
+                        eq(new CatalogCreateDependencyRequest("el-trigger", "el-protected")));
     }
 
     @Test
-    void skipsCatchToTryContentEdgeWithoutFailing() {
+    void createsCatchToTryContentEdgeAsCatalogDependency() {
+        when(catalogRestClient.createConnection(any(), any()))
+                .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
         ChainPlanGraph graph = graph(
                 List.of(
                         node("try", "try-2", "tcff"),
@@ -279,13 +290,18 @@ class ChainPlanConnectionsMaterializerTest {
                 List.of(edge("e3", "catch", "call")));
         MaterializationMap map = new MaterializationMap(
                 "chain-1",
-                Map.of("try", "el-try", "catch", "el-catch", "call", "el-call"));
+                Map.of("try", "el-try", "catch", "el-catch", "call", "el-call"),
+                Map.of(),
+                Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
-        assertEquals(0, result.createdCount());
+        assertEquals(1, result.createdCount());
         assertTrue(result.failedEdgeIds().isEmpty());
-        verify(catalogRestClient, never()).createConnection(any(), any());
+        verify(catalogRestClient)
+                .createConnection(
+                        eq("chain-1"),
+                        eq(new CatalogCreateDependencyRequest("el-catch", "el-call")));
     }
 
     @Test
@@ -295,7 +311,7 @@ class ChainPlanConnectionsMaterializerTest {
                 new ChainSection("demo-chain", null),
                 List.of(new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of())),
                 List.of(new ChainPlanEdge("e1", "n1", "missing", null)));
-        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 
@@ -316,7 +332,7 @@ class ChainPlanConnectionsMaterializerTest {
                         new ChainPlanNode("n1", "http-trigger", "Trigger", null, null, List.of()),
                         new ChainPlanNode("n2", "http-sender", "Sender", null, null, List.of())),
                 List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
-        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"));
+        MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1", "n2", "el-2"), Map.of(), Map.of());
 
         ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
 

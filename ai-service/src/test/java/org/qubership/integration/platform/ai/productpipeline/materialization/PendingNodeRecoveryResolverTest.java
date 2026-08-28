@@ -24,7 +24,7 @@ class PendingNodeRecoveryResolverTest {
   @Test
   void resolvesSingleExactCandidate() {
     ChainPlanNode pendingNode = pendingScript();
-    MaterializationMap currentMap = new MaterializationMap("chain-1", Map.of("parent", "el-parent"));
+    MaterializationMap currentMap = new MaterializationMap("chain-1", Map.of("parent", "el-parent"), Map.of(), Map.of());
     CatalogElementResponseDto candidate = element("el-script-1", "script", "Parse payload", "el-parent");
 
     String resolved = resolver.resolve(pendingNode, List.of(candidate), currentMap);
@@ -35,7 +35,7 @@ class PendingNodeRecoveryResolverTest {
   @Test
   void returnsNullWhenNoCandidateMatches() {
     ChainPlanNode pendingNode = pendingScript();
-    MaterializationMap currentMap = new MaterializationMap("chain-1", Map.of("parent", "el-parent"));
+    MaterializationMap currentMap = new MaterializationMap("chain-1", Map.of("parent", "el-parent"), Map.of(), Map.of());
     CatalogElementResponseDto differentLabel =
         element("el-script-1", "script", "Different label", "el-parent");
 
@@ -47,7 +47,7 @@ class PendingNodeRecoveryResolverTest {
   @Test
   void failsClosedWhenPendingNodeHasTwoCandidates() {
     ChainPlanNode pendingNode = pendingScript();
-    MaterializationMap currentMap = new MaterializationMap("chain-1", Map.of("parent", "el-parent"));
+    MaterializationMap currentMap = new MaterializationMap("chain-1", Map.of("parent", "el-parent"), Map.of(), Map.of());
     CatalogElementResponseDto first = element("el-script-1", "script", "Parse payload", "el-parent");
     CatalogElementResponseDto second = element("el-script-2", "script", "Parse payload", "el-parent");
 
@@ -60,7 +60,7 @@ class PendingNodeRecoveryResolverTest {
   void ignoresAlreadyMappedCatalogElementIds() {
     ChainPlanNode pendingNode = pendingScript();
     MaterializationMap currentMap =
-        new MaterializationMap("chain-1", Map.of("parent", "el-parent", "other", "el-script-1"));
+        new MaterializationMap("chain-1", Map.of("parent", "el-parent", "other", "el-script-1"), Map.of(), Map.of());
     CatalogElementResponseDto onlyKnownMatch =
         element("el-script-1", "script", "Parse payload", "el-parent");
 

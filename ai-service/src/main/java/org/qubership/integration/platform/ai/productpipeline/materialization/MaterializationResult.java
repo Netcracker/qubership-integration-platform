@@ -17,12 +17,12 @@ public record MaterializationResult(
   public MaterializationResult {
     materializationMap =
         materializationMap == null
-            ? new MaterializationMap(chainId, Map.of())
+            ? new MaterializationMap(chainId, Map.of(), Map.of(), Map.of())
             : new MaterializationMap(
                 materializationMap.chainId(),
-                materializationMap.nodeIdToElementId() == null
-                    ? Map.of()
-                    : Map.copyOf(materializationMap.nodeIdToElementId()));
+                materializationMap.nodeIdToElementId(),
+                materializationMap.semanticEdgeOwnerElementIds(),
+                materializationMap.mappingIntentExecutionNodeIds());
   }
 
   /** Core-only constructor used by {@link ProductChainMaterializer}. */
