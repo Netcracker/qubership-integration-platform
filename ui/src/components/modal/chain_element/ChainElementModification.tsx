@@ -80,6 +80,7 @@ import {
 import BasePathField from "./field/BasePathField.tsx";
 import ExternalRouteCheckbox from "./field/ExternalRouteCheckbox.tsx";
 import ContextPathWithPrefixField from "./field/ContextPathWithPrefixField.tsx";
+import CopyableTextWidget from "./widget/CopyableTextWidget.tsx";
 import DescriptionTooltipFieldTemplate from "./DescriptionTooltipFieldTemplate.tsx";
 import { getSchemaModules } from "./chainElementSchemaModules.ts";
 import {
@@ -216,6 +217,7 @@ const WIDGETS: RegistryWidgetsType = {
   singleColumnTableWidget: SingleColumnTableWidget,
   debouncedTextareaWidget: DebouncedTextareaWidget,
   textarea: DebouncedTextareaWidget,
+  copyableTextWidget: CopyableTextWidget,
 };
 
 const FIELDS = {
@@ -876,6 +878,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
       if (node.data.elementType === "checkpoint") {
         props["httpMethodRestrict"] = { "ui:widget": "hidden" };
+        props["contextPath"] = { "ui:widget": "copyableTextWidget" };
       }
 
       if (node.data.elementType === "http-trigger") {

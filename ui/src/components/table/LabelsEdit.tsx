@@ -1,6 +1,5 @@
-import React, { useContext, useState } from "react";
+import React, { useState } from "react";
 import { Form, Select, SelectProps } from "antd";
-import { InlineEditContext } from "../InlineEdit.tsx";
 
 export type LabelsEditorProps = {
   name: string;
@@ -8,7 +7,6 @@ export type LabelsEditorProps = {
 
 export const LabelsEdit: React.FC<LabelsEditorProps> = ({ name }) => {
   const [options, setOptions] = useState<SelectProps["options"]>([]);
-  const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
 
   return (
@@ -27,7 +25,6 @@ export const LabelsEdit: React.FC<LabelsEditorProps> = ({ name }) => {
         }}
         tokenSeparators={[" "]}
         options={options}
-        onBlur={() => inlineEditContext?.toggle()}
         classNames={{ popup: { root: "not-displayed" } }}
         suffixIcon={<></>}
       />

@@ -5,12 +5,54 @@
       "hooks": [
         {
           "type": "command",
-          "statusMessage": "Recording skill telemetry",
+          "statusMessage": "Recording agent telemetry",
           "command": "ai-agent-telemetry ingest --agent=claude",
           "timeout": 30
         }
       ],
-      "_apm_source": "ai-agent-telemetry"
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
+    }
+  ],
+  "UserPromptExpansion": [
+    {
+      "matcher": "*",
+      "hooks": [
+        {
+          "type": "command",
+          "statusMessage": "Recording agent telemetry",
+          "command": "ai-agent-telemetry ingest --agent=claude",
+          "timeout": 30
+        }
+      ],
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "mcp__.*",
+      "hooks": [
+        {
+          "type": "command",
+          "statusMessage": "Recording agent telemetry",
+          "command": "ai-agent-telemetry ingest --agent=claude",
+          "timeout": 30
+        }
+      ],
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
+    }
+  ],
+  "PostToolUseFailure": [
+    {
+      "matcher": "mcp__.*",
+      "hooks": [
+        {
+          "type": "command",
+          "statusMessage": "Recording agent telemetry",
+          "command": "ai-agent-telemetry ingest --agent=claude",
+          "timeout": 30
+        }
+      ],
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
     }
   ]
 }

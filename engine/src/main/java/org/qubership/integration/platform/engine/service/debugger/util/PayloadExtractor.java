@@ -36,6 +36,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.MimeType;
 import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -78,7 +79,13 @@ public class PayloadExtractor {
      */
     public String extractBodyForLogging(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
         String maskedBody = MessageHelper.extractBody(exchange);
-        MimeType contentType = extractContentType(exchange);
+        MimeType contentType = null;
+        try {
+            contentType = extractContentType(exchange);
+        } catch (Exception e) {
+            log.warn("Failed to parse content type for sessions logging: {}",
+                    exchange.getMessage().getHeaders().getOrDefault(HttpHeaders.CONTENT_TYPE, ""), e);
+        }
 
         if (maskingEnabled && !maskedFields.isEmpty() && StringUtils.isNotEmpty(maskedBody) && contentType != null) {
             try {
@@ -154,6 +161,19 @@ public class PayloadExtractor {
     public static MimeType extractContentType(Exchange exchange) {
         Object contentType = exchange.getMessage().getHeaders().getOrDefault(
                 HttpHeaders.CONTENT_TYPE, null);
-        return contentType == null ? null : MimeType.valueOf(String.valueOf(contentType));
+        if (contentType == null) {
+            return null;
+        }
+        String contentTypeStr;
+        if (contentType instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return null;
+            }
+            contentTypeStr = String.valueOf(collection.iterator().next());
+        } else {
+            contentTypeStr = String.valueOf(contentType);
+        }
+
+        return MimeType.valueOf(contentTypeStr);
     }
 }

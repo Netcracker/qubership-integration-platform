@@ -441,7 +441,7 @@
                             <simple>
                                 ${headers.CamelHttpResponseCode} == '{{property 'code'}}' &amp;&amp; ${exchangeProperty.internalProperty_contentTypeMatched} == true
                             </simple>
-                            <step id="Validations--{{identifier}}">
+                            <step id="Validations {{escape (property 'code')}} {{escape (property 'contentType')}}--{{identifier}}">
                                 <setProperty name="internalProperty_validationSchema">
                                     <constant>{{cdata (property 'schema')}}</constant>
                                 </setProperty>
@@ -494,7 +494,7 @@
                             <simple>
                                 ${headers.CamelHttpResponseCode} == '{{property 'code'}}'
                             </simple>
-                            <step id="Handle response--{{identifier}}">
+                            <step id="Handle response {{escape (property 'code')}}--{{identifier}}">
                                 {{#if-property 'type' equals='script'}}
                                     {{> script}}
                                 {{/if-property}}
@@ -518,7 +518,7 @@
                 {{/if-property}}
                 {{#if-property 'code' equals='default'}}
                     <otherwise>
-                        <step id="Handle response--{{identifier}}">
+                        <step id="Handle response {{escape (property 'code')}}--{{identifier}}">
                             {{#if-property 'type' equals='script'}}
                                 {{> script}}
                             {{/if-property}}
@@ -546,7 +546,7 @@
                         <simple>
                             ${headers.CamelHttpResponseCode} range '{{property 'code'}}'
                         </simple>
-                        <step id="Handle response--{{identifier}}">
+                        <step id="Handle response {{escape (property 'code')}}--{{identifier}}">
                             {{#if-property 'type' equals='script'}}
                                 {{> script}}
                             {{/if-property}}
