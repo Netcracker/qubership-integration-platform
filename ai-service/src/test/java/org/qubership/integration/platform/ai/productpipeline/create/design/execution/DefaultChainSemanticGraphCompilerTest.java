@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
@@ -18,7 +19,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
@@ -146,11 +146,18 @@ class DefaultChainSemanticGraphCompilerTest {
     ChainPlanGraph graph =
         compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
 
-    ChainPlanNode call = node(graph, "node-call");
+    ChainPlanNode call = node(graph, "call-1");
     assertEquals("call-1", call.serviceCallId().orElseThrow());
-    assertEquals("node-call", call.semanticNodeId().orElseThrow());
+    assertEquals("call-1", call.semanticNodeId().orElseThrow());
     assertEquals("revision-1", call.semanticRevisionId().orElseThrow());
+    assertEquals("INTEGRATION", property(call, "systemType"));
+    assertEquals("sys-1", property(call, "integrationSystemId"));
+    assertEquals("sg-1", property(call, "integrationSpecificationGroupId"));
+    assertEquals("spec-1", property(call, "integrationSpecificationId"));
+    assertEquals("http", property(call, "integrationOperationProtocolType"));
     assertEquals("op-call-1", property(call, "integrationOperationId"));
+    assertEquals("GET", property(call, "integrationOperationMethod"));
+    assertEquals("/orders/{id}", property(call, "integrationOperationPath"));
   }
 
   @Test
@@ -161,7 +168,7 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals("map-body", MappingExecutionSite.mappingIntentId(node(graph, "op-shared")));
     assertEquals("map-body", MappingExecutionSite.mappingId(node(graph, "op-shared")));
     assertEquals("edge-call", MappingExecutionSite.semanticEdgeId(node(graph, "op-shared")));
-    assertNull(MappingExecutionSite.mappingIntentId(node(graph, "node-call")));
+    assertNull(MappingExecutionSite.mappingIntentId(node(graph, "call-1")));
   }
 
   @Test
@@ -199,17 +206,23 @@ class DefaultChainSemanticGraphCompilerTest {
     return null;
   }
 
-  private static CatalogBindingResolution binding(String serviceCallId) {
-    return new CatalogBindingResolution(
+  private static ResolvedServiceCallBinding binding(String serviceCallId) {
+    return new ResolvedServiceCallBinding(
         serviceCallId,
-        CatalogBindingResolution.Source.EXISTING_CATALOG,
+        serviceCallId,
+        "INTEGRATION",
         "sys-1",
         "sg-1",
         "spec-1",
         "op-" + serviceCallId,
-        null,
+        "http",
+        "GET",
+        "/orders/{id}",
+        "getOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
         "2024.4",
-        "evidence-" + serviceCallId);
+        "evidence-" + serviceCallId,
+        "");
   }
 
   private static ChainSemanticRevision conditionRevision() {
@@ -459,14 +472,14 @@ class DefaultChainSemanticGraphCompilerTest {
                 "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
             new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of())),
             new SemanticNode.ServiceCall(
-                "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()))),
+                "call-1", "call-1", "getOrder", new SemanticProvenance(List.of()))),
         List.of(),
         List.of(
             sequence("edge-entry", "trigger-http", "op-shared", null),
             new SemanticExecutionEdge(
                 "edge-call",
                 "op-shared",
-                "node-call",
+                "call-1",
                 null,
                 new SemanticRoute.Sequence(),
                 "map-body")),

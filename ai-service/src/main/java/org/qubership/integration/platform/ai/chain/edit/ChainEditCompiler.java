@@ -9,6 +9,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -63,6 +65,7 @@ public class ChainEditCompiler {
 
   private static final Logger LOG = Logger.getLogger(ChainEditCompiler.class);
   private static final String STRUCTURE_GENERATOR = "cip-structure-generator";
+  private static final String SERVICE_CALL_TYPE = "service-call";
 
   private final ChainEditIntentResolver intentResolver;
   private final ServiceCallBindingResolver bindingResolver;
@@ -110,7 +113,7 @@ public class ChainEditCompiler {
    */
   public ChainEditOutcome resumeAfterImport(
       ChainEditRequest request, ChainEditIntent intent, ApiHubRequirementRefs refs) {
-    return resumeAfterImport(request, intent, refs, null);
+    return resumeAfterImport(request, intent, refs, null, null);
   }
 
   public ChainEditOutcome resumeAfterImport(
@@ -118,7 +121,19 @@ public class ChainEditCompiler {
       ChainEditIntent intent,
       ApiHubRequirementRefs refs,
       BiConsumer<String, String> skillProgress) {
+    return resumeAfterImport(request, intent, refs, null, skillProgress);
+  }
+
+  public ChainEditOutcome resumeAfterImport(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      ApiHubRequirementRefs refs,
+      StructuralBindingContinuation continuation,
+      BiConsumer<String, String> skillProgress) {
     BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
+    if (intent.requiresStructureStage() && continuation == null) {
+      return missingStructuralContinuation();
+    }
     if (catalogMutationGateway == null) {
       return new ChainEditOutcome.ResolutionFailure(
           "Importing a specification is not available here, so nothing was changed.");
@@ -135,12 +150,22 @@ public class ChainEditCompiler {
       return new ChainEditOutcome.ResolutionFailure(
           "The specification could not be imported, so the chain is unchanged: " + e.getMessage());
     }
+    String targetNodeId =
+        continuation == null ? intent.targetNodeIds().get(0) : continuation.targetNodeId();
+    String serviceCallId =
+        continuation == null
+            ? ServiceCallCatalogIdentity.occurrenceId(node(request.imported().graph(), targetNodeId))
+            : continuation.serviceCallId();
     ServiceCallBindingOutcome bound =
         bindingResolver.fromImport(
-            intent.targetNodeIds().get(0),
+            targetNodeId,
+            serviceCallId,
             imported,
             DesignPlanningCapability.toApiRelease(request.languageVersion()));
     if (bound instanceof ServiceCallBindingOutcome.Resolved(ResolvedServiceCallBinding binding)) {
+      if (continuation != null) {
+        return resumeStructuralBinding(request, intent, continuation, binding, progress);
+      }
       return compile(request, intent, binding, progress);
     }
     return new ChainEditOutcome.ResolutionFailure(
@@ -176,7 +201,7 @@ public class ChainEditCompiler {
    */
   public ChainEditOutcome resumeAfterClarification(
       ChainEditRequest request, ChainEditIntent heldIntent, String question) {
-    return resumeAfterClarification(request, heldIntent, question, null);
+    return resumeAfterClarification(request, heldIntent, question, null, null);
   }
 
   public ChainEditOutcome resumeAfterClarification(
@@ -184,7 +209,29 @@ public class ChainEditCompiler {
       ChainEditIntent heldIntent,
       String question,
       BiConsumer<String, String> skillProgress) {
+    return resumeAfterClarification(request, heldIntent, question, null, skillProgress);
+  }
+
+  public ChainEditOutcome resumeAfterClarification(
+      ChainEditRequest request,
+      ChainEditIntent heldIntent,
+      String question,
+      StructuralBindingContinuation continuation,
+      BiConsumer<String, String> skillProgress) {
     BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
+    if (continuation != null) {
+      StructuralBindingContinuation resumed =
+          new StructuralBindingContinuation(
+              continuation.structuredGraph(),
+              continuation.targetNodeId(),
+              continuation.serviceCallId(),
+              request.userRequest(),
+              continuation.importRefs());
+      return resumeStructuralBinding(request, heldIntent, resumed, null, progress);
+    }
+    if (heldIntent.requiresStructureStage() && heldIntent.resolved()) {
+      return missingStructuralContinuation();
+    }
     ChainEditIntent intent =
         ChainEditSkillProgress.call(
             progress,
@@ -284,10 +331,9 @@ public class ChainEditCompiler {
       bindings = List.of(importedBinding);
     } else if (scoped.action() == ChainEditAction.REBIND_SERVICE_CALL
         || (scoped.action() == ChainEditAction.ADD_ELEMENTS
-            && "service-call".equals(scoped.requestedElementType()))) {
-      // A new service-call needs the same complete binding a rebind does -- the generator owns
-      // the field set (id, method, path, protocol...) as one unit, and nothing here lets it invent
-      // the values that describe a real catalog operation.
+            && SERVICE_CALL_TYPE.equals(scoped.requestedElementType()))) {
+      // A new service-call needs the same complete binding a rebind does -- Java hydrates catalog
+      // identity via ServiceCallCatalogIdentity; the generator does not copy those fields.
       ChainPlanNode target = node(imported.graph(), scopedTargets.get(0));
       ServiceCallBindingOutcome resolved =
           bindingResolver.resolve(
@@ -313,6 +359,16 @@ public class ChainEditCompiler {
     }
 
     PlacementAndIntent placed = placeAddition(imported.graph(), scoped);
+    if (placed.graph() != imported.graph() && !bindings.isEmpty()) {
+      bindings =
+          bindings.stream()
+              .map(binding -> retarget(binding, placed.intent().targetNodeIds().get(0)))
+              .toList();
+    }
+    ChainPlanGraph hydrated = placed.graph();
+    for (ResolvedServiceCallBinding binding : bindings) {
+      hydrated = ServiceCallCatalogIdentity.upsert(hydrated, binding);
+    }
     GeneratorPlan plan = generatorPlan(generatorSkillId, placed.intent());
     return runCompiler(
         request,
@@ -323,7 +379,7 @@ public class ChainEditCompiler {
         Set.of(),
         List.of(),
         pin,
-        placed.graph(),
+        hydrated,
         progress);
   }
 
@@ -444,6 +500,30 @@ public class ChainEditCompiler {
     }
 
     ChainPlanGraph structured = structureResult.graph();
+    List<ChainPlanNode> newServiceCalls = addedServiceCalls(imported.graph(), structured);
+    if (newServiceCalls.size() > 1) {
+      return new ChainEditOutcome.CompilationFailure(
+          "A structural edit may add one service-call occurrence per edit.");
+    }
+    if (newServiceCalls.size() == 1) {
+      ChainPlanNode target = newServiceCalls.get(0);
+      StructuralBindingContinuation continuation =
+          new StructuralBindingContinuation(
+              structured,
+              target.nodeId(),
+              ServiceCallCatalogIdentity.occurrenceId(target),
+              bindingQuery(intent),
+              null);
+      return continueStructuralBinding(
+          request,
+          intent,
+          continuation,
+          importedBinding,
+          structureResult.executedSkillIds(),
+          pin,
+          progress);
+    }
+
     List<GeneratorPlan> plans =
         ChainEditCapabilitySelection.structuralGeneratorPlans(
             pin.resolvedDag(), imported.graph(), structured, intent);
@@ -465,6 +545,100 @@ public class ChainEditCompiler {
         structureResult.executedSkillIds(),
         pin,
         structured,
+        progress);
+  }
+
+  private ChainEditOutcome resumeStructuralBinding(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      StructuralBindingContinuation continuation,
+      ResolvedServiceCallBinding importedBinding,
+      BiConsumer<String, String> progress) {
+    CompilerRunPin pin;
+    try {
+      pin = resolvePin(request.conversationId());
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "Compiler pin unavailable conversationId=%s", request.conversationId());
+      return new ChainEditOutcome.CompilationFailure(
+          "The compiler package this edit needs is unavailable: " + e.getMessage());
+    }
+    return continueStructuralBinding(
+        request,
+        intent,
+        continuation,
+        importedBinding,
+        List.of(STRUCTURE_GENERATOR),
+        pin,
+        progress);
+  }
+
+  private ChainEditOutcome continueStructuralBinding(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      StructuralBindingContinuation continuation,
+      ResolvedServiceCallBinding importedBinding,
+      List<String> executedPrefix,
+      CompilerRunPin pin,
+      BiConsumer<String, String> progress) {
+    ChainPlanNode target = node(continuation.structuredGraph(), continuation.targetNodeId());
+    if (target == null || !SERVICE_CALL_TYPE.equals(target.type())) {
+      return new ChainEditOutcome.CompilationFailure(
+          "The structural binding continuation does not name a service-call node.");
+    }
+
+    ResolvedServiceCallBinding binding = importedBinding;
+    if (binding == null) {
+      ServiceCallBindingOutcome resolved =
+          bindingResolver.resolve(target, continuation.bindingQuery());
+      switch (resolved) {
+        case ServiceCallBindingOutcome.Resolved(ResolvedServiceCallBinding value) -> binding = value;
+        case ServiceCallBindingOutcome.Ambiguous(String question, List<String> candidates) -> {
+          return new ChainEditOutcome.Clarification(
+              question, candidates, intent, continuation);
+        }
+        case ServiceCallBindingOutcome.NotFound(String message) -> {
+          return new ChainEditOutcome.ResolutionFailure(message);
+        }
+        case ServiceCallBindingOutcome.EscalationRequired(String message, ApiHubRequirementRefs refs) -> {
+          StructuralBindingContinuation escalated =
+              new StructuralBindingContinuation(
+                  continuation.structuredGraph(),
+                  continuation.targetNodeId(),
+                  continuation.serviceCallId(),
+                  continuation.bindingQuery(),
+                  refs);
+          return new ChainEditOutcome.Escalation(message, intent, refs, escalated);
+        }
+      }
+    }
+    if (binding == null) {
+      return new ChainEditOutcome.CompilationFailure(
+          "The structural binding resolver produced no outcome.");
+    }
+
+    ResolvedServiceCallBinding retargeted =
+        retarget(
+            binding,
+            continuation.targetNodeId(),
+            continuation.serviceCallId());
+    ChainPlanGraph hydrated =
+        ServiceCallCatalogIdentity.upsert(continuation.structuredGraph(), retargeted);
+    List<GeneratorPlan> plans =
+        ChainEditCapabilitySelection.structuralGeneratorPlans(
+            pin.resolvedDag(), request.imported().graph(), hydrated, intent);
+    List<String> skillIds = new ArrayList<>();
+    skillIds.add(STRUCTURE_GENERATOR);
+    skillIds.addAll(plans.stream().map(GeneratorPlan::skillId).toList());
+    return runCompiler(
+        request,
+        intent,
+        List.of(retargeted),
+        plans,
+        List.copyOf(skillIds),
+        Set.of(STRUCTURE_GENERATOR),
+        executedPrefix,
+        pin,
+        hydrated,
         progress);
   }
 
@@ -507,7 +681,6 @@ public class ChainEditCompiler {
                   dag,
                   List.of(STRUCTURE_GENERATOR),
                   List.of(),
-                  List.of(),
                   seed),
               progress)
           .await()
@@ -515,6 +688,31 @@ public class ChainEditCompiler {
     } finally {
       captureSession.clear(structureBaseKey);
     }
+  }
+
+  private static List<ChainPlanNode> addedServiceCalls(
+      ChainPlanGraph imported, ChainPlanGraph structured) {
+    Set<String> importedServiceCallNodeIds = new LinkedHashSet<>();
+    if (imported.nodes() != null) {
+      imported.nodes().stream()
+          .filter(Objects::nonNull)
+          .filter(node -> SERVICE_CALL_TYPE.equals(node.type()))
+          .forEach(node -> importedServiceCallNodeIds.add(node.nodeId()));
+    }
+    if (structured.nodes() == null) {
+      return List.of();
+    }
+    return structured.nodes().stream()
+        .filter(Objects::nonNull)
+        .filter(node -> SERVICE_CALL_TYPE.equals(node.type()))
+        .filter(node -> !importedServiceCallNodeIds.contains(node.nodeId()))
+        .toList();
+  }
+
+  private static String bindingQuery(ChainEditIntent intent) {
+    return intent.externalBindingQuery() == null
+        ? intent.requestedChange()
+        : intent.externalBindingQuery();
   }
 
   private static boolean sameNodeIds(ChainPlanGraph left, ChainPlanGraph right) {
@@ -550,6 +748,31 @@ public class ChainEditCompiler {
 
   private record PlacementAndIntent(ChainPlanGraph graph, ChainEditIntent intent) {}
 
+  private static ResolvedServiceCallBinding retarget(
+      ResolvedServiceCallBinding binding, String targetNodeId) {
+    return retarget(binding, targetNodeId, binding.serviceCallId());
+  }
+
+  private static ResolvedServiceCallBinding retarget(
+      ResolvedServiceCallBinding binding, String targetNodeId, String serviceCallId) {
+    return new ResolvedServiceCallBinding(
+        targetNodeId,
+        serviceCallId,
+        binding.systemType(),
+        binding.systemId(),
+        binding.specificationGroupId(),
+        binding.specificationId(),
+        binding.operationId(),
+        binding.protocolType(),
+        binding.method(),
+        binding.path(),
+        binding.displayName(),
+        binding.source(),
+        binding.release(),
+        binding.evidenceRef(),
+        binding.packageId());
+  }
+
   /** A copy of {@code intent} held for the next turn, carrying the question's own ambiguities. */
   private static ChainEditIntent asHeld(ChainEditIntent intent, List<String> ambiguities) {
     return new ChainEditIntent(
@@ -570,6 +793,11 @@ public class ChainEditCompiler {
     }
     return new ChainEditOutcome.ResolutionFailure(
         "No change was requested. Say what should be different.");
+  }
+
+  private static ChainEditOutcome.CompilationFailure missingStructuralContinuation() {
+    return new ChainEditOutcome.CompilationFailure(
+        "The structural edit cannot resume without its binding continuation.");
   }
 
   private static boolean deterministic(ChainEditAction action) {
@@ -668,7 +896,6 @@ public class ChainEditCompiler {
                       null,
                       dag,
                       approvedSkillIds,
-                      List.of(),
                       List.of(),
                       seed),
                   progress)

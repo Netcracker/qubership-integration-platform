@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.List;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 
 /** What resolving a service-call operation against the local catalog produced. */

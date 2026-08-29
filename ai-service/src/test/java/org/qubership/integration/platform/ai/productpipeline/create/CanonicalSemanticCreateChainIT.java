@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogDependency;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElement;
@@ -34,7 +35,6 @@ import org.qubership.integration.platform.ai.chain.reconcile.ChainReconcileServi
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
-import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -77,7 +77,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DefaultChainSemanticIdsRenderer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.CipDesignPlannerAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -409,7 +409,7 @@ class CanonicalSemanticCreateChainIT {
     org.mockito.stubbing.Answer<CompilerDagExecutionResult> compile =
         invocation -> {
           ChainSemanticRevision revision = invocation.getArgument(1);
-          List<CatalogBindingResolution> bindings = invocation.getArgument(2);
+          List<ResolvedServiceCallBinding> bindings = invocation.getArgument(2);
           return compiledResult(
               graphCompiler.compile(revision, CONTRACT, bindings == null ? List.of() : bindings));
         };
@@ -443,17 +443,17 @@ class CanonicalSemanticCreateChainIT {
             });
   }
 
-  private Map<String, CatalogBindingResolution> matchBindings(
+  private Map<String, ResolvedServiceCallBinding> matchBindings(
       org.mockito.invocation.InvocationOnMock invocation) {
     List<SemanticNode.ServiceCall> calls = invocation.getArgument(0);
-    List<CatalogBindingResolution> bindings = invocation.getArgument(1);
-    Map<String, CatalogBindingResolution> byId = new LinkedHashMap<>();
-    for (CatalogBindingResolution binding : bindings) {
+    List<ResolvedServiceCallBinding> bindings = invocation.getArgument(1);
+    Map<String, ResolvedServiceCallBinding> byId = new LinkedHashMap<>();
+    for (ResolvedServiceCallBinding binding : bindings) {
       byId.putIfAbsent(binding.serviceCallId(), binding);
     }
-    Map<String, CatalogBindingResolution> matched = new LinkedHashMap<>();
+    Map<String, ResolvedServiceCallBinding> matched = new LinkedHashMap<>();
     for (SemanticNode.ServiceCall call : calls) {
-      CatalogBindingResolution binding = byId.remove(call.serviceCallId());
+      ResolvedServiceCallBinding binding = byId.remove(call.serviceCallId());
       if (binding == null) {
         throw new IllegalArgumentException(
             "missing catalog binding for serviceCallId=" + call.serviceCallId());
@@ -608,6 +608,10 @@ class CanonicalSemanticCreateChainIT {
                             new ArtifactCandidate(
                                 Kind.REQUIREMENT_DRAFT,
                                 RequirementFactFixtures.greetingsApprovedDraft(),
+                                List.of()),
+                            new ArtifactCandidate(
+                                Kind.CATALOG_BINDING_HINT,
+                                petsBindingHint(),
                                 List.of())),
                         "discovered",
                         null)));
@@ -922,6 +926,24 @@ class CanonicalSemanticCreateChainIT {
                 "call-1",
                 "trigger-1",
                 RequirementDataMapping.Mode.PASS_THROUGH)));
+  }
+
+  private static CatalogBindingHint petsBindingHint() {
+    return new CatalogBindingHint(
+        "2",
+        "call-1",
+        "call-1",
+        "GET /pets",
+        "sys-1",
+        "sg-1",
+        "spec-1",
+        "op-1",
+        "http",
+        "GET",
+        "/pets",
+        "2024.4",
+        FIXED,
+        "catalog-hit");
   }
 
   private static RequirementFact httpTrigger(

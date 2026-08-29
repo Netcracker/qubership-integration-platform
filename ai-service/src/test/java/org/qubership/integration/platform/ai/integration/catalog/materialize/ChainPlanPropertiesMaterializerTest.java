@@ -259,7 +259,7 @@ class ChainPlanPropertiesMaterializerTest {
   }
 
   @Test
-  void coercesHttpMethodRestrictStringToCatalogObjectBeforePatch() throws Exception {
+  void keepsHttpMethodRestrictAsAMethodStringOnPatch() throws Exception {
     when(schemaService.allowedPatchPropertyKeys("http-trigger"))
         .thenReturn(Set.of("contextPath", "httpMethodRestrict"));
     when(schemaService.validateElementPatch(eq("http-trigger"), anyString()))
@@ -291,7 +291,7 @@ class ChainPlanPropertiesMaterializerTest {
     verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
     @SuppressWarnings("unchecked")
     Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
-    assertEquals(Map.of("httpMethods", List.of("GET")), props.get("httpMethodRestrict"));
+    assertEquals("GET", props.get("httpMethodRestrict"));
   }
 
   @Test

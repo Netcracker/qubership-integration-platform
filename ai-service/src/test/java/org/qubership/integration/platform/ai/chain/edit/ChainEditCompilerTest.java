@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +21,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
@@ -125,6 +127,14 @@ class ChainEditCompilerTest {
             List.of(
                 new CatalogRestClient.OperationDto(
                     "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1")));
+    when(readTool.searchCatalogSystems(any()))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-1", "Orders", "EXTERNAL", "HTTP")));
+    when(readTool.getApiSpecifications("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationDto(
+                    "spec-1", "Orders API", "group-1", "sys-1")));
 
     runPinResolver = mock(CompilerRunPinResolver.class);
     when(runPinResolver.resolve(any(), any())).thenReturn(pin());
@@ -185,6 +195,7 @@ class ChainEditCompilerTest {
     // operation id alone and left the method and path describing the previous operation.
     assertEquals(
         Map.of(
+            "serviceCallId", "call-orders",
             "integrationOperationId", "op-status",
             "integrationOperationMethod", "POST",
             "integrationOperationPath", "/orders/{id}/status"),
@@ -200,6 +211,7 @@ class ChainEditCompilerTest {
             "integrationSpecificationId", "spec-1",
             "integrationSpecificationGroupId", "group-1",
             "systemType", "EXTERNAL",
+            "serviceCallId", "call-orders",
             "retryCount", "3"),
         properties(node(proposal.finalGraph(), TARGET)));
   }
@@ -231,12 +243,13 @@ class ChainEditCompilerTest {
 
     ResolvedServiceCallBinding binding = proposal.bindings().get(0);
     assertEquals(TARGET, binding.targetNodeId());
+    assertEquals(TARGET, binding.serviceCallId());
     assertEquals("EXTERNAL", binding.systemType());
     assertEquals("sys-1", binding.systemId());
     assertEquals("group-1", binding.specificationGroupId());
     assertEquals("spec-1", binding.specificationId());
     assertEquals("op-status", binding.operationId());
-    assertEquals("HTTP", binding.protocolType());
+    assertEquals("http", binding.protocolType());
     assertEquals("POST", binding.method());
     assertEquals("/orders/{id}/status", binding.path());
     assertEquals("Post order status", binding.displayName());
@@ -245,14 +258,20 @@ class ChainEditCompilerTest {
   }
 
   @Test
-  void theGeneratorReceivesTheGraphTheExactTargetAndTheCompleteBinding() {
+  void theGeneratorReceivesTheHydratedGraphTheExactTargetAndTheCompleteBinding() {
     compiler.compile(request());
 
     CompilerDagExecutionRequest seen = engine.lastRequest.get();
-    assertEquals(
-        importedGraph(),
-        artifact(seen, SkillArtifactType.CHAIN_PLAN_GRAPH, SkillArtifactPayload.ChainPlanGraphPayload.class)
-            .graph());
+    ChainPlanGraph seedGraph =
+        artifact(
+                seen,
+                SkillArtifactType.CHAIN_PLAN_GRAPH,
+                SkillArtifactPayload.ChainPlanGraphPayload.class)
+            .graph();
+    assertEquals("call-orders", property(seedGraph, TARGET, "serviceCallId"));
+    assertEquals("op-status", property(seedGraph, TARGET, "integrationOperationId"));
+    assertEquals("POST", property(seedGraph, TARGET, "integrationOperationMethod"));
+    assertEquals("/orders/{id}/status", property(seedGraph, TARGET, "integrationOperationPath"));
     GeneratorPlanManifest plan =
         artifact(
                 seen,
@@ -1083,6 +1102,119 @@ class ChainEditCompilerTest {
   }
 
   @Test
+  void aStructuralEditThatAddsTwoServiceCallsFailsClosed() {
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply = structuralServiceCallCapture();
+    engine.scriptedResults.add(structureOnlyResult(addressSpliceWithTwoServiceCalls()));
+
+    ChainEditOutcome.CompilationFailure failure =
+        assertInstanceOf(ChainEditOutcome.CompilationFailure.class, compiler.compile(request()));
+
+    assertTrue(failure.message().contains("one service-call occurrence per edit"), failure.message());
+    assertEquals(1, engine.requests.size());
+  }
+
+  @Test
+  void anAmbiguousStructuralServiceCallStoresItsStructuredContinuation() {
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply = structuralServiceCallCapture();
+    stubStructuralCatalogOperations(
+        List.of(
+            new CatalogRestClient.OperationDto(
+                "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1"),
+            new CatalogRestClient.OperationDto(
+                "op-history", "Get order history", "GET", "/orders/{id}/history", "spec-1")));
+    engine.scriptedResults.add(structureOnlyResult(addressSpliceGraph(false)));
+
+    ChainEditOutcome.Clarification clarification =
+        assertInstanceOf(ChainEditOutcome.Clarification.class, compiler.compile(request()));
+    ChainEditClarificationStore store = new ChainEditClarificationStore();
+    store.put(
+        "conv-1",
+        new ChainEditClarificationStore.PendingClarification(
+            "chain-1",
+            clarification.heldIntent(),
+            clarification.question(),
+            clarification.continuation()));
+
+    StructuralBindingContinuation continuation =
+        store.take("conv-1").orElseThrow().continuation();
+    assertEquals(addressSpliceGraph(false), continuation.structuredGraph());
+    assertEquals("call-shipping", continuation.targetNodeId());
+    assertEquals("call-shipping", continuation.serviceCallId());
+    assertEquals("shipping", continuation.bindingQuery());
+    assertNull(continuation.importRefs());
+  }
+
+  @Test
+  void resumingStructuralBindingHydratesTheSavedNodeWithoutRunningStructureAgain() {
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply = structuralServiceCallCapture();
+    stubStructuralCatalogOperations(
+        List.of(
+            new CatalogRestClient.OperationDto(
+                "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1"),
+            new CatalogRestClient.OperationDto(
+                "op-history", "Get order history", "GET", "/orders/{id}/history", "spec-1")));
+    engine.scriptedResults.add(structureOnlyResult(addressSpliceGraph(false)));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, GENERATOR, "cip-chain-assembler"),
+            addressSpliceGraph(false)));
+    ChainEditOutcome.Clarification clarification =
+        assertInstanceOf(ChainEditOutcome.Clarification.class, compiler.compile(request()));
+    stubStructuralCatalogOperations(
+        List.of(
+            new CatalogRestClient.OperationDto(
+                "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1")));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.resumeAfterClarification(
+                request("Post order status"),
+                clarification.heldIntent(),
+                clarification.question(),
+                clarification.continuation(),
+                null));
+
+    assertEquals(2, engine.requests.size());
+    assertEquals(List.of(STRUCTURE_GENERATOR), engine.requests.get(0).approvedOwningSkillIds());
+    assertEquals(
+        List.of(STRUCTURE_GENERATOR, GENERATOR, SCRIPT_GENERATOR),
+        engine.requests.get(1).approvedOwningSkillIds());
+    ChainPlanGraph resumedSeed =
+        artifact(
+                engine.requests.get(1),
+                SkillArtifactType.CHAIN_PLAN_GRAPH,
+                SkillArtifactPayload.ChainPlanGraphPayload.class)
+            .graph();
+    assertNotNull(node(resumedSeed, "call-shipping"));
+    assertEquals("call-shipping", property(resumedSeed, "call-shipping", "serviceCallId"));
+    assertEquals("op-status", property(resumedSeed, "call-shipping", "integrationOperationId"));
+    assertEquals("POST", property(resumedSeed, "call-shipping", "integrationOperationMethod"));
+    assertEquals(
+        "/orders/{id}/status",
+        property(resumedSeed, "call-shipping", "integrationOperationPath"));
+    assertEquals("call-shipping", proposal.bindings().get(0).targetNodeId());
+    verify(readTool).searchCatalogSystems("Post order status");
+  }
+
+  @Test
+  void resumingAResolvedStructuralIntentWithoutContinuationIsAContractFailure() {
+    ChainEditOutcome.CompilationFailure failure =
+        assertInstanceOf(
+            ChainEditOutcome.CompilationFailure.class,
+            compiler.resumeAfterClarification(
+                request("Post order status"),
+                structuralServiceCallIntent(),
+                "Which operation do you mean?"));
+
+    assertTrue(failure.message().contains("continuation"), failure.message());
+    assertTrue(engine.requests.isEmpty());
+  }
+
+  @Test
   void namingAPrecedingElementWithSeveralSuccessorsAsksWhichBranchRatherThanPickingOne() {
     ChainPlanGraph branchingGraph =
         new ChainPlanGraph(
@@ -1247,6 +1379,56 @@ class ChainEditCompilerTest {
     assertEquals(node(importedGraph(), "normalize"), node(finalGraph, "normalize"));
     assertEquals(List.of("transform"), scopedTargets(engine.requests.get(1), SCRIPT_GENERATOR));
     assertEquals(List.of("call-shipping"), scopedTargets(engine.requests.get(1), GENERATOR));
+  }
+
+  @Test
+  void aReplacementDiscoversANewNodeThatKeepsTheReplacedOccurrenceOwner() {
+    when(runPinResolver.resolve(any(), any())).thenReturn(pinForAddressSplice());
+    intentReply =
+        new ChainEditCapture(
+            ChainEditAction.ADD_ELEMENTS,
+            List.of(TARGET),
+            "replace the order call with a script that normalizes the payload, then call shipping",
+            "shipping",
+            "script",
+            null,
+            List.of(),
+            List.of(),
+            ChainEditDisposition.REMOVE);
+    stubStructuralCatalogOperations(
+        List.of(
+            new CatalogRestClient.OperationDto(
+                "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1")));
+    engine.scriptedResults.add(
+        structureOnlyResult(addressReplaceGraphWithOccurrenceOwner(false)));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, GENERATOR, SCRIPT_GENERATOR, "cip-chain-assembler"),
+            addressReplaceGraphWithOccurrenceOwner(true)));
+
+    ChainPlanGraph imported = importedGraphWithOccurrenceOwner();
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.compile(
+                new ChainEditRequest(
+                    "conv-1",
+                    "chain-1",
+                    "edit-run-1",
+                    new ImportedChainPlan(imported, null, "base-digest"),
+                    "replace the order call, then call shipping",
+                    null)));
+
+    ChainPlanGraph configuredSeed =
+        artifact(
+                engine.requests.get(1),
+                SkillArtifactType.CHAIN_PLAN_GRAPH,
+                SkillArtifactPayload.ChainPlanGraphPayload.class)
+            .graph();
+    assertEquals("call-1", property(configuredSeed, "call-shipping", "serviceCallId"));
+    assertEquals("op-status", property(configuredSeed, "call-shipping", "integrationOperationId"));
+    assertEquals("call-1", proposal.bindings().get(0).serviceCallId());
+    assertEquals("call-shipping", proposal.bindings().get(0).targetNodeId());
   }
 
   @Test
@@ -1803,6 +1985,58 @@ class ChainEditCompilerTest {
   }
 
   @Test
+  void anApprovedImportKeepsTheImportedOccurrenceOwner() {
+    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new ApiHubSpecificationImportResult(
+                        "sys-1",
+                        "spec-1",
+                        "group-1",
+                        "import-7",
+                        "Orders API",
+                        java.util.Optional.of("op-status"))));
+    when(catalogRestClient.getOperation("op-status"))
+        .thenReturn(
+            new CatalogRestClient.OperationDto(
+                "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1"));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(GENERATOR, "cip-chain-assembler"), importedOccurrenceGraph(true)));
+    ChainEditRequest request =
+        new ChainEditRequest(
+            "conv-1",
+            "chain-1",
+            "edit-run-1",
+            new ImportedChainPlan(importedOccurrenceGraph(false), null, "base-digest"),
+            "point the imported call at the order-status operation",
+            null);
+    ChainEditIntent intent =
+        new ChainEditIntent(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of("imported-uuid"),
+            "point the imported call at the order-status operation",
+            "order status",
+            List.of());
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.resumeAfterImport(request, intent, refs()));
+
+    ChainPlanGraph seed =
+        artifact(
+                engine.lastRequest.get(),
+                SkillArtifactType.CHAIN_PLAN_GRAPH,
+                SkillArtifactPayload.ChainPlanGraphPayload.class)
+            .graph();
+    assertEquals("call-petstore", property(seed, "imported-uuid", "serviceCallId"));
+    assertEquals("op-status", property(seed, "imported-uuid", "integrationOperationId"));
+    assertEquals("call-petstore", proposal.bindings().get(0).serviceCallId());
+  }
+
+  @Test
   void anImportThatNamesNoOperationChangesNothing() {
     when(catalogMutationGateway.importApiHubSpecification(any(), any()))
         .thenReturn(
@@ -1954,12 +2188,16 @@ class ChainEditCompilerTest {
   }
 
   private static ChainEditRequest request() {
+    return request("point the order call at the order-status operation");
+  }
+
+  private static ChainEditRequest request(String userRequest) {
     return new ChainEditRequest(
         "conv-1",
         "chain-1",
         "edit-run-1",
         new ImportedChainPlan(importedGraph(), null, "base-digest"),
-        "point the order call at the order-status operation",
+        userRequest,
         null);
   }
 
@@ -2003,6 +2241,58 @@ class ChainEditCompilerTest {
                 null,
                 List.of(new PlanProperty("script", "return 1")))),
         List.of(new ChainPlanEdge("edge-1", TARGET, UNRELATED, null)));
+  }
+
+  private static ChainPlanGraph importedGraphWithOccurrenceOwner() {
+    ChainPlanGraph graph = importedGraph();
+    List<ChainPlanNode> nodes =
+        graph.nodes().stream()
+            .map(
+                node -> {
+                  if (!TARGET.equals(node.nodeId())) {
+                    return node;
+                  }
+                  List<PlanProperty> properties = new ArrayList<>(node.properties());
+                  properties.add(new PlanProperty("serviceCallId", "call-1"));
+                  return new ChainPlanNode(
+                      node.nodeId(),
+                      node.type(),
+                      node.label(),
+                      node.parentNodeId(),
+                      node.order(),
+                      List.copyOf(properties));
+                })
+            .toList();
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), nodes, graph.edges());
+  }
+
+  private static ChainPlanGraph importedOccurrenceGraph(boolean rebound) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("orders", "Orders"),
+        List.of(
+            new ChainPlanNode(
+                "imported-uuid",
+                "service-call",
+                "Call Petstore",
+                null,
+                null,
+                List.of(
+                    new PlanProperty("serviceCallId", "call-petstore"),
+                    new PlanProperty(
+                        "integrationOperationId", rebound ? "op-status" : "op-old"),
+                    new PlanProperty(
+                        "integrationOperationMethod", rebound ? "POST" : "GET"),
+                    new PlanProperty(
+                        "integrationOperationPath",
+                        rebound ? "/orders/{id}/status" : "/orders"),
+                    new PlanProperty("integrationOperationProtocolType", "http"),
+                    new PlanProperty("integrationSystemId", "sys-1"),
+                    new PlanProperty("integrationSpecificationId", "spec-1"),
+                    new PlanProperty("integrationSpecificationGroupId", "group-1"),
+                    new PlanProperty("systemType", "EXTERNAL"),
+                    new PlanProperty("retryCount", "3")))),
+        List.of());
   }
 
   private static ChainPlanGraph twoHttpTriggers() {
@@ -2087,6 +2377,7 @@ class ChainEditCompilerTest {
               node.parentNodeId(),
               node.order(),
               List.of(
+                  new PlanProperty("serviceCallId", "call-orders"),
                   new PlanProperty("integrationOperationId", "op-status"),
                   new PlanProperty("integrationOperationMethod", "POST"),
                   new PlanProperty("integrationOperationPath", "/orders/{id}/status"),
@@ -2187,6 +2478,52 @@ class ChainEditCompilerTest {
             new ChainPlanEdge("shipping-to-invoices", "call-shipping", UNRELATED, null)));
   }
 
+  private static ChainPlanGraph addressSpliceWithTwoServiceCalls() {
+    ChainPlanGraph graph = addressSpliceGraph(false);
+    List<ChainPlanNode> nodes = new ArrayList<>(graph.nodes());
+    nodes.add(
+        new ChainPlanNode(
+            "call-billing", "service-call", "Call billing", null, null, List.of()));
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), nodes, graph.edges());
+  }
+
+  private void stubStructuralCatalogOperations(List<CatalogRestClient.OperationDto> operations) {
+    when(readTool.searchCatalogSystems(any()))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-1", "Orders", "EXTERNAL", "HTTP")));
+    when(readTool.getApiSpecifications("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationDto(
+                    "spec-1", "Orders API", "group-1", "sys-1")));
+    when(readTool.listCatalogOperations(eq("spec-1"), eq("sys-1"), any()))
+        .thenReturn(operations);
+  }
+
+  private static ChainEditCapture structuralServiceCallCapture() {
+    return new ChainEditCapture(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(TARGET, UNRELATED),
+        "add a shipping service call between the order and invoice calls",
+        "shipping",
+        "service-call",
+        null,
+        List.of(),
+        List.of());
+  }
+
+  private static ChainEditIntent structuralServiceCallIntent() {
+    return new ChainEditIntent(
+        ChainEditAction.ADD_ELEMENTS,
+        List.of(TARGET, UNRELATED),
+        "add a shipping service call between the order and invoice calls",
+        "shipping",
+        "service-call",
+        null,
+        List.of(),
+        List.of());
+  }
+
   /**
    * The graph the structure stage returns when replacing {@code TARGET}: the new script and service
    * call sit where the order call was, and that order call is omitted.
@@ -2217,6 +2554,30 @@ class ChainEditCompilerTest {
         List.of(
             new ChainPlanEdge("transform-to-shipping", "transform", "call-shipping", null),
             new ChainPlanEdge("shipping-to-invoices", "call-shipping", UNRELATED, null)));
+  }
+
+  private static ChainPlanGraph addressReplaceGraphWithOccurrenceOwner(boolean configured) {
+    ChainPlanGraph graph = addressReplaceGraph(configured);
+    List<ChainPlanNode> nodes =
+        graph.nodes().stream()
+            .map(
+                node -> {
+                  if (!"call-shipping".equals(node.nodeId())) {
+                    return node;
+                  }
+                  List<PlanProperty> properties = new ArrayList<>();
+                  properties.add(new PlanProperty("serviceCallId", "call-1"));
+                  properties.addAll(node.properties());
+                  return new ChainPlanNode(
+                      node.nodeId(),
+                      node.type(),
+                      node.label(),
+                      node.parentNodeId(),
+                      node.order(),
+                      List.copyOf(properties));
+                })
+            .toList();
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), nodes, graph.edges());
   }
 
   /** The graph the structure stage returns for a single new element spliced at one address. */

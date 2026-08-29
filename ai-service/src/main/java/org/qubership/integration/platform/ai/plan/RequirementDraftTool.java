@@ -551,7 +551,7 @@ public class RequirementDraftTool {
     if (assessment != null
         && assessment.isResolved()
         && assessment.binding() != null
-        && assessmentIntentMatches(assessment, fact)) {
+        && (priorFact == null || sameCallIdentity(fact, priorFact))) {
       if (priorHint != null && sameCatalogIdentity(priorHint, assessment.binding())) {
         return priorHint;
       }
@@ -576,15 +576,6 @@ public class RequirementDraftTool {
         && sameField(left.operation(), right.operation())
         && sameField(left.httpMethod(), right.httpMethod())
         && sameField(left.path(), right.path());
-  }
-
-  private static boolean assessmentIntentMatches(
-      ServiceCallAssessment assessment, RequirementFact fact) {
-    ServiceCallAssessment.Intent intent = assessment.intent();
-    return sameField(intent.systemHint(), fact.participant())
-        && sameField(intent.operationHint(), fact.operation())
-        && sameField(intent.method(), fact.httpMethod())
-        && sameField(intent.path(), fact.path());
   }
 
   private static boolean sameCatalogIdentity(

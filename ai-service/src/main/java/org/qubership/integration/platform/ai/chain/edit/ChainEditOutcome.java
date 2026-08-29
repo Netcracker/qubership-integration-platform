@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.List;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -41,8 +42,16 @@ public sealed interface ChainEditOutcome {
    * edit: the next turn feeds this intent and {@code question} back to the classifier alongside the
    * reply, instead of resolving the reply as a request with no history behind it.
    */
-  record Clarification(String question, List<String> choices, ChainEditIntent heldIntent)
+  record Clarification(
+      String question,
+      List<String> choices,
+      ChainEditIntent heldIntent,
+      StructuralBindingContinuation continuation)
       implements ChainEditOutcome {
+    public Clarification(String question, List<String> choices, ChainEditIntent heldIntent) {
+      this(question, choices, heldIntent, null);
+    }
+
     public Clarification {
       choices = choices == null ? List.of() : List.copyOf(choices);
     }
@@ -61,8 +70,16 @@ public sealed interface ChainEditOutcome {
    * against this graph and this target, rather than re-reading a request the conversation has
    * moved past.
    */
-  record Escalation(String message, ChainEditIntent intent, ApiHubRequirementRefs refs)
-      implements ChainEditOutcome {}
+  record Escalation(
+      String message,
+      ChainEditIntent intent,
+      ApiHubRequirementRefs refs,
+      StructuralBindingContinuation continuation)
+      implements ChainEditOutcome {
+    public Escalation(String message, ChainEditIntent intent, ApiHubRequirementRefs refs) {
+      this(message, intent, refs, null);
+    }
+  }
 
   /**
    * No compiler skill owns this edit yet, so the caller falls back to the model-authored patch path.

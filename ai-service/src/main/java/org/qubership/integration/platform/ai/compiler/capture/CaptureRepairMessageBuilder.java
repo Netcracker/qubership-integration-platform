@@ -275,10 +275,9 @@ public class CaptureRepairMessageBuilder {
         "Each condition needs an if child; each if needs a non-blank condition.");
     instructions.put(
         "incomplete_service_call_bindings",
-        "Each service-call operation branch must pass the element schema. Always set"
-            + " systemType from the catalog system type (INTERNAL|EXTERNAL|IMPLEMENTED),"
-            + " plus system id, specification ids, operation id, protocol, method, and path."
-            + " Do not derive systemType from http-trigger externalRoute.");
+        "Catalog identity for each service-call operation branch is server-owned and already"
+            + " hydrated. Do not add or modify catalog identity properties; set only"
+            + " generator-owned execution properties.");
     return Map.copyOf(instructions);
   }
 }

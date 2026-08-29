@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -36,8 +37,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagE
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolutions;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionTrace;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
@@ -286,7 +285,7 @@ public class CipDesignExecutorJavaAdapter {
     if (bindingFailure.isPresent()) {
       return bindingFailure.get();
     }
-    List<CatalogBindingResolution> bindings =
+    List<ResolvedServiceCallBinding> bindings =
         bindingResults.stream()
             .map(BindingResolutionResult.Resolved.class::cast)
             .map(BindingResolutionResult.Resolved::binding)
@@ -455,7 +454,7 @@ public class CipDesignExecutorJavaAdapter {
 
   private ExecutionResult emitValidatedBundle(
       ExecutionInputs inputs,
-      List<CatalogBindingResolution> bindings,
+      List<ResolvedServiceCallBinding> bindings,
       CompilerDagExecutionResult engineResult) {
     ChainPlanGraph graph = engineResult.graph();
     GraphAssemblyResult assembly = engineResult.assemblyResult();
@@ -515,8 +514,6 @@ public class CipDesignExecutorJavaAdapter {
             inputs.implementationPlanRef(),
             inputs.runManifestRef());
 
-    CatalogBindingResolutions bindingResolutions =
-        new CatalogBindingResolutions(SCHEMA_VERSION, bindings);
     ApiOperationBindings apiBindings =
         new ApiOperationBindings(
             SCHEMA_VERSION,
@@ -528,7 +525,7 @@ public class CipDesignExecutorJavaAdapter {
                             binding.systemId(),
                             binding.specificationGroupId(),
                             binding.specificationId(),
-                            binding.integrationOperationId(),
+                            binding.operationId(),
                             binding.packageId(),
                             binding.release()))
                 .toList());
@@ -653,7 +650,6 @@ public class CipDesignExecutorJavaAdapter {
                     "WAITING_FOR_MATERIALIZATION")));
 
     List<ArtifactCandidate> candidates = new ArrayList<>();
-    candidates.add(new ArtifactCandidate(Kind.CATALOG_BINDING_RESOLUTIONS, bindingResolutions, evidenceInputs));
     candidates.add(new ArtifactCandidate(Kind.API_OPERATION_BINDINGS, apiBindings, evidenceInputs));
     candidates.add(new ArtifactCandidate(Kind.ORDERED_GRAPH_PATCHES, orderedPatches, evidenceInputs));
     candidates.add(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, evidenceInputs));

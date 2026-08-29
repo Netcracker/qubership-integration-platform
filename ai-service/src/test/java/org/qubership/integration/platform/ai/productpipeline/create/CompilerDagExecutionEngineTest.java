@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -23,6 +24,7 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -151,7 +153,6 @@ class CompilerDagExecutionEngineTest {
             null,
             dag,
             List.of(),
-            List.of(),
             List.of());
 
     CompilerDagExecutionResult result =
@@ -204,7 +205,6 @@ class CompilerDagExecutionEngineTest {
             null,
             dag,
             List.of(),
-            List.of(),
             List.of());
 
     assertThrows(
@@ -243,7 +243,7 @@ class CompilerDagExecutionEngineTest {
   }
 
   @Test
-  void successFailsClosedWhenMaterializationMapIsMissing() {
+  void createCompileSucceedsWithoutMaterializationMap() {
     String conversationId = "conv-missing-mmap";
     ChainSemanticRevision revision = simpleRevision();
     ChainPlanGraph graph = simpleGraph();
@@ -279,17 +279,70 @@ class CompilerDagExecutionEngineTest {
             revision,
             dag,
             List.of(),
-            List.of(),
             List.of());
+
+    CompilerDagExecutionResult result =
+        engine.execute(request, (skillId, status) -> {}).await().indefinitely();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertFalse(result.presentArtifactTypes().contains("MATERIALIZATION_MAP"));
+  }
+
+  @Test
+  void editCompileFailsClosedWhenSeededMaterializationMapIsDropped() {
+    String conversationId = "conv-dropped-mmap";
+    ChainPlanGraph graph = simpleGraph();
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("trigger", "el-1"), Map.of(), Map.of());
+    ResolvedCompilerDag dag = dagWithMandatoryValidation();
+    when(skillRegistry.require("cip-pattern-selector"))
+        .thenReturn(new DropMaterializationMapExecutor());
+    stubAssemblyAndValidator(dag);
+
+    CompilerExecutionSeed seed =
+        new CompilerExecutionSeed(
+            conversationId,
+            true,
+            "keep the imported catalog join",
+            List.of(
+                SkillArtifact.of(
+                    SkillArtifactType.REQUIREMENT_BRIEF,
+                    CompilerExecutionSeed.REQUIREMENT_ANALYZER_SKILL,
+                    new SkillArtifactPayload.RequirementBriefPayload(brief())),
+                SkillArtifact.of(
+                    SkillArtifactType.CHAIN_PLAN_GRAPH,
+                    CompilerExecutionSeed.SEED_PRODUCER,
+                    new SkillArtifactPayload.ChainPlanGraphPayload(graph)),
+                SkillArtifact.of(
+                    SkillArtifactType.CHAIN_STRUCTURE,
+                    CompilerExecutionSeed.SEED_PRODUCER,
+                    new SkillArtifactPayload.ChainStructurePayload(
+                        new ChainStructure(graph, List.of(), List.of()))),
+                SkillArtifact.of(
+                    SkillArtifactType.MATERIALIZATION_MAP,
+                    CompilerExecutionSeed.SEED_PRODUCER,
+                    new SkillArtifactPayload.MaterializationMapPayload(map))),
+            Set.of(CompilerExecutionSeed.REQUIREMENT_ANALYZER_SKILL));
+
+    CompilerDagExecutionRequest request =
+        new CompilerDagExecutionRequest(
+            "run-1",
+            conversationId,
+            manifestFor(dag),
+            brief(),
+            null,
+            dag,
+            List.of(),
+            List.of(),
+            seed);
 
     IllegalStateException error =
         assertThrows(
             IllegalStateException.class,
             () -> engine.execute(request, (skillId, status) -> {}).await().indefinitely());
 
-    assertTrue(
-        error.getMessage().contains("Compiler run completed without required artifact: MATERIALIZATION_MAP"),
-        error.getMessage());
+    assertEquals(
+        "Compiler run completed without required artifact: MATERIALIZATION_MAP", error.getMessage());
   }
 
   @Test
@@ -312,7 +365,6 @@ class CompilerDagExecutionEngineTest {
             brief(),
             null,
             dag,
-            List.of(),
             List.of(),
             List.of(),
             seed);
@@ -355,7 +407,6 @@ class CompilerDagExecutionEngineTest {
             dag,
             List.of(),
             List.of(),
-            List.of(),
             seed);
 
     CompilerDagExecutionResult result =
@@ -385,7 +436,6 @@ class CompilerDagExecutionEngineTest {
             brief(),
             null,
             dag,
-            List.of(),
             List.of(),
             List.of(),
             seed);
@@ -767,7 +817,7 @@ class CompilerDagExecutionEngineTest {
     }
   }
 
-  private static final class PatternExecutor implements SkillExecutor {
+  private static class PatternExecutor implements SkillExecutor {
     @Override
     public String skillId() {
       return "cip-pattern-selector";
@@ -801,6 +851,15 @@ class CompilerDagExecutionEngineTest {
                               new SelectedPattern(
                                   "GP-01", "Pattern", "reason", null, List.of(), "summary")))),
                   "ok"));
+    }
+  }
+
+  /** Drops the seeded catalog join so fail-closed can observe a missing MATERIALIZATION_MAP. */
+  private static final class DropMaterializationMapExecutor extends PatternExecutor {
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      workspace.remove(SkillArtifactType.MATERIALIZATION_MAP);
+      return super.run(context, workspace);
     }
   }
 
@@ -861,7 +920,6 @@ class CompilerDagExecutionEngineTest {
                 brief(),
                 null,
                 dag,
-                List.of(),
                 List.of(),
                 List.of()),
             (skillId, status) -> {})

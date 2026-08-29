@@ -111,7 +111,6 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
                       null,
                       pinned.pin().resolvedDag(),
                       List.of(),
-                      List.of(),
                       List.of());
               CompilerDagExecutionResult result =
                   engine

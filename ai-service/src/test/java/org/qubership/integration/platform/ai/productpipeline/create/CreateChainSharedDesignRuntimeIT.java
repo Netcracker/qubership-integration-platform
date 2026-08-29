@@ -83,9 +83,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionPhase;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DefaultChainSemanticIdsRenderer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolutions;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.CipDesignPlannerAdapter;
@@ -392,7 +391,7 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  void omAndSalesforceCallsKeepIndependentCatalogResolutions() {
+  void omAndSalesforceCallsKeepIndependentApiBindings() {
     CreateChainTestOrchestrator runtime = runtimeWithOmWfmDesignStack();
     startV2(runtime);
 
@@ -417,20 +416,20 @@ class CreateChainSharedDesignRuntimeIT {
     implementApprovedPlan(runtime);
     assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status(), () -> runDebug());
 
-    CatalogBindingResolutions resolutions =
+    ApiOperationBindings bindings =
         artifactStore.payload(
-            artifactStore.history(RUN_ID, Kind.CATALOG_BINDING_RESOLUTIONS).stream()
+            artifactStore.history(RUN_ID, Kind.API_OPERATION_BINDINGS).stream()
                 .reduce((a, b) -> b)
                 .orElseThrow(),
-            CatalogBindingResolutions.class);
-    assertEquals(2, resolutions.resolutions().size(), resolutions.toString());
-    CatalogBindingResolution om =
-        resolutions.resolutions().stream()
+            ApiOperationBindings.class);
+    assertEquals(2, bindings.bindings().size(), bindings.toString());
+    ApiOperationBindings.Binding om =
+        bindings.bindings().stream()
             .filter(binding -> "op-result".equals(binding.integrationOperationId()))
             .findFirst()
             .orElseThrow();
-    CatalogBindingResolution wfm =
-        resolutions.resolutions().stream()
+    ApiOperationBindings.Binding wfm =
+        bindings.bindings().stream()
             .filter(binding -> "op-create".equals(binding.integrationOperationId()))
             .findFirst()
             .orElseThrow();
@@ -867,7 +866,7 @@ class CreateChainSharedDesignRuntimeIT {
         new StageCapabilityRegistry(
             List.of(
                 designInputCapability(),
-                discoveryStub(List.of()),
+                discoveryStub(List.of(petsBindingHint())),
                 analysisStub(approvedBrief()),
                 designPlanningCapability(),
                 designExecutionCapability(),
@@ -1507,6 +1506,24 @@ class CreateChainSharedDesignRuntimeIT {
         "2024.4",
         FIXED,
         "evidence-om");
+  }
+
+  private static CatalogBindingHint petsBindingHint() {
+    return new CatalogBindingHint(
+        "2",
+        "call-1",
+        "call-1",
+        "GET /pets",
+        "sys-1",
+        "sg-1",
+        "spec-1",
+        "op-1",
+        "http",
+        "GET",
+        "/pets",
+        "2024.4",
+        FIXED,
+        "catalog-hit");
   }
 
   private static CatalogBindingHint wfmBindingHint() {

@@ -37,5 +37,15 @@ public class ChainEditEscalationStore {
       String userRequest,
       ChainEditIntent intent,
       ApiHubRequirementRefs refs,
-      String candidateId) {}
+      String candidateId,
+      StructuralBindingContinuation continuation) {
+    public PendingChainEdit(
+        String chainId,
+        String userRequest,
+        ChainEditIntent intent,
+        ApiHubRequirementRefs refs,
+        String candidateId) {
+      this(chainId, userRequest, intent, refs, candidateId, null);
+    }
+  }
 }

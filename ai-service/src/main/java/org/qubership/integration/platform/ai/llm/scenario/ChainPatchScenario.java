@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditSkillProgress;
+import org.qubership.integration.platform.ai.chain.edit.StructuralBindingContinuation;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainEditProposalAssembler;
@@ -202,17 +203,23 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainEditClarificationStore.PendingClarification pending,
       BiConsumer<String, String> skillProgress) {
     try {
-      return editCompiler.resumeAfterClarification(
+      ChainEditRequest request =
           new ChainEditRequest(
               conversationId,
               chainId,
               conversationId + "-edit-" + UUID.randomUUID(),
               imported,
               userMessage,
-              null),
-          pending.heldIntent(),
-          pending.question(),
-          skillProgress);
+              null);
+      return pending.continuation() == null
+          ? editCompiler.resumeAfterClarification(
+              request, pending.heldIntent(), pending.question(), skillProgress)
+          : editCompiler.resumeAfterClarification(
+              request,
+              pending.heldIntent(),
+              pending.question(),
+              pending.continuation(),
+              skillProgress);
     } catch (RuntimeException e) {
       LOG.errorf(
           e,
@@ -229,10 +236,15 @@ public class ChainPatchScenario implements ScenarioHandler {
     return switch (outcome) {
       case ChainEditOutcome.Proposal proposal ->
           offer(conversationId, chainId, imported, proposal.netPatch());
-      case ChainEditOutcome.Clarification(String question, List<String> choices, ChainEditIntent heldIntent) -> {
+      case ChainEditOutcome.Clarification(
+          String question,
+          List<String> choices,
+          ChainEditIntent heldIntent,
+          StructuralBindingContinuation continuation) -> {
         clarificationStore.put(
             conversationId,
-            new ChainEditClarificationStore.PendingClarification(chainId, heldIntent, question));
+            new ChainEditClarificationStore.PendingClarification(
+                chainId, heldIntent, question, continuation));
         yield message(
             choices.isEmpty()
                 ? question
@@ -259,7 +271,12 @@ public class ChainPatchScenario implements ScenarioHandler {
     escalationStore.put(
         conversationId,
         new ChainEditEscalationStore.PendingChainEdit(
-            chainId, "", escalation.intent(), escalation.refs(), candidateId));
+            chainId,
+            "",
+            escalation.intent(),
+            escalation.refs(),
+            candidateId,
+            escalation.continuation()));
     return Multi.createFrom()
         .item(
             ChatEvent.importDecision(
@@ -283,18 +300,24 @@ public class ChainPatchScenario implements ScenarioHandler {
       return Multi.createFrom()
           .item(ChatEvent.error("Failed to read chain from catalog: " + e.getMessage()));
     }
+    ChainEditRequest request =
+        new ChainEditRequest(
+            conversationId,
+            pendingEdit.chainId(),
+            conversationId + "-edit-" + UUID.randomUUID(),
+            imported,
+            pendingEdit.userRequest(),
+            null);
     ChainEditOutcome resumed =
-        editCompiler.resumeAfterImport(
-            new ChainEditRequest(
-                conversationId,
-                pendingEdit.chainId(),
-                conversationId + "-edit-" + UUID.randomUUID(),
-                imported,
-                pendingEdit.userRequest(),
-                null),
-            pendingEdit.intent(),
-            pendingEdit.refs(),
-            skillProgress);
+        pendingEdit.continuation() == null
+            ? editCompiler.resumeAfterImport(
+                request, pendingEdit.intent(), pendingEdit.refs(), skillProgress)
+            : editCompiler.resumeAfterImport(
+                request,
+                pendingEdit.intent(),
+                pendingEdit.refs(),
+                pendingEdit.continuation(),
+                skillProgress);
     return fromCompiler(conversationId, pendingEdit.chainId(), imported, resumed);
   }
 

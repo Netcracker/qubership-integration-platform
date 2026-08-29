@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.ai.chain.edit;
+package org.qubership.integration.platform.ai.catalog.binding;
 
 import java.util.Objects;
 
@@ -12,6 +12,7 @@ import java.util.Objects;
  */
 public record ResolvedServiceCallBinding(
     String targetNodeId,
+    String serviceCallId,
     String systemType,
     String systemId,
     String specificationGroupId,
@@ -23,7 +24,8 @@ public record ResolvedServiceCallBinding(
     String displayName,
     Source source,
     String release,
-    String evidenceRef) {
+    String evidenceRef,
+    String packageId) {
 
   public enum Source {
     EXISTING_CATALOG,
@@ -32,6 +34,7 @@ public record ResolvedServiceCallBinding(
 
   public ResolvedServiceCallBinding {
     targetNodeId = requireText(targetNodeId, "targetNodeId");
+    serviceCallId = requireText(serviceCallId, "serviceCallId");
     systemType = requireText(systemType, "systemType");
     systemId = requireText(systemId, "systemId");
     specificationGroupId = requireText(specificationGroupId, "specificationGroupId");
@@ -39,11 +42,12 @@ public record ResolvedServiceCallBinding(
     operationId = requireText(operationId, "operationId");
     protocolType = requireText(protocolType, "protocolType");
     method = requireText(method, "method");
-    path = requireText(path, "path");
+    path = path == null ? "" : path;
     displayName = displayName == null ? "" : displayName.trim();
     source = Objects.requireNonNull(source, "source");
     release = release == null ? "" : release.trim();
     evidenceRef = evidenceRef == null ? "" : evidenceRef.trim();
+    packageId = packageId == null ? "" : packageId.trim();
   }
 
   private static String requireText(String value, String field) {

@@ -138,6 +138,34 @@ class CaptureRepairMessageBuilderTest {
   }
 
   @Test
+  void serviceCallCompletenessDoesNotAssignCatalogIdentityToGenerator() {
+    String message =
+        builder.completenessSummary(List.of("incomplete_service_call_bindings"));
+
+    assertTrue(message.contains("server-owned"), message);
+    List<String> catalogIdentityKeys =
+        List.of(
+            "serviceCallId",
+            "systemType",
+            "integrationSystemId",
+            "integrationSpecificationGroupId",
+            "integrationSpecificationId",
+            "integrationOperationProtocolType",
+            "integrationOperationId",
+            "integrationOperationMethod",
+            "integrationOperationPath",
+            "synchronousGrpcCall",
+            "integrationGqlQuery",
+            "integrationGqlOperationName",
+            "integrationGqlQueryHeader",
+            "integrationGqlVariablesHeader",
+            "integrationGqlVariablesJSON");
+    for (String key : catalogIdentityKeys) {
+      assertFalse(message.contains(key), () -> "instruction must not mention " + key + ": " + message);
+    }
+  }
+
+  @Test
   void validationMessageTruncatesManyErrors() {
     String summary =
         "Plan validation failed:\n"

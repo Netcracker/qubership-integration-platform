@@ -86,7 +86,7 @@ class ClasspathCompilerContractRepositoryTest {
     assertFalse(contract.topology().get("generic-barrier").supported());
     assertTrue(contract.requiredArtifacts().contains("CHAIN_SEMANTIC_REVISION"));
     assertTrue(contract.requiredArtifacts().contains("CHAIN_PLAN_GRAPH"));
-    assertTrue(contract.requiredArtifacts().contains("MATERIALIZATION_MAP"));
+    assertFalse(contract.requiredArtifacts().contains("MATERIALIZATION_MAP"));
     assertTrue(contract.requiredAddons().contains("cip-design-executor"));
     assertTrue(contract.requiredAddons().contains("cip-structure-generator"));
   }

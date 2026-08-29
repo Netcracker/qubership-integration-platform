@@ -2,7 +2,6 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -27,6 +26,7 @@ import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -61,7 +61,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagE
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningSkillArtifactUnavailableException;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningPatchLedger;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -97,7 +96,7 @@ class DesignExecutionCapabilityTest {
   private DesignExecutionPlan approvedPlan;
   private ChainSemanticRevision revision;
   private RunManifest manifest;
-  private List<CatalogBindingResolution> bindings;
+  private List<ResolvedServiceCallBinding> bindings;
   private DesignPlanReport report;
   private ImplementationPlan implementationPlan;
   private IdsDocument ids;
@@ -710,17 +709,23 @@ class DesignExecutionCapabilityTest {
         bundle);
   }
 
-  private static CatalogBindingResolution sampleBinding() {
-    return new CatalogBindingResolution(
+  private static ResolvedServiceCallBinding sampleBinding() {
+    return new ResolvedServiceCallBinding(
         "call-1",
-        CatalogBindingResolution.Source.EXISTING_CATALOG,
+        "call-1",
+        "EXTERNAL",
         "sys-1",
         "sg-1",
         "spec-1",
         "op-1",
-        "pkg.1",
+        "http",
+        "GET",
+        "/orders/{id}",
+        "getOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
         "2024.4",
-        "catalog:sys-1");
+        "catalog:sys-1",
+        "pkg.1");
   }
 
   private static DesignExecutionPlan samplePlan() {

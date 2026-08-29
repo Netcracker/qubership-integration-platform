@@ -194,7 +194,6 @@ class SeededCompilerExecutionTest {
             cut,
             List.of(),
             List.of(),
-            List.of(),
             editSeed());
 
     return engine.execute(request, (skillId, status) -> {}).await().indefinitely();

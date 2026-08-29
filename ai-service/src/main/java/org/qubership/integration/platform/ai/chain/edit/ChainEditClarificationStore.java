@@ -32,5 +32,13 @@ public class ChainEditClarificationStore {
   }
 
   /** One edit waiting on an answer to a clarifying question. */
-  public record PendingClarification(String chainId, ChainEditIntent heldIntent, String question) {}
+  public record PendingClarification(
+      String chainId,
+      ChainEditIntent heldIntent,
+      String question,
+      StructuralBindingContinuation continuation) {
+    public PendingClarification(String chainId, ChainEditIntent heldIntent, String question) {
+      this(chainId, heldIntent, question, null);
+    }
+  }
 }

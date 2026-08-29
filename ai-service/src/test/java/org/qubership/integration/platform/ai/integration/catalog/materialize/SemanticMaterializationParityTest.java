@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto;
@@ -24,7 +25,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ChainSemanticGraphCompiler;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultChainSemanticGraphCompiler;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
@@ -199,17 +199,23 @@ class SemanticMaterializationParityTest {
         .orElse(null);
   }
 
-  private static CatalogBindingResolution binding(String serviceCallId, String operationId) {
-    return new CatalogBindingResolution(
+  private static ResolvedServiceCallBinding binding(String serviceCallId, String operationId) {
+    return new ResolvedServiceCallBinding(
         serviceCallId,
-        CatalogBindingResolution.Source.EXISTING_CATALOG,
+        serviceCallId,
+        "EXTERNAL",
         "sys-1",
         "sg-1",
         "spec-1",
         operationId,
-        null,
+        "http",
+        "GET",
+        "/orders/{id}",
+        "getOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
         "2024.4",
-        "evidence-" + serviceCallId);
+        "evidence-" + serviceCallId,
+        "");
   }
 
   private static Map<String, CatalogElementDescriptorDto> permissiveLibrary() {
@@ -410,14 +416,14 @@ class SemanticMaterializationParityTest {
                 "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
             new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of())),
             new SemanticNode.ServiceCall(
-                "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()))),
+                "call-1", "call-1", "getOrder", new SemanticProvenance(List.of()))),
         List.of(),
         List.of(
             sequence("edge-entry", "trigger-http", "op-shared", null),
             new SemanticExecutionEdge(
                 "edge-call",
                 "op-shared",
-                "node-call",
+                "call-1",
                 null,
                 new SemanticRoute.Sequence(),
                 "map-body")),

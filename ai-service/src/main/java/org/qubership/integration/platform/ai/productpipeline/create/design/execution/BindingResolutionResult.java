@@ -2,8 +2,8 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import java.util.List;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignArtifacts;
 
 /**
@@ -19,7 +19,7 @@ public sealed interface BindingResolutionResult {
 
   StageOutcomeClass outcomeClass();
 
-  record Resolved(CatalogBindingResolution binding) implements BindingResolutionResult {
+  record Resolved(ResolvedServiceCallBinding binding) implements BindingResolutionResult {
     public Resolved {
       binding = DesignArtifacts.requireNonNull(binding, "binding");
     }
