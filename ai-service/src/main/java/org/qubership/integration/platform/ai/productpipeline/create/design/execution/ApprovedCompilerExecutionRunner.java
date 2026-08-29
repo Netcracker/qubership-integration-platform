@@ -2,11 +2,11 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import java.util.List;
 import java.util.function.BiConsumer;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
@@ -20,7 +20,7 @@ public interface ApprovedCompilerExecutionRunner {
   default CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
       ChainSemanticRevision revision,
-      List<CatalogBindingResolution> bindings,
+      List<ResolvedServiceCallBinding> bindings,
       RunManifest runManifest) {
     return execute(approvedPlan, revision, bindings, runManifest, (skillId, status) -> {});
   }
@@ -32,7 +32,7 @@ public interface ApprovedCompilerExecutionRunner {
   default CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
       ChainSemanticRevision revision,
-      List<CatalogBindingResolution> bindings,
+      List<ResolvedServiceCallBinding> bindings,
       RunManifest runManifest,
       BiConsumer<String, String> skillProgress) {
     return execute(approvedPlan, revision, bindings, runManifest, null, skillProgress);
@@ -42,7 +42,7 @@ public interface ApprovedCompilerExecutionRunner {
   default CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
       ChainSemanticRevision revision,
-      List<CatalogBindingResolution> bindings,
+      List<ResolvedServiceCallBinding> bindings,
       RunManifest runManifest,
       String attemptId,
       BiConsumer<String, String> skillProgress) {
@@ -59,7 +59,7 @@ public interface ApprovedCompilerExecutionRunner {
   CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
       ChainSemanticRevision revision,
-      List<CatalogBindingResolution> bindings,
+      List<ResolvedServiceCallBinding> bindings,
       RunManifest runManifest,
       String attemptId,
       StageRepairEvidence repairEvidence,

@@ -155,7 +155,6 @@ topology:
 requiredArtifacts:
   - CHAIN_SEMANTIC_REVISION
   - CHAIN_PLAN_GRAPH
-  - MATERIALIZATION_MAP
 requiredAddons:
   - cip-design-executor
   - cip-structure-generator

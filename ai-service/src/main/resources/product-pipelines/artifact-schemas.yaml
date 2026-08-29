@@ -29,7 +29,6 @@ types:
   - { type: catalog-binding-hint, schemaVersion: 1 }
   - { type: design-plan-report, schemaVersion: 1 }
   - { type: design-execution-plan, schemaVersion: 1 }
-  - { type: catalog-binding-resolutions, schemaVersion: 1 }
   - { type: execution-trace, schemaVersion: 1 }
   - { type: api-operation-bindings, schemaVersion: 1 }
   - { type: ordered-graph-patches, schemaVersion: 1 }

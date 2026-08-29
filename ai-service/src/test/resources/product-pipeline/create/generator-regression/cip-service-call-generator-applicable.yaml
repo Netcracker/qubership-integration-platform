@@ -33,7 +33,24 @@ inputGraph:
       parentNodeId: null
       order: null
       properties:
-        []
+        - key: serviceCallId
+          value: "call-1"
+        - key: systemType
+          value: "EXTERNAL"
+        - key: integrationSystemId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c"
+        - key: integrationSpecificationGroupId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline"
+        - key: integrationSpecificationId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4"
+        - key: integrationOperationId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4-getUsers"
+        - key: integrationOperationProtocolType
+          value: "http"
+        - key: integrationOperationMethod
+          value: "GET"
+        - key: integrationOperationPath
+          value: "/users"
   edges: []
 capturedPatch:
   patchId: http-service-call-catalog-binding
@@ -41,46 +58,6 @@ capturedPatch:
   nodePatches: []
   edgePatches: []
   propertyPatches:
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: systemType
-        value: "EXTERNAL"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: integrationSystemId
-        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: integrationSpecificationGroupId
-        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: integrationSpecificationId
-        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: integrationOperationId
-        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4-getUsers"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: integrationOperationProtocolType
-        value: "http"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: integrationOperationMethod
-        value: "GET"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: integrationOperationPath
-        value: "/users"
     - operation: ADD
       targetNodeId: call-1
       property:
@@ -93,7 +70,7 @@ capturedPatch:
         value: "true"
   chainPatches: []
   usedKnowledgeRefs: []
-  rationale: call-1 exists without catalog bindings. Bind the HTTP GET /users operation from the requirement brief and set service-call execution defaults.
+  rationale: call-1 already contains its catalog binding. Set the service-call execution defaults.
 expectedGraph:
   schemaVersion: "1.0"
   chain:
@@ -108,6 +85,8 @@ expectedGraph:
       parentNodeId: null
       order: null
       properties:
+        - key: serviceCallId
+          value: "call-1"
         - key: systemType
           value: "EXTERNAL"
         - key: integrationSystemId

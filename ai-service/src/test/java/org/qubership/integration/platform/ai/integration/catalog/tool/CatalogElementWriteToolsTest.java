@@ -143,7 +143,7 @@ class CatalogElementWriteToolsTest {
   }
 
   @Test
-  void updateElement_coercesHttpMethodRestrictStringToCatalogObject() throws Exception {
+  void updateElement_keepsHttpMethodRestrictAsAMethodString() throws Exception {
     CatalogElementResponseDto current = new CatalogElementResponseDto();
     current.id = "el-1";
     current.name = "HTTP Trigger";
@@ -163,7 +163,7 @@ class CatalogElementWriteToolsTest {
     verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
     @SuppressWarnings("unchecked")
     Map<String, Object> properties = (Map<String, Object>) patchCaptor.getValue().get("properties");
-    assertEquals(Map.of("httpMethods", List.of("GET")), properties.get("httpMethodRestrict"));
+    assertEquals("GET", properties.get("httpMethodRestrict"));
     assertEquals("/api", properties.get("contextPath"));
   }
 

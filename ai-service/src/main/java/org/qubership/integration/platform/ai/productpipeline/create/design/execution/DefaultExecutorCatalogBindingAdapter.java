@@ -6,13 +6,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.qubership.integration.platform.ai.catalog.binding.CatalogOperationProjector;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
@@ -49,7 +50,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     List<CatalogBindingHint> hintList = hints == null ? List.of() : hints;
     List<SemanticNode.ServiceCall> calls = serviceCalls(revision);
     List<BindingResolutionResult> results = new ArrayList<>();
-    List<CatalogBindingResolution> resolved = new ArrayList<>();
+    List<ResolvedServiceCallBinding> resolved = new ArrayList<>();
     for (SemanticNode.ServiceCall call : calls) {
       BindingResolutionResult result = resolveCall(call, hintList);
       results.add(result);
@@ -71,9 +72,9 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
           call.serviceCallId(), lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
     }
     CatalogBindingHint observed = lookup.hint();
-    Optional<CatalogBindingMatcher.CatalogMatch> revalidated = revalidateHint(observed);
+    Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(observed);
     if (revalidated.isPresent()) {
-      return toExisting(call.serviceCallId(), revalidated.get(), observed.release());
+      return toExisting(call, revalidated.get(), observed.release());
     }
     return new BindingResolutionResult.Failed(
         call.serviceCallId(),
@@ -84,7 +85,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
         "catalog operation");
   }
 
-  private Optional<CatalogBindingMatcher.CatalogMatch> revalidateHint(CatalogBindingHint hint) {
+  private Optional<RevalidatedCatalogMatch> revalidateHint(CatalogBindingHint hint) {
     List<CatalogRestClient.SystemDto> systems =
         catalogReadTool.searchCatalogSystems(hint.systemId());
     CatalogRestClient.SystemDto system =
@@ -114,32 +115,48 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       return Optional.empty();
     }
     return Optional.of(
-        new CatalogBindingMatcher.CatalogMatch(
-            hint.systemId(),
-            hint.specificationGroupId(),
-            hint.specificationId(),
-            hint.integrationOperationId(),
-            system.name(),
-            system.protocol(),
-            op.method(),
-            op.path(),
-            op.name(),
-            hint.evidenceRef()));
+        new RevalidatedCatalogMatch(
+            new CatalogBindingMatcher.CatalogMatch(
+                hint.systemId(),
+                hint.specificationGroupId(),
+                hint.specificationId(),
+                hint.integrationOperationId(),
+                system.name(),
+                system.protocol(),
+                op.method(),
+                op.path(),
+                op.name(),
+                hint.evidenceRef()),
+            system.type()));
   }
 
-  private static BindingResolutionResult.Resolved toExisting(
-      String serviceCallId, CatalogBindingMatcher.CatalogMatch match, String release) {
-    return new BindingResolutionResult.Resolved(
-        new CatalogBindingResolution(
-            serviceCallId,
-            CatalogBindingResolution.Source.EXISTING_CATALOG,
-            match.systemId(),
-            match.specificationGroupId(),
-            match.specificationId(),
-            match.integrationOperationId(),
-            null,
-            CatalogStrings.blankToNull(release) == null ? "catalog" : release,
-            match.evidenceRef()));
+  private static BindingResolutionResult toExisting(
+      SemanticNode.ServiceCall call, RevalidatedCatalogMatch revalidated, String release) {
+    try {
+      CatalogBindingMatcher.CatalogMatch match = revalidated.match();
+      ResolvedServiceCallBinding binding =
+          CatalogOperationProjector.project(
+              call.nodeId(),
+              call.serviceCallId(),
+              new CatalogRestClient.SystemDto(
+                  match.systemId(), match.systemName(), revalidated.systemType(), match.protocol()),
+              match.specificationGroupId(),
+              match.specificationId(),
+              new CatalogRestClient.OperationDto(
+                  match.integrationOperationId(),
+                  match.operationName(),
+                  match.method(),
+                  match.path(),
+                  match.specificationId()),
+              ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+              CatalogStrings.blankToNull(release) == null ? "catalog" : release,
+              match.evidenceRef(),
+              null);
+      return new BindingResolutionResult.Resolved(binding);
+    } catch (IllegalArgumentException exception) {
+      return new BindingResolutionResult.Failed(
+          call.serviceCallId(), exception.getMessage(), StageOutcomeClass.DOMAIN_FAILURE);
+    }
   }
 
   private static HintLookup findHint(
@@ -176,6 +193,9 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       return new HintLookup(null, reason);
     }
   }
+
+  private record RevalidatedCatalogMatch(
+      CatalogBindingMatcher.CatalogMatch match, String systemType) {}
 
   static void requireMatchingApproval(ApprovalRecordV2 approval) {
     if (approval == null) {

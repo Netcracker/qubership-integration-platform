@@ -64,7 +64,6 @@ public class ProductPipelineRunResource {
           Kind.CATALOG_BINDING_HINT,
           Kind.DESIGN_PLAN_REPORT,
           Kind.DESIGN_EXECUTION_PLAN,
-          Kind.CATALOG_BINDING_RESOLUTIONS,
           Kind.EXECUTION_TRACE,
           Kind.API_OPERATION_BINDINGS,
           Kind.ORDERED_GRAPH_PATCHES,

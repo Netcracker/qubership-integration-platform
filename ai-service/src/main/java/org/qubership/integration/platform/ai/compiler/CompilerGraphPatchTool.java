@@ -412,7 +412,12 @@ public class CompilerGraphPatchTool {
   }
 
   private String completenessSummary(List<String> unmet, ChainPlanGraph graph) {
-    StringBuilder summary = new StringBuilder(repairMessageBuilder.completenessSummary(unmet));
+    List<String> modelRepairSignals =
+        unmet.stream()
+            .filter(signal -> !"incomplete_service_call_bindings".equals(signal))
+            .toList();
+    StringBuilder summary =
+        new StringBuilder(repairMessageBuilder.completenessSummary(modelRepairSignals));
     if (unmet.contains("script_nodes_missing_body")) {
       List<String> missing = readinessEvaluator.scriptNodesMissingBody(graph);
       if (!missing.isEmpty()) {
@@ -426,10 +431,9 @@ public class CompilerGraphPatchTool {
       List<String> missing = readinessEvaluator.serviceCallNodesMissingBindings(graph);
       if (!missing.isEmpty()) {
         summary
-            .append(" Missing service-call binding on node ids: ")
+            .append(" Service-call server binding is missing or stale on node ids: ")
             .append(String.join(", ", missing))
-            .append(". Submit propertyPatches that make the service-call operation branch pass")
-            .append(" the element schema (include systemType from catalog system type).");
+            .append(". Catalog identity is server-owned; do not submit propertyPatches for it.");
       }
       readinessEvaluator
           .serviceCallBindingSchemaFailure(graph)

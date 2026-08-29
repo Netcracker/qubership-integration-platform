@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -56,11 +57,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.FailureNarra
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningPatchLedger;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionInputs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
@@ -98,7 +98,7 @@ class CipDesignExecutorJavaAdapterTest {
   private DesignExecutionPlan approvedPlan;
   private ChainSemanticRevision revision;
   private RunManifest manifest;
-  private List<CatalogBindingResolution> bindings;
+  private List<ResolvedServiceCallBinding> bindings;
   private DesignPlanReport report;
   private ApprovalRecordV2 approval;
 
@@ -403,6 +403,13 @@ class CipDesignExecutorJavaAdapterTest {
     assertEquals(StageOutcomeClass.CANDIDATE, result.outcomeClass());
     verify(runner).execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any());
     assertEquals(DesignExecutionPhase.WAITING_FOR_MATERIALIZATION, result.checkpoint().phase());
+    ApiOperationBindings apiBindings =
+        result.candidates().stream()
+            .filter(candidate -> candidate.kind() == Kind.API_OPERATION_BINDINGS)
+            .map(candidate -> (ApiOperationBindings) candidate.payload())
+            .findFirst()
+            .orElseThrow();
+    assertEquals("pkg-1", apiBindings.bindings().getFirst().packageId());
   }
 
   @Test
@@ -741,17 +748,23 @@ class CipDesignExecutorJavaAdapterTest {
         bundle);
   }
 
-  private static CatalogBindingResolution sampleBinding() {
-    return new CatalogBindingResolution(
+  private static ResolvedServiceCallBinding sampleBinding() {
+    return new ResolvedServiceCallBinding(
         "call-1",
-        CatalogBindingResolution.Source.EXISTING_CATALOG,
+        "call-1",
+        "EXTERNAL",
         "sys-1",
         "sg-1",
         "spec-1",
         "op-1",
-        null,
+        "http",
+        "GET",
+        "/orders/{id}",
+        "getOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
         "2024.4",
-        "catalog:sys-1");
+        "catalog:sys-1",
+        "pkg-1");
   }
 
   private static DesignExecutionPlan samplePlan(

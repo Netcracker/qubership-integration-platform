@@ -15,12 +15,12 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
@@ -70,7 +70,7 @@ class ExecutorCatalogBindingAdapterTest {
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
     assertEquals("call-wfm", resolved.binding().serviceCallId());
     assertEquals("sys-wfm", resolved.binding().systemId());
-    assertEquals("op-create", resolved.binding().integrationOperationId());
+    assertEquals("op-create", resolved.binding().operationId());
   }
 
   @Test
@@ -119,9 +119,9 @@ class ExecutorCatalogBindingAdapterTest {
     BindingResolutionResult.Resolved second =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(1));
     assertEquals("step-om", first.binding().serviceCallId());
-    assertEquals("op-result", first.binding().integrationOperationId());
+    assertEquals("op-result", first.binding().operationId());
     assertEquals("step-wfm", second.binding().serviceCallId());
-    assertEquals("op-create", second.binding().integrationOperationId());
+    assertEquals("op-create", second.binding().operationId());
   }
 
   @Test
@@ -134,12 +134,37 @@ class ExecutorCatalogBindingAdapterTest {
 
     BindingResolutionResult.Resolved resolved =
         assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
-    assertEquals(CatalogBindingResolution.Source.EXISTING_CATALOG, resolved.binding().source());
-    assertEquals("sys-1", resolved.binding().systemId());
-    assertEquals("sg-1", resolved.binding().specificationGroupId());
-    assertEquals("spec-1", resolved.binding().specificationId());
-    assertEquals("op-1", resolved.binding().integrationOperationId());
+    ResolvedServiceCallBinding binding = resolved.binding();
+    assertEquals(ResolvedServiceCallBinding.Source.EXISTING_CATALOG, binding.source());
+    assertEquals("call-1", binding.serviceCallId());
+    assertEquals("node-call", binding.targetNodeId());
+    assertEquals("EXTERNAL", binding.systemType());
+    assertEquals("sys-1", binding.systemId());
+    assertEquals("sg-1", binding.specificationGroupId());
+    assertEquals("spec-1", binding.specificationId());
+    assertEquals("op-1", binding.operationId());
+    assertEquals("GET", binding.method());
+    assertEquals("/pets", binding.path());
     verify(catalogReadTool).searchCatalogSystems("sys-1");
+  }
+
+  @Test
+  void projectorFailureBecomesDomainFailure() {
+    stubExactCatalogHit("Petstore Ext", "sys-1", "sg-1", "spec-1", "op-1", "GET", "/pets");
+    when(catalogReadTool.searchCatalogSystems("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SystemDto(
+                    "sys-1", "Petstore Ext", "EXTERNAL", "grpc")));
+    CatalogBindingHint hint = v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1");
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(
+            BindingResolutionResult.Failed.class,
+            adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(hint), approved()).getFirst());
+
+    assertEquals(DOMAIN_FAILURE, failed.outcomeClass());
+    assertEquals("grpc catalog binding is missing synchronousGrpcCall", failed.reason());
   }
 
   @Test
@@ -208,12 +233,12 @@ class ExecutorCatalogBindingAdapterTest {
         "op-inv",
         ((BindingResolutionResult.Resolved) results.get(0))
             .binding()
-            .integrationOperationId());
+            .operationId());
     assertEquals(
         "op-pet",
         ((BindingResolutionResult.Resolved) results.get(1))
             .binding()
-            .integrationOperationId());
+            .operationId());
   }
 
   @Test

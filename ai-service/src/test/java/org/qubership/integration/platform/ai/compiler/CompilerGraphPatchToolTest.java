@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1153,17 +1154,38 @@ class CompilerGraphPatchToolTest {
   }
 
   @Test
-  void capturesCompleteServiceCallPatchWhenBindingsMissing() {
+  void rejectsCatalogIdentityPatchesFromServiceCallGenerator() {
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, SERVICE_CALL_CAPABILITY_ID);
-    planStore.put(
-        CONVERSATION_ID,
+    ChainPlanGraph baseGraph =
         new ChainPlanGraph(
             "1.0",
             new ChainSection("proxy", "Proxy"),
             List.of(
                 new ChainPlanNode(
                     "call-1", "service-call", "Call inventory", null, null, List.of())),
-            List.of()));
+            List.of());
+    planStore.put(CONVERSATION_ID, baseGraph);
+    executionContextStore.set(
+        new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext(
+            "run-1",
+            SERVICE_CALL_CAPABILITY_ID,
+            "req-1",
+            null,
+            "compiler-1",
+            "24.4",
+            new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+                "goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(),
+            baseGraph,
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of("service-call"),
+                Set.of(),
+                Map.of(
+                    "service-call",
+                    Set.of("propagateContext", "errorThrowing", "before", "after"))),
+            ""));
 
     GraphPatchCapture patch =
         new GraphPatchCapture(
@@ -1226,11 +1248,10 @@ class CompilerGraphPatchToolTest {
             List.of(),
             "Bind HTTP catalog operation on call-1");
 
-    CaptureValidationException terminal =
-        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+    String result = tool.captureGraphPatch(patch);
 
-    assertTrue(terminal.getMessage().contains("Graph patch captured"));
-    assertTrue(captureSession.get(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SERVICE_CALL_CAPABILITY_ID), GraphPatch.class).isPresent());
+    assertTrue(result.contains("ownership violation"), result);
+    assertTrue(captureSession.get(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SERVICE_CALL_CAPABILITY_ID), GraphPatch.class).isEmpty());
   }
 
   @Test
@@ -1251,19 +1272,14 @@ class CompilerGraphPatchToolTest {
             SERVICE_CALL_CAPABILITY_ID,
             List.of(),
             List.of(),
-            List.of(
-                new PropertyPatchCapture(
-                    GraphPatchOperation.ADD,
-                    "call-1",
-                    "integrationSystemId",
-                    JsonNodeFactory.instance.textNode("sys-1"))),
+            List.of(),
             List.of(),
             List.of(),
             "incomplete binding");
 
     // First failure: normal error, model should retry.
     String first = tool.captureGraphPatch(incomplete);
-    assertTrue(first.contains("service-call operation branch"));
+    assertTrue(first.contains("server binding is missing or stale"), first);
 
     CaptureValidationException failure =
         assertThrows(
@@ -1271,7 +1287,7 @@ class CompilerGraphPatchToolTest {
             () -> tool.captureGraphPatch(incomplete));
 
     assertTrue(failure.getMessage().contains("Repeated graph patch validation failure"));
-    assertTrue(failure.getMessage().contains("service-call operation branch"));
+    assertTrue(failure.getMessage().contains("server binding is missing or stale"));
     assertTrue(
         captureSession
             .get(
@@ -1282,7 +1298,7 @@ class CompilerGraphPatchToolTest {
   }
 
   @Test
-  void rejectsServiceCallPatchWhenOperationBranchFailsSchema() {
+  void reportsMissingServerBindingWithoutRequestingCatalogPatches() {
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, SERVICE_CALL_CAPABILITY_ID);
     planStore.put(
         CONVERSATION_ID,
@@ -1296,7 +1312,7 @@ class CompilerGraphPatchToolTest {
 
     GraphPatchCapture patch =
         new GraphPatchCapture(
-            "service-call-two-ids",
+            "service-call-runtime-options",
             SERVICE_CALL_CAPABILITY_ID,
             List.of(),
             List.of(),
@@ -1304,21 +1320,16 @@ class CompilerGraphPatchToolTest {
                 new PropertyPatchCapture(
                     GraphPatchOperation.ADD,
                     "call-1",
-                    "integrationSystemId",
-                    JsonNodeFactory.instance.textNode("sys-1")),
-                new PropertyPatchCapture(
-                    GraphPatchOperation.ADD,
-                    "call-1",
-                    "integrationOperationId",
-                    JsonNodeFactory.instance.textNode("op-1"))),
+                    "propagateContext",
+                    JsonNodeFactory.instance.booleanNode(true))),
             List.of(),
             List.of(),
-            "Catalog binding with missing operation metadata");
+            "Configure service-call runtime options");
 
     String result = tool.captureGraphPatch(patch);
 
-    assertTrue(result.contains("service-call operation branch"));
-    assertTrue(result.contains("systemType"));
+    assertTrue(result.contains("server binding is missing or stale"), result);
+    assertFalse(result.contains("Submit propertyPatches"), result);
     assertTrue(captureSession.get(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SERVICE_CALL_CAPABILITY_ID), GraphPatch.class).isEmpty());
   }
 

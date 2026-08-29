@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,16 +16,19 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
+import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -53,6 +57,8 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class DefaultApprovedCompilerExecutionRunnerTest {
 
@@ -133,7 +139,12 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             manifestRef));
 
     runner.execute(
-        samplePlan(), sampleRevision(), List.of(), manifest, "attempt-2", (skillId, status) -> {});
+        samplePlan(),
+        sampleRevision(),
+        List.of(sampleBinding()),
+        manifest,
+        "attempt-2",
+        (skillId, status) -> {});
 
     CompilerDagExecutionRequest request = capturedRequest.get();
     assertEquals(RUN_ID, request.runId());
@@ -143,6 +154,18 @@ class DefaultApprovedCompilerExecutionRunnerTest {
     assertTrue(
         request.effectiveSeed().presentArtifactTypes().contains("CHAIN_SEMANTIC_REVISION"));
     assertTrue(request.effectiveSeed().presentArtifactTypes().contains("CHAIN_PLAN_GRAPH"));
+    assertEquals(
+        List.of(sampleBinding()),
+        ((SkillArtifactPayload.ServiceCallBindingsPayload)
+                request
+                    .effectiveSeed()
+                    .artifacts()
+                    .stream()
+                    .filter(artifact -> artifact.type() == SkillArtifactType.SERVICE_CALL_BINDINGS)
+                    .findFirst()
+                    .orElseThrow()
+                    .payload())
+            .bindings());
     assertTrue(
         request
             .effectiveSeed()
@@ -206,6 +229,25 @@ class DefaultApprovedCompilerExecutionRunnerTest {
     return SemanticFixtures.linearOrders();
   }
 
+  private static ResolvedServiceCallBinding sampleBinding() {
+    return new ResolvedServiceCallBinding(
+        "call-orders",
+        "call-orders",
+        "EXTERNAL",
+        "sys-orders",
+        "sg-orders",
+        "spec-orders",
+        "op-orders",
+        "http",
+        "GET",
+        "/orders/{id}",
+        "getOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+        "2024.4",
+        "evidence-orders",
+        "");
+  }
+
   private static RunManifest sampleManifest() {
     ResolvedCompilerNode node =
         new ResolvedCompilerNode(
@@ -266,5 +308,86 @@ class DefaultApprovedCompilerExecutionRunnerTest {
         "24.4",
         List.of(),
         pin);
+  }
+
+  @Test
+  void scopeDagDoesNotPullUnplannedGeneratorsThroughAssembler() {
+    ResolvedCompilerDag full =
+        new ResolvedCompilerDag(
+            List.of(
+                generationNode("cip-naming-generator", List.of()),
+                generationNode("cip-trigger-generator", List.of("cip-naming-generator")),
+                generationNode("cip-quartz-scheduler-generator", List.of("cip-naming-generator")),
+                terminalNode(
+                    "cip-chain-assembler",
+                    "Assembly",
+                    List.of("cip-trigger-generator", "cip-quartz-scheduler-generator")),
+                terminalNode(
+                    "cip-structural-validator",
+                    "Validation",
+                    List.of("cip-chain-assembler"))),
+            List.of(
+                edge("cip-naming-generator", "cip-trigger-generator"),
+                edge("cip-naming-generator", "cip-quartz-scheduler-generator"),
+                edge("cip-trigger-generator", "cip-chain-assembler"),
+                edge("cip-quartz-scheduler-generator", "cip-chain-assembler"),
+                edge("cip-chain-assembler", "cip-structural-validator")),
+            "full-dag");
+
+    ResolvedCompilerDag scoped =
+        DefaultApprovedCompilerExecutionRunner.scopeDag(
+            full,
+            List.of(
+                "cip-trigger-generator", "cip-chain-assembler", "cip-structural-validator"));
+
+    Set<String> skillIds =
+        scoped.nodes().stream().map(ResolvedCompilerNode::skillId).collect(java.util.stream.Collectors.toSet());
+    assertEquals(
+        Set.of(
+            "cip-naming-generator",
+            "cip-trigger-generator",
+            "cip-chain-assembler",
+            "cip-structural-validator"),
+        skillIds);
+    assertFalse(skillIds.contains("cip-quartz-scheduler-generator"));
+    assertEquals(
+        List.of("cip-trigger-generator"),
+        node(scoped, "cip-chain-assembler").dependsOn());
+  }
+
+  private static ResolvedCompilerNode generationNode(String skillId, List<String> dependsOn) {
+    return terminalNode(skillId, "Generation", dependsOn);
+  }
+
+  private static ResolvedCompilerNode terminalNode(
+      String skillId, String phase, List<String> dependsOn) {
+    return new ResolvedCompilerNode(
+        skillId,
+        phase,
+        null,
+        List.of(),
+        List.of(),
+        dependsOn,
+        null,
+        List.of(),
+        List.of(),
+        true,
+        List.of(),
+        0,
+        0,
+        true,
+        CompilerNodeExecutionMode.LLM_SKILL,
+        null);
+  }
+
+  private static CompilerPipelineDependency edge(String producer, String consumer) {
+    return new CompilerPipelineDependency(producer, consumer, List.of());
+  }
+
+  private static ResolvedCompilerNode node(ResolvedCompilerDag dag, String skillId) {
+    return dag.nodes().stream()
+        .filter(n -> skillId.equals(n.skillId()))
+        .findFirst()
+        .orElseThrow();
   }
 }

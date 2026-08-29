@@ -7,6 +7,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.qubership.integration.platform.ai.catalog.binding.CatalogOperationProjector;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchHitParser;
@@ -65,7 +68,7 @@ public class ServiceCallBindingResolver {
           "Several operations match. Which one do you mean?",
           candidates.stream().limit(MAX_CANDIDATES).map(Candidate::describe).toList());
     }
-    return new ServiceCallBindingOutcome.Resolved(candidates.get(0).toBinding(target.nodeId()));
+    return new ServiceCallBindingOutcome.Resolved(candidates.get(0).toBinding(target));
   }
 
   /**
@@ -118,7 +121,10 @@ public class ServiceCallBindingResolver {
    * being filled in.
    */
   public ServiceCallBindingOutcome fromImport(
-      String targetNodeId, ApiHubSpecificationImportResult result, String release) {
+      String targetNodeId,
+      String serviceCallId,
+      ApiHubSpecificationImportResult result,
+      String release) {
     if (result == null || result.catalogOperationId().isEmpty()) {
       return new ServiceCallBindingOutcome.NotFound(
           "The import finished without naming an operation, so there is nothing to bind to.");
@@ -138,20 +144,17 @@ public class ServiceCallBindingResolver {
               + "' completely, so nothing was changed.");
     }
     return new ServiceCallBindingOutcome.Resolved(
-        new ResolvedServiceCallBinding(
+        CatalogOperationProjector.project(
             targetNodeId,
-            Candidate.blankToDash(system.type()),
-            result.systemId(),
+            serviceCallId,
+            system,
             result.specificationGroupId(),
             result.specificationId(),
-            operationId,
-            Candidate.blankToDash(system.protocol()),
-            Candidate.blankToDash(operation.method()),
-            Candidate.blankToDash(operation.path()),
-            operation.name(),
+            operation,
             ResolvedServiceCallBinding.Source.APIHUB_IMPORT,
             release,
-            "apihub-import:" + result.importId()));
+            "apihub-import:" + result.importId(),
+            ""));
   }
 
   /** The operation an element is bound to right now, if it has one. */
@@ -270,21 +273,18 @@ public class ServiceCallBindingResolver {
           + system.name();
     }
 
-    ResolvedServiceCallBinding toBinding(String targetNodeId) {
-      return new ResolvedServiceCallBinding(
-          targetNodeId,
-          blankToDash(system.type()),
-          system.id(),
+    ResolvedServiceCallBinding toBinding(ChainPlanNode target) {
+      return CatalogOperationProjector.project(
+          target.nodeId(),
+          ServiceCallCatalogIdentity.occurrenceId(target),
+          system,
           specification.specificationGroupId(),
           specification.id(),
-          operation.id(),
-          blankToDash(system.protocol()),
-          blankToDash(operation.method()),
-          blankToDash(operation.path()),
-          operation.name(),
+          operation,
           ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
           "",
-          "catalog:/v1/operations/" + operation.id());
+          "catalog:/v1/operations/" + operation.id(),
+          "");
     }
 
     static String blankToDash(String value) {

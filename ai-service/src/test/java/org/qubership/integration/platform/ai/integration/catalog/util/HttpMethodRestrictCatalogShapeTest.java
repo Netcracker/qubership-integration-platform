@@ -11,25 +11,25 @@ import org.junit.jupiter.api.Test;
 class HttpMethodRestrictCatalogShapeTest {
 
   @Test
-  void wrapsAMethodStringAsCatalogObject() {
-    assertEquals(
-        Map.of("httpMethods", List.of("GET")),
-        HttpMethodRestrictCatalogShape.toCatalogValue("GET"));
+  void keepsAMethodString() {
+    assertEquals("GET", HttpMethodRestrictCatalogShape.toCatalogValue("GET"));
   }
 
   @Test
-  void splitsACommaSeparatedMethodString() {
-    assertEquals(
-        Map.of("httpMethods", List.of("GET", "POST")),
-        HttpMethodRestrictCatalogShape.toCatalogValue("GET,POST"));
+  void keepsACommaSeparatedMethodString() {
+    assertEquals("GET,POST", HttpMethodRestrictCatalogShape.toCatalogValue("GET,POST"));
   }
 
   @Test
-  void keepsAnAlreadyCatalogShapedObject() {
+  void flattensALegacyCatalogObjectToAMethodString() {
     Map<String, Object> catalog = Map.of("httpMethods", List.of("PUT"));
-    assertEquals(
-        Map.of("httpMethods", List.of("PUT")),
-        HttpMethodRestrictCatalogShape.toCatalogValue(catalog));
+    assertEquals("PUT", HttpMethodRestrictCatalogShape.toCatalogValue(catalog));
+  }
+
+  @Test
+  void flattensSeveralMethodsFromALegacyCatalogObject() {
+    Map<String, Object> catalog = Map.of("httpMethods", List.of("GET", "POST"));
+    assertEquals("GET,POST", HttpMethodRestrictCatalogShape.toCatalogValue(catalog));
   }
 
   @Test
@@ -48,8 +48,7 @@ class HttpMethodRestrictCatalogShapeTest {
 
     HttpMethodRestrictCatalogShape.applyToPatchBody(patch);
 
-    assertEquals(
-        Map.of("httpMethods", List.of("POST")), properties.get("httpMethodRestrict"));
+    assertEquals("POST", properties.get("httpMethodRestrict"));
     assertEquals("/api", properties.get("contextPath"));
   }
 }

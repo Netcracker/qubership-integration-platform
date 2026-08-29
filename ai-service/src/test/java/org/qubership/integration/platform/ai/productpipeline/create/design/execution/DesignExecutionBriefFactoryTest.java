@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -9,7 +10,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -18,7 +18,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDa
 class DesignExecutionBriefFactoryTest {
 
   @Test
-  void buildsBriefFromRevisionIdentityAndBindings() {
+  void doesNotCopyResolvedBindingIdsIntoBriefText() {
     ChainSemanticRevision revision =
         SemanticFixtures.linear(
             "HealthProxy",
@@ -30,30 +30,20 @@ class DesignExecutionBriefFactoryTest {
             "HTTP",
             List.of(),
             List.of("RBAC role test-role", "No external route"));
-    CatalogBindingResolution binding =
-        new CatalogBindingResolution(
-            "call-1",
-            CatalogBindingResolution.Source.EXISTING_CATALOG,
-            "sys-1",
-            "grp-1",
-            "spec-1",
-            "op-1",
-            null,
-            "2024.4",
-            "evidence-1");
+    RequirementBrief brief = DesignExecutionBriefFactory.build(null, revision);
 
-    RequirementBrief brief = DesignExecutionBriefFactory.build(null, revision, List.of(binding));
-
+    String promptText =
+        String.join("\n", brief.inputs()) + "\n" + brief.approvedDraftText();
     assertEquals("HealthProxy", brief.goal());
-    assertTrue(brief.inputs().stream().anyMatch(i -> i.contains("systemId=sys-1")));
+    assertFalse(
+        List.of("sys-1", "grp-1", "spec-1", "op-1").stream().anyMatch(promptText::contains),
+        promptText);
     assertTrue(brief.constraints().stream().anyMatch(c -> c.contains("test-role")));
-    assertTrue(brief.approvedDraftText().contains("integrationOperationId: op-1"));
-    assertTrue(brief.approvedDraftText().contains("Resolved catalog bindings"));
     assertTrue(brief.facts().isEmpty());
   }
 
   @Test
-  void enrichesStoredBriefWithBindingIds() {
+  void preservesStoredBriefWithoutCopyingBindingIds() {
     RequirementBrief stored =
         new RequirementBrief(
             "goal",
@@ -65,23 +55,10 @@ class DesignExecutionBriefFactoryTest {
             null,
             "approved text",
             List.of());
-    CatalogBindingResolution binding =
-        new CatalogBindingResolution(
-            "call-1",
-            CatalogBindingResolution.Source.EXISTING_CATALOG,
-            "sys-9",
-            "grp-9",
-            "spec-9",
-            "op-9",
-            null,
-            "2024.4",
-            "evidence-9");
-
-    RequirementBrief brief =
-        DesignExecutionBriefFactory.build(stored, sampleRevision(), List.of(binding));
+    RequirementBrief brief = DesignExecutionBriefFactory.build(stored, sampleRevision());
 
     assertTrue(brief.approvedDraftText().contains("approved text"));
-    assertTrue(brief.inputs().stream().anyMatch(i -> i.contains("systemId=sys-9")));
+    assertFalse(brief.inputs().stream().anyMatch(i -> i.contains("systemId=sys-9")));
   }
 
   @Test
@@ -110,8 +87,7 @@ class DesignExecutionBriefFactoryTest {
             List.of(),
             List.of(mapping));
 
-    RequirementBrief brief =
-        DesignExecutionBriefFactory.build(stored, sampleRevision(), List.of());
+    RequirementBrief brief = DesignExecutionBriefFactory.build(stored, sampleRevision());
 
     assertTrue(
         brief.dataMappings().stream().anyMatch(item -> item.mappingId().equals("map-init")));
@@ -121,43 +97,10 @@ class DesignExecutionBriefFactoryTest {
   }
 
   @Test
-  void formatsResolvedCatalogBindingsAsPlural() {
-    CatalogBindingResolution first =
-        new CatalogBindingResolution(
-            "step-om",
-            CatalogBindingResolution.Source.EXISTING_CATALOG,
-            "sys-om",
-            "sg-om",
-            "spec-om",
-            "op-result",
-            null,
-            "2024.4",
-            "evidence-om");
-    CatalogBindingResolution second =
-        new CatalogBindingResolution(
-            "step-wfm",
-            CatalogBindingResolution.Source.EXISTING_CATALOG,
-            "sys-wfm",
-            "sg-wfm",
-            "spec-wfm",
-            "op-create",
-            null,
-            "2024.4",
-            "evidence-wfm");
-
-    RequirementBrief brief =
-        DesignExecutionBriefFactory.build(null, sampleRevision(), List.of(first, second));
-
-    assertTrue(brief.approvedDraftText().startsWith("Resolved catalog bindings"));
-    assertTrue(brief.approvedDraftText().contains("serviceCallId: step-om"));
-    assertTrue(brief.approvedDraftText().contains("serviceCallId: step-wfm"));
-  }
-
-  @Test
   void firstTurnCarriesNoRepairEvidence() {
     RequirementBrief withoutRepair =
-        DesignExecutionBriefFactory.build(null, sampleRevision(), List.of(), null, null);
-    RequirementBrief plain = DesignExecutionBriefFactory.build(null, sampleRevision(), List.of());
+        DesignExecutionBriefFactory.build(null, sampleRevision(), null, null);
+    RequirementBrief plain = DesignExecutionBriefFactory.build(null, sampleRevision());
 
     assertEquals(plain.approvedDraftText(), withoutRepair.approvedDraftText());
   }
@@ -179,8 +122,7 @@ class DesignExecutionBriefFactoryTest {
             List.of());
 
     RequirementBrief brief =
-        DesignExecutionBriefFactory.build(
-            null, sampleRevision(), List.of(), repairEvidence, priorGraph);
+        DesignExecutionBriefFactory.build(null, sampleRevision(), repairEvidence, priorGraph);
 
     assertTrue(brief.approvedDraftText().contains("VALIDATION_FAILURE"));
     assertTrue(brief.approvedDraftText().contains("design-execution"));
@@ -197,8 +139,8 @@ class DesignExecutionBriefFactoryTest {
         new StageRepairEvidence("VALIDATION_FAILURE", null, "", "", null);
 
     RequirementBrief brief =
-        DesignExecutionBriefFactory.build(null, sampleRevision(), List.of(), emptyEvidence, null);
-    RequirementBrief plain = DesignExecutionBriefFactory.build(null, sampleRevision(), List.of());
+        DesignExecutionBriefFactory.build(null, sampleRevision(), emptyEvidence, null);
+    RequirementBrief plain = DesignExecutionBriefFactory.build(null, sampleRevision());
 
     assertEquals(plain.approvedDraftText(), brief.approvedDraftText());
   }

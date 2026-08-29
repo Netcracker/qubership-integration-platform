@@ -7,6 +7,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -14,7 +16,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole;
@@ -47,7 +48,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
   public ChainPlanGraph compile(
       ChainSemanticRevision revision,
       CompilerContract contract,
-      List<CatalogBindingResolution> bindings) {
+      List<ResolvedServiceCallBinding> bindings) {
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(contract, "contract");
     Objects.requireNonNull(bindings, "bindings");
@@ -61,7 +62,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
         calls.add(call);
       }
     }
-    Map<String, CatalogBindingResolution> matched = bindingMatcher.match(calls, bindings);
+    bindingMatcher.match(calls, bindings);
 
     Map<String, String> parentByChild = new LinkedHashMap<>();
     for (SemanticContainment containment : revision.containment()) {
@@ -79,7 +80,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       applyRegion(region, extraByNode, orderByNode);
     }
     applyMappingSites(revision, nodesById, extraByNode);
-    applyServiceCallProperties(revision.revisionId(), calls, matched, extraByNode);
+    applyServiceCallProperties(revision.revisionId(), calls, extraByNode);
 
     List<ChainPlanNode> planNodes = new ArrayList<>();
     for (SemanticNode node : revision.nodes()) {
@@ -89,17 +90,22 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     for (SemanticExecutionEdge edge : revision.executionEdges()) {
       planEdges.add(toPlanEdge(edge, ownerByRegionId));
     }
-    return new ChainPlanGraph(
-        "1.0",
-        new ChainSection(
-            revision.chainIdentity(),
-            null,
-            null,
-            null,
-            revision.revisionId(),
-            revision.compilerContractVersion()),
-        List.copyOf(planNodes),
-        List.copyOf(planEdges));
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection(
+                revision.chainIdentity(),
+                null,
+                null,
+                null,
+                revision.revisionId(),
+                revision.compilerContractVersion()),
+            List.copyOf(planNodes),
+            List.copyOf(planEdges));
+    for (ResolvedServiceCallBinding binding : bindings) {
+      graph = ServiceCallCatalogIdentity.upsert(graph, binding);
+    }
+    return graph;
   }
 
   private static ChainPlanNode toPlanNode(
@@ -257,15 +263,10 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
   private static void applyServiceCallProperties(
       String revisionId,
       List<SemanticNode.ServiceCall> calls,
-      Map<String, CatalogBindingResolution> matched,
       Map<String, List<PlanProperty>> extraByNode) {
     for (SemanticNode.ServiceCall call : calls) {
-      CatalogBindingResolution binding = matched.get(call.serviceCallId());
-      addProperty(extraByNode, call.nodeId(), "serviceCallId", call.serviceCallId());
       addProperty(extraByNode, call.nodeId(), "semanticNodeId", call.nodeId());
       addProperty(extraByNode, call.nodeId(), "semanticRevisionId", revisionId);
-      addProperty(
-          extraByNode, call.nodeId(), "integrationOperationId", binding.integrationOperationId());
     }
   }
 

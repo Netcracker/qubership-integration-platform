@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
-import org.qubership.integration.platform.ai.chain.edit.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -89,7 +89,11 @@ public record CompilerExecutionSeed(
             SkillArtifact.of(
                 SkillArtifactType.REQUIREMENT_BRIEF,
                 REQUIREMENT_ANALYZER_SKILL,
-                new SkillArtifactPayload.RequirementBriefPayload(brief))),
+                new SkillArtifactPayload.RequirementBriefPayload(brief)),
+            SkillArtifact.of(
+                SkillArtifactType.SERVICE_CALL_BINDINGS,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.ServiceCallBindingsPayload(List.of()))),
         Set.of(REQUIREMENT_ANALYZER_SKILL));
   }
 
@@ -102,7 +106,8 @@ public record CompilerExecutionSeed(
       String conversationId,
       RequirementBrief brief,
       ChainSemanticRevision revision,
-      ChainPlanGraph graph) {
+      ChainPlanGraph graph,
+      List<ResolvedServiceCallBinding> bindings) {
     Objects.requireNonNull(brief, "requirementBrief");
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(graph, "graph");
@@ -132,7 +137,11 @@ public record CompilerExecutionSeed(
                 SkillArtifactType.CHAIN_STRUCTURE,
                 SEMANTIC_COMPILER_PRODUCER,
                 new SkillArtifactPayload.ChainStructurePayload(
-                    new ChainStructure(graph, List.of(), List.of())))),
+                    new ChainStructure(graph, List.of(), List.of()))),
+            SkillArtifact.of(
+                SkillArtifactType.SERVICE_CALL_BINDINGS,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.ServiceCallBindingsPayload(bindings))),
         Set.of(REQUIREMENT_ANALYZER_SKILL, STRUCTURE_GENERATOR_SKILL));
   }
 
@@ -217,6 +226,19 @@ public record CompilerExecutionSeed(
       }
     }
     return present;
+  }
+
+  /**
+   * Artifact types this seed already holds that a completed compile must still present.
+   *
+   * <p>MATERIALIZATION_MAP is the catalog ownership join. CREATE compile does not produce it. An
+   * edit that started with the map must still have it when the run finishes.
+   */
+  public Set<String> retainedArtifactTypes() {
+    if (presentArtifactTypes().contains(SkillArtifactType.MATERIALIZATION_MAP.name())) {
+      return Set.of(SkillArtifactType.MATERIALIZATION_MAP.name());
+    }
+    return Set.of();
   }
 
   private static String planningSeedText(RequirementBrief brief) {

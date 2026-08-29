@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
@@ -25,7 +27,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagE
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerExecutionSeed;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
@@ -63,7 +64,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
   public CompilerDagExecutionResult execute(
       DesignExecutionPlan approvedPlan,
       ChainSemanticRevision revision,
-      List<CatalogBindingResolution> bindings,
+      List<ResolvedServiceCallBinding> bindings,
       RunManifest runManifest,
       String attemptId,
       StageRepairEvidence repairEvidence,
@@ -78,7 +79,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     List<String> approvedOwningSkillIds = orderedOwningSkillIds(approvedPlan);
     ResolvedCompilerDag executionDag = scopeDag(pin.resolvedDag(), approvedOwningSkillIds);
     String conversationId = resolveConversationId(runManifest.runId());
-    List<CatalogBindingResolution> resolvedBindings =
+    List<ResolvedServiceCallBinding> resolvedBindings =
         bindings == null ? List.of() : List.copyOf(bindings);
     CompilerContract contract =
         contractRepository.require(
@@ -90,11 +91,10 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
         DesignExecutionBriefFactory.build(
             loadStoredBrief(runManifest.runId()),
             revision,
-            resolvedBindings,
             repairEvidence,
             priorGraph);
     CompilerExecutionSeed seed =
-        CompilerExecutionSeed.forCreate(conversationId, brief, revision, graph);
+        CompilerExecutionSeed.forCreate(conversationId, brief, revision, graph, resolvedBindings);
     CompilerDagExecutionRequest request =
         new CompilerDagExecutionRequest(
             runManifest.runId(),
@@ -104,7 +104,6 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             revision,
             executionDag,
             approvedOwningSkillIds,
-            resolvedBindings,
             List.of(),
             seed);
     return engine.execute(request, attemptId, progress).await().indefinitely();
@@ -146,55 +145,145 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
   }
 
   /**
-   * Approved owning skills plus transitive mandatory {@code dependsOn} nodes from the pinned DAG.
+   * Approved owning generators plus their real prerequisites, then assembler and validators.
+   *
+   * <p>The pinned assembler lists every generation skill in {@code dependsOn} via the
+   * {@code all-generation-skills} macro. Walking that list would run quartz, retry, and the rest
+   * on a HealthProxy CREATE. Seed the walk from non-terminal owners only, then attach assembler
+   * and Validation nodes and drop {@code dependsOn} edges that point outside the cut.
    */
   static Set<String> skillClosureIds(
       DesignExecutionPlan plan, ResolvedCompilerDag fullDag) {
-    return Set.copyOf(scopeDag(fullDag, orderedOwningSkillIds(plan)).nodes().stream()
-        .map(ResolvedCompilerNode::skillId)
-        .filter(Objects::nonNull)
-        .toList());
+    LinkedHashSet<String> ids = new LinkedHashSet<>();
+    for (ResolvedCompilerNode node : scopeDag(fullDag, orderedOwningSkillIds(plan)).nodes()) {
+      if (node != null && node.skillId() != null) {
+        ids.add(node.skillId());
+      }
+    }
+    return Set.copyOf(ids);
   }
 
   static ResolvedCompilerDag scopeDag(
       ResolvedCompilerDag fullDag, List<String> approvedOwningSkillIds) {
     Objects.requireNonNull(fullDag, "fullDag");
+    LinkedHashMap<String, ResolvedCompilerNode> byId = indexBySkillId(fullDag);
+    LinkedHashSet<String> closure = generatorClosure(byId, approvedOwningSkillIds);
+    attachExecutionTerminals(fullDag, closure);
+    return new ResolvedCompilerDag(
+        copyScopedNodes(fullDag, closure),
+        copyScopedDependencies(fullDag, closure),
+        fullDag.digest());
+  }
+
+  private static LinkedHashMap<String, ResolvedCompilerNode> indexBySkillId(
+      ResolvedCompilerDag fullDag) {
     LinkedHashMap<String, ResolvedCompilerNode> byId = new LinkedHashMap<>();
     for (ResolvedCompilerNode node : fullDag.nodes()) {
       if (node != null && node.skillId() != null) {
         byId.put(node.skillId(), node);
       }
     }
+    return byId;
+  }
+
+  private static LinkedHashSet<String> generatorClosure(
+      LinkedHashMap<String, ResolvedCompilerNode> byId, List<String> approvedOwningSkillIds) {
     LinkedHashSet<String> closure = new LinkedHashSet<>();
-    ArrayDeque<String> queue = new ArrayDeque<>(approvedOwningSkillIds);
-    while (!queue.isEmpty()) {
-      String skillId = queue.removeFirst();
-      if (!closure.add(skillId)) {
-        continue;
-      }
+    ArrayDeque<String> queue = new ArrayDeque<>();
+    for (String skillId : approvedOwningSkillIds) {
       ResolvedCompilerNode node = byId.get(skillId);
       if (node == null) {
         throw new IllegalStateException(
             "approved owning skill is outside the pinned compiler DAG: " + skillId);
       }
-      for (String dependency : node.dependsOn()) {
-        if (dependency != null && !dependency.isBlank()) {
-          queue.addLast(dependency.trim());
-        }
+      if (!isExecutionTerminal(node)) {
+        queue.addLast(skillId);
       }
     }
-    List<ResolvedCompilerNode> nodes =
-        closure.stream().map(byId::get).filter(Objects::nonNull).toList();
-    Set<String> allowed = Set.copyOf(closure);
-    List<CompilerPipelineDependency> dependencies =
-        fullDag.dependencies().stream()
-            .filter(
-                edge ->
-                    edge != null
-                        && allowed.contains(edge.producerSkillId())
-                        && allowed.contains(edge.consumerSkillId()))
-            .toList();
-    return new ResolvedCompilerDag(nodes, dependencies, fullDag.digest());
+    while (!queue.isEmpty()) {
+      String skillId = queue.removeFirst();
+      ResolvedCompilerNode node = byId.get(skillId);
+      if (!closure.add(skillId) || node == null) {
+        continue;
+      }
+      enqueueDependencies(queue, node);
+    }
+    return closure;
+  }
+
+  private static void enqueueDependencies(ArrayDeque<String> queue, ResolvedCompilerNode node) {
+    for (String dependency : node.dependsOn()) {
+      if (dependency != null && !dependency.isBlank()) {
+        queue.addLast(dependency.trim());
+      }
+    }
+  }
+
+  private static void attachExecutionTerminals(
+      ResolvedCompilerDag fullDag, LinkedHashSet<String> closure) {
+    for (ResolvedCompilerNode node : fullDag.nodes()) {
+      if (isExecutionTerminal(node)) {
+        closure.add(node.skillId());
+      }
+    }
+  }
+
+  private static List<ResolvedCompilerNode> copyScopedNodes(
+      ResolvedCompilerDag fullDag, LinkedHashSet<String> closure) {
+    List<ResolvedCompilerNode> nodes = new ArrayList<>();
+    for (ResolvedCompilerNode node : fullDag.nodes()) {
+      if (node == null || !closure.contains(node.skillId())) {
+        continue;
+      }
+      nodes.add(copyWithFilteredDependsOn(node, closure));
+    }
+    return nodes;
+  }
+
+  private static ResolvedCompilerNode copyWithFilteredDependsOn(
+      ResolvedCompilerNode node, LinkedHashSet<String> closure) {
+    return new ResolvedCompilerNode(
+        node.skillId(),
+        node.compilerPhase(),
+        node.generatorId(),
+        node.consumes(),
+        node.produces(),
+        node.dependsOn().stream().filter(closure::contains).toList(),
+        node.captureTool(),
+        node.applicabilitySignals(),
+        node.readinessSignals(),
+        node.runtimeReady(),
+        node.runtimeReadinessFindings(),
+        node.topologicalLevel(),
+        node.stableTieBreaker(),
+        node.mandatory(),
+        node.executionMode(),
+        node.adapterId(),
+        node.ownership());
+  }
+
+  private static List<CompilerPipelineDependency> copyScopedDependencies(
+      ResolvedCompilerDag fullDag, LinkedHashSet<String> closure) {
+    List<CompilerPipelineDependency> dependencies = new ArrayList<>();
+    for (CompilerPipelineDependency edge : fullDag.dependencies()) {
+      if (edge != null
+          && closure.contains(edge.producerSkillId())
+          && closure.contains(edge.consumerSkillId())) {
+        dependencies.add(edge);
+      }
+    }
+    return dependencies;
+  }
+
+  private static boolean isExecutionTerminal(ResolvedCompilerNode node) {
+    if (node == null || node.skillId() == null) {
+      return false;
+    }
+    if ("cip-chain-assembler".equals(node.skillId())) {
+      return true;
+    }
+    String phase = node.compilerPhase();
+    return phase != null && phase.equals("Validation");
   }
 
   private static CompilerRunPin requirePin(RunManifest runManifest) {

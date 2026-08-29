@@ -11,10 +11,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 
 /**
@@ -133,27 +133,27 @@ public class CatalogBindingMatcher {
    * operation UUID on two occurrences stays two keys. Missing, duplicate, or extra bindings fail
    * fast. Participant names and operation text are not consulted.
    */
-  public Map<String, CatalogBindingResolution> match(
-      List<SemanticNode.ServiceCall> calls, List<CatalogBindingResolution> bindings) {
+  public Map<String, ResolvedServiceCallBinding> match(
+      List<SemanticNode.ServiceCall> calls, List<ResolvedServiceCallBinding> bindings) {
     Objects.requireNonNull(calls, "calls");
     Objects.requireNonNull(bindings, "bindings");
-    Map<String, CatalogBindingResolution> byId = new LinkedHashMap<>();
-    for (CatalogBindingResolution binding : bindings) {
+    Map<String, ResolvedServiceCallBinding> byId = new LinkedHashMap<>();
+    for (ResolvedServiceCallBinding binding : bindings) {
       if (binding == null) {
         throw new IllegalArgumentException("catalog binding is required");
       }
-      CatalogBindingResolution previous = byId.putIfAbsent(binding.serviceCallId(), binding);
+      ResolvedServiceCallBinding previous = byId.putIfAbsent(binding.serviceCallId(), binding);
       if (previous != null) {
         throw new IllegalArgumentException(
             "duplicate catalog binding for serviceCallId=" + binding.serviceCallId());
       }
     }
-    Map<String, CatalogBindingResolution> matched = new LinkedHashMap<>();
+    Map<String, ResolvedServiceCallBinding> matched = new LinkedHashMap<>();
     for (SemanticNode.ServiceCall call : calls) {
       if (call == null) {
         throw new IllegalArgumentException("service call is required");
       }
-      CatalogBindingResolution binding = byId.remove(call.serviceCallId());
+      ResolvedServiceCallBinding binding = byId.remove(call.serviceCallId());
       if (binding == null) {
         throw new IllegalArgumentException(
             "missing catalog binding for serviceCallId=" + call.serviceCallId());

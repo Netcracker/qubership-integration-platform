@@ -1110,13 +1110,15 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       CompilerDagExecutionRequest request,
       SkillWorkspace workspace,
       CompilerDagExecutionResult result) {
-    if (request.semanticRevision() == null) {
-      return;
+    Set<String> required = new LinkedHashSet<>();
+    if (request.semanticRevision() != null) {
+      pinRuntimeDescriptors();
+      validateGraphAgainstContract(request, workspace);
+      CompilerContract contract = contractRepository.require(CompilerContract.V1);
+      required.addAll(contract.requiredArtifacts());
     }
-    pinRuntimeDescriptors();
-    validateGraphAgainstContract(request, workspace);
-    CompilerContract contract = contractRepository.require(CompilerContract.V1);
-    result.requireArtifacts(contract.requiredArtifacts());
+    required.addAll(request.effectiveSeed().retainedArtifactTypes());
+    result.requireArtifacts(required);
   }
 
   private void validateGraphAgainstContract(

@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.ai.skill.workspace;
 
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
-import org.qubership.integration.platform.ai.chain.edit.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.plan.CompilerStatus;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;

@@ -68,9 +68,8 @@ class GeneratorTopologyOwnershipContractTest {
   }
 
   @Test
-  void serviceCallPropertyPatchIsAcceptedWhenTopologyIsDenied() {
+  void serviceCallCatalogIdentityPatchIsRejected() {
     GraphPatchOwnershipPolicy ownership = ownership("cip-service-call-generator");
-    ChainPlanGraph before = graphWithServiceCall();
     GraphPatch patch =
         new GraphPatch(
             "http-service-call-catalog-binding",
@@ -81,24 +80,39 @@ class GeneratorTopologyOwnershipContractTest {
                 new PropertyPatch(
                     GraphPatchOperation.ADD,
                     "call-1",
-                    new PlanProperty("integrationOperationId", "op-1"))),
+                    new PlanProperty("integrationSystemId", "sys-1"))),
             List.of(),
             List.of(),
-            "Bind catalog operation on the existing service-call shell");
+            "Model must not copy catalog identity");
 
-    GraphPatchApplyResult result = applier.apply(context(before, ownership), patch);
+    GraphPatchApplyResult result =
+        applier.apply(context(graphWithServiceCall(), ownership), patch);
+
+    assertFalse(result.validationResult().valid());
+  }
+
+  @Test
+  void serviceCallPropagateContextPatchIsAccepted() {
+    GraphPatchOwnershipPolicy ownership = ownership("cip-service-call-generator");
+    GraphPatch patch =
+        new GraphPatch(
+            "http-service-call-runtime-options",
+            "cip-service-call-generator",
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatch(
+                    GraphPatchOperation.ADD,
+                    "call-1",
+                    new PlanProperty("propagateContext", "true"))),
+            List.of(),
+            List.of(),
+            "Propagate context for the service call");
+
+    GraphPatchApplyResult result =
+        applier.apply(context(graphWithServiceCall(), ownership), patch);
 
     assertTrue(result.validationResult().valid());
-    assertTrue(
-        result.graph().nodes().stream()
-            .anyMatch(
-                node ->
-                    "call-1".equals(node.nodeId())
-                        && node.properties().stream()
-                            .anyMatch(
-                                property ->
-                                    "integrationOperationId".equals(property.key())
-                                        && "op-1".equals(property.value()))));
   }
 
   @ParameterizedTest
@@ -181,7 +195,13 @@ class GeneratorTopologyOwnershipContractTest {
 
   private AddonRuntimeMetadata metadata(String skillId) {
     Path addon =
-        QipKnowledgePackFixturePaths.addonRoot().resolve("skills").resolve(skillId + ".addon.md");
+        "cip-service-call-generator".equals(skillId)
+            ? Path.of(
+                "src/test/resources/qip-knowledge-fixture/addons/skills/"
+                    + "cip-service-call-generator.addon.md")
+            : QipKnowledgePackFixturePaths.addonRoot()
+                .resolve("skills")
+                .resolve(skillId + ".addon.md");
     AddonRuntimeMetadata metadata = parser.parseAddonFile(addon);
     assertNotNull(metadata, "Missing runtime metadata for " + skillId);
     return metadata;

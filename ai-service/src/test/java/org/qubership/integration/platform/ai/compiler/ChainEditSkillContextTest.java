@@ -1,10 +1,12 @@
 package org.qubership.integration.platform.ai.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditDisposition;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
@@ -70,5 +72,54 @@ class ChainEditSkillContextTest {
     assertTrue(rendered.contains("Name no container and no branches"), rendered);
     assertTrue(rendered.contains("Neither address element"), rendered);
     assertFalse(rendered.contains("moveExisting"), rendered);
+  }
+
+  @Test
+  void resolvedCatalogIdentityIsNotCopiedIntoThePrompt() {
+    InMemorySkillWorkspace workspace = new InMemorySkillWorkspace("rebind-service-call");
+    workspace.put(
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_EDIT_INTENT,
+            "chain-edit-intent",
+            new SkillArtifactPayload.ChainEditIntentPayload(
+                new ChainEditIntent(
+                    ChainEditAction.REBIND_SERVICE_CALL,
+                    List.of("node-1"),
+                    "Rebind the service call",
+                    "Create order",
+                    List.of()))));
+    workspace.put(
+        SkillArtifact.of(
+            SkillArtifactType.SERVICE_CALL_BINDINGS,
+            "service-call-bindings",
+            new SkillArtifactPayload.ServiceCallBindingsPayload(
+                List.of(
+                    new ResolvedServiceCallBinding(
+                        "node-1",
+                        "call-1",
+                        "EXTERNAL",
+                        "system-1",
+                        "group-1",
+                        "specification-1",
+                        "operation-1",
+                        "http",
+                        "POST",
+                        "/orders",
+                        "Create order",
+                        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+                        "",
+                        "catalog:/v1/operations/operation-1",
+                        "")))));
+
+    String rendered = ChainEditSkillContext.render(workspace);
+
+    assertNotNull(rendered);
+    assertFalse(rendered.contains("integrationSystemId"), rendered);
+    assertFalse(rendered.contains("integrationSpecificationGroupId"), rendered);
+    assertFalse(rendered.contains("integrationSpecificationId"), rendered);
+    assertFalse(rendered.contains("integrationOperationId"), rendered);
+    assertFalse(rendered.contains("integrationOperationProtocolType"), rendered);
+    assertFalse(rendered.contains("integrationOperationMethod"), rendered);
+    assertFalse(rendered.contains("integrationOperationPath"), rendered);
   }
 }

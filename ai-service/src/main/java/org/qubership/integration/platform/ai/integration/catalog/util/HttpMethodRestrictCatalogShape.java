@@ -1,17 +1,15 @@
 package org.qubership.integration.platform.ai.integration.catalog.util;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Live catalog JSON for {@code httpMethodRestrict} is {@code {"httpMethods":["GET"]}}.
+ * Catalog {@code httpMethodRestrict} is a comma-separated method string ({@code "GET"} or
+ * {@code "GET,POST"}). UI widgets and {@code TriggerUtils} read that string.
  *
- * <p>CIP YAML and CREATE {@code ConfiguredTriggerSet} / GraphPatch plan values still use a method
- * string ({@code "GET"} or {@code "GET,POST"}). Plan properties store that as JSON text. Apply this
- * shape once on the catalog write body so CREATE materialization and harness PATCH both store the
- * object.
+ * <p>Plan properties already store the string. A previous PATCH wrote {@code {httpMethods:[...]}};
+ * flatten that object back to the string on write and when comparing reconcile values.
  */
 public final class HttpMethodRestrictCatalogShape {
 
@@ -43,7 +41,7 @@ public final class HttpMethodRestrictCatalogShape {
   }
 
   /**
-   * Catalog object for a plan string, JSON object, or value that is already {@code {httpMethods}}.
+   * Method string for a plan value, a catalog string, or a legacy {@code {httpMethods}} object.
    * Unknown shapes are left unchanged so validation can reject them.
    */
   public static Object toCatalogValue(Object raw) {
@@ -53,22 +51,14 @@ public final class HttpMethodRestrictCatalogShape {
     if (raw instanceof Map<?, ?> map) {
       Object methods = map.get(HTTP_METHODS);
       if (methods instanceof List<?> list) {
-        return catalogObject(methodNames(list));
+        return joinMethods(methodNames(list));
       }
       return raw;
     }
     if (raw instanceof String text) {
-      return fromMethodString(text);
+      return joinMethods(splitMethods(text));
     }
     return raw;
-  }
-
-  private static Object fromMethodString(String text) {
-    String trimmed = text.trim();
-    if (trimmed.isEmpty()) {
-      return catalogObject(List.of());
-    }
-    return catalogObject(splitMethods(trimmed));
   }
 
   private static List<String> splitMethods(String text) {
@@ -95,9 +85,7 @@ public final class HttpMethodRestrictCatalogShape {
     return methods;
   }
 
-  private static Map<String, Object> catalogObject(List<String> methods) {
-    Map<String, Object> object = new LinkedHashMap<>();
-    object.put(HTTP_METHODS, List.copyOf(methods));
-    return object;
+  private static String joinMethods(List<String> methods) {
+    return String.join(",", methods);
   }
 }

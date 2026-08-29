@@ -428,6 +428,53 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureKeepsResolvedBindingWhenFactOmitsMethodAndPath() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact call = serviceCallFact("call-petstore-inventory", "Petstore Ext", "getInventory");
+    resolutions.remember(
+        "draft-conv",
+        new ServiceCallAssessment(
+            call.serviceCallId(),
+            call.sourceFactId(),
+            new ServiceCallAssessment.Intent(
+                call.text(), "Petstore Ext", "getInventory", "GET", "/store/inventory"),
+            ServiceCallAssessment.Outcome.RESOLVED,
+            new CatalogBindingMatcher.CatalogMatch(
+                "bbf14771-sys",
+                "bbf14771-group",
+                "bbf14771-spec",
+                "bbf14771-spec-getInventory",
+                "Petstore Ext",
+                "http",
+                "GET",
+                "/store/inventory",
+                "getInventory",
+                "catalog-read:getInventory"),
+            List.of(),
+            List.of(),
+            "catalog-read:getInventory",
+            Instant.parse("2026-08-29T11:00:00Z")));
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "HealthProxy calls Petstore Ext getInventory",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            List.of(call)));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertEquals(
+        "bbf14771-spec-getInventory",
+        draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
+  }
+
+  @Test
   void captureIsReadyWhenListedCatalogOperationsCoverEachServiceCall() {
     ConversationCatalogCache cache =
         new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));

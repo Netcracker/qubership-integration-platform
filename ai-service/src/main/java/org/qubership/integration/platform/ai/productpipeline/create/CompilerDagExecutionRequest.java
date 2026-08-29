@@ -5,7 +5,6 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
@@ -18,7 +17,6 @@ public record CompilerDagExecutionRequest(
     ChainSemanticRevision semanticRevision,
     ResolvedCompilerDag executionDag,
     List<String> approvedOwningSkillIds,
-    List<CatalogBindingResolution> catalogBindings,
     List<CompilationArtifacts.Reference> preSatisfiedArtifactRefs,
     CompilerExecutionSeed seed) {
 
@@ -32,7 +30,6 @@ public record CompilerDagExecutionRequest(
     }
     approvedOwningSkillIds =
         approvedOwningSkillIds == null ? List.of() : List.copyOf(approvedOwningSkillIds);
-    catalogBindings = catalogBindings == null ? List.of() : List.copyOf(catalogBindings);
     preSatisfiedArtifactRefs =
         preSatisfiedArtifactRefs == null ? List.of() : List.copyOf(preSatisfiedArtifactRefs);
   }
@@ -47,7 +44,6 @@ public record CompilerDagExecutionRequest(
       ChainSemanticRevision semanticRevision,
       ResolvedCompilerDag executionDag,
       List<String> approvedOwningSkillIds,
-      List<CatalogBindingResolution> catalogBindings,
       List<CompilationArtifacts.Reference> preSatisfiedArtifactRefs) {
     this(
         runId,
@@ -57,7 +53,6 @@ public record CompilerDagExecutionRequest(
         semanticRevision,
         executionDag,
         approvedOwningSkillIds,
-        catalogBindings,
         preSatisfiedArtifactRefs,
         null);
   }

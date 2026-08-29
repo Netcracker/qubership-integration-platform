@@ -25,8 +25,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionPhase;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolutions;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionTrace;
@@ -122,7 +120,6 @@ class CreateChainArtifactContractsTest {
             "CATALOG_BINDING_HINT",
             "DESIGN_PLAN_REPORT",
             "DESIGN_EXECUTION_PLAN",
-            "CATALOG_BINDING_RESOLUTIONS",
             "EXECUTION_TRACE",
             "API_OPERATION_BINDINGS",
             "ORDERED_GRAPH_PATCHES",
@@ -185,22 +182,6 @@ class CreateChainArtifactContractsTest {
 
     DesignExecutionPlan projection = sampleExecutionPlan();
     assertEquals(projection, roundTrip(Kind.DESIGN_EXECUTION_PLAN, projection));
-
-    CatalogBindingResolutions resolutions =
-        new CatalogBindingResolutions(
-            "1",
-            List.of(
-                new CatalogBindingResolution(
-                    "step-call",
-                    CatalogBindingResolution.Source.EXISTING_CATALOG,
-                    "sys-1",
-                    "sg-1",
-                    "spec-1",
-                    "op-1",
-                    "pkg-1",
-                    "2024.4",
-                    "evidence-1")));
-    assertEquals(resolutions, roundTrip(Kind.CATALOG_BINDING_RESOLUTIONS, resolutions));
 
     DesignExecutionTrace trace =
         new DesignExecutionTrace(
@@ -397,9 +378,6 @@ class CreateChainArtifactContractsTest {
     assertTrue(step.dependsOn().isEmpty());
     assertTrue(step.requiredArtifactTypes().isEmpty());
     assertTrue(step.producedArtifactTypes().isEmpty());
-
-    CatalogBindingResolutions resolutions = new CatalogBindingResolutions("1", null);
-    assertTrue(resolutions.resolutions().isEmpty());
 
     DesignExecutionTrace trace = new DesignExecutionTrace("1", null);
     assertTrue(trace.entries().isEmpty());

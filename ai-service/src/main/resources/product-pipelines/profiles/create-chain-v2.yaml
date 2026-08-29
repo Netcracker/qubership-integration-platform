@@ -85,7 +85,6 @@ stages:
     optionalConsumes:
       - { type: catalog-binding-hint, schemaVersion: 1 }
     produces:
-      - { type: catalog-binding-resolutions, schemaVersion: 1 }
       - { type: execution-trace, schemaVersion: 1 }
       - { type: api-operation-bindings, schemaVersion: 1 }
       - { type: ordered-graph-patches, schemaVersion: 1 }
