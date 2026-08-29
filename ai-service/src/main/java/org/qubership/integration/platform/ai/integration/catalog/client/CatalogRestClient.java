@@ -97,6 +97,28 @@ public interface CatalogRestClient {
   @Path("/v1/catalog/chains/{chainId}/snapshots")
   List<SnapshotDto> listSnapshots(@PathParam("chainId") String chainId);
 
+  // ── Deployments (classic catalog paths) ─────────────────────────────────
+
+  @POST
+  @Path("/v1/catalog/chains/{chainId}/deployments")
+  DeploymentDto createDeployment(
+      @PathParam("chainId") String chainId, CreateDeploymentRequest body);
+
+  @GET
+  @Path("/v1/catalog/chains/{chainId}/deployments")
+  List<DeploymentDto> listDeployments(@PathParam("chainId") String chainId);
+
+  @DELETE
+  @Path("/v1/catalog/chains/{chainId}/deployments/{deploymentId}")
+  void deleteDeployment(
+      @PathParam("chainId") String chainId, @PathParam("deploymentId") String deploymentId);
+
+  // ── Domains ──────────────────────────────────────────────────────────────
+
+  @GET
+  @Path("/v1/catalog/domains")
+  List<DomainDto> listDomains();
+
   // ── Element library ──────────────────────────────────────────────────────
 
   @GET
@@ -217,7 +239,21 @@ public interface CatalogRestClient {
   // ── DTOs ─────────────────────────────────────────────────────────────────
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  record ChainDto(String id, String name, String description) {}
+  record CurrentSnapshotDto(String id, String name) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record ChainDto(
+      String id,
+      String name,
+      String description,
+      CurrentSnapshotDto currentSnapshot,
+      boolean unsavedChanges) {
+
+    /** Keeps existing test and call sites on the three-field constructor. */
+    public ChainDto(String id, String name, String description) {
+      this(id, name, description, null, false);
+    }
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record FolderItemDto(
@@ -280,6 +316,27 @@ public interface CatalogRestClient {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SnapshotDto(String id, String name) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record CreateDeploymentRequest(String domain, String snapshotId) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record RuntimeStateDto(String status, String error) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record DeploymentRuntimeDto(Map<String, RuntimeStateDto> states) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record DeploymentDto(
+      String id,
+      String chainId,
+      String snapshotId,
+      String name,
+      String domain,
+      DeploymentRuntimeDto runtime) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record DomainDto(String name, String type) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SystemDto(String id, String name, String type, String protocol) {}
