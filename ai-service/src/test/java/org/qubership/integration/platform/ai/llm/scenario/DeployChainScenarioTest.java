@@ -35,12 +35,14 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentRuntimeDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.RuntimeStateDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.SnapshotDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainSearchRequest;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 class DeployChainScenarioTest {
 
   private static final String CONVERSATION_ID = "conv-deploy-chain";
   private static final String CHAIN_ID = "chain-1";
+  private static final String CATALOG_CHAIN_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
   private static final String SNAPSHOT_ID = "11111111-1111-1111-1111-111111111111";
   private static final String NEW_SNAPSHOT_ID = "22222222-2222-2222-2222-222222222222";
 
@@ -273,6 +275,148 @@ class DeployChainScenarioTest {
   }
 
   @Test
+  void uniqueNameWithoutOpenGraphEmitsOneDeployDecisionWithoutCreate() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.empty());
+    when(catalogRestClient.searchFolderItems(new CatalogChainSearchRequest("Orders")))
+        .thenReturn(List.of(chainFolderItem(CHAIN_ID, "Orders")));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "Orders", "Orders chain", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
+
+    List<ChatEvent> events = eventsFrom("deploy the chain Orders");
+
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).createSnapshot(any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(
+        List.of(ChatEvent.DEPLOY_ACTION, ChatEvent.CANCEL_DEPLOY_ACTION), decision.actions());
+    assertTrue(decision.question().contains("Orders"), decision.question());
+    assertTrue(decision.question().contains(CHAIN_ID), decision.question());
+    assertTrue(decision.question().contains("default"), decision.question());
+    assertFalse(decision.question().toLowerCase().contains("yes"));
+  }
+
+  @Test
+  void uniqueIdWithoutOpenGraphEmitsOneDeployDecisionWithoutCreate() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.empty());
+    when(catalogRestClient.getChain(CATALOG_CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CATALOG_CHAIN_ID,
+                "Orders",
+                "Orders chain",
+                new CurrentSnapshotDto(SNAPSHOT_ID, "V1"),
+                false));
+    when(catalogRestClient.listDeployments(CATALOG_CHAIN_ID)).thenReturn(List.of());
+
+    List<ChatEvent> events = eventsFrom("deploy the chain " + CATALOG_CHAIN_ID);
+
+    verify(catalogRestClient, never()).searchFolderItems(any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(
+        List.of(ChatEvent.DEPLOY_ACTION, ChatEvent.CANCEL_DEPLOY_ACTION), decision.actions());
+    assertTrue(decision.question().contains(CATALOG_CHAIN_ID), decision.question());
+  }
+
+  @Test
+  void twoSearchHitsAskWhichChainAndDoNotDeploy() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.empty());
+    when(catalogRestClient.searchFolderItems(new CatalogChainSearchRequest("Order")))
+        .thenReturn(
+            List.of(
+                chainFolderItem("chain-a", "Orders"),
+                chainFolderItem("chain-b", "Order-copy")));
+
+    List<ChatEvent> events = eventsFrom("deploy the chain Order");
+
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).createSnapshot(any());
+    verify(catalogRestClient, never()).getChain(any());
+    assertEquals(0, events.stream().filter(ChatEvent.Decision.class::isInstance).count());
+    String text = ((ChatEvent.Token) events.get(0)).text();
+    assertTrue(text.toLowerCase().contains("which"), text);
+    assertTrue(text.contains("Orders"), text);
+    assertTrue(text.contains("chain-a"), text);
+    assertTrue(text.contains("Order-copy"), text);
+    assertTrue(text.contains("chain-b"), text);
+  }
+
+  @Test
+  void openGraphWithoutExistingDeploymentDeploysImmediatelyWithoutCard() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    List<ChatEvent> events = eventsFrom("deploy this chain");
+
+    verify(catalogRestClient, never()).searchFolderItems(any());
+    verify(catalogRestClient)
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+    assertEquals(0, events.stream().filter(ChatEvent.Decision.class::isInstance).count());
+    ChatEvent.Token token = (ChatEvent.Token) events.get(0);
+    assertTrue(token.text().contains("DEPLOYED"));
+  }
+
+  @Test
+  void answeringDeployCreatesDeploymentAndReportsStatus() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.empty());
+    when(catalogRestClient.searchFolderItems(new CatalogChainSearchRequest("Orders")))
+        .thenReturn(List.of(chainFolderItem(CHAIN_ID, "Orders")));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "Orders", "Orders chain", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy the chain Orders"));
+    ChatEvent.Token token = tokenFrom(deployRequest(card.artifactHash()));
+
+    verify(catalogRestClient)
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    assertTrue(token.text().contains("DEPLOYED"));
+    assertTrue(token.text().contains("default"));
+    assertTrue(token.text().contains("V1"));
+  }
+
+  @Test
+  void uniqueNameAlreadyOnDefaultEmitsRedeployNotDeploy() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.empty());
+    when(catalogRestClient.searchFolderItems(new CatalogChainSearchRequest("Orders")))
+        .thenReturn(List.of(chainFolderItem(CHAIN_ID, "Orders")));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "Orders", "Orders chain", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    List<ChatEvent> events = eventsFrom("deploy the chain Orders");
+
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(
+        List.of(ChatEvent.REDEPLOY_ACTION, ChatEvent.CANCEL_REDEPLOY_ACTION), decision.actions());
+    assertFalse(decision.actions().contains(ChatEvent.DEPLOY_ACTION));
+  }
+
+  @Test
   void existingDefaultDeploymentEmitsRedeployDecisionWithoutCatalogMutate() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
@@ -478,6 +622,10 @@ class DeployChainScenarioTest {
     return decisions.get(0);
   }
 
+  private static ChatRequest deployRequest(String artifactHash) {
+    return decisionRequest(ChatEvent.DEPLOY_ACTION, artifactHash);
+  }
+
   private static ChatRequest redeployRequest(String artifactHash) {
     return decisionRequest(ChatEvent.REDEPLOY_ACTION, artifactHash);
   }
@@ -513,6 +661,10 @@ class DeployChainScenarioTest {
         "V1",
         domain,
         new DeploymentRuntimeDto(Map.of("engine-0", new RuntimeStateDto(status, null))));
+  }
+
+  private static CatalogRestClient.FolderItemDto chainFolderItem(String chainId, String name) {
+    return new CatalogRestClient.FolderItemDto(chainId, name, name, "CHAIN", List.of());
   }
 
   private static CatalogNonRetryableResponseException catalog400(String json) {

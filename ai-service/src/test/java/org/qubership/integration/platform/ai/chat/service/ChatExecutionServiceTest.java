@@ -85,8 +85,8 @@ class ChatExecutionServiceTest {
   }
 
   @ParameterizedTest
-  @MethodSource("redeployCardActions")
-  void redeployCardActionsRunAsScenarioWithDeployChainHint(String action) {
+  @MethodSource("deployChainCardActions")
+  void deployChainCardActionsRunAsScenarioWithDeployChainHint(String action) {
     ScenarioRouter router = mock(ScenarioRouter.class);
     when(router.route(any(), anyString()))
         .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
@@ -108,8 +108,12 @@ class ChatExecutionServiceTest {
     verify(decisions, never()).apply(anyString(), any());
   }
 
-  static Stream<String> redeployCardActions() {
-    return Stream.of(ChatEvent.REDEPLOY_ACTION, ChatEvent.CANCEL_REDEPLOY_ACTION);
+  static Stream<String> deployChainCardActions() {
+    return Stream.of(
+        ChatEvent.REDEPLOY_ACTION,
+        ChatEvent.CANCEL_REDEPLOY_ACTION,
+        ChatEvent.DEPLOY_ACTION,
+        ChatEvent.CANCEL_DEPLOY_ACTION);
   }
 
   @Test

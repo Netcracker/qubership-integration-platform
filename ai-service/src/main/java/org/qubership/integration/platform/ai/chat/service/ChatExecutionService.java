@@ -85,7 +85,9 @@ public class ChatExecutionService {
     return ChatEvent.IMPORT_ACTION.equals(action)
         || ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action)
         || ChatEvent.REDEPLOY_ACTION.equals(action)
-        || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action);
+        || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action)
+        || ChatEvent.DEPLOY_ACTION.equals(action)
+        || ChatEvent.CANCEL_DEPLOY_ACTION.equals(action);
   }
 
   /** The click names the scenario, so the router does not guess it from transcript wording. */
@@ -100,7 +102,9 @@ public class ChatExecutionService {
       return;
     }
     if (ChatEvent.REDEPLOY_ACTION.equals(action)
-        || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action)) {
+        || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action)
+        || ChatEvent.DEPLOY_ACTION.equals(action)
+        || ChatEvent.CANCEL_DEPLOY_ACTION.equals(action)) {
       request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
     }
   }
