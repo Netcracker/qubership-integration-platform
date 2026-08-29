@@ -176,13 +176,19 @@ public class ChatDecisionService {
     return "";
   }
 
+  public static String transcriptMarker(ChatDecisionCommand command) {
+    return transcriptMarker(command, null);
+  }
+
   /**
    * Marker recorded in the transcript in place of the reader's click.
    *
    * <p>English and stable: the transcript is read by the language model, the button by a person, so
-   * history reads the same whatever language the conversation is in.
+   * history reads the same whatever language the conversation is in. Deploy and redeploy name the
+   * pending domain when the card carried one.
    */
-  public static String transcriptMarker(ChatDecisionCommand command) {
+  public static String transcriptMarker(ChatDecisionCommand command, String domain) {
+    String domainName = domain == null || domain.isBlank() ? "default" : domain;
     String marker =
         switch (command.getAction() == null ? "" : command.getAction()) {
           case ChatEvent.APPROVE_ACTION ->
@@ -191,9 +197,9 @@ public class ChatDecisionService {
               "Requested changes to " + command.getArtifactType();
           case ChatEvent.CREATE_ACTION -> "Create the chain in the catalog";
           case ChatEvent.APPLY_CHAIN_PATCH_ACTION -> "Apply the proposed change to the chain";
-          case ChatEvent.REDEPLOY_ACTION -> "Redeploy the chain on domain default";
+          case ChatEvent.REDEPLOY_ACTION -> "Redeploy the chain on domain " + domainName;
           case ChatEvent.CANCEL_REDEPLOY_ACTION -> "Leave the live deployment unchanged";
-          case ChatEvent.DEPLOY_ACTION -> "Deploy the chain on domain default";
+          case ChatEvent.DEPLOY_ACTION -> "Deploy the chain on domain " + domainName;
           case ChatEvent.CANCEL_DEPLOY_ACTION -> "Do not deploy the chain";
           case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
           default -> "Answered " + command.getAction();

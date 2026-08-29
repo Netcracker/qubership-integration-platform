@@ -46,8 +46,7 @@ public final class UserIntentPatterns {
               + "snapshot\\s+(this\\s+|the\\s+)?chain"
               + ")\\b");
 
-  private static final Pattern DEPLOY_INTENT =
-      Pattern.compile("(?isU)\\b(deploy\\s+(this\\s+|the\\s+)?chain|deploy\\s+it)\\b");
+  private static final Pattern DEPLOY_INTENT = Pattern.compile("(?isU)\\bdeploy\\b");
 
   /**
    * Compact leading-intent budget for deterministic keyword routes (implement). Rich multi-sentence

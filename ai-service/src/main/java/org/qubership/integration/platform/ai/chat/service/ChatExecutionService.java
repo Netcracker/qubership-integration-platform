@@ -18,6 +18,8 @@ import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
@@ -53,6 +55,7 @@ public class ChatExecutionService {
   private final ObjectMapper objectMapper;
   private final ChatMemorySanitizer chatMemorySanitizer;
   private final ChatDecisionService decisionService;
+  private final PendingRedeployStore pendingRedeployStore;
 
   public ChatExecutionService(
       ScenarioRouter router,
@@ -63,8 +66,10 @@ public class ChatExecutionService {
       ProductPipelineArtifactStore artifactStore,
       ObjectMapper objectMapper,
       ChatMemorySanitizer chatMemorySanitizer,
-      ChatDecisionService decisionService) {
+      ChatDecisionService decisionService,
+      PendingRedeployStore pendingRedeployStore) {
     this.decisionService = decisionService;
+    this.pendingRedeployStore = pendingRedeployStore;
     this.router = router;
     this.conversationService = conversationService;
     this.effectiveUserTextService = effectiveUserTextService;
@@ -136,11 +141,22 @@ public class ChatExecutionService {
     chatMemorySanitizer.repairDanglingToolCalls(conversationId);
     if (request.getDecision() != null) {
       // A typed answer needs no attachment or memory resolution: the marker is what the model reads.
+      String domain =
+          pendingRedeployStore
+              .find(conversationId)
+              .map(PendingRedeploy::domain)
+              .orElse(null);
       request.setResolvedEffectiveUserText(
-          ChatDecisionService.transcriptMarker(request.getDecision()));
+          ChatDecisionService.transcriptMarker(request.getDecision(), domain));
       applyScenarioHint(request);
     } else {
       request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
+      if (pendingRedeployStore
+          .find(conversationId)
+          .filter(PendingRedeploy::waitingForDomain)
+          .isPresent()) {
+        request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
+      }
     }
 
     LOG.infof(
