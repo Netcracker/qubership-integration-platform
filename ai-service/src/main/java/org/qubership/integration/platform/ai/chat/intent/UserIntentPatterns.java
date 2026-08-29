@@ -39,6 +39,13 @@ public final class UserIntentPatterns {
               + "show\\s+(the\\s+)?(graph|json|tree|script)"
               + ")\\b");
 
+  private static final Pattern SNAPSHOT_INTENT =
+      Pattern.compile(
+          "(?isU)\\b("
+              + "(take|create|make)\\s+(a\\s+)?snapshot|"
+              + "snapshot\\s+(this\\s+|the\\s+)?chain"
+              + ")\\b");
+
   /**
    * Compact leading-intent budget for deterministic keyword routes (implement). Rich multi-sentence
    * prompts stay weak signals for the capability ladder / LLM classifier.
@@ -105,6 +112,15 @@ public final class UserIntentPatterns {
     }
     String intent = extractLeadingIntent(text);
     return CHAIN_QUESTION.matcher(intent).find();
+  }
+
+  /** Compact snapshot phrasing. Phase routing checks this before the ASK_CHAIN shortcut. */
+  public static boolean matchesSnapshotIntent(String text) {
+    if (!isCompactIntentMessage(text)) {
+      return false;
+    }
+    String intent = extractLeadingIntent(text);
+    return SNAPSHOT_INTENT.matcher(intent).find();
   }
 
   public static String extractLeadingIntent(String userText) {

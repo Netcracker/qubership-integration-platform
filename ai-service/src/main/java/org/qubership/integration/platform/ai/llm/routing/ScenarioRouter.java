@@ -425,7 +425,9 @@ public class ScenarioRouter {
    * what to build and started working on what is built.
    */
   private static boolean isOpenChainScenario(ScenarioType type) {
-    return type == ScenarioType.COMPARE_AND_PATCH || type == ScenarioType.ASK_CHAIN;
+    return type == ScenarioType.COMPARE_AND_PATCH
+        || type == ScenarioType.ASK_CHAIN
+        || type == ScenarioType.DEPLOY_CHAIN;
   }
 
   private static boolean isCreateOwnedScenario(ScenarioType type) {
