@@ -80,13 +80,12 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   public ChainDto createChain(CatalogCreateChainRequest body) {
     String chainId = UUID.randomUUID().toString();
     chains.put(chainId, new ChainState(chainId, body.name(), body.description()));
-    return new ChainDto(chainId, body.name(), body.description());
+    return toChainDto(requireChain(chainId));
   }
 
   @Override
   public ChainDto getChain(String chainId) {
-    ChainState chain = requireChain(chainId);
-    return new ChainDto(chain.chainId, chain.name, chain.description);
+    return toChainDto(requireChain(chainId));
   }
 
   @Override
@@ -101,12 +100,48 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
 
   @Override
   public SnapshotDto createSnapshot(String chainId) {
-    throw new UnsupportedOperationException("createSnapshot");
+    ChainState chain = requireChain(chainId);
+    String name = "V" + (chain.snapshots.size() + 1);
+    SnapshotDto snapshot = new SnapshotDto(UUID.randomUUID().toString(), name);
+    chain.snapshots.add(snapshot);
+    chain.currentSnapshot = snapshot;
+    chain.unsavedChanges = false;
+    return snapshot;
   }
 
   @Override
   public List<SnapshotDto> listSnapshots(String chainId) {
-    throw new UnsupportedOperationException("listSnapshots");
+    return List.copyOf(requireChain(chainId).snapshots);
+  }
+
+  @Override
+  public DeploymentDto createDeployment(String chainId, CreateDeploymentRequest body) {
+    ChainState chain = requireChain(chainId);
+    DeploymentDto deployment =
+        new DeploymentDto(
+            UUID.randomUUID().toString(),
+            chainId,
+            body.snapshotId(),
+            body.snapshotId(),
+            body.domain(),
+            null);
+    chain.deployments.add(deployment);
+    return deployment;
+  }
+
+  @Override
+  public List<DeploymentDto> listDeployments(String chainId) {
+    return List.copyOf(requireChain(chainId).deployments);
+  }
+
+  @Override
+  public void deleteDeployment(String chainId, String deploymentId) {
+    requireChain(chainId).deployments.removeIf(deployment -> deployment.id().equals(deploymentId));
+  }
+
+  @Override
+  public List<DomainDto> listDomains() {
+    return List.of(new DomainDto("default", "CLASSIC"));
   }
 
   @Override
@@ -447,6 +482,15 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
     return copy;
   }
 
+  private ChainDto toChainDto(ChainState chain) {
+    CurrentSnapshotDto current =
+        chain.currentSnapshot == null
+            ? null
+            : new CurrentSnapshotDto(chain.currentSnapshot.id(), chain.currentSnapshot.name());
+    return new ChainDto(
+        chain.chainId, chain.name, chain.description, current, chain.unsavedChanges);
+  }
+
   private static String blankToNull(String value) {
     if (value == null || value.isBlank()) {
       return null;
@@ -460,6 +504,10 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
     private final String description;
     private final Map<String, StoredElement> elements = new LinkedHashMap<>();
     private final Map<String, StoredDependency> dependencies = new LinkedHashMap<>();
+    private final List<SnapshotDto> snapshots = new ArrayList<>();
+    private final List<DeploymentDto> deployments = new ArrayList<>();
+    private SnapshotDto currentSnapshot;
+    private boolean unsavedChanges;
 
     private ChainState(String chainId, String name, String description) {
       this.chainId = chainId;
