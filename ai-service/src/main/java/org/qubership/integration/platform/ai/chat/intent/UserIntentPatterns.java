@@ -46,6 +46,9 @@ public final class UserIntentPatterns {
               + "snapshot\\s+(this\\s+|the\\s+)?chain"
               + ")\\b");
 
+  private static final Pattern DEPLOY_INTENT =
+      Pattern.compile("(?isU)\\b(deploy\\s+(this\\s+|the\\s+)?chain|deploy\\s+it)\\b");
+
   /**
    * Compact leading-intent budget for deterministic keyword routes (implement). Rich multi-sentence
    * prompts stay weak signals for the capability ladder / LLM classifier.
@@ -121,6 +124,18 @@ public final class UserIntentPatterns {
     }
     String intent = extractLeadingIntent(text);
     return SNAPSHOT_INTENT.matcher(intent).find();
+  }
+
+  /**
+   * Compact deploy phrasing. Phase routing checks this before the ASK_CHAIN shortcut when a chain
+   * is open. Snapshot wording is a separate matcher so it is not stolen.
+   */
+  public static boolean matchesDeployIntent(String text) {
+    if (!isCompactIntentMessage(text)) {
+      return false;
+    }
+    String intent = extractLeadingIntent(text);
+    return DEPLOY_INTENT.matcher(intent).find();
   }
 
   public static String extractLeadingIntent(String userText) {
