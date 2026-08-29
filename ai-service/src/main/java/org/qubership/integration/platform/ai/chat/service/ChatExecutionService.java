@@ -83,7 +83,26 @@ public class ChatExecutionService {
   /** Cards owned by a scenario rather than by the CREATE facade, answered by that scenario. */
   private static boolean runsAsScenario(String action) {
     return ChatEvent.IMPORT_ACTION.equals(action)
-        || ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action);
+        || ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action)
+        || ChatEvent.REDEPLOY_ACTION.equals(action)
+        || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action);
+  }
+
+  /** The click names the scenario, so the router does not guess it from transcript wording. */
+  private static void applyScenarioHint(ChatRequest request) {
+    String action = request.getDecision().getAction();
+    if (ChatEvent.IMPORT_ACTION.equals(action)) {
+      request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
+      return;
+    }
+    if (ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action)) {
+      request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
+      return;
+    }
+    if (ChatEvent.REDEPLOY_ACTION.equals(action)
+        || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action)) {
+      request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
+    }
   }
 
   private Multi<ChatEvent> openGate(String conversationId) {
@@ -115,14 +134,7 @@ public class ChatExecutionService {
       // A typed answer needs no attachment or memory resolution: the marker is what the model reads.
       request.setResolvedEffectiveUserText(
           ChatDecisionService.transcriptMarker(request.getDecision()));
-      if (ChatEvent.IMPORT_ACTION.equals(request.getDecision().getAction())) {
-        // The import is a scenario rather than a pipeline command, so the click states the
-        // scenario outright instead of leaving it to be guessed from the words.
-        request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
-      }
-      if (ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(request.getDecision().getAction())) {
-        request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
-      }
+      applyScenarioHint(request);
     } else {
       request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
     }

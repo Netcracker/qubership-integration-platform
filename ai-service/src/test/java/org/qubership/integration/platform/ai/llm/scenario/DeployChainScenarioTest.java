@@ -1,9 +1,11 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,8 +20,11 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
@@ -49,7 +54,12 @@ class DeployChainScenarioTest {
     catalogRestClient = mock(CatalogRestClient.class);
     scenario =
         new DeployChainScenario(
-            chainContextExtractor, catalogRestClient, new ObjectMapper(), 3, 0L);
+            chainContextExtractor,
+            catalogRestClient,
+            new ObjectMapper(),
+            new PendingRedeployStore(),
+            3,
+            0L);
   }
 
   @Test
@@ -263,9 +273,13 @@ class DeployChainScenarioTest {
   }
 
   @Test
-  void existingDefaultDeploymentDoesNotRedeployOrEmitDecision() {
+  void existingDefaultDeploymentEmitsRedeployDecisionWithoutCatalogMutate() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
     when(catalogRestClient.listDeployments(CHAIN_ID))
         .thenReturn(List.of(deployment("Default", SNAPSHOT_ID, "DEPLOYED")));
 
@@ -273,10 +287,119 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient, never()).createDeployment(any(), any());
-    assertTrue(events.stream().noneMatch(ChatEvent.Decision.class::isInstance));
-    String text = tokenText(events);
-    assertTrue(text.toLowerCase().contains("already"));
-    assertTrue(text.contains("default"));
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(
+        List.of(ChatEvent.REDEPLOY_ACTION, ChatEvent.CANCEL_REDEPLOY_ACTION), decision.actions());
+    assertTrue(decision.question().contains("demo"), decision.question());
+    assertTrue(decision.question().contains(CHAIN_ID), decision.question());
+    assertTrue(decision.question().contains("default"), decision.question());
+    assertTrue(decision.question().toLowerCase().contains("reuse"), decision.question());
+    assertTrue(decision.question().contains("V1"), decision.question());
+    assertFalse(decision.question().toLowerCase().contains("yes"));
+  }
+
+  @Test
+  void openGraphWithExistingDeploymentStillEmitsDecisionWithoutMutating() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), true));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    List<ChatEvent> events = eventsFrom("deploy this chain");
+
+    verify(catalogRestClient, never()).createSnapshot(any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(
+        List.of(ChatEvent.REDEPLOY_ACTION, ChatEvent.CANCEL_REDEPLOY_ACTION), decision.actions());
+    assertTrue(decision.question().toLowerCase().contains("new snapshot"), decision.question());
+  }
+
+  @Test
+  void answeringRedeployDeletesThenCreatesAndReportsStatus() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    ChatEvent.Token token = tokenFrom(redeployRequest(card.artifactHash()));
+
+    InOrder order = inOrder(catalogRestClient);
+    order.verify(catalogRestClient).deleteDeployment(CHAIN_ID, "dep-1");
+    order.verify(catalogRestClient)
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+    verify(catalogRestClient, never()).createSnapshot(any());
+    assertTrue(token.text().contains("DEPLOYED"));
+    assertTrue(token.text().contains("default"));
+    assertTrue(token.text().contains("V1"));
+  }
+
+  @Test
+  void answeringRedeployStopsOnSnapshot400WithoutDelete() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), true));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+    when(catalogRestClient.createSnapshot(CHAIN_ID))
+        .thenThrow(
+            catalog400(
+                """
+                {
+                  "errorMessage": "Fields are not properly defined or require mandatory connection",
+                  "details": {
+                    "chainId": "chain-1",
+                    "elementId": "el-http-1",
+                    "elementName": "HTTP Trigger"
+                  }
+                }
+                """));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    String text = replyTextFrom(redeployRequest(card.artifactHash()));
+
+    verify(catalogRestClient).createSnapshot(CHAIN_ID);
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    assertTrue(text.contains("Fields are not properly defined or require mandatory connection"));
+    assertFalse(text.contains("DEPLOYED"));
+  }
+
+  @Test
+  void answeringCancelLeavesLiveDeploymentAndIgnoresStaleRedeploy() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    ChatEvent.Token cancelToken = tokenFrom(cancelRequest(card.artifactHash()));
+    ChatEvent.Token stale = tokenFrom(redeployRequest(card.artifactHash()));
+
+    verify(catalogRestClient, never()).createSnapshot(any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    assertTrue(cancelToken.text().toLowerCase().contains("unchanged"), cancelToken.text());
+    assertFalse(stale.text().contains("DEPLOYED"));
   }
 
   @Test
@@ -303,9 +426,13 @@ class DeployChainScenarioTest {
   }
 
   private ChatEvent.Token tokenFrom(String message) {
+    return tokenFrom(chatRequest(message));
+  }
+
+  private ChatEvent.Token tokenFrom(ChatRequest request) {
     AssertSubscriber<ChatEvent> sub =
         scenario
-            .handle(chatRequest(message), CONVERSATION_ID, ScenarioType.DEPLOY_CHAIN)
+            .handle(request, CONVERSATION_ID, ScenarioType.DEPLOY_CHAIN)
             .subscribe()
             .withSubscriber(AssertSubscriber.create(1));
     sub.awaitCompletion();
@@ -313,7 +440,11 @@ class DeployChainScenarioTest {
   }
 
   private String replyTextFrom(String message) {
-    ChatEvent event = eventsFrom(message).get(0);
+    return replyTextFrom(chatRequest(message));
+  }
+
+  private String replyTextFrom(ChatRequest request) {
+    ChatEvent event = eventsFrom(request).get(0);
     if (event instanceof ChatEvent.Token token) {
       return token.text();
     }
@@ -324,21 +455,44 @@ class DeployChainScenarioTest {
   }
 
   private List<ChatEvent> eventsFrom(String message) {
+    return eventsFrom(chatRequest(message));
+  }
+
+  private List<ChatEvent> eventsFrom(ChatRequest request) {
     AssertSubscriber<ChatEvent> sub =
         scenario
-            .handle(chatRequest(message), CONVERSATION_ID, ScenarioType.DEPLOY_CHAIN)
+            .handle(request, CONVERSATION_ID, ScenarioType.DEPLOY_CHAIN)
             .subscribe()
             .withSubscriber(AssertSubscriber.create(10));
     sub.awaitCompletion();
     return sub.getItems();
   }
 
-  private static String tokenText(List<ChatEvent> events) {
-    return events.stream()
-        .filter(ChatEvent.Token.class::isInstance)
-        .map(event -> ((ChatEvent.Token) event).text())
-        .findFirst()
-        .orElse("");
+  private static ChatEvent.Decision onlyDecision(List<ChatEvent> events) {
+    List<ChatEvent.Decision> decisions =
+        events.stream()
+            .filter(ChatEvent.Decision.class::isInstance)
+            .map(ChatEvent.Decision.class::cast)
+            .toList();
+    assertEquals(1, decisions.size(), () -> "expected one Decision, got " + events);
+    return decisions.get(0);
+  }
+
+  private static ChatRequest redeployRequest(String artifactHash) {
+    return decisionRequest(ChatEvent.REDEPLOY_ACTION, artifactHash);
+  }
+
+  private static ChatRequest cancelRequest(String artifactHash) {
+    return decisionRequest(ChatEvent.CANCEL_REDEPLOY_ACTION, artifactHash);
+  }
+
+  private static ChatRequest decisionRequest(String action, String artifactHash) {
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(action);
+    command.setArtifactHash(artifactHash);
+    ChatRequest request = new ChatRequest();
+    request.setDecision(command);
+    return request;
   }
 
   private static ChatRequest chatRequest(String text) {

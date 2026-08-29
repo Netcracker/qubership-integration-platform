@@ -7,9 +7,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.intent.UserIntentPatterns;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
@@ -22,6 +25,8 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRes
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @ApplicationScoped
 @ForScenario(ScenarioType.DEPLOY_CHAIN)
@@ -37,8 +42,10 @@ public class DeployChainScenario implements ScenarioHandler {
       "I can take a snapshot of this chain. Deploy, undeploy, and deployment status"
           + " are not available.";
 
-  private static final String ALREADY_DEPLOYED_MESSAGE =
-      "This chain is already deployed on domain default.";
+  private static final String REDEPLOY_GONE_MESSAGE = "That redeploy is no longer on offer.";
+
+  private static final String CANCEL_UNCHANGED_MESSAGE =
+      "The live deployment on domain default is unchanged.";
 
   private static final String DEFAULT_DOMAIN = "default";
   private static final String STATUS_DEPLOYED = "DEPLOYED";
@@ -50,6 +57,7 @@ public class DeployChainScenario implements ScenarioHandler {
   private final ChainContextExtractor chainContextExtractor;
   private final CatalogRestClient catalogRestClient;
   private final ObjectMapper objectMapper;
+  private final PendingRedeployStore pendingRedeployStore;
   private final int pollAttempts;
   private final long pollDelayMillis;
 
@@ -57,11 +65,13 @@ public class DeployChainScenario implements ScenarioHandler {
   public DeployChainScenario(
       ChainContextExtractor chainContextExtractor,
       @RestClient CatalogRestClient catalogRestClient,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      PendingRedeployStore pendingRedeployStore) {
     this(
         chainContextExtractor,
         catalogRestClient,
         objectMapper,
+        pendingRedeployStore,
         DEFAULT_POLL_ATTEMPTS,
         DEFAULT_POLL_DELAY_MS);
   }
@@ -70,11 +80,13 @@ public class DeployChainScenario implements ScenarioHandler {
       ChainContextExtractor chainContextExtractor,
       CatalogRestClient catalogRestClient,
       ObjectMapper objectMapper,
+      PendingRedeployStore pendingRedeployStore,
       int pollAttempts,
       long pollDelayMillis) {
     this.chainContextExtractor = chainContextExtractor;
     this.catalogRestClient = catalogRestClient;
     this.objectMapper = objectMapper;
+    this.pendingRedeployStore = pendingRedeployStore;
     this.pollAttempts = pollAttempts;
     this.pollDelayMillis = pollDelayMillis;
   }
@@ -82,6 +94,14 @@ public class DeployChainScenario implements ScenarioHandler {
   @Override
   public Multi<ChatEvent> handle(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
+    ChatDecisionCommand decision = request == null ? null : request.getDecision();
+    if (decision != null && ChatEvent.REDEPLOY_ACTION.equals(decision.getAction())) {
+      return applyRedeploy(conversationId, decision);
+    }
+    if (decision != null && ChatEvent.CANCEL_REDEPLOY_ACTION.equals(decision.getAction())) {
+      return cancelRedeploy(conversationId, decision);
+    }
+
     String userMessage = request != null ? request.getEffectiveUserText() : "";
     String chainId =
         chainContextExtractor.resolveChainId(request, conversationId).orElse(null);
@@ -136,24 +156,14 @@ public class DeployChainScenario implements ScenarioHandler {
     LOG.infof("DEPLOY_CHAIN deploy conversationId=%s chainId=%s", conversationId, chainId);
     try {
       List<DeploymentDto> existing = catalogRestClient.listDeployments(chainId);
-      if (existing.stream().anyMatch(DeployChainScenario::isDefaultDomain)) {
-        return Multi.createFrom().item(ChatEvent.token(ALREADY_DEPLOYED_MESSAGE));
+      Optional<DeploymentDto> onDefault =
+          existing.stream().filter(DeployChainScenario::isDefaultDomain).findFirst();
+      if (onDefault.isPresent()) {
+        return offerRedeploy(conversationId, chainId, onDefault.get());
       }
 
       SnapshotDto snapshot = resolveBareDeploySnapshot(chainId);
-      catalogRestClient.createDeployment(
-          chainId, new CreateDeploymentRequest(DEFAULT_DOMAIN, snapshot.id()));
-      String status = pollDeploymentStatus(chainId);
-      return Multi.createFrom()
-          .item(
-              ChatEvent.token(
-                  "Deployed snapshot "
-                      + snapshot.name()
-                      + " (id: "
-                      + snapshot.id()
-                      + ") to domain default. Status: "
-                      + status
-                      + "."));
+      return deploySnapshot(chainId, snapshot);
     } catch (CatalogNonRetryableResponseException e) {
       LOG.warnf(
           e,
@@ -167,6 +177,121 @@ public class DeployChainScenario implements ScenarioHandler {
       return Multi.createFrom()
           .item(ChatEvent.error("Failed to deploy this chain: " + e.getMessage()));
     }
+  }
+
+  private Multi<ChatEvent> offerRedeploy(
+      String conversationId, String chainId, DeploymentDto existing) {
+    String operationId = UUID.randomUUID().toString();
+    pendingRedeployStore.put(
+        conversationId,
+        new PendingRedeploy(chainId, DEFAULT_DOMAIN, existing.id(), operationId));
+    return Multi.createFrom()
+        .item(ChatEvent.redeployDecision(operationId, redeployQuestion(chainId)));
+  }
+
+  private String redeployQuestion(String chainId) {
+    ChainDto chain = catalogRestClient.getChain(chainId);
+    return "Chain "
+        + chainLabel(chain, chainId)
+        + " is already deployed on domain default. "
+        + snapshotActionText(chain, chainId)
+        + " Replace the live deployment?";
+  }
+
+  private static String chainLabel(ChainDto chain, String chainId) {
+    String name = chain.name();
+    if (name == null || name.isBlank()) {
+      return chainId;
+    }
+    return name + " (" + chainId + ")";
+  }
+
+  private String snapshotActionText(ChainDto chain, String chainId) {
+    if (chain.unsavedChanges()) {
+      return "Redeploying will build a new snapshot.";
+    }
+    if (chain.currentSnapshot() != null) {
+      return reuseSnapshotText(chain.currentSnapshot().name());
+    }
+    List<SnapshotDto> listed = catalogRestClient.listSnapshots(chainId);
+    if (!listed.isEmpty()) {
+      return reuseSnapshotText(listed.get(listed.size() - 1).name());
+    }
+    return "Redeploying will build a new snapshot.";
+  }
+
+  private static String reuseSnapshotText(String snapshotName) {
+    if (snapshotName == null || snapshotName.isBlank()) {
+      return "Redeploying will reuse the current snapshot.";
+    }
+    return "Redeploying will reuse snapshot " + snapshotName + ".";
+  }
+
+  private Multi<ChatEvent> applyRedeploy(String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    if (pending.isEmpty()) {
+      return Multi.createFrom().item(ChatEvent.token(REDEPLOY_GONE_MESSAGE));
+    }
+    PendingRedeploy replace = pending.get();
+    LOG.infof(
+        "DEPLOY_CHAIN redeploy conversationId=%s chainId=%s deploymentId=%s",
+        conversationId, replace.chainId(), replace.existingDeploymentId());
+    try {
+      SnapshotDto snapshot = resolveBareDeploySnapshot(replace.chainId());
+      catalogRestClient.deleteDeployment(replace.chainId(), replace.existingDeploymentId());
+      Multi<ChatEvent> result = deploySnapshot(replace.chainId(), snapshot);
+      pendingRedeployStore.clear(conversationId);
+      return result;
+    } catch (CatalogNonRetryableResponseException e) {
+      LOG.warnf(
+          e,
+          "DEPLOY_CHAIN redeploy refused conversationId=%s chainId=%s",
+          conversationId,
+          replace.chainId());
+      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
+    } catch (RuntimeException e) {
+      LOG.errorf(
+          e,
+          "DEPLOY_CHAIN redeploy failed conversationId=%s chainId=%s",
+          conversationId,
+          replace.chainId());
+      return Multi.createFrom()
+          .item(ChatEvent.error("Failed to deploy this chain: " + e.getMessage()));
+    }
+  }
+
+  private Multi<ChatEvent> cancelRedeploy(String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    if (pending.isEmpty()) {
+      return Multi.createFrom().item(ChatEvent.token(REDEPLOY_GONE_MESSAGE));
+    }
+    pendingRedeployStore.clear(conversationId);
+    return Multi.createFrom().item(ChatEvent.token(CANCEL_UNCHANGED_MESSAGE));
+  }
+
+  private Optional<PendingRedeploy> matchingPending(
+      String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending = pendingRedeployStore.find(conversationId);
+    if (pending.isEmpty() || !pending.get().operationId().equals(decision.getArtifactHash())) {
+      return Optional.empty();
+    }
+    return pending;
+  }
+
+  private Multi<ChatEvent> deploySnapshot(String chainId, SnapshotDto snapshot) {
+    catalogRestClient.createDeployment(
+        chainId, new CreateDeploymentRequest(DEFAULT_DOMAIN, snapshot.id()));
+    String status = pollDeploymentStatus(chainId);
+    return Multi.createFrom()
+        .item(
+            ChatEvent.token(
+                "Deployed snapshot "
+                    + snapshot.name()
+                    + " (id: "
+                    + snapshot.id()
+                    + ") to domain default. Status: "
+                    + status
+                    + "."));
   }
 
   private SnapshotDto resolveBareDeploySnapshot(String chainId) {
