@@ -41,6 +41,12 @@ public sealed interface ChatEvent {
   /** Leaves the chain undeployed. Distinct from cancel-redeploy, which keeps a live deployment. */
   String CANCEL_DEPLOY_ACTION = "cancel-deploy";
 
+  /** Removes a live deployment after the reader confirms: irreversible, so never a model's. */
+  String UNDEPLOY_ACTION = "undeploy-chain";
+
+  /** Leaves the live deployment in place. Distinct from cancel-deploy, which never deployed. */
+  String CANCEL_UNDEPLOY_ACTION = "cancel-undeploy";
+
   /** Artifact type a chain-patch card binds to. */
   String CHAIN_PATCH_ARTIFACT = "CHAIN_PATCH";
 
@@ -49,6 +55,9 @@ public sealed interface ChatEvent {
 
   /** Artifact type a first-deploy card binds to. */
   String DEPLOY_ARTIFACT = "DEPLOY";
+
+  /** Artifact type an undeploy card binds to. */
+  String UNDEPLOY_ARTIFACT = "UNDEPLOY";
 
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
@@ -273,6 +282,26 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(DEPLOY_ACTION, CANCEL_DEPLOY_ACTION));
+  }
+
+  /**
+   * A pending removal of a live deployment, offered as its own decision.
+   *
+   * <p>Bound to the pending operation it describes, so an answer to a card the conversation has
+   * moved past cannot remove a deployment the reader never confirmed.
+   */
+  static ChatEvent undeployDecision(String operationId, String question) {
+    Objects.requireNonNull(operationId, "operationId");
+    return new Decision(
+        "undeploy:" + operationId,
+        APPROVE_ACTION,
+        question == null ? "" : question.strip(),
+        UNDEPLOY_ARTIFACT,
+        operationId,
+        0L,
+        null,
+        List.of(),
+        List.of(UNDEPLOY_ACTION, CANCEL_UNDEPLOY_ACTION));
   }
 
   /**

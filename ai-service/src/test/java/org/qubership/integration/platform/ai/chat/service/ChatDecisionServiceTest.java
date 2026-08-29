@@ -196,6 +196,30 @@ class ChatDecisionServiceTest {
             command(ChatEvent.CANCEL_DEPLOY_ACTION, "DEPLOY", "op-1", null)));
   }
 
+  @Test
+  void markerNamesUndeployWithoutGuessingAtWording() {
+    assertEquals(
+        "Undeploy the chain from domain default",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.UNDEPLOY_ACTION, "UNDEPLOY", "op-1", null)));
+  }
+
+  @Test
+  void markerNamesUndeployOnPendingDomain() {
+    assertEquals(
+        "Undeploy the chain from domain prod",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.UNDEPLOY_ACTION, "UNDEPLOY", "op-1", null), "prod"));
+  }
+
+  @Test
+  void markerNamesCancelUndeployWithoutGuessingAtWording() {
+    assertEquals(
+        "Leave the live deployment in place",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.CANCEL_UNDEPLOY_ACTION, "UNDEPLOY", "op-1", null)));
+  }
+
   /**
    * Creating the chain can fail after the plan was approved. The run must stay at the
    * implementation gate with creation as its only action, never in a half-state the reader cannot

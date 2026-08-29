@@ -162,7 +162,9 @@ class ChatExecutionServiceTest {
         ChatEvent.REDEPLOY_ACTION,
         ChatEvent.CANCEL_REDEPLOY_ACTION,
         ChatEvent.DEPLOY_ACTION,
-        ChatEvent.CANCEL_DEPLOY_ACTION);
+        ChatEvent.CANCEL_DEPLOY_ACTION,
+        ChatEvent.UNDEPLOY_ACTION,
+        ChatEvent.CANCEL_UNDEPLOY_ACTION);
   }
 
   @Test

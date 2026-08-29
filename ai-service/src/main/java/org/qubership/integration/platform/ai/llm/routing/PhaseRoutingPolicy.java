@@ -40,6 +40,14 @@ public final class PhaseRoutingPolicy {
       return Optional.of(ScenarioType.DEPLOY_CHAIN);
     }
 
+    if (UserIntentPatterns.matchesDeploymentStatusIntent(msg)) {
+      return Optional.of(ScenarioType.DEPLOY_CHAIN);
+    }
+
+    if (UserIntentPatterns.matchesUndeployIntent(msg)) {
+      return Optional.of(ScenarioType.DEPLOY_CHAIN);
+    }
+
     if (hasChainContext && UserIntentPatterns.matchesChainQuestion(msg)) {
       return Optional.of(ScenarioType.ASK_CHAIN);
     }

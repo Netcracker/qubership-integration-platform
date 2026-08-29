@@ -184,8 +184,8 @@ public class ChatDecisionService {
    * Marker recorded in the transcript in place of the reader's click.
    *
    * <p>English and stable: the transcript is read by the language model, the button by a person, so
-   * history reads the same whatever language the conversation is in. Deploy and redeploy name the
-   * pending domain when the card carried one.
+   * history reads the same whatever language the conversation is in. Deploy, redeploy, and undeploy
+   * name the pending domain when the card carried one.
    */
   public static String transcriptMarker(ChatDecisionCommand command, String domain) {
     String domainName = domain == null || domain.isBlank() ? "default" : domain;
@@ -201,6 +201,8 @@ public class ChatDecisionService {
           case ChatEvent.CANCEL_REDEPLOY_ACTION -> "Leave the live deployment unchanged";
           case ChatEvent.DEPLOY_ACTION -> "Deploy the chain on domain " + domainName;
           case ChatEvent.CANCEL_DEPLOY_ACTION -> "Do not deploy the chain";
+          case ChatEvent.UNDEPLOY_ACTION -> "Undeploy the chain from domain " + domainName;
+          case ChatEvent.CANCEL_UNDEPLOY_ACTION -> "Leave the live deployment in place";
           case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
           default -> "Answered " + command.getAction();
         };

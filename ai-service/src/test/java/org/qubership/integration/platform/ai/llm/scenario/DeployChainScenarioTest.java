@@ -141,15 +141,16 @@ class DeployChainScenarioTest {
   }
 
   @Test
-  void nonSnapshotTurnDoesNotCreateSnapshot() {
+  void unrelatedTurnDoesNotCreateSnapshot() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
 
-    ChatEvent.Token token = tokenFrom("undeploy this chain");
+    ChatEvent.Token token = tokenFrom("hello");
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient, never()).listSnapshots(any());
     verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
     assertTrue(token.text().toLowerCase().contains("snapshot"));
   }
 
@@ -797,6 +798,180 @@ class DeployChainScenarioTest {
   }
 
   @Test
+  void statusWithTwoDeployedPodsReportsDomainAndDeployed() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(twoPodDeployment("default", SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Token token = tokenFrom("deployment status");
+
+    verify(catalogRestClient).listDeployments(CHAIN_ID);
+    verify(catalogRestClient, never()).createSnapshot(any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    assertTrue(token.text().contains("DEPLOYED"), token.text());
+    assertTrue(token.text().contains("default"), token.text());
+  }
+
+  @Test
+  void statusWithNoDeploymentsReportsNotDeployed() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
+
+    ChatEvent.Token token = tokenFrom("is it deployed");
+
+    verify(catalogRestClient).listDeployments(CHAIN_ID);
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    assertTrue(token.text().toLowerCase().contains("not deployed"), token.text());
+    assertFalse(token.text().contains("DEPLOYED"));
+  }
+
+  @Test
+  void statusCallsListDeploymentsOnEveryAsk() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Token first = tokenFrom("where is this chain deployed");
+    ChatEvent.Token second = tokenFrom("deployment status");
+
+    verify(catalogRestClient, org.mockito.Mockito.times(2)).listDeployments(CHAIN_ID);
+    assertTrue(first.text().toLowerCase().contains("not deployed"), first.text());
+    assertTrue(second.text().contains("DEPLOYED"), second.text());
+    assertTrue(second.text().contains("default"), second.text());
+  }
+
+  @Test
+  void undeployIntentEmitsDecisionWithoutDelete() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    List<ChatEvent> events = eventsFrom("undeploy this chain");
+
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(
+        List.of(ChatEvent.UNDEPLOY_ACTION, ChatEvent.CANCEL_UNDEPLOY_ACTION), decision.actions());
+    assertFalse(decision.actions().contains(ChatEvent.REDEPLOY_ACTION));
+    assertFalse(decision.actions().contains(ChatEvent.DEPLOY_ACTION));
+    assertTrue(decision.question().contains("demo"), decision.question());
+    assertTrue(decision.question().contains(CHAIN_ID), decision.question());
+    assertTrue(decision.question().contains("default"), decision.question());
+  }
+
+  @Test
+  void answeringUndeployDeletesAndReports() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("undeploy this chain"));
+    ChatEvent.Token token = tokenFrom(undeployRequest(card.artifactHash()));
+
+    verify(catalogRestClient).deleteDeployment(CHAIN_ID, "dep-1");
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    assertTrue(token.text().toLowerCase().contains("undeploy"), token.text());
+    assertTrue(token.text().contains("default"), token.text());
+  }
+
+  @Test
+  void answeringCancelUndeployLeavesDeployment() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("undeploy this chain"));
+    ChatEvent.Token token = tokenFrom(cancelUndeployRequest(card.artifactHash()));
+
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    assertTrue(token.text().toLowerCase().contains("place") || token.text().toLowerCase().contains("unchanged"), token.text());
+  }
+
+  @Test
+  void undeployWithTwoDomainsAsksWhichWithoutDelete() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(
+            List.of(
+                deployment("dep-default", "default", SNAPSHOT_ID, "DEPLOYED"),
+                deployment("dep-prod", "prod", SNAPSHOT_ID, "DEPLOYED")));
+
+    List<ChatEvent> events = eventsFrom("undeploy this chain");
+
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    assertEquals(0, events.stream().filter(ChatEvent.Decision.class::isInstance).count());
+    String text = ((ChatEvent.Token) events.get(0)).text();
+    assertTrue(text.toLowerCase().contains("which"), text);
+    assertTrue(text.contains("default"), text);
+    assertTrue(text.contains("prod"), text);
+  }
+
+  @Test
+  void followUpDomainAfterAmbiguousUndeployEmitsDecisionWithoutDelete() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID))
+        .thenReturn(Optional.empty());
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(
+            List.of(
+                deployment("dep-default", "default", SNAPSHOT_ID, "DEPLOYED"),
+                deployment("dep-prod", "prod", SNAPSHOT_ID, "DEPLOYED")));
+
+    eventsFrom("undeploy this chain");
+    List<ChatEvent> events = eventsFrom("prod");
+
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(
+        List.of(ChatEvent.UNDEPLOY_ACTION, ChatEvent.CANCEL_UNDEPLOY_ACTION), decision.actions());
+    assertTrue(decision.question().contains("prod"), decision.question());
+    assertFalse(decision.question().contains("default"), decision.question());
+  }
+
+  @Test
+  void snapshotAfterStatusStillCreatesSnapshot() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
+    when(catalogRestClient.createSnapshot(CHAIN_ID))
+        .thenReturn(new SnapshotDto(SNAPSHOT_ID, "V1"));
+
+    tokenFrom("is it deployed");
+    ChatEvent.Token token = tokenFrom("take a snapshot");
+
+    verify(catalogRestClient).createSnapshot(CHAIN_ID);
+    assertTrue(token.text().contains("V1"));
+    assertTrue(token.text().contains(SNAPSHOT_ID));
+  }
+
+  @Test
   void deployPollTimeoutReportsProcessing() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
@@ -884,6 +1059,14 @@ class DeployChainScenarioTest {
     return decisionRequest(ChatEvent.CANCEL_REDEPLOY_ACTION, artifactHash);
   }
 
+  private static ChatRequest undeployRequest(String artifactHash) {
+    return decisionRequest(ChatEvent.UNDEPLOY_ACTION, artifactHash);
+  }
+
+  private static ChatRequest cancelUndeployRequest(String artifactHash) {
+    return decisionRequest(ChatEvent.CANCEL_UNDEPLOY_ACTION, artifactHash);
+  }
+
   private static ChatRequest decisionRequest(String action, String artifactHash) {
     ChatDecisionCommand command = new ChatDecisionCommand();
     command.setAction(action);
@@ -900,17 +1083,35 @@ class DeployChainScenarioTest {
   }
 
   private static DeploymentDto deploymentOnDefault(String snapshotId, String status) {
-    return deployment("default", snapshotId, status);
+    return deployment("dep-1", "default", snapshotId, status);
   }
 
   private static DeploymentDto deployment(String domain, String snapshotId, String status) {
+    return deployment("dep-1", domain, snapshotId, status);
+  }
+
+  private static DeploymentDto deployment(
+      String id, String domain, String snapshotId, String status) {
+    return new DeploymentDto(
+        id,
+        CHAIN_ID,
+        snapshotId,
+        "V1",
+        domain,
+        new DeploymentRuntimeDto(Map.of("engine-0", new RuntimeStateDto(status, null))));
+  }
+
+  private static DeploymentDto twoPodDeployment(String domain, String snapshotId, String status) {
     return new DeploymentDto(
         "dep-1",
         CHAIN_ID,
         snapshotId,
         "V1",
         domain,
-        new DeploymentRuntimeDto(Map.of("engine-0", new RuntimeStateDto(status, null))));
+        new DeploymentRuntimeDto(
+            Map.of(
+                "engine-0", new RuntimeStateDto(status, null),
+                "engine-1", new RuntimeStateDto(status, null))));
   }
 
   private static CatalogRestClient.FolderItemDto chainFolderItem(String chainId, String name) {
