@@ -407,6 +407,36 @@ class PhaseRoutingPolicyTest {
   }
 
   @Test
+  void chainContextStatusIntentRoutesToDeployChainNotAskChain() {
+    var status =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "deployment status", false, false, true);
+    var where =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "where is this chain deployed", false, false, true);
+    var explain =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "explain this chain", false, false, true);
+
+    assertTrue(status.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, status.get());
+    assertTrue(where.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, where.get());
+    assertTrue(explain.isPresent());
+    assertEquals(ScenarioType.ASK_CHAIN, explain.get());
+  }
+
+  @Test
+  void chainContextUndeployIntentRoutesToDeployChainNotAskChain() {
+    var undeploy =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "undeploy this chain", false, false, true);
+
+    assertTrue(undeploy.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, undeploy.get());
+  }
+
+  @Test
   void namedDeployWithoutChainContextRoutesToDeployChain() {
     var cold =
         PhaseRoutingPolicy.tryResolve(

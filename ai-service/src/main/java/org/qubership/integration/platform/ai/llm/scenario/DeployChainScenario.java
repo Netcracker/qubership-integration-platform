@@ -53,7 +53,13 @@ public class DeployChainScenario implements ScenarioHandler {
 
   private static final String DEPLOY_GONE_MESSAGE = "That deploy is no longer on offer.";
 
+  private static final String UNDEPLOY_GONE_MESSAGE = "That undeploy is no longer on offer.";
+
   private static final String CANCEL_NOT_DEPLOYED_MESSAGE = "The chain was not deployed.";
+
+  private static final String NOT_DEPLOYED_MESSAGE = "This chain is not deployed.";
+
+  private static final String UNDEPLOY_FAILED_PREFIX = "Failed to undeploy this chain: ";
 
   private static final String DEPLOY_FAILED_PREFIX = "Failed to deploy this chain: ";
 
@@ -116,17 +122,9 @@ public class DeployChainScenario implements ScenarioHandler {
   public Multi<ChatEvent> handle(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
-    if (decision != null && ChatEvent.DEPLOY_ACTION.equals(decision.getAction())) {
-      return applyDeploy(conversationId, decision);
-    }
-    if (decision != null && ChatEvent.CANCEL_DEPLOY_ACTION.equals(decision.getAction())) {
-      return cancelDeploy(conversationId, decision);
-    }
-    if (decision != null && ChatEvent.REDEPLOY_ACTION.equals(decision.getAction())) {
-      return applyRedeploy(conversationId, decision);
-    }
-    if (decision != null && ChatEvent.CANCEL_REDEPLOY_ACTION.equals(decision.getAction())) {
-      return cancelRedeploy(conversationId, decision);
+    Multi<ChatEvent> answered = answerCard(conversationId, decision);
+    if (answered != null) {
+      return answered;
     }
 
     String userMessage = request != null ? request.getEffectiveUserText() : "";
@@ -144,10 +142,33 @@ public class DeployChainScenario implements ScenarioHandler {
     return continueWithResolvedChain(conversationId, chainId, userMessage, openGraph);
   }
 
+  private Multi<ChatEvent> answerCard(String conversationId, ChatDecisionCommand decision) {
+    if (decision == null || decision.getAction() == null) {
+      return null;
+    }
+    return switch (decision.getAction()) {
+      case ChatEvent.DEPLOY_ACTION -> applyDeploy(conversationId, decision);
+      case ChatEvent.CANCEL_DEPLOY_ACTION -> cancelDeploy(conversationId, decision);
+      case ChatEvent.REDEPLOY_ACTION -> applyRedeploy(conversationId, decision);
+      case ChatEvent.CANCEL_REDEPLOY_ACTION -> cancelRedeploy(conversationId, decision);
+      case ChatEvent.UNDEPLOY_ACTION -> applyUndeploy(conversationId, decision);
+      case ChatEvent.CANCEL_UNDEPLOY_ACTION -> cancelUndeploy(conversationId, decision);
+      default -> null;
+    };
+  }
+
   private Multi<ChatEvent> continueWithResolvedChain(
       String conversationId, String chainId, String userMessage, boolean openGraph) {
     if (UserIntentPatterns.matchesSnapshotIntent(userMessage)) {
       return createSnapshot(conversationId, chainId);
+    }
+
+    if (UserIntentPatterns.matchesUndeployIntent(userMessage)) {
+      return undeployChain(conversationId, chainId, userMessage);
+    }
+
+    if (UserIntentPatterns.matchesDeploymentStatusIntent(userMessage)) {
+      return reportStatus(conversationId, chainId);
     }
 
     if (UserIntentPatterns.matchesDeployIntent(userMessage)) {
@@ -356,6 +377,9 @@ public class DeployChainScenario implements ScenarioHandler {
     LOG.infof(
         "DEPLOY_CHAIN domain-wait conversationId=%s chainId=%s", conversationId, wait.chainId());
     try {
+      if (wait.undeploy()) {
+        return resumeUndeployDomainWait(conversationId, wait, userMessage);
+      }
       List<DomainDto> domains = loadDomains();
       List<String> matches = matchingDomainNames(userMessage, domains);
       if (matches.size() != 1) {
@@ -382,7 +406,8 @@ public class DeployChainScenario implements ScenarioHandler {
           "DEPLOY_CHAIN domain-wait failed conversationId=%s chainId=%s",
           conversationId,
           wait.chainId());
-      return Multi.createFrom().item(ChatEvent.error(DEPLOY_FAILED_PREFIX + e.getMessage()));
+      String prefix = wait.undeploy() ? UNDEPLOY_FAILED_PREFIX : DEPLOY_FAILED_PREFIX;
+      return Multi.createFrom().item(ChatEvent.error(prefix + e.getMessage()));
     }
   }
 
@@ -488,7 +513,7 @@ public class DeployChainScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> applyDeploy(String conversationId, ChatDecisionCommand decision) {
-    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, false);
     if (pending.isEmpty()) {
       return Multi.createFrom().item(ChatEvent.token(DEPLOY_GONE_MESSAGE));
     }
@@ -524,7 +549,7 @@ public class DeployChainScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> applyRedeploy(String conversationId, ChatDecisionCommand decision) {
-    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, false);
     if (pending.isEmpty()) {
       return Multi.createFrom().item(ChatEvent.token(REDEPLOY_GONE_MESSAGE));
     }
@@ -561,7 +586,7 @@ public class DeployChainScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> cancelDeploy(String conversationId, ChatDecisionCommand decision) {
-    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, false);
     if (pending.isEmpty()) {
       return Multi.createFrom().item(ChatEvent.token(DEPLOY_GONE_MESSAGE));
     }
@@ -570,7 +595,7 @@ public class DeployChainScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> cancelRedeploy(String conversationId, ChatDecisionCommand decision) {
-    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, false);
     if (pending.isEmpty()) {
       return Multi.createFrom().item(ChatEvent.token(REDEPLOY_GONE_MESSAGE));
     }
@@ -579,10 +604,219 @@ public class DeployChainScenario implements ScenarioHandler {
         .item(ChatEvent.token("The live deployment on domain " + pending.get().domain() + " is unchanged."));
   }
 
+  private Multi<ChatEvent> reportStatus(String conversationId, String chainId) {
+    LOG.infof("DEPLOY_CHAIN status conversationId=%s chainId=%s", conversationId, chainId);
+    try {
+      List<DeploymentDto> listed = catalogRestClient.listDeployments(chainId);
+      if (listed == null || listed.isEmpty()) {
+        return Multi.createFrom().item(ChatEvent.token(NOT_DEPLOYED_MESSAGE));
+      }
+      return Multi.createFrom().item(ChatEvent.token(statusMessage(listed)));
+    } catch (CatalogNonRetryableResponseException e) {
+      LOG.warnf(
+          e, "DEPLOY_CHAIN status refused conversationId=%s chainId=%s", conversationId, chainId);
+      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
+    } catch (RuntimeException e) {
+      LOG.errorf(
+          e, "DEPLOY_CHAIN status failed conversationId=%s chainId=%s", conversationId, chainId);
+      return Multi.createFrom()
+          .item(ChatEvent.error("Failed to read deployment status: " + e.getMessage()));
+    }
+  }
+
+  private static String statusMessage(List<DeploymentDto> listed) {
+    StringBuilder reply = new StringBuilder();
+    for (DeploymentDto deployment : listed) {
+      if (deployment == null) {
+        continue;
+      }
+      if (!reply.isEmpty()) {
+        reply.append('\n');
+      }
+      String domain = deployment.domain() == null || deployment.domain().isBlank()
+          ? "unknown"
+          : deployment.domain();
+      reply.append("Domain ").append(domain);
+      if (deployment.name() != null && !deployment.name().isBlank()) {
+        reply.append(", snapshot ").append(deployment.name());
+      }
+      if (deployment.snapshotId() != null && !deployment.snapshotId().isBlank()) {
+        reply.append(" (id: ").append(deployment.snapshotId()).append(')');
+      }
+      reply.append('.');
+      appendPodStatuses(reply, deployment);
+    }
+    return reply.isEmpty() ? NOT_DEPLOYED_MESSAGE : reply.toString();
+  }
+
+  private static void appendPodStatuses(StringBuilder reply, DeploymentDto deployment) {
+    if (deployment.runtime() == null || deployment.runtime().states() == null) {
+      return;
+    }
+    for (var entry : deployment.runtime().states().entrySet()) {
+      reply.append('\n').append(entry.getKey()).append(": ");
+      RuntimeStateDto state = entry.getValue();
+      reply.append(state == null || state.status() == null || state.status().isBlank()
+          ? STATUS_PROCESSING
+          : state.status());
+    }
+  }
+
+  private Multi<ChatEvent> undeployChain(
+      String conversationId, String chainId, String userMessage) {
+    LOG.infof("DEPLOY_CHAIN undeploy conversationId=%s chainId=%s", conversationId, chainId);
+    try {
+      List<DeploymentDto> listed = catalogRestClient.listDeployments(chainId);
+      if (listed == null || listed.isEmpty()) {
+        return Multi.createFrom().item(ChatEvent.token(NOT_DEPLOYED_MESSAGE));
+      }
+      List<DeploymentDto> live = liveDeployments(listed);
+      if (live.isEmpty()) {
+        return Multi.createFrom().item(ChatEvent.token(NOT_DEPLOYED_MESSAGE));
+      }
+      List<String> named = matchingDeploymentDomains(userMessage, live);
+      if (named.size() == 1) {
+        return offerUndeployForDomain(conversationId, chainId, live, named.get(0));
+      }
+      if (uniqueDomains(live).size() == 1) {
+        return offerUndeploy(conversationId, chainId, live.get(0));
+      }
+      pendingRedeployStore.put(conversationId, PendingRedeploy.undeployDomainWait(chainId));
+      return Multi.createFrom().item(ChatEvent.token(whichUndeployDomainMessage(live)));
+    } catch (CatalogNonRetryableResponseException e) {
+      LOG.warnf(
+          e,
+          "DEPLOY_CHAIN undeploy refused conversationId=%s chainId=%s",
+          conversationId,
+          chainId);
+      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
+    } catch (RuntimeException e) {
+      LOG.errorf(
+          e, "DEPLOY_CHAIN undeploy failed conversationId=%s chainId=%s", conversationId, chainId);
+      return Multi.createFrom().item(ChatEvent.error(UNDEPLOY_FAILED_PREFIX + e.getMessage()));
+    }
+  }
+
+  private Multi<ChatEvent> resumeUndeployDomainWait(
+      String conversationId, PendingRedeploy wait, String userMessage) {
+    List<DeploymentDto> listed = catalogRestClient.listDeployments(wait.chainId());
+    List<DeploymentDto> live = liveDeployments(listed);
+    if (live.isEmpty()) {
+      pendingRedeployStore.clear(conversationId);
+      return Multi.createFrom().item(ChatEvent.token(NOT_DEPLOYED_MESSAGE));
+    }
+    List<String> named = matchingDeploymentDomains(userMessage, live);
+    if (named.size() != 1) {
+      return Multi.createFrom().item(ChatEvent.token(whichUndeployDomainMessage(live)));
+    }
+    pendingRedeployStore.clear(conversationId);
+    return offerUndeployForDomain(conversationId, wait.chainId(), live, named.get(0));
+  }
+
+  private Multi<ChatEvent> offerUndeployForDomain(
+      String conversationId, String chainId, List<DeploymentDto> live, String domain) {
+    Optional<DeploymentDto> onDomain =
+        live.stream().filter(item -> isDomain(item, domain)).findFirst();
+    if (onDomain.isEmpty()) {
+      return Multi.createFrom()
+          .item(ChatEvent.token("This chain is not deployed on domain " + domain + "."));
+    }
+    return offerUndeploy(conversationId, chainId, onDomain.get());
+  }
+
+  private Multi<ChatEvent> offerUndeploy(
+      String conversationId, String chainId, DeploymentDto existing) {
+    String operationId = UUID.randomUUID().toString();
+    pendingRedeployStore.put(
+        conversationId,
+        PendingRedeploy.pendingUndeploy(
+            chainId, existing.domain(), existing.id(), operationId));
+    return Multi.createFrom()
+        .item(
+            ChatEvent.undeployDecision(
+                operationId, undeployQuestion(chainId, existing.domain())));
+  }
+
+  private String undeployQuestion(String chainId, String domain) {
+    ChainDto chain = catalogRestClient.getChain(chainId);
+    return "Undeploy chain " + chainLabel(chain, chainId) + " from domain " + domain + "?";
+  }
+
+  private Multi<ChatEvent> applyUndeploy(String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, true);
+    if (pending.isEmpty()) {
+      return Multi.createFrom().item(ChatEvent.token(UNDEPLOY_GONE_MESSAGE));
+    }
+    PendingRedeploy remove = pending.get();
+    LOG.infof(
+        "DEPLOY_CHAIN confirm-undeploy conversationId=%s chainId=%s deploymentId=%s",
+        conversationId, remove.chainId(), remove.existingDeploymentId());
+    try {
+      catalogRestClient.deleteDeployment(remove.chainId(), remove.existingDeploymentId());
+      pendingRedeployStore.clear(conversationId);
+      return Multi.createFrom()
+          .item(
+              ChatEvent.token(
+                  "Undeployed the chain from domain " + remove.domain() + "."));
+    } catch (CatalogNonRetryableResponseException e) {
+      LOG.warnf(
+          e,
+          "DEPLOY_CHAIN confirm-undeploy refused conversationId=%s chainId=%s",
+          conversationId,
+          remove.chainId());
+      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
+    } catch (RuntimeException e) {
+      LOG.errorf(
+          e,
+          "DEPLOY_CHAIN confirm-undeploy failed conversationId=%s chainId=%s",
+          conversationId,
+          remove.chainId());
+      return Multi.createFrom().item(ChatEvent.error(UNDEPLOY_FAILED_PREFIX + e.getMessage()));
+    }
+  }
+
+  private Multi<ChatEvent> cancelUndeploy(String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, true);
+    if (pending.isEmpty()) {
+      return Multi.createFrom().item(ChatEvent.token(UNDEPLOY_GONE_MESSAGE));
+    }
+    pendingRedeployStore.clear(conversationId);
+    return Multi.createFrom().item(ChatEvent.token("The live deployment remains in place."));
+  }
+
+  private static List<DeploymentDto> liveDeployments(List<DeploymentDto> listed) {
+    if (listed == null) {
+      return List.of();
+    }
+    return listed.stream()
+        .filter(item -> item != null && item.id() != null && !item.id().isBlank())
+        .filter(item -> item.domain() != null && !item.domain().isBlank())
+        .toList();
+  }
+
+  private static List<String> uniqueDomains(List<DeploymentDto> live) {
+    return live.stream().map(DeploymentDto::domain).distinct().toList();
+  }
+
+  private static List<String> matchingDeploymentDomains(
+      String userMessage, List<DeploymentDto> live) {
+    List<DomainDto> domains =
+        uniqueDomains(live).stream().map(name -> new DomainDto(name, "")).toList();
+    return matchingDomainNames(userMessage, domains);
+  }
+
+  private static String whichUndeployDomainMessage(List<DeploymentDto> live) {
+    String names = String.join(" and ", uniqueDomains(live));
+    return "This chain is deployed on " + names + ". Which domain should I undeploy from?";
+  }
+
   private Optional<PendingRedeploy> matchingPending(
-      String conversationId, ChatDecisionCommand decision) {
+      String conversationId, ChatDecisionCommand decision, boolean undeploy) {
     Optional<PendingRedeploy> pending = pendingRedeployStore.find(conversationId);
-    if (pending.isEmpty() || !pending.get().operationId().equals(decision.getArtifactHash())) {
+    if (pending.isEmpty()
+        || pending.get().undeploy() != undeploy
+        || pending.get().operationId() == null
+        || !pending.get().operationId().equals(decision.getArtifactHash())) {
       return Optional.empty();
     }
     return pending;

@@ -115,6 +115,32 @@ class UserIntentPatternsTest {
     assertFalse(UserIntentPatterns.matchesDeployIntent("take a snapshot"));
     assertFalse(UserIntentPatterns.matchesSnapshotIntent("deploy this chain"));
     assertFalse(UserIntentPatterns.matchesSnapshotIntent("deploy snapshot V3"));
+    assertFalse(UserIntentPatterns.matchesDeployIntent("undeploy this chain"));
+    assertFalse(UserIntentPatterns.matchesDeployIntent("deployment status"));
+    assertFalse(UserIntentPatterns.matchesDeployIntent("is it deployed"));
+  }
+
+  @Test
+  void deploymentStatusIntentMatchesCompactStatusPhrasing() {
+    assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("deployment status"));
+    assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("is it deployed"));
+    assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("is this chain deployed"));
+    assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("where is this chain deployed"));
+    assertFalse(UserIntentPatterns.matchesDeploymentStatusIntent("explain this chain"));
+    assertFalse(UserIntentPatterns.matchesDeploymentStatusIntent("deploy this chain"));
+    assertFalse(UserIntentPatterns.matchesDeploymentStatusIntent("undeploy this chain"));
+    assertFalse(UserIntentPatterns.matchesChainQuestion("deployment status"));
+    assertFalse(UserIntentPatterns.matchesChainQuestion("is it deployed"));
+  }
+
+  @Test
+  void undeployIntentMatchesCompactUndeployPhrasing() {
+    assertTrue(UserIntentPatterns.matchesUndeployIntent("undeploy this chain"));
+    assertTrue(UserIntentPatterns.matchesUndeployIntent("undeploy it"));
+    assertTrue(UserIntentPatterns.matchesUndeployIntent("undeploy the chain"));
+    assertFalse(UserIntentPatterns.matchesUndeployIntent("deploy this chain"));
+    assertFalse(UserIntentPatterns.matchesUndeployIntent("explain this chain"));
+    assertFalse(UserIntentPatterns.matchesUndeployIntent("deployment status"));
   }
 
   @Test
