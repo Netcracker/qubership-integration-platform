@@ -108,9 +108,13 @@ class UserIntentPatternsTest {
     assertTrue(UserIntentPatterns.matchesDeployIntent("deploy this chain"));
     assertTrue(UserIntentPatterns.matchesDeployIntent("deploy the chain"));
     assertTrue(UserIntentPatterns.matchesDeployIntent("deploy it"));
+    assertTrue(UserIntentPatterns.matchesDeployIntent("deploy V2"));
+    assertTrue(UserIntentPatterns.matchesDeployIntent("deploy snapshot V3"));
+    assertTrue(UserIntentPatterns.matchesDeployIntent("which domain should I deploy to"));
     assertFalse(UserIntentPatterns.matchesDeployIntent("explain this chain"));
     assertFalse(UserIntentPatterns.matchesDeployIntent("take a snapshot"));
     assertFalse(UserIntentPatterns.matchesSnapshotIntent("deploy this chain"));
+    assertFalse(UserIntentPatterns.matchesSnapshotIntent("deploy snapshot V3"));
   }
 
   @Test

@@ -28,6 +28,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
@@ -106,6 +108,53 @@ class ChatExecutionServiceTest {
     verify(router).route(routed.capture(), eq("conv-redeploy"));
     assertEquals(ScenarioType.DEPLOY_CHAIN, routed.getValue().getScenarioHint());
     verify(decisions, never()).apply(anyString(), any());
+  }
+
+  @Test
+  void pendingDomainWaitFollowUpHintsDeployChain() {
+    PendingRedeployStore store = new PendingRedeployStore();
+    store.put("conv-wait", PendingRedeploy.domainWait("chain-1", "snap-1", false));
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-wait");
+    request.setMessage("prod");
+
+    service(router, decisions, store).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    ArgumentCaptor<ChatRequest> routed = ArgumentCaptor.forClass(ChatRequest.class);
+    verify(router).route(routed.capture(), eq("conv-wait"));
+    assertEquals(ScenarioType.DEPLOY_CHAIN, routed.getValue().getScenarioHint());
+  }
+
+  @Test
+  void deployCardMarkerUsesPendingDomain() {
+    PendingRedeployStore store = new PendingRedeployStore();
+    store.put(
+        "conv-redeploy",
+        new PendingRedeploy("chain-1", "prod", null, "op-prod", "snap-1", false));
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-redeploy");
+    ChatDecisionCommand decision = new ChatDecisionCommand();
+    decision.setAction(ChatEvent.DEPLOY_ACTION);
+    decision.setArtifactHash("op-prod");
+    request.setDecision(decision);
+
+    service(router, decisions, store).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    ArgumentCaptor<ChatRequest> routed = ArgumentCaptor.forClass(ChatRequest.class);
+    verify(router).route(routed.capture(), eq("conv-redeploy"));
+    assertEquals("Deploy the chain on domain prod", routed.getValue().getEffectiveUserText());
   }
 
   static Stream<String> deployChainCardActions() {
@@ -322,10 +371,15 @@ class ChatExecutionServiceTest {
   }
 
   private ChatExecutionService commandPathService(ChatDecisionService decisions) {
-    return service(mock(ScenarioRouter.class), decisions);
+    return service(mock(ScenarioRouter.class), decisions, new PendingRedeployStore());
   }
 
   private ChatExecutionService service(ScenarioRouter router, ChatDecisionService decisions) {
+    return service(router, decisions, new PendingRedeployStore());
+  }
+
+  private ChatExecutionService service(
+      ScenarioRouter router, ChatDecisionService decisions, PendingRedeployStore pending) {
     AppConfig appConfig = mock(AppConfig.class);
     AppConfig.LlmConfig llm = mock(AppConfig.LlmConfig.class);
     AppConfig.LlmConfig.RateLimitConfig rateLimit = mock(AppConfig.LlmConfig.RateLimitConfig.class);
@@ -346,7 +400,8 @@ class ChatExecutionServiceTest {
         artifactStore,
         new ObjectMapper(),
         sanitizer,
-        decisions);
+        decisions,
+        pending);
   }
 
   private static ChainPlanGraph sampleGraph(String chainName) {

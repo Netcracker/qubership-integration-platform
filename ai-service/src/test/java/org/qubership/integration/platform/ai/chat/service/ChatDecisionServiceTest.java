@@ -177,6 +177,18 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void markerNamesDeployOnPendingDomain() {
+    assertEquals(
+        "Deploy the chain on domain prod",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.DEPLOY_ACTION, "DEPLOY", "op-1", null), "prod"));
+    assertEquals(
+        "Redeploy the chain on domain prod",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.REDEPLOY_ACTION, "REDEPLOY", "op-1", null), "prod"));
+  }
+
+  @Test
   void markerNamesCancelDeployWithoutGuessingAtWording() {
     assertEquals(
         "Do not deploy the chain",

@@ -392,12 +392,16 @@ class PhaseRoutingPolicyTest {
     var deploy =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.COLD, "deploy this chain", false, false, true);
+    var named =
+        PhaseRoutingPolicy.tryResolve(ConversationPhase.COLD, "deploy V2", false, false, true);
     var explain =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.COLD, "explain this chain", false, false, true);
 
     assertTrue(deploy.isPresent());
     assertEquals(ScenarioType.DEPLOY_CHAIN, deploy.get());
+    assertTrue(named.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, named.get());
     assertTrue(explain.isPresent());
     assertEquals(ScenarioType.ASK_CHAIN, explain.get());
   }
