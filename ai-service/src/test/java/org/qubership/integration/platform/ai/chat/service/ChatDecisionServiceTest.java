@@ -152,6 +152,22 @@ class ChatDecisionServiceTest {
             command(ChatEvent.IMPORT_ACTION, null, null, null)));
   }
 
+  @Test
+  void markerNamesRedeployWithoutGuessingAtWording() {
+    assertEquals(
+        "Redeploy the chain on domain default",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.REDEPLOY_ACTION, "REDEPLOY", "op-1", null)));
+  }
+
+  @Test
+  void markerNamesCancelRedeployWithoutGuessingAtWording() {
+    assertEquals(
+        "Leave the live deployment unchanged",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.CANCEL_REDEPLOY_ACTION, "REDEPLOY", "op-1", null)));
+  }
+
   /**
    * Creating the chain can fail after the plan was approved. The run must stay at the
    * implementation gate with creation as its only action, never in a half-state the reader cannot

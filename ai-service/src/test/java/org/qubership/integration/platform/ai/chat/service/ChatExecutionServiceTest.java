@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,11 +20,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
@@ -39,6 +44,7 @@ import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -76,6 +82,34 @@ class ChatExecutionServiceTest {
   @AfterEach
   void tearDown() {
     ToolInvocationSink.unbind();
+  }
+
+  @ParameterizedTest
+  @MethodSource("redeployCardActions")
+  void redeployCardActionsRunAsScenarioWithDeployChainHint(String action) {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-redeploy");
+    ChatDecisionCommand decision = new ChatDecisionCommand();
+    decision.setAction(action);
+    decision.setArtifactHash("redeploy-op-1");
+    request.setDecision(decision);
+
+    service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    ArgumentCaptor<ChatRequest> routed = ArgumentCaptor.forClass(ChatRequest.class);
+    verify(router).route(routed.capture(), eq("conv-redeploy"));
+    assertEquals(ScenarioType.DEPLOY_CHAIN, routed.getValue().getScenarioHint());
+    verify(decisions, never()).apply(anyString(), any());
+  }
+
+  static Stream<String> redeployCardActions() {
+    return Stream.of(ChatEvent.REDEPLOY_ACTION, ChatEvent.CANCEL_REDEPLOY_ACTION);
   }
 
   @Test
@@ -284,6 +318,10 @@ class ChatExecutionServiceTest {
   }
 
   private ChatExecutionService commandPathService(ChatDecisionService decisions) {
+    return service(mock(ScenarioRouter.class), decisions);
+  }
+
+  private ChatExecutionService service(ScenarioRouter router, ChatDecisionService decisions) {
     AppConfig appConfig = mock(AppConfig.class);
     AppConfig.LlmConfig llm = mock(AppConfig.LlmConfig.class);
     AppConfig.LlmConfig.RateLimitConfig rateLimit = mock(AppConfig.LlmConfig.RateLimitConfig.class);
@@ -296,7 +334,7 @@ class ChatExecutionServiceTest {
     ChatMemorySanitizer sanitizer = mock(ChatMemorySanitizer.class);
     when(sanitizer.repairDanglingToolCalls(anyString())).thenReturn(0);
     return new ChatExecutionService(
-        mock(ScenarioRouter.class),
+        router,
         new ConversationService(),
         mock(EffectiveUserTextService.class),
         appConfig,
