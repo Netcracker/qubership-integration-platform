@@ -36,7 +36,7 @@ public final class PhaseRoutingPolicy {
       return Optional.of(ScenarioType.DEPLOY_CHAIN);
     }
 
-    if (hasChainContext && UserIntentPatterns.matchesDeployIntent(msg)) {
+    if (UserIntentPatterns.matchesDeployIntent(msg)) {
       return Optional.of(ScenarioType.DEPLOY_CHAIN);
     }
 

@@ -20,13 +20,18 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.CreateDeploymentRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.RuntimeStateDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FolderItemDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.SnapshotDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainSearchRequest;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogIdPatterns;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @ApplicationScoped
 @ForScenario(ScenarioType.DEPLOY_CHAIN)
@@ -44,8 +49,18 @@ public class DeployChainScenario implements ScenarioHandler {
 
   private static final String REDEPLOY_GONE_MESSAGE = "That redeploy is no longer on offer.";
 
+  private static final String DEPLOY_GONE_MESSAGE = "That deploy is no longer on offer.";
+
   private static final String CANCEL_UNCHANGED_MESSAGE =
       "The live deployment on domain default is unchanged.";
+
+  private static final String CANCEL_NOT_DEPLOYED_MESSAGE = "The chain was not deployed.";
+
+  private static final String DEPLOY_FAILED_PREFIX = "Failed to deploy this chain: ";
+
+  private static final String CHAIN_ITEM_TYPE = "CHAIN";
+
+  private static final Pattern NAME_AFTER_CHAIN = Pattern.compile("(?iU)\\bchain\\s+(.+)$");
 
   private static final String DEFAULT_DOMAIN = "default";
   private static final String STATUS_DEPLOYED = "DEPLOYED";
@@ -95,6 +110,12 @@ public class DeployChainScenario implements ScenarioHandler {
   public Multi<ChatEvent> handle(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
+    if (decision != null && ChatEvent.DEPLOY_ACTION.equals(decision.getAction())) {
+      return applyDeploy(conversationId, decision);
+    }
+    if (decision != null && ChatEvent.CANCEL_DEPLOY_ACTION.equals(decision.getAction())) {
+      return cancelDeploy(conversationId, decision);
+    }
     if (decision != null && ChatEvent.REDEPLOY_ACTION.equals(decision.getAction())) {
       return applyRedeploy(conversationId, decision);
     }
@@ -105,24 +126,136 @@ public class DeployChainScenario implements ScenarioHandler {
     String userMessage = request != null ? request.getEffectiveUserText() : "";
     String chainId =
         chainContextExtractor.resolveChainId(request, conversationId).orElse(null);
-
+    boolean openGraph = chainId != null;
     if (chainId == null) {
-      LOG.infof("DEPLOY_CHAIN without chain context conversationId=%s", conversationId);
-      return Multi.createFrom().item(ChatEvent.token(NO_CHAIN_MESSAGE));
+      return resolveUnopenedChain(conversationId, userMessage);
     }
+    return continueWithResolvedChain(conversationId, chainId, userMessage, openGraph);
+  }
 
+  private Multi<ChatEvent> continueWithResolvedChain(
+      String conversationId, String chainId, String userMessage, boolean openGraph) {
     if (UserIntentPatterns.matchesSnapshotIntent(userMessage)) {
       return createSnapshot(conversationId, chainId);
     }
 
     if (UserIntentPatterns.matchesDeployIntent(userMessage)) {
-      return deployToDefault(conversationId, chainId);
+      return deployToDefault(conversationId, chainId, !openGraph);
     }
 
     LOG.infof(
         "DEPLOY_CHAIN neither snapshot nor deploy conversationId=%s chainId=%s",
         conversationId, chainId);
     return Multi.createFrom().item(ChatEvent.token(SNAPSHOT_ONLY_MESSAGE));
+  }
+
+  private Multi<ChatEvent> resolveUnopenedChain(String conversationId, String userMessage) {
+    try {
+      Optional<String> uuid = findChainUuid(userMessage);
+      if (uuid.isPresent()) {
+        String chainId = loadChainId(uuid.get());
+        if (chainId == null) {
+          return Multi.createFrom()
+              .item(ChatEvent.token("No chain with id " + uuid.get() + " was found."));
+        }
+        return continueWithResolvedChain(conversationId, chainId, userMessage, false);
+      }
+      Optional<String> name = extractChainName(userMessage);
+      if (name.isEmpty()) {
+        LOG.infof("DEPLOY_CHAIN without chain context conversationId=%s", conversationId);
+        return Multi.createFrom().item(ChatEvent.token(NO_CHAIN_MESSAGE));
+      }
+      return continueFromNameSearch(conversationId, userMessage, name.get());
+    } catch (CatalogNonRetryableResponseException e) {
+      LOG.warnf(e, "DEPLOY_CHAIN catalog lookup refused conversationId=%s", conversationId);
+      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "DEPLOY_CHAIN catalog lookup failed conversationId=%s", conversationId);
+      return Multi.createFrom()
+          .item(ChatEvent.error("Failed to find that chain: " + e.getMessage()));
+    }
+  }
+
+  private Multi<ChatEvent> continueFromNameSearch(
+      String conversationId, String userMessage, String name) {
+    List<FolderItemDto> hits = searchChainItems(name);
+    List<FolderItemDto> exact =
+        hits.stream().filter(item -> name.equalsIgnoreCase(item.name())).toList();
+    List<FolderItemDto> chosen = exact.isEmpty() ? hits : exact;
+    if (chosen.isEmpty()) {
+      return Multi.createFrom()
+          .item(ChatEvent.token("No chain named " + name + " was found."));
+    }
+    if (chosen.size() > 1) {
+      return Multi.createFrom().item(ChatEvent.token(ambiguousChainsMessage(chosen)));
+    }
+    return continueWithResolvedChain(conversationId, chosen.get(0).id(), userMessage, false);
+  }
+
+  private List<FolderItemDto> searchChainItems(String name) {
+    List<FolderItemDto> results =
+        catalogRestClient.searchFolderItems(new CatalogChainSearchRequest(name));
+    if (results == null || results.isEmpty()) {
+      return List.of();
+    }
+    return results.stream()
+        .filter(item -> item != null && item.id() != null && !item.id().isBlank())
+        .filter(item -> CHAIN_ITEM_TYPE.equals(item.itemType()))
+        .toList();
+  }
+
+  private static String ambiguousChainsMessage(List<FolderItemDto> chosen) {
+    StringBuilder reply = new StringBuilder("Several chains match that name. Which chain did you mean?");
+    for (FolderItemDto item : chosen) {
+      reply.append('\n').append(item.name() == null ? item.id() : item.name());
+      reply.append(" (").append(item.id()).append(')');
+    }
+    return reply.toString();
+  }
+
+  private static Optional<String> findChainUuid(String message) {
+    if (message == null || message.isBlank()) {
+      return Optional.empty();
+    }
+    for (String token : message.split("[^0-9a-fA-F-]+")) {
+      if (CatalogIdPatterns.isUuidLike(token)) {
+        return Optional.of(token);
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static Optional<String> extractChainName(String message) {
+    String intent = UserIntentPatterns.extractLeadingIntent(message);
+    Matcher matcher = NAME_AFTER_CHAIN.matcher(intent);
+    if (!matcher.find()) {
+      return Optional.empty();
+    }
+    String name = matcher.group(1).trim();
+    if (name.length() >= 2
+        && ((name.startsWith("\"") && name.endsWith("\""))
+            || (name.startsWith("'") && name.endsWith("'")))) {
+      name = name.substring(1, name.length() - 1).trim();
+    }
+    if (name.isBlank() || CatalogIdPatterns.isUuidLike(name)) {
+      return Optional.empty();
+    }
+    return Optional.of(name);
+  }
+
+  private String loadChainId(String chainId) {
+    try {
+      ChainDto chain = catalogRestClient.getChain(chainId);
+      if (chain == null || chain.id() == null || chain.id().isBlank()) {
+        return null;
+      }
+      return chain.id();
+    } catch (CatalogNonRetryableResponseException e) {
+      if (e.getResponse() != null && e.getResponse().getStatus() == 404) {
+        return null;
+      }
+      throw e;
+    }
   }
 
   private Multi<ChatEvent> createSnapshot(String conversationId, String chainId) {
@@ -152,7 +285,8 @@ public class DeployChainScenario implements ScenarioHandler {
     }
   }
 
-  private Multi<ChatEvent> deployToDefault(String conversationId, String chainId) {
+  private Multi<ChatEvent> deployToDefault(
+      String conversationId, String chainId, boolean confirmFirstDeploy) {
     LOG.infof("DEPLOY_CHAIN deploy conversationId=%s chainId=%s", conversationId, chainId);
     try {
       List<DeploymentDto> existing = catalogRestClient.listDeployments(chainId);
@@ -160,6 +294,9 @@ public class DeployChainScenario implements ScenarioHandler {
           existing.stream().filter(DeployChainScenario::isDefaultDomain).findFirst();
       if (onDefault.isPresent()) {
         return offerRedeploy(conversationId, chainId, onDefault.get());
+      }
+      if (confirmFirstDeploy) {
+        return offerFirstDeploy(conversationId, chainId);
       }
 
       SnapshotDto snapshot = resolveBareDeploySnapshot(chainId);
@@ -175,7 +312,7 @@ public class DeployChainScenario implements ScenarioHandler {
       LOG.errorf(
           e, "DEPLOY_CHAIN deploy failed conversationId=%s chainId=%s", conversationId, chainId);
       return Multi.createFrom()
-          .item(ChatEvent.error("Failed to deploy this chain: " + e.getMessage()));
+          .item(ChatEvent.error(DEPLOY_FAILED_PREFIX + e.getMessage()));
     }
   }
 
@@ -187,6 +324,19 @@ public class DeployChainScenario implements ScenarioHandler {
         new PendingRedeploy(chainId, DEFAULT_DOMAIN, existing.id(), operationId));
     return Multi.createFrom()
         .item(ChatEvent.redeployDecision(operationId, redeployQuestion(chainId)));
+  }
+
+  private Multi<ChatEvent> offerFirstDeploy(String conversationId, String chainId) {
+    String operationId = UUID.randomUUID().toString();
+    pendingRedeployStore.put(
+        conversationId, new PendingRedeploy(chainId, DEFAULT_DOMAIN, null, operationId));
+    return Multi.createFrom()
+        .item(ChatEvent.deployDecision(operationId, deployQuestion(chainId)));
+  }
+
+  private String deployQuestion(String chainId) {
+    ChainDto chain = catalogRestClient.getChain(chainId);
+    return "Deploy chain " + chainLabel(chain, chainId) + " to domain default?";
   }
 
   private String redeployQuestion(String chainId) {
@@ -227,6 +377,38 @@ public class DeployChainScenario implements ScenarioHandler {
     return "Redeploying will reuse snapshot " + snapshotName + ".";
   }
 
+  private Multi<ChatEvent> applyDeploy(String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    if (pending.isEmpty()) {
+      return Multi.createFrom().item(ChatEvent.token(DEPLOY_GONE_MESSAGE));
+    }
+    PendingRedeploy confirm = pending.get();
+    LOG.infof(
+        "DEPLOY_CHAIN confirm-deploy conversationId=%s chainId=%s",
+        conversationId, confirm.chainId());
+    try {
+      SnapshotDto snapshot = resolveBareDeploySnapshot(confirm.chainId());
+      Multi<ChatEvent> result = deploySnapshot(confirm.chainId(), snapshot);
+      pendingRedeployStore.clear(conversationId);
+      return result;
+    } catch (CatalogNonRetryableResponseException e) {
+      LOG.warnf(
+          e,
+          "DEPLOY_CHAIN confirm-deploy refused conversationId=%s chainId=%s",
+          conversationId,
+          confirm.chainId());
+      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
+    } catch (RuntimeException e) {
+      LOG.errorf(
+          e,
+          "DEPLOY_CHAIN confirm-deploy failed conversationId=%s chainId=%s",
+          conversationId,
+          confirm.chainId());
+      return Multi.createFrom()
+          .item(ChatEvent.error(DEPLOY_FAILED_PREFIX + e.getMessage()));
+    }
+  }
+
   private Multi<ChatEvent> applyRedeploy(String conversationId, ChatDecisionCommand decision) {
     Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
     if (pending.isEmpty()) {
@@ -256,8 +438,17 @@ public class DeployChainScenario implements ScenarioHandler {
           conversationId,
           replace.chainId());
       return Multi.createFrom()
-          .item(ChatEvent.error("Failed to deploy this chain: " + e.getMessage()));
+          .item(ChatEvent.error(DEPLOY_FAILED_PREFIX + e.getMessage()));
     }
+  }
+
+  private Multi<ChatEvent> cancelDeploy(String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending = matchingPending(conversationId, decision);
+    if (pending.isEmpty()) {
+      return Multi.createFrom().item(ChatEvent.token(DEPLOY_GONE_MESSAGE));
+    }
+    pendingRedeployStore.clear(conversationId);
+    return Multi.createFrom().item(ChatEvent.token(CANCEL_NOT_DEPLOYED_MESSAGE));
   }
 
   private Multi<ChatEvent> cancelRedeploy(String conversationId, ChatDecisionCommand decision) {

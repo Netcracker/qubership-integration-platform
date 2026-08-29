@@ -193,6 +193,8 @@ public class ChatDecisionService {
           case ChatEvent.APPLY_CHAIN_PATCH_ACTION -> "Apply the proposed change to the chain";
           case ChatEvent.REDEPLOY_ACTION -> "Redeploy the chain on domain default";
           case ChatEvent.CANCEL_REDEPLOY_ACTION -> "Leave the live deployment unchanged";
+          case ChatEvent.DEPLOY_ACTION -> "Deploy the chain on domain default";
+          case ChatEvent.CANCEL_DEPLOY_ACTION -> "Do not deploy the chain";
           case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
           default -> "Answered " + command.getAction();
         };

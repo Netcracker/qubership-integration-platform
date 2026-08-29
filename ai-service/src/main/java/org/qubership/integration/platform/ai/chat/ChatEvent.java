@@ -35,11 +35,20 @@ public sealed interface ChatEvent {
   /** Leaves the live deployment as it is. Distinct from request-changes, which belongs to patch. */
   String CANCEL_REDEPLOY_ACTION = "cancel-redeploy";
 
+  /** Deploys a chain that is not live on domain default: irreversible, so never a model's. */
+  String DEPLOY_ACTION = "deploy-chain";
+
+  /** Leaves the chain undeployed. Distinct from cancel-redeploy, which keeps a live deployment. */
+  String CANCEL_DEPLOY_ACTION = "cancel-deploy";
+
   /** Artifact type a chain-patch card binds to. */
   String CHAIN_PATCH_ARTIFACT = "CHAIN_PATCH";
 
   /** Artifact type a redeploy card binds to. */
   String REDEPLOY_ARTIFACT = "REDEPLOY";
+
+  /** Artifact type a first-deploy card binds to. */
+  String DEPLOY_ARTIFACT = "DEPLOY";
 
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
@@ -244,6 +253,26 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(REDEPLOY_ACTION, CANCEL_REDEPLOY_ACTION));
+  }
+
+  /**
+   * A pending first deploy, offered as its own decision.
+   *
+   * <p>Bound to the pending operation it describes, so an answer to a card the conversation has
+   * moved past cannot deploy a chain the reader never confirmed.
+   */
+  static ChatEvent deployDecision(String operationId, String question) {
+    Objects.requireNonNull(operationId, "operationId");
+    return new Decision(
+        "deploy:" + operationId,
+        APPROVE_ACTION,
+        question == null ? "" : question.strip(),
+        DEPLOY_ARTIFACT,
+        operationId,
+        0L,
+        null,
+        List.of(),
+        List.of(DEPLOY_ACTION, CANCEL_DEPLOY_ACTION));
   }
 
   /**
