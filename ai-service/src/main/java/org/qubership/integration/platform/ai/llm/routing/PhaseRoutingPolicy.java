@@ -32,6 +32,10 @@ public final class PhaseRoutingPolicy {
     }
     String msg = userMessage.trim();
 
+    if (UserIntentPatterns.matchesSnapshotIntent(msg)) {
+      return Optional.of(ScenarioType.DEPLOY_CHAIN);
+    }
+
     if (hasChainContext && UserIntentPatterns.matchesChainQuestion(msg)) {
       return Optional.of(ScenarioType.ASK_CHAIN);
     }

@@ -372,6 +372,21 @@ class PhaseRoutingPolicyTest {
     assertEquals(ScenarioType.ASK_CHAIN, result.get());
   }
 
+  @Test
+  void chainContextSnapshotIntentRoutesToDeployChainNotAskChain() {
+    var take =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "take a snapshot", false, false, true);
+    var create =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "create a snapshot", false, false, true);
+
+    assertTrue(take.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, take.get());
+    assertTrue(create.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, create.get());
+  }
+
   /**
    * With a chain open, phase alone must not answer for the reader. These four phases used to send
    * every turn to CREATE without reading it, which is how a request to change an existing chain

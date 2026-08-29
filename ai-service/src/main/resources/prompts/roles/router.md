@@ -20,8 +20,8 @@ In the product planning phase, the user is reviewing a proposed implementation p
 plan or handle refinement questions. Approvals arrive as typed decisions, not as scenario labels.
 
 Available scenarios: GATHER_REQUIREMENTS, CREATE_CHAIN_PLAN, ASK_PLAN,
-ASK_CHAIN, IMPLEMENT_CHAIN, COMPARE_AND_PATCH, CHAIN_TO_DESIGN, CREATE_TEST_CASES,
-CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
+ASK_CHAIN, IMPLEMENT_CHAIN, COMPARE_AND_PATCH, DEPLOY_CHAIN, CHAIN_TO_DESIGN,
+CREATE_TEST_CASES, CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
 
 - GATHER_REQUIREMENTS: The user is describing a new integration for the first time, mentions API
   calls, flow steps, or data mappings, phrases an IDS / "create design" request that should enter
@@ -49,3 +49,6 @@ CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
   operations from the IDS", "create a chain plan from this design") stays **CREATE_CHAIN_PLAN**, as
   does a remark that something is already in the current implementation plan. A bare element name or
   id, answering an assistant question about which element to change, also belongs here.
+
+- DEPLOY_CHAIN: Snapshot, deploy, undeploy, or deployment status of an identifiable chain (open
+  graph or just created). Graph explanation stays ASK_CHAIN.

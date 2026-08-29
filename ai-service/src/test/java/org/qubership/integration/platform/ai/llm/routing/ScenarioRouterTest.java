@@ -346,6 +346,44 @@ class ScenarioRouterTest {
         .classify(any(), anyString(), any());
   }
 
+  @Test
+  void deployChainHintStaysOnDeployChain() {
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
+    request.setResolvedEffectiveUserText("take a snapshot");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.DEPLOY_CHAIN, outcome.scenarioType());
+  }
+
+  @Test
+  void unfinishedCreateRunLetsGoOfASnapshotTurn() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("snapshot-ok")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
+    request.setResolvedEffectiveUserText("take a snapshot");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "snapshot-ok",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.DEPLOY_CHAIN));
+  }
+
   /** A hint outside CREATE names a scenario rather than a screen, so it still decides. */
   @Test
   void nonCreateHintStillDecidesWhenAChainIsOpen() {

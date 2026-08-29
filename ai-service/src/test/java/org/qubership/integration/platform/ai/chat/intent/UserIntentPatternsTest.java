@@ -95,6 +95,15 @@ class UserIntentPatternsTest {
   }
 
   @Test
+  void snapshotIntentMatchesCompactSnapshotPhrasing() {
+    assertTrue(UserIntentPatterns.matchesSnapshotIntent("take a snapshot"));
+    assertTrue(UserIntentPatterns.matchesSnapshotIntent("create a snapshot"));
+    assertFalse(UserIntentPatterns.matchesSnapshotIntent("explain this chain"));
+    assertFalse(UserIntentPatterns.matchesSnapshotIntent("deploy this chain"));
+    assertFalse(UserIntentPatterns.matchesChainQuestion("take a snapshot"));
+  }
+
+  @Test
   void doesNotMatchUnrelatedText() {
     assertFalse(UserIntentPatterns.matchesCreateChainIntent("hello world"));
   }
