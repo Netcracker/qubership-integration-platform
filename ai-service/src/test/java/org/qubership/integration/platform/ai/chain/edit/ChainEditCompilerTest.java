@@ -148,7 +148,8 @@ class ChainEditCompilerTest {
 
     apiHub = mock(ApiHubMcpTools.class);
     catalogMutationGateway = mock(CatalogMutationGateway.class);
-    ChainEditIntentAgent agent = (elements, userRequest) -> intentReply;
+    ChainEditIntentAgent agent =
+        (elements, transcriptWindow, pinnedFailure, userRequest) -> intentReply;
     compiler =
         new ChainEditCompiler(
             new ChainEditIntentResolver(agent),

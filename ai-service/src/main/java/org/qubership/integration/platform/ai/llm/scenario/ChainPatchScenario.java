@@ -34,6 +34,7 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
@@ -110,7 +111,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       return streamCompile(progress -> applyAnsweredPatch(conversationId, decision));
     }
     if (decision != null && ChatEvent.IMPORT_ACTION.equals(decision.getAction())) {
-      return streamCompile(progress -> resumeAfterImport(conversationId, progress));
+      return streamCompile(progress -> resumeAfterImport(request, conversationId, progress));
     }
     return streamCompile(progress -> proposePatch(request, conversationId, progress));
   }
@@ -168,8 +169,14 @@ public class ChainPatchScenario implements ScenarioHandler {
     ChainEditOutcome outcome =
         heldClarification.isPresent()
             ? resumeClarification(
-                conversationId, chainId, imported, userMessage, heldClarification.get(), skillProgress)
-            : compileEdit(conversationId, chainId, imported, userMessage, skillProgress);
+                conversationId,
+                chainId,
+                imported,
+                userMessage,
+                heldClarification.get(),
+                request,
+                skillProgress)
+            : compileEdit(conversationId, chainId, imported, userMessage, request, skillProgress);
     return fromCompiler(conversationId, chainId, imported, outcome);
   }
 
@@ -179,16 +186,11 @@ public class ChainPatchScenario implements ScenarioHandler {
       String chainId,
       ImportedChainPlan imported,
       String userMessage,
+      ChatRequest chatRequest,
       BiConsumer<String, String> skillProgress) {
     try {
       return editCompiler.compile(
-          new ChainEditRequest(
-              conversationId,
-              chainId,
-              conversationId + "-edit-" + UUID.randomUUID(),
-              imported,
-              userMessage,
-              null),
+          editRequest(conversationId, chainId, imported, userMessage, chatRequest),
           skillProgress);
     } catch (RuntimeException e) {
       LOG.errorf(e, "Chain edit compiler failed conversationId=%s chainId=%s", conversationId, chainId);
@@ -210,16 +212,11 @@ public class ChainPatchScenario implements ScenarioHandler {
       ImportedChainPlan imported,
       String userMessage,
       ChainEditClarificationStore.PendingClarification pending,
+      ChatRequest chatRequest,
       BiConsumer<String, String> skillProgress) {
     try {
       ChainEditRequest request =
-          new ChainEditRequest(
-              conversationId,
-              chainId,
-              conversationId + "-edit-" + UUID.randomUUID(),
-              imported,
-              userMessage,
-              null);
+          editRequest(conversationId, chainId, imported, userMessage, chatRequest);
       return pending.continuation() == null
           ? editCompiler.resumeAfterClarification(
               request, pending.heldIntent(), pending.question(), skillProgress)
@@ -295,7 +292,7 @@ public class ChainPatchScenario implements ScenarioHandler {
 
   /** Continues the held edit once the reader has approved the import. */
   private Multi<ChatEvent> resumeAfterImport(
-      String conversationId, BiConsumer<String, String> skillProgress) {
+      ChatRequest chatRequest, String conversationId, BiConsumer<String, String> skillProgress) {
     ChainEditEscalationStore.PendingChainEdit pendingEdit =
         escalationStore.take(conversationId).orElse(null);
     if (pendingEdit == null) {
@@ -308,13 +305,12 @@ public class ChainPatchScenario implements ScenarioHandler {
       return knownOrRethrow(e, conversationId, pendingEdit.chainId());
     }
     ChainEditRequest request =
-        new ChainEditRequest(
+        editRequest(
             conversationId,
             pendingEdit.chainId(),
-            conversationId + "-edit-" + UUID.randomUUID(),
             imported,
             pendingEdit.userRequest(),
-            null);
+            chatRequest);
     ChainEditOutcome resumed =
         pendingEdit.continuation() == null
             ? editCompiler.resumeAfterImport(
@@ -446,6 +442,37 @@ public class ChainPatchScenario implements ScenarioHandler {
 
   private static Multi<ChatEvent> message(String text) {
     return Multi.createFrom().item(ChatEvent.token(text));
+  }
+
+  private static ChainEditRequest editRequest(
+      String conversationId,
+      String chainId,
+      ImportedChainPlan imported,
+      String userMessage,
+      ChatRequest chatRequest) {
+    return new ChainEditRequest(
+        conversationId,
+        chainId,
+        conversationId + "-edit-" + UUID.randomUUID(),
+        imported,
+        userMessage,
+        null,
+        transcriptWindow(chatRequest),
+        pinnedFailureSafeText(chatRequest));
+  }
+
+  private static String transcriptWindow(ChatRequest request) {
+    OpenChainTurnContext turn = request == null ? null : request.getOpenChainTurnContext();
+    return turn == null ? "" : turn.transcriptWindow();
+  }
+
+  private static String pinnedFailureSafeText(ChatRequest request) {
+    OpenChainTurnContext turn = request == null ? null : request.getOpenChainTurnContext();
+    if (turn == null) {
+      return "";
+    }
+    Optional<PinnedFailure> pin = turn.pinnedFailure();
+    return pin.isEmpty() ? "" : pin.get().safeText();
   }
 
   private Multi<ChatEvent> knownOrRethrow(Throwable error, String conversationId, String chainId) {

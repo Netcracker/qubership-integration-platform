@@ -8,6 +8,9 @@ import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
  *
  * <p>{@code editRunId} keys the run's own compiler workspace. It must differ per compilation so
  * two edits in one conversation cannot read each other's artifacts.
+ *
+ * <p>{@code transcriptWindow} and {@code pinnedFailureSafeText} come from the open-chain turn.
+ * Both are empty when that context is missing or the pin is absent.
  */
 public record ChainEditRequest(
     String conversationId,
@@ -15,7 +18,9 @@ public record ChainEditRequest(
     String editRunId,
     ImportedChainPlan imported,
     String userRequest,
-    String languageVersion) {
+    String languageVersion,
+    String transcriptWindow,
+    String pinnedFailureSafeText) {
 
   public ChainEditRequest {
     Objects.requireNonNull(conversationId, "conversationId");
@@ -25,5 +30,25 @@ public record ChainEditRequest(
     userRequest = userRequest == null ? "" : userRequest;
     languageVersion =
         languageVersion == null || languageVersion.isBlank() ? "2026.1" : languageVersion.trim();
+    transcriptWindow = transcriptWindow == null ? "" : transcriptWindow;
+    pinnedFailureSafeText = pinnedFailureSafeText == null ? "" : pinnedFailureSafeText;
+  }
+
+  public ChainEditRequest(
+      String conversationId,
+      String chainId,
+      String editRunId,
+      ImportedChainPlan imported,
+      String userRequest,
+      String languageVersion) {
+    this(
+        conversationId,
+        chainId,
+        editRunId,
+        imported,
+        userRequest,
+        languageVersion,
+        "",
+        "");
   }
 }

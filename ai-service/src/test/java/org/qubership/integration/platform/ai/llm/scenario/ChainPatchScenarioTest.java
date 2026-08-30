@@ -45,7 +45,9 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -156,6 +158,30 @@ class ChainPatchScenarioTest {
     assertFalse(
         loadThread.get().contains("eventloop"),
         "catalog load must not run on a Vert.x event loop: " + loadThread.get());
+  }
+
+  @Test
+  void fixItPassesThePinnedCatalogFailureIntoTheEditRequest() {
+    String pin =
+        "Couldn't take a catalog snapshot: Missing required property httpUri. Element trigger-http (id).";
+    ChatRequest chat = request("fix it");
+    chat.setOpenChainTurnContext(
+        new OpenChainTurnContext(
+            CONVERSATION_ID,
+            CHAIN_ID,
+            "fix it",
+            "user: show graph\nassistant: " + pin,
+            Optional.of(new PinnedFailure(CONVERSATION_ID, CHAIN_ID, pin, "httpUri")),
+            Optional.empty(),
+            false));
+
+    run(chat);
+
+    ArgumentCaptor<ChainEditRequest> captured = ArgumentCaptor.forClass(ChainEditRequest.class);
+    verify(editCompiler).compile(captured.capture(), any());
+    assertEquals("fix it", captured.getValue().userRequest());
+    assertEquals(pin, captured.getValue().pinnedFailureSafeText());
+    assertEquals("user: show graph\nassistant: " + pin, captured.getValue().transcriptWindow());
   }
 
   @Test

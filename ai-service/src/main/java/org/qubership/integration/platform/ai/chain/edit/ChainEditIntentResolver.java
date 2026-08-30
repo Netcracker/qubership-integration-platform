@@ -59,10 +59,20 @@ public class ChainEditIntentResolver {
   }
 
   public ChainEditIntent resolve(ChainPlanGraph graph, String userRequest) {
+    return resolve(graph, userRequest, "", "");
+  }
+
+  public ChainEditIntent resolve(
+      ChainPlanGraph graph, String userRequest, String transcriptWindow, String pinnedFailure) {
     Objects.requireNonNull(graph, "graph");
     ChainEditCapture capture;
     try {
-      capture = agent.resolve(renderElements(graph), userRequest == null ? "" : userRequest);
+      capture =
+          agent.resolve(
+              renderElements(graph),
+              transcriptWindow == null ? "" : transcriptWindow,
+              pinnedFailure == null ? "" : pinnedFailure,
+              userRequest == null ? "" : userRequest);
     } catch (OutputParsingException e) {
       LOG.warnf(e, "Chain edit capture could not be parsed; treating as no change");
       return noChange();
@@ -85,7 +95,9 @@ public class ChainEditIntentResolver {
     Objects.requireNonNull(held, "held");
     ChainEditCapture capture;
     try {
-      capture = agent.resolve(renderElements(graph), composeResumeRequest(held, question, answer));
+      capture =
+          agent.resolve(
+              renderElements(graph), "", "", composeResumeRequest(held, question, answer));
     } catch (OutputParsingException e) {
       LOG.warnf(e, "Chain edit capture could not be parsed while resuming a clarification; treating as no change");
       return noChange();

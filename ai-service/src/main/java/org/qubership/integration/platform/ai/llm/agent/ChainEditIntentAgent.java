@@ -24,8 +24,15 @@ public interface ChainEditIntentAgent {
 Chain elements (id | type | label):
 {elements}
 
+Recent transcript:
+{transcriptWindow}
+
+Pinned catalog failure (may be empty):
+{pinnedFailure}
+
 User request:
 {userRequest}\
 """)
-  ChainEditCapture resolve(String elements, String userRequest);
+  ChainEditCapture resolve(
+      String elements, String transcriptWindow, String pinnedFailure, String userRequest);
 }
