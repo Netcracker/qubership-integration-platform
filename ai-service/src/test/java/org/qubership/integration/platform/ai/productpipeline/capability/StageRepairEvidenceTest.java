@@ -48,6 +48,20 @@ class StageRepairEvidenceTest {
   }
 
   @Test
+  void repairTurnCarriesRecoveryEvidenceRef() {
+    Map<String, Object> attributes =
+        Map.of(
+            ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+            "Phase 5 plan validation failed",
+            ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
+            "recovery-evidence-hash");
+    StageExecutionContext context = contextWithAttributes(attributes);
+
+    StageRepairEvidence evidence = StageRepairEvidence.from(context);
+    assertEquals("recovery-evidence-hash", evidence.recoveryEvidenceRef());
+  }
+
+  @Test
   void nullContextIsTreatedAsAFirstTurn() {
     assertFalse(StageRepairEvidence.isRepairTurn(null));
   }

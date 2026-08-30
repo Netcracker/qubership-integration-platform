@@ -22,8 +22,10 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -54,6 +56,19 @@ import org.qubership.integration.platform.ai.productpipeline.profile.BypassPolic
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.SkipPolicy;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionValidator;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidenceFactory;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryExecutor;
+import org.qubership.integration.platform.ai.productpipeline.recovery.SemanticFinding;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
 import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
 import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
@@ -92,6 +107,21 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final FailureNarrative failureNarrative;
   private final int repeatedFailureThreshold;
   private final RecoveryAttemptLedger recoveryLedger;
+  private volatile RecoveryValidationDeps recoveryValidationDeps;
+
+  private static final class RecoveryValidationDeps {
+    final ObjectMapper objectMapper;
+    final SchemaResourceLoader schemaResourceLoader;
+    final SchemaRefResolver schemaRefResolver;
+    final DeterministicElementSchemaService schemaService;
+
+    RecoveryValidationDeps() {
+      this.objectMapper = new ObjectMapper();
+      this.schemaResourceLoader = new SchemaResourceLoader();
+      this.schemaRefResolver = new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+      this.schemaService = DeterministicElementSchemaService.createForUnitTests(objectMapper);
+    }
+  }
 
   public static final int MAX_SEMANTIC_REPAIRS = 1;
   public static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
@@ -898,6 +928,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return new StageExecutionResult(
           new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
     }
+    if (outcomeClass == StageOutcomeClass.VALIDATION_FAILURE) {
+      putRunAttribute(
+          doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+      return recoverValidationFailure(
+          doc, stage, refs, cause, findings, evidence, emitted);
+    }
     if (diagnoseOwner) {
       List<OwnerCandidate> diagnosisSet = closed;
       if (internal) {
@@ -1015,6 +1051,329 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
   }
 
+  private StageExecutionResult recoverValidationFailure(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryCause cause,
+      String findings,
+      String evidenceText,
+      List<PipelineSignal> emitted) {
+    String runId = doc.run().runId();
+    RunManifest manifest = manifestsByRun.get(runId);
+    String locale = manifest == null ? "en" : manifest.responseLocale();
+    Revision approvedBriefRevision = artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF).orElse(null);
+    Reference approvedBriefRef =
+        approvedBriefRevision == null ? null : approvedBriefRevision.reference();
+    Revision approvedSemanticRevision =
+        artifactStore.latest(runId, Kind.CHAIN_SEMANTIC_REVISION).orElse(null);
+    Reference approvedSemanticRef =
+        approvedSemanticRevision == null ? null : approvedSemanticRevision.reference();
+    List<Reference> rejectedRefs = rejectedArtifactRefs(runId, refs);
+    String failureId = UUID.randomUUID().toString();
+    List<SemanticFinding> semanticFindings =
+        semanticFindingsForRejectedGraph(runId, rejectedRefs, stage.stageId(), failureId, findings, evidenceText);
+    RecoveryEvidence draftEvidence =
+        new RecoveryEvidence(
+            1,
+            failureId,
+            cause.causeCode().name(),
+            stage.stageId(),
+            approvedBriefRef,
+            approvedSemanticRef,
+            rejectedRefs,
+            semanticFindings,
+            null,
+            List.of());
+    RequirementBrief approvedBrief =
+        approvedBriefRevision == null
+            ? null
+            : artifactStore.payload(approvedBriefRevision, RequirementBrief.class);
+    Object rejectedPayload = rejectedArtifact(runId, rejectedRefs);
+    RecoveryContext context =
+        new RecoveryContext(
+            draftEvidence, approvedBrief, rejectedPayload, locale);
+    AcceptedRecovery acceptedRecovery = acceptedRecoveryDecision(runId, context);
+    RecoveryEvidence recoveryEvidence = acceptedRecovery.evidence();
+    RecoveryDecision accepted = acceptedRecovery.decision();
+    if (accepted == null) {
+      accepted =
+          new RecoveryDecision(
+              RecoveryCauseClass.UNCLASSIFIED,
+              null,
+              List.of(recoveryEvidence.failureId()),
+              RecoveryAction.PARK,
+              List.of(),
+              "",
+              findings.isBlank() ? evidenceText : findings);
+    }
+
+    boolean identicalRejection = false;
+    List<Reference> priorAttemptRefs = List.of();
+    if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
+      String briefIdentity = briefRevisionIdentity(recoveryEvidence);
+      RecoveryAttemptKey key =
+          recoveryLedger.key(stage.stageId(), cause, briefIdentity, doc.transitions());
+      identicalRejection =
+          recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED) > 0;
+      if (identicalRejection) {
+        priorAttemptRefs = priorRecoveryEvidenceRefs(runId);
+      }
+    }
+    RecoveryEvidence recoveryEvidenceWithPrior =
+        priorAttemptRefs.isEmpty()
+            ? recoveryEvidence
+            : new RecoveryEvidence(
+                recoveryEvidence.schemaVersion(),
+                recoveryEvidence.failureId(),
+                recoveryEvidence.observedCauseCode(),
+                recoveryEvidence.observingStageId(),
+                recoveryEvidence.approvedBriefRef(),
+                recoveryEvidence.approvedSemanticRef(),
+                recoveryEvidence.rejectedArtifactRefs(),
+                recoveryEvidence.findings(),
+                recoveryEvidence.technicalFailure(),
+                priorAttemptRefs);
+    List<Reference> evidenceInputs = new ArrayList<>();
+    if (approvedBriefRef != null) {
+      evidenceInputs.add(approvedBriefRef);
+    }
+    if (approvedSemanticRef != null) {
+      evidenceInputs.add(approvedSemanticRef);
+    }
+    rejectedRefs.stream().filter(ref -> !evidenceInputs.contains(ref)).forEach(evidenceInputs::add);
+    priorAttemptRefs.stream().filter(ref -> !evidenceInputs.contains(ref)).forEach(evidenceInputs::add);
+    Revision storedEvidence =
+        artifactStore.append(
+            new AppendCommand(
+                runId,
+                Kind.RECOVERY_EVIDENCE,
+                "1",
+                "product-pipeline-runtime",
+                "1",
+                recoveryEvidenceWithPrior,
+                evidenceInputs,
+                null,
+                provenance(runId, stage.stageId(), stage.capabilityId())));
+    putRunAttribute(
+        runId,
+        ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
+        storedEvidence.contentHash());
+
+    StageDecision mapped =
+        RecoveryExecutor.execute(
+            accepted,
+            recoveryEvidenceWithPrior,
+            doc,
+            stage,
+            catalogHasBeenWritten(runId),
+            identicalRejection);
+    if (mapped instanceof StageDecision.ReopenProducer reopen) {
+      if (accepted.action() == RecoveryAction.REVISE_BRIEF) {
+        putRunAttributeObject(
+            runId,
+            ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR,
+            accepted.proposedBriefChanges());
+      }
+      if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
+        recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, cause);
+      }
+      emitted.add(
+          new PipelineSignal.Progress(
+              reopen.producerStageId(), "Reopening producer from recovery evidence"));
+      return new StageExecutionResult(mapped, emitted);
+    }
+    if (mapped instanceof StageDecision.Retry) {
+      if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
+        recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, cause);
+      }
+      emitted.add(new PipelineSignal.Progress(stage.stageId(), "Retrying from recovery evidence"));
+      return new StageExecutionResult(mapped, emitted);
+    }
+
+    StageDecision.WaitForInput wait = (StageDecision.WaitForInput) mapped;
+    List<StageSnapshot> stages =
+        refs.isEmpty()
+            ? doc.run().stages()
+            : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        stages,
+        wait.prompt(),
+        ProductPipelineRunSupport.haltEvidence(attributesByRun.get(runId), null));
+    emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), wait.prompt()));
+    return new StageExecutionResult(wait, emitted);
+  }
+
+  private record AcceptedRecovery(RecoveryDecision decision, RecoveryEvidence evidence) {}
+
+  private AcceptedRecovery acceptedRecoveryDecision(String runId, RecoveryContext context) {
+    Optional<RecoveryDecision> first = failureNarrative.recover(runId, context);
+    RecoveryDecisionValidator.Result firstValidation =
+        first
+            .map(decision -> RecoveryDecisionValidator.validate(decision, context))
+            .orElseGet(
+                () ->
+                    new RecoveryDecisionValidator.Result(
+                        false, List.of("Missing recovery decision.")));
+    if (first.isPresent() && firstValidation.accepted()) {
+      return new AcceptedRecovery(first.orElseThrow(), context.evidence());
+    }
+
+    RecoveryEvidence afterFirst =
+        evidenceWithDecisionFindings(context.evidence(), firstValidation.findings());
+    RecoveryContext correctedContext =
+        new RecoveryContext(
+            afterFirst,
+            context.approvedBrief(),
+            context.rejectedArtifact(),
+            context.responseLocale());
+    Optional<RecoveryDecision> second = failureNarrative.recover(runId, correctedContext);
+    if (second.isEmpty()) {
+      return new AcceptedRecovery(null, first.isEmpty() ? context.evidence() : afterFirst);
+    }
+    RecoveryDecisionValidator.Result secondValidation =
+        RecoveryDecisionValidator.validate(second.orElseThrow(), correctedContext);
+    if (secondValidation.accepted()) {
+      return new AcceptedRecovery(second.orElseThrow(), afterFirst);
+    }
+    RecoveryEvidence afterBoth =
+        evidenceWithDecisionFindings(afterFirst, secondValidation.findings());
+    return new AcceptedRecovery(null, afterBoth);
+  }
+
+  private RecoveryValidationDeps recoveryValidationDeps() {
+    RecoveryValidationDeps deps = recoveryValidationDeps;
+    if (deps == null) {
+      synchronized (this) {
+        deps = recoveryValidationDeps;
+        if (deps == null) {
+          deps = new RecoveryValidationDeps();
+          recoveryValidationDeps = deps;
+        }
+      }
+    }
+    return deps;
+  }
+
+  private List<SemanticFinding> semanticFindingsForRejectedGraph(
+      String runId,
+      List<Reference> rejectedRefs,
+      String observingStageId,
+      String failureId,
+      String findings,
+      String evidenceText) {
+    ChainPlanGraph graph = resolveRejectedGraph(runId, rejectedRefs);
+    if (graph != null) {
+      RecoveryValidationDeps deps = recoveryValidationDeps();
+      List<SemanticFinding> graphFindings =
+          RecoveryEvidenceFactory.findingsFromChainPlanGraph(
+              graph,
+              observingStageId,
+              deps.objectMapper,
+              deps.schemaRefResolver,
+              deps.schemaService,
+              deps.schemaResourceLoader);
+      if (!graphFindings.isEmpty()) {
+        return graphFindings;
+      }
+    }
+    return List.of(fallbackSemanticFinding(failureId, findings, evidenceText));
+  }
+
+  private static SemanticFinding fallbackSemanticFinding(
+      String failureId, String findings, String evidenceText) {
+    String prose = findings.isBlank() ? evidenceText : findings;
+    return new SemanticFinding(
+        "UNCLASSIFIED",
+        "",
+        failureId + "-finding-1",
+        "",
+        "",
+        List.of(),
+        List.of(),
+        List.of(),
+        "",
+        Map.of(),
+        List.of(),
+        prose);
+  }
+
+  private ChainPlanGraph resolveRejectedGraph(String runId, List<Reference> rejectedRefs) {
+    if (rejectedRefs != null) {
+      for (Reference ref : rejectedRefs) {
+        if (ref == null || ref.kind() != Kind.CHAIN_PLAN_GRAPH) {
+          continue;
+        }
+        Optional<Revision> revision = artifactStore.get(runId, ref);
+        if (revision.isPresent()) {
+          return artifactStore.payload(revision.orElseThrow(), ChainPlanGraph.class);
+        }
+      }
+    }
+    return artifactStore
+        .latest(runId, Kind.CHAIN_PLAN_GRAPH)
+        .map(revision -> artifactStore.payload(revision, ChainPlanGraph.class))
+        .orElse(null);
+  }
+
+  private static RecoveryEvidence evidenceWithDecisionFindings(
+      RecoveryEvidence evidence, List<String> validationFindings) {
+    List<SemanticFinding> findings = new ArrayList<>(evidence.findings());
+    long priorInvalid =
+        findings.stream().filter(finding -> "INVALID_RECOVERY_DECISION".equals(finding.code())).count();
+    findings.add(
+        new SemanticFinding(
+            "INVALID_RECOVERY_DECISION",
+            "RecoveryDecisionValidator",
+            evidence.failureId() + "-invalid-decision-" + (priorInvalid + 1),
+            "",
+            "",
+            List.of(),
+            List.of(),
+            List.of(),
+            "",
+            Map.of(),
+            List.of(),
+            String.join("\n", validationFindings)));
+    return new RecoveryEvidence(
+        evidence.schemaVersion(),
+        evidence.failureId(),
+        evidence.observedCauseCode(),
+        evidence.observingStageId(),
+        evidence.approvedBriefRef(),
+        evidence.approvedSemanticRef(),
+        evidence.rejectedArtifactRefs(),
+        findings,
+        evidence.technicalFailure(),
+        evidence.priorAttemptRefs());
+  }
+
+  private List<Reference> rejectedArtifactRefs(String runId, List<Reference> refs) {
+    if (refs != null && !refs.isEmpty()) {
+      return List.copyOf(refs);
+    }
+    for (Kind kind : List.of(Kind.CHAIN_PLAN_GRAPH, Kind.IMPLEMENTATION_PLAN)) {
+      Optional<Reference> latest = artifactStore.latest(runId, kind).map(Revision::reference);
+      if (latest.isPresent()) {
+        return List.of(latest.orElseThrow());
+      }
+    }
+    return List.of();
+  }
+
+  private Object rejectedArtifact(String runId, List<Reference> refs) {
+    for (Reference ref : refs) {
+      Optional<Revision> revision = artifactStore.get(runId, ref);
+      if (revision.isPresent()) {
+        return artifactStore.payload(revision.orElseThrow(), Object.class);
+      }
+    }
+    return Map.of();
+  }
+
   private static long repeatedHaltCount(
       ProductPipelineRunDocument doc, String stageId, String haltIdentity) {
     return doc.attempts().stream()
@@ -1065,6 +1424,32 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private boolean catalogHasBeenWritten(String runId) {
     return artifactStore.latest(runId, Kind.MATERIALIZATION_RESULT).isPresent()
         || artifactStore.latest(runId, Kind.CATALOG_CHAIN_SNAPSHOT).isPresent();
+  }
+
+  private void recordRegenerateAttempt(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryEvidence evidence,
+      RecoveryCause cause) {
+    String briefIdentity = briefRevisionIdentity(evidence);
+    RecoveryAttemptKey key =
+        recoveryLedger.key(stage.stageId(), cause, briefIdentity, doc.transitions());
+    recordProducerRepairAttempt(
+        doc, stage, refs, recoveryLedger.recordRepair(key, briefIdentity));
+  }
+
+  private static String briefRevisionIdentity(RecoveryEvidence evidence) {
+    if (evidence == null || evidence.approvedBriefRef() == null) {
+      return "";
+    }
+    return evidence.approvedBriefRef().contentHash();
+  }
+
+  private List<Reference> priorRecoveryEvidenceRefs(String runId) {
+    return artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).stream()
+        .map(Revision::reference)
+        .toList();
   }
 
   private void recordProducerRepairAttempt(
@@ -1130,6 +1515,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     attributesByRun
         .computeIfAbsent(runId, ignored -> new java.util.concurrent.ConcurrentHashMap<>())
         .put(key, value == null ? "" : value);
+  }
+
+  private void putRunAttributeObject(String runId, String key, Object value) {
+    if (value == null) {
+      return;
+    }
+    attributesByRun
+        .computeIfAbsent(runId, ignored -> new java.util.concurrent.ConcurrentHashMap<>())
+        .put(key, value);
   }
 
   private Map<String, Object> enrichAttributesFromCommittedInputs(

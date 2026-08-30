@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -40,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -849,6 +851,16 @@ class RequirementAnalysisCapabilityTest {
                 "security-1: External route requires accessControlType=RBAC (blocker)",
                 "Phase 5 plan validation failed",
                 "add rbac",
+                "recovery-hash-1",
+                List.of(
+                    new org.qubership.integration.platform.ai.productpipeline.recovery
+                            .ProposedBriefChange(
+                        "timeout-fact",
+                        "timeoutSeconds",
+                        "0",
+                        "",
+                        "CONFLICTING_TIMEOUT",
+                        true)),
                 "Goal: prior brief"));
     assertTrue(message.contains("Repair the previously approved requirement brief"));
     assertTrue(message.contains("outcomeClass: VALIDATION_FAILURE"));
@@ -856,6 +868,114 @@ class RequirementAnalysisCapabilityTest {
     assertTrue(message.contains("accessControlType=RBAC"));
     assertTrue(message.contains("Prior requirement brief:"));
     assertTrue(message.contains("Goal: prior brief"));
+    assertTrue(message.contains("previousValue=0"));
+    assertTrue(message.contains("proposedValue="));
+    assertTrue(message.contains("authorDecisionRequired=true"));
+    assertTrue(message.contains("do not invent values when authorDecisionRequired is true"));
+  }
+
+  @Test
+  void repairTurnWithExclusiveFactsStillRequiresApproval() throws Exception {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementBrief prior = coveringBrief(approved, "Greetings with conflicting timeout");
+    RequirementBrief repaired = coveringBrief(approved, "Greetings with timeout 10 seconds");
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            FakeKnowledgeClient.defaultFixture(),
+            FakeKnowledgeClient.defaultFixture(),
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> repaired);
+
+    ProductPipelineProfile profile;
+    try (java.io.InputStream in =
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+      profile = ProductPipelineProfileParser.parse(in);
+    }
+
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Conflicting timeout requirements");
+    attributes.put(
+        ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR,
+        List.of(
+            new org.qubership.integration.platform.ai.productpipeline.recovery.ProposedBriefChange(
+                "timeout-fact",
+                "timeoutSeconds",
+                "0",
+                "",
+                "CONFLICTING_TIMEOUT",
+                true)));
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-repair-exclusive",
+            "conv-repair-exclusive",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            profile,
+            null,
+            List.of(),
+            attributes);
+    CapabilitySignal.Completed completed =
+        capability.execute(context).collect().asList().await().indefinitely().stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.outcome().outcomeClass());
+    assertNotEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+  }
+
+  @Test
+  void repairChangeSummaryMentionsProposedFieldValues() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Conflicting timeout requirements");
+    attributes.put(
+        ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR,
+        List.of(
+            new org.qubership.integration.platform.ai.productpipeline.recovery.ProposedBriefChange(
+                "timeout-fact",
+                "timeoutSeconds",
+                "0",
+                "10",
+                "CONFLICTING_TIMEOUT",
+                true)));
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-summary",
+            "conv-summary",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-1",
+            null,
+            null,
+            List.of(),
+            attributes);
+    String summary =
+        RequirementAnalysisCapability.repairChangeSummary(
+            context, coveringBrief(approved, "Greetings with timeout"));
+
+    assertTrue(summary.contains("timeoutSeconds"));
+    assertTrue(summary.contains("0 -> 10"));
+  }
+
+  @Test
+  void authorOverrideAtApprovalCardIsPassedAsChangeRequest() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String message =
+        RequirementAnalysisCapability.buildAnalysisUserMessage(
+            approved,
+            "timeout 10 seconds",
+            "en",
+            null);
+    assertTrue(message.contains("Change request for this analysis turn:"));
+    assertTrue(message.contains("timeout 10 seconds"));
   }
 
   private static CapabilitySignal.Completed run(

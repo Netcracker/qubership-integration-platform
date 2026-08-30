@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -24,6 +25,9 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContextProjector;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
 
 /**
  * Model-authored halt-card body from structured evidence. Empty when the turn fails; callers keep
@@ -235,6 +239,33 @@ public final class FailureNarrative {
       narrative = draft == null || draft.narrative() == null ? "" : draft.narrative().trim();
     }
     return routedDiagnosis(narrative, closed, stage, typed, followUpText);
+  }
+
+  /**
+   * Asks the model for a structured recovery decision. Empty when there is no agent, the run has
+   * spent its budget, the turn times out, the call fails, or the reply is blank.
+   */
+  public Optional<RecoveryDecision> recover(String runId, RecoveryContext context) {
+    if (agent == null || context == null) {
+      return Optional.empty();
+    }
+    String locale = normalizedLocale(context.responseLocale());
+    String recoveryContextJson;
+    try {
+      recoveryContextJson = RecoveryContextProjector.project(context, new ObjectMapper());
+    } catch (RuntimeException ex) {
+      LOG.warnf(ex, "Recovery context projection failed; keeping raw evidence");
+      return Optional.empty();
+    }
+    RecoveryDecision decision =
+        runTurn(
+            runId,
+            "Recovery decision",
+            () -> agent.recover(locale, recoveryContextJson));
+    if (decision == null || decision.causeClass() == null || decision.action() == null) {
+      return Optional.empty();
+    }
+    return Optional.of(decision);
   }
 
   /**

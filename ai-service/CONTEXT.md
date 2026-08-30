@@ -108,13 +108,11 @@ continue on that artifact until the user accepts the new binding.
 _Avoid_: auto-approved fix, in-place edit of an approved plan
 
 **Owner diagnosis**:
-Choosing the stage that produced the defective artifact. Candidates are the producers of the failed
-stage's inputs (and those producers' inputs, if the search must go deeper). The deterministic
-router picks among that set from the typed cause. If more than one candidate stays plausible, a
-Decision card asks which artifact to revise. More owner-choice cards is the recorded trade for
-dropping model-assisted disambiguation: a card the author answers beats a routing decision nothing
-can check.
-_Avoid_: previous-approval heuristic, unconstrained LLM blame, a second authority that names the owner
+For domain and contract failures, the runtime still traces defective inputs through earlier
+producers. Validation failures use a structured `RecoveryDecision` instead: the agent returns the
+decision, Java validates it and resolves the referenced artifact to its producer, and the author
+never selects an internal stage.
+_Avoid_: previous-approval heuristic, unconstrained LLM blame, owner-choice stage cards
 
 **Recoverable halt**:
 A pause that keeps the run inside the product pipeline. The user can retry the current stage, go
@@ -128,10 +126,23 @@ _Avoid_: terminal FAILED, abort the conversation, irreversible pipeline death, d
 **Failure narrative**:
 LLM-authored explanation of what went wrong, written for the user at a recoverable halt. The
 runtime supplies structured evidence (outcome class, exception, validation findings, stage id) and
-the instruction naming what to change. The model authors the explanation only. A technical halt
-uses a short narration turn on the same evidence. If that turn fails, the card keeps its actions,
-the raw evidence, and the runtime instruction.
+the instruction naming what to change. The model authors the explanation only. Recovery diagnosis
+receives the full projected `RecoveryContext` JSON, including validator details and brief facts;
+nothing in that projection truncates stored `RecoveryEvidence`. A technical halt uses a short
+narration turn on the same evidence. If that turn fails, the card keeps its actions, the raw
+evidence, and the runtime instruction.
 _Avoid_: hardcoded halt copy, template error strings, "rolled back to stage X", a model-authored prescription
+
+**Brief as semantic root** (recovery):
+The approved requirement brief is the only semantic root of a create-chain run. Downstream
+artifacts are projections of that brief. `REVISE_BRIEF` repairs the brief through requirement
+analysis and approval; derivation defects keep the brief and re-enter the faulty producer.
+_Avoid_: patching the plan or graph when the brief is authoritative, a generic brief property bag
+
+**Unconditional schema defaults** (recovery):
+Server-owned defaults such as `retryCount=0` and `retryDelay=5000` are applied before element
+validation. Their absence is a server defect, not a reason to reopen the brief or ask the author.
+_Avoid_: asking the author for retry policy when the schema already defines it
 
 **Halt question**:
 A typed message at a pause that asks about the run rather than instructing it. A model tells the
@@ -149,9 +160,11 @@ _Avoid_: rationing questions by a per-run count, keyword matching for "why", mov
 **Failure routing** (decided):
 A recoverable halt is the only user-visible stop. Same-stage technical retry still runs first;
 when that budget is exhausted the halt card always includes Retry (including connection loss).
-Validation, domain, and contract failures take owner diagnosis and causal reopen. Missing mandatory
-input and policy failures halt on a Decision card; the model does not rewrite policy. No outcome
-class may leave the user with nothing to do.
+Validation failures persist lossless `RecoveryEvidence`, project it to the recovery LLM, request a
+structured `RecoveryDecision`, validate it in Java, and execute a brief reopen, artifact retry,
+clarification, or park without owner choice. Domain and contract failures retain owner diagnosis
+and causal reopen. Missing mandatory input and policy failures halt on a Decision card; the model
+does not rewrite policy. No outcome class may leave the user with nothing to do.
 
 **Internal failure**:
 An invariant broken inside the service, as opposed to a model reply the contract rejects: a
@@ -186,32 +199,51 @@ ever matched it. Any new user confirmation belongs here, not in a phrase the use
 never a model's to take".
 _Avoid_: approval prose, "type yes to confirm"
 
-**DEPLOY_CHAIN** (decided):
+**DEPLOY_CHAIN** (decided, does not exist yet):
 The chat scenario for catalog Snapshot, deploy/redeploy, undeploy, and deployment status of an
 identifiable chain (open graph, just-created, or name/id). Graph explanation stays `ASK_CHAIN`.
+`ScenarioType` has no `DEPLOY_CHAIN` value; `router-system.md` has no such class;
+`coerceToSupportedHandler` would send an unknown type to `CREATE_CHAIN_PLAN`. `ASK_CHAIN` is
+`ChainQuestionScenario` and is read-only. Chain identity today is `ChainContextExtractor`: compact
+JSON `chainId` in the attachment, `(ID: …)` text, or the CREATE run's `MaterializationResult.chainId`.
+Name lookup is not implemented (`POST /v1/folders/search` exists for publication labels, not this
+flow). `ChatEvent` has no Deploy / Redeploy / Undeploy actions.
 A chain cannot run on an engine without a catalog Snapshot; bare "deploy" creates a new Snapshot
 only when the chain has none or has unsaved changes, otherwise reuses `currentSnapshot` / latest.
+`CatalogRestClient.ChainDto` is only `id, name, description`, so `GET /v1/chains/{id}` fields
+`currentSnapshot` and `unsavedChanges` are dropped and must be read before that policy can run.
 Default engine domain is `default` unless the user asks to choose or `default` is unavailable.
-After create/redeploy the chat waits briefly for Deployed, Failed, or Warning, then reports;
-Progressing past that timeout is still a valid answer. Snapshot build failure stops the flow with
-a plain-language reason from the catalog error; it does not fall back to an older Snapshot when the
-user wanted the current graph. Auto-repair via `COMPARE_AND_PATCH` is a later stage, not this
-scenario.
+After create/redeploy the chat waits briefly, then reports catalog `DeploymentStatus` on engine pods
+(`DEPLOYED`, `PROCESSING`, `FAILED`; UI "Progressing" is `PROCESSING`). `PROCESSING` past that
+timeout is still a valid answer. Catalog has no `WARNING` status (the UI aggregate is mixed-pod
+display only). Snapshot build failure stops the flow with a plain-language reason from the catalog
+400 (`SnapshotCreationException`, element id/name in details); it does not fall back to an older
+Snapshot when the user wanted the current graph. Auto-repair via `COMPARE_AND_PATCH` is a later
+stage, not this scenario.
 _Avoid_: folding deploy into ASK_CHAIN, silent deploy of a stale Snapshot after a failed build
 
 **Catalog Snapshot**:
 The runtime-catalog versioned XML cut of a chain that deployment requires. Distinct from in-memory
-run/task "snapshots" elsewhere in this service. User-requested create is in scope for
-`DEPLOY_CHAIN`; automatic Snapshot-around-every-patch is not (see Failed write).
+run/task "snapshots" elsewhere in this service. Catalog `POST /v1/catalog/chains/{chainId}/snapshots`
+builds it, names it `V{n}`, points `currentSnapshot` at it, and clears `unsavedChanges`. Fails with
+400 when property verification fails. `CatalogRestClient.createSnapshot` / `listSnapshots` already
+match that path (`SnapshotDto` is `id, name`) and have no production callers;
+`InMemoryCatalogRestClient` throws. User-requested create is in scope for `DEPLOY_CHAIN`; automatic
+Snapshot-around-every-patch is not (see Failed write). Revert (`POST .../snapshots/{id}/revert`) is
+out of v1.
 _Avoid_: calling a run document or reconcile read a "snapshot" when you mean this catalog object
 
-**Chain deployment** (decided):
-Binding of one catalog Snapshot to one engine domain so the chain runs there. At most one
-deployment per chain per domain; replacing it is redeploy. Confirmation: open graph and no
-existing deployment on the target domain runs immediately; otherwise one Decision card whose
-action is Deploy or Redeploy from current state. Undeploy always uses a Decision card. Out of
-scope for v1: revert-to-snapshot, multi-domain in one request, a separate micro-engine path, A2A
-without UI.
+**Chain deployment** (decided, does not exist yet):
+Binding of one catalog Snapshot to one engine domain so the chain runs there. Chat v1 allows at most
+one deployment per chain per domain; replacing it is redeploy. The catalog does not enforce that:
+`POST /v1/catalog/chains/{chainId}/deployments` with `{ domain, snapshotId }` always creates
+(classic domains only; micro-engine is a separate API and out of v1). Redeploy in chat is list,
+then `DELETE .../deployments/{deploymentId}`, then create. List: `GET .../deployments`
+(`DeploymentResponse` plus `runtime.states`). Domains: `GET /v1/catalog/domains`. None of these
+are on `CatalogRestClient`. Confirmation: open graph and no existing deployment on the target
+domain runs immediately; otherwise one Decision card whose action is Deploy or Redeploy from
+current state. Undeploy always uses a Decision card. Out of scope for v1: revert-to-snapshot,
+multi-domain in one request, a separate micro-engine path, A2A without UI.
 _Avoid_: deploy without a Snapshot, prose "yes" to confirm undeploy or redeploy
 
 ## Regression testing
