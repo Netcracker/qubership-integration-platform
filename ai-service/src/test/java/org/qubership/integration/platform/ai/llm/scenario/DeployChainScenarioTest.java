@@ -2,7 +2,6 @@ package org.qubership.integration.platform.ai.llm.scenario;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -173,7 +172,15 @@ class DeployChainScenarioTest {
         .thenReturn(Optional.of(CHAIN_ID));
     when(catalogRestClient.createSnapshot(CHAIN_ID)).thenThrow(new NullPointerException("x"));
 
-    assertThrows(NullPointerException.class, () -> eventsFrom("take a snapshot"));
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(chatRequest("take a snapshot"), CONVERSATION_ID, ScenarioType.DEPLOY_CHAIN)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(10));
+    sub.awaitFailure();
+
+    assertTrue(sub.getFailure() instanceof NullPointerException);
+    assertFalse(sub.getItems().stream().anyMatch(ChatEvent.Token.class::isInstance));
     assertTrue(pinnedFailureStore.find(CONVERSATION_ID, CHAIN_ID).isEmpty());
   }
 

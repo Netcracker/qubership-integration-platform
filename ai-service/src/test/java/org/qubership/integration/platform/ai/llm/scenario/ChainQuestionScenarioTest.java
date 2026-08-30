@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -260,18 +260,55 @@ class ChainQuestionScenarioTest {
   }
 
   @Test
+  void showJsonWhenFactsUnavailableDoesNotReplayStaleSnapshotPin() {
+    String snapshotPin =
+        "Couldn't take a catalog snapshot: Fields are not properly defined.";
+    PinnedFailure pin =
+        new PinnedFailure(CONVERSATION_ID, "chain-1", snapshotPin, "400");
+    ChatRequest request =
+        chatRequest(
+            "show json",
+            new OpenChainTurnContext(
+                CONVERSATION_ID,
+                "chain-1",
+                "show json",
+                "user: take a snapshot\nassistant: " + snapshotPin,
+                Optional.of(pin),
+                Optional.empty(),
+                true));
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of("chain-1"));
+
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(request, CONVERSATION_ID, ScenarioType.ASK_CHAIN)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(1));
+    sub.awaitCompletion();
+
+    ChatEvent event = sub.getItems().get(0);
+    assertTrue(event instanceof ChatEvent.Token, () -> "expected Token, got " + event);
+    assertEquals(KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE, ((ChatEvent.Token) event).text());
+    assertFalse(((ChatEvent.Token) event).text().contains(snapshotPin));
+    verify(chainPresentationAgent, never()).chat(any(), any());
+    verify(chainCatalogFactsService, never()).load(anyString());
+  }
+
+  @Test
   void catalogNpeDoesNotBecomeTokenOrError() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of("chain-1"));
     when(chainCatalogFactsService.load("chain-1")).thenThrow(new NullPointerException("x"));
 
-    assertThrows(
-        NullPointerException.class,
-        () ->
-            scenario
-                .handle(chatRequest("show graph"), CONVERSATION_ID, ScenarioType.ASK_CHAIN)
-                .subscribe()
-                .withSubscriber(AssertSubscriber.create(1)));
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(chatRequest("show graph"), CONVERSATION_ID, ScenarioType.ASK_CHAIN)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(1));
+    sub.awaitFailure();
+
+    assertTrue(sub.getFailure() instanceof NullPointerException);
+    assertFalse(sub.getItems().stream().anyMatch(ChatEvent.Token.class::isInstance));
   }
 
   private static ChatRequest chatRequest(String text) {

@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -205,6 +207,45 @@ class ChatExecutionServiceTest {
     ArgumentCaptor<ChatRequest> routed = ArgumentCaptor.forClass(ChatRequest.class);
     verify(router).route(routed.capture(), eq("conv-turn-ctx"));
     assertEquals(turnContext, routed.getValue().getOpenChainTurnContext());
+  }
+
+  @Test
+  void factoryNpeEmitsErrorThenDoneNotToken() {
+    OpenChainTurnContextFactory turnContextFactory = mock(OpenChainTurnContextFactory.class);
+    when(turnContextFactory.build(any(), anyString()))
+        .thenThrow(new NullPointerException("catalog npe"));
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-factory-npe");
+    request.setMessage("hello");
+
+    Multi<String> stream;
+    try {
+      stream =
+          service(router, decisions, new PendingRedeployStore(), turnContextFactory)
+              .streamV1Sse(request);
+    } catch (RuntimeException e) {
+      fail("streamSse must return a Multi, not throw: " + e);
+      return;
+    }
+
+    List<String> frames = stream.collect().asList().await().indefinitely();
+
+    assertTrue(
+        frames.stream().anyMatch(frame -> frame.startsWith("event: error\n")),
+        () -> "expected event: error, got: " + frames);
+    assertTrue(
+        frames.stream().anyMatch(frame -> frame.startsWith("event: done\n")),
+        () -> "expected event: done, got: " + frames);
+    assertFalse(
+        frames.stream().anyMatch(frame -> frame.startsWith("event: token\n")),
+        () -> "NPE must not become a token, got: " + frames);
+    verify(router, never()).route(any(), anyString());
   }
 
   @Test

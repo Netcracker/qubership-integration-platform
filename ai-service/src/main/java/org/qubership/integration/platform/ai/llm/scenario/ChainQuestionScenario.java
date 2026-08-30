@@ -126,9 +126,6 @@ public class ChainQuestionScenario implements ScenarioHandler {
     if (intent == QuestionIntent.EXPLAIN) {
       return streamExplainAnswer(conversationId, userMessage, null, transcriptWindow, pin);
     }
-    if (pin.isPresent()) {
-      return Multi.createFrom().item(ChatEvent.token(pin.get().safeText()));
-    }
     return knownOrRethrow(
         new TimeoutException("open-chain catalog facts unavailable"), conversationId, chainId);
   }
@@ -241,10 +238,7 @@ public class ChainQuestionScenario implements ScenarioHandler {
   private Multi<ChatEvent> knownOrRethrow(Throwable error, String conversationId, String chainId) {
     Optional<KnownFailure> known = knownFailureMapper.tryMap(error, CatalogOperation.FACTS);
     if (known.isEmpty()) {
-      if (error instanceof RuntimeException runtime) {
-        throw runtime;
-      }
-      throw new RuntimeException(error);
+      return Multi.createFrom().failure(error);
     }
     KnownFailure failure = known.get();
     LOG.warnf(error, "ASK_CHAIN failed conversationId=%s chainId=%s", conversationId, chainId);
