@@ -22,6 +22,8 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationI
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.ElementPatchDefaultsApplicator;
+import org.qubership.integration.platform.ai.schema.ElementPatchValidationMessages;
 import org.qubership.integration.platform.ai.schema.ElementPatchValidator;
 import org.qubership.integration.platform.ai.schema.ElementPropertiesSchemaModelBuilder;
 import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
@@ -139,15 +141,21 @@ public class CompilerValidationPipeline {
       }
       String patchJson =
           toPropertiesPatchJson(
-              elementType, node.properties(), objectMapper, deterministicElementSchemaService);
+              elementType,
+              node.properties(),
+              objectMapper,
+              deterministicElementSchemaService,
+              schemaRefResolver);
       var model = ElementPropertiesSchemaModelBuilder.build(elementType, schemaRefResolver);
       JsonNode result = ElementPatchValidator.validate(patchJson, model, schemaRefResolver, objectMapper);
       if (!result.path("valid").asBoolean(true)) {
+        String summary =
+            ElementPatchValidationMessages.summarizeFailure(result.toString(), objectMapper);
         issues.add(
             new ValidationIssue(
                 "element-" + counter++,
                 ValidationSeverity.BLOCKER,
-                "Element properties violate schema for '" + elementType + "'",
+                summary,
                 ELEMENT,
                 node.nodeId() == null ? List.of() : List.of(node.nodeId()),
                 List.of(),
@@ -241,7 +249,8 @@ public class CompilerValidationPipeline {
       String elementType,
       List<PlanProperty> properties,
       ObjectMapper objectMapper,
-      DeterministicElementSchemaService deterministicElementSchemaService) {
+      DeterministicElementSchemaService deterministicElementSchemaService,
+      SchemaRefResolver schemaRefResolver) {
     try {
       var root = objectMapper.createObjectNode();
       var props = objectMapper.createObjectNode();
@@ -257,6 +266,11 @@ public class CompilerValidationPipeline {
         }
       }
       root.set("properties", props);
+      if (elementType != null && !elementType.isBlank()) {
+        var model = ElementPropertiesSchemaModelBuilder.build(elementType.trim(), schemaRefResolver);
+        ElementPatchDefaultsApplicator.applyMissingPropertyDefaults(
+            root, model, schemaRefResolver, objectMapper, null);
+      }
       return objectMapper.writeValueAsString(root);
     } catch (Exception e) {
       return "{\"properties\":{}}";

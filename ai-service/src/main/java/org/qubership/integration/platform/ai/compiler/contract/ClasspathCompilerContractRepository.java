@@ -30,6 +30,7 @@ public class ClasspathCompilerContractRepository implements CompilerContractRepo
       List.of(
           "http-trigger",
           "kafka-trigger-2",
+          "async-api-trigger",
           "service-call",
           "script",
           "mapper-2",

@@ -47,6 +47,7 @@ markdown.
 |---|---|---|---|
 | http-trigger | cip-http-trigger-endpoint-generator | Semantic node and edge ownership | runtime-catalog/src/main/resources/elements/http-trigger/description.yaml |
 | kafka-trigger-2 | cip-messaging-generator | Semantic node and edge ownership | runtime-catalog/src/main/resources/elements/kafka-trigger-2/description.yaml |
+| async-api-trigger | cip-service-call-generator | Semantic node and edge ownership | runtime-catalog/src/main/resources/elements/async-api-trigger/description.yaml |
 | service-call | cip-service-call-generator | Semantic node and edge ownership | runtime-catalog/src/main/resources/elements/service-call/description.yaml |
 | script | cip-script-generator | Mapping rules | runtime-catalog/src/main/resources/elements/script/description.yml |
 | mapper-2 | cip-transformation-generator | Semantic node and edge ownership | runtime-catalog/src/main/resources/elements/mapper-2/description.yml |

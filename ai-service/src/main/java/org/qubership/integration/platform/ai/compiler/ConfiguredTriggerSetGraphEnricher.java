@@ -34,8 +34,12 @@ final class ConfiguredTriggerSetGraphEnricher {
       if (nodeId == null) {
         continue;
       }
+      String nodeType = nodeType(merged, nodeId);
       for (PlanProperty property : trigger.properties()) {
         if (property == null || property.key() == null || property.key().isBlank()) {
+          continue;
+        }
+        if ("serviceCallId".equals(property.key()) && !"service-call".equals(nodeType)) {
           continue;
         }
         if (hasNonBlankProperty(merged, nodeId, property.key())) {
@@ -62,6 +66,15 @@ final class ConfiguredTriggerSetGraphEnricher {
     for (ChainPlanNode node : graph.nodes()) {
       if (node != null && expectedType.equalsIgnoreCase(nullToEmpty(node.type()))) {
         return node.nodeId();
+      }
+    }
+    return null;
+  }
+
+  private static String nodeType(ChainPlanGraph graph, String nodeId) {
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node != null && Objects.equals(node.nodeId(), nodeId)) {
+        return node.type();
       }
     }
     return null;

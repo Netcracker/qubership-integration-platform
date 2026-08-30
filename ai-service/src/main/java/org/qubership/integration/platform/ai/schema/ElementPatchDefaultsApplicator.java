@@ -21,6 +21,16 @@ public final class ElementPatchDefaultsApplicator {
 
   private ElementPatchDefaultsApplicator() {}
 
+  /** Resolves a property schema's {@code default} after {@code $ref} dereferencing. */
+  public static JsonNode schemaDefault(
+      JsonNode schema,
+      SchemaRefResolver resolver,
+      JsonNode documentRoot,
+      String documentUri) {
+    return extractSchemaDefault(
+        schema, resolver, documentRoot, documentUri, new ArrayDeque<>(), 0);
+  }
+
   /**
    * Mutates {@code patchRoot} in place: ensures {@code properties} exists, then for each key in
    * {@code model.unconditionalRequired()} that is absent or null in {@code properties}, sets the
@@ -53,8 +63,7 @@ public final class ElementPatchDefaultsApplicator {
         continue;
       }
       if (!props.has(key) || props.get(key).isNull()) {
-        JsonNode def =
-            extractSchemaDefault(schema, resolver, elementRoot, docUri, new ArrayDeque<>(), 0);
+        JsonNode def = schemaDefault(schema, resolver, elementRoot, docUri);
         if (def != null && !def.isNull()) {
           props.set(key, def.deepCopy());
           if (appliedOut != null) {
