@@ -13,6 +13,8 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -370,12 +372,18 @@ public class DesignPlanningCapability implements StageCapability {
       text.append("\nNo mapping intents. Do not plan mapping scripts.\n");
     } else {
       text.append(
-          "\nMapping intents. Each needs a cip-script-generator or"
-              + " cip-transformation-generator step naming the mapping id:\n");
+          "\nMapping intents. Each needs one step with mappingIntentId=<id> and the matching"
+              + " skill:\n");
       for (MappingIntent mapping : revision.mappingIntents()) {
         text.append("- ")
             .append(mapping.mappingIntentId())
-            .append(" ")
+            .append(" mappingIntentId=")
+            .append(mapping.mappingIntentId());
+        String skill = mappingGeneratorSkill(mapping);
+        if (!skill.isBlank()) {
+          text.append(' ').append(skill);
+        }
+        text.append(' ')
             .append(mapping.sourceRef())
             .append(" -> ")
             .append(mapping.targetRef())
@@ -388,5 +396,15 @@ public class DesignPlanningCapability implements StageCapability {
       }
     }
     return text.toString();
+  }
+
+  private static String mappingGeneratorSkill(MappingIntent mapping) {
+    return MappingMechanismSelector.select(mapping)
+        .map(
+            mechanism ->
+                mechanism == MappingMechanism.SCRIPT
+                    ? DesignPlanProjector.SCRIPT_GENERATOR_SKILL_ID
+                    : DesignPlanProjector.TRANSFORMATION_GENERATOR_SKILL_ID)
+        .orElse("");
   }
 }

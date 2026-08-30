@@ -251,6 +251,7 @@ public class CompilerSkillRuntime {
     String memoryId = CompilerSkillMemoryIds.forSkill(conversationId, capabilityId);
 
     CompilerSkillInputSnapshot snapshot = contextBuilder.snapshotFromWorkspace(workspace);
+    snapshot = overlayMappingGenerationContext(conversationId, capabilityId, snapshot);
     GeneratorPlan activePlan = readActivePlan(workspace, capabilityId);
     String userMessage = buildUserMessage(conversationId, document, snapshot, activePlan, route);
     ChainPlanGraph inputGraph = snapshot.chainPlanGraph();
@@ -1206,6 +1207,20 @@ public class CompilerSkillRuntime {
     }
     return contextBuilder.buildUserMessage(
         conversationId, document, snapshot, activePlan, route.captureTool());
+  }
+
+  private CompilerSkillInputSnapshot overlayMappingGenerationContext(
+      String conversationId, String capabilityId, CompilerSkillInputSnapshot snapshot) {
+    Optional<GraphPatchExecutionContext> bound =
+        executionContextStore.get(conversationId, capabilityId).or(executionContextStore::current);
+    if (bound.isEmpty()) {
+      return snapshot;
+    }
+    String mappingContext = bound.get().mappingGenerationContext();
+    if (mappingContext == null || mappingContext.isBlank()) {
+      return snapshot;
+    }
+    return snapshot.withMappingGenerationContext(mappingContext);
   }
 
   private static boolean toolMatchesPhase(CaptureTool captureTool, QipKnowledgeCapabilityPhase phase) {

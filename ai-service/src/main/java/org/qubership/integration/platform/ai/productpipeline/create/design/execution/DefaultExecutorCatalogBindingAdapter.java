@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.catalog.binding.CatalogOperationProjector;
@@ -12,6 +14,8 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -30,10 +34,13 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPol
 public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBindingAdapter {
 
   private final CatalogSystemReadTool catalogReadTool;
+  private final OperationSchemaLoader schemaLoader;
 
   @Inject
-  public DefaultExecutorCatalogBindingAdapter(CatalogSystemReadTool catalogReadTool) {
+  public DefaultExecutorCatalogBindingAdapter(
+      CatalogSystemReadTool catalogReadTool, OperationSchemaLoader schemaLoader) {
     this.catalogReadTool = Objects.requireNonNull(catalogReadTool, "catalogReadTool");
+    this.schemaLoader = Objects.requireNonNull(schemaLoader, "schemaLoader");
   }
 
   @Override
@@ -54,6 +61,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       results.add(result);
       if (result instanceof BindingResolutionResult.Resolved success) {
         resolved.add(success.binding());
+        persistSchemas(conversationId, success.binding());
       }
     }
     for (SemanticNode.Trigger trigger : asyncApiTriggers(revision)) {
@@ -64,6 +72,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       results.add(result);
       if (result instanceof BindingResolutionResult.Resolved success) {
         resolved.add(success.binding());
+        persistSchemas(conversationId, success.binding());
       }
     }
     List<String> callIds =
@@ -86,7 +95,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     CatalogBindingHint observed = lookup.hint();
     Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(conversationId, observed);
     if (revalidated.isPresent()) {
-      return toExisting(call, revalidated.get(), observed.release());
+      return toExisting(call.nodeId(), call.serviceCallId(), revalidated.get(), observed.release());
     }
     return new BindingResolutionResult.Failed(
         call.serviceCallId(),
@@ -169,10 +178,49 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
         "catalog operation");
   }
 
-  private static BindingResolutionResult toExisting(
-      SemanticNode.ServiceCall call, RevalidatedCatalogMatch revalidated, String release) {
-    return toExisting(call.nodeId(), call.serviceCallId(), revalidated, release);
+  private void persistSchemas(String compilationId, ResolvedServiceCallBinding binding) {
+    OperationSchemaMaps maps = schemaLoader.load(binding.operationId());
+    soleContentType(maps.requestByContentType())
+        .ifPresent(
+            contentType ->
+                schemaLoader.persistRequest(
+                    compilationId,
+                    binding.serviceCallId(),
+                    binding.operationId(),
+                    contentType));
+    soleResponseStatusAndContentType(maps.responseByStatusThenContentType())
+        .ifPresent(
+            selection ->
+                schemaLoader.persistResponse(
+                    compilationId,
+                    binding.serviceCallId(),
+                    binding.operationId(),
+                    selection.contentType(),
+                    selection.responseCode()));
   }
+
+  private static Optional<String> soleContentType(Map<String, ?> byContentType) {
+    if (byContentType == null || byContentType.isEmpty()) {
+      return Optional.empty();
+    }
+    List<String> keys = byContentType.keySet().stream().filter(k -> !"parameters".equals(k)).toList();
+    return keys.size() == 1 ? Optional.of(keys.getFirst()) : Optional.empty();
+  }
+
+  private static Optional<ResponseSchemaSelection> soleResponseStatusAndContentType(
+      Map<String, Map<String, JsonNode>> byStatusThenContentType) {
+    if (byStatusThenContentType == null || byStatusThenContentType.isEmpty()) {
+      return Optional.empty();
+    }
+    if (byStatusThenContentType.size() != 1) {
+      return Optional.empty();
+    }
+    Map.Entry<String, Map<String, JsonNode>> statusEntry = byStatusThenContentType.entrySet().iterator().next();
+    return soleContentType(statusEntry.getValue())
+        .map(contentType -> new ResponseSchemaSelection(statusEntry.getKey(), contentType));
+  }
+
+  private record ResponseSchemaSelection(String responseCode, String contentType) {}
 
   private static BindingResolutionResult toExisting(
       String targetNodeId,

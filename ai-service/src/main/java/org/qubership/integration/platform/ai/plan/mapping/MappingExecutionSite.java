@@ -15,13 +15,15 @@ public final class MappingExecutionSite {
   public static final String MAPPING_ID_PROPERTY = "mappingId";
   public static final String MAPPING_DESCRIPTION_PROPERTY = "mappingDescription";
   public static final String SCRIPT_PROPERTY = "script";
+  public static final String MAPPING_COVERAGE_PROPERTY = "mappingCoverage";
 
   private MappingExecutionSite() {}
 
   public static boolean isCompilerMetadataKey(String key) {
     return MAPPING_INTENT_ID_PROPERTY.equals(key)
         || SEMANTIC_EDGE_ID_PROPERTY.equals(key)
-        || MAPPING_ID_PROPERTY.equals(key);
+        || MAPPING_ID_PROPERTY.equals(key)
+        || MAPPING_COVERAGE_PROPERTY.equals(key);
   }
 
   public static boolean isTransformShell(ChainPlanNode node) {
@@ -58,6 +60,10 @@ public final class MappingExecutionSite {
 
   public static String scriptBody(ChainPlanNode node) {
     return propertyValue(node, SCRIPT_PROPERTY);
+  }
+
+  public static String mappingCoverage(ChainPlanNode node) {
+    return propertyValue(node, MAPPING_COVERAGE_PROPERTY);
   }
 
   public static boolean isConfigured(ChainPlanNode node) {

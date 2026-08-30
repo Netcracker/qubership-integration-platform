@@ -52,6 +52,7 @@ public final class HaltProducerCauseTable {
               RecoveryCauseCode.SECURITY_POLICY,
               RecoveryCauseCode.UNKNOWN_PROPERTY,
               RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
+              RecoveryCauseCode.MISSING_BRIEF_FACTS,
               RecoveryCauseCode.CATALOG_RESOLUTION,
               RecoveryCauseCode.CONTRACT_SHAPE,
               RecoveryCauseCode.VALIDATION_BLOCKER,

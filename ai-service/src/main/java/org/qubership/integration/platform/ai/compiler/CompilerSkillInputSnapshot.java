@@ -15,7 +15,8 @@ public record CompilerSkillInputSnapshot(
     String selectedPatternId,
     ChainPlanGraph chainPlanGraph,
     String generatorPlanManifestSummary,
-    String editContext) {
+    String editContext,
+    String mappingGenerationContext) {
 
   public CompilerSkillInputSnapshot(
       String rawUserRequest,
@@ -29,6 +30,35 @@ public record CompilerSkillInputSnapshot(
         selectedPatternId,
         chainPlanGraph,
         generatorPlanManifestSummary,
+        null,
         null);
+  }
+
+  public CompilerSkillInputSnapshot(
+      String rawUserRequest,
+      String requirementBrief,
+      String selectedPatternId,
+      ChainPlanGraph chainPlanGraph,
+      String generatorPlanManifestSummary,
+      String editContext) {
+    this(
+        rawUserRequest,
+        requirementBrief,
+        selectedPatternId,
+        chainPlanGraph,
+        generatorPlanManifestSummary,
+        editContext,
+        null);
+  }
+
+  public CompilerSkillInputSnapshot withMappingGenerationContext(String mappingContext) {
+    return new CompilerSkillInputSnapshot(
+        rawUserRequest,
+        requirementBrief,
+        selectedPatternId,
+        chainPlanGraph,
+        generatorPlanManifestSummary,
+        editContext,
+        mappingContext);
   }
 }

@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
@@ -291,27 +292,39 @@ public class CipDesignExecutorJavaAdapter {
             .map(BindingResolutionResult.Resolved::binding)
             .toList();
 
-    CompilerDagExecutionResult engineResult =
-        inputs.repairEvidence() != null
-            ? runner.execute(
-                inputs.approvedPlan(),
-                inputs.revision(),
-                bindings,
-                inputs.runManifest(),
-                attemptId,
-                inputs.repairEvidence(),
-                inputs.priorGraph(),
-                progress)
-            : attemptId == null
-                ? runner.execute(
-                    inputs.approvedPlan(), inputs.revision(), bindings, inputs.runManifest(), progress)
-                : runner.execute(
-                    inputs.approvedPlan(),
-                    inputs.revision(),
-                    bindings,
-                    inputs.runManifest(),
-                    attemptId,
-                    progress);
+    CompilerDagExecutionResult engineResult;
+    try {
+      engineResult =
+          inputs.repairEvidence() != null
+              ? runner.execute(
+                  inputs.approvedPlan(),
+                  inputs.revision(),
+                  bindings,
+                  inputs.runManifest(),
+                  attemptId,
+                  inputs.repairEvidence(),
+                  inputs.priorGraph(),
+                  progress)
+              : attemptId == null
+                  ? runner.execute(
+                      inputs.approvedPlan(),
+                      inputs.revision(),
+                      bindings,
+                      inputs.runManifest(),
+                      progress)
+                  : runner.execute(
+                      inputs.approvedPlan(),
+                      inputs.revision(),
+                      bindings,
+                      inputs.runManifest(),
+                      attemptId,
+                      progress);
+    } catch (MappingContractBlockedException blocked) {
+      return ExecutionResult.failure(
+          StageOutcomeClass.VALIDATION_FAILURE,
+          blocked.getMessage(),
+          RecoveryCause.missingBriefFacts(List.of(blocked.getMessage())));
+    }
     if (engineResult.outcomeClass() != StageOutcomeClass.SUCCEEDED
         && engineResult.outcomeClass() != StageOutcomeClass.CANDIDATE) {
       return ExecutionResult.failure(

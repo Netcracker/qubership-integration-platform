@@ -239,6 +239,24 @@ public interface CatalogRestClient {
       @QueryParam("count") int count,
       @QueryParam("searchFilter") String searchFilter);
 
+  @GET
+  @Path("/v1/operations/{operationId}/schemas")
+  OperationSchemaMapsDto getOperationSchemas(
+      @PathParam("operationId") String operationId, @QueryParam("mode") String mode);
+
+  @GET
+  @Path("/v1/operations/{operationId}/schemas/request")
+  JsonNode getOperationRequestSchema(
+      @PathParam("operationId") String operationId,
+      @QueryParam("contentType") String contentType);
+
+  @GET
+  @Path("/v1/operations/{operationId}/schemas/response")
+  JsonNode getOperationResponseSchema(
+      @PathParam("operationId") String operationId,
+      @QueryParam("contentType") String contentType,
+      @QueryParam("responseCode") String responseCode);
+
   // ── DTOs ─────────────────────────────────────────────────────────────────
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -359,4 +377,10 @@ public interface CatalogRestClient {
       this(id, name, method, path, modelId, null);
     }
   }
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record OperationSchemaMapsDto(
+      String id,
+      Map<String, JsonNode> requestSchema,
+      Map<String, JsonNode> responseSchemas) {}
 }

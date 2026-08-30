@@ -43,6 +43,34 @@ class CipDesignPlannerReportParserTest {
   }
 
   @Test
+  void extractsMappingIntentIdFromStepText() {
+    String report =
+        """
+        1. Encode mapping map-a (cip-transformation-generator mappingIntentId=map-a)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    ParsedPlannerReport parsed = parser.parse(report);
+
+    assertEquals("map-a", parsed.steps().getFirst().mappingIntentId());
+  }
+
+  @Test
+  void mappingIntentIdDefaultsToEmptyWhenAbsent() {
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    ParsedPlannerReport parsed = parser.parse(report);
+
+    assertEquals("", parsed.steps().getFirst().mappingIntentId());
+  }
+
+  @Test
   void doesNotScrapeParticipantHintsFromStepProse() {
     String report =
         """

@@ -246,7 +246,7 @@ class CompilerRunPinResolverTest {
             .ownership();
 
     assertEquals(Set.of("script"), policy.nodeTypes());
-    assertEquals(Set.of("script"), policy.properties().get("script"));
+    assertEquals(Set.of("script", "mappingCoverage"), policy.properties().get("script"));
   }
 
   @Test
@@ -572,7 +572,11 @@ class CompilerRunPinResolverTest {
             CompilerNodeExecutionMode.LLM_SKILL,
             null,
             new GraphPatchOwnershipPolicy(
-                true, true, Set.of("script"), Set.of(), Map.of("script", Set.of("script"))));
+                true,
+                true,
+                Set.of("script"),
+                Set.of(),
+                Map.of("script", Set.of("script", "mappingCoverage"))));
     CompilerPipelineNode assembler =
         node(
             "cip-chain-assembler",

@@ -57,7 +57,35 @@ public record DesignExecutionPlan(
       List<String> operationQueryRefs,
       List<String> dependsOn,
       List<String> requiredArtifactTypes,
-      List<String> producedArtifactTypes) {
+      List<String> producedArtifactTypes,
+      String mappingIntentId) {
+
+    public Step(
+        String stepId,
+        int reportOrdinal,
+        String reportText,
+        OwnerKind ownerKind,
+        List<String> owningSkillIds,
+        List<String> toolOperationRefs,
+        List<String> participantRefs,
+        List<String> operationQueryRefs,
+        List<String> dependsOn,
+        List<String> requiredArtifactTypes,
+        List<String> producedArtifactTypes) {
+      this(
+          stepId,
+          reportOrdinal,
+          reportText,
+          ownerKind,
+          owningSkillIds,
+          toolOperationRefs,
+          participantRefs,
+          operationQueryRefs,
+          dependsOn,
+          requiredArtifactTypes,
+          producedArtifactTypes,
+          "");
+    }
 
     public Step {
       stepId = DesignArtifacts.requireText(stepId, "stepId");
@@ -73,6 +101,7 @@ public record DesignExecutionPlan(
       dependsOn = DesignArtifacts.copyList(dependsOn);
       requiredArtifactTypes = DesignArtifacts.copyList(requiredArtifactTypes);
       producedArtifactTypes = DesignArtifacts.copyList(producedArtifactTypes);
+      mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
     }
   }
 }

@@ -456,6 +456,23 @@ class CompilerSkillContextBuilderAddonTest {
   }
 
   @Test
+  void scriptRepairMessageAppendsMappingGenerationContext() {
+    CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
+    ChainPlanGraph graph = graphWithScriptNode("");
+    CompilerSkillInputSnapshot snapshot =
+        new CompilerSkillInputSnapshot("Fill script bodies", "Static response", null, graph, null)
+            .withMappingGenerationContext(
+                "Mapping generation:\n\nmappingIntentId: map-init\n");
+
+    String message =
+        contextBuilder.buildScriptRepairMessage(
+            "conversation-1", document, snapshot, java.util.List.of("script-1"));
+
+    assertTrue(message.contains("Mapping generation:"));
+    assertTrue(message.contains("mappingIntentId: map-init"));
+  }
+
+  @Test
   void scriptRepairRoleRequiresGroovyNotJavaScript() throws Exception {
     String rolePrompt;
     try (InputStream in =

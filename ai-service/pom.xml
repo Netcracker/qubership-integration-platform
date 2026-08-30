@@ -40,6 +40,7 @@
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <wiremock.version>3.10.0</wiremock.version>
+        <groovy.version>4.0.30</groovy.version>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
@@ -180,6 +181,16 @@
             <artifactId>lombok</artifactId>
             <version>1.18.38</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy</artifactId>
+            <version>${groovy.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-json</artifactId>
+            <version>${groovy.version}</version>
         </dependency>
 
         <!-- Health check -->
