@@ -8,8 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,6 +22,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
@@ -32,17 +37,35 @@ import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.Attribute;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.AttributeReference;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.MappingAction;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.MessageSchema;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.ObjectSchema;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.ObjectType;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.StringType;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
@@ -56,6 +79,7 @@ class CompilerGraphPatchToolTest {
   private static final String SCRIPT_CAPABILITY_ID = "cip-script-generator";
   private static final String SECURITY_CAPABILITY_ID = "cip-security-generator";
   private static final String SERVICE_CALL_CAPABILITY_ID = "cip-service-call-generator";
+  private static final String TRANSFORMATION_CAPABILITY_ID = "cip-transformation-generator";
 
   private static CompilerGeneratorPolicy policy;
 
@@ -68,6 +92,7 @@ class CompilerGraphPatchToolTest {
   private KnowledgeCitationResolver citationResolver;
   private CompilerGraphPatchTool tool;
   private ObjectMapper objectMapper;
+  private CompilationArtifacts compilationArtifacts;
 
   @BeforeAll
   static void loadPolicy() throws Exception {
@@ -77,6 +102,11 @@ class CompilerGraphPatchToolTest {
   @BeforeEach
   void setUp() {
     objectMapper = new ObjectMapper();
+    compilationArtifacts =
+        new CompilationArtifacts(
+            new InMemoryArtifactBlobStore(),
+            objectMapper.copy().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()),
+            java.time.Clock.systemUTC());
     captureSession = new CaptureSession();
     planStore = new ChainPlanStore();
     schemaService = DeterministicElementSchemaService.createForUnitTests(objectMapper);
@@ -106,7 +136,8 @@ class CompilerGraphPatchToolTest {
             new CaptureRepairMessageBuilder(schemaService),
             executionContextStore,
             captureRouter,
-            citationResolver);
+            citationResolver,
+            compilationArtifacts);
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, CAPABILITY_ID);
   }
@@ -1488,5 +1519,612 @@ class CompilerGraphPatchToolTest {
     assertEquals(
         CaptureFailureKind.VALIDATION,
         feedbackStore.lastPatchFailure(CONVERSATION_ID, namingCapabilityId).orElseThrow().kind());
+  }
+
+  @Test
+  void rewrittenMapper2SourceFailsCapture() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        TRANSFORMATION_CAPABILITY_ID,
+        mapper2Site(),
+        envelope,
+        new GraphPatchOwnershipPolicy(
+            false, false, Set.of("mapper-2"), Set.of(), Map.of("mapper-2", Set.of("mappingDescription"))));
+
+    GraphPatchCapture patch =
+        mappingDescriptionPatch(
+            TRANSFORMATION_CAPABILITY_ID,
+            identityCapture(envelope).withSource(tamperedSource(envelope)));
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("Mapping parity:"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void unknownMapper2TransformationFailsCapture() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        TRANSFORMATION_CAPABILITY_ID,
+        mapper2Site(),
+        envelope,
+        new GraphPatchOwnershipPolicy(
+            false, false, Set.of("mapper-2"), Set.of(), Map.of("mapper-2", Set.of("mappingDescription"))));
+
+    GraphPatchCapture patch =
+        mappingDescriptionPatch(
+            TRANSFORMATION_CAPABILITY_ID,
+            identityCapture(envelope)
+                .withActions(List.of(identityAction(envelope).withTransformation("shout", List.of()))));
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("Mapping contract:"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void goodIdentityMapper2CapturePasses() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        TRANSFORMATION_CAPABILITY_ID,
+        mapper2Site(),
+        envelope,
+        new GraphPatchOwnershipPolicy(
+            false, false, Set.of("mapper-2"), Set.of(), Map.of("mapper-2", Set.of("mappingDescription"))));
+
+    GraphPatchCapture patch =
+        mappingDescriptionPatch(TRANSFORMATION_CAPABILITY_ID, identityCapture(envelope));
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .isPresent());
+  }
+
+  @Test
+  void twoMapper2IntentsValidateAgainstOwnEnvelopes() throws Exception {
+    MappingEnvelope order = orderEnvelope().withMappingIntentId("map-order");
+    MappingEnvelope customer = customerEnvelope().withMappingIntentId("map-customer");
+    ChainPlanNode orderSite =
+        new ChainPlanNode(
+            "transform-map-order",
+            MappingExecutionSite.ELEMENT_TYPE,
+            "Map order",
+            null,
+            null,
+            List.of(new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, "map-order")));
+    ChainPlanNode customerSite =
+        new ChainPlanNode(
+            "transform-map-customer",
+            MappingExecutionSite.ELEMENT_TYPE,
+            "Map customer",
+            null,
+            null,
+            List.of(
+                new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, "map-customer")));
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(orderSite, customerSite),
+            List.of());
+    planStore.put(CONVERSATION_ID, graph);
+    CompilationArtifacts.Revision orderRev =
+        compilationArtifacts.append(
+            new CompilationArtifacts.AppendCommand(
+                CONVERSATION_ID,
+                CompilationArtifacts.Kind.MAPPING_ENVELOPE,
+                "1",
+                "test",
+                "1",
+                order,
+                List.of(),
+                null));
+    CompilationArtifacts.Revision customerRev =
+        compilationArtifacts.append(
+            new CompilationArtifacts.AppendCommand(
+                CONVERSATION_ID,
+                CompilationArtifacts.Kind.MAPPING_ENVELOPE,
+                "1",
+                "test",
+                "1",
+                customer,
+                List.of(),
+                null));
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, TRANSFORMATION_CAPABILITY_ID);
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-two-maps",
+            TRANSFORMATION_CAPABILITY_ID,
+            "req-1",
+            null,
+            "compiler-1",
+            "24.4",
+            twoMapperBrief(),
+            List.of(orderRev.reference(), customerRev.reference()),
+            graph,
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of("mapper-2"),
+                Set.of(),
+                Map.of("mapper-2", Set.of("mappingDescription"))),
+            ""));
+
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "two-maps",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "transform-map-order",
+                    MappingExecutionSite.MAPPING_DESCRIPTION_PROPERTY,
+                    objectMapper.valueToTree(identityCapture(order))),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "transform-map-customer",
+                    MappingExecutionSite.MAPPING_DESCRIPTION_PROPERTY,
+                    objectMapper.valueToTree(identityCapture(customer, "$.customerId")))),
+            List.of(),
+            List.of(),
+            "Two mapper-2 mappingDescription captures");
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .isPresent());
+  }
+
+  @Test
+  void grabScriptOnMappingSiteFailsCapture() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        SCRIPT_CAPABILITY_ID,
+        mappingScriptSite(),
+        envelope,
+        scriptMappingOwnership());
+
+    GraphPatchCapture patch =
+        scriptMappingPatch("@Grab('foo:bar:1')\ndef x = 1\n", List.of("$.orderId"));
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("Groovy mapping:"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SCRIPT_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void missingMappingCoverageFailsCapture() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        SCRIPT_CAPABILITY_ID,
+        mappingScriptSite(),
+        envelope,
+        scriptMappingOwnership());
+
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "script-map-no-coverage",
+            SCRIPT_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "transform-map-init",
+                    "script",
+                    JsonNodeFactory.instance.textNode("target['orderId'] = source['orderId']\n"))),
+            List.of(),
+            List.of(),
+            "Script without mappingCoverage");
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("Mapping parity:"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SCRIPT_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void goodIdentityScriptMappingCapturePasses() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        SCRIPT_CAPABILITY_ID,
+        mappingScriptSite(),
+        envelope,
+        scriptMappingOwnership());
+
+    GraphPatchCapture patch =
+        scriptMappingPatch("target['orderId'] = source['orderId']\n", List.of("$.orderId"));
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SCRIPT_CAPABILITY_ID),
+                GraphPatch.class)
+            .isPresent());
+  }
+
+  @Test
+  void scriptGeneratorMappingDescriptionFailsOwnership() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        SCRIPT_CAPABILITY_ID,
+        mapper2Site(),
+        envelope,
+        scriptMappingOwnership());
+
+    GraphPatchCapture patch =
+        mappingDescriptionPatch(SCRIPT_CAPABILITY_ID, identityCapture(envelope));
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("ownership"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SCRIPT_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void transformationGeneratorScriptKeyFailsClosed() throws Exception {
+    MappingEnvelope envelope = orderEnvelope();
+    bindMappingCapture(
+        TRANSFORMATION_CAPABILITY_ID,
+        mappingScriptSite(),
+        envelope,
+        new GraphPatchOwnershipPolicy(
+            false, false, Set.of("mapper-2"), Set.of(), Map.of("mapper-2", Set.of("mappingDescription"))));
+
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "transform-script",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "transform-map-init",
+                    "script",
+                    JsonNodeFactory.instance.textNode("def x = 1\n"))),
+            List.of(),
+            List.of(),
+            "Wrong skill setting script");
+
+    CaptureValidationException ex =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(ex.getMessage().contains("only allowed for cip-script-generator"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  private void bindMappingCapture(
+      String capabilityId,
+      ChainPlanNode site,
+      MappingEnvelope envelope,
+      GraphPatchOwnershipPolicy ownership) {
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, capabilityId);
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(site),
+            List.of());
+    planStore.put(CONVERSATION_ID, graph);
+    CompilationArtifacts.Revision revision =
+        compilationArtifacts.append(
+            new CompilationArtifacts.AppendCommand(
+                CONVERSATION_ID,
+                CompilationArtifacts.Kind.MAPPING_ENVELOPE,
+                "1",
+                "test",
+                "1",
+                envelope.withMappingIntentId(MappingExecutionSite.mappingIntentId(site)),
+                List.of(),
+                null));
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-1",
+            capabilityId,
+            "req-1",
+            null,
+            "compiler-1",
+            "24.4",
+            identityBrief(),
+            List.of(revision.reference()),
+            graph,
+            ownership,
+            ""));
+  }
+
+  private GraphPatchCapture mappingDescriptionPatch(
+      String capabilityId, MappingDescriptionDocument captured) {
+    return new GraphPatchCapture(
+        "map-desc",
+        capabilityId,
+        List.of(),
+        List.of(),
+        List.of(
+            new PropertyPatchCapture(
+                GraphPatchOperation.ADD,
+                "transform-map-init",
+                MappingExecutionSite.MAPPING_DESCRIPTION_PROPERTY,
+                objectMapper.valueToTree(captured))),
+        List.of(),
+        List.of(),
+        "Mapper-2 mappingDescription");
+  }
+
+  private static GraphPatchCapture scriptMappingPatch(String script, List<String> coverage) {
+    ArrayNode coverageNode = JsonNodeFactory.instance.arrayNode();
+    for (String path : coverage) {
+      coverageNode.add(path);
+    }
+    return new GraphPatchCapture(
+        "script-map",
+        SCRIPT_CAPABILITY_ID,
+        List.of(),
+        List.of(),
+        List.of(
+            new PropertyPatchCapture(
+                GraphPatchOperation.ADD,
+                "transform-map-init",
+                "script",
+                JsonNodeFactory.instance.textNode(script)),
+            new PropertyPatchCapture(
+                GraphPatchOperation.ADD,
+                "transform-map-init",
+                MappingExecutionSite.MAPPING_COVERAGE_PROPERTY,
+                coverageNode)),
+        List.of(),
+        List.of(),
+        "Script mapping with coverage");
+  }
+
+  private static GraphPatchOwnershipPolicy scriptMappingOwnership() {
+    return new GraphPatchOwnershipPolicy(
+        false,
+        false,
+        Set.of("script"),
+        Set.of(),
+        Map.of("script", Set.of("script", MappingExecutionSite.MAPPING_COVERAGE_PROPERTY)));
+  }
+
+  private static ChainPlanNode mapper2Site() {
+    return new ChainPlanNode(
+        "transform-map-init",
+        MappingExecutionSite.ELEMENT_TYPE,
+        "Map",
+        null,
+        null,
+        List.of(new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, "map-init")));
+  }
+
+  private static ChainPlanNode mappingScriptSite() {
+    return new ChainPlanNode(
+        "transform-map-init",
+        MappingExecutionSite.SCRIPT_ELEMENT_TYPE,
+        "Map",
+        null,
+        null,
+        List.of(new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, "map-init")));
+  }
+
+  private static RequirementBrief identityBrief() {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map orderId",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(List.of(identityOrderId()));
+  }
+
+  private static RequirementBrief twoMapperBrief() {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map orderId and customerId",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    "map-order",
+                    "trigger-http",
+                    MappingPort.OUTPUT,
+                    "call-1",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED))),
+                new MappingIntent(
+                    "map-customer",
+                    "trigger-http",
+                    MappingPort.OUTPUT,
+                    "call-2",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.customerId",
+                            "$.customerId",
+                            null,
+                            MappingRuleStatus.USER_DEFINED)))));
+  }
+
+  private static MappingIntent identityOrderId() {
+    return new MappingIntent(
+        "map-init",
+        "trigger-http",
+        MappingPort.OUTPUT,
+        "call-1",
+        MappingPort.REQUEST,
+        List.of(
+            new MappingIntentRule(
+                "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED)));
+  }
+
+  private MappingEnvelope orderEnvelope() throws Exception {
+    JsonNode orderSchema =
+        objectMapper.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "orderId": { "type": "string" } },
+              "required": ["orderId"]
+            }
+            """);
+    return new JsonSchemaMessageSchemaFactory(objectMapper)
+        .fromSides(
+            mappingSide("trigger-http", MappingPort.OUTPUT, orderSchema),
+            mappingSide("call-1", MappingPort.REQUEST, orderSchema));
+  }
+
+  private static MappingSchemaSide mappingSide(
+      String serviceCallId, MappingPort direction, JsonNode schema) {
+    return new MappingSchemaSide(
+        "1",
+        serviceCallId,
+        "op-1",
+        direction,
+        "application/json",
+        null,
+        "sha-test",
+        "test-provenance",
+        schema);
+  }
+
+  private static MappingDescriptionDocument identityCapture(MappingEnvelope envelope) {
+    return identityCapture(envelope, "$.orderId");
+  }
+
+  private static MappingDescriptionDocument identityCapture(
+      MappingEnvelope envelope, String jsonPath) {
+    return new MappingDescriptionDocument(
+        envelope.source(),
+        envelope.target(),
+        List.of(),
+        List.of(identityAction(envelope, jsonPath)));
+  }
+
+  private static MappingAction identityAction(MappingEnvelope envelope) {
+    return identityAction(envelope, "$.orderId");
+  }
+
+  private static MappingAction identityAction(MappingEnvelope envelope, String jsonPath) {
+    String actionId = "action-" + jsonPath.replace("$.", "").replace('.', '-');
+    return new MappingAction(
+        actionId,
+        List.of(attributeRef(envelope.idToPath(), jsonPath)),
+        attributeRef(envelope.idToPath(), jsonPath),
+        null);
+  }
+
+  private MappingEnvelope customerEnvelope() throws Exception {
+    JsonNode customerSchema =
+        objectMapper.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "customerId": { "type": "string" } },
+              "required": ["customerId"]
+            }
+            """);
+    return new JsonSchemaMessageSchemaFactory(objectMapper)
+        .fromSides(
+            mappingSide("trigger-http", MappingPort.OUTPUT, customerSchema),
+            mappingSide("call-2", MappingPort.REQUEST, customerSchema));
+  }
+
+  private static AttributeReference attributeRef(Map<String, String> idToPath, String jsonPath) {
+    List<String> pathIds = new ArrayList<>();
+    for (Map.Entry<String, String> entry : idToPath.entrySet()) {
+      if (jsonPath.equals(entry.getValue())) {
+        pathIds.add(entry.getKey());
+      }
+    }
+    if (pathIds.isEmpty()) {
+      pathIds.add("missing-" + jsonPath.replace("$.", ""));
+    }
+    return new AttributeReference("body", pathIds);
+  }
+
+  private static MessageSchema tamperedSource(MappingEnvelope envelope) {
+    MessageSchema source = envelope.source();
+    ObjectType body = (ObjectType) source.body();
+    ObjectSchema schema = body.schema();
+    List<Attribute> attributes = new ArrayList<>(schema.attributes());
+    attributes.add(new Attribute("tampered-id", "tampered", new StringType()));
+    return new MessageSchema(
+        source.headers(),
+        source.properties(),
+        new ObjectType(new ObjectSchema(schema.id(), attributes)));
   }
 }

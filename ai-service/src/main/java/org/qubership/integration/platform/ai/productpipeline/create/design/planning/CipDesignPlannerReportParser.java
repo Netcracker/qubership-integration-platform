@@ -26,6 +26,8 @@ public final class CipDesignPlannerReportParser {
               + "\\.([A-Za-z][A-Za-z0-9_]*)\\b");
   private static final Pattern INTERFACE_NAME =
       Pattern.compile("\\binterface\\s+([A-Za-z0-9][A-Za-z0-9 /_-]{0,40})");
+  private static final Pattern MAPPING_INTENT_ID =
+      Pattern.compile("mappingIntentId=([A-Za-z0-9_-]+)");
 
   public ParsedPlannerReport parse(String markdown) {
     if (markdown == null || markdown.isBlank()) {
@@ -86,7 +88,8 @@ public final class CipDesignPlannerReportParser {
               skillIds,
               toolOps,
               List.of(),
-              extractOperationQueryHints(reportText)));
+              extractOperationQueryHints(reportText),
+              extractMappingIntentId(reportText)));
     }
     if (steps.isEmpty()) {
       throw new PlannerReportFormatException("planner report has no numbered steps");
@@ -123,5 +126,10 @@ public final class CipDesignPlannerReportParser {
       hints.add(interfaceMatcher.group(1).trim());
     }
     return List.copyOf(hints);
+  }
+
+  private static String extractMappingIntentId(String reportText) {
+    Matcher matcher = MAPPING_INTENT_ID.matcher(reportText);
+    return matcher.find() ? matcher.group(1) : "";
   }
 }

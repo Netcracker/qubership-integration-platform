@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.integration.catalog.cache.Conversat
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogToolSupport;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -44,13 +45,15 @@ class ExecutorCatalogBindingAdapterTest {
   private static final Instant FIXED = Instant.parse("2026-07-30T09:00:00Z");
 
   private CatalogSystemReadTool catalogReadTool;
+  private OperationSchemaLoader schemaLoader;
   private ExecutorCatalogBindingAdapter adapter;
 
   @BeforeEach
   void setUp() {
     catalogReadTool = mock(CatalogSystemReadTool.class);
+    schemaLoader = mock(OperationSchemaLoader.class);
     adapter =
-        new DefaultExecutorCatalogBindingAdapter(catalogReadTool);
+        new DefaultExecutorCatalogBindingAdapter(catalogReadTool, schemaLoader);
   }
 
   @AfterEach
@@ -82,7 +85,7 @@ class ExecutorCatalogBindingAdapterTest {
         new CatalogSystemReadTool(
             rest, new CatalogOperationsLookupService(cache), mock(CatalogToolSupport.class));
     ExecutorCatalogBindingAdapter liveAdapter =
-        new DefaultExecutorCatalogBindingAdapter(liveRead);
+        new DefaultExecutorCatalogBindingAdapter(liveRead, schemaLoader);
     MDC.remove(ChatMdc.CONVERSATION_ID);
 
     List<BindingResolutionResult> results =

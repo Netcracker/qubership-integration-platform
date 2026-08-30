@@ -459,7 +459,7 @@ final class GeneratorPatchRegressionHarness {
             true,
             Set.of("script"),
             Set.of(),
-            Map.of("script", Set.of("script"))));
+            Map.of("script", Set.of("script", "mappingCoverage"))));
     ownership.put(
         "cip-security-generator",
         new GraphPatchOwnershipPolicy(

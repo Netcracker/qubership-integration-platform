@@ -25,6 +25,11 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
@@ -344,6 +349,152 @@ class ScriptBodyRepairToolTest {
                     CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
                 GraphPatch.class)
             .isEmpty());
+  }
+
+  @Test
+  void mappingGrabScriptFailsClosed() {
+    bindMappingScriptRepair();
+
+    String result =
+        tool.repairScriptBodies(
+            new ScriptBodyRepairCapture(
+                "script-map-grab",
+                List.of(
+                    new ScriptBodyEntry(
+                        "transform-map-init",
+                        "@Grab('foo:bar:1')\ndef x = 1\n",
+                        List.of("$.orderId"))),
+                "Fill mapping script"));
+
+    assertTrue(result.contains("Groovy mapping:"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void mappingMissingCoverageFailsClosed() {
+    bindMappingScriptRepair();
+
+    String result =
+        tool.repairScriptBodies(
+            new ScriptBodyRepairCapture(
+                "script-map-no-coverage",
+                List.of(
+                    new ScriptBodyEntry(
+                        "transform-map-init", "target['orderId'] = source['orderId']\n")),
+                "Fill mapping script"));
+
+    assertTrue(result.contains("Mapping parity:"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void mappingIdentityScriptWithCoveragePasses() {
+    bindMappingScriptRepair();
+
+    CaptureValidationException terminal =
+        assertThrows(
+            CaptureValidationException.class,
+            () ->
+                tool.repairScriptBodies(
+                    new ScriptBodyRepairCapture(
+                        "script-map-ok",
+                        List.of(
+                            new ScriptBodyEntry(
+                                "transform-map-init",
+                                "target['orderId'] = source['orderId']\n",
+                                List.of("$.orderId"))),
+                        "Fill mapping script")));
+
+    assertTrue(terminal.getMessage().contains("Script body repair patch captured"));
+    GraphPatch patch =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertTrue(
+        patch.propertyPatches().stream()
+            .anyMatch(propertyPatch -> "script".equals(propertyPatch.property().key())));
+    assertTrue(
+        patch.propertyPatches().stream()
+            .anyMatch(
+                propertyPatch -> "mappingCoverage".equals(propertyPatch.property().key())));
+  }
+
+  private void bindMappingScriptRepair() {
+    ChainPlanGraph graph = graphWithMappingScript();
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(
+        CONVERSATION_ID,
+        CAPABILITY_ID,
+        new GraphPatchExecutionContext(
+            "map-run",
+            CAPABILITY_ID,
+            null,
+            null,
+            null,
+            null,
+            identityMappingBrief(),
+            List.of(),
+            graph,
+            GraphPatchOwnershipPolicy.denyAll(),
+            "attempt-1"));
+  }
+
+  private static RequirementBrief identityMappingBrief() {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map orderId",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    "map-init",
+                    "trigger-http",
+                    MappingPort.OUTPUT,
+                    "call-1",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED)),
+                    "SCRIPT")));
+  }
+
+  private static ChainPlanGraph graphWithMappingScript() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Orders", "Orders"),
+        List.of(
+            new ChainPlanNode(
+                "transform-map-init",
+                "script",
+                "Map",
+                null,
+                1,
+                List.of(
+                    new PlanProperty("mappingIntentId", "map-init"),
+                    new PlanProperty("script", "")))),
+        List.of());
   }
 
   private static ChainPlanGraph graphWithMissingScripts() {

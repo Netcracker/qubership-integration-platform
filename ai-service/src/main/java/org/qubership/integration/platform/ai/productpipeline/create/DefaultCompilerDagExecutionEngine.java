@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecut
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.ChainEditSkillContext;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -55,7 +56,10 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException;
+import org.qubership.integration.platform.ai.plan.mapping.MappingGenerationPipeline;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -101,6 +105,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   private final ProductPipelineArtifactStore artifactStore;
   private final ChainPlanGraphValidator graphValidator;
   private final CompilerContractRepository contractRepository;
+  private final MappingGenerationPipeline mappingGenerationPipeline;
 
   @Inject
   @SuppressWarnings("java:S107")
@@ -117,7 +122,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       CompilerValidationPipeline compilerValidationPipeline,
       ProductPipelineArtifactStore artifactStore,
       ChainPlanGraphValidator graphValidator,
-      CompilerContractRepository contractRepository) {
+      CompilerContractRepository contractRepository,
+      MappingGenerationPipeline mappingGenerationPipeline) {
     this.workspaceStore = Objects.requireNonNull(workspaceStore, "workspaceStore");
     this.skillRegistry = Objects.requireNonNull(skillRegistry, "skillRegistry");
     this.javaAdapterRegistry = Objects.requireNonNull(javaAdapterRegistry, "javaAdapterRegistry");
@@ -134,6 +140,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.graphValidator = Objects.requireNonNull(graphValidator, "graphValidator");
     this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
+    this.mappingGenerationPipeline = mappingGenerationPipeline;
     this.scheduler = new CompilerDerivedPlanningScheduler(skillRegistry, javaAdapterRegistry);
   }
 
@@ -162,7 +169,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         artifactStore,
         new ChainPlanGraphValidator(
             DeterministicElementSchemaService.createForUnitTests(new ObjectMapper())),
-        new ClasspathCompilerContractRepository());
+        new ClasspathCompilerContractRepository(),
+        null);
   }
 
   @SuppressWarnings("java:S107")
@@ -512,6 +520,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               seed.seedText());
       GraphPatchExecutionContext executionContext =
           buildExecutionContext(request, seed, workspace, node, pinned);
+      executionContext = prepareMappingGeneration(request, workspace, node, executionContext);
       if (executionContext != null) {
         executionContextStore.set(request.conversationId(), node.skillId(), executionContext);
       }
@@ -1013,6 +1022,54 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         ownershipFor(node),
         request.attemptId(),
         ChainEditSkillContext.targetNodeIds(workspace, node.skillId()));
+  }
+
+  private GraphPatchExecutionContext prepareMappingGeneration(
+      CompilerPlanningRequest request,
+      SkillWorkspace workspace,
+      ResolvedCompilerNode node,
+      GraphPatchExecutionContext executionContext) {
+    if (mappingGenerationPipeline == null
+        || node == null
+        || !mappingGenerationPipeline.isMappingGenerator(node.skillId())) {
+      return executionContext;
+    }
+    MappingGenerationPipeline.Result prepared =
+        mappingGenerationPipeline.prepare(
+            request.conversationId(),
+            node.skillId(),
+            semanticRevision(workspace),
+            serviceCallBindings(workspace),
+            executionContext);
+    if (prepared.blocked()) {
+      throw new MappingContractBlockedException(prepared.blockedMessage());
+    }
+    return prepared.context() == null ? executionContext : prepared.context();
+  }
+
+  private static ChainSemanticRevision semanticRevision(SkillWorkspace workspace) {
+    if (workspace == null) {
+      return null;
+    }
+    return workspace
+        .get(SkillArtifactType.CHAIN_SEMANTIC_REVISION)
+        .map(
+            artifact ->
+                ((SkillArtifactPayload.ChainSemanticRevisionPayload) artifact.payload())
+                    .revision())
+        .orElse(null);
+  }
+
+  private static List<ResolvedServiceCallBinding> serviceCallBindings(SkillWorkspace workspace) {
+    if (workspace == null) {
+      return List.of();
+    }
+    return workspace
+        .get(SkillArtifactType.SERVICE_CALL_BINDINGS)
+        .map(
+            artifact ->
+                ((SkillArtifactPayload.ServiceCallBindingsPayload) artifact.payload()).bindings())
+        .orElse(List.of());
   }
 
   private static GraphPatchOwnershipPolicy ownershipFor(ResolvedCompilerNode node) {

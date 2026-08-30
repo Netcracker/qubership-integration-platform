@@ -77,6 +77,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ApprovedCompilerExecutionRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultExecutorCatalogBindingAdapter;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionPhase;
@@ -992,7 +993,7 @@ class CreateChainSharedDesignRuntimeIT {
     CipDesignExecutorJavaAdapter adapter =
         new CipDesignExecutorJavaAdapter(
             approvedCompilerExecutionRunner,
-            new DefaultExecutorCatalogBindingAdapter(catalogReadTool),
+            new DefaultExecutorCatalogBindingAdapter(catalogReadTool, mock(OperationSchemaLoader.class)),
             artifactStore,
             planValidator);
     return new DesignExecutionCapability(artifactStore, adapter);
@@ -1359,10 +1360,9 @@ class CreateChainSharedDesignRuntimeIT {
         1. Analyze requirements and name chain Two entry shared downstream (cip-requirement-analyzer + cip-naming-generator)
         2. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
         3. Generate Kafka Trigger element with interface Kafka (cip-trigger-generator)
-        4. Generate Script element for shared downstream (cip-script-generator)
-        5. Generate execution structure and element ordering (cip-structure-generator)
-        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        7. Validate the assembled chain (cip-chain-validator)
+        4. Generate execution structure and element ordering (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();
@@ -1372,11 +1372,9 @@ class CreateChainSharedDesignRuntimeIT {
     return """
         1. Analyze requirements and name chain Condition reconverge (cip-requirement-analyzer + cip-naming-generator)
         2. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
-        3. Generate Script element for Initialization (cip-script-generator)
-        4. Generate Script element for Response (cip-script-generator)
-        5. Generate execution structure and element ordering (cip-structure-generator)
-        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        7. Validate the assembled chain (cip-chain-validator)
+        3. Generate execution structure and element ordering (cip-structure-generator)
+        4. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        5. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();
@@ -1390,12 +1388,10 @@ class CreateChainSharedDesignRuntimeIT {
         4. Resolve External integration target Petstore Ext from the retrieved spec (binding for cip-service-call-generator)
         5. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
         6. Generate Service Call element for Petstore Ext.GET /pets bound to the retrieved spec (cip-service-call-generator)
-        7. Generate Script element for Initialization (cip-script-generator)
-        8. Generate Script element for Response (cip-script-generator)
-        9. Generate execution structure and element ordering (cip-structure-generator)
-        10. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
-        11. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        12. Validate the assembled chain (cip-chain-validator)
+        7. Generate execution structure and element ordering (cip-structure-generator)
+        8. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
+        9. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        10. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();
@@ -1409,12 +1405,10 @@ class CreateChainSharedDesignRuntimeIT {
         4. Resolve External integration target Orders API from the retrieved spec (binding for cip-service-call-generator)
         5. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
         6. Generate Service Call element for Orders API.statement call-1 bound to the retrieved spec (cip-service-call-generator)
-        7. Generate Script element for Initialization (cip-script-generator)
-        8. Generate Script element for Response (cip-script-generator)
-        9. Generate execution structure and element ordering (cip-structure-generator)
-        10. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
-        11. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        12. Validate the assembled chain (cip-chain-validator)
+        7. Generate execution structure and element ordering (cip-structure-generator)
+        8. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
+        9. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        10. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();

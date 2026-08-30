@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.compiler;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
 import io.quarkiverse.langchain4j.guardrails.ToolInputGuardrails;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -20,9 +22,12 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEva
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
@@ -36,6 +41,8 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 public class ScriptBodyRepairTool {
 
   private static final Logger LOG = Logger.getLogger(ScriptBodyRepairTool.class);
+  private static final ObjectMapper JSON = new ObjectMapper();
+  private static final String MAPPING_CAPTURE_PREFIX = "Mapping capture:";
 
   public static final String CAPTURE_REQUIRED_MESSAGE =
       "Compiler skill did not capture a script body repair patch. The agent must call"
@@ -56,6 +63,7 @@ public class ScriptBodyRepairTool {
   private final GraphPatchApplier patchApplier;
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final GraphPatchExecutionContextStore executionContextStore;
+  private final MappingCaptureValidator mappingCaptureValidator = new MappingCaptureValidator();
 
   @Inject
   ScriptBodyRepairTool(
@@ -77,11 +85,13 @@ public class ScriptBodyRepairTool {
 
   @Tool(
       """
-      Repair missing script node bodies by submitting scripts only.
+      Repair missing script node bodies by submitting scripts.
       Submit exactly one script entry for each targetNodeId listed by the user message,
       including every branch response script (for example response-even/response-odd under
       if/else). Rationale-only or empty scripts payloads are rejected.
-      Do not submit graph nodes, edges, chain fields, or properties other than script.
+      Mapping turns also submit mappingCoverage (JSON array of implemented target paths).
+      Non-mapping fills submit script only.
+      Do not submit graph nodes, edges, or chain fields.
       Escape every double quote inside script strings. Prefer JsonOutput.toJson([error: msg])
       instead of embedding JSON object literals with quotes inside Groovy.
       """)
@@ -146,16 +156,30 @@ public class ScriptBodyRepairTool {
     }
 
     Map<String, ScriptBodyEntry> byNodeId = scriptsByNodeId(capture.scripts());
-    List<PropertyPatch> propertyPatches = new ArrayList<>(missingNodeIds.size());
+    String mappingError = validateMappingCaptures(conversationId, capabilityId, base, byNodeId);
+    if (mappingError != null) {
+      return recordFailure(conversationId, capabilityId, mappingError);
+    }
+    List<PropertyPatch> propertyPatches = new ArrayList<>();
     for (String nodeId : missingNodeIds) {
-      GraphPatchOperation operation = hasScriptProperty(base, nodeId)
-          ? GraphPatchOperation.UPDATE
-          : GraphPatchOperation.ADD;
+      ScriptBodyEntry entry = byNodeId.get(nodeId);
+      GraphPatchOperation operation =
+          hasProperty(base, nodeId, "script") ? GraphPatchOperation.UPDATE : GraphPatchOperation.ADD;
       propertyPatches.add(
-          new PropertyPatch(
-              operation,
-              nodeId,
-              new PlanProperty("script", byNodeId.get(nodeId).script().trim())));
+          new PropertyPatch(operation, nodeId, new PlanProperty("script", entry.script().trim())));
+      if (isMappingSite(base, nodeId)) {
+        GraphPatchOperation coverageOp =
+            hasProperty(base, nodeId, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY)
+                ? GraphPatchOperation.UPDATE
+                : GraphPatchOperation.ADD;
+        propertyPatches.add(
+            new PropertyPatch(
+                coverageOp,
+                nodeId,
+                new PlanProperty(
+                    MappingExecutionSite.MAPPING_COVERAGE_PROPERTY,
+                    coverageJson(entry.mappingCoverage()))));
+      }
     }
 
     GraphPatch patch =
@@ -264,6 +288,77 @@ public class ScriptBodyRepairTool {
     return null;
   }
 
+  private String validateMappingCaptures(
+      String conversationId,
+      String capabilityId,
+      ChainPlanGraph graph,
+      Map<String, ScriptBodyEntry> byNodeId) {
+    GraphPatchExecutionContext context =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .orElse(null);
+    for (ScriptBodyEntry entry : byNodeId.values()) {
+      ChainPlanNode node = findNode(graph, entry.targetNodeId());
+      String intentId = MappingExecutionSite.mappingIntentId(node);
+      if (intentId == null || intentId.isBlank()) {
+        continue;
+      }
+      try {
+        MappingIntent intent = requireIntent(context, intentId);
+        mappingCaptureValidator.validateScript(
+            intent, entry.script().trim(), entry.mappingCoverage());
+      } catch (IllegalArgumentException e) {
+        return e.getMessage();
+      }
+    }
+    return null;
+  }
+
+  private static MappingIntent requireIntent(
+      GraphPatchExecutionContext context, String mappingIntentId) {
+    if (mappingIntentId == null || mappingIntentId.isBlank()) {
+      throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " mappingIntentId is required");
+    }
+    if (context == null || context.requirementBrief() == null) {
+      throw new IllegalArgumentException(
+          MAPPING_CAPTURE_PREFIX + " mapping intent '" + mappingIntentId + "' is required");
+    }
+    for (MappingIntent intent : context.requirementBrief().mappingIntents()) {
+      if (mappingIntentId.equals(intent.mappingIntentId())) {
+        return intent;
+      }
+    }
+    throw new IllegalArgumentException(
+        MAPPING_CAPTURE_PREFIX + " mapping intent '" + mappingIntentId + "' is required");
+  }
+
+  private static boolean isMappingSite(ChainPlanGraph graph, String nodeId) {
+    String intentId = MappingExecutionSite.mappingIntentId(findNode(graph, nodeId));
+    return intentId != null && !intentId.isBlank();
+  }
+
+  private static ChainPlanNode findNode(ChainPlanGraph graph, String nodeId) {
+    if (graph == null || graph.nodes() == null) {
+      return null;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (nodeId.equals(node.nodeId())) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  private static String coverageJson(List<String> coverage) {
+    try {
+      return JSON.writeValueAsString(coverage);
+    } catch (JsonProcessingException e) {
+      throw new IllegalArgumentException(
+          MappingExecutionSite.MAPPING_COVERAGE_PROPERTY + " must be a JSON array of strings", e);
+    }
+  }
+
   private static Map<String, ScriptBodyEntry> scriptsByNodeId(List<ScriptBodyEntry> scripts) {
     Map<String, ScriptBodyEntry> byNodeId = new LinkedHashMap<>();
     if (scripts == null) {
@@ -278,7 +373,7 @@ public class ScriptBodyRepairTool {
     return byNodeId;
   }
 
-  private static boolean hasScriptProperty(ChainPlanGraph graph, String nodeId) {
+  private static boolean hasProperty(ChainPlanGraph graph, String nodeId, String key) {
     if (graph.nodes() == null) {
       return false;
     }
@@ -287,7 +382,7 @@ public class ScriptBodyRepairTool {
         continue;
       }
       for (PlanProperty property : node.properties()) {
-        if ("script".equals(property.key())) {
+        if (key.equals(property.key())) {
           return true;
         }
       }

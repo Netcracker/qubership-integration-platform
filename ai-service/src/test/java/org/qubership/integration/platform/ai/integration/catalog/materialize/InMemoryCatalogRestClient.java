@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogChildQuantity;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto;
@@ -316,6 +317,22 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   public List<OperationDto> getOperations(
       String modelId, int offset, int count, String searchFilter) {
     throw new UnsupportedOperationException("getOperations");
+  }
+
+  @Override
+  public OperationSchemaMapsDto getOperationSchemas(String operationId, String mode) {
+    throw new UnsupportedOperationException("getOperationSchemas");
+  }
+
+  @Override
+  public JsonNode getOperationRequestSchema(String operationId, String contentType) {
+    throw new UnsupportedOperationException("getOperationRequestSchema");
+  }
+
+  @Override
+  public JsonNode getOperationResponseSchema(
+      String operationId, String contentType, String responseCode) {
+    throw new UnsupportedOperationException("getOperationResponseSchema");
   }
 
   String createSeededElement(String chainId, String type, String parentElementId, String name) {

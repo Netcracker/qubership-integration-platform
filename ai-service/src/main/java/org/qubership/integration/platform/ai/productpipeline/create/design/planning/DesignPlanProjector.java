@@ -12,14 +12,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
@@ -34,6 +38,8 @@ public final class DesignPlanProjector {
 
   /** Upstream process skill; rewritten onto pinned Validation producers when absent from the DAG. */
   static final String CHAIN_VALIDATOR_SKILL_ID = "cip-chain-validator";
+  static final String SCRIPT_GENERATOR_SKILL_ID = "cip-script-generator";
+  static final String TRANSFORMATION_GENERATOR_SKILL_ID = "cip-transformation-generator";
 
   private final CipDesignPlannerReportParser parser;
 
@@ -92,7 +98,8 @@ public final class DesignPlanProjector {
               parsedStep.operationQueryRefs(),
               dependsOn,
               required,
-              produced));
+              produced,
+              parsedStep.mappingIntentId()));
 
       if (parsedStep.ownerKind() == ParsedPlannerReport.OwnerKind.APIHUB_TOOL) {
         previousApiHubStepId = stepId;
@@ -180,7 +187,8 @@ public final class DesignPlanProjector {
               List.copyOf(owners),
               step.toolOperationRefs(),
               step.participantRefs(),
-              step.operationQueryRefs()));
+              step.operationQueryRefs(),
+              step.mappingIntentId()));
     }
     return rewritten ? new ParsedPlannerReport(steps, parsed.apiRelease()) : parsed;
   }
@@ -269,19 +277,111 @@ public final class DesignPlanProjector {
 
   private static void validateScriptMappingCoverage(
       ParsedPlannerReport parsed, ChainSemanticRevision revision) {
-    if (revision.mappingIntents().isEmpty()) {
+    List<ParsedPlannerReport.Step> mappingSteps = collectMappingGeneratorSteps(parsed);
+    List<MappingIntent> intents = revision.mappingIntents();
+    if (intents.isEmpty()) {
+      rejectUnexpectedMappingSteps(mappingSteps);
       return;
     }
-    boolean covered =
-        parsed.steps().stream()
-            .anyMatch(
-                step ->
-                    step.owningSkillIds().contains("cip-script-generator")
-                        || step.owningSkillIds().contains("cip-transformation-generator"));
-    if (!covered) {
-      throw new PlannerContractException(
-          "planner report missing script coverage for an explicit mapping intent");
+    Map<String, MappingIntent> intentsById = new LinkedHashMap<>();
+    for (MappingIntent intent : intents) {
+      intentsById.put(intent.mappingIntentId(), intent);
     }
+    Set<String> seen = new HashSet<>();
+    for (ParsedPlannerReport.Step step : mappingSteps) {
+      coverMappingStep(step, intentsById, seen);
+    }
+    requireAllIntentsCovered(intents, seen);
+  }
+
+  private static List<ParsedPlannerReport.Step> collectMappingGeneratorSteps(
+      ParsedPlannerReport parsed) {
+    List<ParsedPlannerReport.Step> mappingSteps = new ArrayList<>();
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      if (isMappingGeneratorStep(step)) {
+        mappingSteps.add(step);
+      }
+    }
+    return mappingSteps;
+  }
+
+  private static void rejectUnexpectedMappingSteps(List<ParsedPlannerReport.Step> mappingSteps) {
+    if (!mappingSteps.isEmpty()) {
+      throw new PlannerContractException(
+          "planner report must not include mapping-generator skills for a pass-through revision");
+    }
+  }
+
+  private static void coverMappingStep(
+      ParsedPlannerReport.Step step,
+      Map<String, MappingIntent> intentsById,
+      Set<String> seen) {
+    String intentId = step.mappingIntentId();
+    if (intentId.isBlank()) {
+      throw new PlannerContractException(
+          "planner report mapping-generator step is missing mappingIntentId");
+    }
+    MappingIntent intent = intentsById.get(intentId);
+    if (intent == null) {
+      throw new PlannerContractException(
+          "planner report mapping-generator step names unknown mappingIntentId: " + intentId);
+    }
+    if (!seen.add(intentId)) {
+      throw new PlannerContractException(
+          "planner report mappingIntentId appears more than once: " + intentId);
+    }
+    requireMatchingSkill(intent, step);
+  }
+
+  private static void requireAllIntentsCovered(List<MappingIntent> intents, Set<String> seen) {
+    for (MappingIntent intent : intents) {
+      requireSelectedMechanism(intent);
+      if (!seen.contains(intent.mappingIntentId())) {
+        throw new PlannerContractException(
+            "planner report missing script coverage for mappingIntentId "
+                + intent.mappingIntentId());
+      }
+    }
+  }
+
+  private static boolean isMappingGeneratorStep(ParsedPlannerReport.Step step) {
+    for (String skillId : step.owningSkillIds()) {
+      if (SCRIPT_GENERATOR_SKILL_ID.equals(skillId)
+          || TRANSFORMATION_GENERATOR_SKILL_ID.equals(skillId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static void requireMatchingSkill(
+      MappingIntent intent, ParsedPlannerReport.Step step) {
+    MappingMechanism mechanism = requireSelectedMechanism(intent);
+    String expectedSkill = skillFor(mechanism);
+    if (!step.owningSkillIds().contains(expectedSkill)) {
+      throw new PlannerContractException(
+          "planner report mapping intent '"
+              + intent.mappingIntentId()
+              + "' requires "
+              + expectedSkill);
+    }
+  }
+
+  private static MappingMechanism requireSelectedMechanism(MappingIntent intent) {
+    Optional<MappingMechanism> selected = MappingMechanismSelector.select(intent);
+    if (selected.isEmpty()) {
+      throw new PlannerContractException(
+          "planner report mapping intent '"
+              + intent.mappingIntentId()
+              + "' has no selected mechanism");
+    }
+    return selected.get();
+  }
+
+  private static String skillFor(MappingMechanism mechanism) {
+    return mechanism == MappingMechanism.SCRIPT
+        ? SCRIPT_GENERATOR_SKILL_ID
+        : TRANSFORMATION_GENERATOR_SKILL_ID;
   }
 
   private static List<String> mapParticipantRefs(List<String> hints) {

@@ -16,6 +16,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class DesignPlanProjectorTest {
@@ -47,16 +49,10 @@ class DesignPlanProjectorTest {
             List.of("step-3-get_rest_api_operations_specification"),
             List.of(),
             List.of("step-5-cip-trigger-generator"),
-            List.of("step-6-cip-service-call-generator"),
-            List.of("step-6-cip-service-call-generator"),
-            List.of(
-                "step-5-cip-trigger-generator",
-                "step-6-cip-service-call-generator",
-                "step-7-cip-script-generator",
-                "step-8-cip-script-generator"),
-            List.of("step-9-cip-structure-generator"),
-            List.of("step-9-cip-structure-generator"),
-            List.of("step-11-cip-chain-assembler"));
+            List.of("step-5-cip-trigger-generator", "step-6-cip-service-call-generator"),
+            List.of("step-7-cip-structure-generator"),
+            List.of("step-7-cip-structure-generator"),
+            List.of("step-9-cip-chain-assembler"));
 
     assertEquals(expectedCatalogDependencies.size(), projected.steps().size());
     for (int i = 0; i < expectedCatalogDependencies.size(); i++) {
@@ -223,7 +219,7 @@ class DesignPlanProjectorTest {
         validateStep
             .producedArtifactTypes()
             .contains(SkillArtifactType.COMPILER_VALIDATION_BUNDLE.name()));
-    assertEquals(List.of("step-11-cip-chain-assembler"), validateStep.dependsOn());
+    assertEquals(List.of("step-9-cip-chain-assembler"), validateStep.dependsOn());
   }
 
   @Test
@@ -331,6 +327,122 @@ class DesignPlanProjectorTest {
                     samplePin(SemanticFixtures.linearOrders(), sampleDag())));
     assertTrue(ex.getMessage().contains("trigger coverage"));
     assertTrue(ex.getMessage().contains("cip-trigger-generator"));
+  }
+
+  @Test
+  void twoIntentsNeedTwoNamedSteps() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithTwoIdentityMappings();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-a (cip-transformation-generator mappingIntentId=map-a)
+        4. Encode mapping map-b (cip-transformation-generator mappingIntentId=map-b)
+        5. Generate execution structure (cip-structure-generator)
+        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        7. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+    assertEquals("map-a", projected.steps().get(2).mappingIntentId());
+    assertEquals("map-b", projected.steps().get(3).mappingIntentId());
+  }
+
+  @Test
+  void oneSharedScriptStepFails() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithTwoIdentityMappings();
+    String reportWithOneScriptStep =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-a (cip-transformation-generator mappingIntentId=map-a)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    assertThrows(
+        PlannerContractException.class,
+        () ->
+            projector.project(
+                new DesignPlanReport("1", reportWithOneScriptStep), revision, pin(revision)));
+  }
+
+  @Test
+  void skillMustMatchMechanism() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithMapping();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-init (cip-script-generator mappingIntentId=map-init)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    assertThrows(
+        PlannerContractException.class,
+        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+  }
+
+  @Test
+  void extraMappingStepWithoutIdFails() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Generate Script element for Initialization (cip-script-generator)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    assertThrows(
+        PlannerContractException.class,
+        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+  }
+
+  @Test
+  void emptyMechanismSelectFails() {
+    ChainSemanticRevision revision =
+        SemanticFixtures.linear(
+            "Orders",
+            "revision-orders",
+            "trigger-http",
+            "node-call",
+            "call-1",
+            "createOrder",
+            "Orders API",
+            List.of(
+                new MappingIntent(
+                    "map-init",
+                    "edge-1",
+                    MappingPort.OUTPUT,
+                    "edge-1",
+                    MappingPort.REQUEST,
+                    List.of())),
+            List.of());
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-init (cip-transformation-generator mappingIntentId=map-init)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    assertThrows(
+        PlannerContractException.class,
+        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
   }
 
   @Test
@@ -461,15 +573,17 @@ class DesignPlanProjectorTest {
         4. Resolve External integration target Orders Service from the retrieved spec (binding for cip-service-call-generator)
         5. Generate HTTP Trigger element with interface Orders API (cip-trigger-generator)
         6. Generate Service Call element for Orders Service.createOrder bound to the retrieved spec (cip-service-call-generator)
-        7. Generate Script element for Initialization (cip-script-generator)
-        8. Generate Script element for Response (cip-script-generator)
-        9. Generate execution structure and element ordering (cip-structure-generator)
-        10. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
-        11. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        12. Validate the assembled chain (cip-chain-validator)
+        7. Generate execution structure and element ordering (cip-structure-generator)
+        8. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
+        9. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        10. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();
+  }
+
+  private static CompilerRunPin pin(ChainSemanticRevision revision) {
+    return samplePin(revision, sampleDag());
   }
 
   private static CompilerRunPin samplePin(
@@ -531,6 +645,12 @@ class DesignPlanProjectorTest {
                 3),
             node(
                 "cip-script-generator",
+                List.of(SkillArtifactType.GRAPH_PATCH.name()),
+                List.of(SkillArtifactType.GRAPH_PATCH.name()),
+                List.of("cip-service-call-generator"),
+                4),
+            node(
+                "cip-transformation-generator",
                 List.of(SkillArtifactType.GRAPH_PATCH.name()),
                 List.of(SkillArtifactType.GRAPH_PATCH.name()),
                 List.of("cip-service-call-generator"),

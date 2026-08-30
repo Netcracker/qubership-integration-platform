@@ -27,7 +27,27 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
       List<String> owningSkillIds,
       List<String> toolOperationRefs,
       List<String> participantRefs,
-      List<String> operationQueryRefs) {
+      List<String> operationQueryRefs,
+      String mappingIntentId) {
+
+    public Step(
+        int reportOrdinal,
+        String reportText,
+        OwnerKind ownerKind,
+        List<String> owningSkillIds,
+        List<String> toolOperationRefs,
+        List<String> participantRefs,
+        List<String> operationQueryRefs) {
+      this(
+          reportOrdinal,
+          reportText,
+          ownerKind,
+          owningSkillIds,
+          toolOperationRefs,
+          participantRefs,
+          operationQueryRefs,
+          "");
+    }
 
     public Step {
       if (reportOrdinal < 1) {
@@ -39,6 +59,7 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
       toolOperationRefs = DesignArtifacts.copyList(toolOperationRefs);
       participantRefs = DesignArtifacts.copyList(participantRefs);
       operationQueryRefs = DesignArtifacts.copyList(operationQueryRefs);
+      mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
     }
 
     DesignExecutionPlan.OwnerKind toPlanOwnerKind() {

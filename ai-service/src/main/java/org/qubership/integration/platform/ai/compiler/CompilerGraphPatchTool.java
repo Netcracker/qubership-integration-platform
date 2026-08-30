@@ -8,14 +8,17 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessageBuilder;
@@ -27,14 +30,18 @@ import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPo
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ChainPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
-import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContextStore;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
@@ -62,6 +69,10 @@ public class CompilerGraphPatchTool {
       "Graph patch already captured. Do not call captureGraphPatch again;"
           + " finish this turn without further tool calls.";
 
+  private static final String TRANSFORMATION_GENERATOR = "cip-transformation-generator";
+  private static final String SCRIPT_GENERATOR = "cip-script-generator";
+  private static final String MAPPING_CAPTURE_PREFIX = "Mapping capture:";
+
   private static final Logger LOG = Logger.getLogger(CompilerGraphPatchTool.class);
 
   private final CaptureSession captureSession;
@@ -78,6 +89,8 @@ public class CompilerGraphPatchTool {
   private final KnowledgeCitationResolver citationResolver;
   private final ValidatedGraphPatchApplier validatedPatchApplier;
   private final GraphPatchPreviewValidator previewValidator;
+  private final CompilationArtifacts compilationArtifacts;
+  private final MappingCaptureValidator mappingCaptureValidator;
 
   @Inject
   CompilerGraphPatchTool(
@@ -92,7 +105,8 @@ public class CompilerGraphPatchTool {
       CaptureRepairMessageBuilder repairMessageBuilder,
       GraphPatchExecutionContextStore executionContextStore,
       CaptureRouter captureRouter,
-      KnowledgeCitationResolver citationResolver) {
+      KnowledgeCitationResolver citationResolver,
+      CompilationArtifacts compilationArtifacts) {
     this.captureSession = captureSession;
     this.planStore = planStore;
     this.schemaService = schemaService;
@@ -105,6 +119,8 @@ public class CompilerGraphPatchTool {
     this.executionContextStore = executionContextStore;
     this.captureRouter = captureRouter;
     this.citationResolver = citationResolver;
+    this.compilationArtifacts = compilationArtifacts;
+    this.mappingCaptureValidator = new MappingCaptureValidator();
     this.validatedPatchApplier =
         new ValidatedGraphPatchApplier(new GraphPatchOwnershipValidator(), patchApplier);
     this.previewValidator =
@@ -272,6 +288,14 @@ public class CompilerGraphPatchTool {
           return finish(
               conversationId, startMs, wrapValidationMessage(conversationId, capabilityId, message));
         }
+      }
+
+      Optional<String> mappingCaptureError =
+          validateMappingCapture(conversationId, capabilityId, graphPatch, graphForGate);
+      if (mappingCaptureError.isPresent()) {
+        String message = mappingCaptureError.get();
+        return finish(
+            conversationId, startMs, wrapValidationMessage(conversationId, capabilityId, message));
       }
 
       CaptureKey key =
@@ -594,6 +618,256 @@ public class CompilerGraphPatchTool {
 
   private static boolean empty(List<?> values) {
     return values == null || values.isEmpty();
+  }
+
+  private Optional<String> validateMappingCapture(
+      String conversationId,
+      String capabilityId,
+      GraphPatch graphPatch,
+      ChainPlanGraph graphForGate) {
+    if (!TRANSFORMATION_GENERATOR.equals(capabilityId) && !SCRIPT_GENERATOR.equals(capabilityId)) {
+      return Optional.empty();
+    }
+    if (!touchesMappingCaptureKeys(capabilityId, graphPatch)) {
+      return Optional.empty();
+    }
+    if (graphForGate == null) {
+      return Optional.of(MAPPING_CAPTURE_PREFIX + " patched graph is required");
+    }
+    GraphPatchExecutionContext context =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .orElse(null);
+    try {
+      for (String nodeId : patchedNodeIds(graphPatch)) {
+        ChainPlanNode node = findNode(graphForGate, nodeId);
+        if (node == null) {
+          continue;
+        }
+        if (TRANSFORMATION_GENERATOR.equals(capabilityId)
+            && nodeTouchesKey(
+                graphPatch, nodeId, MappingExecutionSite.MAPPING_DESCRIPTION_PROPERTY)) {
+          validateMapper2Capture(conversationId, context, node);
+        }
+        if (SCRIPT_GENERATOR.equals(capabilityId)
+            && (nodeTouchesKey(graphPatch, nodeId, MappingExecutionSite.SCRIPT_PROPERTY)
+                || nodeTouchesKey(
+                    graphPatch, nodeId, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY))) {
+          validateScriptCapture(context, node, graphPatch, nodeId);
+        }
+      }
+      return Optional.empty();
+    } catch (IllegalArgumentException e) {
+      return Optional.of(e.getMessage());
+    }
+  }
+
+  private void validateMapper2Capture(
+      String conversationId, GraphPatchExecutionContext context, ChainPlanNode node) {
+    if (!MappingExecutionSite.isMapper2(node)) {
+      throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " node type must be mapper-2");
+    }
+    MappingIntent intent = requireIntent(context, MappingExecutionSite.mappingIntentId(node));
+    MappingEnvelope envelope =
+        requireEnvelope(conversationId, context, MappingExecutionSite.mappingIntentId(node));
+    MappingDescriptionDocument captured =
+        parseMappingDescription(MappingExecutionSite.mappingDescription(node));
+    mappingCaptureValidator.validateMapper2(envelope, intent, captured);
+  }
+
+  private void validateScriptCapture(
+      GraphPatchExecutionContext context, ChainPlanNode node, GraphPatch graphPatch, String nodeId) {
+    String intentId = MappingExecutionSite.mappingIntentId(node);
+    if (intentId == null || intentId.isBlank()) {
+      if (nodeTouchesKey(graphPatch, nodeId, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY)) {
+        throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " mappingIntentId is required");
+      }
+      return;
+    }
+    MappingIntent intent = requireIntent(context, intentId);
+    String script = MappingExecutionSite.scriptBody(node);
+    if (script == null) {
+      throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " script body is required");
+    }
+    mappingCaptureValidator.validateScript(intent, script, parseMappingCoverage(node));
+  }
+
+  private MappingIntent requireIntent(GraphPatchExecutionContext context, String mappingIntentId) {
+    if (mappingIntentId == null || mappingIntentId.isBlank()) {
+      throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " mappingIntentId is required");
+    }
+    if (context == null || context.requirementBrief() == null) {
+      throw new IllegalArgumentException(
+          MAPPING_CAPTURE_PREFIX + " mapping intent '" + mappingIntentId + "' is required");
+    }
+    for (MappingIntent intent : context.requirementBrief().mappingIntents()) {
+      if (mappingIntentId.equals(intent.mappingIntentId())) {
+        return intent;
+      }
+    }
+    throw new IllegalArgumentException(
+        MAPPING_CAPTURE_PREFIX + " mapping intent '" + mappingIntentId + "' is required");
+  }
+
+  private MappingEnvelope requireEnvelope(
+      String conversationId, GraphPatchExecutionContext context, String mappingIntentId) {
+    if (compilationArtifacts == null || context == null) {
+      throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " mapping envelope is required");
+    }
+    if (mappingIntentId == null || mappingIntentId.isBlank()) {
+      throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " mapping envelope is required");
+    }
+    for (CompilationArtifacts.Reference reference : context.consumedArtifacts()) {
+      if (reference.kind() != CompilationArtifacts.Kind.MAPPING_ENVELOPE) {
+        continue;
+      }
+      Optional<CompilationArtifacts.Revision> revision =
+          compilationArtifacts.get(conversationId, reference);
+      if (revision.isEmpty()) {
+        continue;
+      }
+      MappingEnvelope envelope =
+          compilationArtifacts.payload(revision.get(), MappingEnvelope.class);
+      if (mappingIntentId.equals(envelope.mappingIntentId())) {
+        return envelope;
+      }
+    }
+    throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " mapping envelope is required");
+  }
+
+  private MappingDescriptionDocument parseMappingDescription(String json) {
+    if (json == null || json.isBlank()) {
+      throw new IllegalArgumentException(
+          MAPPING_CAPTURE_PREFIX + " cannot parse mappingDescription");
+    }
+    try {
+      return objectMapper.readValue(json, MappingDescriptionDocument.class);
+    } catch (Exception e) {
+      throw new IllegalArgumentException(
+          MAPPING_CAPTURE_PREFIX + " cannot parse mappingDescription", e);
+    }
+  }
+
+  private List<String> parseMappingCoverage(ChainPlanNode node) {
+    String raw = MappingExecutionSite.mappingCoverage(node);
+    if (raw == null || raw.isBlank()) {
+      return null;
+    }
+    try {
+      JsonNode parsed = objectMapper.readTree(raw);
+      if (!parsed.isArray()) {
+        throw new IllegalArgumentException(
+            MAPPING_CAPTURE_PREFIX + " mappingCoverage must be a JSON array of strings");
+      }
+      List<String> paths = new ArrayList<>();
+      for (JsonNode item : parsed) {
+        if (!item.isTextual()) {
+          throw new IllegalArgumentException(
+              MAPPING_CAPTURE_PREFIX + " mappingCoverage must be a JSON array of strings");
+        }
+        paths.add(item.asText());
+      }
+      return paths;
+    } catch (IllegalArgumentException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new IllegalArgumentException(
+          MAPPING_CAPTURE_PREFIX + " mappingCoverage must be a JSON array of strings", e);
+    }
+  }
+
+  private static boolean touchesMappingCaptureKeys(String capabilityId, GraphPatch graphPatch) {
+    if (TRANSFORMATION_GENERATOR.equals(capabilityId)) {
+      return touchesKey(graphPatch, MappingExecutionSite.MAPPING_DESCRIPTION_PROPERTY);
+    }
+    return touchesKey(graphPatch, MappingExecutionSite.SCRIPT_PROPERTY)
+        || touchesKey(graphPatch, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY);
+  }
+
+  private static boolean touchesKey(GraphPatch graphPatch, String key) {
+    if (graphPatch.propertyPatches() != null) {
+      for (PropertyPatch propertyPatch : graphPatch.propertyPatches()) {
+        if (propertyPatch != null
+            && propertyPatch.property() != null
+            && key.equals(propertyPatch.property().key())) {
+          return true;
+        }
+      }
+    }
+    if (graphPatch.nodePatches() != null) {
+      for (NodePatch nodePatch : graphPatch.nodePatches()) {
+        if (nodePatch == null || nodePatch.node() == null || nodePatch.node().properties() == null) {
+          continue;
+        }
+        for (PlanProperty property : nodePatch.node().properties()) {
+          if (property != null && key.equals(property.key())) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private static boolean nodeTouchesKey(GraphPatch graphPatch, String nodeId, String key) {
+    if (graphPatch.propertyPatches() != null) {
+      for (PropertyPatch propertyPatch : graphPatch.propertyPatches()) {
+        if (propertyPatch != null
+            && nodeId.equals(propertyPatch.targetNodeId())
+            && propertyPatch.property() != null
+            && key.equals(propertyPatch.property().key())) {
+          return true;
+        }
+      }
+    }
+    if (graphPatch.nodePatches() != null) {
+      for (NodePatch nodePatch : graphPatch.nodePatches()) {
+        if (nodePatch == null
+            || nodePatch.node() == null
+            || !nodeId.equals(nodePatch.node().nodeId())
+            || nodePatch.node().properties() == null) {
+          continue;
+        }
+        for (PlanProperty property : nodePatch.node().properties()) {
+          if (property != null && key.equals(property.key())) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private static Set<String> patchedNodeIds(GraphPatch graphPatch) {
+    LinkedHashSet<String> nodeIds = new LinkedHashSet<>();
+    if (graphPatch.propertyPatches() != null) {
+      for (PropertyPatch propertyPatch : graphPatch.propertyPatches()) {
+        if (propertyPatch != null && propertyPatch.targetNodeId() != null) {
+          nodeIds.add(propertyPatch.targetNodeId());
+        }
+      }
+    }
+    if (graphPatch.nodePatches() != null) {
+      for (NodePatch nodePatch : graphPatch.nodePatches()) {
+        if (nodePatch != null && nodePatch.node() != null && nodePatch.node().nodeId() != null) {
+          nodeIds.add(nodePatch.node().nodeId());
+        }
+      }
+    }
+    return nodeIds;
+  }
+
+  private static ChainPlanNode findNode(ChainPlanGraph graph, String nodeId) {
+    if (graph == null || graph.nodes() == null) {
+      return null;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (nodeId.equals(node.nodeId())) {
+        return node;
+      }
+    }
+    return null;
   }
 
   private String finish(String conversationId, long startMs, String result) {

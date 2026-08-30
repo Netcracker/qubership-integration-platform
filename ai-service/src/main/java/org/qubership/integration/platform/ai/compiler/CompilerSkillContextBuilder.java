@@ -4,7 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
 import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
@@ -20,6 +22,10 @@ import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntime
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
@@ -123,6 +129,9 @@ public class CompilerSkillContextBuilder {
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
+    if (!nullToEmpty(snapshot.mappingGenerationContext()).isBlank()) {
+      body.append(snapshot.mappingGenerationContext()).append("\n\n");
+    }
 
     boolean editStructureCapture =
         captureTool == CaptureTool.CAPTURE_CHAIN_STRUCTURE
@@ -168,6 +177,64 @@ public class CompilerSkillContextBuilder {
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
   }
 
+  /**
+   * Renders the mapping generator prompt section. Task 13 stores the result in
+   * {@link CompilerSkillInputSnapshot#mappingGenerationContext()}.
+   */
+  public String renderMappingGenerationContext(
+      MappingIntent intent,
+      MappingEnvelope envelope,
+      MappingSchemaSide sourceSide,
+      MappingSchemaSide targetSide) {
+    Objects.requireNonNull(intent, "intent");
+    Objects.requireNonNull(envelope, "envelope");
+    Objects.requireNonNull(sourceSide, "sourceSide");
+    Objects.requireNonNull(targetSide, "targetSide");
+
+    StringBuilder section = new StringBuilder();
+    section.append("Mapping generation:\n\n");
+    section.append("mappingIntentId: ").append(intent.mappingIntentId()).append('\n');
+    section
+        .append("source: ")
+        .append(intent.sourceRef())
+        .append(' ')
+        .append(intent.sourcePort())
+        .append('\n');
+    section
+        .append("target: ")
+        .append(intent.targetRef())
+        .append(' ')
+        .append(intent.targetPort())
+        .append("\n\n");
+
+    section.append("Approved rules:\n");
+    for (MappingIntentRule rule : intent.rules()) {
+      section.append("- ").append(rule.sourcePath()).append(" -> ").append(rule.targetPath());
+      if (rule.expression() != null && !rule.expression().isBlank()) {
+        section.append(" (expression: ").append(rule.expression()).append(')');
+      }
+      section.append(" [").append(rule.status()).append("]\n");
+    }
+    section.append('\n');
+
+    section.append("Schema artifact hashes:\n");
+    section.append("- source: ").append(sourceSide.sha256()).append('\n');
+    section.append("- target: ").append(targetSide.sha256()).append("\n\n");
+
+    section.append("Envelope idToPath:\n");
+    section.append(formatJson(envelope.idToPath())).append("\n\n");
+
+    section.append("Frozen envelope (source and target only):\n");
+    section.append(formatEnvelopeSourceTarget(envelope)).append("\n\n");
+
+    section.append(
+        "Encode only the approved rules above. Extra correspondences fail parity validation. "
+            + "Copy source and target from the frozen envelope unchanged; they must be copied "
+            + "unchanged in capture.");
+
+    return section.toString();
+  }
+
   public String buildScriptRepairMessage(
       String conversationId,
       CompilerSkillDocument document,
@@ -182,12 +249,20 @@ public class CompilerSkillContextBuilder {
             + document.capabilityId()
             + "' in an automated pipeline.\n");
     body.append("Call repairScriptBodies exactly once before you finish.\n");
-    body.append("Submit only script bodies for the listed targetNodeIds.\n");
+    boolean mappingTurn = !nullToEmpty(snapshot.mappingGenerationContext()).isBlank();
+    if (mappingTurn) {
+      body.append("Submit script bodies and mappingCoverage for mapping nodes.\n");
+    } else {
+      body.append("Submit only script bodies for the listed targetNodeIds.\n");
+    }
     body.append("Do not call captureGraphPatch.\n\n");
     body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
+    }
+    if (!nullToEmpty(snapshot.mappingGenerationContext()).isBlank()) {
+      body.append(snapshot.mappingGenerationContext()).append("\n\n");
     }
     body.append("Missing script node ids:\n");
     for (String nodeId : missingNodeIds) {
@@ -201,7 +276,11 @@ public class CompilerSkillContextBuilder {
       String nodeId = missingNodeIds.get(i);
       body.append("    { \"targetNodeId\": \"")
           .append(nodeId)
-          .append("\", \"script\": \"exchange.in.body = 'Hello'\\nreturn exchange.in.body\" }");
+          .append("\", \"script\": \"exchange.in.body = 'Hello'\\nreturn exchange.in.body\"");
+      if (mappingTurn) {
+        body.append(", \"mappingCoverage\": [\"$.targetPath\"]");
+      }
+      body.append(" }");
       if (i + 1 < missingNodeIds.size()) {
         body.append(',');
       }
@@ -210,7 +289,11 @@ public class CompilerSkillContextBuilder {
     body.append("  ],\n");
     body.append("  \"rationale\": \"Filled missing script bodies for listed node ids\"\n");
     body.append("}\n");
-    body.append("Do not call with null/empty scripts. Do not invent extra node ids.\n\n");
+    body.append("Do not call with null/empty scripts. Do not invent extra node ids.\n");
+    if (mappingTurn) {
+      body.append("Set mappingCoverage to the approved target paths.\n");
+    }
+    body.append('\n');
     body.append("Script node slice:\n");
     appendScriptNodeSlice(body, snapshot.chainPlanGraph(), missingNodeIds);
     body.append('\n');
@@ -436,6 +519,24 @@ public class CompilerSkillContextBuilder {
     java.util.List<ChainPlanNode> redactedNodes =
         graph.nodes().stream().map(ScriptBodyPromptRedaction::stripScriptBodyProperty).toList();
     return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), redactedNodes, graph.edges());
+  }
+
+  private String formatEnvelopeSourceTarget(MappingEnvelope envelope) {
+    Map<String, Object> payload = new LinkedHashMap<>();
+    payload.put("source", envelope.source());
+    payload.put("target", envelope.target());
+    return formatJson(payload);
+  }
+
+  private String formatJson(Object value) {
+    if (value == null) {
+      return "(missing)";
+    }
+    try {
+      return objectMapper.writeValueAsString(value);
+    } catch (JsonProcessingException e) {
+      return "(failed to serialize mapping context: " + e.getMessage() + ")";
+    }
   }
 
   private String formatActivePlan(GeneratorPlan activePlan) {

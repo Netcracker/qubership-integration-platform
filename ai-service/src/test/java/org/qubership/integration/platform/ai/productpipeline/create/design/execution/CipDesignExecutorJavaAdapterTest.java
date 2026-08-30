@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -35,7 +36,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
+import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -50,6 +53,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
@@ -451,6 +455,22 @@ class CipDesignExecutorJavaAdapterTest {
     Reference reproduced = append(Kind.VALIDATED_EXECUTION_BUNDLE, "1", validated);
     assertNotEquals(request.validatedExecutionBundleRef().artifactId(), reproduced.artifactId());
     assertEquals(request.validatedExecutionBundleRef().contentHash(), reproduced.contentHash());
+  }
+
+  @Test
+  void mappingContractBlockedMapsToMissingBriefFacts() {
+    String blockedMessage =
+        BriefMappingValidator.UNRESOLVED_REQUIRED_PREFIX + "$.orderId";
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
+        .thenThrow(new MappingContractBlockedException(blockedMessage));
+
+    ExecutionResult result = adapter.executeAfterApproval(baseInputs());
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, result.outcomeClass());
+    assertEquals(RecoveryCauseCode.MISSING_BRIEF_FACTS, result.recoveryCause().causeCode());
+    assertEquals(blockedMessage, result.message());
+    assertTrue(result.candidates().isEmpty());
+    assertNull(result.checkpoint());
   }
 
   @Test

@@ -18,7 +18,8 @@ public record GraphPatchExecutionContext(
     ChainPlanGraph inputGraph,
     GraphPatchOwnershipPolicy ownership,
     String attemptId,
-    List<String> editTargetNodeIds) {
+    List<String> editTargetNodeIds,
+    String mappingGenerationContext) {
 
   public GraphPatchExecutionContext {
     consumedArtifacts = consumedArtifacts == null ? List.of() : List.copyOf(consumedArtifacts);
@@ -51,6 +52,72 @@ public record GraphPatchExecutionContext(
         inputGraph,
         ownership,
         attemptId,
-        List.of());
+        List.of(),
+        null);
+  }
+
+  /** Callers that name edit targets and have no mapping prompt overlay. */
+  public GraphPatchExecutionContext(
+      String runId,
+      String skillId,
+      String requirementDigest,
+      String inputGraphDigest,
+      String compilerPackageDigest,
+      String languageVersion,
+      RequirementBrief requirementBrief,
+      List<CompilationArtifacts.Reference> consumedArtifacts,
+      ChainPlanGraph inputGraph,
+      GraphPatchOwnershipPolicy ownership,
+      String attemptId,
+      List<String> editTargetNodeIds) {
+    this(
+        runId,
+        skillId,
+        requirementDigest,
+        inputGraphDigest,
+        compilerPackageDigest,
+        languageVersion,
+        requirementBrief,
+        consumedArtifacts,
+        inputGraph,
+        ownership,
+        attemptId,
+        editTargetNodeIds,
+        null);
+  }
+
+  public GraphPatchExecutionContext withConsumedArtifacts(
+      List<CompilationArtifacts.Reference> consumed) {
+    return new GraphPatchExecutionContext(
+        runId,
+        skillId,
+        requirementDigest,
+        inputGraphDigest,
+        compilerPackageDigest,
+        languageVersion,
+        requirementBrief,
+        consumed,
+        inputGraph,
+        ownership,
+        attemptId,
+        editTargetNodeIds,
+        mappingGenerationContext);
+  }
+
+  public GraphPatchExecutionContext withMappingGenerationContext(String mappingContext) {
+    return new GraphPatchExecutionContext(
+        runId,
+        skillId,
+        requirementDigest,
+        inputGraphDigest,
+        compilerPackageDigest,
+        languageVersion,
+        requirementBrief,
+        consumedArtifacts,
+        inputGraph,
+        ownership,
+        attemptId,
+        editTargetNodeIds,
+        mappingContext);
   }
 }

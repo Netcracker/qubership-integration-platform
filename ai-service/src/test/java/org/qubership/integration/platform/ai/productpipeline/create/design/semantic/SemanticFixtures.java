@@ -121,6 +121,34 @@ public final class SemanticFixtures {
         List.of());
   }
 
+  /** Same as {@link #linearOrders()} plus two identity mapping intents. */
+  public static ChainSemanticRevision linearOrdersWithTwoIdentityMappings() {
+    return linear(
+        "Orders",
+        "revision-orders",
+        "trigger-http",
+        "node-call",
+        "call-1",
+        "createOrder",
+        "Orders API",
+        List.of(
+            new MappingIntent(
+                "map-a",
+                "edge-1",
+                MappingPort.OUTPUT,
+                "edge-1",
+                MappingPort.REQUEST,
+                List.of(new MappingIntentRule("id", "id", null))),
+            new MappingIntent(
+                "map-b",
+                "edge-1",
+                MappingPort.OUTPUT,
+                "edge-1",
+                MappingPort.REQUEST,
+                List.of(new MappingIntentRule("code", "code", null)))),
+        List.of());
+  }
+
   public static ChainSemanticRevision linear(
       String chainIdentity,
       String revisionId,

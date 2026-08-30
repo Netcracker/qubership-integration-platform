@@ -807,12 +807,10 @@ class DesignPlanningCapabilityTest {
           4. Resolve External integration target Orders Service from the retrieved spec (binding for cip-service-call-generator)
           5. Generate HTTP Trigger element with interface Orders API (cip-trigger-generator)
           6. Generate Service Call element for Orders Service.createOrder bound to the retrieved spec (cip-service-call-generator)
-          7. Generate Script element for Initialization (cip-script-generator)
-          8. Generate Script element for Response (cip-script-generator)
-          9. Generate execution structure and element ordering (cip-structure-generator)
-          10. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
-          11. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-          12. Validate the assembled chain (cip-chain-validator)
+          7. Generate execution structure and element ordering (cip-structure-generator)
+          8. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
+          9. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+          10. Validate the assembled chain (cip-chain-validator)
           If you agree, reply **Agree** or **Execute plan** to proceed.
           """
           .trim();
