@@ -31,6 +31,8 @@ import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
+import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -167,6 +169,42 @@ class ChatExecutionServiceTest {
         ChatEvent.CANCEL_DEPLOY_ACTION,
         ChatEvent.UNDEPLOY_ACTION,
         ChatEvent.CANCEL_UNDEPLOY_ACTION);
+  }
+
+  @Test
+  void streamSseSetsOpenChainTurnContextOnRoutedRequest() {
+    OpenChainTurnContext turnContext =
+        new OpenChainTurnContext(
+            "conv-turn-ctx",
+            "chain-1",
+            "hello",
+            "user: hello",
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    OpenChainTurnContextFactory turnContextFactory = mock(OpenChainTurnContextFactory.class);
+    when(turnContextFactory.build(any(), anyString())).thenReturn(turnContext);
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-turn-ctx");
+    request.setMessage("hello");
+
+    service(router, decisions, new PendingRedeployStore(), turnContextFactory)
+        .streamV1Sse(request)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    verify(turnContextFactory).build(any(ChatRequest.class), eq("conv-turn-ctx"));
+    ArgumentCaptor<ChatRequest> routed = ArgumentCaptor.forClass(ChatRequest.class);
+    verify(router).route(routed.capture(), eq("conv-turn-ctx"));
+    assertEquals(turnContext, routed.getValue().getOpenChainTurnContext());
   }
 
   @Test
@@ -419,6 +457,16 @@ class ChatExecutionServiceTest {
 
   private ChatExecutionService service(
       ScenarioRouter router, ChatDecisionService decisions, PendingRedeployStore pending) {
+    OpenChainTurnContextFactory turnContextFactory = mock(OpenChainTurnContextFactory.class);
+    when(turnContextFactory.build(any(), anyString())).thenReturn(null);
+    return service(router, decisions, pending, turnContextFactory);
+  }
+
+  private ChatExecutionService service(
+      ScenarioRouter router,
+      ChatDecisionService decisions,
+      PendingRedeployStore pending,
+      OpenChainTurnContextFactory turnContextFactory) {
     AppConfig appConfig = mock(AppConfig.class);
     AppConfig.LlmConfig llm = mock(AppConfig.LlmConfig.class);
     AppConfig.LlmConfig.RateLimitConfig rateLimit = mock(AppConfig.LlmConfig.RateLimitConfig.class);
@@ -441,7 +489,8 @@ class ChatExecutionServiceTest {
         new ObjectMapper(),
         sanitizer,
         decisions,
-        pending);
+        pending,
+        turnContextFactory);
   }
 
   private static ChainPlanGraph sampleGraph(String chainName) {

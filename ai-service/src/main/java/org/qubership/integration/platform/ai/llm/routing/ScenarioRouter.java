@@ -9,7 +9,7 @@ import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
-import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
+import org.qubership.integration.platform.ai.chat.TranscriptWindow;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -26,8 +26,6 @@ import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSna
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
-import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -389,20 +387,7 @@ public class ScenarioRouter {
   }
 
   private String buildRouterTranscript(String conversationId) {
-    List<ConversationMessage> messages = conversationService.getMessages(conversationId);
-    if (messages.isEmpty()) {
-      return "";
-    }
-    StringBuilder sb = new StringBuilder();
-    for (ConversationMessage message : messages) {
-      if (sb.length() > 0) {
-        sb.append('\n');
-      }
-      sb.append(message.role().name().toLowerCase(Locale.ROOT))
-          .append(": ")
-          .append(message.content());
-    }
-    return sb.toString();
+    return TranscriptWindow.format(conversationService.getMessages(conversationId));
   }
 
   private ScenarioType coerceToSupportedHandler(ScenarioType type) {
