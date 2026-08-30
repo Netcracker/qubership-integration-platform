@@ -32,24 +32,24 @@ public final class PhaseRoutingPolicy {
     }
     String msg = userMessage.trim();
 
-    if (UserIntentPatterns.matchesSnapshotIntent(msg)) {
-      return Optional.of(ScenarioType.DEPLOY_CHAIN);
-    }
+    // Open-chain free text belongs to the classifier. Snapshot, deploy, status, undeploy, and
+    // chain-question regex would steal "where should I deploy?" and similar turns.
+    if (!hasChainContext) {
+      if (UserIntentPatterns.matchesSnapshotIntent(msg)) {
+        return Optional.of(ScenarioType.DEPLOY_CHAIN);
+      }
 
-    if (UserIntentPatterns.matchesDeployIntent(msg)) {
-      return Optional.of(ScenarioType.DEPLOY_CHAIN);
-    }
+      if (UserIntentPatterns.matchesDeployIntent(msg)) {
+        return Optional.of(ScenarioType.DEPLOY_CHAIN);
+      }
 
-    if (UserIntentPatterns.matchesDeploymentStatusIntent(msg)) {
-      return Optional.of(ScenarioType.DEPLOY_CHAIN);
-    }
+      if (UserIntentPatterns.matchesDeploymentStatusIntent(msg)) {
+        return Optional.of(ScenarioType.DEPLOY_CHAIN);
+      }
 
-    if (UserIntentPatterns.matchesUndeployIntent(msg)) {
-      return Optional.of(ScenarioType.DEPLOY_CHAIN);
-    }
-
-    if (hasChainContext && UserIntentPatterns.matchesChainQuestion(msg)) {
-      return Optional.of(ScenarioType.ASK_CHAIN);
+      if (UserIntentPatterns.matchesUndeployIntent(msg)) {
+        return Optional.of(ScenarioType.DEPLOY_CHAIN);
+      }
     }
 
     if (phase == ConversationPhase.IMPORT_PENDING) {

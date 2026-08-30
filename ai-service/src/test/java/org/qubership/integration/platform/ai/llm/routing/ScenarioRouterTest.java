@@ -355,6 +355,21 @@ class ScenarioRouterTest {
     ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
 
     assertEquals(ScenarioType.DEPLOY_CHAIN, outcome.scenarioType());
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
+  }
+
+  @Test
+  void freeTextDeployThisChainWithChainContextClassifiesViaRouterAgent() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.DEPLOY_CHAIN);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("Deploy this chain");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.DEPLOY_CHAIN, outcome.scenarioType());
+    org.mockito.Mockito.verify(routerAgent).classify(any(), anyString(), any());
   }
 
   @Test
