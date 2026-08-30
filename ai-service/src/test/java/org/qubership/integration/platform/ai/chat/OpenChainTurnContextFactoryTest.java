@@ -26,6 +26,14 @@ import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.AnswerShape;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.DeployOp;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.InfoNeed;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.TurnReferent;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlanner;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlanner.Capture;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlanner.Kind;
 
 class OpenChainTurnContextFactoryTest {
 
@@ -39,15 +47,36 @@ class OpenChainTurnContextFactoryTest {
 
   private ChainContextExtractor extractor;
   private ChainCatalogFactsService factsService;
+  private CatalogRestClient catalogRestClient;
+  private OpenChainTurnPlanner turnPlanner;
+  private LastAssistantTurnStore lastTurnStore;
   private OpenChainTurnContextFactory factory;
 
   @BeforeEach
   void setUp() {
     extractor = mock(ChainContextExtractor.class);
     factsService = mock(ChainCatalogFactsService.class);
+    catalogRestClient = mock(CatalogRestClient.class);
+    turnPlanner = mock(OpenChainTurnPlanner.class);
+    lastTurnStore = new LastAssistantTurnStore();
+    when(turnPlanner.plan(anyString(), anyString(), anyString()))
+        .thenReturn(
+            new Capture(
+                Kind.ASK,
+                TurnReferent.OPEN_CHAIN,
+                List.of(InfoNeed.FACTS),
+                DeployOp.NONE,
+                AnswerShape.EXPLAIN));
     factory =
         new OpenChainTurnContextFactory(
-            extractor, conversations, pins, factsService, mapper);
+            extractor,
+            conversations,
+            pins,
+            factsService,
+            mapper,
+            catalogRestClient,
+            turnPlanner,
+            lastTurnStore);
   }
 
   @Test
@@ -120,6 +149,68 @@ class OpenChainTurnContextFactoryTest {
     assertEquals(CONVERSATION_ID, context.conversationId());
     assertEquals(CHAIN_A, context.chainId());
     assertEquals("what is in this chain?", context.userMessage());
+  }
+
+  @Test
+  void snapshotQuestionReadsOnlySnapshotsAndPreservesAnEmptySuccessfulRead() {
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+    when(turnPlanner.plan(anyString(), anyString(), anyString()))
+        .thenReturn(
+            new Capture(
+                Kind.ASK,
+                TurnReferent.OPEN_CHAIN,
+                List.of(InfoNeed.SNAPSHOTS),
+                DeployOp.NONE,
+                AnswerShape.EXPLAIN));
+    when(catalogRestClient.listSnapshots(CHAIN_A)).thenReturn(List.of());
+
+    OpenChainTurnContext context = factory.build(request("has it any snapshots?"), CONVERSATION_ID);
+
+    assertEquals(CatalogRead.State.AVAILABLE, context.snapshots().state());
+    assertEquals(List.of(), context.snapshots().value());
+    assertEquals(CatalogRead.State.NOT_REQUESTED, context.facts().state());
+    assertEquals(CatalogRead.State.NOT_REQUESTED, context.deployments().state());
+    verify(factsService, never()).load(anyString());
+    verify(catalogRestClient, never()).listDeployments(anyString());
+  }
+
+  @Test
+  void snapshotTimeoutIsUnavailableRatherThanAnEmptyList() {
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+    when(turnPlanner.plan(anyString(), anyString(), anyString()))
+        .thenReturn(
+            new Capture(
+                Kind.ASK,
+                TurnReferent.OPEN_CHAIN,
+                List.of(InfoNeed.SNAPSHOTS),
+                DeployOp.NONE,
+                AnswerShape.EXPLAIN));
+    when(catalogRestClient.listSnapshots(CHAIN_A))
+        .thenThrow(new TimeoutException("snapshot read timed out"));
+
+    OpenChainTurnContext context = factory.build(request("has it any snapshots?"), CONVERSATION_ID);
+
+    assertEquals(CatalogRead.State.UNAVAILABLE, context.snapshots().state());
+    assertTrue(context.snapshots().availableValue().isEmpty());
+  }
+
+  @Test
+  void plannerReceivesTypedLastAssistantTurn() {
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+    when(factsService.load(CHAIN_A)).thenReturn(facts(CHAIN_A));
+    lastTurnStore.put(
+        CONVERSATION_ID,
+        CHAIN_A,
+        new LastAssistantTurn(
+            LastAssistantTurn.Kind.PATCH_WRITE_FAILED, "The catalog did not confirm the write."));
+
+    factory.build(request("why?"), CONVERSATION_ID);
+
+    verify(turnPlanner)
+        .plan(
+            org.mockito.ArgumentMatchers.contains("PATCH_WRITE_FAILED"),
+            anyString(),
+            org.mockito.ArgumentMatchers.eq("why?"));
   }
 
   @Test

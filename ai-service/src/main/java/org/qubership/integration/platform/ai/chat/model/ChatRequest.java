@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chat.model;
 
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 import java.util.List;
@@ -15,6 +16,7 @@ public class ChatRequest {
   private String resolvedEffectiveUserText;
   private ChatDecisionCommand decision;
   private OpenChainTurnContext openChainTurnContext;
+  private OpenChainTurnPlan openChainTurnPlan;
 
   public String getConversationId() { return conversationId; }
   public void setConversationId(String conversationId) { this.conversationId = conversationId; }
@@ -46,5 +48,10 @@ public class ChatRequest {
   public OpenChainTurnContext getOpenChainTurnContext() { return openChainTurnContext; }
   public void setOpenChainTurnContext(OpenChainTurnContext openChainTurnContext) {
     this.openChainTurnContext = openChainTurnContext;
+  }
+
+  public OpenChainTurnPlan getOpenChainTurnPlan() { return openChainTurnPlan; }
+  public void setOpenChainTurnPlan(OpenChainTurnPlan openChainTurnPlan) {
+    this.openChainTurnPlan = openChainTurnPlan;
   }
 }

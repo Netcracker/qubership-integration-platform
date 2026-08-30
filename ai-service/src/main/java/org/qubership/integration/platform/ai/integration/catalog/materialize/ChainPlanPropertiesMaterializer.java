@@ -114,6 +114,17 @@ public class ChainPlanPropertiesMaterializer {
         failedNodeIds.add(node.nodeId());
       }
     } catch (Exception e) {
+      LOG.errorf(
+          e,
+          "Catalog element patch failed chainId=%s elementId=%s nodeId=%s",
+          map.chainId(),
+          elementId,
+          node.nodeId());
+      rememberFirstValidationError(
+          firstValidationError,
+          node.nodeId(),
+          node.type(),
+          "The catalog did not confirm the element update.");
       failedNodeIds.add(node.nodeId());
     }
   }
@@ -136,8 +147,70 @@ public class ChainPlanPropertiesMaterializer {
       return false;
     }
     preservePlacementFields(validated.patchBody(), current);
-    catalogRestClient.updateElement(map.chainId(), elementId, validated.patchBody());
+    try {
+      catalogRestClient.updateElement(map.chainId(), elementId, validated.patchBody());
+      return true;
+    } catch (RuntimeException error) {
+      if (!isTimeout(error)) {
+        throw error;
+      }
+      LOG.warnf(
+          error,
+          "Catalog element patch timed out; confirming by read-back chainId=%s elementId=%s",
+          map.chainId(),
+          elementId);
+      try {
+        CatalogElementResponseDto readBack =
+            catalogRestClient.getElement(map.chainId(), elementId);
+        if (containsPatch(readBack, validated.patchBody())) {
+          return true;
+        }
+      } catch (RuntimeException readError) {
+        LOG.warnf(
+            readError,
+            "Catalog element patch read-back failed chainId=%s elementId=%s",
+            map.chainId(),
+            elementId);
+      }
+      rememberFirstValidationError(
+          firstValidationError,
+          node.nodeId(),
+          node.type(),
+          "The catalog update timed out, and read-back did not confirm it.");
+      return false;
+    }
+  }
+
+  private boolean containsPatch(
+      CatalogElementResponseDto readBack, Map<String, Object> expectedPatch) {
+    if (readBack == null) {
+      return false;
+    }
+    Map<String, Object> actual = new LinkedHashMap<>();
+    actual.put("name", readBack.name);
+    actual.put("description", readBack.description);
+    actual.put("parentElementId", readBack.parentElementId);
+    actual.put("swimlaneId", readBack.swimlaneId);
+    actual.put("properties", readBack.properties == null ? Map.of() : readBack.properties);
+    for (Map.Entry<String, Object> expected : expectedPatch.entrySet()) {
+      if (!objectMapper.valueToTree(expected.getValue()).equals(
+          objectMapper.valueToTree(actual.get(expected.getKey())))) {
+        return false;
+      }
+    }
     return true;
+  }
+
+  private static boolean isTimeout(Throwable error) {
+    Throwable current = error;
+    while (current != null) {
+      String name = current.getClass().getSimpleName().toLowerCase(java.util.Locale.ROOT);
+      if (name.contains("timeout") || name.contains("timedout")) {
+        return true;
+      }
+      current = current.getCause();
+    }
+    return false;
   }
 
   private Map<String, Object> buildPatchBody(ChainPlanNode node) {

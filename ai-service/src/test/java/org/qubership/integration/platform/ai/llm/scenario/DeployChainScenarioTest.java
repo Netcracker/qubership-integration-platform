@@ -1038,6 +1038,47 @@ class DeployChainScenarioTest {
     assertTrue(token.text().contains("V1"));
   }
 
+  @Test
+  void failedDeploymentIsReportedAsFailureWithoutLeakingRuntimeError() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    DeploymentDto failed =
+        new DeploymentDto(
+            "dep-failed",
+            CHAIN_ID,
+            SNAPSHOT_ID,
+            "V1",
+            "default",
+            new DeploymentRuntimeDto(
+                Map.of(
+                    "engine-0",
+                    new RuntimeStateDto(
+                        "FAILED", "HTTP trigger context path already bound on host 10.0.0.7"))));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(List.of(failed));
+
+    List<ChatEvent> events = eventsFrom("deploy it");
+
+    ChatEvent.Token token = (ChatEvent.Token) events.get(0);
+    ChatEvent.Decision decision = (ChatEvent.Decision) events.get(1);
+    assertFalse(token.text().startsWith("Deployed"));
+    assertTrue(token.text().contains("FAILED"));
+    assertFalse(token.text().contains("10.0.0.7"));
+    assertEquals(
+        List.of(
+            ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION,
+            ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION),
+        decision.actions());
+    var pin = pinnedFailureStore.find(CONVERSATION_ID, CHAIN_ID).orElseThrow();
+    assertEquals(token.text(), pin.safeText());
+    assertTrue(pin.diagnosticDetail().contains("10.0.0.7"));
+  }
+
   private ChatEvent.Token tokenFrom(String message) {
     return tokenFrom(chatRequest(message));
   }
@@ -1047,7 +1088,7 @@ class DeployChainScenarioTest {
         scenario
             .handle(request, CONVERSATION_ID, ScenarioType.DEPLOY_CHAIN)
             .subscribe()
-            .withSubscriber(AssertSubscriber.create(1));
+            .withSubscriber(AssertSubscriber.create(Long.MAX_VALUE));
     sub.awaitCompletion();
     return (ChatEvent.Token) sub.getItems().get(0);
   }

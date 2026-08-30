@@ -63,7 +63,8 @@ class ConversationTurnResetTest {
             new RequirementDraftStore(artifacts, sessions),
             mock(ConversationCatalogCache.class),
             new ConversationEvidenceStore(),
-            pinnedFailureStore);
+            pinnedFailureStore,
+            new LastAssistantTurnStore());
   }
 
   @Test

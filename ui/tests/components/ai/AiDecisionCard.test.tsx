@@ -5,6 +5,7 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
 import { AiDecisionCard } from "../../../src/components/ai/AiDecisionCard.tsx";
 import type { ChatDecision } from "../../../src/ai/modelProviders/types.ts";
 
@@ -12,7 +13,7 @@ jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory runs before imports
   const R = require("react") as typeof import("react");
 
-  function withBold(text: string): R.ReactNode[] {
+  function withBold(text: string): ReactNode[] {
     return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
       const match = /^\*\*(.+)\*\*$/.exec(part);
       return match ? R.createElement("strong", { key: index }, match[1]) : part;
@@ -21,8 +22,8 @@ jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
 
   return {
     MarkdownRenderer: ({ children }: { children: string }) => {
-      const listItems: R.ReactElement[] = [];
-      const body: R.ReactNode[] = [];
+      const listItems: ReactElement[] = [];
+      const body: ReactNode[] = [];
       const flushList = () => {
         if (listItems.length === 0) {
           return;
@@ -309,6 +310,31 @@ describe("AiDecisionCard", () => {
 
     expect(onAnswer).not.toHaveBeenCalled();
     expect(onSubmitClarification).toHaveBeenCalledWith("retry");
+  });
+
+  it("should send deployment follow-up buttons as typed decisions", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "Would you like me to propose a chain fix?",
+      missingEvidence: [],
+      actions: ["propose-deployment-fix", "dismiss-deployment-failure"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    const propose = screen.getByRole("button", { name: "Propose a fix" });
+    expect(propose.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(propose);
+
+    expect(onAnswer).toHaveBeenCalledWith("propose-deployment-fix", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
   it("should render Revise for a stage-revise clarify gate", () => {

@@ -796,8 +796,7 @@ public class ChainEditCompiler {
     if (intent.action() != ChainEditAction.NO_CHANGE) {
       return null;
     }
-    return new ChainEditOutcome.ResolutionFailure(
-        "No change was requested. Say what should be different.");
+    return new ChainEditOutcome.NoChange();
   }
 
   private static ChainEditOutcome.CompilationFailure missingStructuralContinuation() {

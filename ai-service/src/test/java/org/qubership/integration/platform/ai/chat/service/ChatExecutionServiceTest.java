@@ -170,7 +170,31 @@ class ChatExecutionServiceTest {
         ChatEvent.DEPLOY_ACTION,
         ChatEvent.CANCEL_DEPLOY_ACTION,
         ChatEvent.UNDEPLOY_ACTION,
-        ChatEvent.CANCEL_UNDEPLOY_ACTION);
+        ChatEvent.CANCEL_UNDEPLOY_ACTION,
+        ChatEvent.REFRESH_DEPLOYMENT_ACTION,
+        ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION);
+  }
+
+  @Test
+  void proposeDeploymentFixRunsAsPatchScenario() {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-failed-deploy");
+    ChatDecisionCommand decision = new ChatDecisionCommand();
+    decision.setAction(ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION);
+    decision.setArtifactHash("dep-failed");
+    request.setDecision(decision);
+
+    service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    ArgumentCaptor<ChatRequest> routed = ArgumentCaptor.forClass(ChatRequest.class);
+    verify(router).route(routed.capture(), eq("conv-failed-deploy"));
+    assertEquals(ScenarioType.COMPARE_AND_PATCH, routed.getValue().getScenarioHint());
+    verify(decisions, never()).apply(anyString(), any());
   }
 
   @Test
@@ -531,7 +555,8 @@ class ChatExecutionServiceTest {
         sanitizer,
         decisions,
         pending,
-        turnContextFactory);
+        turnContextFactory,
+        new org.qubership.integration.platform.ai.chat.LastAssistantTurnStore());
   }
 
   private static ChainPlanGraph sampleGraph(String chainName) {

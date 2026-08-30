@@ -836,9 +836,7 @@ class ChainEditCompilerTest {
             List.of(),
             List.of());
 
-    ChainEditOutcome.ResolutionFailure failure =
-        assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
-    assertTrue(failure.message().contains("No change was requested"), failure.message());
+    assertInstanceOf(ChainEditOutcome.NoChange.class, compiler.compile(request()));
   }
 
   @Test

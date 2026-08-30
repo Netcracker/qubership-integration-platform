@@ -123,6 +123,7 @@ public class ChainPatchHarnessService {
           String question, List<String> choices, var ignoredHeldIntent, var ignoredContinuation) ->
           choices.isEmpty() ? question : question + " " + String.join("; ", choices);
       case ChainEditOutcome.ResolutionFailure(String message) -> message;
+      case ChainEditOutcome.NoChange ignored -> "No chain change was requested.";
       case ChainEditOutcome.CompilationFailure(String message) -> message;
       case ChainEditOutcome.Escalation escalation -> escalation.message();
       case ChainEditOutcome.Unsupported(var action) ->
