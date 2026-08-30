@@ -105,10 +105,27 @@ class ChainEditIntentResolverTest {
   }
 
   @Test
+  void fixItPassesThePinnedCatalogFailureToTheAgent() {
+    String pin =
+        "Couldn't take a catalog snapshot: Missing required property httpUri. Element trigger-http (id).";
+    List<String> seenPins = new ArrayList<>();
+    ChainEditIntentAgent agent =
+        (elements, transcriptWindow, pinnedFailure, userRequest) -> {
+          seenPins.add(pinnedFailure);
+          return capture(ChainEditAction.NO_CHANGE, List.of(), "");
+        };
+
+    new ChainEditIntentResolver(agent)
+        .resolve(graph(), "fix it", "user: show graph", pin);
+
+    assertEquals(List.of(pin), seenPins);
+  }
+
+  @Test
   void aParserFailureIsNoChangeRatherThanThrown() {
     ChainEditIntent intent =
         new ChainEditIntentResolver(
-                (elements, userRequest) -> {
+                (elements, transcriptWindow, pinnedFailure, userRequest) -> {
                   throw new OutputParsingException(
                       "Failed to parse response into org.qubership.integration.platform.ai"
                           + ".chain.edit.ChainEditCapture",
@@ -221,7 +238,7 @@ class ChainEditIntentResolverTest {
   void aConfigureOnTwoHttpTriggersAsksWhichWhenTheCaptureOmitsTheTarget() {
     ChainEditIntent intent =
         new ChainEditIntentResolver(
-                (elements, userRequest) ->
+                (elements, transcriptWindow, pinnedFailure, userRequest) ->
                     capture(
                         ChainEditAction.CONFIGURE,
                         List.of(),
@@ -439,14 +456,14 @@ class ChainEditIntentResolverTest {
 
   private static ChainEditIntentResolver renderer() {
     return new ChainEditIntentResolver(
-        (elements, request) -> capture(ChainEditAction.NO_CHANGE, List.of(), ""));
+        (elements, transcriptWindow, pinnedFailure, userRequest) -> capture(ChainEditAction.NO_CHANGE, List.of(), ""));
   }
 
   @Test
   void resumingAClarificationPassesTheHeldCaptureAndQuestionToTheClassifierAsStructuredInput() {
     List<String> seenRequests = new ArrayList<>();
     ChainEditIntentAgent agent =
-        (elements, userRequest) -> {
+        (elements, transcriptWindow, pinnedFailure, userRequest) -> {
           seenRequests.add(userRequest);
           return capture(
               ChainEditAction.REBIND_SERVICE_CALL,
@@ -490,7 +507,7 @@ class ChainEditIntentResolverTest {
             List.of("call-orders (Call orders)", "call-invoices (Call invoices)"));
     ChainEditIntent intent =
         new ChainEditIntentResolver(
-                (elements, userRequest) -> {
+                (elements, transcriptWindow, pinnedFailure, userRequest) -> {
                   throw new OutputParsingException(
                       "Failed to parse response into org.qubership.integration.platform.ai"
                           + ".chain.edit.ChainEditCapture",
@@ -549,11 +566,12 @@ class ChainEditIntentResolverTest {
   }
 
   private static ChainEditIntent resolve(String userRequest, ChainEditCapture capture) {
-    return new ChainEditIntentResolver((elements, request) -> capture).resolve(graph(), userRequest);
+    return new ChainEditIntentResolver((elements, transcriptWindow, pinnedFailure, request) -> capture)
+        .resolve(graph(), userRequest);
   }
 
   private static ChainEditIntent resolve(ChainPlanGraph graph, ChainEditCapture capture) {
-    return new ChainEditIntentResolver((elements, request) -> capture)
+    return new ChainEditIntentResolver((elements, transcriptWindow, pinnedFailure, request) -> capture)
         .resolve(graph, "change something");
   }
 

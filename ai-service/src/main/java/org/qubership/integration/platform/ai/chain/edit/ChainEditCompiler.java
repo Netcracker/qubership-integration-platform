@@ -186,7 +186,12 @@ public class ChainEditCompiler {
         ChainEditSkillProgress.call(
             progress,
             ChainEditSkillProgress.INTENT_SKILL_ID,
-            () -> intentResolver.resolve(request.imported().graph(), request.userRequest()));
+            () ->
+                intentResolver.resolve(
+                    request.imported().graph(),
+                    request.userRequest(),
+                    request.transcriptWindow(),
+                    request.pinnedFailureSafeText()));
     return fromResolvedIntent(request, intent, progress);
   }
 
