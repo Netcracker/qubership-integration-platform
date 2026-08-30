@@ -12,7 +12,8 @@ import jakarta.enterprise.context.ApplicationScoped;
  * <p>System prompt: assembled at build time from qip-base-system.md + roles/chain-presentation.md
  * → prompts/chain-presentation-system.md.
  */
-@RegisterAiService
+@RegisterAiService(
+    chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface ChainPresentationAgent {
 
