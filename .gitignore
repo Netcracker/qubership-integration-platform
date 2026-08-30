@@ -33,9 +33,8 @@ apm_modules/
 # Private skills, addons, and certified knowledge package supplied out of band
 integration-platform-skills/
 
-# Internal agent plans/specs (local only)
-docs/superpowers/
-docs/ai-service-a2a/prompts/
+# Local design notes, plans, and specs
+docs/
 
 # Local agent skill mirrors
 .cursor/skills/ai-service-e2e/
