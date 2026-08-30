@@ -1,9 +1,11 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.Optional;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
@@ -13,11 +15,15 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainImplementat
 import org.qubership.integration.platform.ai.presentation.QuestionIntent;
 import org.qubership.integration.platform.ai.presentation.QuestionIntentClassifier;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.agent.ChainPresentationAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.model.ScenarioType;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @ApplicationScoped
 @ForScenario(ScenarioType.ASK_CHAIN)
@@ -30,6 +36,8 @@ public class ChainQuestionScenario implements ScenarioHandler {
   private final ChainCatalogViewService chainCatalogViewService;
   private final ChainPresentationAgent chainPresentationAgent;
   private final ObjectMapper objectMapper;
+  private final KnownFailureMapper knownFailureMapper;
+  private final PinnedFailureStore pinnedFailureStore;
 
   @Inject
   public ChainQuestionScenario(
@@ -37,12 +45,16 @@ public class ChainQuestionScenario implements ScenarioHandler {
       ChainCatalogFactsService chainCatalogFactsService,
       ChainCatalogViewService chainCatalogViewService,
       ChainPresentationAgent chainPresentationAgent,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      KnownFailureMapper knownFailureMapper,
+      PinnedFailureStore pinnedFailureStore) {
     this.chainContextExtractor = chainContextExtractor;
     this.chainCatalogFactsService = chainCatalogFactsService;
     this.chainCatalogViewService = chainCatalogViewService;
     this.chainPresentationAgent = chainPresentationAgent;
     this.objectMapper = objectMapper;
+    this.knownFailureMapper = knownFailureMapper;
+    this.pinnedFailureStore = pinnedFailureStore;
   }
 
   @Override
@@ -80,12 +92,9 @@ public class ChainQuestionScenario implements ScenarioHandler {
       return streamExplainAnswer(conversationId, userMessage, facts);
     } catch (JsonProcessingException e) {
       LOG.errorf(e, "Failed to format chain JSON conversationId=%s", conversationId);
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to format chain JSON: " + e.getMessage()));
+      throw new RuntimeException(e);
     } catch (RuntimeException e) {
-      LOG.errorf(e, "ASK_CHAIN failed conversationId=%s chainId=%s", conversationId, chainId);
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to read chain from catalog: " + e.getMessage()));
+      return knownOrRethrow(e, conversationId, chainId);
     }
   }
 
@@ -135,5 +144,23 @@ public class ChainQuestionScenario implements ScenarioHandler {
         """
             .formatted(facts.userQuestion(), factsJson);
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
+  }
+
+  private Multi<ChatEvent> knownOrRethrow(Throwable error, String conversationId, String chainId) {
+    Optional<KnownFailure> known = knownFailureMapper.tryMap(error, CatalogOperation.FACTS);
+    if (known.isEmpty()) {
+      if (error instanceof RuntimeException runtime) {
+        throw runtime;
+      }
+      throw new RuntimeException(error);
+    }
+    KnownFailure failure = known.get();
+    LOG.warnf(error, "ASK_CHAIN failed conversationId=%s chainId=%s", conversationId, chainId);
+    if (chainId != null && !chainId.isBlank()) {
+      pinnedFailureStore.put(
+          new PinnedFailure(
+              conversationId, chainId, failure.safeText(), failure.diagnosticDetail()));
+    }
+    return Multi.createFrom().item(ChatEvent.token(failure.safeText()));
   }
 }

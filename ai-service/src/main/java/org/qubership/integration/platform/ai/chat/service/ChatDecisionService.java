@@ -395,7 +395,7 @@ public class ChatDecisionService {
                   actionsFor(waiting.pendingAction())));
     }
     if (event instanceof CreateChainEvent.Failed failed) {
-      return Multi.createFrom().item(ChatEvent.error(failed.message()));
+      return Multi.createFrom().item(ChatEvent.token(failed.message()));
     }
     // ArtifactReady and Completed carry no chat text: the artifact prose already arrived as a
     // message, and the next gate arrives as its own decision.

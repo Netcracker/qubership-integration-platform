@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat.failure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
@@ -12,7 +13,8 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRes
  * Maps catalog timeouts and non-retryable HTTP responses to sanitized chat copy. Unknown throwables
  * stay unmapped so the SSE stream can still fail.
  */
-public final class KnownFailureMapper {
+@ApplicationScoped
+public class KnownFailureMapper {
 
   public static final String CATALOG_TIMEOUT_MESSAGE =
       "Couldn't finish this catalog request. The catalog did not respond in time. Try again.";

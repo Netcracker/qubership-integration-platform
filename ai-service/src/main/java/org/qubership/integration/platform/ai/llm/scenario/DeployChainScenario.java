@@ -1,7 +1,5 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -11,6 +9,11 @@ import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.intent.UserIntentPatterns;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -25,7 +28,6 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.SnapshotDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainSearchRequest;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogIdPatterns;
-import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 import java.util.ArrayList;
@@ -59,10 +61,6 @@ public class DeployChainScenario implements ScenarioHandler {
 
   private static final String NOT_DEPLOYED_MESSAGE = "This chain is not deployed.";
 
-  private static final String UNDEPLOY_FAILED_PREFIX = "Failed to undeploy this chain: ";
-
-  private static final String DEPLOY_FAILED_PREFIX = "Failed to deploy this chain: ";
-
   private static final String CHAIN_ITEM_TYPE = "CHAIN";
 
   private static final Pattern NAME_AFTER_CHAIN = Pattern.compile("(?iU)\\bchain\\s+(.+)$");
@@ -83,8 +81,9 @@ public class DeployChainScenario implements ScenarioHandler {
 
   private final ChainContextExtractor chainContextExtractor;
   private final CatalogRestClient catalogRestClient;
-  private final ObjectMapper objectMapper;
   private final PendingRedeployStore pendingRedeployStore;
+  private final KnownFailureMapper knownFailureMapper;
+  private final PinnedFailureStore pinnedFailureStore;
   private final int pollAttempts;
   private final long pollDelayMillis;
 
@@ -92,13 +91,15 @@ public class DeployChainScenario implements ScenarioHandler {
   public DeployChainScenario(
       ChainContextExtractor chainContextExtractor,
       @RestClient CatalogRestClient catalogRestClient,
-      ObjectMapper objectMapper,
-      PendingRedeployStore pendingRedeployStore) {
+      PendingRedeployStore pendingRedeployStore,
+      KnownFailureMapper knownFailureMapper,
+      PinnedFailureStore pinnedFailureStore) {
     this(
         chainContextExtractor,
         catalogRestClient,
-        objectMapper,
         pendingRedeployStore,
+        knownFailureMapper,
+        pinnedFailureStore,
         DEFAULT_POLL_ATTEMPTS,
         DEFAULT_POLL_DELAY_MS);
   }
@@ -106,14 +107,16 @@ public class DeployChainScenario implements ScenarioHandler {
   DeployChainScenario(
       ChainContextExtractor chainContextExtractor,
       CatalogRestClient catalogRestClient,
-      ObjectMapper objectMapper,
       PendingRedeployStore pendingRedeployStore,
+      KnownFailureMapper knownFailureMapper,
+      PinnedFailureStore pinnedFailureStore,
       int pollAttempts,
       long pollDelayMillis) {
     this.chainContextExtractor = chainContextExtractor;
     this.catalogRestClient = catalogRestClient;
-    this.objectMapper = objectMapper;
     this.pendingRedeployStore = pendingRedeployStore;
+    this.knownFailureMapper = knownFailureMapper;
+    this.pinnedFailureStore = pinnedFailureStore;
     this.pollAttempts = pollAttempts;
     this.pollDelayMillis = pollDelayMillis;
   }
@@ -198,13 +201,8 @@ public class DeployChainScenario implements ScenarioHandler {
         return Multi.createFrom().item(ChatEvent.token(NO_CHAIN_MESSAGE));
       }
       return continueFromNameSearch(conversationId, userMessage, name.get());
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(e, "DEPLOY_CHAIN catalog lookup refused conversationId=%s", conversationId);
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(e, "DEPLOY_CHAIN catalog lookup failed conversationId=%s", conversationId);
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to find that chain: " + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.LOOKUP, conversationId, null);
     }
   }
 
@@ -294,6 +292,7 @@ public class DeployChainScenario implements ScenarioHandler {
     LOG.infof("DEPLOY_CHAIN snapshot conversationId=%s chainId=%s", conversationId, chainId);
     try {
       SnapshotDto snapshot = catalogRestClient.createSnapshot(chainId);
+      pinnedFailureStore.clear(conversationId, chainId);
       return Multi.createFrom()
           .item(
               ChatEvent.token(
@@ -302,18 +301,8 @@ public class DeployChainScenario implements ScenarioHandler {
                       + " (id: "
                       + snapshot.id()
                       + ")."));
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e,
-          "DEPLOY_CHAIN snapshot refused conversationId=%s chainId=%s",
-          conversationId,
-          chainId);
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e, "DEPLOY_CHAIN snapshot failed conversationId=%s chainId=%s", conversationId, chainId);
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to create a catalog snapshot: " + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.SNAPSHOT, conversationId, chainId);
     }
   }
 
@@ -344,18 +333,8 @@ public class DeployChainScenario implements ScenarioHandler {
       }
 
       return deployResolved(conversationId, chainId, namedSnapshot, domain, confirmFirstDeploy);
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e,
-          "DEPLOY_CHAIN deploy refused conversationId=%s chainId=%s",
-          conversationId,
-          chainId);
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e, "DEPLOY_CHAIN deploy failed conversationId=%s chainId=%s", conversationId, chainId);
-      return Multi.createFrom()
-          .item(ChatEvent.error(DEPLOY_FAILED_PREFIX + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.DEPLOY, conversationId, chainId);
     }
   }
 
@@ -393,21 +372,10 @@ public class DeployChainScenario implements ScenarioHandler {
       }
       return deployResolved(
           conversationId, wait.chainId(), named, matches.get(0), wait.confirmFirstDeploy());
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e,
-          "DEPLOY_CHAIN domain-wait refused conversationId=%s chainId=%s",
-          conversationId,
-          wait.chainId());
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e,
-          "DEPLOY_CHAIN domain-wait failed conversationId=%s chainId=%s",
-          conversationId,
-          wait.chainId());
-      String prefix = wait.undeploy() ? UNDEPLOY_FAILED_PREFIX : DEPLOY_FAILED_PREFIX;
-      return Multi.createFrom().item(ChatEvent.error(prefix + e.getMessage()));
+      CatalogOperation operation =
+          wait.undeploy() ? CatalogOperation.UNDEPLOY : CatalogOperation.DEPLOY;
+      return knownOrRethrow(e, operation, conversationId, wait.chainId());
     }
   }
 
@@ -428,7 +396,7 @@ public class DeployChainScenario implements ScenarioHandler {
     }
     SnapshotDto snapshot =
         namedSnapshot != null ? namedSnapshot : resolveBareDeploySnapshot(chainId);
-    return deploySnapshot(chainId, snapshot, domain);
+    return deploySnapshot(conversationId, chainId, snapshot, domain);
   }
 
   private Multi<ChatEvent> offerRedeploy(
@@ -527,24 +495,12 @@ public class DeployChainScenario implements ScenarioHandler {
         return Multi.createFrom()
             .item(ChatEvent.token(unknownSnapshotMessage(confirm.snapshotId())));
       }
-      Multi<ChatEvent> result = deploySnapshot(confirm.chainId(), snapshot, confirm.domain());
+      Multi<ChatEvent> result =
+          deploySnapshot(conversationId, confirm.chainId(), snapshot, confirm.domain());
       pendingRedeployStore.clear(conversationId);
       return result;
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e,
-          "DEPLOY_CHAIN confirm-deploy refused conversationId=%s chainId=%s",
-          conversationId,
-          confirm.chainId());
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e,
-          "DEPLOY_CHAIN confirm-deploy failed conversationId=%s chainId=%s",
-          conversationId,
-          confirm.chainId());
-      return Multi.createFrom()
-          .item(ChatEvent.error(DEPLOY_FAILED_PREFIX + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.DEPLOY, conversationId, confirm.chainId());
     }
   }
 
@@ -564,24 +520,12 @@ public class DeployChainScenario implements ScenarioHandler {
             .item(ChatEvent.token(unknownSnapshotMessage(replace.snapshotId())));
       }
       catalogRestClient.deleteDeployment(replace.chainId(), replace.existingDeploymentId());
-      Multi<ChatEvent> result = deploySnapshot(replace.chainId(), snapshot, replace.domain());
+      Multi<ChatEvent> result =
+          deploySnapshot(conversationId, replace.chainId(), snapshot, replace.domain());
       pendingRedeployStore.clear(conversationId);
       return result;
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e,
-          "DEPLOY_CHAIN redeploy refused conversationId=%s chainId=%s",
-          conversationId,
-          replace.chainId());
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e,
-          "DEPLOY_CHAIN redeploy failed conversationId=%s chainId=%s",
-          conversationId,
-          replace.chainId());
-      return Multi.createFrom()
-          .item(ChatEvent.error(DEPLOY_FAILED_PREFIX + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.DEPLOY, conversationId, replace.chainId());
     }
   }
 
@@ -612,15 +556,8 @@ public class DeployChainScenario implements ScenarioHandler {
         return Multi.createFrom().item(ChatEvent.token(NOT_DEPLOYED_MESSAGE));
       }
       return Multi.createFrom().item(ChatEvent.token(statusMessage(listed)));
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e, "DEPLOY_CHAIN status refused conversationId=%s chainId=%s", conversationId, chainId);
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e, "DEPLOY_CHAIN status failed conversationId=%s chainId=%s", conversationId, chainId);
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to read deployment status: " + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.STATUS, conversationId, chainId);
     }
   }
 
@@ -683,17 +620,8 @@ public class DeployChainScenario implements ScenarioHandler {
       }
       pendingRedeployStore.put(conversationId, PendingRedeploy.undeployDomainWait(chainId));
       return Multi.createFrom().item(ChatEvent.token(whichUndeployDomainMessage(live)));
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e,
-          "DEPLOY_CHAIN undeploy refused conversationId=%s chainId=%s",
-          conversationId,
-          chainId);
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e, "DEPLOY_CHAIN undeploy failed conversationId=%s chainId=%s", conversationId, chainId);
-      return Multi.createFrom().item(ChatEvent.error(UNDEPLOY_FAILED_PREFIX + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.UNDEPLOY, conversationId, chainId);
     }
   }
 
@@ -754,24 +682,13 @@ public class DeployChainScenario implements ScenarioHandler {
     try {
       catalogRestClient.deleteDeployment(remove.chainId(), remove.existingDeploymentId());
       pendingRedeployStore.clear(conversationId);
+      pinnedFailureStore.clear(conversationId, remove.chainId());
       return Multi.createFrom()
           .item(
               ChatEvent.token(
                   "Undeployed the chain from domain " + remove.domain() + "."));
-    } catch (CatalogNonRetryableResponseException e) {
-      LOG.warnf(
-          e,
-          "DEPLOY_CHAIN confirm-undeploy refused conversationId=%s chainId=%s",
-          conversationId,
-          remove.chainId());
-      return Multi.createFrom().item(ChatEvent.error(formatCatalogRefusal(e)));
     } catch (RuntimeException e) {
-      LOG.errorf(
-          e,
-          "DEPLOY_CHAIN confirm-undeploy failed conversationId=%s chainId=%s",
-          conversationId,
-          remove.chainId());
-      return Multi.createFrom().item(ChatEvent.error(UNDEPLOY_FAILED_PREFIX + e.getMessage()));
+      return knownOrRethrow(e, CatalogOperation.UNDEPLOY, conversationId, remove.chainId());
     }
   }
 
@@ -822,10 +739,12 @@ public class DeployChainScenario implements ScenarioHandler {
     return pending;
   }
 
-  private Multi<ChatEvent> deploySnapshot(String chainId, SnapshotDto snapshot, String domain) {
+  private Multi<ChatEvent> deploySnapshot(
+      String conversationId, String chainId, SnapshotDto snapshot, String domain) {
     catalogRestClient.createDeployment(
         chainId, new CreateDeploymentRequest(domain, snapshot.id()));
     String status = pollDeploymentStatus(chainId, domain);
+    pinnedFailureStore.clear(conversationId, chainId);
     return Multi.createFrom()
         .item(
             ChatEvent.token(
@@ -1043,35 +962,27 @@ public class DeployChainScenario implements ScenarioHandler {
     return STATUS_PROCESSING;
   }
 
-  private String formatCatalogRefusal(CatalogNonRetryableResponseException e) {
-    String body = CatalogRestSupport.readResponseBodySnippet(e.getResponse());
-    if (body == null || body.isBlank()) {
-      return "Catalog could not create a snapshot.";
-    }
-    try {
-      JsonNode root = objectMapper.readTree(body);
-      String errorMessage = root.path("errorMessage").asText("");
-      JsonNode details = root.path("details");
-      String elementName = details.path("elementName").asText("");
-      String elementId = details.path("elementId").asText("");
-      StringBuilder reply = new StringBuilder("Catalog could not create a snapshot");
-      if (!errorMessage.isBlank()) {
-        reply.append(": ").append(errorMessage);
+  private Multi<ChatEvent> knownOrRethrow(
+      Throwable error, CatalogOperation operation, String conversationId, String chainId) {
+    Optional<KnownFailure> known = knownFailureMapper.tryMap(error, operation);
+    if (known.isEmpty()) {
+      if (error instanceof RuntimeException runtime) {
+        throw runtime;
       }
-      if (!elementName.isBlank() || !elementId.isBlank()) {
-        reply.append(". Element");
-        if (!elementName.isBlank()) {
-          reply.append(" ").append(elementName);
-        }
-        if (!elementId.isBlank()) {
-          reply.append(" (").append(elementId).append(")");
-        }
-      }
-      reply.append(".");
-      return reply.toString();
-    } catch (Exception parseFailed) {
-      LOG.warnf(parseFailed, "DEPLOY_CHAIN could not parse catalog 400 body");
-      return "Catalog could not create a snapshot.";
+      throw new RuntimeException(error);
     }
+    KnownFailure failure = known.get();
+    LOG.warnf(
+        error,
+        "DEPLOY_CHAIN %s failed conversationId=%s chainId=%s",
+        operation,
+        conversationId,
+        chainId);
+    if (chainId != null && !chainId.isBlank()) {
+      pinnedFailureStore.put(
+          new PinnedFailure(
+              conversationId, chainId, failure.safeText(), failure.diagnosticDetail()));
+    }
+    return Multi.createFrom().item(ChatEvent.token(failure.safeText()));
   }
 }

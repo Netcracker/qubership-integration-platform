@@ -128,7 +128,8 @@ public class ScenarioRouter {
         LOG.warnf(
             "Unsupported CREATE binding conversationId=%s errorId=%s",
             conversationId, e.errorId());
-        return Multi.createFrom().item(ChatEvent.error(e.sseMessage()));
+        return Multi.createFrom()
+            .item(ChatEvent.token(UnsupportedCreateRunBindingException.DISPLAY_MESSAGE));
       }
     }
 
@@ -154,7 +155,8 @@ public class ScenarioRouter {
         LOG.warnf(
             "Unsupported CREATE binding conversationId=%s errorId=%s",
             conversationId, e.errorId());
-        return Multi.createFrom().item(ChatEvent.error(e.sseMessage()));
+        return Multi.createFrom()
+            .item(ChatEvent.token(UnsupportedCreateRunBindingException.DISPLAY_MESSAGE));
       }
     }
 
@@ -199,7 +201,8 @@ public class ScenarioRouter {
         LOG.warnf(
             "Unsupported CREATE binding during select conversationId=%s errorId=%s",
             conversationId, e.errorId());
-        return Multi.createFrom().item(ChatEvent.error(e.sseMessage()));
+        return Multi.createFrom()
+            .item(ChatEvent.token(UnsupportedCreateRunBindingException.DISPLAY_MESSAGE));
       }
       LOG.infof("Routing conversationId=%s to product CREATE pipeline (new run)", conversationId);
       return productPipelineChatAdapter.handle(request, conversationId);
