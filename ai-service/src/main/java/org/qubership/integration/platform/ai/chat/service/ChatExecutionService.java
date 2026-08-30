@@ -207,6 +207,17 @@ public class ChatExecutionService {
         .invoke(event -> {
           if (event instanceof ChatEvent.Token token && token.text() != null) {
             responseBuffer.append(token.text());
+          } else if (event instanceof ChatEvent.Decision decision) {
+            if (!responseBuffer.isEmpty()) {
+              responseBuffer.append('\n');
+            }
+            responseBuffer
+                .append("[decision kind=")
+                .append(decision.kind())
+                .append(" actions=")
+                .append(String.join(",", decision.actions()))
+                .append("] ")
+                .append(decision.question());
           }
         })
         .map(this::toSse)

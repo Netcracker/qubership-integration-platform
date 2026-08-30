@@ -40,6 +40,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -70,6 +71,7 @@ class ChatExecutionServiceTest {
 
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
+  private ConversationService conversations;
 
   @BeforeEach
   void setUp() {
@@ -165,6 +167,41 @@ class ChatExecutionServiceTest {
         ChatEvent.CANCEL_DEPLOY_ACTION,
         ChatEvent.UNDEPLOY_ACTION,
         ChatEvent.CANCEL_UNDEPLOY_ACTION);
+  }
+
+  @Test
+  void aDecisionEventIsStoredAsAssistantWithTheQuestion() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "clarify:1",
+            "clarify",
+            "Which engine?",
+            null,
+            null,
+            1L,
+            null,
+            List.of(),
+            List.of("engine-a", "engine-b"));
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(Multi.createFrom().item(decision));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-decision-persist");
+    request.setMessage("create a chain");
+
+    service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    List<ConversationMessage> assistants =
+        conversations.getMessages("conv-decision-persist").stream()
+            .filter(message -> message.role() == ConversationMessage.Role.ASSISTANT)
+            .toList();
+    assertEquals(1, assistants.size());
+    assertEquals(
+        "[decision kind=clarify actions=engine-a,engine-b] Which engine?",
+        assistants.get(0).content());
   }
 
   @Test
@@ -393,9 +430,10 @@ class ChatExecutionServiceTest {
     when(trace.logAssistantResult()).thenReturn(false);
     ChatMemorySanitizer sanitizer = mock(ChatMemorySanitizer.class);
     when(sanitizer.repairDanglingToolCalls(anyString())).thenReturn(0);
+    conversations = new ConversationService();
     return new ChatExecutionService(
         router,
-        new ConversationService(),
+        conversations,
         mock(EffectiveUserTextService.class),
         appConfig,
         runStore,
