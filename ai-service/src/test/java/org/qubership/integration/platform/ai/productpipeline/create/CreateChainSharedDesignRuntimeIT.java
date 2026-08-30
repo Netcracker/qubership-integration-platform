@@ -516,6 +516,7 @@ class CreateChainSharedDesignRuntimeIT {
                 List.of(
                     designInput,
                     discovery,
+                    UploadedSpecImportPassthrough.capability(),
                     analysis,
                     planning,
                     designExecutionCapability(),
@@ -582,6 +583,7 @@ class CreateChainSharedDesignRuntimeIT {
                 List.of(
                     designInputCapability(),
                     discoveryStub(),
+                    UploadedSpecImportPassthrough.capability(),
                     analysisStub(approvedBrief()),
                     designPlanningCapability(),
                     designExecutionCapability(),
@@ -867,6 +869,7 @@ class CreateChainSharedDesignRuntimeIT {
             List.of(
                 designInputCapability(),
                 discoveryStub(List.of(petsBindingHint())),
+                UploadedSpecImportPassthrough.capability(),
                 analysisStub(approvedBrief()),
                 designPlanningCapability(),
                 designExecutionCapability(),
@@ -886,6 +889,7 @@ class CreateChainSharedDesignRuntimeIT {
                 List.of(
                     designInputCapability(),
                     discoveryStub(List.of(omBindingHint(), wfmBindingHint())),
+                    UploadedSpecImportPassthrough.capability(),
                     analysisStub(omWfmBrief()),
                     designPlanningCapability(),
                     designExecutionCapability(),

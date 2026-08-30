@@ -52,6 +52,18 @@ public class S3Service {
     }
   }
 
+  /** Reads the whole object as raw bytes. */
+  public byte[] readObjectBytes(String key) {
+    var resp =
+        s3.getObject(
+            GetObjectRequest.builder().bucket(config.storage().bucketName()).key(key).build());
+    try (var stream = resp) {
+      return stream.readAllBytes();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
   /** Stores an arbitrary object and returns its key. */
   public String putObject(String key, InputStream body, long size, String contentType) {
     PutObjectRequest put =

@@ -114,7 +114,8 @@ class CatalogGraphMaterializerTest {
         new CatalogMutationGateway(
             spyMaterializer,
             mock(ApiHubSpecificationImportService.class),
-            publicationService);
+            publicationService,
+            mock(org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecAutoImporter.class));
     ChainCatalogFactsService pipelineFactsService = mock(ChainCatalogFactsService.class);
     when(pipelineFactsService.load(CHAIN_ID))
         .thenReturn(

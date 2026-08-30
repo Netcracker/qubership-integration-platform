@@ -20,10 +20,45 @@ public record ApprovalRecordV2(
     String subjectRevisionId,
     String subjectSha256,
     String compilerContractVersion,
-    String compilerContractSha256) {
+    String compilerContractSha256,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attachmentKeys) {
 
   public ApprovalRecordV2 {
     approvedCandidates =
         approvedCandidates == null ? List.of() : List.copyOf(approvedCandidates);
+    attachmentKeys = attachmentKeys == null ? List.of() : List.copyOf(attachmentKeys);
+  }
+
+  public ApprovalRecordV2(
+      CompilationArtifacts.Reference target,
+      String targetContentHash,
+      List<CompilationArtifacts.Reference> approvedCandidates,
+      String actor,
+      String comment,
+      Instant approvedAt,
+      String bindingResolutionPolicy,
+      String bindingResolutionPolicyHash,
+      String subjectArtifactKind,
+      String subjectSchemaVersion,
+      String subjectRevisionId,
+      String subjectSha256,
+      String compilerContractVersion,
+      String compilerContractSha256) {
+    this(
+        target,
+        targetContentHash,
+        approvedCandidates,
+        actor,
+        comment,
+        approvedAt,
+        bindingResolutionPolicy,
+        bindingResolutionPolicyHash,
+        subjectArtifactKind,
+        subjectSchemaVersion,
+        subjectRevisionId,
+        subjectSha256,
+        compilerContractVersion,
+        compilerContractSha256,
+        List.of());
   }
 }

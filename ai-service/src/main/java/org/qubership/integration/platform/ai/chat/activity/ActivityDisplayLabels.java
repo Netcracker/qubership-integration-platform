@@ -176,6 +176,7 @@ public final class ActivityDisplayLabels {
         Map.entry("cip-chain-failure-handler-generator", "Configuring chain failure handling"),
         Map.entry("materialization", "Creating the chain"),
         Map.entry("specification-import", "Importing the specification"),
+        Map.entry("auto-uploaded-spec-import", "Importing uploaded specifications"),
         Map.entry("chain-edit-intent", "Understanding the change"),
         Map.entry("generator-plan-manifest", "Preparing generator plans"),
         Map.entry("searchCatalogSystems", "Searching for a service"),

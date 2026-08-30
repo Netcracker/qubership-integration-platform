@@ -37,6 +37,17 @@ stages:
         - no-apihub-candidate
         - catalog-binding-present
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: uploaded-spec-import
+    capabilityId: auto-uploaded-spec-import
+    consumes: [{ type: requirement-draft, schemaVersion: 2 }]
+    produces: [{ type: requirement-draft, schemaVersion: 2 }]
+    optionalProduces:
+      - { type: catalog-binding-hint, schemaVersion: 1 }
+    skip:
+      whenAny:
+        - no-allowed-attachments
+        - catalog-binding-present
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: requirement-analysis
     capabilityId: requirement-analysis
     consumes:

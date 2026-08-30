@@ -19,6 +19,9 @@ public final class PlanningDegradations {
   /** Naming produced nothing and the chain carries the soft-default name. */
   public static final String DEFAULT_CHAIN_NAME = "DEFAULT_CHAIN_NAME";
 
+  /** Trigger generation produced no configured trigger set, so a default HTTP trigger was used. */
+  public static final String DEFAULT_TRIGGER_SET = "DEFAULT_TRIGGER_SET";
+
   private PlanningDegradations() {}
 
   public static PlanValidationFinding generatorSkipped(String skillId) {
@@ -50,6 +53,17 @@ public final class PlanningDegradations {
             + " produced no naming manifest, so the chain is named \""
             + chainName
             + "\". Rename it before the chain is written to the catalog.",
+        false);
+  }
+
+  public static PlanValidationFinding defaultTriggerSet(String skillId) {
+    return new PlanValidationFinding(
+        DEFAULT_TRIGGER_SET,
+        "Generator "
+            + skillId
+            + " produced no configured trigger set, so a default HTTP trigger was derived from the"
+            + " requirement brief. Verify the trigger path and method before the chain is written to"
+            + " the catalog.",
         false);
   }
 }

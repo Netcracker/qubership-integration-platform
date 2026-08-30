@@ -36,6 +36,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
+import org.qubership.integration.platform.ai.productpipeline.create.AutoUploadedSpecImportCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
@@ -70,6 +71,7 @@ public class ProductPipelineRuntimeProducers {
       Set.of(
           RequirementDiscoveryCapability.CAPABILITY_ID,
           SpecificationImportCapability.CAPABILITY_ID,
+          AutoUploadedSpecImportCapability.CAPABILITY_ID,
           RequirementAnalysisCapability.CAPABILITY_ID,
           PlanningCapability.CAPABILITY_ID,
           DesignInputCapability.CAPABILITY_ID,

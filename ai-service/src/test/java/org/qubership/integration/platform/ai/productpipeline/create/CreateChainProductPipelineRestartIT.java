@@ -351,7 +351,7 @@ class CreateChainProductPipelineRestartIT {
     return new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
         runStore,
         artifactStore,
-        new StageCapabilityRegistry(List.of(discovery(), importStage(), analysis(), planning(), materialization)),
+        new StageCapabilityRegistry(List.of(discovery(), importStage(), UploadedSpecImportPassthrough.capability(), analysis(), planning(), materialization)),
         new ProductPipelineProfileCatalog(List.of(createChainProfile)),
         clock), runStore);
   }
