@@ -713,6 +713,8 @@ class CompilerDagExecutionEngineTest {
                     new org.qubership.integration.platform.ai.plan.model.PlanProperty(
                         "httpMethodRestrict", "POST"),
                     new org.qubership.integration.platform.ai.plan.model.PlanProperty(
+                        "accessControlType", "NONE"),
+                    new org.qubership.integration.platform.ai.plan.model.PlanProperty(
                         "externalRoute", "false")))),
         List.of());
   }

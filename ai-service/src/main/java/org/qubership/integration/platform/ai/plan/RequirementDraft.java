@@ -290,7 +290,7 @@ public record RequirementDraft(
     if (!serviceCalls.isEmpty()) {
       return !allServiceCallsResolved();
     }
-    return false;
+    return true;
   }
 
   /** True when the call this pending import belongs to already has a catalog binding. */
