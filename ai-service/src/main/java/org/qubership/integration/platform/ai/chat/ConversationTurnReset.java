@@ -3,9 +3,12 @@ package org.qubership.integration.platform.ai.chat;
 import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Set;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.evidence.ConversationEvidenceStore;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -40,6 +43,7 @@ public class ConversationTurnReset {
   private final RequirementDraftStore requirementDraftStore;
   private final ConversationCatalogCache conversationCatalogCache;
   private final ConversationEvidenceStore conversationEvidenceStore;
+  private final PinnedFailureStore pinnedFailureStore;
 
   @Inject
   ConversationTurnReset(
@@ -53,7 +57,8 @@ public class ConversationTurnReset {
       CompilationSessions compilationSessions,
       RequirementDraftStore requirementDraftStore,
       ConversationCatalogCache conversationCatalogCache,
-      ConversationEvidenceStore conversationEvidenceStore) {
+      ConversationEvidenceStore conversationEvidenceStore,
+      PinnedFailureStore pinnedFailureStore) {
     this.conversationService = conversationService;
     this.chatMemoryStore = chatMemoryStore;
     this.workspaceStore = workspaceStore;
@@ -65,15 +70,26 @@ public class ConversationTurnReset {
     this.requirementDraftStore = requirementDraftStore;
     this.conversationCatalogCache = conversationCatalogCache;
     this.conversationEvidenceStore = conversationEvidenceStore;
+    this.pinnedFailureStore = pinnedFailureStore;
   }
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
     conversationService.truncateAfter(conversationId, afterMessageIndex);
+    if (afterMessageIndex < 0) {
+      pinnedFailureStore.clearConversation(conversationId);
+    } else {
+      List<String> remainingContents =
+          conversationService.getMessages(conversationId).stream()
+              .map(ConversationMessage::content)
+              .toList();
+      pinnedFailureStore.dropPinsMissingFrom(conversationId, remainingContents);
+    }
     resetArtifactInventory(conversationId);
   }
 
   public void fullReset(String conversationId) {
     conversationService.clearMessages(conversationId);
+    pinnedFailureStore.clearConversation(conversationId);
     resetArtifactInventory(conversationId);
   }
 
