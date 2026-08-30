@@ -45,6 +45,8 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
@@ -113,7 +115,9 @@ class ChainPatchScenarioTest {
                 semanticValidator),
             patchStore,
             writer,
-            new CanonicalGraphDigest(objectMapper));
+            new CanonicalGraphDigest(objectMapper),
+            new KnownFailureMapper(),
+            new PinnedFailureStore());
   }
 
   @Test

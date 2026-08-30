@@ -74,8 +74,7 @@ public class PlanQuestionScenario implements ScenarioHandler {
       return Multi.createFrom().item(ChatEvent.token(answer));
     } catch (JsonProcessingException e) {
       LOG.errorf(e, "Failed to format plan JSON conversationId=%s", conversationId);
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to format plan JSON: " + e.getMessage()));
+      throw new RuntimeException(e);
     }
   }
 

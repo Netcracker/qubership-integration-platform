@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.llm.scenario;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -11,19 +12,21 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.helpers.test.AssertSubscriber;
 import jakarta.ws.rs.core.Response;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
@@ -49,6 +52,7 @@ class DeployChainScenarioTest {
 
   private ChainContextExtractor chainContextExtractor;
   private CatalogRestClient catalogRestClient;
+  private PinnedFailureStore pinnedFailureStore;
   private DeployChainScenario scenario;
 
   @BeforeEach
@@ -56,12 +60,14 @@ class DeployChainScenarioTest {
     chainContextExtractor = mock(ChainContextExtractor.class);
     catalogRestClient = mock(CatalogRestClient.class);
     when(catalogRestClient.listDomains()).thenReturn(List.of(domain("default")));
+    pinnedFailureStore = new PinnedFailureStore();
     scenario =
         new DeployChainScenario(
             chainContextExtractor,
             catalogRestClient,
-            new ObjectMapper(),
             new PendingRedeployStore(),
+            new KnownFailureMapper(),
+            pinnedFailureStore,
             3,
             0L);
   }
@@ -138,6 +144,37 @@ class DeployChainScenarioTest {
     assertTrue(text.contains("HTTP Trigger"));
     assertTrue(text.contains("el-http-1"));
     assertFalse(text.contains(SNAPSHOT_ID));
+  }
+
+  @Test
+  void catalogTimeoutOnSnapshotEmitsSanitizedTokenNotError() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.createSnapshot(CHAIN_ID))
+        .thenThrow(
+            new TimeoutException("CatalogRestClient$$CDIWrapper#createSnapshot timed out"));
+
+    List<ChatEvent> events = eventsFrom("take a snapshot");
+
+    assertEquals(1, events.size());
+    assertTrue(events.get(0) instanceof ChatEvent.Token, () -> "expected Token, got " + events);
+    assertEquals(
+        KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE, ((ChatEvent.Token) events.get(0)).text());
+    assertFalse(events.stream().anyMatch(ChatEvent.Error.class::isInstance));
+    assertFalse(((ChatEvent.Token) events.get(0)).text().contains("CDIWrapper"));
+    assertEquals(
+        KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE,
+        pinnedFailureStore.find(CONVERSATION_ID, CHAIN_ID).orElseThrow().safeText());
+  }
+
+  @Test
+  void catalogNpeDoesNotBecomeTokenOrError() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.createSnapshot(CHAIN_ID)).thenThrow(new NullPointerException("x"));
+
+    assertThrows(NullPointerException.class, () -> eventsFrom("take a snapshot"));
+    assertTrue(pinnedFailureStore.find(CONVERSATION_ID, CHAIN_ID).isEmpty());
   }
 
   @Test
@@ -1017,10 +1054,7 @@ class DeployChainScenarioTest {
     if (event instanceof ChatEvent.Token token) {
       return token.text();
     }
-    if (event instanceof ChatEvent.Error error) {
-      return error.message();
-    }
-    throw new AssertionError("expected token or error, got " + event);
+    throw new AssertionError("expected Token, got " + event);
   }
 
   private List<ChatEvent> eventsFrom(String message) {

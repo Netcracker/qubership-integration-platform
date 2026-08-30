@@ -259,8 +259,8 @@ class ChatDecisionServiceTest {
         events.stream()
             .anyMatch(
                 event ->
-                    event instanceof ChatEvent.Error error
-                        && error.message().contains("Catalog rejected")),
+                    event instanceof ChatEvent.Token token
+                        && token.text().contains("Catalog rejected")),
         () -> "expected the creation failure to be surfaced, got: " + events);
     ChatEvent last = events.get(events.size() - 1);
     ChatEvent.Decision reissued = assertInstanceOf(ChatEvent.Decision.class, last);

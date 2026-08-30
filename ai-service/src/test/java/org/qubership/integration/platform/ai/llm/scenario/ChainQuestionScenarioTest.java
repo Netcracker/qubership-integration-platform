@@ -1,15 +1,19 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.helpers.test.AssertSubscriber;
 import java.util.List;
 import java.util.Optional;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
@@ -17,10 +21,11 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogViewService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.agent.ChainPresentationAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 class ChainQuestionScenarioTest {
 
@@ -44,7 +49,9 @@ class ChainQuestionScenarioTest {
             chainCatalogFactsService,
             chainCatalogViewService,
             chainPresentationAgent,
-            new ObjectMapper());
+            new ObjectMapper(),
+            new KnownFailureMapper(),
+            new PinnedFailureStore());
   }
 
   @Test
@@ -103,6 +110,42 @@ class ChainQuestionScenarioTest {
             .reduce("", String::concat);
 
     assertTrue(combined.contains("handles greetings"));
+  }
+
+  @Test
+  void catalogTimeoutEmitsSanitizedTokenNotError() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of("chain-1"));
+    when(chainCatalogFactsService.load("chain-1"))
+        .thenThrow(
+            new TimeoutException("CatalogRestClient$$CDIWrapper#getChain timed out"));
+
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(chatRequest("show graph"), CONVERSATION_ID, ScenarioType.ASK_CHAIN)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(1));
+    sub.awaitCompletion();
+
+    ChatEvent event = sub.getItems().get(0);
+    assertTrue(event instanceof ChatEvent.Token, () -> "expected Token, got " + event);
+    assertEquals(
+        KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE, ((ChatEvent.Token) event).text());
+  }
+
+  @Test
+  void catalogNpeDoesNotBecomeTokenOrError() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of("chain-1"));
+    when(chainCatalogFactsService.load("chain-1")).thenThrow(new NullPointerException("x"));
+
+    assertThrows(
+        NullPointerException.class,
+        () ->
+            scenario
+                .handle(chatRequest("show graph"), CONVERSATION_ID, ScenarioType.ASK_CHAIN)
+                .subscribe()
+                .withSubscriber(AssertSubscriber.create(1)));
   }
 
   private static ChatRequest chatRequest(String text) {

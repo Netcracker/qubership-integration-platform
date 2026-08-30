@@ -216,7 +216,7 @@ public class CreateProductPipelineCoordinator {
       return waitingToChat(conversationId, waiting);
     }
     if (event instanceof CreateChainEvent.Failed failed) {
-      return Multi.createFrom().item(ChatEvent.error(failed.message()));
+      return Multi.createFrom().item(ChatEvent.token(failed.message()));
     }
     if (event instanceof CreateChainEvent.ArtifactReady artifact) {
       String summary = chainSummaryFromArtifact(artifact);

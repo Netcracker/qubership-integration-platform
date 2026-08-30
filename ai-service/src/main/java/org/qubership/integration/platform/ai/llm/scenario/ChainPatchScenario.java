@@ -34,6 +34,11 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
+import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -66,6 +71,8 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final ChainPatchStore patchStore;
   private final ChainPatchWriter writer;
   private final CanonicalGraphDigest canonicalGraphDigest;
+  private final KnownFailureMapper knownFailureMapper;
+  private final PinnedFailureStore pinnedFailureStore;
 
   @Inject
   public ChainPatchScenario(
@@ -78,7 +85,9 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainEditProposalAssembler assembler,
       ChainPatchStore patchStore,
       ChainPatchWriter writer,
-      CanonicalGraphDigest canonicalGraphDigest) {
+      CanonicalGraphDigest canonicalGraphDigest,
+      KnownFailureMapper knownFailureMapper,
+      PinnedFailureStore pinnedFailureStore) {
     this.chainContextExtractor = Objects.requireNonNull(chainContextExtractor);
     this.factsService = Objects.requireNonNull(factsService);
     this.importer = Objects.requireNonNull(importer);
@@ -89,6 +98,8 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.patchStore = Objects.requireNonNull(patchStore);
     this.writer = Objects.requireNonNull(writer);
     this.canonicalGraphDigest = Objects.requireNonNull(canonicalGraphDigest);
+    this.knownFailureMapper = Objects.requireNonNull(knownFailureMapper);
+    this.pinnedFailureStore = Objects.requireNonNull(pinnedFailureStore);
   }
 
   @Override
@@ -141,9 +152,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainCatalogFacts facts = factsService.load(chainId);
       imported = importer.importChain(facts);
     } catch (RuntimeException e) {
-      LOG.errorf(e, "Chain read failed conversationId=%s chainId=%s", conversationId, chainId);
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to read chain from catalog: " + e.getMessage()));
+      return knownOrRethrow(e, conversationId, chainId);
     }
 
     // The last proposal is cleared first so a turn that proposes nothing cannot be answered with it.
@@ -296,9 +305,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     try {
       imported = importer.importChain(factsService.load(pendingEdit.chainId()));
     } catch (RuntimeException e) {
-      LOG.errorf(e, "Chain read failed conversationId=%s chainId=%s", conversationId, pendingEdit.chainId());
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to read chain from catalog: " + e.getMessage()));
+      return knownOrRethrow(e, conversationId, pendingEdit.chainId());
     }
     ChainEditRequest request =
         new ChainEditRequest(
@@ -359,9 +366,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     try {
       currentDigest = importer.importChain(factsService.load(proposed.chainId())).baseGraphDigest();
     } catch (RuntimeException e) {
-      LOG.errorf(e, "Chain re-read failed conversationId=%s chainId=%s", conversationId, proposed.chainId());
-      return Multi.createFrom()
-          .item(ChatEvent.error("Failed to read chain from catalog: " + e.getMessage()));
+      return knownOrRethrow(e, conversationId, proposed.chainId());
     }
     if (!currentDigest.equals(proposed.baseGraphDigest())) {
       patchStore.clearProposal(conversationId);
@@ -441,5 +446,23 @@ public class ChainPatchScenario implements ScenarioHandler {
 
   private static Multi<ChatEvent> message(String text) {
     return Multi.createFrom().item(ChatEvent.token(text));
+  }
+
+  private Multi<ChatEvent> knownOrRethrow(Throwable error, String conversationId, String chainId) {
+    Optional<KnownFailure> known = knownFailureMapper.tryMap(error, CatalogOperation.FACTS);
+    if (known.isEmpty()) {
+      if (error instanceof RuntimeException runtime) {
+        throw runtime;
+      }
+      throw new RuntimeException(error);
+    }
+    KnownFailure failure = known.get();
+    LOG.warnf(error, "Chain read failed conversationId=%s chainId=%s", conversationId, chainId);
+    if (chainId != null && !chainId.isBlank()) {
+      pinnedFailureStore.put(
+          new PinnedFailure(
+              conversationId, chainId, failure.safeText(), failure.diagnosticDetail()));
+    }
+    return Multi.createFrom().item(ChatEvent.token(failure.safeText()));
   }
 }
