@@ -13,6 +13,7 @@ import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
@@ -56,6 +57,7 @@ public class ChatExecutionService {
   private final ChatMemorySanitizer chatMemorySanitizer;
   private final ChatDecisionService decisionService;
   private final PendingRedeployStore pendingRedeployStore;
+  private final OpenChainTurnContextFactory openChainTurnContextFactory;
 
   public ChatExecutionService(
       ScenarioRouter router,
@@ -67,9 +69,11 @@ public class ChatExecutionService {
       ObjectMapper objectMapper,
       ChatMemorySanitizer chatMemorySanitizer,
       ChatDecisionService decisionService,
-      PendingRedeployStore pendingRedeployStore) {
+      PendingRedeployStore pendingRedeployStore,
+      OpenChainTurnContextFactory openChainTurnContextFactory) {
     this.decisionService = decisionService;
     this.pendingRedeployStore = pendingRedeployStore;
+    this.openChainTurnContextFactory = openChainTurnContextFactory;
     this.router = router;
     this.conversationService = conversationService;
     this.effectiveUserTextService = effectiveUserTextService;
@@ -173,6 +177,8 @@ public class ChatExecutionService {
 
     conversationService.addMessage(
         conversationId, ConversationMessage.user(request.getEffectiveUserText()));
+    request.setOpenChainTurnContext(
+        openChainTurnContextFactory.build(request, conversationId));
 
     logAiTurnStart(conversationId);
 
