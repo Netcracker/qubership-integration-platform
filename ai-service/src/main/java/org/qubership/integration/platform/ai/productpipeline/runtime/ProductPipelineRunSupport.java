@@ -106,6 +106,33 @@ public final class ProductPipelineRunSupport {
   /** Formatted validation findings from the halt, when present. */
   public static final String STAGE_ERROR_FINDINGS_ATTR = "stageErrorFindings";
 
+  /** Content hash of the durable recovery evidence for the current validation halt. */
+  public static final String RECOVERY_EVIDENCE_REF_ATTR = "recoveryEvidenceRef";
+
+  /** Typed brief corrections proposed by recovery for the next requirement-analysis repair turn. */
+  public static final String PROPOSED_BRIEF_CHANGES_ATTR = "proposedBriefChanges";
+
+  /**
+   * Content hash of the approved brief revision superseded by the latest brief repair approval.
+   */
+  public static final String SUPERSEDED_BRIEF_CONTENT_HASH_ATTR = "supersededBriefContentHash";
+
+  /**
+   * Content hashes of derived compile artifacts invalidated by the latest brief repair approval.
+   */
+  public static final String SUPERSEDED_ARTIFACT_HASHES_ATTR = "supersededArtifactHashes";
+
+  private static final List<Kind> SUPERSEDED_DERIVED_ARTIFACT_KINDS =
+      List.of(
+          Kind.IMPLEMENTATION_PLAN,
+          Kind.CHAIN_PLAN_GRAPH,
+          Kind.CHAIN_SEMANTIC_REVISION,
+          Kind.GRAPH_PATCH_ARTIFACT,
+          Kind.GRAPH_ASSEMBLY_RESULT,
+          Kind.COMPILER_VALIDATION_BUNDLE,
+          Kind.DESIGN_EXECUTION_PLAN,
+          Kind.ORDERED_GRAPH_PATCHES);
+
   /** Typed {@code RecoveryCauseCode} name stored with the halt. */
   public static final String STAGE_ERROR_CAUSE_CODE_ATTR = "stageErrorCauseCode";
 
@@ -1605,6 +1632,13 @@ public final class ProductPipelineRunSupport {
     return stringAttribute(runId, DIAGNOSED_OWNER_STAGE_ATTR);
   }
 
+  /** Current run attribute snapshot for tests and diagnostics. */
+  public Map<String, Object> runAttributes(String runId) {
+    Objects.requireNonNull(runId, "runId");
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    return attributes == null ? Map.of() : Map.copyOf(attributes);
+  }
+
   private Optional<String> stringAttribute(String runId, String key) {
     Objects.requireNonNull(runId, "runId");
     Map<String, Object> attributes = attributesByRun.get(runId);
@@ -1670,6 +1704,7 @@ public final class ProductPipelineRunSupport {
                         new StaleApprovalException(
                             "approval target is not the current approvable candidate"));
               }
+              recordSupersededBriefOnRepairApproval(command.runId(), target);
               List<Reference> approvedCandidates =
                   approvedCandidates(stage.outputRefs(), stageProfile.approval());
               boolean multiItemApproval =
@@ -2520,6 +2555,52 @@ public final class ProductPipelineRunSupport {
     }
     Object error = attributes.get(STAGE_ERROR_CONTEXT_ATTR);
     return error instanceof String text && !text.isBlank();
+  }
+
+  private void recordSupersededBriefOnRepairApproval(String runId, Reference approvedTarget) {
+    if (!isBriefRepairApproval(runId, requireRun(runId).run().currentStageId())) {
+      return;
+    }
+    if (approvedTarget == null || approvedTarget.kind() != Kind.REQUIREMENT_BRIEF) {
+      return;
+    }
+    String priorBriefHash = priorBriefHashForSupersession(runId, approvedTarget);
+    if (priorBriefHash == null || priorBriefHash.isBlank()) {
+      return;
+    }
+    Map<String, Object> attributes =
+        attributesByRun.computeIfAbsent(runId, ignored -> new ConcurrentHashMap<>());
+    attributes.put(SUPERSEDED_BRIEF_CONTENT_HASH_ATTR, priorBriefHash);
+    List<String> supersededArtifactHashes = collectSupersededDerivedArtifactHashes(runId);
+    if (!supersededArtifactHashes.isEmpty()) {
+      attributes.put(SUPERSEDED_ARTIFACT_HASHES_ATTR, supersededArtifactHashes);
+    }
+  }
+
+  private List<String> collectSupersededDerivedArtifactHashes(String runId) {
+    List<String> hashes = new ArrayList<>();
+    for (Kind kind : SUPERSEDED_DERIVED_ARTIFACT_KINDS) {
+      artifactStore
+          .latest(runId, kind)
+          .map(Revision::contentHash)
+          .filter(hash -> hash != null && !hash.isBlank())
+          .ifPresent(hashes::add);
+    }
+    return List.copyOf(hashes);
+  }
+
+  private String priorBriefHashForSupersession(String runId, Reference approvedTarget) {
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes != null) {
+      Object prior = attributes.get(PRIOR_CANDIDATE_ATTR);
+      if (prior instanceof String text && !text.isBlank()) {
+        return text.trim();
+      }
+    }
+    return artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF)
+        .map(Revision::contentHash)
+        .filter(hash -> !approvedTarget.contentHash().equals(hash))
+        .orElse(null);
   }
 
   private String languageReferenceFor(String runId) {

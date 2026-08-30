@@ -26,6 +26,7 @@ public record StageRepairEvidence(
     String findings,
     String errorEvidence,
     String haltFollowUpText,
+    String recoveryEvidenceRef,
     List<Reference> priorOutputRefs) {
 
   /**
@@ -46,7 +47,32 @@ public record StageRepairEvidence(
       String findings,
       String errorEvidence,
       String haltFollowUpText) {
-    this(outcomeClass, failedStageId, findings, errorEvidence, haltFollowUpText, List.of());
+    this(
+        outcomeClass,
+        failedStageId,
+        findings,
+        errorEvidence,
+        haltFollowUpText,
+        "",
+        List.of());
+  }
+
+  /** Halt evidence without prior attempt outputs or a recovery evidence ref. */
+  public StageRepairEvidence(
+      String outcomeClass,
+      String failedStageId,
+      String findings,
+      String errorEvidence,
+      String haltFollowUpText,
+      List<Reference> priorOutputRefs) {
+    this(
+        outcomeClass,
+        failedStageId,
+        findings,
+        errorEvidence,
+        haltFollowUpText,
+        "",
+        priorOutputRefs);
   }
 
   /**
@@ -81,6 +107,7 @@ public record StageRepairEvidence(
         context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR),
         context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR),
         context.attributeAsString(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR),
+        context.attributeAsString(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR),
         priorOutputRefs(context));
   }
 

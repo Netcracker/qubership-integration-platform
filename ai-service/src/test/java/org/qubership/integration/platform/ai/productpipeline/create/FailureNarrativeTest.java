@@ -16,6 +16,12 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Artifact
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
@@ -749,6 +755,17 @@ class FailureNarrativeTest {
     assertEquals(1, agent.approvalQuestionCalls.get());
   }
 
+  @Test
+  void approvalCardTimeoutOverrideIsTreatedAsInstruction() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("");
+    FailureNarrative narrative = new FailureNarrative(agent);
+
+    PauseQuestionResult result = askAtApproval(narrative, "run-1", "timeout 10 seconds");
+
+    assertTrue(result.isNotAQuestion());
+    assertEquals(1, agent.approvalQuestionCalls.get());
+  }
+
   private static final String BRIEF_CANDIDATE =
       """
       kind: REQUIREMENT_BRIEF
@@ -809,6 +826,69 @@ class FailureNarrativeTest {
             .askClarification("run-1", "en", "catalog service", "design-execution", "missing");
 
     assertTrue(question.isEmpty());
+  }
+
+  @Test
+  void recoverIsEmptyWhenTheRunSpendsItsBudget() {
+    RecoveryDecision decision = sampleRecoveryDecision();
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused").recoverReturns(decision);
+    FailureNarrative narrative = new FailureNarrative(agent, 1, null);
+
+    assertTrue(recover(narrative, "run-1", decision).isPresent());
+    assertTrue(recover(narrative, "run-1", decision).isEmpty());
+    assertEquals(1, agent.calls.get());
+  }
+
+  @Test
+  void recoverIsEmptyWhenTheTurnFails() {
+    RecoveryDecision decision = sampleRecoveryDecision();
+    assertTrue(
+        recover(new FailureNarrative(FakeFailureNarrativeAgent.boom()), "run-1", decision).isEmpty());
+    assertTrue(
+        recover(
+                new FailureNarrative(
+                    FakeFailureNarrativeAgent.slow("Too late.", Duration.ofSeconds(30)), 12, Duration.ofMillis(50)),
+                "run-1",
+                decision)
+            .isEmpty());
+  }
+
+  private static Optional<RecoveryDecision> recover(
+      FailureNarrative narrative, String runId, RecoveryDecision ignored) {
+    return narrative.recover(runId, sampleRecoveryContext());
+  }
+
+  private static RecoveryContext sampleRecoveryContext() {
+    var briefRef = new org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference(
+        Kind.REQUIREMENT_BRIEF, "brief-1", "hash-brief");
+    RecoveryEvidence evidence =
+        new RecoveryEvidence(
+            1,
+            "failure-1",
+            "MISSING_REQUIRED_PROPERTY",
+            "design-execution",
+            briefRef,
+            null,
+            List.of(),
+            List.of(),
+            null,
+            List.of());
+    RequirementBrief brief =
+        new RequirementBrief("Proxy inventory", List.of(), List.of(), List.of(), List.of(), "");
+    return new RecoveryContext(evidence, brief, null, "en");
+  }
+
+  private static RecoveryDecision sampleRecoveryDecision() {
+    var briefRef = new org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference(
+        Kind.REQUIREMENT_BRIEF, "brief-1", "hash-brief");
+    return new RecoveryDecision(
+        RecoveryCauseClass.BRIEF_DEFECT,
+        briefRef,
+        List.of("failure-1"),
+        RecoveryAction.REVISE_BRIEF,
+        List.of(),
+        "",
+        "Add the missing scheduler.");
   }
 
   private static Optional<String> narrate(FailureNarrative narrative, String runId) {

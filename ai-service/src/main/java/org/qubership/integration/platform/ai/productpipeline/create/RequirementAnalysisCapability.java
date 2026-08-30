@@ -39,6 +39,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.recovery.ProposedBriefChange;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.CanonicalKnowledgeObject;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClientException;
@@ -606,9 +608,12 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     sb.append(
         "Fact identity the later DERIVE step copies as-is (named fields, not text):\n"
-            + "- ENDPOINT capabilityKey is the CIP trigger type (http-trigger or kafka-trigger-2).\n"
+            + "- ENDPOINT capabilityKey is the CIP trigger type (http-trigger, async-api-trigger,"
+            + " or kafka-trigger-2).\n"
             + "- HTTP ENDPOINT: set httpMethod and path; operation is the optional operation id.\n"
-            + "- Kafka ENDPOINT: set topic and operation.\n"
+            + "- Catalog Kafka consume: capabilityKey async-api-trigger; set participant,"
+            + " operation, and serviceCallId.\n"
+            + "- Native Kafka consume: capabilityKey kafka-trigger-2; set topic and operation.\n"
             + "- SERVICE_CALL: set participant and operation. text is a description only.\n\n");
     sb.append("Planning text:\n").append(planning).append('\n');
     if (!approved.facts().isEmpty()) {
@@ -669,6 +674,17 @@ public class RequirementAnalysisCapability implements StageCapability {
     if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
       sb.append("- haltFollowUpText: ").append(repair.haltFollowUpText().trim()).append('\n');
     }
+    if (repair.recoveryEvidenceRef() != null && !repair.recoveryEvidenceRef().isBlank()) {
+      sb.append("- recoveryEvidenceRef: ").append(repair.recoveryEvidenceRef().trim()).append('\n');
+    }
+    if (!repair.proposedBriefChanges().isEmpty()) {
+      sb.append(
+          "Proposed brief corrections (do not invent values when authorDecisionRequired is"
+              + " true):\n");
+      for (ProposedBriefChange change : repair.proposedBriefChanges()) {
+        appendProposedBriefChange(sb, change);
+      }
+    }
     if (repair.priorBriefText() != null && !repair.priorBriefText().isBlank()) {
       sb.append("\nPrior requirement brief:\n")
           .append(repair.priorBriefText().trim())
@@ -676,6 +692,27 @@ public class RequirementAnalysisCapability implements StageCapability {
     } else {
       sb.append('\n');
     }
+  }
+
+  private static void appendProposedBriefChange(StringBuilder sb, ProposedBriefChange change) {
+    if (change == null) {
+      return;
+    }
+    sb.append("- field=").append(nullToEmpty(change.field()));
+    sb.append(" previousValue=").append(nullToEmpty(change.previousValue()));
+    sb.append(" proposedValue=").append(nullToEmpty(change.proposedValue()));
+    sb.append(" authorDecisionRequired=").append(change.authorDecisionRequired());
+    if (change.sourceFactId() != null && !change.sourceFactId().isBlank()) {
+      sb.append(" sourceFactId=").append(change.sourceFactId().trim());
+    }
+    if (change.findingCode() != null && !change.findingCode().isBlank()) {
+      sb.append(" findingCode=").append(change.findingCode().trim());
+    }
+    sb.append('\n');
+  }
+
+  private static String nullToEmpty(String value) {
+    return value == null ? "" : value;
   }
 
   /** Adds the prior brief text to the shared halt evidence; the brief-specific part of a repair. */
@@ -691,7 +728,26 @@ public class RequirementAnalysisCapability implements StageCapability {
         shared.findings(),
         shared.errorEvidence(),
         shared.haltFollowUpText(),
+        shared.recoveryEvidenceRef(),
+        proposedBriefChanges(context),
         prior == null ? "" : RequirementBriefText.format(prior));
+  }
+
+  private static List<ProposedBriefChange> proposedBriefChanges(StageExecutionContext context) {
+    if (context == null || context.attributes() == null) {
+      return List.of();
+    }
+    Object value = context.attributes().get(ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR);
+    if (!(value instanceof List<?> values)) {
+      return List.of();
+    }
+    List<ProposedBriefChange> changes = new java.util.ArrayList<>();
+    for (Object entry : values) {
+      if (entry instanceof ProposedBriefChange change) {
+        changes.add(change);
+      }
+    }
+    return List.copyOf(changes);
   }
 
   private static RequirementBrief priorBrief(StageExecutionContext context) {
@@ -715,7 +771,27 @@ public class RequirementAnalysisCapability implements StageCapability {
         && !evidence.errorEvidence().isBlank()) {
       sb.append(" (").append(firstFindingHint(evidence.errorEvidence())).append(')');
     }
-    sb.append('.');
+    if (evidence != null) {
+      boolean appendedProposal = false;
+      for (ProposedBriefChange change : evidence.proposedBriefChanges()) {
+        if (change.field() == null || change.field().isBlank()) {
+          continue;
+        }
+        appendedProposal = true;
+        sb.append(" Proposed ")
+            .append(change.field().trim())
+            .append(": ")
+            .append(nullToEmpty(change.previousValue()))
+            .append(" -> ")
+            .append(nullToEmpty(change.proposedValue()))
+            .append('.');
+      }
+      if (!appendedProposal) {
+        sb.append('.');
+      }
+    } else {
+      sb.append('.');
+    }
     if (repaired != null && repaired.goal() != null && !repaired.goal().isBlank()) {
       sb.append(" Updated goal: ").append(repaired.goal().trim()).append('.');
     }
@@ -737,11 +813,19 @@ public class RequirementAnalysisCapability implements StageCapability {
       String findings,
       String errorEvidence,
       String haltFollowUpText,
+      String recoveryEvidenceRef,
+      List<ProposedBriefChange> proposedBriefChanges,
       String priorBriefText) {
+
+    BriefRepairEvidence {
+      proposedBriefChanges =
+          proposedBriefChanges == null ? List.of() : List.copyOf(proposedBriefChanges);
+    }
 
     boolean hasEvidence() {
       return (errorEvidence != null && !errorEvidence.isBlank())
-          || (findings != null && !findings.isBlank());
+          || (findings != null && !findings.isBlank())
+          || !proposedBriefChanges.isEmpty();
     }
   }
 

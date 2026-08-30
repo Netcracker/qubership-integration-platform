@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.llm.agent;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
 
 /**
  * Authors the halt-card explanation from structured failure evidence. The diagnosis turn explains
@@ -187,4 +188,19 @@ Rules:
 """)
   String askClarification(
       String responseLocale, String requestedFact, String stageId, String exceptionMessage);
+
+  @UserMessage(
+      """
+You diagnose create-chain recovery from RecoveryContext JSON. Write in locale {responseLocale}.
+
+Context: {recoveryContextJson}
+
+Return RecoveryDecision only. causeClass is BRIEF_DEFECT, DERIVATION_DEFECT, TECHNICAL_FAILURE, \
+or UNCLASSIFIED. action must match the cause table. faultArtifactRef is an artifact or operation, \
+never a stage id. Cite evidenceRefs from the context, including attachmentRef keys when findings \
+are externalized. When manifest is present, read every listed attachment from the attachments map \
+before deciding. userSummary has no stage ids. ASK_USER question is one product decision. If you \
+cannot cite evidence, return UNCLASSIFIED and PARK.
+""")
+  RecoveryDecision recover(String responseLocale, String recoveryContextJson);
 }
