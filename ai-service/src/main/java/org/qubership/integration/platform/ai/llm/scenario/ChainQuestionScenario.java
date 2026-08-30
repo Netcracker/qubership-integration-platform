@@ -6,15 +6,14 @@ import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.Optional;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogViewService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
-import org.qubership.integration.platform.ai.chain.presentation.ChainImplementationPresentationFacts;
-import org.qubership.integration.platform.ai.presentation.QuestionIntent;
-import org.qubership.integration.platform.ai.presentation.QuestionIntentClassifier;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
@@ -24,12 +23,16 @@ import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.agent.ChainPresentationAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.presentation.QuestionIntent;
+import org.qubership.integration.platform.ai.presentation.QuestionIntentClassifier;
 
 @ApplicationScoped
 @ForScenario(ScenarioType.ASK_CHAIN)
 public class ChainQuestionScenario implements ScenarioHandler {
 
   private static final Logger LOG = Logger.getLogger(ChainQuestionScenario.class);
+
+  private static final String FACTS_UNAVAILABLE = "FACTS_UNAVAILABLE";
 
   private final ChainContextExtractor chainContextExtractor;
   private final ChainCatalogFactsService chainCatalogFactsService;
@@ -83,19 +86,57 @@ public class ChainQuestionScenario implements ScenarioHandler {
         intent,
         userMessage != null ? userMessage.length() : 0);
 
+    OpenChainTurnContext turn = request != null ? request.getOpenChainTurnContext() : null;
     try {
-      ChainCatalogFacts facts = chainCatalogFactsService.load(chainId);
-      if (intent != QuestionIntent.EXPLAIN) {
-        String answer = formatDeterministicAnswer(facts, intent);
-        return Multi.createFrom().item(ChatEvent.token(answer));
+      if (turn != null) {
+        return answerFromTurn(turn, conversationId, userMessage, intent, chainId);
       }
-      return streamExplainAnswer(conversationId, userMessage, facts);
+      ChainCatalogFacts facts = chainCatalogFactsService.load(chainId);
+      return answerWithFacts(conversationId, userMessage, intent, facts, "", Optional.empty());
     } catch (JsonProcessingException e) {
       LOG.errorf(e, "Failed to format chain JSON conversationId=%s", conversationId);
       throw new RuntimeException(e);
     } catch (RuntimeException e) {
       return knownOrRethrow(e, conversationId, chainId);
     }
+  }
+
+  private Multi<ChatEvent> answerFromTurn(
+      OpenChainTurnContext turn,
+      String conversationId,
+      String userMessage,
+      QuestionIntent intent,
+      String chainId)
+      throws JsonProcessingException {
+    Optional<ChainCatalogFacts> facts = turn.chainFacts();
+    String transcriptWindow = turn.transcriptWindow() != null ? turn.transcriptWindow() : "";
+    Optional<PinnedFailure> pin = turn.pinnedFailure();
+    if (!turn.factsUnavailable() && facts.isPresent()) {
+      return answerWithFacts(
+          conversationId, userMessage, intent, facts.get(), transcriptWindow, pin);
+    }
+    if (intent == QuestionIntent.EXPLAIN) {
+      return streamExplainAnswer(conversationId, userMessage, null, transcriptWindow, pin);
+    }
+    if (pin.isPresent()) {
+      return Multi.createFrom().item(ChatEvent.token(pin.get().safeText()));
+    }
+    return knownOrRethrow(
+        new TimeoutException("open-chain catalog facts unavailable"), conversationId, chainId);
+  }
+
+  private Multi<ChatEvent> answerWithFacts(
+      String conversationId,
+      String userMessage,
+      QuestionIntent intent,
+      ChainCatalogFacts facts,
+      String transcriptWindow,
+      Optional<PinnedFailure> pin)
+      throws JsonProcessingException {
+    if (intent != QuestionIntent.EXPLAIN) {
+      return Multi.createFrom().item(ChatEvent.token(formatDeterministicAnswer(facts, intent)));
+    }
+    return streamExplainAnswer(conversationId, userMessage, facts, transcriptWindow, pin);
   }
 
   private String formatDeterministicAnswer(ChainCatalogFacts facts, QuestionIntent intent)
@@ -110,13 +151,23 @@ public class ChainQuestionScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> streamExplainAnswer(
-      String conversationId, String userMessage, ChainCatalogFacts facts)
+      String conversationId,
+      String userMessage,
+      ChainCatalogFacts facts,
+      String transcriptWindow,
+      Optional<PinnedFailure> pin)
       throws JsonProcessingException {
-    String fallback = chainCatalogFactsService.formatFallbackSummary(facts);
-    ChainImplementationPresentationFacts payload =
-        new ChainImplementationPresentationFacts(
-            userMessage, userMessage, facts, null);
-    String agentMessage = buildExplainUserMessage(payload);
+    String pinnedSafeText = pin.map(PinnedFailure::safeText).orElse("");
+    String fallback;
+    if (facts != null) {
+      fallback = chainCatalogFactsService.formatFallbackSummary(facts);
+    } else if (!pinnedSafeText.isBlank()) {
+      fallback = pinnedSafeText;
+    } else {
+      fallback = KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE;
+    }
+    String agentMessage =
+        buildExplainUserMessage(transcriptWindow, pinnedSafeText, userMessage, facts);
 
     return chainPresentationAgent
         .chat(conversationId, agentMessage)
@@ -129,20 +180,35 @@ public class ChainQuestionScenario implements ScenarioHandler {
         });
   }
 
-  private String buildExplainUserMessage(ChainImplementationPresentationFacts facts)
+  private String buildExplainUserMessage(
+      String transcriptWindow,
+      String pinnedSafeText,
+      String userMessage,
+      ChainCatalogFacts facts)
       throws JsonProcessingException {
-    String factsJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(facts);
+    String factsOrFlag =
+        facts == null
+            ? FACTS_UNAVAILABLE
+            : objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(facts);
     String body =
         """
-        Explain this catalog chain for the user.
+        Recent transcript:
+        %s
+
+        Pinned catalog failure (may be empty):
+        %s
 
         User question:
         %s
 
-        Chain facts JSON (use only this data):
+        Chain facts JSON or FACTS_UNAVAILABLE:
         %s
         """
-            .formatted(facts.userQuestion(), factsJson);
+            .formatted(
+                transcriptWindow != null ? transcriptWindow : "",
+                pinnedSafeText != null ? pinnedSafeText : "",
+                userMessage != null ? userMessage : "",
+                factsOrFlag);
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
   }
 
