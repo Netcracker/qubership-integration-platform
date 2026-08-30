@@ -180,6 +180,9 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
 
   private void persistSchemas(String compilationId, ResolvedServiceCallBinding binding) {
     OperationSchemaMaps maps = schemaLoader.load(binding.operationId());
+    if (maps == null) {
+      return;
+    }
     soleContentType(maps.requestByContentType())
         .ifPresent(
             contentType ->

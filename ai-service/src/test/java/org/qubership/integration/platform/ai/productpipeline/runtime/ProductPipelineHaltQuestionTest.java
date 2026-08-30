@@ -274,7 +274,7 @@ class ProductPipelineHaltQuestionTest {
     return new ScriptedCapability(
         "planning",
         new StageOutcome(
-            StageOutcomeClass.VALIDATION_FAILURE,
+            StageOutcomeClass.DOMAIN_FAILURE,
             List.of(
                 new ArtifactCandidate(
                     Kind.PLAN_VALIDATION_RESULT,
