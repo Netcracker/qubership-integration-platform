@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.util.List;
@@ -45,6 +46,43 @@ class ConfiguredTriggerSetGraphEnricherTest {
     assertEquals("/v1/geo-site/{id}", property(trigger, "contextPath"));
     assertEquals("GET", property(trigger, "httpMethodRestrict"));
     assertEquals("true", property(trigger, "externalRoute"));
+  }
+
+  @Test
+  void doesNotCopyServiceCallIdOntoAsyncApiTrigger() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("om", null),
+            List.of(
+                new ChainPlanNode(
+                    "trigger-om-task-start",
+                    "async-api-trigger",
+                    "Receive OM",
+                    null,
+                    null,
+                    List.of())),
+            List.of());
+    ConfiguredTriggerSet triggers =
+        new ConfiguredTriggerSet(
+            1,
+            List.of(
+                new ConfiguredTrigger(
+                    "async-kafka-entry",
+                    "trigger-om-task-start",
+                    "async-api-trigger",
+                    "trigger-om-task-start",
+                    List.of(
+                        new PlanProperty("serviceCallId", "call-om-start"),
+                        new PlanProperty("integrationOperationProtocolType", "kafka")))),
+            List.of(),
+            List.of());
+
+    ChainPlanGraph enriched = ConfiguredTriggerSetGraphEnricher.enrich(graph, triggers);
+
+    ChainPlanNode trigger = enriched.nodes().get(0);
+    assertEquals("kafka", property(trigger, "integrationOperationProtocolType"));
+    assertNull(property(trigger, "serviceCallId"));
   }
 
   @Test

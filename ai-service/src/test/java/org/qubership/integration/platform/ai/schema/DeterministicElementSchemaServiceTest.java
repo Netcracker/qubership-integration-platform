@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
 class DeterministicElementSchemaServiceTest {
 
@@ -232,6 +233,26 @@ class DeterministicElementSchemaServiceTest {
 
     assertTrue(
         service.validateCapturePropertyValue("http-trigger", "roles", roles).isEmpty());
+  }
+
+  @Test
+  void withUnconditionalSchemaDefaultsKeepsExistingRetryCount() {
+    List<PlanProperty> merged =
+        service.withUnconditionalSchemaDefaults(
+            "service-call", List.of(new PlanProperty("retryCount", "3")));
+
+    String retryCount = null;
+    String retryDelay = null;
+    for (PlanProperty property : merged) {
+      if ("retryCount".equals(property.key())) {
+        retryCount = property.value();
+      }
+      if ("retryDelay".equals(property.key())) {
+        retryDelay = property.value();
+      }
+    }
+    assertEquals("3", retryCount);
+    assertEquals("5000", retryDelay);
   }
 
   private static JsonNode findAlternative(JsonNode alternatives, String title, String name) {

@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -16,6 +17,10 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
+import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
+import org.qubership.integration.platform.ai.schema.SchemaRefResolver;
+import org.qubership.integration.platform.ai.schema.SchemaResourceLoader;
+import org.qubership.integration.platform.ai.schema.UnconditionalElementDefaults;
 
 /** Replays accepted patch ledger and emits a deterministic final graph assembly result. */
 @ApplicationScoped
@@ -26,15 +31,38 @@ public class GraphAssemblyService implements CompilerNodeExecutionAdapter {
 
   private final CanonicalGraphDigest canonicalGraphDigest;
   private final GraphPatchApplier graphPatchApplier;
+  private final ObjectMapper objectMapper;
+  private final SchemaRefResolver schemaRefResolver;
 
   @Inject
-  public GraphAssemblyService(CanonicalGraphDigest canonicalGraphDigest) {
-    this(canonicalGraphDigest, new GraphPatchApplier());
+  public GraphAssemblyService(
+      CanonicalGraphDigest canonicalGraphDigest,
+      ObjectMapper objectMapper,
+      SchemaRefResolver schemaRefResolver) {
+    this(
+        canonicalGraphDigest,
+        new GraphPatchApplier(),
+        objectMapper,
+        schemaRefResolver);
   }
 
-  GraphAssemblyService(CanonicalGraphDigest canonicalGraphDigest, GraphPatchApplier graphPatchApplier) {
+  public GraphAssemblyService(CanonicalGraphDigest canonicalGraphDigest) {
+    this(
+        canonicalGraphDigest,
+        new GraphPatchApplier(),
+        new ObjectMapper(),
+        new SchemaRefResolver(new SchemaResourceLoader(), new QipSchemaYamlParser()));
+  }
+
+  GraphAssemblyService(
+      CanonicalGraphDigest canonicalGraphDigest,
+      GraphPatchApplier graphPatchApplier,
+      ObjectMapper objectMapper,
+      SchemaRefResolver schemaRefResolver) {
     this.canonicalGraphDigest = Objects.requireNonNull(canonicalGraphDigest, "canonicalGraphDigest");
     this.graphPatchApplier = Objects.requireNonNull(graphPatchApplier, "graphPatchApplier");
+    this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+    this.schemaRefResolver = Objects.requireNonNull(schemaRefResolver, "schemaRefResolver");
   }
 
   @Override
@@ -119,10 +147,12 @@ public class GraphAssemblyService implements CompilerNodeExecutionAdapter {
       List<CompilationArtifacts.Reference> orderedPatchReferences,
       List<GraphOwnershipFact> ownershipFacts,
       List<PatchRejection> rejected) {
+    ChainPlanGraph graphWithDefaults =
+        UnconditionalElementDefaults.apply(graph, objectMapper, schemaRefResolver);
     return new GraphAssemblyResult(
         SCHEMA_VERSION,
-        graph,
-        canonicalGraphDigest.sha256(graph),
+        graphWithDefaults,
+        canonicalGraphDigest.sha256(graphWithDefaults),
         List.copyOf(orderedPatchReferences),
         List.copyOf(ownershipFacts),
         List.copyOf(rejected));

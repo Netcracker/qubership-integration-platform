@@ -11,11 +11,14 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
 /**
  * Deterministic QIP element schema access for LLM tools (classpath YAML, not
@@ -216,6 +219,65 @@ public class DeterministicElementSchemaService {
       return false;
     }
     return schemaResourceLoader.existsElementSchema(elementType.trim());
+  }
+
+  /**
+   * Copies {@code properties} and appends schema defaults for missing unconditionally required
+   * keys. Use this when adding a node to the graph; later identity overlays keep this list and add
+   * new keys on top.
+   */
+  public List<PlanProperty> withUnconditionalSchemaDefaults(
+      String elementType, List<PlanProperty> properties) {
+    List<PlanProperty> current = properties == null ? List.of() : List.copyOf(properties);
+    if (elementType == null || elementType.isBlank() || !hasElementSchema(elementType)) {
+      return current;
+    }
+    String trimmed = elementType.trim();
+    try {
+      ElementPropertiesSchemaModel model =
+          ElementPropertiesSchemaModelBuilder.build(trimmed, schemaRefResolver);
+      ObjectNode patch = objectMapper.createObjectNode();
+      ObjectNode props = objectMapper.createObjectNode();
+      LinkedHashSet<String> existingKeys = new LinkedHashSet<>();
+      for (PlanProperty property : current) {
+        if (property == null || property.key() == null || property.key().isBlank()) {
+          continue;
+        }
+        existingKeys.add(property.key());
+        Object coerced = coercePatchPropertyValue(trimmed, property.key(), property.value());
+        props.set(property.key(), objectMapper.valueToTree(coerced));
+      }
+      patch.set(KEY_PROPERTIES, props);
+      ArrayNode applied = objectMapper.createArrayNode();
+      ElementPatchDefaultsApplicator.applyMissingPropertyDefaults(
+          patch, model, schemaRefResolver, objectMapper, applied);
+      if (applied.isEmpty()) {
+        return current;
+      }
+      List<PlanProperty> merged = new ArrayList<>(current);
+      JsonNode filled = patch.get(KEY_PROPERTIES);
+      for (JsonNode keyNode : applied) {
+        String key = keyNode.asText();
+        if (existingKeys.contains(key) || filled == null || !filled.has(key)) {
+          continue;
+        }
+        merged.add(new PlanProperty(key, jsonValueToPlanString(filled.get(key))));
+      }
+      return List.copyOf(merged);
+    } catch (SchemaNotFoundException | SchemaRefResolutionException | JsonProcessingException e) {
+      throw new IllegalStateException(
+          "Cannot apply schema defaults for element type '" + trimmed + "': " + e.getMessage(), e);
+    }
+  }
+
+  private String jsonValueToPlanString(JsonNode value) throws JsonProcessingException {
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    if (value.isTextual()) {
+      return value.asText();
+    }
+    return objectMapper.writeValueAsString(value);
   }
 
   /**

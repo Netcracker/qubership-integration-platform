@@ -88,6 +88,55 @@ class CompilerValidationPipelineTest {
   }
 
   @Test
+  void elementValidatorAcceptsServiceCallAfterRetryDefaults() {
+    ObjectMapper mapper = new ObjectMapper();
+    DeterministicElementSchemaService schemaService =
+        DeterministicElementSchemaService.createForUnitTests(mapper);
+    SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
+    SchemaRefResolver schemaRefResolver =
+        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+    MaterializationRequirementsValidator requirements =
+        mock(MaterializationRequirementsValidator.class);
+    when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+    CompilerValidationPipeline pipeline =
+        new CompilerValidationPipeline(
+            schemaResourceLoader,
+            schemaRefResolver,
+            mapper,
+            new ChainPlanGraphValidator(schemaService),
+            schemaService,
+            new CompilerSecurityValidator(),
+            new CompilerQualityValidator(requirements));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("c1", "HealthProxy"),
+            List.of(
+                new ChainPlanNode(
+                    "call-1",
+                    "service-call",
+                    "Get inventory",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("systemType", "EXTERNAL"),
+                        new PlanProperty("integrationOperationProtocolType", "http"),
+                        new PlanProperty("integrationSystemId", "sys-1"),
+                        new PlanProperty("integrationSpecificationGroupId", "grp-1"),
+                        new PlanProperty("integrationSpecificationId", "spec-1"),
+                        new PlanProperty("integrationOperationId", "op-1"),
+                        new PlanProperty("integrationOperationMethod", "GET"),
+                        new PlanProperty("integrationOperationPath", "/store/inventory")))),
+            List.of());
+
+    ValidationResult elementResult =
+        pipeline.validatePass("cip-element-validator", null, graph);
+
+    assertTrue(elementResult.valid(), elementResult.summary());
+  }
+
+  @Test
   void catalogDefaultHttpTriggerFailsSecurityAfterEndpointPatch() {
     ObjectMapper mapper = new ObjectMapper();
     DeterministicElementSchemaService schemaService =

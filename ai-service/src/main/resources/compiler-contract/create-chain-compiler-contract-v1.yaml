@@ -20,6 +20,15 @@ elements:
       type: kafka-trigger-2
       container: false
       deprecated: false
+  async-api-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - integrationOperationId
+    materializationRuleId: materialize-async-api-trigger
+    runtimeDescriptor:
+      type: async-api-trigger
+      container: false
+      deprecated: false
   service-call:
     containmentRoles: {}
     requiredProperties:
