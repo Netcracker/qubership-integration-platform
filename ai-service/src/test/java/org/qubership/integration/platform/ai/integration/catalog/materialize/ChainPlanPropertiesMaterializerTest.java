@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -581,5 +582,71 @@ class ChainPlanPropertiesMaterializerTest {
     Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
     assertEquals("java.lang.Exception", props.get("exception"));
     assertEquals(0, props.get("priority"));
+  }
+
+  @Test
+  void timeoutAfterWriteCountsAsSuccessWhenReadBackMatches() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    CatalogElementResponseDto before = element("Old", Map.of("script", "old"));
+    CatalogElementResponseDto after = element("Script", Map.of("script", "new"));
+    when(catalogRestClient.getElement("chain-1", "el-1")).thenReturn(before, after);
+    doThrow(new TimeoutException("PATCH timed out"))
+        .when(catalogRestClient)
+        .updateElement(eq("chain-1"), eq("el-1"), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("new"), materializationMap());
+
+    assertEquals(1, result.patchedCount());
+    assertTrue(result.failedNodeIds().isEmpty());
+  }
+
+  @Test
+  void timeoutAfterWriteFailsSafelyWhenReadBackDoesNotMatch() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    CatalogElementResponseDto unchanged = element("Old", Map.of("script", "old"));
+    when(catalogRestClient.getElement("chain-1", "el-1"))
+        .thenReturn(unchanged, unchanged);
+    doThrow(new TimeoutException("PATCH timed out with internal host details"))
+        .when(catalogRestClient)
+        .updateElement(eq("chain-1"), eq("el-1"), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("new"), materializationMap());
+
+    assertEquals(List.of("n1"), result.failedNodeIds());
+    assertTrue(result.firstValidationError().contains("read-back did not confirm"));
+    assertTrue(!result.firstValidationError().contains("internal host details"));
+  }
+
+  private static ChainPlanGraph scriptGraph(String script) {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo-chain", null),
+        List.of(
+            new ChainPlanNode(
+                "n1",
+                "script",
+                "Script",
+                null,
+                null,
+                List.of(new PlanProperty("script", script)))),
+        List.of());
+  }
+
+  private static MaterializationMap materializationMap() {
+    return new MaterializationMap(
+        "chain-1", Map.of("n1", "el-1"), Map.of(), Map.of());
+  }
+
+  private static CatalogElementResponseDto element(String name, Map<String, Object> properties) {
+    CatalogElementResponseDto element = new CatalogElementResponseDto();
+    element.name = name;
+    element.properties = properties;
+    return element;
   }
 }

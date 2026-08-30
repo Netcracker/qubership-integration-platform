@@ -135,6 +135,8 @@ public interface CatalogRestClient {
 
   @PATCH
   @Path("/v1/chains/{chainId}/elements/{elementId}")
+  @Timeout(value = 10, unit = ChronoUnit.SECONDS)
+  @Retry(maxRetries = 0)
   ChainDiffDto updateElement(
       @PathParam("chainId") String chainId,
       @PathParam("elementId") String elementId,

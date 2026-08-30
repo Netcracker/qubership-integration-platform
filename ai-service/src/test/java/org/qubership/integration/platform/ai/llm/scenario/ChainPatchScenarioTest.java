@@ -121,7 +121,8 @@ class ChainPatchScenarioTest {
             writer,
             new CanonicalGraphDigest(objectMapper),
             new KnownFailureMapper(),
-            new PinnedFailureStore());
+            new PinnedFailureStore(),
+            mock(ChainQuestionScenario.class));
   }
 
   @Test

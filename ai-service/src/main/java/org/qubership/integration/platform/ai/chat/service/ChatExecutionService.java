@@ -13,6 +13,8 @@ import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.LastAssistantTurn;
+import org.qubership.integration.platform.ai.chat.LastAssistantTurnStore;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
@@ -58,6 +60,7 @@ public class ChatExecutionService {
   private final ChatDecisionService decisionService;
   private final PendingRedeployStore pendingRedeployStore;
   private final OpenChainTurnContextFactory openChainTurnContextFactory;
+  private final LastAssistantTurnStore lastAssistantTurnStore;
 
   public ChatExecutionService(
       ScenarioRouter router,
@@ -70,10 +73,12 @@ public class ChatExecutionService {
       ChatMemorySanitizer chatMemorySanitizer,
       ChatDecisionService decisionService,
       PendingRedeployStore pendingRedeployStore,
-      OpenChainTurnContextFactory openChainTurnContextFactory) {
+      OpenChainTurnContextFactory openChainTurnContextFactory,
+      LastAssistantTurnStore lastAssistantTurnStore) {
     this.decisionService = decisionService;
     this.pendingRedeployStore = pendingRedeployStore;
     this.openChainTurnContextFactory = openChainTurnContextFactory;
+    this.lastAssistantTurnStore = lastAssistantTurnStore;
     this.router = router;
     this.conversationService = conversationService;
     this.effectiveUserTextService = effectiveUserTextService;
@@ -98,7 +103,10 @@ public class ChatExecutionService {
         || ChatEvent.DEPLOY_ACTION.equals(action)
         || ChatEvent.CANCEL_DEPLOY_ACTION.equals(action)
         || ChatEvent.UNDEPLOY_ACTION.equals(action)
-        || ChatEvent.CANCEL_UNDEPLOY_ACTION.equals(action);
+        || ChatEvent.CANCEL_UNDEPLOY_ACTION.equals(action)
+        || ChatEvent.REFRESH_DEPLOYMENT_ACTION.equals(action)
+        || ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(action)
+        || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action);
   }
 
   /** The click names the scenario, so the router does not guess it from transcript wording. */
@@ -112,12 +120,18 @@ public class ChatExecutionService {
       request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
       return;
     }
+    if (ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(action)) {
+      request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
+      return;
+    }
     if (ChatEvent.REDEPLOY_ACTION.equals(action)
         || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action)
         || ChatEvent.DEPLOY_ACTION.equals(action)
         || ChatEvent.CANCEL_DEPLOY_ACTION.equals(action)
         || ChatEvent.UNDEPLOY_ACTION.equals(action)
-        || ChatEvent.CANCEL_UNDEPLOY_ACTION.equals(action)) {
+        || ChatEvent.CANCEL_UNDEPLOY_ACTION.equals(action)
+        || ChatEvent.REFRESH_DEPLOYMENT_ACTION.equals(action)
+        || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action)) {
       request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
     }
   }
@@ -181,6 +195,8 @@ public class ChatExecutionService {
     logAiTurnStart(conversationId);
 
     StringBuilder responseBuffer = new StringBuilder();
+    AtomicReference<LastAssistantTurn.Kind> lastTurnKind =
+        new AtomicReference<>(LastAssistantTurn.Kind.OTHER);
     String finalConversationId = conversationId;
     AtomicReference<Cancellable> routedCancellation = new AtomicReference<>();
 
@@ -218,7 +234,12 @@ public class ChatExecutionService {
         .invoke(event -> {
           if (event instanceof ChatEvent.Token token && token.text() != null) {
             responseBuffer.append(token.text());
+            if (token.turnKind() != LastAssistantTurn.Kind.OTHER) {
+              lastTurnKind.set(token.turnKind());
+            }
           } else if (event instanceof ChatEvent.Decision decision) {
+            lastTurnKind.compareAndSet(
+                LastAssistantTurn.Kind.OTHER, LastAssistantTurn.Kind.DECISION);
             if (!responseBuffer.isEmpty()) {
               responseBuffer.append('\n');
             }
@@ -247,6 +268,12 @@ public class ChatExecutionService {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
                 conversationService.addMessage(
                     finalConversationId, ConversationMessage.assistant(responseBuffer.toString()));
+                if (request.getOpenChainTurnContext() != null) {
+                  lastAssistantTurnStore.put(
+                      finalConversationId,
+                      request.getOpenChainTurnContext().chainId(),
+                      new LastAssistantTurn(lastTurnKind.get(), responseBuffer.toString()));
+                }
               }
               if (failure != null) {
                 LOG.warnf(

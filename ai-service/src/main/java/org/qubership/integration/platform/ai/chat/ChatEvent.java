@@ -47,6 +47,15 @@ public sealed interface ChatEvent {
   /** Leaves the live deployment in place. Distinct from cancel-deploy, which never deployed. */
   String CANCEL_UNDEPLOY_ACTION = "cancel-undeploy";
 
+  /** Re-reads deployment state after an asynchronous deployment is still processing. */
+  String REFRESH_DEPLOYMENT_ACTION = "refresh-deployment";
+
+  /** Starts a patch proposal grounded in the deployment failure kept by the server. */
+  String PROPOSE_DEPLOYMENT_FIX_ACTION = "propose-deployment-fix";
+
+  /** Acknowledges a deployment failure without mutating the chain. */
+  String DISMISS_DEPLOYMENT_FAILURE_ACTION = "dismiss-deployment-failure";
+
   /** Artifact type a chain-patch card binds to. */
   String CHAIN_PATCH_ARTIFACT = "CHAIN_PATCH";
 
@@ -58,6 +67,9 @@ public sealed interface ChatEvent {
 
   /** Artifact type an undeploy card binds to. */
   String UNDEPLOY_ARTIFACT = "UNDEPLOY";
+
+  /** Artifact type for a deployment result that needs a human follow-up. */
+  String DEPLOYMENT_FAILURE_ARTIFACT = "DEPLOYMENT_FAILURE";
 
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
@@ -77,7 +89,15 @@ public sealed interface ChatEvent {
   record Meta(String conversationId) implements ChatEvent {}
 
   /** Streamed assistant content shown to the user. */
-  record Token(String text) implements ChatEvent {}
+  record Token(String text, LastAssistantTurn.Kind turnKind) implements ChatEvent {
+    public Token(String text) {
+      this(text, LastAssistantTurn.Kind.OTHER);
+    }
+
+    public Token {
+      turnKind = turnKind == null ? LastAssistantTurn.Kind.OTHER : turnKind;
+    }
+  }
 
   /** Activity step progress (rendered as {@code event: step}, replace-by-id). */
   record Step(String id, String kind, String status, String label, String parentId)
@@ -119,6 +139,10 @@ public sealed interface ChatEvent {
 
   static ChatEvent token(String text) {
     return new Token(text);
+  }
+
+  static ChatEvent token(String text, LastAssistantTurn.Kind turnKind) {
+    return new Token(text, turnKind);
   }
 
   static ChatEvent step(String id, String kind, String status, String label, String parentId) {
@@ -302,6 +326,34 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(UNDEPLOY_ACTION, CANCEL_UNDEPLOY_ACTION));
+  }
+
+  static ChatEvent deploymentProcessingDecision(String deploymentId, String question) {
+    Objects.requireNonNull(deploymentId, "deploymentId");
+    return new Decision(
+        "deployment-processing:" + deploymentId,
+        "clarify",
+        question == null ? "" : question.strip(),
+        DEPLOYMENT_FAILURE_ARTIFACT,
+        deploymentId,
+        0L,
+        null,
+        List.of(),
+        List.of(REFRESH_DEPLOYMENT_ACTION));
+  }
+
+  static ChatEvent deploymentFailureDecision(String deploymentId, String question) {
+    Objects.requireNonNull(deploymentId, "deploymentId");
+    return new Decision(
+        "deployment-failure:" + deploymentId,
+        "clarify",
+        question == null ? "" : question.strip(),
+        DEPLOYMENT_FAILURE_ARTIFACT,
+        deploymentId,
+        0L,
+        null,
+        List.of(),
+        List.of(PROPOSE_DEPLOYMENT_FIX_ACTION, DISMISS_DEPLOYMENT_FAILURE_ACTION));
   }
 
   /**

@@ -9,6 +9,7 @@ import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.LastAssistantTurn;
 import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
@@ -28,6 +29,8 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.SnapshotDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainSearchRequest;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogIdPatterns;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.DeployOp;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 import java.util.ArrayList;
@@ -125,7 +128,7 @@ public class DeployChainScenario implements ScenarioHandler {
   public Multi<ChatEvent> handle(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
-    Multi<ChatEvent> answered = answerCard(conversationId, decision);
+    Multi<ChatEvent> answered = answerCard(request, conversationId, decision);
     if (answered != null) {
       return answered;
     }
@@ -140,12 +143,15 @@ public class DeployChainScenario implements ScenarioHandler {
         chainContextExtractor.resolveChainId(request, conversationId).orElse(null);
     boolean openGraph = chainId != null;
     if (chainId == null) {
-      return resolveUnopenedChain(conversationId, userMessage);
+      return resolveUnopenedChain(
+          conversationId, userMessage, deployOperation(request, userMessage));
     }
-    return continueWithResolvedChain(conversationId, chainId, userMessage, openGraph);
+    return continueWithResolvedChain(
+        conversationId, chainId, userMessage, openGraph, deployOperation(request, userMessage));
   }
 
-  private Multi<ChatEvent> answerCard(String conversationId, ChatDecisionCommand decision) {
+  private Multi<ChatEvent> answerCard(
+      ChatRequest request, String conversationId, ChatDecisionCommand decision) {
     if (decision == null || decision.getAction() == null) {
       return null;
     }
@@ -156,35 +162,38 @@ public class DeployChainScenario implements ScenarioHandler {
       case ChatEvent.CANCEL_REDEPLOY_ACTION -> cancelRedeploy(conversationId, decision);
       case ChatEvent.UNDEPLOY_ACTION -> applyUndeploy(conversationId, decision);
       case ChatEvent.CANCEL_UNDEPLOY_ACTION -> cancelUndeploy(conversationId, decision);
+      case ChatEvent.REFRESH_DEPLOYMENT_ACTION ->
+          refreshDeployment(request, conversationId, decision);
+      case ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION ->
+          dismissDeploymentFailure(request, conversationId);
       default -> null;
     };
   }
 
   private Multi<ChatEvent> continueWithResolvedChain(
-      String conversationId, String chainId, String userMessage, boolean openGraph) {
-    if (UserIntentPatterns.matchesSnapshotIntent(userMessage)) {
-      return createSnapshot(conversationId, chainId);
-    }
-
-    if (UserIntentPatterns.matchesUndeployIntent(userMessage)) {
-      return undeployChain(conversationId, chainId, userMessage);
-    }
-
-    if (UserIntentPatterns.matchesDeploymentStatusIntent(userMessage)) {
-      return reportStatus(conversationId, chainId);
-    }
-
-    if (UserIntentPatterns.matchesDeployIntent(userMessage)) {
-      return deployChain(conversationId, chainId, userMessage, !openGraph);
-    }
-
-    LOG.infof(
-        "DEPLOY_CHAIN neither snapshot nor deploy conversationId=%s chainId=%s",
-        conversationId, chainId);
-    return Multi.createFrom().item(ChatEvent.token(SNAPSHOT_ONLY_MESSAGE));
+      String conversationId,
+      String chainId,
+      String userMessage,
+      boolean openGraph,
+      DeployOp operation) {
+    return switch (operation) {
+      case CREATE_SNAPSHOT -> createSnapshot(conversationId, chainId);
+      case UNDEPLOY -> undeployChain(conversationId, chainId, userMessage);
+      case DEPLOY -> deployChain(conversationId, chainId, userMessage, !openGraph);
+      case NONE -> {
+        if (UserIntentPatterns.matchesDeploymentStatusIntent(userMessage)) {
+          yield reportStatus(conversationId, chainId);
+        }
+        LOG.infof(
+            "DEPLOY_CHAIN without a typed mutation conversationId=%s chainId=%s",
+            conversationId, chainId);
+        yield Multi.createFrom().item(ChatEvent.token(SNAPSHOT_ONLY_MESSAGE));
+      }
+    };
   }
 
-  private Multi<ChatEvent> resolveUnopenedChain(String conversationId, String userMessage) {
+  private Multi<ChatEvent> resolveUnopenedChain(
+      String conversationId, String userMessage, DeployOp operation) {
     try {
       Optional<String> uuid = findChainUuid(userMessage);
       if (uuid.isPresent()) {
@@ -193,21 +202,21 @@ public class DeployChainScenario implements ScenarioHandler {
           return Multi.createFrom()
               .item(ChatEvent.token("No chain with id " + uuid.get() + " was found."));
         }
-        return continueWithResolvedChain(conversationId, chainId, userMessage, false);
+        return continueWithResolvedChain(conversationId, chainId, userMessage, false, operation);
       }
       Optional<String> name = extractChainName(userMessage);
       if (name.isEmpty()) {
         LOG.infof("DEPLOY_CHAIN without chain context conversationId=%s", conversationId);
         return Multi.createFrom().item(ChatEvent.token(NO_CHAIN_MESSAGE));
       }
-      return continueFromNameSearch(conversationId, userMessage, name.get());
+      return continueFromNameSearch(conversationId, userMessage, name.get(), operation);
     } catch (RuntimeException e) {
       return knownOrRethrow(e, CatalogOperation.LOOKUP, conversationId, null);
     }
   }
 
   private Multi<ChatEvent> continueFromNameSearch(
-      String conversationId, String userMessage, String name) {
+      String conversationId, String userMessage, String name, DeployOp operation) {
     List<FolderItemDto> hits = searchChainItems(name);
     List<FolderItemDto> exact =
         hits.stream().filter(item -> name.equalsIgnoreCase(item.name())).toList();
@@ -219,7 +228,21 @@ public class DeployChainScenario implements ScenarioHandler {
     if (chosen.size() > 1) {
       return Multi.createFrom().item(ChatEvent.token(ambiguousChainsMessage(chosen)));
     }
-    return continueWithResolvedChain(conversationId, chosen.get(0).id(), userMessage, false);
+    return continueWithResolvedChain(
+        conversationId, chosen.get(0).id(), userMessage, false, operation);
+  }
+
+  private static DeployOp deployOperation(ChatRequest request, String userMessage) {
+    if (request != null && request.getOpenChainTurnPlan() instanceof OpenChainTurnPlan.Deploy plan) {
+      return plan.operation();
+    }
+    if (UserIntentPatterns.matchesSnapshotIntent(userMessage)) {
+      return DeployOp.CREATE_SNAPSHOT;
+    }
+    if (UserIntentPatterns.matchesUndeployIntent(userMessage)) {
+      return DeployOp.UNDEPLOY;
+    }
+    return UserIntentPatterns.matchesDeployIntent(userMessage) ? DeployOp.DEPLOY : DeployOp.NONE;
   }
 
   private List<FolderItemDto> searchChainItems(String name) {
@@ -741,22 +764,107 @@ public class DeployChainScenario implements ScenarioHandler {
 
   private Multi<ChatEvent> deploySnapshot(
       String conversationId, String chainId, SnapshotDto snapshot, String domain) {
-    catalogRestClient.createDeployment(
+    DeploymentDto created = catalogRestClient.createDeployment(
         chainId, new CreateDeploymentRequest(domain, snapshot.id()));
-    String status = pollDeploymentStatus(chainId, domain);
-    pinnedFailureStore.clear(conversationId, chainId);
+    DeploymentObservation observation = pollDeploymentStatus(chainId, domain, created);
+    return deploymentResult(conversationId, chainId, snapshot, domain, observation);
+  }
+
+  private Multi<ChatEvent> refreshDeployment(
+      ChatRequest request, String conversationId, ChatDecisionCommand decision) {
+    String chainId = chainContextExtractor.resolveChainId(request, conversationId).orElse(null);
+    if (chainId == null) {
+      return Multi.createFrom().item(ChatEvent.token(NO_CHAIN_MESSAGE));
+    }
+    try {
+      List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(chainId));
+      DeploymentDto deployment =
+          listed.stream()
+              .filter(item -> matchesDeployment(item, decision.getArtifactHash()))
+              .findFirst()
+              .orElse(null);
+      if (deployment == null) {
+        return Multi.createFrom()
+            .item(
+                ChatEvent.token(
+                    "That deployment is no longer present. I did not change the chain."));
+      }
+      SnapshotDto snapshot = new SnapshotDto(deployment.snapshotId(), deployment.name());
+      DeploymentObservation observation =
+          pollDeploymentStatus(chainId, deployment.domain(), deployment);
+      return deploymentResult(
+          conversationId, chainId, snapshot, deployment.domain(), observation);
+    } catch (RuntimeException error) {
+      return knownOrRethrow(error, CatalogOperation.STATUS, conversationId, chainId);
+    }
+  }
+
+  private Multi<ChatEvent> dismissDeploymentFailure(
+      ChatRequest request, String conversationId) {
+    chainContextExtractor
+        .resolveChainId(request, conversationId)
+        .ifPresent(chainId -> pinnedFailureStore.clear(conversationId, chainId));
     return Multi.createFrom()
-        .item(
-            ChatEvent.token(
-                "Deployed snapshot "
-                    + snapshot.name()
-                    + " (id: "
-                    + snapshot.id()
-                    + ") to domain "
-                    + domain
-                    + ". Status: "
-                    + status
-                    + "."));
+        .item(ChatEvent.token("Okay. I left the chain unchanged."));
+  }
+
+  private Multi<ChatEvent> deploymentResult(
+      String conversationId,
+      String chainId,
+      SnapshotDto snapshot,
+      String domain,
+      DeploymentObservation observation) {
+    String snapshotName =
+        snapshot.name() == null || snapshot.name().isBlank() ? snapshot.id() : snapshot.name();
+    String deploymentKey = observation.key(domain);
+    return switch (observation.status()) {
+      case STATUS_DEPLOYED -> {
+        pinnedFailureStore.clear(conversationId, chainId);
+        yield Multi.createFrom()
+            .item(
+                ChatEvent.token(
+                    "Deployed snapshot "
+                        + snapshotName
+                        + " (id: "
+                        + snapshot.id()
+                        + ") to domain "
+                        + domain
+                        + ". Status: DEPLOYED.",
+                    LastAssistantTurn.Kind.DEPLOY_OK));
+      }
+      case STATUS_FAILED -> {
+        String safeText =
+            "Deployment of snapshot "
+                + snapshotName
+                + " to domain "
+                + domain
+                + " failed. Status: FAILED. The chain was not reported as deployed.";
+        pinnedFailureStore.put(
+            new PinnedFailure(
+                conversationId,
+                chainId,
+                safeText,
+                runtimeDiagnostic(observation.deployment())));
+        yield Multi.createFrom()
+            .items(
+                ChatEvent.token(safeText, LastAssistantTurn.Kind.DEPLOY_FAILED),
+                ChatEvent.deploymentFailureDecision(
+                    deploymentKey, "Would you like me to propose a chain fix?"));
+      }
+      default -> {
+        String safeText =
+            "Deployment of snapshot "
+                + snapshotName
+                + " to domain "
+                + domain
+                + " is still processing. Status: PROCESSING.";
+        yield Multi.createFrom()
+            .items(
+                ChatEvent.token(safeText, LastAssistantTurn.Kind.DEPLOY_PROCESSING),
+                ChatEvent.deploymentProcessingDecision(
+                    deploymentKey, "Check the deployment status again?"));
+      }
+    };
   }
 
   private SnapshotDto resolvePendingSnapshot(PendingRedeploy pending) {
@@ -899,21 +1007,57 @@ public class DeployChainScenario implements ScenarioHandler {
     return "Available domains: " + names + ". Name one to deploy.";
   }
 
-  private String pollDeploymentStatus(String chainId, String domain) {
-    String status = STATUS_PROCESSING;
+  private DeploymentObservation pollDeploymentStatus(
+      String chainId, String domain, DeploymentDto created) {
+    DeploymentDto observed = created;
+    String status = catalogStatus(observed);
     for (int attempt = 0; attempt < pollAttempts; attempt++) {
       if (attempt > 0) {
         awaitPollDelay();
       }
-      List<DeploymentDto> listed = catalogRestClient.listDeployments(chainId);
+      List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(chainId));
       DeploymentDto onDomain =
           listed.stream().filter(item -> isDomain(item, domain)).findFirst().orElse(null);
-      status = catalogStatus(onDomain);
+      if (onDomain != null) {
+        observed = onDomain;
+        status = catalogStatus(onDomain);
+      }
       if (STATUS_DEPLOYED.equals(status) || STATUS_FAILED.equals(status)) {
         break;
       }
     }
-    return status;
+    return new DeploymentObservation(status, observed);
+  }
+
+  private static List<DeploymentDto> safeList(List<DeploymentDto> listed) {
+    return listed == null ? List.of() : listed.stream().filter(java.util.Objects::nonNull).toList();
+  }
+
+  private static boolean matchesDeployment(DeploymentDto deployment, String key) {
+    return deployment != null
+        && key != null
+        && (key.equals(deployment.id()) || key.equalsIgnoreCase(deployment.domain()));
+  }
+
+  private static String runtimeDiagnostic(DeploymentDto deployment) {
+    if (deployment == null
+        || deployment.runtime() == null
+        || deployment.runtime().states() == null) {
+      return "deployment failed without runtime details";
+    }
+    return deployment.runtime().states().entrySet().stream()
+        .filter(entry -> entry.getValue() != null && entry.getValue().error() != null)
+        .map(entry -> entry.getKey() + ": " + entry.getValue().error())
+        .reduce((left, right) -> left + "\n" + right)
+        .orElse("deployment failed without runtime details");
+  }
+
+  private record DeploymentObservation(String status, DeploymentDto deployment) {
+    private String key(String fallback) {
+      return deployment != null && deployment.id() != null && !deployment.id().isBlank()
+          ? deployment.id()
+          : fallback;
+    }
   }
 
   private void awaitPollDelay() {

@@ -26,8 +26,6 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogView
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
-import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
-import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
@@ -43,7 +41,6 @@ class ChainQuestionScenarioTest {
   private ChainCatalogFactsService chainCatalogFactsService;
   private ChainCatalogViewService chainCatalogViewService;
   private ChainPresentationAgent chainPresentationAgent;
-  private ConversationService conversationService;
   private ChainQuestionScenario scenario;
 
   @BeforeEach
@@ -52,7 +49,6 @@ class ChainQuestionScenarioTest {
     chainCatalogFactsService = mock(ChainCatalogFactsService.class);
     chainCatalogViewService = new ChainCatalogViewService(new ObjectMapper());
     chainPresentationAgent = mock(ChainPresentationAgent.class);
-    conversationService = new ConversationService();
     scenario =
         new ChainQuestionScenario(
             chainContextExtractor,
@@ -61,8 +57,7 @@ class ChainQuestionScenarioTest {
             chainPresentationAgent,
             new ObjectMapper(),
             new KnownFailureMapper(),
-            new PinnedFailureStore(),
-            conversationService);
+            new PinnedFailureStore());
   }
 
   @Test
@@ -125,25 +120,33 @@ class ChainQuestionScenarioTest {
     ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
     verify(chainPresentationAgent).chat(eq(CONVERSATION_ID), prompt.capture());
     String body = prompt.getValue();
-    assertTrue(body.contains("Older transcript hits:"));
+    assertTrue(body.contains("Last assistant turn:"));
+    assertTrue(body.contains("Snapshot evidence:"));
     assertTrue(body.contains("(none)"));
   }
 
   @Test
-  void explainPromptIncludesMatchingOlderTranscriptHits() {
-    conversationService.addMessage(
-        CONVERSATION_ID,
-        ConversationMessage.assistant(
-            "earlier we said what does this chain do? with HTTP trigger"));
+  void explainPromptIncludesRecentTranscriptFromTurnContext() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of("chain-1"));
-    when(chainCatalogFactsService.load("chain-1")).thenReturn(sampleFacts());
     when(chainPresentationAgent.chat(eq(CONVERSATION_ID), any()))
         .thenReturn(Multi.createFrom().item("ok"));
 
+    ChatRequest request =
+        chatRequest(
+            "what does this chain do?",
+            new OpenChainTurnContext(
+                CONVERSATION_ID,
+                "chain-1",
+                "what does this chain do?",
+                "assistant: earlier we mentioned the HTTP trigger",
+                Optional.empty(),
+                Optional.of(sampleFacts()),
+                false));
+
     AssertSubscriber<ChatEvent> sub =
         scenario
-            .handle(chatRequest("what does this chain do?"), CONVERSATION_ID, ScenarioType.ASK_CHAIN)
+            .handle(request, CONVERSATION_ID, ScenarioType.ASK_CHAIN)
             .subscribe()
             .withSubscriber(AssertSubscriber.create(Long.MAX_VALUE));
     sub.awaitCompletion();
@@ -151,9 +154,8 @@ class ChainQuestionScenarioTest {
     ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
     verify(chainPresentationAgent).chat(eq(CONVERSATION_ID), prompt.capture());
     String body = prompt.getValue();
-    assertTrue(body.contains("Older transcript hits:"));
-    assertTrue(
-        body.contains("earlier we said what does this chain do? with HTTP trigger"));
+    assertTrue(body.contains("Recent transcript (context, not a source of catalog facts):"));
+    assertTrue(body.contains("earlier we mentioned the HTTP trigger"));
   }
 
   @Test
@@ -218,15 +220,14 @@ class ChainQuestionScenarioTest {
     ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
     verify(chainPresentationAgent).chat(eq(CONVERSATION_ID), prompt.capture());
     String body = prompt.getValue();
-    assertTrue(body.contains("Recent transcript:"));
-    assertTrue(body.contains("Pinned catalog failure (may be empty):"));
+    assertTrue(body.contains("Recent transcript (context, not a source of catalog facts):"));
+    assertTrue(body.contains("Safe failure summary"));
     assertTrue(body.contains(KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE));
     assertTrue(body.contains("User question:"));
     assertTrue(body.contains("what happened?"));
-    assertTrue(body.contains("Chain facts JSON or FACTS_UNAVAILABLE:"));
-    assertTrue(body.contains("FACTS_UNAVAILABLE"));
-    assertTrue(body.contains("Older transcript hits:"));
-    assertTrue(body.contains("(none)"));
+    assertTrue(body.contains("Chain facts evidence:"));
+    assertTrue(body.contains("UNAVAILABLE"));
+    assertTrue(body.contains("Deployment evidence"));
   }
 
   @Test

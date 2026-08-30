@@ -9,6 +9,7 @@ import static java.util.stream.Collectors.joining;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -34,6 +35,7 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.LastAssistantTurn;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
@@ -44,6 +46,10 @@ import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.AnswerShape;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.InfoNeed;
+import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.TurnReferent;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
@@ -74,6 +80,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final CanonicalGraphDigest canonicalGraphDigest;
   private final KnownFailureMapper knownFailureMapper;
   private final PinnedFailureStore pinnedFailureStore;
+  private final ChainQuestionScenario questionScenario;
 
   @Inject
   public ChainPatchScenario(
@@ -88,7 +95,8 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainPatchWriter writer,
       CanonicalGraphDigest canonicalGraphDigest,
       KnownFailureMapper knownFailureMapper,
-      PinnedFailureStore pinnedFailureStore) {
+      PinnedFailureStore pinnedFailureStore,
+      @ForScenario(ScenarioType.ASK_CHAIN) ChainQuestionScenario questionScenario) {
     this.chainContextExtractor = Objects.requireNonNull(chainContextExtractor);
     this.factsService = Objects.requireNonNull(factsService);
     this.importer = Objects.requireNonNull(importer);
@@ -101,6 +109,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.canonicalGraphDigest = Objects.requireNonNull(canonicalGraphDigest);
     this.knownFailureMapper = Objects.requireNonNull(knownFailureMapper);
     this.pinnedFailureStore = Objects.requireNonNull(pinnedFailureStore);
+    this.questionScenario = Objects.requireNonNull(questionScenario);
   }
 
   @Override
@@ -112,6 +121,10 @@ public class ChainPatchScenario implements ScenarioHandler {
     }
     if (decision != null && ChatEvent.IMPORT_ACTION.equals(decision.getAction())) {
       return streamCompile(progress -> resumeAfterImport(request, conversationId, progress));
+    }
+    if (decision != null && ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(decision.getAction())) {
+      request.setResolvedEffectiveUserText(
+          "Fix the deployment failure described in the safe failure summary.");
     }
     return streamCompile(progress -> proposePatch(request, conversationId, progress));
   }
@@ -150,7 +163,11 @@ public class ChainPatchScenario implements ScenarioHandler {
 
     ImportedChainPlan imported;
     try {
-      ChainCatalogFacts facts = factsService.load(chainId);
+      OpenChainTurnContext turn = request == null ? null : request.getOpenChainTurnContext();
+      ChainCatalogFacts facts =
+          turn == null || turn.chainFacts().isEmpty()
+              ? factsService.load(chainId)
+              : turn.chainFacts().get();
       imported = importer.importChain(facts);
     } catch (RuntimeException e) {
       return knownOrRethrow(e, conversationId, chainId);
@@ -178,7 +195,7 @@ public class ChainPatchScenario implements ScenarioHandler {
                   request,
                   skillProgress)
               : compileEdit(conversationId, chainId, imported, userMessage, request, skillProgress);
-      return fromCompiler(conversationId, chainId, imported, outcome);
+      return fromCompiler(request, conversationId, chainId, imported, outcome);
     } catch (RuntimeException e) {
       return knownOrRethrow(e, conversationId, chainId);
     }
@@ -226,7 +243,11 @@ public class ChainPatchScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> fromCompiler(
-      String conversationId, String chainId, ImportedChainPlan imported, ChainEditOutcome outcome) {
+      ChatRequest request,
+      String conversationId,
+      String chainId,
+      ImportedChainPlan imported,
+      ChainEditOutcome outcome) {
     return switch (outcome) {
       case ChainEditOutcome.Proposal proposal ->
           offer(conversationId, chainId, imported, proposal.netPatch());
@@ -245,6 +266,7 @@ public class ChainPatchScenario implements ScenarioHandler {
                 : question + "\n" + choices.stream().map(c -> "- " + c).collect(joining("\n")));
       }
       case ChainEditOutcome.ResolutionFailure(String text) -> message(text);
+      case ChainEditOutcome.NoChange ignored -> answerAsQuestion(request, conversationId);
       case ChainEditOutcome.CompilationFailure(String text) -> message(text);
       case ChainEditOutcome.Escalation escalation -> escalate(conversationId, chainId, escalation);
       case ChainEditOutcome.Unsupported(var action) ->
@@ -309,7 +331,14 @@ public class ChainPatchScenario implements ScenarioHandler {
                 pendingEdit.refs(),
                 pendingEdit.continuation(),
                 skillProgress);
-    return fromCompiler(conversationId, pendingEdit.chainId(), imported, resumed);
+    return fromCompiler(chatRequest, conversationId, pendingEdit.chainId(), imported, resumed);
+  }
+
+  private Multi<ChatEvent> answerAsQuestion(ChatRequest request, String conversationId) {
+    request.setOpenChainTurnPlan(
+        new OpenChainTurnPlan.Ask(
+            TurnReferent.LAST_TURN, Set.of(InfoNeed.FACTS), AnswerShape.EXPLAIN));
+    return questionScenario.handle(request, conversationId, ScenarioType.ASK_CHAIN);
   }
 
   private Multi<ChatEvent> offer(
@@ -361,7 +390,20 @@ public class ChainPatchScenario implements ScenarioHandler {
 
     patchStore.clearProposal(conversationId);
     ChainPatchWriteResult result = writer.write(proposed.patched(), proposed.patch());
-    return message(describe(result, proposed));
+    String text = describe(result, proposed);
+    if (result.succeeded()) {
+      pinnedFailureStore.clear(conversationId, proposed.chainId());
+      return Multi.createFrom()
+          .item(ChatEvent.token(text, LastAssistantTurn.Kind.PATCH_WRITE_OK));
+    }
+    pinnedFailureStore.put(
+        new PinnedFailure(
+            conversationId,
+            proposed.chainId(),
+            text,
+            result.error() == null ? "chain patch write failed" : result.error()));
+    return Multi.createFrom()
+        .item(ChatEvent.token(text, LastAssistantTurn.Kind.PATCH_WRITE_FAILED));
   }
 
   private String describe(ChainPatchWriteResult result, ProposedChainPatch proposed) {
@@ -395,10 +437,12 @@ public class ChainPatchScenario implements ScenarioHandler {
     if (!changed.isEmpty()) {
       text.append("Changed ").append(String.join(", ", changed)).append(". ");
     }
-    text.append("Could not change ").append(String.join(", ", failed)).append(".");
-    if (result.error() != null) {
-      text.append(" ").append(result.error());
+    if (failed.isEmpty()) {
+      text.append("Could not finish the requested chain change.");
+    } else {
+      text.append("Could not change ").append(String.join(", ", failed)).append(".");
     }
+    text.append(" The catalog did not confirm the requested write.");
     String rollback = describeRollback(result, removed);
     if (rollback != null) {
       text.append(" ").append(rollback);

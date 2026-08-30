@@ -60,6 +60,9 @@ public sealed interface ChainEditOutcome {
   /** Nothing in the chain or the catalog answers the request, and nothing was invented. */
   record ResolutionFailure(String message) implements ChainEditOutcome {}
 
+  /** The classifier found no mutation request; callers may safely route the turn as a question. */
+  record NoChange() implements ChainEditOutcome {}
+
   /** The compiler ran and refused the result: ownership, schema, or validation. */
   record CompilationFailure(String message) implements ChainEditOutcome {}
 

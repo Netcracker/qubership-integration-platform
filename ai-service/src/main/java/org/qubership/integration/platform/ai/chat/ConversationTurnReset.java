@@ -44,6 +44,7 @@ public class ConversationTurnReset {
   private final ConversationCatalogCache conversationCatalogCache;
   private final ConversationEvidenceStore conversationEvidenceStore;
   private final PinnedFailureStore pinnedFailureStore;
+  private final LastAssistantTurnStore lastAssistantTurnStore;
 
   @Inject
   ConversationTurnReset(
@@ -58,7 +59,8 @@ public class ConversationTurnReset {
       RequirementDraftStore requirementDraftStore,
       ConversationCatalogCache conversationCatalogCache,
       ConversationEvidenceStore conversationEvidenceStore,
-      PinnedFailureStore pinnedFailureStore) {
+      PinnedFailureStore pinnedFailureStore,
+      LastAssistantTurnStore lastAssistantTurnStore) {
     this.conversationService = conversationService;
     this.chatMemoryStore = chatMemoryStore;
     this.workspaceStore = workspaceStore;
@@ -71,10 +73,12 @@ public class ConversationTurnReset {
     this.conversationCatalogCache = conversationCatalogCache;
     this.conversationEvidenceStore = conversationEvidenceStore;
     this.pinnedFailureStore = pinnedFailureStore;
+    this.lastAssistantTurnStore = lastAssistantTurnStore;
   }
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
     conversationService.truncateAfter(conversationId, afterMessageIndex);
+    lastAssistantTurnStore.clearConversation(conversationId);
     if (afterMessageIndex < 0) {
       pinnedFailureStore.clearConversation(conversationId);
     } else {
@@ -90,6 +94,7 @@ public class ConversationTurnReset {
   public void fullReset(String conversationId) {
     conversationService.clearMessages(conversationId);
     pinnedFailureStore.clearConversation(conversationId);
+    lastAssistantTurnStore.clearConversation(conversationId);
     resetArtifactInventory(conversationId);
   }
 
