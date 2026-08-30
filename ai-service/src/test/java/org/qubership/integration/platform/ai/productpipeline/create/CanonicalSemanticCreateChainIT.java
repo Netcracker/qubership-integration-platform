@@ -70,7 +70,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ApprovedCompilerExecutionRunner;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultChainSemanticGraphCompiler;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultExecutorCatalogBindingAdapter;
@@ -105,6 +104,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDa
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
@@ -150,11 +150,10 @@ class CanonicalSemanticCreateChainIT {
     approvedCompilerExecutionRunner = mock(ApprovedCompilerExecutionRunner.class);
     catalog = mock(CatalogMutationGateway.class);
     factsService = mock(ChainCatalogFactsService.class);
-    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    when(matcher.match(anyList(), anyList())).thenAnswer(this::matchBindings);
     graphCompiler =
         new DefaultChainSemanticGraphCompiler(
-            new DefaultChainSemanticRevisionValidator(), matcher);
+            new DefaultChainSemanticRevisionValidator(),
+            DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()));
     stubCatalogHits();
     stubCompilerAndCatalog();
     offeredRevision =
@@ -398,7 +397,7 @@ class CanonicalSemanticCreateChainIT {
     when(catalogReadTool.getApiSpecifications("sys-1"))
         .thenReturn(
             List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-    when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-1", "sys-1", null))
         .thenReturn(
             List.of(
                 new CatalogRestClient.OperationDto(
@@ -441,30 +440,6 @@ class CanonicalSemanticCreateChainIT {
                       .orElse(null);
               return factsMatching(chainId, graph);
             });
-  }
-
-  private Map<String, ResolvedServiceCallBinding> matchBindings(
-      org.mockito.invocation.InvocationOnMock invocation) {
-    List<SemanticNode.ServiceCall> calls = invocation.getArgument(0);
-    List<ResolvedServiceCallBinding> bindings = invocation.getArgument(1);
-    Map<String, ResolvedServiceCallBinding> byId = new LinkedHashMap<>();
-    for (ResolvedServiceCallBinding binding : bindings) {
-      byId.putIfAbsent(binding.serviceCallId(), binding);
-    }
-    Map<String, ResolvedServiceCallBinding> matched = new LinkedHashMap<>();
-    for (SemanticNode.ServiceCall call : calls) {
-      ResolvedServiceCallBinding binding = byId.remove(call.serviceCallId());
-      if (binding == null) {
-        throw new IllegalArgumentException(
-            "missing catalog binding for serviceCallId=" + call.serviceCallId());
-      }
-      matched.put(call.serviceCallId(), binding);
-    }
-    if (!byId.isEmpty()) {
-      throw new IllegalArgumentException(
-          "extra catalog binding for serviceCallId=" + byId.keySet().iterator().next());
-    }
-    return Map.copyOf(matched);
   }
 
   private CompilerDagExecutionResult compiledResult(ChainPlanGraph graph) {
@@ -583,8 +558,7 @@ class CanonicalSemanticCreateChainIT {
     designExecutorAdapter =
         new CipDesignExecutorJavaAdapter(
             approvedCompilerExecutionRunner,
-            new DefaultExecutorCatalogBindingAdapter(
-                mock(CatalogBindingMatcher.class), catalogReadTool),
+            new DefaultExecutorCatalogBindingAdapter(catalogReadTool),
             artifacts,
             planValidator);
     return new DesignExecutionCapability(artifacts, designExecutorAdapter);

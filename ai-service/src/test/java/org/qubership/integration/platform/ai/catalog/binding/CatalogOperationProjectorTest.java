@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 
@@ -176,5 +178,37 @@ class CatalogOperationProjectorTest {
     assertEquals("kafka", binding.protocolType());
     assertEquals("subscribe", binding.method());
     assertEquals("", binding.path());
+  }
+
+  @Test
+  void kafkaSpecificationSuppliesTopicClassifierAndGroupId() throws Exception {
+    JsonNode specification =
+        new ObjectMapper()
+            .readTree(
+                """
+                {
+                  "topic": "task.wfms_createWorkOrder.start",
+                  "maasClassifierName": "wfms",
+                  "groupId": "g-1"
+                }
+                """);
+    ResolvedServiceCallBinding binding =
+        CatalogOperationProjector.project(
+            "trigger-async",
+            "consume-om",
+            new CatalogRestClient.SystemDto("sys-om", "OM WFMS", "INTERNAL", "kafka"),
+            "sg-om",
+            "spec-om",
+            new CatalogRestClient.OperationDto(
+                "op-om", "onTaskStart", "subscribe", null, "spec-om", specification),
+            ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+            "catalog",
+            "ev",
+            "");
+    assertEquals("kafka", binding.protocolType());
+    assertEquals("subscribe", binding.method());
+    assertEquals("task.wfms_createWorkOrder.start", binding.path());
+    assertEquals("wfms", binding.maasClassifierName());
+    assertEquals("g-1", binding.groupId());
   }
 }

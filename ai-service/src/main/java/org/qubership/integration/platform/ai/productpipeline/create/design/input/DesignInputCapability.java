@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
@@ -217,9 +218,11 @@ public class DesignInputCapability implements StageCapability {
             "\n\nService call nodes the server has already created. Reference them from edges and"
                 + " containment by these node ids:");
     boolean anyBinding = false;
+    Set<String> triggerFactIds = ChainSemanticCaptureAdapter.triggerFactIds(brief.entryPoints());
     for (RequirementServiceCall call : brief.serviceCalls()) {
       CatalogBindingHint hint = call.catalogBinding();
-      if (hint == null) {
+      if (hint == null
+          || !ChainSemanticCaptureAdapter.materializesServiceCallNode(call, triggerFactIds)) {
         continue;
       }
       anyBinding = true;
@@ -237,14 +240,15 @@ public class DesignInputCapability implements StageCapability {
     prompt.append(
         """
 
-        Call captureChainSemanticRevision once. Copy entryPointId, sourceFactIds, and\
-         mappingIntentId from the brief, taking the value after each matching `=` sign; an entry\
-         point renders as entryPointId=<id> capabilityKey=<key>, so do not send the capability key\
-         as the id. Do not mint occurrence ids. The server derives the\
+        Call captureChainSemanticRevision once. Copy sourceFactIds and mappingIntentId from the\
+         brief, taking the value after each matching `=` sign. Do not send an entryPoints list;\
+         the server joins each brief entry point to your trigger nodes and to the unique outgoing\
+         edge from that trigger. Do not mint occurrence ids. The server derives the\
          revision id, every edge id, both versions above, the catalog capability behind each entry\
-         point, and every service call node, so leave them out. List each node you do author under\
-         triggers or operations, and each control-flow region under the list that matches its kind;\
-         omit the region lists when the chain is linear.""");
+         point, and every service call node, so leave them out. Do not list those node ids under\
+         operations. List each node you do author under triggers or operations, and each\
+         control-flow region under the list that matches its kind; omit the region lists when the\
+         chain is linear.""");
     return prompt.toString();
   }
 

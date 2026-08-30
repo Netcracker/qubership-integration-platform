@@ -2,7 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.mode
 
 import java.time.Instant;
 import java.util.Objects;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
@@ -48,7 +48,7 @@ public record CatalogBindingHint(
 
   public static CatalogBindingHint from(
       RequirementServiceCall call,
-      CatalogBindingMatcher.CatalogMatch match,
+      CatalogMatch match,
       String release,
       Instant observedAt) {
     Objects.requireNonNull(call, "call");
@@ -72,7 +72,7 @@ public record CatalogBindingHint(
   }
 
   private static String operationQuery(
-      RequirementServiceCall call, CatalogBindingMatcher.CatalogMatch match) {
+      RequirementServiceCall call, CatalogMatch match) {
     if (match.method() != null && match.path() != null) {
       return match.method() + " " + match.path();
     }

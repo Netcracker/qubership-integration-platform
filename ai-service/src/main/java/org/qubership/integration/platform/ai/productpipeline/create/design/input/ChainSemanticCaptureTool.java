@@ -67,11 +67,12 @@ public class ChainSemanticCaptureTool {
   @Tool("""
       Capture the chain topology for this design-input turn.
       Do not pass conversationId. The server binds capture to the current design session.
-      Copy entryPointId, sourceFactIds, serviceCallId, and mappingIntentId from the approved
-      requirement brief. Do not mint occurrence ids.
+      Copy sourceFactIds and mappingIntentId from the approved requirement brief. Do not mint
+      occurrence ids. Do not send an entryPoints list; the server joins brief entry points to
+      your trigger nodes.
       The server owns every id it can derive: leave out revision ids, edge ids, schema versions,
       and compiler contract versions, and leave out catalog values it reads from the brief.
-      List each node in the list that matches its kind: triggers, serviceCalls, or operations.
+      List each node in the list that matches its kind: triggers or operations.
       List each control-flow region in the list that matches its kind, and omit the region lists
       when the chain is linear.
       Call this once, then finish the turn.""")

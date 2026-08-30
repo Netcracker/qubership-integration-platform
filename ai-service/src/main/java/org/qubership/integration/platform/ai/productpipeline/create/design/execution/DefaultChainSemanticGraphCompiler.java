@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
  * Indexed projection of a validated semantic revision. Containment becomes {@code parentNodeId};
@@ -35,13 +36,14 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphCompiler {
 
   private final ChainSemanticRevisionValidator validator;
-  private final CatalogBindingMatcher bindingMatcher;
+  private final DeterministicElementSchemaService schemaService;
 
   @Inject
   public DefaultChainSemanticGraphCompiler(
-      ChainSemanticRevisionValidator validator, CatalogBindingMatcher bindingMatcher) {
+      ChainSemanticRevisionValidator validator,
+      DeterministicElementSchemaService schemaService) {
     this.validator = Objects.requireNonNull(validator, "validator");
-    this.bindingMatcher = Objects.requireNonNull(bindingMatcher, "bindingMatcher");
+    this.schemaService = Objects.requireNonNull(schemaService, "schemaService");
   }
 
   @Override
@@ -62,7 +64,13 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
         calls.add(call);
       }
     }
-    bindingMatcher.match(calls, bindings);
+    List<String> callIds =
+        calls.stream().map(SemanticNode.ServiceCall::serviceCallId).toList();
+    ResolvedServiceCallBinding.requireExactOwners(
+        callIds,
+        bindings.stream()
+            .filter(binding -> callIds.contains(binding.serviceCallId()))
+            .toList());
 
     Map<String, String> parentByChild = new LinkedHashMap<>();
     for (SemanticContainment containment : revision.containment()) {
@@ -108,7 +116,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     return graph;
   }
 
-  private static ChainPlanNode toPlanNode(
+  private ChainPlanNode toPlanNode(
       SemanticNode node,
       CompilerContract contract,
       Map<String, String> parentByChild,
@@ -121,7 +129,9 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
               + type
               + ". Use a type declared in the compiler contract.");
     }
-    List<PlanProperty> extras = extraByNode.getOrDefault(node.nodeId(), List.of());
+    List<PlanProperty> extras =
+        schemaService.withUnconditionalSchemaDefaults(
+            type, extraByNode.getOrDefault(node.nodeId(), List.of()));
     return new ChainPlanNode(
         node.nodeId(),
         type,

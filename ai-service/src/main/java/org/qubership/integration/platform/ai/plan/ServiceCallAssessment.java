@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 
 /**
  * What one outbound service call resolved to, and on what evidence.
@@ -22,7 +22,7 @@ public record ServiceCallAssessment(
     String sourceFactId,
     Intent intent,
     Outcome outcome,
-    CatalogBindingMatcher.CatalogMatch binding,
+    CatalogMatch binding,
     List<String> candidateOperationIds,
     List<String> missingIntentFields,
     String evidenceRef,
@@ -114,7 +114,7 @@ public record ServiceCallAssessment(
   }
 
   public static ServiceCallAssessment resolved(
-      String sourceFactId, Intent intent, CatalogBindingMatcher.CatalogMatch binding) {
+      String sourceFactId, Intent intent, CatalogMatch binding) {
     return resolved(sourceFactId, sourceFactId, intent, binding);
   }
 
@@ -122,7 +122,7 @@ public record ServiceCallAssessment(
       String serviceCallId,
       String sourceFactId,
       Intent intent,
-      CatalogBindingMatcher.CatalogMatch binding) {
+      CatalogMatch binding) {
     return new ServiceCallAssessment(
         serviceCallId,
         sourceFactId,

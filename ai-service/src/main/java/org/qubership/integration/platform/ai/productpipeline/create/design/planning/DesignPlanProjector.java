@@ -20,8 +20,6 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
@@ -70,7 +68,6 @@ public final class DesignPlanProjector {
     validateNoCatalogCycles(nodesBySkill, selectedSkills(parsed));
     validateTriggerCoverage(parsed);
     validateScriptMappingCoverage(parsed, revision);
-    validateParticipants(parsed, revision);
 
     List<DesignExecutionPlan.Step> steps = new ArrayList<>();
     Map<String, List<String>> stepsByOwner = new LinkedHashMap<>();
@@ -287,51 +284,6 @@ public final class DesignPlanProjector {
     }
   }
 
-  private static void validateParticipants(
-      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
-    Set<String> known = knownIdentities(revision);
-    for (ParsedPlannerReport.Step step : parsed.steps()) {
-      for (String hint : step.participantRefs()) {
-        if (!known.contains(hint) && !known.contains(normalizeParticipantId(hint))) {
-          throw new PlannerContractException(
-              "planner report references a participant that is absent from the semantic revision: "
-                  + hint);
-        }
-      }
-    }
-  }
-
-  private static Set<String> knownIdentities(ChainSemanticRevision revision) {
-    Set<String> known = new LinkedHashSet<>();
-    known.add(revision.chainIdentity());
-    known.add(revision.chainIdentity() + " Service");
-    known.add(revision.chainIdentity() + " API");
-    known.add("Client");
-    known.add("CIP");
-    for (SemanticEntryPoint entry : revision.entryPoints()) {
-      known.add(entry.entryPointId());
-      known.add(entry.triggerNodeId());
-      known.add(entry.initialTargetNodeId());
-      if (entry.presentation() != null && entry.presentation().label() != null) {
-        known.add(entry.presentation().label());
-      }
-    }
-    for (SemanticNode node : revision.nodes()) {
-      known.add(node.nodeId());
-      if (node instanceof SemanticNode.ServiceCall call) {
-        known.add(call.serviceCallId());
-        known.add(call.operation());
-      } else if (node instanceof SemanticNode.Trigger trigger) {
-        known.add(trigger.capabilityKey());
-      } else if (node instanceof SemanticNode.Operation operation) {
-        known.add(operation.elementType());
-      }
-    }
-    known.addAll(revision.constraints());
-    known.addAll(revision.assumptions());
-    return known;
-  }
-
   private static List<String> mapParticipantRefs(List<String> hints) {
     return hints == null ? List.of() : List.copyOf(hints);
   }
@@ -460,16 +412,5 @@ public final class DesignPlanProjector {
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException("SHA-256 unavailable", e);
     }
-  }
-
-  private static String normalizeParticipantId(String raw) {
-    if (raw == null) {
-      return "";
-    }
-    String trimmed = raw.trim();
-    if (trimmed.startsWith("p_") || trimmed.startsWith("p-")) {
-      return trimmed.replace('_', '-');
-    }
-    return "p-" + trimmed.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-");
   }
 }

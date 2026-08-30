@@ -9,6 +9,7 @@ import java.util.Optional;
 import org.qubership.integration.platform.ai.catalog.binding.CatalogOperationProjector;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
@@ -28,13 +29,10 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPol
 @ApplicationScoped
 public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBindingAdapter {
 
-  private final CatalogBindingMatcher matcher;
   private final CatalogSystemReadTool catalogReadTool;
 
   @Inject
-  public DefaultExecutorCatalogBindingAdapter(
-      CatalogBindingMatcher matcher, CatalogSystemReadTool catalogReadTool) {
-    this.matcher = Objects.requireNonNull(matcher, "matcher");
+  public DefaultExecutorCatalogBindingAdapter(CatalogSystemReadTool catalogReadTool) {
     this.catalogReadTool = Objects.requireNonNull(catalogReadTool, "catalogReadTool");
   }
 
@@ -52,27 +50,41 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     List<BindingResolutionResult> results = new ArrayList<>();
     List<ResolvedServiceCallBinding> resolved = new ArrayList<>();
     for (SemanticNode.ServiceCall call : calls) {
-      BindingResolutionResult result = resolveCall(call, hintList);
+      BindingResolutionResult result = resolveCall(conversationId, call, hintList);
       results.add(result);
       if (result instanceof BindingResolutionResult.Resolved success) {
         resolved.add(success.binding());
       }
     }
-    if (results.stream().allMatch(BindingResolutionResult.Resolved.class::isInstance)) {
-      matcher.match(calls, resolved);
+    for (SemanticNode.Trigger trigger : asyncApiTriggers(revision)) {
+      BindingResolutionResult result = resolveTrigger(conversationId, trigger, hintList);
+      if (result == null) {
+        continue;
+      }
+      results.add(result);
+      if (result instanceof BindingResolutionResult.Resolved success) {
+        resolved.add(success.binding());
+      }
+    }
+    List<String> callIds =
+        calls.stream().map(SemanticNode.ServiceCall::serviceCallId).toList();
+    List<ResolvedServiceCallBinding> callBindings =
+        resolved.stream().filter(binding -> callIds.contains(binding.serviceCallId())).toList();
+    if (callBindings.size() == callIds.size()) {
+      ResolvedServiceCallBinding.requireExactOwners(callIds, callBindings);
     }
     return List.copyOf(results);
   }
 
   private BindingResolutionResult resolveCall(
-      SemanticNode.ServiceCall call, List<CatalogBindingHint> hints) {
+      String conversationId, SemanticNode.ServiceCall call, List<CatalogBindingHint> hints) {
     HintLookup lookup = findHint(call, hints);
     if (lookup.failureReason() != null) {
       return new BindingResolutionResult.Failed(
           call.serviceCallId(), lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
     }
     CatalogBindingHint observed = lookup.hint();
-    Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(observed);
+    Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(conversationId, observed);
     if (revalidated.isPresent()) {
       return toExisting(call, revalidated.get(), observed.release());
     }
@@ -85,7 +97,8 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
         "catalog operation");
   }
 
-  private Optional<RevalidatedCatalogMatch> revalidateHint(CatalogBindingHint hint) {
+  private Optional<RevalidatedCatalogMatch> revalidateHint(
+      String conversationId, CatalogBindingHint hint) {
     List<CatalogRestClient.SystemDto> systems =
         catalogReadTool.searchCatalogSystems(hint.systemId());
     CatalogRestClient.SystemDto system =
@@ -106,7 +119,8 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     }
     CatalogRestClient.OperationDto op =
         catalogReadTool
-            .listCatalogOperations(hint.specificationId(), hint.systemId(), null)
+            .listCatalogOperations(
+                conversationId, hint.specificationId(), hint.systemId(), null)
             .stream()
             .filter(candidate -> hint.integrationOperationId().equals(candidate.id()))
             .findFirst()
@@ -116,7 +130,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     }
     return Optional.of(
         new RevalidatedCatalogMatch(
-            new CatalogBindingMatcher.CatalogMatch(
+            new CatalogMatch(
                 hint.systemId(),
                 hint.specificationGroupId(),
                 hint.specificationId(),
@@ -127,27 +141,55 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
                 op.path(),
                 op.name(),
                 hint.evidenceRef()),
-            system.type()));
+            system.type(),
+            op));
+  }
+
+  private BindingResolutionResult resolveTrigger(
+      String conversationId, SemanticNode.Trigger trigger, List<CatalogBindingHint> hints) {
+    HintLookup lookup = findTriggerHint(trigger, hints);
+    if (lookup.hint() == null) {
+      return lookup.failureReason() == null
+          ? null
+          : new BindingResolutionResult.Failed(
+              trigger.nodeId(), lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
+    }
+    CatalogBindingHint observed = lookup.hint();
+    Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(conversationId, observed);
+    if (revalidated.isPresent()) {
+      return toExisting(
+          trigger.nodeId(), observed.serviceCallId(), revalidated.get(), observed.release());
+    }
+    return new BindingResolutionResult.Failed(
+        observed.serviceCallId(),
+        "the approved catalog binding no longer resolves (operation "
+            + observed.integrationOperationId()
+            + "); resolve this service call again before execution",
+        StageOutcomeClass.DOMAIN_FAILURE,
+        "catalog operation");
   }
 
   private static BindingResolutionResult toExisting(
       SemanticNode.ServiceCall call, RevalidatedCatalogMatch revalidated, String release) {
+    return toExisting(call.nodeId(), call.serviceCallId(), revalidated, release);
+  }
+
+  private static BindingResolutionResult toExisting(
+      String targetNodeId,
+      String serviceCallId,
+      RevalidatedCatalogMatch revalidated,
+      String release) {
     try {
-      CatalogBindingMatcher.CatalogMatch match = revalidated.match();
+      CatalogMatch match = revalidated.match();
       ResolvedServiceCallBinding binding =
           CatalogOperationProjector.project(
-              call.nodeId(),
-              call.serviceCallId(),
+              targetNodeId,
+              serviceCallId,
               new CatalogRestClient.SystemDto(
                   match.systemId(), match.systemName(), revalidated.systemType(), match.protocol()),
               match.specificationGroupId(),
               match.specificationId(),
-              new CatalogRestClient.OperationDto(
-                  match.integrationOperationId(),
-                  match.operationName(),
-                  match.method(),
-                  match.path(),
-                  match.specificationId()),
+              revalidated.operation(),
               ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
               CatalogStrings.blankToNull(release) == null ? "catalog" : release,
               match.evidenceRef(),
@@ -155,7 +197,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       return new BindingResolutionResult.Resolved(binding);
     } catch (IllegalArgumentException exception) {
       return new BindingResolutionResult.Failed(
-          call.serviceCallId(), exception.getMessage(), StageOutcomeClass.DOMAIN_FAILURE);
+          serviceCallId, exception.getMessage(), StageOutcomeClass.DOMAIN_FAILURE);
     }
   }
 
@@ -195,7 +237,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
   }
 
   private record RevalidatedCatalogMatch(
-      CatalogBindingMatcher.CatalogMatch match, String systemType) {}
+      CatalogMatch match, String systemType, CatalogRestClient.OperationDto operation) {}
 
   static void requireMatchingApproval(ApprovalRecordV2 approval) {
     if (approval == null) {
@@ -219,4 +261,40 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     return calls;
   }
 
+  private static List<SemanticNode.Trigger> asyncApiTriggers(ChainSemanticRevision revision) {
+    List<SemanticNode.Trigger> triggers = new ArrayList<>();
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Trigger trigger
+          && "async-api-trigger".equals(trigger.capabilityKey())) {
+        triggers.add(trigger);
+      }
+    }
+    return triggers;
+  }
+
+  private static HintLookup findTriggerHint(
+      SemanticNode.Trigger trigger, List<CatalogBindingHint> hints) {
+    List<String> sourceFactIds =
+        trigger.provenance() == null ? List.of() : trigger.provenance().sourceFactIds();
+    List<CatalogBindingHint> matches = new ArrayList<>();
+    for (CatalogBindingHint hint : hints) {
+      if (hint == null) {
+        continue;
+      }
+      if (!"2".equals(hint.schemaVersion())) {
+        return HintLookup.failed("catalog binding hint must use schemaVersion=2");
+      }
+      if (sourceFactIds.contains(hint.sourceFactId())) {
+        matches.add(hint);
+      }
+    }
+    if (matches.size() == 1) {
+      return HintLookup.found(matches.getFirst());
+    }
+    if (matches.size() > 1) {
+      return HintLookup.failed(
+          "multiple catalog binding hints for trigger node " + trigger.nodeId());
+    }
+    return new HintLookup(null, null);
+  }
 }

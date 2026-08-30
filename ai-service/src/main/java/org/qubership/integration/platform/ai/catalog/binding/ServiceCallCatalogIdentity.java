@@ -10,7 +10,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
-/** Writes catalog identity properties onto service-call plan nodes without cross-protocol residue. */
+/** Writes catalog identity properties onto bound plan nodes without cross-protocol residue. */
 public final class ServiceCallCatalogIdentity {
 
   private static final Set<String> STRIPPED_KEYS =
@@ -29,7 +29,9 @@ public final class ServiceCallCatalogIdentity {
           "integrationGqlOperationName",
           "integrationGqlQueryHeader",
           "integrationGqlVariablesHeader",
-          "integrationGqlVariablesJSON");
+          "integrationGqlVariablesJSON",
+          "groupId",
+          "integrationOperationAsyncProperties");
 
   private ServiceCallCatalogIdentity() {}
 
@@ -39,15 +41,17 @@ public final class ServiceCallCatalogIdentity {
 
   public static ChainPlanGraph upsert(ChainPlanGraph graph, ResolvedServiceCallBinding binding) {
     ChainPlanNode target = findNode(graph, binding.targetNodeId());
-    String existingServiceCallId = propertyValue(target, "serviceCallId");
-    if (existingServiceCallId != null && !existingServiceCallId.equals(binding.serviceCallId())) {
-      throw new IllegalArgumentException(
-          "serviceCallId "
-              + existingServiceCallId
-              + " on node "
-              + binding.targetNodeId()
-              + " does not match binding "
-              + binding.serviceCallId());
+    if ("service-call".equals(target.type())) {
+      String existingServiceCallId = propertyValue(target, "serviceCallId");
+      if (existingServiceCallId != null && !existingServiceCallId.equals(binding.serviceCallId())) {
+        throw new IllegalArgumentException(
+            "serviceCallId "
+                + existingServiceCallId
+                + " on node "
+                + binding.targetNodeId()
+                + " does not match binding "
+                + binding.serviceCallId());
+      }
     }
 
     ChainPlanNode updated = withIdentity(target, binding);
@@ -79,7 +83,7 @@ public final class ServiceCallCatalogIdentity {
         properties.add(property);
       }
     }
-    properties.addAll(identityProperties(binding));
+    properties.addAll(identityProperties(node, binding));
     return new ChainPlanNode(
         node.nodeId(),
         node.type(),
@@ -89,21 +93,24 @@ public final class ServiceCallCatalogIdentity {
         List.copyOf(properties));
   }
 
-  private static List<PlanProperty> identityProperties(ResolvedServiceCallBinding binding) {
+  private static List<PlanProperty> identityProperties(
+      ChainPlanNode node, ResolvedServiceCallBinding binding) {
     List<PlanProperty> properties = new ArrayList<>();
-    properties.add(new PlanProperty("serviceCallId", binding.serviceCallId()));
+    if ("service-call".equals(node.type())) {
+      properties.add(new PlanProperty("serviceCallId", binding.serviceCallId()));
+    }
     properties.add(new PlanProperty("systemType", binding.systemType()));
     properties.add(new PlanProperty("integrationSystemId", binding.systemId()));
     properties.add(new PlanProperty("integrationSpecificationGroupId", binding.specificationGroupId()));
     properties.add(new PlanProperty("integrationSpecificationId", binding.specificationId()));
     properties.add(new PlanProperty("integrationOperationProtocolType", binding.protocolType()));
     properties.add(new PlanProperty("integrationOperationId", binding.operationId()));
-    appendProtocolProperties(properties, binding);
+    appendProtocolProperties(properties, node, binding);
     return properties;
   }
 
   private static void appendProtocolProperties(
-      List<PlanProperty> properties, ResolvedServiceCallBinding binding) {
+      List<PlanProperty> properties, ChainPlanNode node, ResolvedServiceCallBinding binding) {
     String protocol = binding.protocolType().toLowerCase(Locale.ROOT);
     properties.add(new PlanProperty("integrationOperationMethod", binding.method()));
     boolean optionalAsyncPath =
@@ -113,6 +120,31 @@ public final class ServiceCallCatalogIdentity {
     if ("http".equals(protocol) || optionalAsyncPath) {
       properties.add(new PlanProperty("integrationOperationPath", binding.path()));
     }
+    if ("async-api-trigger".equals(node.type()) && "kafka".equals(protocol)) {
+      // ponytail: sample default until catalog specs carry groupId
+      String groupId = binding.groupId().isEmpty() ? "qip" : binding.groupId();
+      properties.add(
+          new PlanProperty(
+              "integrationOperationAsyncProperties",
+              kafkaAsyncPropertiesJson(binding.maasClassifierName(), groupId)));
+      return;
+    }
+    if (!binding.groupId().isEmpty()) {
+      properties.add(new PlanProperty("groupId", binding.groupId()));
+    }
+    if (!binding.maasClassifierName().isEmpty()) {
+      properties.add(
+          new PlanProperty(
+              "integrationOperationAsyncProperties",
+              "{\"maas.classifier.name\":\"" + binding.maasClassifierName() + "\"}"));
+    }
+  }
+
+  private static String kafkaAsyncPropertiesJson(String classifier, String groupId) {
+    if (classifier.isEmpty()) {
+      return "{\"groupId\":\"" + groupId + "\"}";
+    }
+    return "{\"maas.classifier.name\":\"" + classifier + "\",\"groupId\":\"" + groupId + "\"}";
   }
 
   private static void assertUniqueServiceCallIds(ChainPlanGraph graph) {

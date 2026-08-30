@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.catalog.binding;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Locale;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
@@ -32,6 +33,7 @@ public final class CatalogOperationProjector {
 
     String method = normalizeMethod(operation.method(), graphProtocol);
     String path = normalizePath(operation.path(), catalogProtocol, soapProjection);
+    KafkaSpec kafkaSpec = kafkaSpec(operation.specification(), catalogProtocol, path);
 
     return new ResolvedServiceCallBinding(
         targetNodeId,
@@ -43,12 +45,14 @@ public final class CatalogOperationProjector {
         requireText(operation.id(), "operationId"),
         graphProtocol,
         method,
-        path,
+        kafkaSpec.path(),
         operation.name() == null ? "" : operation.name().trim(),
         source,
         release,
         evidenceRef,
-        packageId);
+        packageId,
+        kafkaSpec.maasClassifierName(),
+        kafkaSpec.groupId());
   }
 
   private static void rejectUnsupportedProtocols(String graphProtocol) {
@@ -97,6 +101,33 @@ public final class CatalogOperationProjector {
     }
     return path == null ? "" : path;
   }
+
+  private static KafkaSpec kafkaSpec(JsonNode specification, String catalogProtocol, String path) {
+    if (!"kafka".equals(catalogProtocol) && !"amqp".equals(catalogProtocol)) {
+      return new KafkaSpec(path, "", "");
+    }
+    String topic = specText(specification, "topic");
+    if (topic.isEmpty()) {
+      topic = specText(specification, "channel");
+    }
+    String resolvedPath = path == null || path.isBlank() ? topic : path;
+    return new KafkaSpec(
+        resolvedPath, specText(specification, "maasClassifierName"), specText(specification, "groupId"));
+  }
+
+  private static String specText(JsonNode specification, String field) {
+    if (specification == null || !specification.has(field)) {
+      return "";
+    }
+    JsonNode value = specification.get(field);
+    if (value == null || !value.isTextual()) {
+      return "";
+    }
+    String text = value.asText();
+    return text == null ? "" : text.trim();
+  }
+
+  private record KafkaSpec(String path, String maasClassifierName, String groupId) {}
 
   private static String requireText(String value, String field) {
     if (value == null || value.isBlank()) {

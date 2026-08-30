@@ -107,6 +107,65 @@ final class ChainSemanticCaptureFixtures {
                     List.of(new MappingIntentRule("id", "orderId", null)))));
   }
 
+  /** Catalog Kafka consume: the binding lives on the trigger, not on a service-call node. */
+  static RequirementBrief catalogBoundAsyncApiTriggerBrief() {
+    return new RequirementBrief(
+        "OM consume",
+        List.of("Kafka consume onTaskStart"),
+        List.of(),
+        List.of(),
+        List.of(),
+        "Consume OM WFMS",
+        "draft-1",
+        "draft",
+        List.of(
+            new RequirementFact(
+                "fact-consume",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.ENDPOINT,
+                "async-api-trigger",
+                "Consume onTaskStart",
+                "OM WFMS",
+                "onTaskStart",
+                "",
+                "",
+                "",
+                "consume-om")),
+        List.of(),
+        List.of(
+            new RequirementEntryPoint(
+                "async-in",
+                "fact-consume",
+                "async-api-trigger",
+                "",
+                "",
+                "",
+                "onTaskStart")),
+        List.of(
+            new RequirementServiceCall(
+                "consume-om",
+                "fact-consume",
+                "OM WFMS",
+                "onTaskStart",
+                new CatalogBindingHint(
+                    "2",
+                    "consume-om",
+                    "fact-consume",
+                    "onTaskStart",
+                    "sys-om",
+                    "sg-om",
+                    "spec-om",
+                    "op-om",
+                    "kafka",
+                    "subscribe",
+                    "task.start",
+                    "catalog",
+                    Instant.EPOCH,
+                    "ev"))),
+        List.of(),
+        List.of());
+  }
+
   static ChainSemanticCapture linearCapture() {
     return capture(null);
   }

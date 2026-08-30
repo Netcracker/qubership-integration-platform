@@ -4,16 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
-import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -38,6 +37,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class DefaultChainSemanticGraphCompilerTest {
 
@@ -47,7 +47,7 @@ class DefaultChainSemanticGraphCompilerTest {
   private final ChainSemanticGraphCompiler compiler =
       new DefaultChainSemanticGraphCompiler(
           new DefaultChainSemanticRevisionValidator(),
-          new CatalogBindingMatcher(mock(CatalogSystemReadTool.class)));
+          DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()));
 
   @Test
   void compilesConditionReconvergenceAsIndependentInvocations() {
@@ -69,6 +69,33 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void compilesAsyncApiTrigger() {
+    ChainPlanGraph graph = compiler.compile(asyncApiTriggerRevision(), CONTRACT, List.of());
+
+    assertEquals("async-api-trigger", node(graph, "trigger-async").type());
+  }
+
+  @Test
+  void stampsKafkaCatalogBindingOntoAsyncApiTrigger() {
+    ResolvedServiceCallBinding consume =
+        kafkaBinding("trigger-async", "consume-om", "task.wfms_createWorkOrder.start", "wfms", "g-1");
+    ChainPlanGraph graph =
+        compiler.compile(asyncApiTriggerRevision(), CONTRACT, List.of(consume));
+
+    ChainPlanNode trigger = node(graph, "trigger-async");
+    assertEquals("async-api-trigger", trigger.type());
+    assertEquals("op-om", property(trigger, "integrationOperationId"));
+    assertEquals("task.wfms_createWorkOrder.start", property(trigger, "integrationOperationPath"));
+    assertNull(property(trigger, "groupId"));
+    assertEquals(
+        "{\"maas.classifier.name\":\"wfms\",\"groupId\":\"g-1\"}",
+        property(trigger, "integrationOperationAsyncProperties"));
+    assertNull(property(trigger, "connectionSourceType"));
+    assertNull(property(trigger, "brokers"));
+    assertNull(property(trigger, "serviceCallId"));
+  }
+
+  @Test
   void compilesEveryEntryPointWithoutPickingTheFirst() {
     ChainPlanGraph graph = compiler.compile(twoEntryRevision(), CONTRACT, List.of());
 
@@ -80,6 +107,16 @@ class DefaultChainSemanticGraphCompilerTest {
         graph.edges().stream().map(ChainPlanEdge::edgeId).collect(Collectors.toSet()));
     assertEquals("http-trigger", node(graph, "trigger-http").type());
     assertEquals("kafka-trigger-2", node(graph, "trigger-kafka").type());
+  }
+
+  @Test
+  void addTimeSchemaDefaultsApplyToEveryCompiledNodeType() {
+    ChainPlanGraph graph =
+        compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
+
+    assertEquals("NONE", property(node(graph, "trigger-http"), "accessControlType"));
+    assertEquals("0", property(node(graph, "call-1"), "retryCount"));
+    assertEquals("5000", property(node(graph, "call-1"), "retryDelay"));
   }
 
   @Test
@@ -161,6 +198,18 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void identityOverlayKeepsAddTimeServiceCallProperties() {
+    ChainPlanGraph graph =
+        compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
+
+    ChainPlanNode call = node(graph, "call-1");
+    assertEquals("0", property(call, "retryCount"));
+    assertEquals("5000", property(call, "retryDelay"));
+    assertEquals("call-1", call.semanticNodeId().orElseThrow());
+    assertEquals("sys-1", property(call, "integrationSystemId"));
+  }
+
+  @Test
   void pinsMappingIdentityOnTheTransformSite() {
     ChainPlanGraph graph =
         compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
@@ -223,6 +272,45 @@ class DefaultChainSemanticGraphCompilerTest {
         "2024.4",
         "evidence-" + serviceCallId,
         "");
+  }
+
+  private static ResolvedServiceCallBinding kafkaBinding(
+      String targetNodeId,
+      String serviceCallId,
+      String topic,
+      String maasClassifierName,
+      String groupId) {
+    return new ResolvedServiceCallBinding(
+        targetNodeId,
+        serviceCallId,
+        "INTERNAL",
+        "sys-om",
+        "sg-om",
+        "spec-om",
+        "op-om",
+        "kafka",
+        "subscribe",
+        topic,
+        "onTaskStart",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+        "catalog",
+        "ev-om",
+        "",
+        maasClassifierName,
+        groupId);
+  }
+
+  private static ChainSemanticRevision asyncApiTriggerRevision() {
+    return revision(
+        List.of(entry("async-in", "trigger-async", "op-shared")),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-async", "async-api-trigger", new SemanticProvenance(List.of("fact-consume"))),
+            new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of()))),
+        List.of(),
+        List.of(sequence("edge-async-in", "trigger-async", "op-shared", null)),
+        List.of(),
+        List.of());
   }
 
   private static ChainSemanticRevision conditionRevision() {

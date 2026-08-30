@@ -433,6 +433,15 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
+  void plannerInputDoesNotListSyntheticKnownIdentities() {
+    String input =
+        DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleRevision(), "2024.4");
+
+    assertFalse(input.contains("Known identities. Reference only these names"), input);
+    assertFalse(input.contains(sampleRevision().chainIdentity() + " Service"), input);
+  }
+
+  @Test
   void legacyApprovalRecordV2OmitsBindingResolutionPolicyFields() throws Exception {
     ApprovalRecordV2 v1Approval =
         new ApprovalRecordV2(

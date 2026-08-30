@@ -43,6 +43,16 @@ class ServiceCallCatalogIdentityTest {
   }
 
   @Test
+  void upsertDoesNotInventRetryDefaults() {
+    ChainPlanGraph out =
+        ServiceCallCatalogIdentity.upsert(graph("call-1", List.of()), httpBinding("call-1", "call-1"));
+    ChainPlanNode node = node(out, "call-1");
+    assertNull(property(node, "retryCount"));
+    assertNull(property(node, "retryDelay"));
+    assertEquals("sys-1", property(node, "integrationSystemId"));
+  }
+
+  @Test
   void upsertDropsGraphqlKeysWhenWritingHttp() {
     ChainPlanGraph graph =
         graph(
@@ -64,6 +74,128 @@ class ServiceCallCatalogIdentityTest {
             graph("call-1", List.of()), asyncBinding("kafka", "orders", "subscribe"));
 
     assertEquals("orders", property(node(out, "call-1"), "integrationOperationPath"));
+  }
+
+  @Test
+  void upsertWritesKafkaAsyncPropertiesOntoAsyncApiTrigger() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("n", "n"),
+            List.of(
+                new ChainPlanNode(
+                    "trigger-async", "async-api-trigger", "Consume", null, null, List.of())),
+            List.of());
+    ResolvedServiceCallBinding binding =
+        new ResolvedServiceCallBinding(
+            "trigger-async",
+            "consume-om",
+            "INTERNAL",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            "kafka",
+            "subscribe",
+            "task.start",
+            "onTaskStart",
+            ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+            "catalog",
+            "ev",
+            "",
+            "wfms",
+            "g-1");
+
+    ChainPlanGraph out = ServiceCallCatalogIdentity.upsert(graph, binding);
+    ChainPlanNode trigger = node(out, "trigger-async");
+
+    assertEquals("op-om", property(trigger, "integrationOperationId"));
+    assertEquals("task.start", property(trigger, "integrationOperationPath"));
+    assertNull(property(trigger, "groupId"));
+    assertEquals(
+        "{\"maas.classifier.name\":\"wfms\",\"groupId\":\"g-1\"}",
+        property(trigger, "integrationOperationAsyncProperties"));
+    assertNull(property(trigger, "connectionSourceType"));
+    assertNull(property(trigger, "serviceCallId"));
+  }
+
+  @Test
+  void upsertDefaultsKafkaGroupIdToQipOnAsyncApiTriggerWhenCatalogOmitsIt() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("n", "n"),
+            List.of(
+                new ChainPlanNode(
+                    "trigger-async", "async-api-trigger", "Consume", null, null, List.of())),
+            List.of());
+    ResolvedServiceCallBinding binding =
+        new ResolvedServiceCallBinding(
+            "trigger-async",
+            "consume-om",
+            "INTERNAL",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            "kafka",
+            "subscribe",
+            "task.start",
+            "onTaskStart",
+            ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+            "catalog",
+            "ev",
+            "",
+            "wfms",
+            "");
+
+    ChainPlanGraph out = ServiceCallCatalogIdentity.upsert(graph, binding);
+
+    assertNull(property(node(out, "trigger-async"), "groupId"));
+    assertEquals(
+        "{\"maas.classifier.name\":\"wfms\",\"groupId\":\"qip\"}",
+        property(node(out, "trigger-async"), "integrationOperationAsyncProperties"));
+  }
+
+  @Test
+  void upsertStripsServiceCallIdLeftOnAsyncApiTrigger() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("n", "n"),
+            List.of(
+                new ChainPlanNode(
+                    "trigger-async",
+                    "async-api-trigger",
+                    "Consume",
+                    null,
+                    null,
+                    List.of(new PlanProperty("serviceCallId", "call-om-start")))),
+            List.of());
+    ResolvedServiceCallBinding binding =
+        new ResolvedServiceCallBinding(
+            "trigger-async",
+            "call-om-start",
+            "INTERNAL",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            "kafka",
+            "subscribe",
+            "task.start",
+            "onTaskStart",
+            ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+            "catalog",
+            "ev",
+            "",
+            "wfms",
+            "g-1");
+
+    ChainPlanGraph out = ServiceCallCatalogIdentity.upsert(graph, binding);
+
+    assertNull(property(node(out, "trigger-async"), "serviceCallId"));
+    assertEquals("op-om", property(node(out, "trigger-async"), "integrationOperationId"));
   }
 
   @Test

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -125,6 +126,17 @@ class DesignInputCapabilityTest {
         DesignInputCapability.authoringPrompt(
             ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
     assertTrue(prompt.contains("sourceFactIds"), prompt);
+    assertTrue(prompt.contains("Do not send an entryPoints list"), prompt);
+    assertTrue(prompt.contains("nodeId=call-1"), prompt);
+  }
+
+  @Test
+  void authoringPromptOmitsTriggerBackedServiceCalls() {
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.catalogBoundAsyncApiTriggerBrief(), CONTRACT);
+    assertTrue(prompt.contains("\n- none"), prompt);
+    assertFalse(prompt.contains("nodeId=consume-om"), prompt);
   }
 
   @Test

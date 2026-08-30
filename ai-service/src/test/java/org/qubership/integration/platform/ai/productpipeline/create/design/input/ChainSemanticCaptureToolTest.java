@@ -23,6 +23,7 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedTrigger;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
@@ -211,17 +212,19 @@ class ChainSemanticCaptureToolTest {
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     ChainSemanticCapture capture = ChainSemanticCaptureFixtures.linearCapture();
     ChainSemanticCapture mutated =
-        withEntryPoints(
-            capture,
-            List.of(
-                new CapturedEntryPoint(
-                    "http-in",
-                    "trigger-http",
-                    "op-shared",
-                    0,
-                    List.of("foreign-fact"),
-                    null,
-                    null)));
+        new ChainSemanticCapture(
+            capture.chainIdentity(),
+            capture.entryPoints(),
+            List.of(new CapturedTrigger("trigger-http", List.of("foreign-fact"))),
+            capture.operations(),
+            capture.sequenceRegions(),
+            capture.conditionRegions(),
+            capture.splitRegions(),
+            capture.loopRegions(),
+            capture.retryRegions(),
+            capture.errorScopeRegions(),
+            capture.edges(),
+            capture.containment());
     String result = tool.captureChainSemanticRevision(mutated);
     assertTrue(result.contains("foreign-fact"), result);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
@@ -248,24 +251,14 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
-  void unknownEntryPointIsRejected() {
+  void omittedEntryPointsStillCapture() {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     ChainSemanticCapture mutated =
-        withEntryPoints(
-            ChainSemanticCaptureFixtures.linearCapture(),
-            List.of(
-                new CapturedEntryPoint(
-                    "foreign-entry",
-                    "trigger-http",
-                    "op-shared",
-                    0,
-                    List.of("trigger-1"),
-                    null,
-                    null)));
+        withEntryPoints(ChainSemanticCaptureFixtures.linearCapture(), List.of());
     String result = tool.captureChainSemanticRevision(mutated);
-    assertTrue(result.contains("foreign-entry"), result);
-    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+    assertTrue(result.contains("captured"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
   }
 
   @Test

@@ -63,6 +63,42 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void doesNotCreateServiceCallNodeForCatalogBoundAsyncApiTrigger() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.catalogBoundAsyncApiTriggerBrief();
+    ChainSemanticCapture capture =
+        new ChainSemanticCapture(
+            "chain-om",
+            List.of(
+                new CapturedEntryPoint(
+                    "async-in",
+                    "trigger-async",
+                    "op-shared",
+                    0,
+                    List.of("fact-consume"),
+                    "Consume OM",
+                    null)),
+            List.of(new CapturedTrigger("trigger-async", List.of("fact-consume"))),
+            List.of(new CapturedOperation("op-shared", "script", List.of())),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(
+                new CapturedEdge("trigger-async", "op-shared", null, null, null, null, null, null)),
+            List.of());
+
+    ChainSemanticRevision revision = adapt(capture, brief);
+
+    assertEquals(
+        0, revision.nodes().stream().filter(SemanticNode.ServiceCall.class::isInstance).count());
+    SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
+    assertEquals("async-api-trigger", trigger.capabilityKey());
+    assertEquals("trigger-async", trigger.nodeId());
+  }
+
+  @Test
   void rewritesMappingRefsFromFactIdsOntoTheCarryingEdge() {
     ChainSemanticRevision revision =
         adapt(
@@ -165,11 +201,26 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
-  void rejectsAnEntryPointOutsideTheApprovedBrief() {
-    ChainSemanticCapture capture = ChainSemanticCaptureFixtures.linearCapture();
+  void derivesEntryPointsFromTheBriefWhenCaptureOmitsThem() {
+    ChainSemanticCapture omitted =
+        withEntryPoints(ChainSemanticCaptureFixtures.linearCapture(), List.of());
+
+    ChainSemanticRevision revision = adapt(omitted);
+
+    assertEquals(1, revision.entryPoints().size());
+    assertEquals("http-in", revision.entryPoints().getFirst().entryPointId());
+    assertEquals("trigger-http", revision.entryPoints().getFirst().triggerNodeId());
+    assertEquals("op-shared", revision.entryPoints().getFirst().initialTargetNodeId());
+    SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
+    assertEquals("http-trigger", trigger.capabilityKey());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+  }
+
+  @Test
+  void ignoresCaptureEntryPointsThatAreNotInTheApprovedBrief() {
     ChainSemanticCapture foreign =
         withEntryPoints(
-            capture,
+            ChainSemanticCaptureFixtures.linearCapture(),
             List.of(
                 new CapturedEntryPoint(
                     "foreign-entry",
@@ -179,10 +230,10 @@ class ChainSemanticCaptureAdapterTest {
                     List.of("trigger-1"),
                     null,
                     null)));
-    String message = failure(foreign);
-    assertTrue(message.contains("foreign-entry"), message);
-    // The rejection has to name the accepted ids, or the model cannot repair the next attempt.
-    assertTrue(message.contains("http-in"), message);
+
+    ChainSemanticRevision revision = adapt(foreign);
+
+    assertEquals("http-in", revision.entryPoints().getFirst().entryPointId());
   }
 
   @Test
@@ -192,6 +243,58 @@ class ChainSemanticCaptureAdapterTest {
         withTriggers(
             capture, List.of(new CapturedTrigger("trigger-http", List.of("foreign-fact"))));
     assertTrue(failure(foreign).contains("foreign-fact"));
+  }
+
+  @Test
+  void ignoresAnOperationThatRestatesAServerOwnedServiceCallNode() {
+    ChainSemanticCapture capture =
+        withOperations(
+            ChainSemanticCaptureFixtures.linearCapture(),
+            List.of(
+                new CapturedOperation("op-shared", "script", List.of()),
+                new CapturedOperation(
+                    ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "service-call", List.of())));
+
+    ChainSemanticRevision revision = adapt(capture);
+
+    assertEquals(
+        1, revision.nodes().stream().filter(SemanticNode.ServiceCall.class::isInstance).count());
+    assertEquals(
+        1, revision.nodes().stream().filter(SemanticNode.Operation.class::isInstance).count());
+    SemanticNode.ServiceCall call = node(revision, SemanticNode.ServiceCall.class);
+    assertEquals(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, call.nodeId());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+  }
+
+  @Test
+  void ignoresAnOperationThatRestatesATriggerNode() {
+    ChainSemanticCapture capture =
+        withOperations(
+            ChainSemanticCaptureFixtures.linearCapture(),
+            List.of(
+                new CapturedOperation("trigger-http", "script", List.of()),
+                new CapturedOperation("op-shared", "script", List.of())));
+
+    ChainSemanticRevision revision = adapt(capture);
+
+    assertEquals(
+        1, revision.nodes().stream().filter(SemanticNode.Trigger.class::isInstance).count());
+    assertEquals(
+        1, revision.nodes().stream().filter(SemanticNode.Operation.class::isInstance).count());
+    assertEquals("op-shared", node(revision, SemanticNode.Operation.class).nodeId());
+  }
+
+  @Test
+  void rejectsTwoModelOperationsWithTheSameNodeId() {
+    ChainSemanticCapture capture =
+        withOperations(
+            ChainSemanticCaptureFixtures.linearCapture(),
+            List.of(
+                new CapturedOperation("op-shared", "script", List.of()),
+                new CapturedOperation("dup-op", "script", List.of()),
+                new CapturedOperation("dup-op", "script", List.of())));
+
+    assertTrue(failure(capture).contains("Duplicate nodeId: dup-op"));
   }
 
   @Test

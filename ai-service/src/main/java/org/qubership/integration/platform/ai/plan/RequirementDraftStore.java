@@ -20,7 +20,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
@@ -234,8 +234,8 @@ public class RequirementDraftStore {
 
   private static CatalogBindingHint hintFromImport(
       RequirementServiceCall call, ResolvedCatalogBinding binding) {
-    CatalogBindingMatcher.CatalogMatch match =
-        new CatalogBindingMatcher.CatalogMatch(
+    CatalogMatch match =
+        new CatalogMatch(
             binding.systemId(),
             binding.specificationGroupId(),
             binding.specificationId(),

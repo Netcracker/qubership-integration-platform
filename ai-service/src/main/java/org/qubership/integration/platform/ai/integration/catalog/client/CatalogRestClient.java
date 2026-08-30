@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.integration.catalog.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import java.net.ConnectException;
@@ -349,5 +350,11 @@ public interface CatalogRestClient {
       String id, String name, String specificationGroupId, String systemId) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  record OperationDto(String id, String name, String method, String path, String modelId) {}
+  record OperationDto(
+      String id, String name, String method, String path, String modelId, JsonNode specification) {
+
+    public OperationDto(String id, String name, String method, String path, String modelId) {
+      this(id, name, method, path, modelId, null);
+    }
+  }
 }

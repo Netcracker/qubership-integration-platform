@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,21 @@ class CipDesignPlannerReportParserTest {
     assertEquals(
         java.util.List.of("search_rest_api_operations"),
         parsed.steps().get(1).toolOperationRefs());
+  }
+
+  @Test
+  void doesNotScrapeParticipantHintsFromStepProse() {
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element for Petstore Ext.getInventory (cip-service-call-generator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    ParsedPlannerReport parsed = parser.parse(report);
+
+    assertEquals(List.of(), parsed.steps().get(1).participantRefs());
   }
 
   @Test

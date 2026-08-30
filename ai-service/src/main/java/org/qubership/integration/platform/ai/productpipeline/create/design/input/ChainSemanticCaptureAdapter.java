@@ -47,7 +47,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
  * come from the approved {@link RequirementBrief}, and identifiers are derived from content.
  *
  * <p>Unknown or ambiguous references fail closed. The adapter never guesses a value and never falls
- * back to an alias.
+ * back to an alias. Entry points are joined from the approved brief to capture triggers; the
+ * capture {@code entryPoints} list is not a source of truth.
  *
  * <p>Identifiers are stable by construction. {@code edgeId} is a hash of the edge's semantic key,
  * so reordering the JSON arrays does not change it, and {@code revisionId} is a hash of the whole
@@ -90,11 +91,17 @@ public class ChainSemanticCaptureAdapter {
     Set<String> factIds = factIds(authoritative);
     Map<String, RequirementEntryPoint> briefEntryPoints = briefEntryPoints(authoritative);
     Map<String, RequirementServiceCall> briefServiceCalls = briefServiceCalls(authoritative);
-    Map<String, String> capabilityKeyByTrigger =
-        capabilityKeyByTrigger(capture, briefEntryPoints, factIds);
+    List<TriggerBinding> triggerBindings = bindTriggers(capture, briefEntryPoints);
+    Map<String, String> capabilityKeyByTrigger = capabilityKeyByTrigger(triggerBindings);
 
     List<SemanticNode> nodes =
-        nodes(capture, capabilityKeyByTrigger, briefServiceCalls, contract, factIds);
+        nodes(
+            capture,
+            capabilityKeyByTrigger,
+            briefServiceCalls,
+            briefEntryPoints,
+            contract,
+            factIds);
     Set<String> nodeIds = new LinkedHashSet<>();
     for (SemanticNode node : nodes) {
       if (!nodeIds.add(node.nodeId())) {
@@ -110,7 +117,8 @@ public class ChainSemanticCaptureAdapter {
       }
     }
 
-    List<SemanticEntryPoint> entryPoints = entryPoints(capture, briefEntryPoints, nodeIds, factIds);
+    List<SemanticEntryPoint> entryPoints =
+        entryPoints(triggerBindings, capture, nodeIds, factIds);
     List<SemanticExecutionEdge> edges = edges(capture, nodeIds, regionIds);
     List<MappingIntent> mappingIntents = mappingIntents(authoritative, edges, nodes);
     List<SemanticContainment> containment = containment(capture, nodeIds);
@@ -136,15 +144,88 @@ public class ChainSemanticCaptureAdapter {
 
   // Nodes
 
-  private static Map<String, String> capabilityKeyByTrigger(
-      ChainSemanticCapture capture,
-      Map<String, RequirementEntryPoint> briefEntryPoints,
-      Set<String> factIds) {
+  /**
+   * Joins each approved brief entry point to the capture trigger that serves it. The capture
+   * {@code entryPoints} list is not read; the server owns that join, as it owns service-call
+   * nodes.
+   */
+  private static List<TriggerBinding> bindTriggers(
+      ChainSemanticCapture capture, Map<String, RequirementEntryPoint> briefEntryPoints) {
+    List<RequirementEntryPoint> approved = new ArrayList<>(briefEntryPoints.values());
+    List<ChainSemanticCapture.CapturedTrigger> triggers = capture.triggers();
+    if (approved.isEmpty()) {
+      throw new IllegalArgumentException("entryPoints must contain at least one entry");
+    }
+    if (triggers.isEmpty()) {
+      throw new IllegalArgumentException("The capture has no trigger nodes");
+    }
+    if (approved.size() == 1 && triggers.size() == 1) {
+      ChainSemanticCapture.CapturedTrigger trigger = triggers.getFirst();
+      requireText(trigger.nodeId(), "trigger nodeId");
+      return List.of(new TriggerBinding(approved.getFirst(), trigger, 0));
+    }
+    Set<String> usedTriggerNodeIds = new LinkedHashSet<>();
+    List<TriggerBinding> bindings = new ArrayList<>();
+    int order = 0;
+    for (RequirementEntryPoint entry : approved) {
+      ChainSemanticCapture.CapturedTrigger match = null;
+      for (ChainSemanticCapture.CapturedTrigger trigger : triggers) {
+        if (!ownsEntryPoint(trigger, entry)) {
+          continue;
+        }
+        if (match != null) {
+          throw new IllegalArgumentException(
+              "Entry point '"
+                  + entry.entryPointId()
+                  + "' matches more than one trigger node. Put the brief sourceFactId on exactly"
+                  + " one trigger.");
+        }
+        match = trigger;
+      }
+      if (match == null) {
+        throw new IllegalArgumentException(
+            "Entry point '"
+                + entry.entryPointId()
+                + "' has no trigger whose sourceFactIds contain that id or its sourceFactId");
+      }
+      String triggerNodeId = requireText(match.nodeId(), "trigger nodeId");
+      if (!usedTriggerNodeIds.add(triggerNodeId)) {
+        throw new IllegalArgumentException(
+            "Trigger node '"
+                + triggerNodeId
+                + "' serves more than one entry point. Give each entry point its own trigger"
+                + " node.");
+      }
+      bindings.add(new TriggerBinding(entry, match, order++));
+    }
+    return List.copyOf(bindings);
+  }
+
+  private static boolean ownsEntryPoint(
+      ChainSemanticCapture.CapturedTrigger trigger, RequirementEntryPoint entry) {
+    for (String sourceFactId : trigger.sourceFactIds()) {
+      if (sourceFactId == null || sourceFactId.isBlank()) {
+        continue;
+      }
+      String id = sourceFactId.trim();
+      if (id.equals(entry.entryPointId()) || id.equals(entry.sourceFactId())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static Map<String, String> capabilityKeyByTrigger(List<TriggerBinding> bindings) {
     Map<String, String> byTrigger = new LinkedHashMap<>();
-    for (ChainSemanticCapture.CapturedEntryPoint entry : capture.entryPoints()) {
-      RequirementEntryPoint approved = requireEntryPoint(entry.entryPointId(), briefEntryPoints);
-      requireFacts(entry.sourceFactIds(), factIds, "entry point '" + entry.entryPointId() + "'");
-      String triggerNodeId = requireText(entry.triggerNodeId(), "triggerNodeId");
+    for (TriggerBinding binding : bindings) {
+      RequirementEntryPoint approved = binding.approved();
+      if (approved.capabilityKey().isBlank()) {
+        throw new IllegalArgumentException(
+            "Entry point '"
+                + approved.entryPointId()
+                + "' has no catalog capability in the approved requirement brief");
+      }
+      String triggerNodeId = requireText(binding.trigger().nodeId(), "trigger nodeId");
       String previous = byTrigger.put(triggerNodeId, approved.capabilityKey());
       if (previous != null && !previous.equals(approved.capabilityKey())) {
         throw new IllegalArgumentException(
@@ -160,15 +241,18 @@ public class ChainSemanticCaptureAdapter {
   /**
    * Trigger and operation nodes come from the capture; service-call nodes come from the approved
    * brief. The server names each service-call node after its {@code serviceCallId}, which is what
-   * later stages join the catalog binding on, so the model never carries that key.
+   * later stages join the catalog binding on, so the model never carries that key. An operation
+   * that restates a trigger or service-call {@code nodeId} is ignored.
    */
   private static List<SemanticNode> nodes(
       ChainSemanticCapture capture,
       Map<String, String> capabilityKeyByTrigger,
       Map<String, RequirementServiceCall> briefServiceCalls,
+      Map<String, RequirementEntryPoint> briefEntryPoints,
       CompilerContract contract,
       Set<String> factIds) {
     List<SemanticNode> nodes = new ArrayList<>();
+    Set<String> serverOwnedNodeIds = new LinkedHashSet<>();
     for (ChainSemanticCapture.CapturedTrigger trigger : capture.triggers()) {
       String nodeId = requireText(trigger.nodeId(), "trigger nodeId");
       String capabilityKey = capabilityKeyByTrigger.get(nodeId);
@@ -185,8 +269,20 @@ public class ChainSemanticCaptureAdapter {
       nodes.add(
           new SemanticNode.Trigger(
               nodeId, capabilityKey, new SemanticProvenance(trigger.sourceFactIds())));
+      serverOwnedNodeIds.add(nodeId);
     }
+    Set<String> triggerFactIds = triggerFactIds(briefEntryPoints.values());
     for (RequirementServiceCall approved : briefServiceCalls.values()) {
+      if (!materializesServiceCallNode(approved, triggerFactIds)) {
+        if (approved.catalogBinding() == null) {
+          throw new IllegalArgumentException(
+              "serviceCallId '"
+                  + approved.serviceCallId()
+                  + "' has no resolved catalog binding in the approved requirement brief."
+                  + " Requirement gathering owns the binding; a design cannot supply it.");
+        }
+        continue;
+      }
       String serviceCallId = approved.serviceCallId();
       if (approved.operation().isBlank()) {
         throw new IllegalArgumentException(
@@ -212,9 +308,13 @@ public class ChainSemanticCaptureAdapter {
               serviceCallId,
               approved.operation(),
               new SemanticProvenance(provenance)));
+      serverOwnedNodeIds.add(serviceCallId);
     }
     for (ChainSemanticCapture.CapturedOperation operation : capture.operations()) {
       String nodeId = requireText(operation.nodeId(), "operation nodeId");
+      if (serverOwnedNodeIds.contains(nodeId)) {
+        continue;
+      }
       String elementType = requireText(operation.elementType(), "elementType");
       if (!contract.elements().containsKey(elementType)) {
         throw new IllegalArgumentException(
@@ -238,36 +338,58 @@ public class ChainSemanticCaptureAdapter {
   // Entry points
 
   private static List<SemanticEntryPoint> entryPoints(
+      List<TriggerBinding> bindings,
       ChainSemanticCapture capture,
-      Map<String, RequirementEntryPoint> briefEntryPoints,
       Set<String> nodeIds,
       Set<String> factIds) {
     List<SemanticEntryPoint> entryPoints = new ArrayList<>();
-    Set<String> seen = new LinkedHashSet<>();
-    int position = 0;
-    for (ChainSemanticCapture.CapturedEntryPoint entry : capture.entryPoints()) {
-      RequirementEntryPoint approved = requireEntryPoint(entry.entryPointId(), briefEntryPoints);
-      if (!seen.add(approved.entryPointId())) {
-        throw new IllegalArgumentException(
-            "Duplicate entryPointId: " + approved.entryPointId());
-      }
-      requireNode(entry.triggerNodeId(), nodeIds, "triggerNodeId");
-      requireNode(entry.initialTargetNodeId(), nodeIds, "initialTargetNodeId");
-      requireFacts(entry.sourceFactIds(), factIds, "entry point '" + entry.entryPointId() + "'");
+    for (TriggerBinding binding : bindings) {
+      RequirementEntryPoint approved = binding.approved();
+      String triggerNodeId = requireText(binding.trigger().nodeId(), "trigger nodeId");
+      requireNode(triggerNodeId, nodeIds, "triggerNodeId");
+      String initialTargetNodeId = initialTargetNodeId(triggerNodeId, capture);
+      requireNode(initialTargetNodeId, nodeIds, "initialTargetNodeId");
+      List<String> provenance = entryPointProvenance(approved, factIds);
+      requireFacts(provenance, factIds, "entry point '" + approved.entryPointId() + "'");
       entryPoints.add(
           new SemanticEntryPoint(
               approved.entryPointId(),
-              entry.triggerNodeId().trim(),
-              entry.initialTargetNodeId().trim(),
-              entry.order() == null ? position : entry.order(),
-              new SemanticProvenance(entry.sourceFactIds()),
-              new SemanticEntryPoint.Presentation(entry.label(), entry.description())));
-      position++;
+              triggerNodeId,
+              initialTargetNodeId,
+              binding.order(),
+              new SemanticProvenance(provenance),
+              new SemanticEntryPoint.Presentation(null, null)));
     }
     if (entryPoints.isEmpty()) {
       throw new IllegalArgumentException("entryPoints must contain at least one entry");
     }
     return List.copyOf(entryPoints);
+  }
+
+  private static String initialTargetNodeId(String triggerNodeId, ChainSemanticCapture capture) {
+    List<String> targets = new ArrayList<>();
+    for (ChainSemanticCapture.CapturedEdge edge : capture.edges()) {
+      if (!triggerNodeId.equals(trimmed(edge.sourceNodeId()))) {
+        continue;
+      }
+      targets.add(requireText(edge.targetNodeId(), "initialTargetNodeId"));
+    }
+    if (targets.size() != 1) {
+      throw new IllegalArgumentException(
+          "Trigger node '"
+              + triggerNodeId
+              + "' must have exactly one outgoing edge so the server can derive"
+              + " initialTargetNodeId");
+    }
+    return targets.getFirst();
+  }
+
+  private static List<String> entryPointProvenance(
+      RequirementEntryPoint approved, Set<String> factIds) {
+    if (!approved.sourceFactId().isBlank() && factIds.contains(approved.sourceFactId())) {
+      return List.of(approved.sourceFactId());
+    }
+    return List.of();
   }
 
   // Regions
@@ -640,27 +762,31 @@ public class ChainSemanticCaptureAdapter {
     return byId;
   }
 
-  private static RequirementEntryPoint requireEntryPoint(
-      String entryPointId, Map<String, RequirementEntryPoint> briefEntryPoints) {
-    RequirementEntryPoint approved =
-        entryPointId == null ? null : briefEntryPoints.get(entryPointId.trim());
-    if (approved == null) {
-      // Name the accepted ids: the model tends to send the capability key instead of the id.
-      throw new IllegalArgumentException(
-          "Entry point '"
-              + entryPointId
-              + "' is not in the approved requirement brief. Use one of the entryPointId values:"
-              + " "
-              + String.join(", ", briefEntryPoints.keySet()));
+  static Set<String> triggerFactIds(Iterable<RequirementEntryPoint> entryPoints) {
+    Set<String> ids = new LinkedHashSet<>();
+    for (RequirementEntryPoint entry : entryPoints) {
+      if (entry == null) {
+        continue;
+      }
+      if (!entry.sourceFactId().isBlank()) {
+        ids.add(entry.sourceFactId());
+      }
+      if (!entry.entryPointId().isBlank()) {
+        ids.add(entry.entryPointId());
+      }
     }
-    if (approved.capabilityKey().isBlank()) {
-      throw new IllegalArgumentException(
-          "Entry point '"
-              + approved.entryPointId()
-              + "' has no catalog capability in the approved requirement brief");
-    }
-    return approved;
+    return ids;
   }
+
+  static boolean materializesServiceCallNode(
+      RequirementServiceCall call, Set<String> triggerFactIds) {
+    return !triggerFactIds.contains(call.sourceFactId());
+  }
+
+  private record TriggerBinding(
+      RequirementEntryPoint approved,
+      ChainSemanticCapture.CapturedTrigger trigger,
+      int order) {}
 
   private static void requireFacts(List<String> sourceFactIds, Set<String> factIds, String owner) {
     for (String sourceFactId : sourceFactIds) {

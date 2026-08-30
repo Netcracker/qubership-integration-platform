@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -11,14 +12,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.DOMAIN_FAILURE;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
+import org.jboss.logmanager.MDC;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;
+import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsReadCache;
+import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
+import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogToolSupport;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -41,8 +50,51 @@ class ExecutorCatalogBindingAdapterTest {
   void setUp() {
     catalogReadTool = mock(CatalogSystemReadTool.class);
     adapter =
-        new DefaultExecutorCatalogBindingAdapter(
-            mock(CatalogBindingMatcher.class), catalogReadTool);
+        new DefaultExecutorCatalogBindingAdapter(catalogReadTool);
+  }
+
+  @AfterEach
+  void clearMdc() {
+    MDC.remove(ChatMdc.CONVERSATION_ID);
+  }
+
+  @Test
+  void revalidatesOperationsByConversationIdWhenMdcIsEmpty() {
+    CatalogRestClient rest = mock(CatalogRestClient.class);
+    when(rest.searchSystems(any()))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
+    when(rest.getApiSpecifications("sys-1"))
+        .thenReturn(
+            List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
+    ConversationCatalogCache cache =
+        new ConversationCatalogCache(
+            new CatalogOperationsReadCache(null) {
+              @Override
+              public List<CatalogRestClient.OperationDto> loadByModelId(String modelId) {
+                return List.of(
+                    new CatalogRestClient.OperationDto(
+                        "op-1", "findPets", "GET", "/pets", "spec-1"));
+              }
+            });
+    CatalogSystemReadTool liveRead =
+        new CatalogSystemReadTool(
+            rest, new CatalogOperationsLookupService(cache), mock(CatalogToolSupport.class));
+    ExecutorCatalogBindingAdapter liveAdapter =
+        new DefaultExecutorCatalogBindingAdapter(liveRead);
+    MDC.remove(ChatMdc.CONVERSATION_ID);
+
+    List<BindingResolutionResult> results =
+        liveAdapter.resolve(
+            CONVERSATION_ID,
+            sampleOneCall(),
+            List.of(v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1")),
+            approved());
+
+    BindingResolutionResult.Resolved resolved =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
+    assertEquals("op-1", resolved.binding().operationId());
   }
 
   @Test
@@ -91,12 +143,12 @@ class ExecutorCatalogBindingAdapterTest {
         .thenReturn(
             List.of(
                 new CatalogRestClient.SpecificationDto("spec-wfm", "2024.4", "sg-wfm", "sys-wfm")));
-    when(catalogReadTool.listCatalogOperations("spec-om", "sys-om", null))
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-om", "sys-om", null))
         .thenReturn(
             List.of(
                 new CatalogRestClient.OperationDto(
                     "op-result", "onTaskResult", "POST", "/tasks/result", "spec-om")));
-    when(catalogReadTool.listCatalogOperations("spec-wfm", "sys-wfm", null))
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-wfm", "sys-wfm", null))
         .thenReturn(
             List.of(
                 new CatalogRestClient.OperationDto(
@@ -210,7 +262,7 @@ class ExecutorCatalogBindingAdapterTest {
   void oneSystemTwoOperationsResolveByServiceCallId() {
     stubExactCatalogHit(
         "Petstore Ext", "sys-1", "sg-1", "spec-1", "op-inv", "GET", "/store/inventory");
-    when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-1", "sys-1", null))
         .thenReturn(
             List.of(
                 new CatalogRestClient.OperationDto(
@@ -259,6 +311,61 @@ class ExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void kafkaOperationSpecificationProjectsOntoBinding() throws Exception {
+    when(catalogReadTool.searchCatalogSystems("sys-om"))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-om", "OM WFMS", "INTERNAL", "kafka")));
+    when(catalogReadTool.getApiSpecifications("sys-om"))
+        .thenReturn(
+            List.of(new CatalogRestClient.SpecificationDto("spec-om", "WFMS", "sg-om", "sys-om")));
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-om", "sys-om", null))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.OperationDto(
+                    "op-om",
+                    "onTaskStart",
+                    "subscribe",
+                    null,
+                    "spec-om",
+                    new ObjectMapper()
+                        .readTree(
+                            """
+                            {
+                              "topic": "task.wfms_createWorkOrder.start",
+                              "maasClassifierName": "wfms",
+                              "groupId": "g-1"
+                            }
+                            """))));
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            "2",
+            "consume-om",
+            "fact-consume",
+            "onTaskStart",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-om",
+            "kafka",
+            "subscribe",
+            "",
+            "catalog",
+            FIXED,
+            "evidence-consume-om");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, asyncTriggerRevision(), List.of(hint), approved());
+
+    BindingResolutionResult.Resolved resolved =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
+    assertEquals("trigger-async", resolved.binding().targetNodeId());
+    assertEquals("consume-om", resolved.binding().serviceCallId());
+    assertEquals("task.wfms_createWorkOrder.start", resolved.binding().path());
+    assertEquals("wfms", resolved.binding().maasClassifierName());
+    assertEquals("g-1", resolved.binding().groupId());
+  }
+
+  @Test
   void rejectsResolveWithoutMatchingApproval() {
     assertThrows(
         IllegalArgumentException.class,
@@ -301,7 +408,7 @@ class ExecutorCatalogBindingAdapterTest {
     when(catalogReadTool.getApiSpecifications(systemId))
         .thenReturn(
             List.of(new CatalogRestClient.SpecificationDto(specId, "2024.4", groupId, systemId)));
-    when(catalogReadTool.listCatalogOperations(specId, systemId, null))
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, specId, systemId, null))
         .thenReturn(
             List.of(new CatalogRestClient.OperationDto(opId, "findPets", method, path, specId)));
   }
@@ -358,6 +465,38 @@ class ExecutorCatalogBindingAdapterTest {
         "call-1",
         "GET /pets",
         "Petstore Ext",
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision asyncTriggerRevision() {
+    ChainSemanticRevision template = SemanticFixtures.linearOrders();
+    return new ChainSemanticRevision(
+        template.schemaVersion(),
+        "revision-async",
+        "OM consume",
+        template.compilerContractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "entry-1",
+                "trigger-async",
+                "op-shared",
+                0,
+                new SemanticProvenance(List.of("fact-consume")),
+                new SemanticEntryPoint.Presentation("OM WFMS", null))),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-async",
+                "async-api-trigger",
+                new SemanticProvenance(List.of("fact-consume"))),
+            new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of()))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-1", "trigger-async", "op-shared", null, null, null)),
+        List.of(),
+        List.of(),
+        List.of(),
         List.of(),
         List.of());
   }

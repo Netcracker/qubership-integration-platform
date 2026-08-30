@@ -301,7 +301,7 @@ public class ConversationCatalogCache {
       return op;
     }
     return new CatalogRestClient.OperationDto(
-        op.id(), op.name(), op.method(), op.path(), modelId);
+        op.id(), op.name(), op.method(), op.path(), modelId, op.specification());
   }
 
   /** Drops all catalog lookup state for a conversation (test isolation and session cleanup). */

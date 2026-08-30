@@ -17,10 +17,10 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
@@ -156,16 +156,20 @@ public class RequirementDraftTool {
       VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId, serviceCallId, participant,
       operation, topic, httpMethod, path. text is a human description only; later Java copies the
       named identity fields and does not parse text.
-      ENDPOINT capabilityKey is the CIP trigger type (http-trigger or kafka-trigger-2). HTTP
-      ENDPOINT facts set httpMethod and path (operation optional). Kafka ENDPOINT facts set
-      topic and operation. SERVICE_CALL facts set participant, operation, and a stable
-      serviceCallId (example: serviceCallId=call-om-result, participant=OM,
-      operation=onTaskResult). Reuse the same serviceCallId when editing that call; allocate a
-      new id only for a new occurrence. Do not put trigger identity into service-call fields.
-      For every SERVICE_CALL fact, call resolveApiOperation with that serviceCallId before
-      READY_FOR_PLAN. It checks the local catalog first and searches API Hub only after a
-      confirmed catalog miss. READY_FOR_PLAN requires every active serviceCallId to have its own
-      catalog binding from those tool results (never invent UUIDs).
+      ENDPOINT capabilityKey is the CIP trigger type (http-trigger, async-api-trigger, or
+      kafka-trigger-2). HTTP ENDPOINT facts set httpMethod and path (operation optional). Catalog
+      Kafka consume uses async-api-trigger: set participant, operation, and serviceCallId, then
+      call resolveApiOperation with that serviceCallId. Native Kafka consume (topic and brokers,
+      no catalog service) uses kafka-trigger-2: set topic and operation. SERVICE_CALL facts set
+      participant, operation, and a stable serviceCallId (example: serviceCallId=call-om-result,
+      participant=OM, operation=onTaskResult). Reuse the same serviceCallId when editing that
+      call; allocate a new id only for a new occurrence. Do not put trigger identity into
+      service-call fields.
+      For every SERVICE_CALL fact and every catalog Kafka consume (async-api-trigger ENDPOINT),
+      call resolveApiOperation with that serviceCallId before READY_FOR_PLAN. It checks the local
+      catalog first and searches API Hub only after a confirmed catalog miss. READY_FOR_PLAN
+      requires every active serviceCallId to have its own catalog binding from those tool results
+      (never invent UUIDs).
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
       serviceCallId plus packageId, version, and operationId or documentId from the search hit
       (do not put apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave
@@ -505,7 +509,7 @@ public class RequirementDraftTool {
       for (RequirementFact fact : previous.facts()) {
         if (fact != null
             && fact.polarity() == RequirementFactPolarity.POSITIVE
-            && fact.kind() == RequirementFactKind.SERVICE_CALL) {
+            && fact.needsCatalogBinding()) {
           previousFactsById.put(fact.serviceCallId(), fact);
         }
       }
@@ -579,7 +583,7 @@ public class RequirementDraftTool {
   }
 
   private static boolean sameCatalogIdentity(
-      CatalogBindingHint hint, CatalogBindingMatcher.CatalogMatch match) {
+      CatalogBindingHint hint, CatalogMatch match) {
     return sameField(hint.systemId(), match.systemId())
         && sameField(hint.specificationGroupId(), match.specificationGroupId())
         && sameField(hint.specificationId(), match.specificationId())
@@ -660,7 +664,7 @@ public class RequirementDraftTool {
     return operationHintAgrees(hint, operation);
   }
 
-  private Optional<CatalogBindingMatcher.CatalogMatch> catalogMatchFromListed(
+  private Optional<CatalogMatch> catalogMatchFromListed(
       String conversationId, CatalogRestClient.OperationDto operation) {
     String specificationId = CatalogStrings.blankToNull(operation.modelId());
     if (specificationId == null) {
@@ -680,7 +684,7 @@ public class RequirementDraftTool {
     CatalogRestClient.SystemDto system =
         catalogCache.findSystem(conversationId, systemId).orElse(null);
     return Optional.of(
-        new CatalogBindingMatcher.CatalogMatch(
+        new CatalogMatch(
             systemId,
             specification.specificationGroupId(),
             specificationId,
@@ -736,7 +740,7 @@ public class RequirementDraftTool {
     return facts.stream()
         .filter(Objects::nonNull)
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
-        .filter(fact -> fact.kind() == RequirementFactKind.SERVICE_CALL)
+        .filter(RequirementFact::needsCatalogBinding)
         .toList();
   }
 

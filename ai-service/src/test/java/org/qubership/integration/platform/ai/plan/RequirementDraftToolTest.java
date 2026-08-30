@@ -20,7 +20,7 @@ import org.qubership.integration.platform.ai.integration.apihub.ConversationApiH
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsReadCache;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
@@ -314,6 +314,7 @@ class RequirementDraftToolTest {
     when(call.capabilityKey()).thenReturn("");
     when(call.text()).thenReturn("GET /store/inventory");
     when(call.serviceCallId()).thenReturn("");
+    when(call.needsCatalogBinding()).thenReturn(true);
 
     String result =
         tool.captureRequirementDraft(
@@ -442,7 +443,7 @@ class RequirementDraftToolTest {
             new ServiceCallAssessment.Intent(
                 call.text(), "Petstore Ext", "getInventory", "GET", "/store/inventory"),
             ServiceCallAssessment.Outcome.RESOLVED,
-            new CatalogBindingMatcher.CatalogMatch(
+            new CatalogMatch(
                 "bbf14771-sys",
                 "bbf14771-group",
                 "bbf14771-spec",
@@ -601,7 +602,7 @@ class RequirementDraftToolTest {
     store.beginTurn("draft-conv");
     RequirementFact first = serviceCallFact("call-om-result", "OM", "onTaskResult");
     RequirementFact second = serviceCallFact("call-om-again", "OM", "onTaskResult");
-    CatalogBindingMatcher.CatalogMatch shared = sharedOmMatch();
+    CatalogMatch shared = sharedOmMatch();
     resolutions.remember("draft-conv", resolved(first, shared));
     resolutions.remember("draft-conv", resolved(second, shared));
 
@@ -854,7 +855,7 @@ class RequirementDraftToolTest {
   private static ServiceCallAssessment assessment(RequirementFact call) {
     return resolved(
         call,
-        new CatalogBindingMatcher.CatalogMatch(
+        new CatalogMatch(
             "sys-" + call.serviceCallId(),
             "group-1",
             "spec-1",
@@ -868,12 +869,12 @@ class RequirementDraftToolTest {
   }
 
   private static ServiceCallAssessment resolved(
-      RequirementFact call, CatalogBindingMatcher.CatalogMatch match) {
+      RequirementFact call, CatalogMatch match) {
     return resolvedAt(call, match, Instant.parse("2026-08-27T09:00:00Z"));
   }
 
   private static ServiceCallAssessment resolvedAt(
-      RequirementFact call, CatalogBindingMatcher.CatalogMatch match, Instant observedAt) {
+      RequirementFact call, CatalogMatch match, Instant observedAt) {
     return new ServiceCallAssessment(
         call.serviceCallId(),
         call.sourceFactId(),
@@ -887,8 +888,8 @@ class RequirementDraftToolTest {
         observedAt);
   }
 
-  private static CatalogBindingMatcher.CatalogMatch sharedOmMatch() {
-    return new CatalogBindingMatcher.CatalogMatch(
+  private static CatalogMatch sharedOmMatch() {
+    return new CatalogMatch(
         "sys-om",
         "group-om",
         "spec-om",
@@ -979,6 +980,59 @@ class RequirementDraftToolTest {
     RequirementFact stored = store.get("draft-conv").orElseThrow().facts().getFirst();
     assertEquals(RequirementFactKind.ENDPOINT, stored.kind());
     assertEquals("kafka-trigger-2", stored.capabilityKey());
+  }
+
+  @Test
+  void captureBindsCatalogOnAsyncApiTriggerEndpoint() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact consume =
+        new RequirementFact(
+            "fact-consume",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.ENDPOINT,
+            "async-api-trigger",
+            "Consume WFMS create work order",
+            "om-order-lifecycle-manager WFMS",
+            "onTaskStart",
+            "",
+            "",
+            "",
+            "consume-om");
+    resolutions.remember(
+        "draft-conv",
+        resolved(
+            consume,
+            new CatalogMatch(
+                "sys-om",
+                "sg-om",
+                "spec-om",
+                "op-om",
+                "om-order-lifecycle-manager WFMS",
+                "kafka",
+                "subscribe",
+                "task.wfms_createWorkOrder.start",
+                "onTaskStart",
+                "catalog-read:om")));
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Consume OM WFMS create work order",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(consume)));
+
+    assertTrue(result.contains("Requirement draft captured"), result);
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertEquals(1, draft.serviceCalls().size());
+    assertEquals("consume-om", draft.serviceCalls().getFirst().serviceCallId());
+    assertEquals("op-om", draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
   }
 
   @Test
