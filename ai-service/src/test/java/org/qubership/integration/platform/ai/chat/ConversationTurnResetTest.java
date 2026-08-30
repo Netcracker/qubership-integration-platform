@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.chat;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -12,8 +13,11 @@ import java.nio.file.Path;
 import java.time.Clock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.evidence.ConversationEvidenceStore;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
+import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -28,8 +32,11 @@ import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorksp
 class ConversationTurnResetTest {
 
   private static final String CONVERSATION_ID = "reset-conv";
+  private static final String SAFE_TEXT = "Couldn't finish this catalog request.";
 
   private ConversationTurnReset reset;
+  private ConversationService conversationService;
+  private PinnedFailureStore pinnedFailureStore;
   private InMemorySkillWorkspaceStore workspaceStore;
   private ChainPlanStore chainPlanStore;
 
@@ -41,9 +48,11 @@ class ConversationTurnResetTest {
     CompilationSessions sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
     chainPlanStore = new ChainPlanStore(artifacts, sessions);
     workspaceStore = new InMemorySkillWorkspaceStore(chainPlanStore);
+    conversationService = new ConversationService();
+    pinnedFailureStore = new PinnedFailureStore();
     reset =
         new ConversationTurnReset(
-            mock(ConversationService.class),
+            conversationService,
             mock(ChatMemoryStore.class),
             workspaceStore,
             new CaptureSession(),
@@ -53,7 +62,8 @@ class ConversationTurnResetTest {
             sessions,
             new RequirementDraftStore(artifacts, sessions),
             mock(ConversationCatalogCache.class),
-            new ConversationEvidenceStore());
+            new ConversationEvidenceStore(),
+            pinnedFailureStore);
   }
 
   @Test
@@ -72,5 +82,63 @@ class ConversationTurnResetTest {
     assertFalse(text.contains("InMemoryPipelineStateRepository"));
     reset.fullReset(CONVERSATION_ID);
     assertTrue(workspaceStore.getOrCreate(CONVERSATION_ID).presentTypes().isEmpty());
+  }
+
+  @Test
+  void fullResetClearsEveryPinForTheConversation() {
+    pinnedFailureStore.put(
+        new PinnedFailure(CONVERSATION_ID, "chain-a", SAFE_TEXT, "TimeoutException"));
+    pinnedFailureStore.put(
+        new PinnedFailure(CONVERSATION_ID, "chain-b", "other", "TimeoutException"));
+    pinnedFailureStore.put(
+        new PinnedFailure("other-conv", "chain-a", SAFE_TEXT, "TimeoutException"));
+
+    reset.fullReset(CONVERSATION_ID);
+
+    assertTrue(pinnedFailureStore.find(CONVERSATION_ID, "chain-a").isEmpty());
+    assertTrue(pinnedFailureStore.find(CONVERSATION_ID, "chain-b").isEmpty());
+    assertEquals(
+        SAFE_TEXT, pinnedFailureStore.find("other-conv", "chain-a").orElseThrow().safeText());
+  }
+
+  @Test
+  void truncateAfterNegativeIndexClearsEveryPinForTheConversation() {
+    pinnedFailureStore.put(
+        new PinnedFailure(CONVERSATION_ID, "chain-a", SAFE_TEXT, "TimeoutException"));
+    pinnedFailureStore.put(
+        new PinnedFailure("other-conv", "chain-a", SAFE_TEXT, "TimeoutException"));
+
+    reset.truncateAndReset(CONVERSATION_ID, -1);
+
+    assertTrue(pinnedFailureStore.find(CONVERSATION_ID, "chain-a").isEmpty());
+    assertEquals(
+        SAFE_TEXT, pinnedFailureStore.find("other-conv", "chain-a").orElseThrow().safeText());
+  }
+
+  @Test
+  void truncateDropsPinWhenSafeTextIsGoneFromRemainingMessages() {
+    conversationService.addMessage(CONVERSATION_ID, ConversationMessage.user("u0"));
+    conversationService.addMessage(CONVERSATION_ID, ConversationMessage.assistant(SAFE_TEXT));
+    conversationService.addMessage(CONVERSATION_ID, ConversationMessage.user("retry"));
+    pinnedFailureStore.put(
+        new PinnedFailure(CONVERSATION_ID, "chain-a", SAFE_TEXT, "TimeoutException"));
+
+    reset.truncateAndReset(CONVERSATION_ID, 0);
+
+    assertTrue(pinnedFailureStore.find(CONVERSATION_ID, "chain-a").isEmpty());
+  }
+
+  @Test
+  void truncateKeepsPinWhenSafeTextRemainsInMessages() {
+    conversationService.addMessage(CONVERSATION_ID, ConversationMessage.user("u0"));
+    conversationService.addMessage(CONVERSATION_ID, ConversationMessage.assistant(SAFE_TEXT));
+    conversationService.addMessage(CONVERSATION_ID, ConversationMessage.user("retry"));
+    pinnedFailureStore.put(
+        new PinnedFailure(CONVERSATION_ID, "chain-a", SAFE_TEXT, "TimeoutException"));
+
+    reset.truncateAndReset(CONVERSATION_ID, 1);
+
+    assertEquals(
+        SAFE_TEXT, pinnedFailureStore.find(CONVERSATION_ID, "chain-a").orElseThrow().safeText());
   }
 }
