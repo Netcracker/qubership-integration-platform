@@ -39,6 +39,7 @@ on:
           - micro-engine
           - runtime-catalog
           - sessions-management
+          - integration-build-pipeline
         default: engine
 
 concurrency:
