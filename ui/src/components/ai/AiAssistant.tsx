@@ -1727,7 +1727,7 @@ export const AiAssistant: React.FC = () => {
               type="file"
               ref={fileInputRef}
               multiple
-              accept=".txt,.md,.json,.csv,.pdf,text/plain,application/json,text/markdown,text/csv,application/pdf,image/png,image/jpeg,image/gif,image/webp"
+              accept=".txt,.md,.json,.yaml,.yml,.csv,.pdf,text/plain,application/json,text/yaml,application/x-yaml,text/markdown,text/csv,application/pdf,image/png,image/jpeg,image/gif,image/webp"
               style={{ display: "none" }}
               onChange={(e) => {
                 const files = e.target.files ? Array.from(e.target.files) : [];

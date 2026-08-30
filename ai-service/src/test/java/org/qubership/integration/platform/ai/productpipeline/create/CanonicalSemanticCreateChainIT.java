@@ -367,6 +367,7 @@ class CanonicalSemanticCreateChainIT {
             List.of(
                 designInputCapability(),
                 discoveryStub(),
+                UploadedSpecImportPassthrough.capability(),
                 analysisStub(),
                 designPlanningCapability(artifacts),
                 designExecutionCapability(artifacts),

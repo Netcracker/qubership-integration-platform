@@ -14,6 +14,7 @@ public record SkipPolicy(List<String> whenAny) {
 
   public static final String NO_APIHUB_CANDIDATE = "no-apihub-candidate";
   public static final String CATALOG_BINDING_PRESENT = "catalog-binding-present";
+  public static final String NO_ALLOWED_ATTACHMENTS = "no-allowed-attachments";
 
   public enum SkipAction {
     REQUIREMENT_DRAFT_PASSTHROUGH,
@@ -54,6 +55,10 @@ public record SkipPolicy(List<String> whenAny) {
             return Optional.of(SkipAction.REQUIREMENT_DRAFT_PASSTHROUGH);
           }
         }
+        case NO_ALLOWED_ATTACHMENTS -> {
+          // Skip evaluation has no access to conversation attachment keys here;
+          // the auto-uploaded-spec-import capability handles the empty-attachment path.
+        }
         default -> throw new IllegalArgumentException("unknown skip condition: " + condition);
       }
     }
@@ -68,7 +73,8 @@ public record SkipPolicy(List<String> whenAny) {
       Objects.requireNonNull(condition, "skip condition");
       String normalized = condition.trim().toLowerCase(Locale.ROOT);
       if (!NO_APIHUB_CANDIDATE.equals(normalized)
-          && !CATALOG_BINDING_PRESENT.equals(normalized)) {
+          && !CATALOG_BINDING_PRESENT.equals(normalized)
+          && !NO_ALLOWED_ATTACHMENTS.equals(normalized)) {
         throw new IllegalArgumentException("unknown skip condition: " + condition);
       }
     }

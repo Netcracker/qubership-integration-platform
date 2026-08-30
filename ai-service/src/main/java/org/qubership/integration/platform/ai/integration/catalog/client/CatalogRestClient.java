@@ -220,6 +220,10 @@ public interface CatalogRestClient {
       @PathParam("systemId") String systemId, CatalogCreateEnvironmentRequest body);
 
   @GET
+  @Path("/v1/specificationGroups")
+  List<SpecificationGroupDto> getSpecificationGroups(@QueryParam("systemId") String systemId);
+
+  @GET
   @Path("/v1/models")
   List<SpecificationDto> getApiSpecifications(@QueryParam("systemId") String systemId);
 
@@ -364,6 +368,9 @@ public interface CatalogRestClient {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record EnvironmentDto(String id, String name, String address) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record SpecificationGroupDto(String id, String name) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SpecificationDto(

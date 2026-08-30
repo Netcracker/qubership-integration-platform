@@ -114,38 +114,11 @@ public class EffectiveUserTextService {
     if (attachment == null || attachment.isBlank()) {
       return Collections.emptyList();
     }
-    var found = new ArrayList<String>();
-    var m = KEY_PARAM.matcher(attachment);
-    while (m.find()) {
-      String k = urlDecode(m.group(1).trim());
-      if (AttachmentKeys.isSafe(k)) {
-        found.add(k);
-      }
-    }
-    return found;
+    return AttachmentKeys.normalize(List.of(attachment));
   }
 
   private static List<String> normalizeObjectKeys(List<String> input) {
-    if (input == null || input.isEmpty()) {
-      return List.of();
-    }
-    var seen = new HashSet<String>();
-    List<String> out = new ArrayList<>();
-    for (String k : input) {
-      if (k == null) {
-        continue;
-      }
-      String t = k.trim();
-      if (t.isEmpty() || !seen.add(t)) {
-        continue;
-      }
-      if (AttachmentKeys.isSafe(t)) {
-        out.add(t);
-      } else {
-        LOG.warnf("Rejecting unsafe attachment key: %s", k);
-      }
-    }
-    return out;
+    return AttachmentKeys.normalize(input);
   }
 
   private String expandStorageObjectUrls(String attachment) {

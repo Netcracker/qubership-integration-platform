@@ -59,6 +59,32 @@ public final class ProductPipelineArtifactStore {
     return Optional.empty();
   }
 
+  /**
+   * Finds the latest {@link Kind#APPROVAL_RECORD} revision whose target identifies a given artifact
+   * type and content hash. The target artifactId is expected to start with
+   * {@code artifactType + ":"}. When {@code contentHash} is null, matches the latest record of the
+   * given artifact type regardless of hash.
+   */
+  public Optional<Revision> findLatestApprovalRecord(
+      String runId, String artifactType, String contentHash) {
+    Objects.requireNonNull(runId, "runId");
+    Objects.requireNonNull(artifactType, "artifactType");
+    List<Revision> revisions = history(runId, Kind.APPROVAL_RECORD);
+    for (int i = revisions.size() - 1; i >= 0; i--) {
+      Revision revision = revisions.get(i);
+      ApprovalRecordV2 record = payload(revision, ApprovalRecordV2.class);
+      if (record == null || record.target() == null) {
+        continue;
+      }
+      CompilationArtifacts.Reference target = record.target();
+      if (target.artifactId().startsWith(artifactType + ":")
+          && (contentHash == null || contentHash.equals(target.contentHash()))) {
+        return Optional.of(revision);
+      }
+    }
+    return Optional.empty();
+  }
+
   public <T> T payload(Revision revision, Class<T> payloadType) {
     return artifacts.payload(revision, payloadType);
   }

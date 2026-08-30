@@ -10,7 +10,9 @@ import org.qubership.integration.platform.ai.integration.catalog.client.ImportSp
 import org.qubership.integration.platform.ai.integration.catalog.client.SpecificationFileForm;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
-import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
@@ -62,24 +64,99 @@ public class CatalogSpecificationImporter {
     String resolvedName = groupName.trim();
     String resolvedProtocol = CatalogStrings.blankToNull(protocol);
 
-    SpecificationFileForm form = new SpecificationFileForm();
-    form.file = new ByteArrayInputStream(openapiBytes);
-    form.fileName =
-        CatalogStrings.blankToNull(fileName) != null ? fileName.trim() : "openapi.json";
+    Path tempFile = createTempSpecFile(openapiBytes, fileName);
+    try {
+      SpecificationFileForm form = buildForm(tempFile);
 
-    LOG.infof(
-        "Catalog spec import: POST /v1/specificationGroups/import systemId=%s name=%s file=%s bytes=%d",
-        systemId,
-        resolvedName,
-        form.fileName,
-        openapiBytes.length);
+      LOG.infof(
+          "Catalog spec import: POST /v1/specificationGroups/import systemId=%s name=%s file=%s bytes=%d",
+          systemId,
+          resolvedName,
+          form.file.getName(),
+          openapiBytes.length);
 
-    ImportSpecificationDto accepted =
-        importRestClient.importSpecificationGroup(
-            systemId, resolvedName, resolvedProtocol, form);
-    if (accepted == null || CatalogStrings.blankToNull(accepted.id()) == null) {
-      throw new IllegalStateException("Catalog import returned no import id");
+      ImportSpecificationDto accepted =
+          importRestClient.importSpecificationGroup(
+              systemId, resolvedName, resolvedProtocol, form);
+      if (accepted == null || CatalogStrings.blankToNull(accepted.id()) == null) {
+        throw new IllegalStateException("Catalog import returned no import id");
+      }
+      return finishImport(systemId, accepted);
+    } finally {
+      deleteTempFile(tempFile);
     }
+  }
+
+  /**
+   * Imports an OpenAPI document into an existing specification group. Used when a previous upload
+   * already created the group so the catalog refuses a duplicate name.
+   */
+  public ImportOutcome importOpenApiDocumentIntoGroup(
+      String systemId, String specificationGroupId, byte[] openapiBytes, String fileName) {
+    if (CatalogStrings.blankToNull(systemId) == null) {
+      throw new IllegalArgumentException("systemId is required");
+    }
+    if (CatalogStrings.blankToNull(specificationGroupId) == null) {
+      throw new IllegalArgumentException("specificationGroupId is required");
+    }
+    if (openapiBytes == null || openapiBytes.length == 0) {
+      throw new IllegalArgumentException("OpenAPI document is empty");
+    }
+
+    Path tempFile = createTempSpecFile(openapiBytes, fileName);
+    try {
+      SpecificationFileForm form = buildForm(tempFile);
+
+      LOG.infof(
+          "Catalog spec import: POST /v1/import systemId=%s specificationGroupId=%s file=%s bytes=%d",
+          systemId, specificationGroupId, form.file.getName(), openapiBytes.length);
+
+      ImportSpecificationDto accepted =
+          importRestClient.importSpecification(specificationGroupId, form);
+      if (accepted == null || CatalogStrings.blankToNull(accepted.id()) == null) {
+        throw new IllegalStateException("Catalog import returned no import id");
+      }
+      return finishImport(systemId, accepted);
+    } finally {
+      deleteTempFile(tempFile);
+    }
+  }
+
+  private static SpecificationFileForm buildForm(Path tempFile) {
+    SpecificationFileForm form = new SpecificationFileForm();
+    form.file = tempFile.toFile();
+    return form;
+  }
+
+  private static Path createTempSpecFile(byte[] content, String fileName) {
+    String resolvedName =
+        CatalogStrings.blankToNull(fileName) != null ? fileName.trim() : "openapi.json";
+    try {
+      Path tempDir = Files.createTempDirectory("spec-import-");
+      Path tempFile = tempDir.resolve(resolvedName);
+      Files.write(tempFile, content);
+      return tempFile;
+    } catch (IOException e) {
+      throw new IllegalStateException("Failed to prepare spec temp file", e);
+    }
+  }
+
+  private static void deleteTempFile(Path tempFile) {
+    if (tempFile == null) {
+      return;
+    }
+    try {
+      Files.deleteIfExists(tempFile);
+      Path parent = tempFile.getParent();
+      if (parent != null) {
+        Files.deleteIfExists(parent);
+      }
+    } catch (IOException e) {
+      LOG.warnf(e, "Failed to delete temporary spec file %s", tempFile);
+    }
+  }
+
+  private ImportOutcome finishImport(String systemId, ImportSpecificationDto accepted) {
     String importId = accepted.id();
     String specificationGroupId = accepted.specificationGroupId();
     waitForImportDone(importId);
@@ -102,8 +179,7 @@ public class CatalogSpecificationImporter {
         if (CatalogStrings.blankToNull(status.warningMessage()) != null) {
           LOG.warnf(
               "Catalog spec import finished with warning importId=%s: %s",
-              importId,
-              status.warningMessage());
+              importId, status.warningMessage());
         }
         return;
       }

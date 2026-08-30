@@ -57,6 +57,13 @@ public interface CatalogImportRestClient {
       @QueryParam("protocol") String protocol,
       @MultipartForm SpecificationFileForm form);
 
+  @POST
+  @Path("/v1/import")
+  @Consumes(MediaType.MULTIPART_FORM_DATA)
+  ImportSpecificationDto importSpecification(
+      @QueryParam("specificationGroupId") String specificationGroupId,
+      @MultipartForm SpecificationFileForm form);
+
   @GET
   @Path("/v1/import/{importId}")
   ImportSpecificationDto getImportStatus(@PathParam("importId") String importId);

@@ -365,7 +365,7 @@ public class CreateProductPipelineCoordinatorTest {
       ProductPipelineRunStore runStore = new ProductPipelineRunStore(store, mapper, clock);
       StageCapabilityRegistry capabilities =
           new StageCapabilityRegistry(
-              List.of(discovery(), importStage(), analysis(), planning(),
+              List.of(discovery(), importStage(), UploadedSpecImportPassthrough.capability(), analysis(), planning(),
                   materialization(materializationCalls)));
       CreateChainTestOrchestrator runtime =
           new CreateChainTestOrchestrator(new ProductPipelineRunSupport(

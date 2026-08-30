@@ -134,6 +134,12 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public List<SpecificationGroupDto> getSpecificationGroups(String systemId) {
+    record("getSpecificationGroups:" + systemId);
+    return List.of(new SpecificationGroupDto("sg-1", "default"));
+  }
+
+  @Override
   public List<OperationDto> getOperations(
       String modelId, int offset, int count, String searchFilter) {
     record("getOperations:" + modelId);

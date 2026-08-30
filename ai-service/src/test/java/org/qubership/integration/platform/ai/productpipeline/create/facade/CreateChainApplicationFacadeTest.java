@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.RequirementA
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.SpecificationImportCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.UploadedSpecImportPassthrough;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
@@ -946,6 +947,7 @@ class CreateChainApplicationFacadeTest {
               List.of(
                   discovery(),
                   importStage(),
+                  UploadedSpecImportPassthrough.capability(),
                   analysis(),
                   planning(),
                   materialization()));

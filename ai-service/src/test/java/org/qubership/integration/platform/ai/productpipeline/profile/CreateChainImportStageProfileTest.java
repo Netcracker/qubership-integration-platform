@@ -17,8 +17,22 @@ class CreateChainImportStageProfileTest {
   }
 
   @Test
-  void importStageSitsBetweenDiscoveryAndAnalysisOnV2() throws Exception {
-    assertImportStageOrder(loadCreateChain("create-chain-v2.yaml"));
+  void importStagesSitBetweenDiscoveryAndAnalysisOnV2() throws Exception {
+    ProductPipelineProfile profile = loadCreateChain("create-chain-v2.yaml");
+    List<String> stageIds = profile.stages().stream().map(ProfileStage::stageId).toList();
+
+    int discovery = stageIds.indexOf("requirement-discovery");
+    int importStage = stageIds.indexOf("import-stage");
+    int uploaded = stageIds.indexOf("uploaded-spec-import");
+    int analysis = stageIds.indexOf("requirement-analysis");
+
+    assertTrue(discovery >= 0, "requirement-discovery missing");
+    assertTrue(importStage >= 0, "import-stage missing");
+    assertTrue(uploaded >= 0, "uploaded-spec-import missing");
+    assertTrue(analysis >= 0, "requirement-analysis missing");
+    assertEquals(discovery + 1, importStage);
+    assertEquals(importStage + 1, uploaded);
+    assertEquals(uploaded + 1, analysis);
   }
 
   @Test
@@ -62,6 +76,25 @@ class CreateChainImportStageProfileTest {
         importStage.skip().whenAny().contains(SkipPolicy.NO_APIHUB_CANDIDATE));
     assertTrue(
         importStage.skip().whenAny().contains(SkipPolicy.CATALOG_BINDING_PRESENT));
+  }
+
+  @Test
+  void uploadedSpecImportStageKeepsApiHubImportOnV2() throws Exception {
+    ProductPipelineProfile profile = loadCreateChain("create-chain-v2.yaml");
+    ProfileStage uploaded =
+        profile.stages().stream()
+            .filter(stage -> "uploaded-spec-import".equals(stage.stageId()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals("auto-uploaded-spec-import", uploaded.capabilityId());
+    assertEquals(
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), uploaded.consumes());
+    assertEquals(
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), uploaded.produces());
+    assertNotNull(uploaded.skip(), "skip policy required for uploaded-spec-import");
+    assertTrue(uploaded.skip().whenAny().contains(SkipPolicy.NO_ALLOWED_ATTACHMENTS));
+    assertTrue(uploaded.skip().whenAny().contains(SkipPolicy.CATALOG_BINDING_PRESENT));
   }
 
   private static ProductPipelineProfile loadCreateChain(String resourceName) throws Exception {

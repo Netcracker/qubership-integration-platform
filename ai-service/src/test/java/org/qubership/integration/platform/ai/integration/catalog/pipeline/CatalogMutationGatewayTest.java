@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cat
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecAutoImporter;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -28,6 +29,7 @@ class CatalogMutationGatewayTest {
   @Mock private CatalogGraphMaterializer graphMaterializer;
   @Mock private ApiHubSpecificationImportService apiHubSpecificationImportService;
   @Mock private CatalogChainPublicationService chainPublicationService;
+  @Mock private UploadedSpecAutoImporter uploadedSpecAutoImporter;
 
   private CatalogMutationGateway gateway;
 
@@ -35,7 +37,10 @@ class CatalogMutationGatewayTest {
   void setUp() {
     gateway =
         new CatalogMutationGateway(
-            graphMaterializer, apiHubSpecificationImportService, chainPublicationService);
+            graphMaterializer,
+            apiHubSpecificationImportService,
+            chainPublicationService,
+            uploadedSpecAutoImporter);
   }
 
   @Test
