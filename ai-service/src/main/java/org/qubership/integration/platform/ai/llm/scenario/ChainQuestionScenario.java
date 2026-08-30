@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Optional;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.jboss.logging.Logger;
@@ -14,6 +15,8 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogView
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.conversation.TranscriptSearch;
 import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
@@ -34,6 +37,8 @@ public class ChainQuestionScenario implements ScenarioHandler {
 
   private static final String FACTS_UNAVAILABLE = "FACTS_UNAVAILABLE";
 
+  private static final int OLDER_TRANSCRIPT_HIT_LIMIT = 5;
+
   private final ChainContextExtractor chainContextExtractor;
   private final ChainCatalogFactsService chainCatalogFactsService;
   private final ChainCatalogViewService chainCatalogViewService;
@@ -41,6 +46,7 @@ public class ChainQuestionScenario implements ScenarioHandler {
   private final ObjectMapper objectMapper;
   private final KnownFailureMapper knownFailureMapper;
   private final PinnedFailureStore pinnedFailureStore;
+  private final ConversationService conversationService;
 
   @Inject
   public ChainQuestionScenario(
@@ -50,7 +56,8 @@ public class ChainQuestionScenario implements ScenarioHandler {
       ChainPresentationAgent chainPresentationAgent,
       ObjectMapper objectMapper,
       KnownFailureMapper knownFailureMapper,
-      PinnedFailureStore pinnedFailureStore) {
+      PinnedFailureStore pinnedFailureStore,
+      ConversationService conversationService) {
     this.chainContextExtractor = chainContextExtractor;
     this.chainCatalogFactsService = chainCatalogFactsService;
     this.chainCatalogViewService = chainCatalogViewService;
@@ -58,6 +65,7 @@ public class ChainQuestionScenario implements ScenarioHandler {
     this.objectMapper = objectMapper;
     this.knownFailureMapper = knownFailureMapper;
     this.pinnedFailureStore = pinnedFailureStore;
+    this.conversationService = conversationService;
   }
 
   @Override
@@ -167,7 +175,8 @@ public class ChainQuestionScenario implements ScenarioHandler {
       fallback = KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE;
     }
     String agentMessage =
-        buildExplainUserMessage(transcriptWindow, pinnedSafeText, userMessage, facts);
+        buildExplainUserMessage(
+            conversationId, transcriptWindow, pinnedSafeText, userMessage, facts);
 
     return chainPresentationAgent
         .chat(conversationId, agentMessage)
@@ -181,6 +190,7 @@ public class ChainQuestionScenario implements ScenarioHandler {
   }
 
   private String buildExplainUserMessage(
+      String conversationId,
       String transcriptWindow,
       String pinnedSafeText,
       String userMessage,
@@ -203,13 +213,29 @@ public class ChainQuestionScenario implements ScenarioHandler {
 
         Chain facts JSON or FACTS_UNAVAILABLE:
         %s
+
+        Older transcript hits:
+        %s
         """
             .formatted(
                 transcriptWindow != null ? transcriptWindow : "",
                 pinnedSafeText != null ? pinnedSafeText : "",
                 userMessage != null ? userMessage : "",
-                factsOrFlag);
+                factsOrFlag,
+                formatOlderTranscriptHits(conversationId, userMessage));
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
+  }
+
+  private String formatOlderTranscriptHits(String conversationId, String userMessage) {
+    List<String> hits =
+        TranscriptSearch.find(
+            conversationService.getMessages(conversationId),
+            userMessage,
+            OLDER_TRANSCRIPT_HIT_LIMIT);
+    if (hits.isEmpty()) {
+      return "(none)";
+    }
+    return String.join("\n", hits);
   }
 
   private Multi<ChatEvent> knownOrRethrow(Throwable error, String conversationId, String chainId) {
