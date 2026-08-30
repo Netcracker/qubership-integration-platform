@@ -262,6 +262,11 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public List<SpecificationGroupDto> getSpecificationGroups(String systemId) {
+    throw new UnsupportedOperationException("getSpecificationGroups");
+  }
+
+  @Override
   public SpecificationDto getModel(String modelId) {
     throw new UnsupportedOperationException("getModel");
   }

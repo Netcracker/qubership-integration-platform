@@ -189,6 +189,10 @@ public interface CatalogRestClient {
   List<SpecificationDto> getApiSpecifications(@QueryParam("systemId") String systemId);
 
   @GET
+  @Path("/v1/specificationGroups")
+  List<SpecificationGroupDto> getSpecificationGroups(@QueryParam("systemId") String systemId);
+
+  @GET
   @Path("/v1/models/{modelId}")
   SpecificationDto getModel(@PathParam("modelId") String modelId);
 
@@ -280,6 +284,9 @@ public interface CatalogRestClient {
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SpecificationDto(
       String id, String name, String specificationGroupId, String systemId) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record SpecificationGroupDto(String id, String name) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record OperationDto(String id, String name, String method, String path, String modelId) {}

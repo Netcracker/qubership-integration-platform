@@ -66,20 +66,27 @@ public final class BriefFlowExtractor {
       Pattern.compile(
           "(?i)\\bcall\\s+(?:the\\s+)?catalog-bound\\s+(?<service>.+?)\\s+"
               + "(?<operation>[A-Za-z0-9_.-]+)\\s+operation\\s*,?\\s*"
-              + "(?<request>(?:GET|POST|PUT|PATCH|DELETE)\\s+/\\S+)");
+              + "(?<request>(?:GET|POST|PUT|PATCH|DELETE|PUBLISH|SUBSCRIBE|SEND|RECEIVE)\\s+\\S+)");
 
   private static final Pattern CATALOG_SERVICE =
       Pattern.compile("(?i)\\bcall\\s+catalog\\s+service\\s+['\\\"]?(?<service>[^'\\\".]+)");
 
-  private static final Pattern UPLOADED_SPEC_CALL =
+  /**
+   * Uploaded specifications are initially captured as SERVICE_CALL facts with natural-language text
+   * such as "Uploaded OPENAPI spec &lt;title&gt; operation &lt;op&gt; path POST /path". Once the
+   * spec has been imported into the catalog and the requirement draft carries a catalog binding,
+   * these facts still need to participate in flow derivation, so we extract the participant and
+   * operation query here.
+   */
+  private static final Pattern UPLOADED_OPENAPI_SPEC =
       Pattern.compile(
-          "(?i)uploaded\\s+(?:asyncapi|openapi)?\\s*spec(?:ification)?\\s+"
-              + "['\\\"]?(?<service>[^'\\\"]+)['\\\"]?"
-              + "(?:\\s+(?:version|v)\\s+[^\\s,]+)?"
-              + ".*?\\boperation(?:id)?\\s+(?<operation>[A-Za-z0-9_.-]+)");
+          "(?i)Uploaded\\s+OPENAPI\\s+spec\\s+(?<participant>.+?)\\s+operation\\s+(?<operation>[A-Za-z0-9_.-]+)"
+              + "(?:\\s+(?:(?:path|channel)\\s+)?(?<method>GET|POST|PUT|PATCH|DELETE)\\s+(?<path>/\\S+))?");
 
-  private static final Pattern UPLOADED_SPEC_CHANNEL =
-      Pattern.compile("(?i)\\bchannel\\s+(?<channel>[^\\s,]+)");
+  private static final Pattern UPLOADED_ASYNCAPI_SPEC =
+      Pattern.compile(
+          "(?i)Uploaded\\s+ASYNCAPI\\s+spec\\s+(?<participant>.+?)\\s+operation\\s+(?<operation>[A-Za-z0-9_.-]+)"
+              + "\\s+channel\\s+(?<channel>\\S+)");
 
   public sealed interface ExtractionResult {
     record Complete(NormalizedDesignFlow flow) implements ExtractionResult {}
@@ -508,12 +515,32 @@ public final class BriefFlowExtractor {
     return Optional.empty();
   }
 
-  private static Optional<ServiceCallIdentity> parseServiceCall(RequirementFact fact) {
+  public static Optional<ServiceCallIdentity> parseServiceCall(RequirementFact fact) {
     String text = fact == null ? null : fact.text();
     String trimmed = trimToNull(text);
     if (trimmed == null) {
       return Optional.empty();
     }
+    Matcher asyncSpec = UPLOADED_ASYNCAPI_SPEC.matcher(trimmed);
+    if (asyncSpec.find()) {
+      String request =
+          firstNonBlank(
+              asyncSpec.group("operation") + " " + asyncSpec.group("channel"),
+              asyncSpec.group("operation"));
+      return Optional.of(
+          new ServiceCallIdentity(trimToNull(asyncSpec.group("participant")), request));
+    }
+
+    Matcher uploadedSpec = UPLOADED_OPENAPI_SPEC.matcher(trimmed);
+    if (uploadedSpec.find()) {
+      String request =
+          firstNonBlank(
+              methodAndPath(uploadedSpec.group("method"), uploadedSpec.group("path")),
+              uploadedSpec.group("operation"));
+      return Optional.of(
+          new ServiceCallIdentity(trimToNull(uploadedSpec.group("participant")), request));
+    }
+
     Matcher catalogBound = CATALOG_BOUND_OPERATION.matcher(trimmed);
     if (catalogBound.find()) {
       return Optional.of(
@@ -553,17 +580,6 @@ public final class BriefFlowExtractor {
           new ServiceCallIdentity(trimToNull(catalogService.group("service")), trimmed));
     }
 
-    Matcher uploadedSpec = UPLOADED_SPEC_CALL.matcher(trimmed);
-    if (uploadedSpec.find()) {
-      String service = trimServiceName(uploadedSpec.group("service"));
-      String operation = trimToNull(uploadedSpec.group("operation"));
-      String channel = channelFromUploadedSpec(trimmed);
-      String query =
-          firstNonBlank(
-              channel != null ? channel + " subscribe " + operation : null, operation);
-      return Optional.of(new ServiceCallIdentity(service, query));
-    }
-
     String capability = trimToNull(fact.capabilityKey());
     if (capability != null) {
       return Optional.of(new ServiceCallIdentity(capability, trimmed));
@@ -571,15 +587,7 @@ public final class BriefFlowExtractor {
     return Optional.empty();
   }
 
-  private static String channelFromUploadedSpec(String text) {
-    if (text == null) {
-      return null;
-    }
-    Matcher matcher = UPLOADED_SPEC_CHANNEL.matcher(text);
-    return matcher.find() ? trimToNull(matcher.group("channel")) : null;
-  }
-
-  private static String participantId(String displayName) {
+  public static String participantId(String displayName) {
     String slug =
         displayName
             .trim()
@@ -600,6 +608,15 @@ public final class BriefFlowExtractor {
       return trimToNull(trimmed.substring(1, trimmed.length() - 1));
     }
     return trimmed;
+  }
+
+  private static String methodAndPath(String method, String path) {
+    String m = trimToNull(method);
+    String p = trimToNull(path);
+    if (m == null || p == null) {
+      return null;
+    }
+    return m.toUpperCase(Locale.ROOT) + " " + p;
   }
 
   private static String trimTrailingSentencePeriod(String value) {
@@ -647,5 +664,5 @@ public final class BriefFlowExtractor {
 
   private record HttpIdentity(String method, String path, String operationId) {}
 
-  private record ServiceCallIdentity(String participantDisplayName, String operationQuery) {}
+  public record ServiceCallIdentity(String participantDisplayName, String operationQuery) {}
 }

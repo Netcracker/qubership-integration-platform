@@ -18,6 +18,10 @@ import org.qubership.integration.platform.ai.llm.scenario.ScenarioHandler;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductPipelineChatAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
@@ -50,6 +54,12 @@ public class ScenarioRouter {
   private final CreateRunSelectionService createRunSelectionService;
   private final ProductPipelineChatAdapter productPipelineChatAdapter;
   private final CreateChainApplicationFacade createChainFacade;
+
+  @jakarta.inject.Inject
+  UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler;
+
+  @jakarta.inject.Inject
+  ProductPipelineArtifactStore artifactStore;
 
   public ScenarioRouter(
       RouterAgent routerAgent,
@@ -193,6 +203,11 @@ public class ScenarioRouter {
     if (createRunSelectionService != null
         && productPipelineChatAdapter != null
         && isCreateOwnedScenario(type)) {
+      if (requiresUploadedSpecsDecision(conversationId)) {
+        LOG.infof(
+            "Routing conversationId=%s to uploaded-specs approval decision", conversationId);
+        return Multi.createFrom().item(uploadedSpecsApprovalHandler.createDecision(conversationId));
+      }
       try {
         createRunSelectionService.selectOrCreate(conversationId, request.getEffectiveUserText());
       } catch (UnsupportedCreateRunBindingException e) {
@@ -449,6 +464,34 @@ public class ScenarioRouter {
     LOG.infof(
         "Routing decision conversationId=%s layer=%s phase=%s scenario=%s",
         conversationId, layer, phase, scenario);
+  }
+
+  /**
+   * True when the conversation has uploaded specs and no matching approval record has been written
+   * for the current attachment set yet.
+   */
+  private boolean requiresUploadedSpecsDecision(String conversationId) {
+    if (uploadedSpecsApprovalHandler == null
+        || !uploadedSpecsApprovalHandler.needsApproval(conversationId)) {
+      return false;
+    }
+    if (artifactStore == null) {
+      return true;
+    }
+    return artifactStore
+        .findLatestApprovalRecord(
+            runIdFor(conversationId),
+            UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+            uploadedSpecsApprovalHandler.attachmentHash(conversationId))
+        .isEmpty();
+  }
+
+  private static String runIdFor(String conversationId) {
+    return conversationId
+        + "-"
+        + CreateRunSelectionService.CREATE_PROFILE_ID
+        + "-"
+        + CreateRunSelectionService.CREATE_PROFILE_VERSION;
   }
 
   record RoutingOutcome(ScenarioType scenarioType, String terminalMessage, String errorMessage) {

@@ -4,14 +4,17 @@ import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 
 /**
@@ -48,8 +51,7 @@ public class RequirementDraftTool {
           + " Reply to the user only after a successful capture, in the user's language.";
 
   static final String BINDING_REQUIRED_OPEN_QUESTION =
-      "Which catalog operation should this chain call? Resolve it in the local catalog before "
-          + "searching API Hub.";
+      "Which catalog operation should this chain call? Use the catalog tools to resolve it.";
 
   static final String BINDING_SOFT_DOWNGRADE_PREFIX =
       "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): catalogBinding was missing "
@@ -90,6 +92,8 @@ public class RequirementDraftTool {
   private final org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache
       apiHubCache;
   private final ConversationApiResolutions resolutions;
+  private final UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler;
+  private final ProductPipelineArtifactStore artifactStore;
 
   @Inject
   RequirementDraftTool(
@@ -97,37 +101,49 @@ public class RequirementDraftTool {
       QipKnowledgePackRepository repository,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
-      ConversationApiResolutions resolutions) {
+      ConversationApiResolutions resolutions,
+      UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler,
+      ProductPipelineArtifactStore artifactStore) {
     this.store = store;
     this.repository = repository;
     this.catalogCache = catalogCache;
     this.apiHubCache = apiHubCache;
     this.resolutions = resolutions;
+    this.uploadedSpecsApprovalHandler = uploadedSpecsApprovalHandler;
+    this.artifactStore = artifactStore;
   }
 
   RequirementDraftTool(RequirementDraftStore store) {
-    this(store, null, null, null, null);
+    this(store, null, null, null, null, null, null);
   }
 
   RequirementDraftTool(RequirementDraftStore store, QipKnowledgePackRepository repository) {
-    this(store, repository, null, null, null);
+    this(store, repository, null, null, null, null, null);
   }
 
   static RequirementDraftTool withCache(
       RequirementDraftStore store, ConversationCatalogCache catalogCache) {
-    return new RequirementDraftTool(store, null, catalogCache, null, null);
+    return new RequirementDraftTool(store, null, catalogCache, null, null, null, null);
   }
 
   static RequirementDraftTool withCaches(
       RequirementDraftStore store,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache) {
-    return new RequirementDraftTool(store, null, catalogCache, apiHubCache, null);
+    return new RequirementDraftTool(store, null, catalogCache, apiHubCache, null, null, null);
   }
 
   static RequirementDraftTool withResolutions(
       RequirementDraftStore store, ConversationApiResolutions resolutions) {
-    return new RequirementDraftTool(store, null, null, null, resolutions);
+    return new RequirementDraftTool(store, null, null, null, resolutions, null, null);
+  }
+
+  static RequirementDraftTool withUploadApproval(
+      RequirementDraftStore store,
+      UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler,
+      ProductPipelineArtifactStore artifactStore) {
+    return new RequirementDraftTool(
+        store, null, null, null, null, uploadedSpecsApprovalHandler, artifactStore);
   }
 
   @Tool("""
@@ -147,20 +163,19 @@ public class RequirementDraftTool {
       Write SERVICE_CALL facts concisely as "<Participant>: <operationQuery>" when possible
       (e.g. "Petstore Ext: GET /pets"). Long natural-language facts are still parsed, but concise
       text is more reliable for downstream design derivation.
-      For every SERVICE_CALL fact, call resolveApiOperation before READY_FOR_PLAN. It checks the
-      local catalog first and searches API Hub only after a confirmed catalog miss.
-      When catalog tools return a single clear system/spec/operation match, set catalogBinding
-      with systemId, specificationId, specificationGroupId, and integrationOperationId from those
-      tool results (never invent UUIDs). catalogBinding allows READY_FOR_PLAN.
-      When a SERVICE_CALL is covered by a spec the user uploaded to the chat, set
-      uploadedSpecCandidates to the registered spec (s3Key, title, version, specType, and the
-      operationId or channel name used). Do NOT search API Hub for a call that is already covered
-      by an uploaded spec. uploadedSpecCandidates allow READY_FOR_PLAN without catalogBinding.
-      When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
-      packageId, version, and operationId or documentId from the search hit (do not put
-      apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave openQuestions empty;
-      the server offers the import as a decision card.
-      Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
+       For every SERVICE_CALL fact **except uploaded specifications** (facts whose text starts with
+       "Uploaded "), call resolveApiOperation before READY_FOR_PLAN. It checks the local catalog
+       first and searches API Hub only after a confirmed catalog miss. Do not call
+       resolveApiOperation for uploaded-spec facts; the product pipeline imports and binds them
+       automatically after reader approval, and mentioning API Hub for them is wrong.
+       When catalog tools return a single clear system/spec/operation match, set catalogBinding
+       with systemId, specificationId, specificationGroupId, and integrationOperationId from those
+       tool results (never invent UUIDs). catalogBinding allows READY_FOR_PLAN.
+       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
+       packageId, version, and operationId or documentId from the search hit (do not put
+       apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave openQuestions empty;
+       the server offers the import as a decision card.
+       Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
       After a successful READY_FOR_PLAN capture in this turn, do not call captureRequirementDraft
       again and do not repeat the ready-for-planning assistant text.
       {
@@ -297,11 +312,6 @@ public class RequirementDraftTool {
       }
 
       List<RequirementFact> serviceCalls = positiveServiceCalls(facts);
-      List<UploadedSpecCandidate> uploadedCandidates =
-          capture.uploadedSpecCandidates() == null ? List.of() : capture.uploadedSpecCandidates();
-      if (!uploadedCandidates.isEmpty()) {
-        recordUploadedSpecAssessments(conversationId, serviceCalls, uploadedCandidates);
-      }
       List<RequirementFact> unresolvedCalls =
           unresolvedServiceCalls(serviceCalls, binding, conversationId);
       // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
@@ -313,23 +323,9 @@ public class RequirementDraftTool {
               : resolutions == null
                   && binding == null
                   && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
-      boolean uploadedSpecsSatisfyCalls =
-          !uploadedCandidates.isEmpty()
-              && (serviceCalls.isEmpty()
-                  || serviceCalls.stream()
-                      .allMatch(
-                          call ->
-                              resolutions != null
-                                  && resolutions
-                                      .forFact(conversationId, call.sourceFactId())
-                                      .filter(
-                                          assessment ->
-                                              assessment.outcome()
-                                                      == ServiceCallAssessment.Outcome.UPLOADED_SPEC
-                                                  || assessment.isResolved())
-                                      .isPresent()));
       if (decision == DraftDecision.READY_FOR_PLAN
-          && (!unresolvedCalls.isEmpty() || (bindingMissing && !uploadedSpecsSatisfyCalls))) {
+          && (!unresolvedCalls.isEmpty() || bindingMissing)
+          && !hasApprovedUploadedSpecImport(conversationId)) {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
@@ -373,9 +369,7 @@ public class RequirementDraftTool {
               binding,
               false,
               facts,
-              importIntent,
-              uploadedCandidates,
-              previous != null ? previous.uploadedSpecImportResults() : List.of());
+              importIntent);
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
       org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
@@ -384,7 +378,7 @@ public class RequirementDraftTool {
       LOG.infof(
           "captureRequirementDraft: stored draft conversationId=%s decision=%s complete=%s"
               + " openQuestions=%d facts=%d sourceSkill=%s sourceVersion=%s sourceHash=%s textChars=%d"
-              + " hasCatalogBinding=%s hasApiHubCandidate=%s uploadedSpecCandidates=%d"
+              + " hasCatalogBinding=%s hasApiHubCandidate=%s"
               + " softDowngradedForFacts=%s softDowngradedForImport=%s softDowngradedForBinding=%s"
               + " softDowngradedBlockedWithCandidate=%s",
           conversationId,
@@ -398,7 +392,6 @@ public class RequirementDraftTool {
           draft.assembledText().length(),
           draft.catalogBinding() != null,
           draft.apiHubCandidate() != null,
-          draft.uploadedSpecCandidates().size(),
           softDowngradedForFacts,
           softDowngradedForImport,
           softDowngradedForBinding,
@@ -454,6 +447,38 @@ public class RequirementDraftTool {
     return result;
   }
 
+  private boolean hasApprovedUploadedSpecImport(String conversationId) {
+    if (uploadedSpecsApprovalHandler == null || artifactStore == null) {
+      return false;
+    }
+    String runId =
+        conversationId
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_ID
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+    // Prefer a record matching the current attachment keys, but accept any approved uploaded-spec
+    // record for this run so a prior-turn approval still lets the draft advance.
+    String hash = uploadedSpecsApprovalHandler.attachmentHash(conversationId);
+    if (hash != null && !hash.isBlank()) {
+      if (artifactStore
+          .findLatestApprovalRecord(runId, UploadedSpecsApprovalHandler.ARTIFACT_TYPE, hash)
+          .isPresent()) {
+        return true;
+      }
+    }
+    return artifactStore
+        .findLatestApprovalRecord(runId, UploadedSpecsApprovalHandler.ARTIFACT_TYPE, null)
+        .filter(
+            rev -> {
+              ApprovalRecordV2 record = artifactStore.payload(rev, ApprovalRecordV2.class);
+              return record != null
+                  && record.target() != null
+                  && record.target().artifactId().startsWith(UploadedSpecsApprovalHandler.ARTIFACT_TYPE + ":");
+            })
+        .isPresent();
+  }
+
   private static String validateDecision(
       DraftDecision decision,
       List<String> openQuestions,
@@ -497,65 +522,9 @@ public class RequirementDraftTool {
             call ->
                 resolutions
                     .forFact(conversationId, call.sourceFactId())
-                    .filter(
-                        assessment ->
-                            assessment.isResolved()
-                                || assessment.outcome()
-                                    == ServiceCallAssessment.Outcome.UPLOADED_SPEC)
+                    .filter(ServiceCallAssessment::isResolved)
                     .isEmpty())
         .toList();
-  }
-
-  private void recordUploadedSpecAssessments(
-      String conversationId,
-      List<RequirementFact> serviceCalls,
-      List<UploadedSpecCandidate> candidates) {
-    if (resolutions == null) {
-      return;
-    }
-    for (RequirementFact call : serviceCalls) {
-      if (call == null || call.text() == null) {
-        continue;
-      }
-      UploadedSpecCandidate matched = findUploadedSpecByText(call.text(), candidates);
-      if (matched == null && candidates.size() == 1) {
-        // Fallback: a single uploaded spec is the only possible source for an unmatched call.
-        matched = candidates.get(0);
-      }
-      if (matched != null) {
-        resolutions.remember(
-            conversationId,
-            ServiceCallAssessment.uploadedSpec(
-                call.sourceFactId(),
-                new ServiceCallAssessment.Intent(call.text(), null, null, null, null),
-                matched.s3Key()));
-      }
-    }
-  }
-
-  private static UploadedSpecCandidate findUploadedSpecByText(
-      String callText, List<UploadedSpecCandidate> candidates) {
-    if (callText == null || candidates == null) {
-      return null;
-    }
-    String text = callText.toLowerCase(Locale.ROOT);
-    for (UploadedSpecCandidate candidate : candidates) {
-      if (candidate == null || candidate.title() == null || candidate.s3Key() == null) {
-        continue;
-      }
-      String title = candidate.title().toLowerCase(Locale.ROOT);
-      String filename = candidate.s3Key();
-      int slash = filename.lastIndexOf('/');
-      if (slash >= 0) {
-        filename = filename.substring(slash + 1);
-      }
-      if (text.contains(title)
-          || text.contains(filename.toLowerCase(Locale.ROOT))
-          || text.contains(candidate.specType().name().toLowerCase(Locale.ROOT))) {
-        return candidate;
-      }
-    }
-    return null;
   }
 
   private static List<RequirementFact> positiveServiceCalls(List<RequirementFact> facts) {
@@ -593,7 +562,7 @@ public class RequirementDraftTool {
     if (assessment == null) {
       return "Which catalog operation should this chain call for \""
           + call.text()
-          + "\"? Resolve it in the local catalog before searching API Hub.";
+          + "\"? Use the catalog tools to resolve it.";
     }
     return switch (assessment.outcome()) {
       case INCOMPLETE ->
@@ -611,7 +580,7 @@ public class RequirementDraftTool {
       default ->
           "Which catalog operation should this chain call for \""
               + call.text()
-              + "\"? Resolve it in the local catalog before searching API Hub.";
+              + "\"? Use the catalog tools to resolve it.";
     };
   }
 

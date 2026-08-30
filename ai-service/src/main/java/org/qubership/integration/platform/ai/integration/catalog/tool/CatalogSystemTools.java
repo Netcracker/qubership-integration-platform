@@ -32,7 +32,9 @@ public class CatalogSystemTools {
       + " binding service-call from design: if a match exists, use systemId with"
       + " getApiSpecifications then listCatalogOperations. Only use APIHub"
       + " (searchApiOperations) when no suitable catalog service is found and APIHub is"
-      + " available. Returns JSON: { ok, tool, data: SystemDto[] }.")
+      + " available. Do not use this tool for uploaded-spec SERVICE_CALL facts (text starting"
+      + " with \"Uploaded \"); those are imported and bound automatically after approval."
+      + " Returns JSON: { ok, tool, data: SystemDto[] }.")
   public String searchCatalogSystems(
       @P("Substring to match service name (catalog searchCondition)") String searchCondition) {
     long startMs = System.currentTimeMillis();

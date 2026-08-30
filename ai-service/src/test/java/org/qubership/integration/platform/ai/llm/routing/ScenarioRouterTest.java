@@ -1,24 +1,38 @@
 package org.qubership.integration.platform.ai.llm.routing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.util.AnnotationLiteral;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.storage.S3Service;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.llm.scenario.ScenarioHandler;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductPipelineChatAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
@@ -524,5 +538,221 @@ class ScenarioRouterTest {
     org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
         .classify(any(), anyString(), any());
     org.mockito.Mockito.verify(adapter).handle(any(), anyString());
+  }
+
+  @Test
+  void emitsUploadedSpecsDecisionWhenAttachmentsPresent() {
+    ConversationService conversationService = mock(ConversationService.class);
+    when(conversationService.getAllowedAttachmentKeys(CONVERSATION_ID))
+        .thenReturn(java.util.List.of("uploads/orders-api.yaml"));
+    ProductPipelineArtifactStore artifactStore = emptyArtifactStore();
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    when(selection.selectOrCreate(CONVERSATION_ID))
+        .thenReturn(
+            new CreateRunSelectionService.CreateRunSelection(
+                mock(org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class),
+                runIdFor(CONVERSATION_ID)));
+    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    ScenarioRouter productRouter =
+        routerWithAttachments(conversationService, artifactStore, selection, adapter);
+
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    request.setResolvedEffectiveUserText("create an integration");
+
+    var events = productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(1, events.size());
+    ChatEvent event = events.get(0);
+    assertInstanceOf(ChatEvent.Decision.class, event);
+    ChatEvent.Decision decision = (ChatEvent.Decision) event;
+    assertEquals("approve", decision.kind());
+    assertEquals("uploaded-specs-import-proposal", decision.artifactType());
+    assertTrue(decision.question().contains("orders-api.yaml"));
+  }
+
+  @Test
+  void skipsUploadedSpecsDecisionWhenMatchingApprovalRecordExists() {
+    ConversationService conversationService = mock(ConversationService.class);
+    when(conversationService.getAllowedAttachmentKeys(CONVERSATION_ID))
+        .thenReturn(java.util.List.of("uploads/orders-api.yaml"));
+    ProductPipelineArtifactStore artifactStore = emptyArtifactStore();
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, throwingS3Service());
+    ChatEvent.Decision decision = handler.createDecision(CONVERSATION_ID);
+    handler.appendApprovalRecord(runIdFor(CONVERSATION_ID), CONVERSATION_ID, decision, artifactStore);
+
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    when(selection.selectOrCreate(CONVERSATION_ID))
+        .thenReturn(
+            new CreateRunSelectionService.CreateRunSelection(
+                mock(org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class),
+                runIdFor(CONVERSATION_ID)));
+    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    ScenarioRouter productRouter =
+        routerWithAttachments(conversationService, artifactStore, selection, adapter);
+
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    request.setResolvedEffectiveUserText("create an integration");
+
+    var events = productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
+  @Test
+  void reEmitsUploadedSpecsDecisionWhenAttachmentHashChanges() {
+    ConversationService conversationService = mock(ConversationService.class);
+    when(conversationService.getAllowedAttachmentKeys(CONVERSATION_ID))
+        .thenReturn(java.util.List.of("uploads/orders-api.yaml"));
+    ProductPipelineArtifactStore artifactStore = emptyArtifactStore();
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, throwingS3Service());
+    ChatEvent.Decision oldDecision = handler.createDecision(CONVERSATION_ID);
+    handler.appendApprovalRecord(runIdFor(CONVERSATION_ID), CONVERSATION_ID, oldDecision, artifactStore);
+
+    when(conversationService.getAllowedAttachmentKeys(CONVERSATION_ID))
+        .thenReturn(java.util.List.of("uploads/orders-api.yaml", "uploads/notifications-async.yaml"));
+
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    ScenarioRouter productRouter =
+        routerWithAttachments(conversationService, artifactStore, selection, adapter);
+
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    request.setResolvedEffectiveUserText("create an integration");
+
+    var events = productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(1, events.size());
+    ChatEvent event = events.get(0);
+    assertInstanceOf(ChatEvent.Decision.class, event);
+    ChatEvent.Decision decision = (ChatEvent.Decision) event;
+    assertTrue(decision.question().contains("notifications-async.yaml"));
+    org.mockito.Mockito.verify(selection, org.mockito.Mockito.never()).selectOrCreate(anyString());
+  }
+
+  @Test
+  void uploadedSpecsApprovalSurvivesLaterImplementationPlanApproval() {
+    ConversationService conversationService = mock(ConversationService.class);
+    when(conversationService.getAllowedAttachmentKeys(CONVERSATION_ID))
+        .thenReturn(java.util.List.of("uploads/orders-api.yaml"));
+    ProductPipelineArtifactStore artifactStore = emptyArtifactStore();
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, throwingS3Service());
+    ChatEvent.Decision decision = handler.createDecision(CONVERSATION_ID);
+    handler.appendApprovalRecord(runIdFor(CONVERSATION_ID), CONVERSATION_ID, decision, artifactStore);
+
+    artifactStore.append(
+        new CompilationArtifacts.AppendCommand(
+            runIdFor(CONVERSATION_ID),
+            CompilationArtifacts.Kind.APPROVAL_RECORD,
+            "2",
+            "test",
+            "1",
+            new ApprovalRecordV2(
+                new CompilationArtifacts.Reference(
+                    CompilationArtifacts.Kind.IMPLEMENTATION_PLAN, "plan-1", "plan-hash"),
+                "plan-hash",
+                java.util.List.of(),
+                "user",
+                null,
+                Instant.parse("2026-08-28T11:00:00Z")),
+            java.util.List.of(),
+            null,
+            new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+                runIdFor(CONVERSATION_ID),
+                "plan-approval",
+                "create-chain",
+                "2",
+                "",
+                "test",
+                "1",
+                "")));
+
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    when(selection.selectOrCreate(CONVERSATION_ID, "create an integration"))
+        .thenReturn(
+            new CreateRunSelectionService.CreateRunSelection(
+                mock(org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class),
+                runIdFor(CONVERSATION_ID)));
+    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    ScenarioRouter productRouter =
+        routerWithAttachments(conversationService, artifactStore, selection, adapter);
+
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    request.setResolvedEffectiveUserText("create an integration");
+
+    var events = productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(selection).selectOrCreate(anyString(), anyString());
+  }
+
+  private ScenarioRouter routerWithAttachments(
+      ConversationService conversationService,
+      ProductPipelineArtifactStore artifactStore,
+      CreateRunSelectionService selection,
+      ProductPipelineChatAdapter adapter) {
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            conversationService,
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    productRouter.uploadedSpecsApprovalHandler =
+        new UploadedSpecsApprovalHandler(conversationService, throwingS3Service());
+    productRouter.artifactStore = artifactStore;
+    return productRouter;
+  }
+
+  private static S3Service throwingS3Service() {
+    S3Service s3Service = mock(S3Service.class);
+    when(s3Service.readObjectBytes(any())).thenThrow(new RuntimeException("S3 unavailable"));
+    return s3Service;
+  }
+
+  private static ProductPipelineArtifactStore emptyArtifactStore() {
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    return new ProductPipelineArtifactStore(
+        new CompilationArtifacts(
+            new InMemoryArtifactBlobStore(),
+            mapper,
+            Clock.fixed(Instant.parse("2026-08-28T10:00:00Z"), ZoneOffset.UTC)));
+  }
+
+  private static String runIdFor(String conversationId) {
+    return conversationId
+        + "-"
+        + CreateRunSelectionService.CREATE_PROFILE_ID
+        + "-"
+        + CreateRunSelectionService.CREATE_PROFILE_VERSION;
   }
 }

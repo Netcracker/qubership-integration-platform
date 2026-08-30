@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.ApiHubExistingCatalogBinder;
 
@@ -137,5 +138,30 @@ class SelectApiHubCandidateToolTest {
     assertTrue(result.contains("\"ok\":false"));
     assertTrue(store.get("select-conv").isEmpty());
     assertFalse(apiHubCache.latestCandidate("select-conv").isPresent());
+  }
+
+  @Test
+  void selectRejectsUploadedAttachmentFilenameBase() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "uploaded-spec-conv");
+    store.beginTurn("uploaded-spec-conv");
+
+    ConversationService conversationService = new ConversationService();
+    conversationService.registerAllowedAttachmentKeys(
+        "uploaded-spec-conv", List.of("uploads/MyAPI.yaml"));
+    SelectApiHubCandidateTool uploadedSpecTool =
+        new SelectApiHubCandidateTool(store, apiHubCache, null, conversationService);
+
+    String result =
+        uploadedSpecTool.selectApiHubCandidate("MyAPI", "1.0", "op-1", null, "rest", null);
+
+    assertTrue(result.contains("\"ok\":false"));
+    assertTrue(result.contains("selectApiHubCandidate"));
+    assertTrue(
+        result.contains(
+            "This tool is for API Hub specifications only. Uploaded API specifications are"
+                + " handled by a separate import flow; do not select them as API Hub"
+                + " candidates."));
+    assertTrue(store.get("uploaded-spec-conv").isEmpty());
+    assertFalse(apiHubCache.latestCandidate("uploaded-spec-conv").isPresent());
   }
 }

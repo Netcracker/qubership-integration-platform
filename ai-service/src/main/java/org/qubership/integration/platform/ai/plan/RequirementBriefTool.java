@@ -105,6 +105,11 @@ public class RequirementBriefTool {
        toIntentRef. Use PASS_THROUGH with no rules when no transformation was requested. Use\
        EXPLICIT only for user-approved sourcePath and targetPath rules; never invent rules. Give\
        every PASS_THROUGH mapping at least one approved sourceFactId for provenance.
+      Escape any double quotes inside text values with a backslash.
+      Do not paste raw JSON or OpenAPI fragments into fact text; paraphrase the requirement in plain
+       text.
+      Fact example:
+      {"polarity":"POSITIVE","kind":"BEHAVIOR","text":"The endpoint returns a \"greeting\" message"}
       Minimal example:
       {
         "goal": "Expose a greeting HTTP endpoint",

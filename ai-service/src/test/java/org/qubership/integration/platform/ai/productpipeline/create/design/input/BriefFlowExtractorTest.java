@@ -68,6 +68,123 @@ class BriefFlowExtractorTest {
   }
 
   @Test
+  void extractsServiceCallFromUploadedOpenApiSpecFact() {
+    RequirementBrief brief =
+        brief(
+            "Stub Task",
+            List.of("HTTP POST /hello"),
+            "Create a Stub Task via uploaded spec",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP POST /hello"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    "Uploaded OPENAPI spec Stub OpenAPI Service operation stubOperation"
+                        + " path POST /stub/path")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    BriefFlowExtractor.ExtractionResult result = extractor.extract(brief);
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, result).flow();
+    assertEquals("Stub Task", flow.chainName());
+    assertEquals("/hello", flow.trigger().endpointOrTopic());
+    assertEquals(1, flow.steps().size());
+    NormalizedDesignFlow.Step call = flow.steps().getFirst();
+    assertEquals("service-call", call.kind());
+    assertEquals("POST /stub/path", call.operationQuery());
+    assertEquals("p-stub-openapi-service", call.toParticipantId());
+    assertEquals(
+        "Stub OpenAPI Service",
+        flow.participants().stream()
+            .filter(p -> p.participantId().equals(call.toParticipantId()))
+            .findFirst()
+            .orElseThrow()
+            .displayName());
+  }
+
+  @Test
+  void extractsServiceCallFromUploadedOpenApiSpecFactWithChannelWord() {
+    RequirementBrief brief =
+        brief(
+            "Stub Task",
+            List.of("HTTP POST /hello"),
+            "Create a Stub Task via uploaded spec",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP POST /hello"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    "Uploaded OPENAPI spec Stub OpenAPI Service operation stubOperation"
+                        + " channel POST /stub/path")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    BriefFlowExtractor.ExtractionResult result = extractor.extract(brief);
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, result).flow();
+    assertEquals(1, flow.steps().size());
+    NormalizedDesignFlow.Step call = flow.steps().getFirst();
+    assertEquals("service-call", call.kind());
+    assertEquals("POST /stub/path", call.operationQuery());
+    assertEquals("p-stub-openapi-service", call.toParticipantId());
+  }
+
+  @Test
+  void extractsServiceCallFromUploadedAsyncApiSpecFact() {
+    RequirementBrief brief =
+        brief(
+            "Stub Async Task",
+            List.of("HTTP POST /hello"),
+            "Create a stub async task via AsyncAPI uploaded spec",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP POST /hello"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    "Uploaded ASYNCAPI spec Stub AsyncAPI Service operation stubAsyncOperation"
+                        + " channel stub-channel")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    BriefFlowExtractor.ExtractionResult result = extractor.extract(brief);
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, result).flow();
+    assertEquals("Stub Async Task", flow.chainName());
+    assertEquals(1, flow.steps().size());
+    NormalizedDesignFlow.Step call = flow.steps().getFirst();
+    assertEquals("service-call", call.kind());
+    assertEquals(
+        "stubAsyncOperation stub-channel", call.operationQuery());
+    assertEquals("p-stub-asyncapi-service", call.toParticipantId());
+  }
+
+  @Test
+  void extractsCatalogBoundAsyncOperation() {
+    RequirementBrief brief =
+        brief(
+            "Stub Async Task",
+            List.of("HTTP POST /hello"),
+            "Call the catalog-bound Stub AsyncAPI async operation",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "HTTP POST /hello"),
+                fact(
+                    "call-1",
+                    RequirementFactKind.SERVICE_CALL,
+                    "Call catalog-bound Stub AsyncAPI stubAsyncOperation operation, PUBLISH"
+                        + " stub-channel.")),
+            List.of(passThrough("map-init", "trigger-1", "call-1")));
+
+    NormalizedDesignFlow flow =
+        assertInstanceOf(BriefFlowExtractor.ExtractionResult.Complete.class, extractor.extract(brief))
+            .flow();
+
+    assertEquals("Stub AsyncAPI", flow.participants().get(1).displayName());
+    assertEquals(
+        "PUBLISH stub-channel", flow.steps().getFirst().operationQuery());
+  }
+
+  @Test
   void explicitApiHubProhibitionBecomesCatalogOnlyPolicy() {
     RequirementBrief brief =
         brief(

@@ -122,7 +122,7 @@ class A2aTransportContractIT {
   }
 
   @Test
-  void createTaskPersistsSnapshotAndUsesTaskIdAsConversationId() {
+  void taskCreationPersistsSnapshotAndUsesTaskIdAsConversationId() {
     String messageId = UUID.randomUUID().toString();
     String body = textMessageBody(messageId, null, "Build a payment chain");
 

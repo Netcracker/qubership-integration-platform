@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
-import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
@@ -27,7 +26,6 @@ class GatherRequirementsPromptBuilderTest {
   private CompilerSkillAddonRepository addonRepository;
   private RequirementDraftStore draftStore;
   private ConversationService conversationService;
-  private UploadedSpecStore uploadedSpecStore;
   private GatherRequirementsPromptBuilder builder;
 
   @BeforeEach
@@ -36,7 +34,6 @@ class GatherRequirementsPromptBuilderTest {
     addonRepository = mock(CompilerSkillAddonRepository.class);
     draftStore = new RequirementDraftStore();
     conversationService = mock(ConversationService.class);
-    uploadedSpecStore = new UploadedSpecStore();
     when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
         .thenReturn(brainstormingDocument());
     when(addonRepository.loadForSkill(RequirementDraftTool.SOURCE_SKILL_ID))
@@ -46,8 +43,7 @@ class GatherRequirementsPromptBuilderTest {
             skillDocumentService,
             addonRepository,
             draftStore,
-            conversationService,
-            uploadedSpecStore);
+            conversationService);
   }
 
   @Test
@@ -103,4 +99,15 @@ class GatherRequirementsPromptBuilderTest {
         new QipKnowledgePackVersion("cip_compiler_v2", "cip_compiler_v2"),
         "# Brainstorming Ideas Into Designs\n");
   }
+
+  @Test
+  void wrapIncludesUploadedAttachmentList() {
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uuid/orders-api.yaml", "uuid/notifications-async.yaml"));
+    String input = builder.wrap("conv-1", "Create chain", "en");
+    assertTrue(input.contains("User uploaded the following API specifications:"));
+    assertTrue(input.contains("orders-api.yaml"));
+    assertTrue(input.contains("notifications-async.yaml"));
+  }
+
 }

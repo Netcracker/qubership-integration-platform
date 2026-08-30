@@ -23,7 +23,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 public class CatalogBindingMatcher {
 
   private static final Pattern METHOD_PATH =
-      Pattern.compile("(?i)\\b(GET|POST|PUT|PATCH|DELETE)\\s+(/\\S+)");
+      Pattern.compile("(?i)\\b(GET|POST|PUT|PATCH|DELETE|PUBLISH|SUBSCRIBE|SEND|RECEIVE)\\s+(\\S+)");
 
   private final CatalogSystemReadTool catalogReadTool;
 
@@ -57,6 +57,11 @@ public class CatalogBindingMatcher {
   public MatchResult match(NormalizedDesignFlow flow, NormalizedDesignFlow.Step serviceCallStep) {
     Objects.requireNonNull(flow, "flow");
     Objects.requireNonNull(serviceCallStep, "serviceCallStep");
+    // Support both service-call and async-api-trigger steps
+    String kind = serviceCallStep.kind();
+    if (!"service-call".equalsIgnoreCase(kind) && !"async-api-trigger".equalsIgnoreCase(kind)) {
+        return new MatchResult.None();
+    }
     String operationQuery = CatalogStrings.blankToNull(serviceCallStep.operationQuery());
     if (operationQuery == null) {
       return new MatchResult.None();
@@ -225,7 +230,14 @@ public class CatalogBindingMatcher {
     }
     String required = requiredService.trim().toLowerCase(Locale.ROOT);
     String actual = catalogName.trim().toLowerCase(Locale.ROOT);
-    return actual.contains(required) || required.contains(actual);
+    if (actual.contains(required) || required.contains(actual)) {
+      return true;
+    }
+    // Uploaded spec titles and imported catalog names often differ only in punctuation
+    // (en-dash vs hyphen, extra spaces, ampersand). Fall back to an alphanumeric match.
+    String requiredAlpha = required.replaceAll("[^a-z0-9]", "");
+    String actualAlpha = actual.replaceAll("[^a-z0-9]", "");
+    return actualAlpha.contains(requiredAlpha) || requiredAlpha.contains(actualAlpha);
   }
 
   private static boolean protocolAgrees(NormalizedDesignFlow flow, String catalogProtocol) {
@@ -315,19 +327,30 @@ public class CatalogBindingMatcher {
       return false;
     }
     String lower = needle.toLowerCase(Locale.ROOT);
-    if (containsIgnoreCase(op.name(), lower)
-        || containsIgnoreCase(op.path(), lower)
-        || containsIgnoreCase(op.method(), lower)
+    boolean catalogContainsQuery =
+        containsIgnoreCase(op.name(), lower)
+            || containsIgnoreCase(op.path(), lower)
+            || containsIgnoreCase(op.method(), lower);
+    boolean queryContainsCatalog =
+        containsInLower(lower, op.name()) || containsInLower(lower, op.path());
+    if (catalogContainsQuery
+        || queryContainsCatalog
         || (parsed.method() != null && parsed.path() != null)) {
       // Method+path exact agreement already checked; name may still differ.
       if (parsed.method() != null && parsed.path() != null) {
         return true;
       }
-      return containsIgnoreCase(op.name(), lower)
+      return catalogContainsQuery
           || containsIgnoreCase(op.id(), lower)
-          || tokenOverlap(lower, op.name());
+          || tokenOverlap(lower, op.name())
+          || queryContainsCatalog;
     }
     return false;
+  }
+
+  private static boolean containsInLower(String lowerQuery, String candidate) {
+    return CatalogStrings.blankToNull(candidate) != null
+        && lowerQuery.contains(candidate.toLowerCase(Locale.ROOT));
   }
 
   private static boolean pathsAgree(String required, String actual) {

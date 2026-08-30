@@ -15,9 +15,12 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequiremen
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportService;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogChainPublicationService;
+import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecAutoImporter;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -28,6 +31,7 @@ class CatalogMutationGatewayTest {
   @Mock private CatalogGraphMaterializer graphMaterializer;
   @Mock private ApiHubSpecificationImportService apiHubSpecificationImportService;
   @Mock private CatalogChainPublicationService chainPublicationService;
+  @Mock private UploadedSpecAutoImporter uploadedSpecAutoImporter;
 
   private CatalogMutationGateway gateway;
 
@@ -35,7 +39,10 @@ class CatalogMutationGatewayTest {
   void setUp() {
     gateway =
         new CatalogMutationGateway(
-            graphMaterializer, apiHubSpecificationImportService, chainPublicationService);
+            graphMaterializer,
+            apiHubSpecificationImportService,
+            chainPublicationService,
+            uploadedSpecAutoImporter);
   }
 
   @Test
@@ -70,6 +77,20 @@ class CatalogMutationGatewayTest {
 
     assertEquals(expected, result);
     verify(apiHubSpecificationImportService).importFromRefs("conv-1", refs);
+  }
+
+  @Test
+  void importUploadedSpecDelegatesToAutoImporter() {
+    UploadedSpecAttachment attachment = new UploadedSpecAttachment("key", "orders-api.yaml");
+    UploadedSpecImportOutcome expected =
+        new UploadedSpecImportOutcome("key", "sys-1", "sg-1", "spec-1", false);
+    when(uploadedSpecAutoImporter.importSpec("conv-1", attachment)).thenReturn(expected);
+
+    UploadedSpecImportOutcome result =
+        gateway.importUploadedSpec("conv-1", attachment).await().indefinitely();
+
+    assertEquals(expected, result);
+    verify(uploadedSpecAutoImporter).importSpec("conv-1", attachment);
   }
 
   private static ChainPlanGraph validGraph() {

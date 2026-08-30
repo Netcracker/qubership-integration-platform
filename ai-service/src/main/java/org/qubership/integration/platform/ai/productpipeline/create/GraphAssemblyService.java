@@ -84,6 +84,7 @@ public class GraphAssemblyService implements CompilerNodeExecutionAdapter {
       }
       graph = applyResult.graph();
     }
+    graph = CompilerSecurityFallback.apply(graph);
     return assembled(graph, orderedPatchReferences, rejected);
   }
 

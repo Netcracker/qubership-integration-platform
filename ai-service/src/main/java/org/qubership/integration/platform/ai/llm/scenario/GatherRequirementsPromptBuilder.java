@@ -4,8 +4,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
@@ -13,8 +11,6 @@ import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialS
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
-import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecEntry;
-import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
@@ -35,27 +31,24 @@ public class GatherRequirementsPromptBuilder {
   private final CompilerSkillAddonRepository addonRepository;
   private final RequirementDraftStore draftStore;
   private final ConversationService conversationService;
-  private final UploadedSpecStore uploadedSpecStore;
 
   @Inject
   public GatherRequirementsPromptBuilder(
       CompilerSkillDocumentService skillDocumentService,
       CompilerSkillAddonRepository addonRepository,
       RequirementDraftStore draftStore,
-      ConversationService conversationService,
-      UploadedSpecStore uploadedSpecStore) {
+      ConversationService conversationService) {
     this.skillDocumentService = skillDocumentService;
     this.addonRepository = addonRepository;
     this.draftStore = draftStore;
     this.conversationService = conversationService;
-    this.uploadedSpecStore = uploadedSpecStore;
   }
 
   public GatherRequirementsPromptBuilder(
       CompilerSkillDocumentService skillDocumentService,
       CompilerSkillAddonRepository addonRepository,
       RequirementDraftStore draftStore) {
-    this(skillDocumentService, addonRepository, draftStore, null, null);
+    this(skillDocumentService, addonRepository, draftStore, null);
   }
 
   /**
@@ -86,11 +79,17 @@ public class GatherRequirementsPromptBuilder {
 
           <service-runtime-envelope>
           Follow the compiler process skill and the brainstorming addon below for requirement
-          discovery behavior (catalog/API Hub, capture decisions, facts, platform defaults,
-          clarifying-question overrides). Do not write files, commit changes, invoke implementation
-          skills, or run the compiler spine. Call captureRequirementDraft every turn. Reply in the
-          pinned response locale %s. This locale is authoritative; do not infer another language
-          from conversation history or embedded text.
+          discovery behavior (catalog/API Hub for non-uploaded outbound calls, capture decisions,
+          facts, platform defaults, clarifying-question overrides). Do not write files, commit
+          changes, invoke implementation skills, or run the compiler spine. Call
+          captureRequirementDraft every turn. Reply in the pinned response locale %s. This locale is
+          authoritative; do not infer another language from conversation history or embedded text.
+
+          Uploaded-spec override: when a SERVICE_CALL fact describes an uploaded OpenAPI/AsyncAPI
+          specification (its text starts with "Uploaded "), do NOT call resolveApiOperation, do NOT
+          search API Hub, and do NOT mention API Hub. The product pipeline imports uploaded
+          specifications automatically after reader approval. Capture the fact in the uploaded-spec
+          form and set READY_FOR_PLAN with empty openQuestions when the rest of the brief is clear.
           </service-runtime-envelope>
           %s
           %s
@@ -107,7 +106,7 @@ public class GatherRequirementsPromptBuilder {
                   normalizedLocale(responseLocale),
                   addonBlock(),
                   currentDraftBlock(draft),
-                  uploadedSpecsBlock(conversationId),
+                  attachmentList(conversationId),
                   userMessage != null ? userMessage : "");
       return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
     } catch (RuntimeException e) {
@@ -172,64 +171,23 @@ public class GatherRequirementsPromptBuilder {
         .formatted(current.decision(), current.assembledText(), openQuestions);
   }
 
-  private String uploadedSpecsBlock(String conversationId) {
-    if (conversationService == null || uploadedSpecStore == null || conversationId == null) {
+  private String attachmentList(String conversationId) {
+    if (conversationService == null || conversationId == null) {
       return "";
     }
     List<String> allowedKeys = conversationService.getAllowedAttachmentKeys(conversationId);
     if (allowedKeys == null || allowedKeys.isEmpty()) {
       return "";
     }
-    List<UploadedSpecEntry> registered = uploadedSpecStore.getAll(conversationId);
-    Set<String> registeredKeys =
-        registered == null
-            ? Set.of()
-            : registered.stream().map(UploadedSpecEntry::s3Key).collect(Collectors.toSet());
-
-    StringBuilder unregistered = new StringBuilder();
+    StringBuilder body = new StringBuilder();
+    body.append("User uploaded the following API specifications:\n");
     for (String key : allowedKeys) {
-      if (key != null && !registeredKeys.contains(key)) {
-        String filename = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
-        unregistered
-            .append("- key: \"")
-            .append(key)
-            .append("\" | filename: \"")
-            .append(filename)
-            .append("\"\n");
+      if (key == null) {
+        continue;
       }
+      String filename = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
+      body.append("- ").append(filename).append("\n");
     }
-
-    StringBuilder registeredBlock = new StringBuilder();
-    if (registered != null) {
-      for (UploadedSpecEntry entry : registered) {
-        registeredBlock
-            .append("- key: \"")
-            .append(entry.s3Key())
-            .append("\" | title: \"")
-            .append(entry.title())
-            .append("\" | type: ")
-            .append(entry.specType())
-            .append(" | version: ")
-            .append(entry.version())
-            .append("\n");
-      }
-    }
-
-    if (unregistered.isEmpty() && registeredBlock.isEmpty()) {
-      return "";
-    }
-
-    return """
-
-        <uploaded-specs>
-          <unregistered>
-        %s  </unregistered>
-          <registered>
-        %s  </registered>
-        </uploaded-specs>
-        """
-        .formatted(
-            unregistered.isEmpty() ? "" : unregistered.toString(),
-            registeredBlock.isEmpty() ? "" : registeredBlock.toString());
+    return body.toString();
   }
 }

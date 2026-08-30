@@ -53,6 +53,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
@@ -282,13 +283,22 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
                   request.conversationId(),
                   node.skillId(),
                   node.executionMode());
-              skillProgress.accept(node.skillId(), "error");
               degradations.add(PlanningDegradations.generatorSkipped(node.skillId()));
-              List<SkillArtifact> fallback =
-                  fallbackOutputsAfterSkillFailure(workspaceId, node, degradations);
-              fallback = requireChainStructureFallback(workspaceId, node, fallback, ex);
-              state = applyCompletion(state, node, fallback);
-              executed.add(node.skillId());
+              try {
+                List<SkillArtifact> fallback =
+                    fallbackOutputsAfterSkillFailure(workspaceId, node, degradations);
+                fallback = requireChainStructureFallback(workspaceId, node, fallback, ex);
+                if (fallback.isEmpty()) {
+                  skillProgress.accept(node.skillId(), "error");
+                } else {
+                  skillProgress.accept(node.skillId(), "completed");
+                }
+                state = applyCompletion(state, node, fallback);
+                executed.add(node.skillId());
+              } catch (RuntimeException fallbackEx) {
+                skillProgress.accept(node.skillId(), "error");
+                throw fallbackEx;
+              }
             } else {
               skillProgress.accept(node.skillId(), "error");
               throw ex;
@@ -386,6 +396,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     List<SkillArtifact> fallback = new ArrayList<>();
     boolean expectsNaming = false;
+    boolean expectsTriggerSet = false;
     for (String produced : node.produces()) {
       String normalized = CompilerDerivedPlanningScheduler.normalizeArtifactType(produced);
       if (normalized.isBlank()) {
@@ -393,6 +404,9 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       }
       if (SkillArtifactType.NAMING_MANIFEST.name().equals(normalized)) {
         expectsNaming = true;
+      }
+      if (SkillArtifactType.CONFIGURED_TRIGGER_SET.name().equals(normalized)) {
+        expectsTriggerSet = true;
       }
       SkillArtifactType type;
       try {
@@ -423,6 +437,35 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       LOG.warnf(
           "Using soft-default naming manifest conversationId=%s skillId=%s chainName=%s",
           conversationId, node.skillId(), softDefault.chainName());
+    }
+    if (expectsTriggerSet
+        && fallback.stream().noneMatch(a -> a.type() == SkillArtifactType.CONFIGURED_TRIGGER_SET)) {
+      Optional<ConfiguredTriggerSet> softTrigger =
+          workspace
+              .get(SkillArtifactType.REQUIREMENT_BRIEF)
+              .flatMap(
+                  artifact -> {
+                    if (artifact.payload()
+                        instanceof SkillArtifactPayload.RequirementBriefPayload briefPayload) {
+                      return CompilerTriggerFallback.fromBrief(briefPayload.brief());
+                    }
+                    return Optional.<ConfiguredTriggerSet>empty();
+                  });
+      if (softTrigger.isPresent()) {
+        SkillArtifact triggerArtifact =
+            SkillArtifact.of(
+                SkillArtifactType.CONFIGURED_TRIGGER_SET,
+                node.skillId(),
+                new SkillArtifactPayload.ConfiguredTriggerSetPayload(softTrigger.get()));
+        fallback.add(triggerArtifact);
+        workspaceStore.putArtifact(conversationId, triggerArtifact);
+        degradations.add(PlanningDegradations.defaultTriggerSet(node.skillId()));
+        LOG.warnf(
+            "Using soft-default configured trigger set conversationId=%s skillId=%s trigger=%s",
+            conversationId,
+            node.skillId(),
+            softTrigger.get().triggers().get(0).label());
+      }
     }
     return List.copyOf(fallback);
   }

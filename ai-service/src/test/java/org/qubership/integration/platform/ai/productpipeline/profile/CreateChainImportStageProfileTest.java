@@ -28,7 +28,7 @@ class CreateChainImportStageProfileTest {
 
   @Test
   void importStageMutatesRequirementDraftInPlaceWithSkipAndConfirmGateOnV2() throws Exception {
-    assertImportStageContract(loadCreateChain("create-chain-v2.yaml"), true);
+    assertImportStageContractV2(loadCreateChain("create-chain-v2.yaml"));
   }
 
   private static void assertImportStageOrder(ProductPipelineProfile profile) {
@@ -67,6 +67,25 @@ class CreateChainImportStageProfileTest {
       assertTrue(
           importStage.skip().whenAny().contains(SkipPolicy.PROVIDED_DESIGN_ROUTE));
     }
+  }
+
+  private static void assertImportStageContractV2(ProductPipelineProfile profile) {
+    ProfileStage importStage =
+        profile.stages().stream()
+            .filter(stage -> "import-stage".equals(stage.stageId()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals("auto-uploaded-spec-import", importStage.capabilityId());
+    assertEquals(
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), importStage.consumes());
+    assertEquals(
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), importStage.produces());
+    assertNotNull(importStage.skip(), "skip policy required for ADR decision 9");
+    assertTrue(
+        importStage.skip().whenAny().contains(SkipPolicy.PROVIDED_DESIGN_ROUTE));
+    assertTrue(
+        importStage.skip().whenAny().contains(SkipPolicy.NO_ALLOWED_ATTACHMENTS));
   }
 
   private static ProductPipelineProfile loadCreateChain(String resourceName) throws Exception {

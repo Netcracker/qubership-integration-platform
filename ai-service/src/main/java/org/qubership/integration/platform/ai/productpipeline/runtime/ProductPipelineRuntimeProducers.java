@@ -42,8 +42,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.FailureNarra
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.AutoUploadedSpecImportCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.SpecificationImportCapability;
-import org.qubership.integration.platform.ai.productpipeline.create.UploadedSpecImportCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
@@ -73,7 +73,7 @@ public class ProductPipelineRuntimeProducers {
       Set.of(
           RequirementDiscoveryCapability.CAPABILITY_ID,
           SpecificationImportCapability.CAPABILITY_ID,
-          UploadedSpecImportCapability.CAPABILITY_ID,
+          AutoUploadedSpecImportCapability.CAPABILITY_ID,
           RequirementAnalysisCapability.CAPABILITY_ID,
           PlanningCapability.CAPABILITY_ID,
           DesignInputCapability.CAPABILITY_ID,

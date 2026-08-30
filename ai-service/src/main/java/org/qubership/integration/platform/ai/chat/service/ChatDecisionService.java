@@ -9,16 +9,22 @@ import java.util.Optional;
 import java.util.UUID;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
@@ -42,6 +48,12 @@ public class ChatDecisionService {
 
   /** Null in unit tests, which build the service without an LLM; the English fallback stands in. */
   @Inject ApprovalPromptAgent promptAgent;
+
+  @Inject UploadedSpecsApprovalHandler uploadedSpecsApprovalHandler;
+
+  @Inject ProductPipelineArtifactStore artifactStore;
+
+  @Inject ConversationService conversationService;
 
   @Inject
   public ChatDecisionService(
@@ -173,6 +185,68 @@ public class ChatDecisionService {
   }
 
   /**
+   * Handles the chat-layer approval gate for uploaded API specifications.
+   *
+   * <p>On approve, writes an APPROVAL_RECORD artifact into the pipeline context and starts the
+   * CREATE run with the original user message. Other actions are treated as clarification requests.
+   */
+  private Multi<ChatEvent> handleUploadedSpecsApproval(
+      String conversationId, ChatDecisionCommand command, String action) {
+    if (artifactStore == null || uploadedSpecsApprovalHandler == null) {
+      LOG.warnf(
+          "Uploaded-specs approval is not wired for conversationId=%s; ignoring decision",
+          conversationId);
+      return Multi.createFrom().empty();
+    }
+    if (!ChatEvent.APPROVE_ACTION.equals(action)) {
+      return Multi.createFrom().empty();
+    }
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            UploadedSpecsApprovalHandler.ARTIFACT_TYPE + ":" + command.getArtifactHash(),
+            ChatEvent.APPROVE_ACTION,
+            "",
+            command.getArtifactType(),
+            command.getArtifactHash(),
+            command.getRevision(),
+            null,
+            List.of(),
+            List.of("approve", "clarify"));
+    String runId =
+        conversationId
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_ID
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+    uploadedSpecsApprovalHandler.appendApprovalRecord(runId, conversationId, decision, "user", artifactStore);
+    LOG.infof(
+        "Approved uploaded-specs import conversationId=%s runId=%s", conversationId, runId);
+    return facade
+        .start(new StartCreateChainCommand(conversationId, originalUserText(conversationId)))
+        .onItem()
+        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
+        .onCompletion()
+        .switchTo(() -> openGateEvents(conversationId));
+  }
+
+  /** Returns the last user-authored message, skipping the decision marker if present. */
+  private String originalUserText(String conversationId) {
+    List<ConversationMessage> messages = conversationService.getMessages(conversationId);
+    for (int i = messages.size() - 1; i >= 0; i--) {
+      ConversationMessage message = messages.get(i);
+      if (message.role() != ConversationMessage.Role.USER) {
+        continue;
+      }
+      String text = message.content() == null ? "" : message.content();
+      if (text.startsWith("Approved ") || text.startsWith("Answered ")) {
+        continue;
+      }
+      return text;
+    }
+    return "";
+  }
+
+  /**
    * Marker recorded in the transcript in place of the reader's click.
    *
    * <p>English and stable: the transcript is read by the language model, the button by a person, so
@@ -203,6 +277,9 @@ public class ChatDecisionService {
     }
     if (ChatEvent.CREATE_ACTION.equals(action)) {
       return createChain(conversationId, command.getArtifactHash(), command.getRevision());
+    }
+    if (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType())) {
+      return handleUploadedSpecsApproval(conversationId, command, action);
     }
     if (!ChatEvent.APPROVE_ACTION.equals(action)
         && !ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)) {

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +34,11 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifes
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
@@ -806,6 +812,228 @@ class CompilerDagExecutionEngineTest {
                 "structural-validation")),
         List.of(),
         "dag-naming");
+  }
+
+  @Test
+  void aFailedTriggerGeneratorRecordsDefaultTriggerSetFromBrief() {
+    String conversationId = "conv-trigger-default";
+    ResolvedCompilerDag dag = dagWithTriggerGenerator();
+    when(skillRegistry.require(TRIGGER_SKILL)).thenReturn(new FailingTriggerExecutor());
+    CompilerNodeExecutionAdapter structureAdapter = mock(CompilerNodeExecutionAdapter.class);
+    when(javaAdapterRegistry.require("structure-generation")).thenReturn(structureAdapter);
+    when(structureAdapter.execute(eq(node(dag, "cip-structure-generator")), org.mockito.Mockito.any()))
+        .thenReturn(
+            new CompilerNodeExecutionResult(
+                List.of(
+                    SkillArtifact.of(
+                        SkillArtifactType.CHAIN_STRUCTURE,
+                        "cip-structure-generator",
+                        new SkillArtifactPayload.ChainStructurePayload(
+                            new ChainStructure(graphForAssembly(), List.of(), List.of())))),
+                List.of()));
+    CompilerNodeExecutionAdapter assemblyAdapter = mock(CompilerNodeExecutionAdapter.class);
+    when(javaAdapterRegistry.require("graph-assembly")).thenReturn(assemblyAdapter);
+    when(assemblyAdapter.execute(eq(node(dag, "cip-chain-assembler")), org.mockito.Mockito.any()))
+        .thenReturn(new CompilerNodeExecutionResult(List.of(), List.of()));
+    CompilerNodeExecutionAdapter validatorAdapter = mock(CompilerNodeExecutionAdapter.class);
+    when(javaAdapterRegistry.require("structural-validation")).thenReturn(validatorAdapter);
+    when(validatorAdapter.execute(
+            eq(node(dag, "cip-structural-validator")), org.mockito.Mockito.any()))
+        .thenReturn(
+            new CompilerNodeExecutionResult(
+                List.of(
+                    SkillArtifact.of(
+                        SkillArtifactType.PRE_BUILD_VALIDATION,
+                        "cip-structural-validator",
+                        new SkillArtifactPayload.ValidationResultPayload(
+                            new ValidationResult(true, List.of(), "ok")))),
+                List.of()));
+
+    List<String> progress = new ArrayList<>();
+    CompilerDagExecutionResult result =
+        executeDagWithEndpointBrief(conversationId, dag, (skillId, status) -> progress.add(skillId + ":" + status));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertEquals(
+        List.of(PlanningDegradations.GENERATOR_SKIPPED, PlanningDegradations.DEFAULT_TRIGGER_SET),
+        result.degradationFindings().stream().map(PlanValidationFinding::code).toList());
+    assertTrue(result.degradationFindings().stream().noneMatch(PlanValidationFinding::blocker));
+    assertTrue(
+        progress.contains(TRIGGER_SKILL + ":completed"),
+        "trigger generator should be reported completed after successful fallback; progress=" + progress);
+    assertFalse(
+        progress.contains(TRIGGER_SKILL + ":error"),
+        "trigger generator should not be reported error when fallback succeeds; progress=" + progress);
+    SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
+    Optional<SkillArtifact> triggerArtifact =
+        workspace.get(SkillArtifactType.CONFIGURED_TRIGGER_SET);
+    assertTrue(triggerArtifact.isPresent());
+    ConfiguredTriggerSet triggerSet =
+        ((SkillArtifactPayload.ConfiguredTriggerSetPayload) triggerArtifact.get().payload()).triggers();
+    assertEquals(1, triggerSet.triggers().size());
+    assertEquals("/hello", property(triggerSet.triggers().get(0), "contextPath"));
+    assertEquals("POST", property(triggerSet.triggers().get(0), "httpMethodRestrict"));
+  }
+
+  private CompilerDagExecutionResult executeDagWithEndpointBrief(
+      String conversationId, ResolvedCompilerDag dag) {
+    return executeDagWithEndpointBrief(conversationId, dag, (skillId, status) -> {});
+  }
+
+  private CompilerDagExecutionResult executeDagWithEndpointBrief(
+      String conversationId,
+      ResolvedCompilerDag dag,
+      java.util.function.BiConsumer<String, String> progress) {
+    return engine
+        .execute(
+            new CompilerDagExecutionRequest(
+                "run-1",
+                conversationId,
+                manifestFor(dag),
+                briefWithEndpoint(),
+                null,
+                dag,
+                List.of(),
+                List.of(),
+                List.of()),
+            progress)
+        .await()
+        .indefinitely();
+  }
+
+  private static RequirementBrief briefWithEndpoint() {
+    return new RequirementBrief(
+        "Hello trigger",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "summary",
+        "draft",
+        "Create HTTP trigger POST /hello",
+        List.of(
+            RequirementFact.of(
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.ENDPOINT,
+                "http",
+                "Inbound trigger: POST /hello")),
+        List.of());
+  }
+
+  private static String property(
+      org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger trigger,
+      String key) {
+    return trigger.properties().stream()
+        .filter(p -> p.key().equals(key))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("missing property " + key))
+        .value();
+  }
+
+  private static final String TRIGGER_SKILL = "cip-trigger-generator";
+
+  private static ResolvedCompilerDag dagWithTriggerGenerator() {
+    return new ResolvedCompilerDag(
+        List.of(
+            new ResolvedCompilerNode(
+                TRIGGER_SKILL,
+                "Planning",
+                "GEN-TRIGGER",
+                List.of(SkillArtifactType.REQUIREMENT_BRIEF.name()),
+                List.of(SkillArtifactType.CONFIGURED_TRIGGER_SET.name()),
+                List.of("cip-requirement-analyzer"),
+                "captureConfiguredTriggerSet",
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                0,
+                0,
+                true,
+                CompilerNodeExecutionMode.LLM_SKILL,
+                null),
+            new ResolvedCompilerNode(
+                "cip-structure-generator",
+                "Planning",
+                null,
+                List.of(
+                    SkillArtifactType.REQUIREMENT_BRIEF.name(),
+                    SkillArtifactType.CONFIGURED_TRIGGER_SET.name()),
+                List.of(SkillArtifactType.CHAIN_STRUCTURE.name()),
+                List.of(TRIGGER_SKILL),
+                "captureChainStructure",
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                1,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "structure-generation"),
+            new ResolvedCompilerNode(
+                "cip-chain-assembler",
+                "Assembly",
+                null,
+                List.of(SkillArtifactType.CHAIN_STRUCTURE.name()),
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of("cip-structure-generator"),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                2,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "graph-assembly"),
+            new ResolvedCompilerNode(
+                "cip-structural-validator",
+                "Validation",
+                null,
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(SkillArtifactType.PRE_BUILD_VALIDATION.name()),
+                List.of("cip-chain-assembler"),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                3,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "structural-validation")),
+        List.of(),
+        "dag-trigger");
+  }
+
+  private static final class FailingTriggerExecutor implements SkillExecutor {
+    @Override
+    public String skillId() {
+      return TRIGGER_SKILL;
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.REQUIREMENT_BRIEF);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.CONFIGURED_TRIGGER_SET);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      return Uni.createFrom().item(SkillExecutionResult.failed("trigger capture rejected"));
+    }
   }
 
   private static final class FailingNamingExecutor implements SkillExecutor {

@@ -43,6 +43,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
@@ -480,6 +481,7 @@ class CreateChainSharedDesignRuntimeIT {
                     discovery,
                     analysis,
                     planning,
+                    autoUploadedSpecImportStub(),
                     designExecutionCapability(),
                     materializationCapability)),
             new ProductPipelineProfileCatalog(List.of(v2Profile)),
@@ -544,6 +546,7 @@ class CreateChainSharedDesignRuntimeIT {
                     discoveryStub(),
                     analysisStub(approvedBrief()),
                     designPlanningCapability(),
+                    autoUploadedSpecImportStub(),
                     designExecutionCapability(),
                     materializationCapability)),
             new ProductPipelineProfileCatalog(List.of(v2Profile)),
@@ -836,6 +839,7 @@ class CreateChainSharedDesignRuntimeIT {
                 discoveryStub(),
                 analysisStub(approvedBrief()),
                 designPlanningCapability(),
+                autoUploadedSpecImportStub(),
                 designExecutionCapability(),
                 materializationCapability)),
         new ProductPipelineProfileCatalog(List.of(v2Profile)),
@@ -931,6 +935,35 @@ class CreateChainSharedDesignRuntimeIT {
                         outcomeClass,
                         List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())),
                         "analyzed",
+                        null)));
+      }
+    };
+  }
+
+  private StageCapability autoUploadedSpecImportStub() {
+    return new StageCapability() {
+      @Override
+      public String capabilityId() {
+        return AutoUploadedSpecImportCapability.CAPABILITY_ID;
+      }
+
+      @Override
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        List<Reference> draftRefs =
+            context.inputRefs().stream()
+                .filter(ref -> ref != null && ref.kind() == Kind.REQUIREMENT_DRAFT)
+                .toList();
+        List<ArtifactCandidate> candidates =
+            draftRefs.stream()
+                .map(ref -> new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, Map.of(), List.of(ref)))
+                .toList();
+        return Multi.createFrom()
+            .item(
+                new CapabilitySignal.Completed(
+                    new StageOutcome(
+                        StageOutcomeClass.SUCCEEDED,
+                        candidates,
+                        "skipped auto-uploaded-spec-import",
                         null)));
       }
     };

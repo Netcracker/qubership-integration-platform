@@ -30,16 +30,21 @@ stages:
       - { type: catalog-binding-hint, schemaVersion: 1 }
     skip: { whenAny: [provided-design-route] }
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+
   - stageId: import-stage
-    capabilityId: specification-import
-    consumes: [{ type: requirement-draft, schemaVersion: 2 }]
-    produces: [{ type: requirement-draft, schemaVersion: 2 }]
+    capabilityId: auto-uploaded-spec-import
+    consumes:
+      - { type: requirement-draft, schemaVersion: 2 }
+    produces:
+      - { type: requirement-draft, schemaVersion: 2 }
+    optionalProduces:
+      - { type: catalog-binding-hint, schemaVersion: 1 }
     skip:
       whenAny:
-        - no-apihub-candidate
-        - catalog-binding-present
         - provided-design-route
+        - no-allowed-attachments
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+
   - stageId: requirement-analysis
     capabilityId: requirement-analysis
     consumes:
@@ -87,18 +92,6 @@ stages:
         - { type: design-execution-plan, schemaVersion: 1 }
         - { type: implementation-plan, schemaVersion: 2 }
     retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
-  - stageId: uploaded-spec-import
-    capabilityId: uploaded-spec-import
-    consumes:
-      - { type: requirement-draft, schemaVersion: 2 }
-      - { type: approval-record, schemaVersion: 2 }
-    produces:
-      - { type: requirement-draft, schemaVersion: 2 }
-    skip:
-      whenAny:
-        - no-uploaded-spec-candidates
-        - provided-design-route
-    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: design-execution
     capabilityId: design-execution
     consumes:
@@ -149,7 +142,6 @@ dependencyRoots:
   - ids-entry
   - requirement-discovery
   - import-stage
-  - uploaded-spec-import
   - requirement-analysis
   - design-input
   - design-planning

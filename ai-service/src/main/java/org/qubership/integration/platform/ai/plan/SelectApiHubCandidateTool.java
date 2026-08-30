@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.ApiHubExistingCatalogBinder;
@@ -30,6 +31,7 @@ public class SelectApiHubCandidateTool {
 
   static final String TOOL_NAME = "selectApiHubCandidate";
 
+  private final ConversationService conversationService;
   private final RequirementDraftStore store;
   private final ConversationApiHubCache apiHubCache;
   private final ApiHubExistingCatalogBinder existingCatalogBinder;
@@ -37,10 +39,12 @@ public class SelectApiHubCandidateTool {
 
   @Inject
   public SelectApiHubCandidateTool(
+      ConversationService conversationService,
       RequirementDraftStore store,
       ConversationApiHubCache apiHubCache,
       ApiHubExistingCatalogBinder existingCatalogBinder,
       ObjectMapper objectMapper) {
+    this.conversationService = conversationService;
     this.store = store;
     this.apiHubCache = apiHubCache;
     this.existingCatalogBinder = existingCatalogBinder;
@@ -48,14 +52,22 @@ public class SelectApiHubCandidateTool {
   }
 
   SelectApiHubCandidateTool(RequirementDraftStore store, ConversationApiHubCache apiHubCache) {
-    this(store, apiHubCache, null, new ObjectMapper());
+    this(null, store, apiHubCache, null, new ObjectMapper());
   }
 
   SelectApiHubCandidateTool(
       RequirementDraftStore store,
       ConversationApiHubCache apiHubCache,
       ApiHubExistingCatalogBinder existingCatalogBinder) {
-    this(store, apiHubCache, existingCatalogBinder, new ObjectMapper());
+    this(null, store, apiHubCache, existingCatalogBinder, new ObjectMapper());
+  }
+
+  SelectApiHubCandidateTool(
+      RequirementDraftStore store,
+      ConversationApiHubCache apiHubCache,
+      ApiHubExistingCatalogBinder existingCatalogBinder,
+      ConversationService conversationService) {
+    this(conversationService, store, apiHubCache, existingCatalogBinder, new ObjectMapper());
   }
 
   @Tool("""
@@ -63,6 +75,8 @@ public class SelectApiHubCandidateTool {
       (or getApiOperationSpecification) returns a match. The server validates refs and either
       binds an existing runtime-catalog hierarchy or stores an import candidate — do NOT put
       apiHubCandidate on captureRequirementDraft.
+      Do NOT use this tool for uploaded API specifications; those are imported through the
+      dedicated uploaded-spec flow.
       Required: packageId, version, and either operationId or documentId (use documentId=api when
       importing the whole package). Optional: apiType (default rest), packageName.
       Returns JSON: { ok, tool, candidate, nextStep, openQuestion?, catalogBinding? }.
@@ -122,6 +136,16 @@ public class SelectApiHubCandidateTool {
                     + " documentId"));
       }
 
+      if (isUploadedAttachment(conversationId, resolvedPackageId)) {
+        return finish(
+            conversationId,
+            startMs,
+            errorJson(
+                "This tool is for API Hub specifications only. Uploaded API specifications are"
+                    + " handled by a separate import flow; do not select them as API Hub"
+                    + " candidates."));
+      }
+
       if (apiHubCache != null) {
         apiHubCache.rememberCandidate(conversationId, candidate);
       }
@@ -160,9 +184,7 @@ public class SelectApiHubCandidateTool {
                 null,
                 false,
                 List.of(),
-                true,
-                List.of(),
-                List.of());
+                true);
       }
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
@@ -254,6 +276,31 @@ public class SelectApiHubCandidateTool {
     if (CatalogStrings.blankToNull(candidate.packageName()) != null) {
       cand.put("packageName", candidate.packageName());
     }
+  }
+
+  private boolean isUploadedAttachment(String conversationId, String packageId) {
+    if (conversationService == null
+        || conversationId == null
+        || conversationId.isBlank()
+        || packageId == null) {
+      return false;
+    }
+    for (String key : conversationService.getAllowedAttachmentKeys(conversationId)) {
+      if (packageId.equals(filenameBase(key))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private String filenameBase(String key) {
+    if (key == null) {
+      return null;
+    }
+    String filename = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
+    int dot = filename.lastIndexOf('.');
+    String base = dot > 0 ? filename.substring(0, dot) : filename;
+    return base.isBlank() ? null : base;
   }
 
   private String finish(String conversationId, long startMs, String result) {

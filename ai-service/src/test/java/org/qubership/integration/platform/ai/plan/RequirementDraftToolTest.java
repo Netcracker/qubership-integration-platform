@@ -7,19 +7,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.storage.S3Service;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsReadCache;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
@@ -360,6 +373,96 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void readyForPlanStaysReadyWhenUploadedSpecImportIsApproved() {
+    UploadedSpecsApprovalHandler handler = mock(UploadedSpecsApprovalHandler.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    RequirementDraftTool tool =
+        RequirementDraftTool.withUploadApproval(store, handler, artifactStore);
+    String conversationId = "draft-conv";
+    MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+    store.beginTurn(conversationId);
+
+    String hash = "attachment-hash";
+    String runId =
+        conversationId
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_ID
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+    when(handler.needsApproval(conversationId)).thenReturn(true);
+    when(handler.attachmentHash(conversationId)).thenReturn(hash);
+    CompilationArtifacts.Revision revision = mock(CompilationArtifacts.Revision.class);
+    when(artifactStore.findLatestApprovalRecord(
+            runId, UploadedSpecsApprovalHandler.ARTIFACT_TYPE, hash))
+        .thenReturn(Optional.of(revision));
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Call Petstore Ext getInventory",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.SERVICE_CALL,
+                        "Petstore Ext",
+                        "GET /store/inventory"))));
+
+    assertTrue(result.contains("Requirement draft captured"), result);
+    RequirementDraft draft = store.get(conversationId).orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.openQuestions().isEmpty());
+  }
+
+  @Test
+  void missingBindingDowngradesWhenUploadedSpecImportIsNotApproved() {
+    UploadedSpecsApprovalHandler handler = mock(UploadedSpecsApprovalHandler.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    RequirementDraftTool tool =
+        RequirementDraftTool.withUploadApproval(store, handler, artifactStore);
+    String conversationId = "draft-conv";
+    MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+    store.beginTurn(conversationId);
+
+    String hash = "attachment-hash";
+    String runId =
+        conversationId
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_ID
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+    when(handler.needsApproval(conversationId)).thenReturn(true);
+    when(handler.attachmentHash(conversationId)).thenReturn(hash);
+    when(artifactStore.findLatestApprovalRecord(
+            runId, UploadedSpecsApprovalHandler.ARTIFACT_TYPE, hash))
+        .thenReturn(Optional.empty());
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Call Petstore Ext getInventory",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.SERVICE_CALL,
+                        "Petstore Ext",
+                        "GET /store/inventory"))));
+
+    assertTrue(result.contains("catalogBinding was missing"), result);
+    RequirementDraft draft = store.get(conversationId).orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+  }
+
+  @Test
   void captureNamesTheServiceCallThatIsStillUnresolved() {
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
@@ -687,6 +790,60 @@ class RequirementDraftToolTest {
     assertEquals(1, draft.openQuestions().size());
     assertTrue(draft.openQuestions().get(0).contains("must this chain do"));
     assertTrue(draft.facts().isEmpty());
+  }
+
+  @Test
+  void uploadedSpecApprovalAllowsReadyForPlanWhenCurrentKeysAreEmpty() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    ConversationService conversationService = mock(ConversationService.class);
+    S3Service s3Service = mock(S3Service.class);
+    when(conversationService.getAllowedAttachmentKeys("draft-conv"))
+        .thenReturn(List.of("uploads/stub.yaml"));
+    when(s3Service.readObjectBytes("uploads/stub.yaml"))
+        .thenReturn("{\"info\":{\"title\":\"Stub API\"}}".getBytes());
+
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, s3Service);
+    ChatEvent.Decision decision = handler.createDecision("draft-conv");
+
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    ProductPipelineArtifactStore artifactStore =
+        new ProductPipelineArtifactStore(
+            new CompilationArtifacts(
+                new InMemoryArtifactBlobStore(), mapper, Clock.systemUTC()));
+    String runId =
+        "draft-conv-"
+            + CreateRunSelectionService.CREATE_PROFILE_ID
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+    handler.appendApprovalRecord(runId, "draft-conv", decision, artifactStore);
+
+    // Simulate a later turn where attachment keys are no longer present in conversation state.
+    when(conversationService.getAllowedAttachmentKeys("draft-conv")).thenReturn(List.of());
+
+    RequirementDraftTool tool = RequirementDraftTool.withUploadApproval(store, handler, artifactStore);
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Call Stub stubOperation",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                null,
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.SERVICE_CALL,
+                        "stub",
+                        "Uploaded OPENAPI spec Stub API operation stubOperation path POST /stub/path"))));
+
+    assertTrue(result.contains("Requirement draft captured"));
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.complete());
   }
 
   private static List<RequirementFact> sampleFacts() {

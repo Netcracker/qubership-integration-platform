@@ -56,6 +56,9 @@ public class CatalogFirstApiHubDiscoveryTool {
   @Tool("""
       Resolve one required outbound service operation. This tool always checks the local runtime
       catalog first. It calls API Hub only when the catalog has no matching service and operation.
+      Do not call this tool for uploaded-spec SERVICE_CALL facts (text starting with "Uploaded ").
+      Those are imported and bound automatically by the product pipeline after reader approval, not
+      by catalog or API Hub lookup.
       Pass serviceCallFact as the exact SERVICE_CALL fact text you will capture for this call, so
       the answer stays attached to that call. Give the operation name, or the HTTP method and path,
       whenever you know them. If status is CATALOG_BOUND, use its IDs as catalogBinding in the next
