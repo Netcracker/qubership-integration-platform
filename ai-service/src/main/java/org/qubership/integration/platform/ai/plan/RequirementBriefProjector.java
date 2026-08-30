@@ -107,9 +107,7 @@ public final class RequirementBriefProjector {
   private static List<RequirementFact> positiveServiceCallFacts(List<RequirementFact> facts) {
     List<RequirementFact> callFacts = new ArrayList<>();
     for (RequirementFact fact : facts) {
-      if (fact == null
-          || fact.polarity() != RequirementFactPolarity.POSITIVE
-          || fact.kind() != RequirementFactKind.SERVICE_CALL) {
+      if (fact == null || !fact.needsCatalogBinding()) {
         continue;
       }
       callFacts.add(fact);

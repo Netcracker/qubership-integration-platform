@@ -2,19 +2,20 @@
 
 Capture the chain topology from the approved requirement brief.
 
-Call `captureChainSemanticRevision` once in this turn. Copy `entryPointId`, `sourceFactIds`,
-`serviceCallId`, and `mappingIntentId` from the approved brief. Do not mint occurrence ids.
+Call `captureChainSemanticRevision` once in this turn. Copy `sourceFactIds` and `mappingIntentId`
+from the approved brief. Do not mint occurrence ids. Do not send an `entryPoints` list: the server
+joins each brief entry point to the trigger nodes you list and to the unique outgoing edge from
+that trigger.
 
-The brief labels each of these, so copy the value after the matching `=` sign and nothing else. An
-entry point renders as `- entryPointId=<id> capabilityKey=<key>`: copy the `entryPointId` value, not
-the capability key. A fact renders as `- [POSITIVE] <text> sourceFactId=<id>`, and a service call as
+The brief labels each of these, so copy the value after the matching `=` sign and nothing else. A
+fact renders as `- [POSITIVE] <text> sourceFactId=<id>`, and a service call as
 `- serviceCallId=<id> ...`.
 
 The server owns everything it can derive. Leave out revision ids, edge ids, the semantic schema
 version, and the compiler contract version. Leave out the catalog capability behind an entry point
 and the catalog operation behind a service call: the server reads both from the brief.
 
-List each node under the list that matches its kind — `triggers`, `serviceCalls`, or `operations` —
+List each node under the list that matches its kind — `triggers` or `operations` —
 and give every node a local `nodeId` that the edges reference. Set `elementType` on an operation
 node to a compiler element type such as `script`, `mapper-2`, `condition`, `split`, or `loop`.
 

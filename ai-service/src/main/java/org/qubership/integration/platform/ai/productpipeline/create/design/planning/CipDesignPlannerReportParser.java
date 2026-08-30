@@ -20,14 +20,6 @@ public final class CipDesignPlannerReportParser {
           "\\b(search_rest_api_operations|get_rest_api_operations_specification|"
               + "get_api_operation_specification|search_api_operations)\\b");
   private static final Pattern API_RELEASE = Pattern.compile("\\bversion\\s+(\\d{4}\\.\\d)\\b");
-  private static final Pattern PARTICIPANT_FOR =
-      Pattern.compile(
-          "\\b(?:for|target)\\s+((?:[A-Z][A-Za-z0-9_-]*\\s+){0,3}"
-              + "[A-Z][A-Za-z0-9_-]*(?:Service|API|System|Client))\\b");
-  private static final Pattern PARTICIPANT_DOTTED =
-      Pattern.compile(
-          "\\bfor\\s+((?:[A-Z][A-Za-z0-9_-]*\\s+){0,3}[A-Z][A-Za-z0-9_-]*)"
-              + "\\.([A-Za-z][A-Za-z0-9_]*)\\b");
   private static final Pattern OPERATION_DOTTED =
       Pattern.compile(
           "\\b((?:[A-Z][A-Za-z0-9_-]*\\s+){0,3}[A-Z][A-Za-z0-9_-]*)"
@@ -93,7 +85,7 @@ public final class CipDesignPlannerReportParser {
               ownerKind,
               skillIds,
               toolOps,
-              extractParticipantHints(reportText),
+              List.of(),
               extractOperationQueryHints(reportText)));
     }
     if (steps.isEmpty()) {
@@ -118,19 +110,6 @@ public final class CipDesignPlannerReportParser {
       ops.add(matcher.group(1));
     }
     return List.copyOf(ops);
-  }
-
-  private static List<String> extractParticipantHints(String reportText) {
-    LinkedHashSet<String> hints = new LinkedHashSet<>();
-    Matcher forMatcher = PARTICIPANT_FOR.matcher(reportText);
-    while (forMatcher.find()) {
-      hints.add(forMatcher.group(1).trim());
-    }
-    Matcher dotted = PARTICIPANT_DOTTED.matcher(reportText);
-    while (dotted.find()) {
-      hints.add(dotted.group(1).trim());
-    }
-    return List.copyOf(hints);
   }
 
   private static List<String> extractOperationQueryHints(String reportText) {

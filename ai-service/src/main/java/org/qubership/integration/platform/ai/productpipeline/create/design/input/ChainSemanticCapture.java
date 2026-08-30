@@ -14,17 +14,18 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
  * carries topology and references into the approved requirement brief; it is never persisted.
  *
  * <p>Server-owned state stays out of this contract: no {@code revisionId}, no {@code edgeId}, no
- * schema or compiler-contract version, no sealed domain type, and no service-call node. The server
- * materializes one service-call node per approved brief entry and names it after the brief's
- * {@code serviceCallId}, so a capture cannot break the join to the catalog binding. {@link
- * ChainSemanticCaptureAdapter} projects a capture onto the canonical {@code ChainSemanticRevision}.
+ * schema or compiler-contract version, no sealed domain type, no service-call node, and no
+ * entry-point join. The server materializes one service-call node per approved brief entry and
+ * names it after the brief's {@code serviceCallId}, and it joins each brief entry point to the
+ * trigger nodes and unique outgoing edges in this capture. {@link ChainSemanticCaptureAdapter}
+ * projects a capture onto the canonical {@code ChainSemanticRevision}.
  * Each variant gets its own homogeneous list so the generated tool schema stays free of polymorphic
  * {@code anyOf} branches.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 record ChainSemanticCapture(
     @Description("Short chain name, e.g. orders-intake") String chainIdentity,
-    @Description("One entry per configured trigger; entryPointId comes from the approved brief")
+    @Description("Omit; the server derives entry points from the brief and trigger nodes")
         List<CapturedEntryPoint> entryPoints,
     @Description("Trigger nodes; one per entry point") List<CapturedTrigger> triggers,
     @Description("Processing nodes such as script, mapper-2, condition, split, loop, or try-catch")

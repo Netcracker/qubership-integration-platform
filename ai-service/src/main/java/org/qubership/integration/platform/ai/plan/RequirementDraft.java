@@ -473,9 +473,7 @@ public record RequirementDraft(
   private static List<RequirementServiceCall> serviceCallsFromFacts(List<RequirementFact> facts) {
     List<RequirementServiceCall> calls = new ArrayList<>();
     for (RequirementFact fact : facts) {
-      if (fact == null
-          || fact.polarity() != RequirementFactPolarity.POSITIVE
-          || fact.kind() != RequirementFactKind.SERVICE_CALL) {
+      if (fact == null || !fact.needsCatalogBinding()) {
         continue;
       }
       calls.add(

@@ -309,9 +309,8 @@ public class DesignPlanningCapability implements StageCapability {
   /**
    * Shows the planner the semantic revision its report is checked against.
    *
-   * <p>{@link DesignPlanProjector} rejects a report that names a participant outside the revision,
-   * that covers no trigger, or that leaves a mapping intent without a transform step. The prose IDS
-   * alone does not carry those names, so a planner given only the IDS has to guess them.
+   * <p>{@link DesignPlanProjector} rejects a report that covers no trigger or that leaves a mapping
+   * intent without a transform step.
    */
   static String buildPlannerInput(
       IdsDocument ids, ChainSemanticRevision revision, String release) {
@@ -337,14 +336,7 @@ public class DesignPlanningCapability implements StageCapability {
     StringBuilder text = new StringBuilder();
     text.append("Chain semantic revision. The plan is validated against it.\n\n");
 
-    text.append("Known identities. Reference only these names:\n");
-    text.append("- ").append(revision.chainIdentity()).append('\n');
-    text.append("- ").append(revision.chainIdentity()).append(" Service\n");
-    text.append("- ").append(revision.chainIdentity()).append(" API\n");
-    text.append("- Client\n");
-    text.append("- CIP\n");
-
-    text.append("\nEntry points:\n");
+    text.append("Entry points:\n");
     for (SemanticEntryPoint entry : revision.entryPoints()) {
       text.append("- ")
           .append(entry.entryPointId())

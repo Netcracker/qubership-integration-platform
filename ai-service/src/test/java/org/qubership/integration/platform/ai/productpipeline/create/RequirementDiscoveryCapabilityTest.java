@@ -42,7 +42,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Artifact
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
@@ -372,7 +371,7 @@ class RequirementDiscoveryCapabilityTest {
   void discoverySkipsCatalogBindingHintWithoutOptionalProducesDeclaration() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft approved = petstoreServiceCallDraft();
-    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
+    RequirementDiscoveryCapability capability = discovery(store, approved);
 
     // create-chain@1 shape: produces requirement-draft only — no catalog-binding-hint declaration.
     ProductPipelineProfile v1Like =
@@ -412,7 +411,7 @@ class RequirementDiscoveryCapabilityTest {
   void discoveryEmitsCatalogBindingHintOnlyForExactLocalMatch() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft approved = petstoreServiceCallDraft();
-    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
+    RequirementDiscoveryCapability capability = discovery(store, approved);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -456,7 +455,7 @@ class RequirementDiscoveryCapabilityTest {
   void discoveryDoesNotProbeCatalogForUnboundSingleCall() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft draft = readyDraftWithUnboundServiceCall();
-    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, draft, null);
+    RequirementDiscoveryCapability capability = discovery(store, draft);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -515,7 +514,7 @@ class RequirementDiscoveryCapabilityTest {
                     "chain",
                     "Create chain"),
                 serviceCall("call-unknown", "UnknownSvc", "GET /x")));
-    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
+    RequirementDiscoveryCapability capability = discovery(store, approved);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -691,7 +690,7 @@ class RequirementDiscoveryCapabilityTest {
                     "catalog",
                     Instant.EPOCH,
                     "test"));
-    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, approved, null);
+    RequirementDiscoveryCapability capability = discovery(store, approved);
 
     ProductPipelineProfile withHint =
         discoveryProfile(
@@ -1029,7 +1028,7 @@ class RequirementDiscoveryCapabilityTest {
   void discoveryEmitsIdsBypassWhenTheAuthorDeclinedTheSpecification() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft declined = petstoreServiceCallDraft().withIdsRequested(false);
-    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, declined, null);
+    RequirementDiscoveryCapability capability = discovery(store, declined);
 
     ProductPipelineProfile withBypass =
         discoveryProfile(
@@ -1070,7 +1069,7 @@ class RequirementDiscoveryCapabilityTest {
   void discoveryEmitsNoIdsBypassWhileTheAuthorHasNotSaid() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft undecided = petstoreServiceCallDraft();
-    RequirementDiscoveryCapability capability = discoveryWithMatcher(store, undecided, null);
+    RequirementDiscoveryCapability capability = discovery(store, undecided);
 
     ProductPipelineProfile withBypass =
         discoveryProfile(
@@ -1189,11 +1188,8 @@ class RequirementDiscoveryCapabilityTest {
         serviceCallId);
   }
 
-  private static RequirementDiscoveryCapability discoveryWithMatcher(
-      RequirementDraftStore store,
-      RequirementDraft approved,
-      CatalogBindingMatcher matcher) {
-    assertNull(matcher);
+  private static RequirementDiscoveryCapability discovery(
+      RequirementDraftStore store, RequirementDraft approved) {
     return new RequirementDiscoveryCapability(
         null,
         store,

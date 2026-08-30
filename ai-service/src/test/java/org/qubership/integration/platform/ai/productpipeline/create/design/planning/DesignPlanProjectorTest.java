@@ -358,33 +358,38 @@ class DesignPlanProjectorTest {
   }
 
   @Test
-  void rejectsParticipantAbsentFromNormalizedFlow() {
+  void acceptsCatalogSystemNameThatIsNotASemanticIdentity() {
+    ChainSemanticRevision revision =
+        SemanticFixtures.linear(
+            "HealthProxy",
+            "revision-health-proxy",
+            "trigger-http",
+            "node-call",
+            "call-inventory",
+            "getInventory",
+            "/health-proxy",
+            List.of(),
+            List.of());
     String report =
         """
-        1. Analyze requirements and name chain Orders (cip-requirement-analyzer + cip-naming-generator)
-        2. Find API Billing API for Billing Service in APIHub for version 2024.4 (APIHub MCP search_rest_api_operations)
-        3. Get API operation specification Billing API for Billing Service in APIHub (APIHub MCP get_rest_api_operations_specification)
-        4. Resolve External integration target Billing Service from the retrieved spec (binding for cip-service-call-generator)
-        5. Generate HTTP Trigger element with interface Orders API (cip-trigger-generator)
-        6. Generate Service Call element for Billing Service.createBill (cip-service-call-generator)
-        7. Generate Script element for Initialization (cip-script-generator)
-        8. Generate Script element for Response (cip-script-generator)
-        9. Generate execution structure and element ordering (cip-structure-generator)
-        10. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        11. Validate the assembled chain (cip-chain-validator)
+        1. Analyze requirements and name chain HealthProxy (cip-requirement-analyzer + cip-naming-generator)
+        2. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
+        3. Generate Service Call element for Petstore Ext.getInventory (cip-service-call-generator)
+        4. Generate execution structure and element ordering (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
             .trim();
 
-    PlannerContractException ex =
-        assertThrows(
-            PlannerContractException.class,
-            () ->
-                projector.project(
-                    new DesignPlanReport("1", report),
-                    SemanticFixtures.linearOrders(),
-                    samplePin(SemanticFixtures.linearOrders(), sampleDag())));
-    assertTrue(ex.getMessage().contains("participant"));
+    DesignExecutionPlan projected =
+        projector.project(
+            new DesignPlanReport("1", report), revision, samplePin(revision, sampleDag()));
+
+    assertEquals(6, projected.steps().size());
+    for (DesignExecutionPlan.Step step : projected.steps()) {
+      assertTrue(step.participantRefs().isEmpty(), step.stepId());
+    }
   }
 
   @Test

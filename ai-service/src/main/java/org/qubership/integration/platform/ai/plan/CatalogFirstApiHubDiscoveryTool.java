@@ -13,9 +13,12 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchAuthorizations;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
@@ -29,7 +32,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
 @ApplicationScoped
 public class CatalogFirstApiHubDiscoveryTool {
 
-  private final CatalogBindingMatcher catalogBindingMatcher;
+  private final CatalogOperationLookup catalogOperationLookup;
   private final CatalogSystemReadTool catalogReadTool;
   private final ConversationCatalogCache catalogCache;
   private final ApiHubMcpTools apiHubMcpTools;
@@ -40,7 +43,7 @@ public class CatalogFirstApiHubDiscoveryTool {
 
   @Inject
   public CatalogFirstApiHubDiscoveryTool(
-      CatalogBindingMatcher catalogBindingMatcher,
+      CatalogOperationLookup catalogOperationLookup,
       CatalogSystemReadTool catalogReadTool,
       ConversationCatalogCache catalogCache,
       ApiHubMcpTools apiHubMcpTools,
@@ -48,7 +51,7 @@ public class CatalogFirstApiHubDiscoveryTool {
       ApiHubSearchAuthorizations searchAuthorizations,
       ObjectMapper objectMapper,
       RequirementDraftStore draftStore) {
-    this.catalogBindingMatcher = catalogBindingMatcher;
+    this.catalogOperationLookup = catalogOperationLookup;
     this.catalogReadTool = catalogReadTool;
     this.catalogCache = catalogCache;
     this.apiHubMcpTools = apiHubMcpTools;
@@ -59,7 +62,7 @@ public class CatalogFirstApiHubDiscoveryTool {
   }
 
   CatalogFirstApiHubDiscoveryTool(
-      CatalogBindingMatcher catalogBindingMatcher,
+      CatalogOperationLookup catalogOperationLookup,
       CatalogSystemReadTool catalogReadTool,
       ConversationCatalogCache catalogCache,
       ApiHubMcpTools apiHubMcpTools,
@@ -67,7 +70,7 @@ public class CatalogFirstApiHubDiscoveryTool {
       ApiHubSearchAuthorizations searchAuthorizations,
       ObjectMapper objectMapper) {
     this(
-        catalogBindingMatcher,
+        catalogOperationLookup,
         catalogReadTool,
         catalogCache,
         apiHubMcpTools,
@@ -124,20 +127,33 @@ public class CatalogFirstApiHubDiscoveryTool {
           conversationId, ServiceCallAssessment.incomplete(resolvedCallId, sourceFactId, intent));
     }
 
-    CatalogBindingMatcher.MatchResult result =
-        catalogBindingMatcher.match(
-            intent.systemHint(), intent.operationQuery(), null, release);
-    if (result instanceof CatalogBindingMatcher.MatchResult.Exact exact) {
-      rememberCatalogEvidence(conversationId, intent.systemHint(), exact.match());
+    CatalogLookupResult result =
+        catalogOperationLookup.resolve(
+            new CatalogQuery(
+                intent.systemHint(),
+                intent.specificationHint(),
+                protocol,
+                intent.method(),
+                intent.path(),
+                intent.operationHint(),
+                release));
+    if (result instanceof CatalogLookupResult.Exact exact) {
+      rememberCatalogEvidence(conversationId, exact.match());
       return remember(
           conversationId,
           ServiceCallAssessment.resolved(resolvedCallId, sourceFactId, intent, exact.match()));
     }
-    if (result instanceof CatalogBindingMatcher.MatchResult.Ambiguous ambiguous) {
+    if (result instanceof CatalogLookupResult.Ambiguous ambiguous) {
       return remember(
           conversationId,
           ServiceCallAssessment.ambiguous(
               resolvedCallId, sourceFactId, intent, ambiguous.candidateIds()));
+    }
+    if (result instanceof CatalogLookupResult.TooBroad) {
+      return remember(
+          conversationId,
+          ServiceCallAssessment.tooBroad(
+              resolvedCallId, sourceFactId, intent, List.of("systemHint")));
     }
     conversationResolutions.remember(
         conversationId, ServiceCallAssessment.catalogMiss(resolvedCallId, sourceFactId, intent));
@@ -172,14 +188,10 @@ public class CatalogFirstApiHubDiscoveryTool {
     return encode(assessment);
   }
 
-  private void rememberCatalogEvidence(
-      String conversationId, String serviceName, CatalogBindingMatcher.CatalogMatch match) {
+  private void rememberCatalogEvidence(String conversationId, CatalogMatch match) {
     if (conversationId == null || conversationId.isBlank()) {
       return;
     }
-    String search = serviceName == null ? match.systemName() : serviceName;
-    List<CatalogRestClient.SystemDto> systems = catalogReadTool.searchCatalogSystems(search);
-    catalogCache.rememberSystems(conversationId, systems);
     catalogCache.rememberActiveSystemId(conversationId, match.systemId());
     List<CatalogRestClient.SpecificationDto> specifications =
         catalogReadTool.getApiSpecifications(match.systemId());
@@ -200,7 +212,7 @@ public class CatalogFirstApiHubDiscoveryTool {
       switch (assessment.outcome()) {
         case RESOLVED -> {
           root.put("status", "CATALOG_BOUND");
-          CatalogBindingMatcher.CatalogMatch match = assessment.binding();
+          CatalogMatch match = assessment.binding();
           ObjectNode binding = root.putObject("catalogBinding");
           binding.put("systemId", match.systemId());
           binding.put("specificationId", match.specificationId());

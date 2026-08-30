@@ -105,7 +105,7 @@ public class CatalogSystemReadTool {
         CatalogSystemToolNames.SPECS, LISTING_IS_NOT_A_BINDING, specs);
   }
 
-  /** Typed operations lookup for catalog-first binding resolution. */
+  /** Typed operations lookup for catalog-first binding resolution. Tools use this MDC form. */
   public List<CatalogRestClient.OperationDto> listCatalogOperations(
       String specificationId, String systemId, String searchFilter) {
     String mid = CatalogStrings.blankToNull(specificationId);
@@ -117,6 +117,24 @@ public class CatalogSystemReadTool {
         filter != null
             ? operationsLookup.findOperations(mid, systemId, filter)
             : operationsLookup.listOperations(mid, systemId);
+    return ops == null ? List.of() : List.copyOf(ops);
+  }
+
+  /**
+   * Same listing keyed by {@code conversationId} so execution can revalidate after a worker hop
+   * without reading MDC.
+   */
+  public List<CatalogRestClient.OperationDto> listCatalogOperations(
+      String conversationId, String specificationId, String systemId, String searchFilter) {
+    String mid = CatalogStrings.blankToNull(specificationId);
+    if (mid == null) {
+      return List.of();
+    }
+    String filter = CatalogStrings.blankToNull(searchFilter);
+    List<CatalogRestClient.OperationDto> ops =
+        filter != null
+            ? operationsLookup.findOperations(conversationId, mid, systemId, filter)
+            : operationsLookup.listOperations(conversationId, mid, systemId);
     return ops == null ? List.of() : List.copyOf(ops);
   }
 

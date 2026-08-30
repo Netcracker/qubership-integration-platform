@@ -28,7 +28,15 @@ public class CatalogOperationsLookupService {
   }
 
   public List<CatalogRestClient.OperationDto> listOperations(String modelId, String systemId) {
-    String conversationId = conversationIdFromMdc();
+    return listOperations(conversationIdFromMdc(), modelId, systemId);
+  }
+
+  /**
+   * Lists operations for {@code conversationId}. Tools keep the two-argument form (MDC). Java
+   * callers pass the id they already hold so a worker retry still hits the same conversation cache.
+   */
+  public List<CatalogRestClient.OperationDto> listOperations(
+      String conversationId, String modelId, String systemId) {
     String mid = CatalogStrings.blankToNull(modelId);
     if (mid == null) {
       return List.of();
@@ -42,7 +50,12 @@ public class CatalogOperationsLookupService {
 
   public List<CatalogRestClient.OperationDto> findOperations(
       String modelId, String systemId, String searchFilter) {
-    List<CatalogRestClient.OperationDto> all = listOperations(modelId, systemId);
+    return findOperations(conversationIdFromMdc(), modelId, systemId, searchFilter);
+  }
+
+  public List<CatalogRestClient.OperationDto> findOperations(
+      String conversationId, String modelId, String systemId, String searchFilter) {
+    List<CatalogRestClient.OperationDto> all = listOperations(conversationId, modelId, systemId);
     return cache.filterOperations(all, searchFilter);
   }
 

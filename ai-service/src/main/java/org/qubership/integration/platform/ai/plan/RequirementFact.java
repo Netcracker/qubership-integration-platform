@@ -24,7 +24,8 @@ public record RequirementFact(
     @Description("Kafka topic when capabilityKey is kafka-trigger-2") String topic,
     @Description("HTTP method when capabilityKey is http-trigger, e.g. GET") String httpMethod,
     @Description("HTTP path when capabilityKey is http-trigger, e.g. /pet/{petId}") String path,
-    @Description("Stable SERVICE_CALL occurrence id; empty for other fact kinds")
+    @Description(
+            "Stable SERVICE_CALL occurrence id, or catalog Kafka consume id when capabilityKey is async-api-trigger")
         String serviceCallId) {
 
   public RequirementFact {
@@ -70,7 +71,11 @@ public record RequirementFact(
       } else {
         sourceFactId = sourceFactId.trim();
       }
-      serviceCallId = "";
+      if (kind == RequirementFactKind.ENDPOINT && "async-api-trigger".equals(capabilityKey)) {
+        serviceCallId = blankToEmpty(serviceCallId);
+      } else {
+        serviceCallId = "";
+      }
     }
   }
 
@@ -116,6 +121,18 @@ public record RequirementFact(
       String capabilityKey,
       String text) {
     return new RequirementFact(null, polarity, kind, capabilityKey, text);
+  }
+
+  public boolean needsCatalogBinding() {
+    if (polarity != RequirementFactPolarity.POSITIVE) {
+      return false;
+    }
+    if (kind == RequirementFactKind.SERVICE_CALL) {
+      return true;
+    }
+    return kind == RequirementFactKind.ENDPOINT
+        && "async-api-trigger".equals(capabilityKey)
+        && !serviceCallId.isBlank();
   }
 
   public RequirementFact withKind(RequirementFactKind newKind) {

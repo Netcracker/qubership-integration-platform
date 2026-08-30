@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningSkillArtifactUnavailableException;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionInputs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
@@ -341,12 +342,19 @@ public class DesignExecutionCapability implements StageCapability {
    */
   private ChainPlanGraph loadPriorGraph(
       StageExecutionContext context, StageRepairEvidence repairEvidence) {
-    return repairEvidence
-        .priorOutput(Kind.CHAIN_PLAN_GRAPH)
-        .flatMap(ref -> artifactStore.get(context.runId(), ref))
-        .or(() -> artifactStore.latest(context.runId(), Kind.CHAIN_PLAN_GRAPH))
-        .map(stored -> artifactStore.payload(stored, ChainPlanGraph.class))
-        .orElse(null);
+    Optional<Revision> revision =
+        repairEvidence
+            .priorOutput(Kind.CHAIN_PLAN_GRAPH)
+            .flatMap(ref -> artifactStore.get(context.runId(), ref))
+            .or(() -> artifactStore.latest(context.runId(), Kind.CHAIN_PLAN_GRAPH));
+    if (revision.isEmpty()) {
+      return null;
+    }
+    if (SupersededBriefLineageGuard.isSupersededCompileInput(
+        artifactStore, context.runId(), context.attributes(), revision.get())) {
+      return null;
+    }
+    return artifactStore.payload(revision.get(), ChainPlanGraph.class);
   }
 
   private MatchingApproval findImplementationApproval(

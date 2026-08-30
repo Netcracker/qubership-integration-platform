@@ -75,7 +75,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ApprovedCompilerExecutionRunner;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultExecutorCatalogBindingAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCapability;
@@ -483,7 +482,7 @@ class CreateChainSharedDesignRuntimeIT {
     when(catalogReadTool.getApiSpecifications("sys-1"))
         .thenReturn(
             List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-    when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-1", "sys-1", null))
         .thenReturn(
             List.of(
                 new CatalogRestClient.OperationDto("op-a", "findPetsA", "GET", "/pets", "spec-1"),
@@ -725,7 +724,7 @@ class CreateChainSharedDesignRuntimeIT {
     when(catalogReadTool.getApiSpecifications("sys-1"))
         .thenReturn(
             List.of(new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-    when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
+    when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-1", "sys-1", null))
         .thenReturn(
             List.of(
                 new CatalogRestClient.OperationDto("op-1", "findPets", "GET", "/pets", "spec-1")));
@@ -825,7 +824,7 @@ class CreateChainSharedDesignRuntimeIT {
           .thenReturn(
               List.of(
                   new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-      when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
+      when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-1", "sys-1", null))
           .thenReturn(
               List.of(
                   new CatalogRestClient.OperationDto(
@@ -846,7 +845,7 @@ class CreateChainSharedDesignRuntimeIT {
           .thenReturn(
               List.of(
                   new CatalogRestClient.SpecificationDto("spec-1", "2024.4", "sg-1", "sys-1")));
-      when(catalogReadTool.listCatalogOperations("spec-1", "sys-1", null))
+      when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-1", "sys-1", null))
           .thenReturn(
               List.of(
                   new CatalogRestClient.OperationDto(
@@ -927,12 +926,12 @@ class CreateChainSharedDesignRuntimeIT {
               List.of(
                   new CatalogRestClient.SpecificationDto(
                       "spec-wfm", "2024.4", "sg-wfm", "sys-wfm")));
-      when(catalogReadTool.listCatalogOperations("spec-om", "sys-om", null))
+      when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-om", "sys-om", null))
           .thenReturn(
               List.of(
                   new CatalogRestClient.OperationDto(
                       "op-result", "onTaskResult", "POST", "/tasks/result", "spec-om")));
-      when(catalogReadTool.listCatalogOperations("spec-wfm", "sys-wfm", null))
+      when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-wfm", "sys-wfm", null))
           .thenReturn(
               List.of(
                   new CatalogRestClient.OperationDto(
@@ -993,8 +992,7 @@ class CreateChainSharedDesignRuntimeIT {
     CipDesignExecutorJavaAdapter adapter =
         new CipDesignExecutorJavaAdapter(
             approvedCompilerExecutionRunner,
-            new DefaultExecutorCatalogBindingAdapter(
-                mock(CatalogBindingMatcher.class), catalogReadTool),
+            new DefaultExecutorCatalogBindingAdapter(catalogReadTool),
             artifactStore,
             planValidator);
     return new DesignExecutionCapability(artifactStore, adapter);

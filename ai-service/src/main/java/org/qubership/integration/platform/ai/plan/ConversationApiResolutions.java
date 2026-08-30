@@ -8,8 +8,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 
 /**
  * API-resolution assessments produced during requirement gathering, kept per conversation.
@@ -71,7 +71,7 @@ public class ConversationApiResolutions {
   }
 
   /** Catalog matches this conversation resolved, newest per operation. */
-  public List<CatalogBindingMatcher.CatalogMatch> resolved(String conversationId) {
+  public List<CatalogMatch> resolved(String conversationId) {
     return byServiceCall(conversationId).values().stream()
         .filter(ServiceCallAssessment::isResolved)
         .map(ServiceCallAssessment::binding)
