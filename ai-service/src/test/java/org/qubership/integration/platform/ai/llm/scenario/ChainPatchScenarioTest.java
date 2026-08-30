@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.llm.scenario;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,6 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -182,6 +184,43 @@ class ChainPatchScenarioTest {
     assertEquals("fix it", captured.getValue().userRequest());
     assertEquals(pin, captured.getValue().pinnedFailureSafeText());
     assertEquals("user: show graph\nassistant: " + pin, captured.getValue().transcriptWindow());
+  }
+
+  @Test
+  void compileCatalogTimeoutEmitsSanitizedTokenNotCompilerMessage() {
+    when(editCompiler.compile(any(), any()))
+        .thenThrow(
+            new TimeoutException("CatalogRestClient$$CDIWrapper#getChain timed out"));
+
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(request("fix it"), CONVERSATION_ID, ScenarioType.COMPARE_AND_PATCH)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(Long.MAX_VALUE));
+    sub.awaitCompletion();
+
+    assertEquals(1, sub.getItems().size(), () -> "expected one event, got " + sub.getItems());
+    ChatEvent event = sub.getItems().get(0);
+    assertInstanceOf(ChatEvent.Token.class, event, () -> "expected Token, got " + event);
+    String text = ((ChatEvent.Token) event).text();
+    assertEquals(KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE, text);
+    assertFalse(text.contains("timed out"));
+    assertFalse(text.contains("CDIWrapper"));
+  }
+
+  @Test
+  void compileNpeDoesNotBecomeToken() {
+    when(editCompiler.compile(any(), any())).thenThrow(new NullPointerException("x"));
+
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(request("fix it"), CONVERSATION_ID, ScenarioType.COMPARE_AND_PATCH)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(Long.MAX_VALUE));
+    sub.awaitFailure();
+
+    assertInstanceOf(NullPointerException.class, sub.getFailure());
+    assertFalse(sub.getItems().stream().anyMatch(ChatEvent.Token.class::isInstance));
   }
 
   @Test

@@ -166,21 +166,25 @@ public class ChainPatchScenario implements ScenarioHandler {
         clarificationStore.take(conversationId).filter(pending -> chainId.equals(pending.chainId()));
 
     String userMessage = request == null ? "" : request.getEffectiveUserText();
-    ChainEditOutcome outcome =
-        heldClarification.isPresent()
-            ? resumeClarification(
-                conversationId,
-                chainId,
-                imported,
-                userMessage,
-                heldClarification.get(),
-                request,
-                skillProgress)
-            : compileEdit(conversationId, chainId, imported, userMessage, request, skillProgress);
-    return fromCompiler(conversationId, chainId, imported, outcome);
+    try {
+      ChainEditOutcome outcome =
+          heldClarification.isPresent()
+              ? resumeClarification(
+                  conversationId,
+                  chainId,
+                  imported,
+                  userMessage,
+                  heldClarification.get(),
+                  request,
+                  skillProgress)
+              : compileEdit(conversationId, chainId, imported, userMessage, request, skillProgress);
+      return fromCompiler(conversationId, chainId, imported, outcome);
+    } catch (RuntimeException e) {
+      return knownOrRethrow(e, conversationId, chainId);
+    }
   }
 
-  /** Compiles the request through the owning skill, reporting a compiler fault as the turn's answer. */
+  /** Compiles the request through the owning skill. */
   private ChainEditOutcome compileEdit(
       String conversationId,
       String chainId,
@@ -188,15 +192,9 @@ public class ChainPatchScenario implements ScenarioHandler {
       String userMessage,
       ChatRequest chatRequest,
       BiConsumer<String, String> skillProgress) {
-    try {
-      return editCompiler.compile(
-          editRequest(conversationId, chainId, imported, userMessage, chatRequest),
-          skillProgress);
-    } catch (RuntimeException e) {
-      LOG.errorf(e, "Chain edit compiler failed conversationId=%s chainId=%s", conversationId, chainId);
-      return new ChainEditOutcome.CompilationFailure(
-          "The change could not be compiled: " + e.getMessage());
-    }
+    return editCompiler.compile(
+        editRequest(conversationId, chainId, imported, userMessage, chatRequest),
+        skillProgress);
   }
 
   /**
@@ -214,27 +212,17 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainEditClarificationStore.PendingClarification pending,
       ChatRequest chatRequest,
       BiConsumer<String, String> skillProgress) {
-    try {
-      ChainEditRequest request =
-          editRequest(conversationId, chainId, imported, userMessage, chatRequest);
-      return pending.continuation() == null
-          ? editCompiler.resumeAfterClarification(
-              request, pending.heldIntent(), pending.question(), skillProgress)
-          : editCompiler.resumeAfterClarification(
-              request,
-              pending.heldIntent(),
-              pending.question(),
-              pending.continuation(),
-              skillProgress);
-    } catch (RuntimeException e) {
-      LOG.errorf(
-          e,
-          "Chain edit compiler failed resuming a clarification conversationId=%s chainId=%s",
-          conversationId,
-          chainId);
-      return new ChainEditOutcome.CompilationFailure(
-          "The change could not be compiled: " + e.getMessage());
-    }
+    ChainEditRequest request =
+        editRequest(conversationId, chainId, imported, userMessage, chatRequest);
+    return pending.continuation() == null
+        ? editCompiler.resumeAfterClarification(
+            request, pending.heldIntent(), pending.question(), skillProgress)
+        : editCompiler.resumeAfterClarification(
+            request,
+            pending.heldIntent(),
+            pending.question(),
+            pending.continuation(),
+            skillProgress);
   }
 
   private Multi<ChatEvent> fromCompiler(
@@ -478,10 +466,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private Multi<ChatEvent> knownOrRethrow(Throwable error, String conversationId, String chainId) {
     Optional<KnownFailure> known = knownFailureMapper.tryMap(error, CatalogOperation.FACTS);
     if (known.isEmpty()) {
-      if (error instanceof RuntimeException runtime) {
-        throw runtime;
-      }
-      throw new RuntimeException(error);
+      return Multi.createFrom().failure(error);
     }
     KnownFailure failure = known.get();
     LOG.warnf(error, "Chain read failed conversationId=%s chainId=%s", conversationId, chainId);

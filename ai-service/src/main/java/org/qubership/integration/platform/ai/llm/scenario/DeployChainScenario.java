@@ -966,10 +966,7 @@ public class DeployChainScenario implements ScenarioHandler {
       Throwable error, CatalogOperation operation, String conversationId, String chainId) {
     Optional<KnownFailure> known = knownFailureMapper.tryMap(error, operation);
     if (known.isEmpty()) {
-      if (error instanceof RuntimeException runtime) {
-        throw runtime;
-      }
-      throw new RuntimeException(error);
+      return Multi.createFrom().failure(error);
     }
     KnownFailure failure = known.get();
     LOG.warnf(

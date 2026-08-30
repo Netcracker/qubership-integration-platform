@@ -177,8 +177,6 @@ public class ChatExecutionService {
 
     conversationService.addMessage(
         conversationId, ConversationMessage.user(request.getEffectiveUserText()));
-    request.setOpenChainTurnContext(
-        openChainTurnContextFactory.build(request, conversationId));
 
     logAiTurnStart(conversationId);
 
@@ -189,15 +187,22 @@ public class ChatExecutionService {
     // Approve / create-chain commands skip the router, but planning and materialization still
     // invoke tools. Bind the turn sink on both paths so event: step (kind=tool / kind=skill)
     // reaches the client the same way requirement-analysis already does.
-    Multi<ChatEvent> routedWork =
-        runsAsCommand(request)
-            ? decisionService.apply(conversationId, request.getDecision())
-            : router
-                .route(request, conversationId)
-                // A routed turn can end at a gate without knowing it did, so the turn closes by
-                // reporting whatever the run waits for now.
-                .onCompletion()
-                .switchTo(() -> openGate(conversationId));
+    Multi<ChatEvent> routedWork;
+    try {
+      request.setOpenChainTurnContext(
+          openChainTurnContextFactory.build(request, conversationId));
+      routedWork =
+          runsAsCommand(request)
+              ? decisionService.apply(conversationId, request.getDecision())
+              : router
+                  .route(request, conversationId)
+                  // A routed turn can end at a gate without knowing it did, so the turn closes by
+                  // reporting whatever the run waits for now.
+                  .onCompletion()
+                  .switchTo(() -> openGate(conversationId));
+    } catch (RuntimeException error) {
+      routedWork = Multi.createFrom().failure(error);
+    }
     Multi<ChatEvent> routed =
         bindBackoffSinkForTurn(
             routedWork,
