@@ -359,21 +359,34 @@ class PhaseRoutingPolicyTest {
   }
 
   @Test
-  void routesChainQuestionToAskChainWhenChainContextPresent() {
+  void whereShouldIDeployFallsThroughWhenChainIsOpen() {
     var result =
         PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.COLD,
-            "explain this chain",
-            false,
-            false,
-            true);
+            ConversationPhase.COLD, "where should I deploy?", false, false, true);
 
-    assertTrue(result.isPresent());
-    assertEquals(ScenarioType.ASK_CHAIN, result.get());
+    assertTrue(result.isEmpty());
   }
 
   @Test
-  void chainContextSnapshotIntentRoutesToDeployChainNotAskChain() {
+  void deployThisChainFallsThroughWhenChainIsOpen() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "Deploy this chain", false, false, true);
+
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  void explainThisChainFallsThroughWhenChainIsOpen() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "explain this chain", false, false, true);
+
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  void snapshotIntentFallsThroughWhenChainIsOpen() {
     var take =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.COLD, "take a snapshot", false, false, true);
@@ -381,59 +394,45 @@ class PhaseRoutingPolicyTest {
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.COLD, "create a snapshot", false, false, true);
 
-    assertTrue(take.isPresent());
-    assertEquals(ScenarioType.DEPLOY_CHAIN, take.get());
-    assertTrue(create.isPresent());
-    assertEquals(ScenarioType.DEPLOY_CHAIN, create.get());
+    assertTrue(take.isEmpty());
+    assertTrue(create.isEmpty());
   }
 
   @Test
-  void chainContextDeployIntentRoutesToDeployChainNotAskChain() {
-    var deploy =
-        PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.COLD, "deploy this chain", false, false, true);
-    var named =
-        PhaseRoutingPolicy.tryResolve(ConversationPhase.COLD, "deploy V2", false, false, true);
-    var explain =
-        PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.COLD, "explain this chain", false, false, true);
-
-    assertTrue(deploy.isPresent());
-    assertEquals(ScenarioType.DEPLOY_CHAIN, deploy.get());
-    assertTrue(named.isPresent());
-    assertEquals(ScenarioType.DEPLOY_CHAIN, named.get());
-    assertTrue(explain.isPresent());
-    assertEquals(ScenarioType.ASK_CHAIN, explain.get());
-  }
-
-  @Test
-  void chainContextStatusIntentRoutesToDeployChainNotAskChain() {
+  void statusIntentFallsThroughWhenChainIsOpen() {
     var status =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.COLD, "deployment status", false, false, true);
     var where =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.COLD, "where is this chain deployed", false, false, true);
-    var explain =
-        PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.COLD, "explain this chain", false, false, true);
 
-    assertTrue(status.isPresent());
-    assertEquals(ScenarioType.DEPLOY_CHAIN, status.get());
-    assertTrue(where.isPresent());
-    assertEquals(ScenarioType.DEPLOY_CHAIN, where.get());
-    assertTrue(explain.isPresent());
-    assertEquals(ScenarioType.ASK_CHAIN, explain.get());
+    assertTrue(status.isEmpty());
+    assertTrue(where.isEmpty());
   }
 
   @Test
-  void chainContextUndeployIntentRoutesToDeployChainNotAskChain() {
+  void undeployIntentFallsThroughWhenChainIsOpen() {
     var undeploy =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.COLD, "undeploy this chain", false, false, true);
 
-    assertTrue(undeploy.isPresent());
-    assertEquals(ScenarioType.DEPLOY_CHAIN, undeploy.get());
+    assertTrue(undeploy.isEmpty());
+  }
+
+  @Test
+  void snapshotIntentWithoutChainContextRoutesToDeployChain() {
+    var take =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "take a snapshot", false, false, false);
+    var create =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.COLD, "create a snapshot", false, false, false);
+
+    assertTrue(take.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, take.get());
+    assertTrue(create.isPresent());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, create.get());
   }
 
   @Test
