@@ -114,6 +114,17 @@ public interface CatalogRestClient {
   void deleteDeployment(
       @PathParam("chainId") String chainId, @PathParam("deploymentId") String deploymentId);
 
+  // ── Logging (chain tab, not a field on CreateDeploymentRequest) ──────────
+
+  @GET
+  @Path("/v1/chains/{chainId}/properties/logging")
+  ChainLoggingPropertiesSetDto getLoggingProperties(@PathParam("chainId") String chainId);
+
+  @POST
+  @Path("/v1/chains/{chainId}/properties/logging")
+  void updateLoggingProperties(
+      @PathParam("chainId") String chainId, ChainLoggingPropertiesDto body);
+
   // ── Domains ──────────────────────────────────────────────────────────────
 
   @GET
@@ -390,4 +401,58 @@ public interface CatalogRestClient {
       String id,
       Map<String, JsonNode> requestSchema,
       Map<String, JsonNode> responseSchemas) {}
+
+  /**
+   * One logging-tab payload. Strings match catalog enums; this client does not import catalog
+   * types.
+   */
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record ChainLoggingPropertiesDto(
+      String sessionsLoggingLevel,
+      String logLoggingLevel,
+      List<String> logPayload,
+      boolean dptEventsEnabled,
+      boolean maskingEnabled) {
+
+    public static ChainLoggingPropertiesDto catalogDefaults() {
+      return new ChainLoggingPropertiesDto(
+          "OFF", "ERROR", List.of("HEADERS", "PROPERTIES"), false, true);
+    }
+
+    public ChainLoggingPropertiesDto {
+      sessionsLoggingLevel =
+          sessionsLoggingLevel == null || sessionsLoggingLevel.isBlank()
+              ? "OFF"
+              : sessionsLoggingLevel;
+      logLoggingLevel =
+          logLoggingLevel == null || logLoggingLevel.isBlank() ? "ERROR" : logLoggingLevel;
+      logPayload = logPayload == null ? List.of("HEADERS", "PROPERTIES") : List.copyOf(logPayload);
+    }
+
+    public ChainLoggingPropertiesDto withSessionLevel(String level) {
+      return new ChainLoggingPropertiesDto(
+          level, logLoggingLevel, logPayload, dptEventsEnabled, maskingEnabled);
+    }
+  }
+
+  /** GET logging response: custom override, then consul, then catalog fallback. */
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record ChainLoggingPropertiesSetDto(
+      ChainLoggingPropertiesDto fallbackDefault,
+      ChainLoggingPropertiesDto consulDefault,
+      ChainLoggingPropertiesDto custom) {
+
+    public ChainLoggingPropertiesDto effective() {
+      if (custom != null) {
+        return custom;
+      }
+      if (consulDefault != null) {
+        return consulDefault;
+      }
+      if (fallbackDefault != null) {
+        return fallbackDefault;
+      }
+      return ChainLoggingPropertiesDto.catalogDefaults();
+    }
+  }
 }

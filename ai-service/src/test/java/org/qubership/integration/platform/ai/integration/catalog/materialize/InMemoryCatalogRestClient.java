@@ -141,6 +141,17 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public ChainLoggingPropertiesSetDto getLoggingProperties(String chainId) {
+    ChainState chain = requireChain(chainId);
+    return new ChainLoggingPropertiesSetDto(null, null, chain.loggingProperties);
+  }
+
+  @Override
+  public void updateLoggingProperties(String chainId, ChainLoggingPropertiesDto body) {
+    requireChain(chainId).loggingProperties = body;
+  }
+
+  @Override
   public List<DomainDto> listDomains() {
     return List.of(new DomainDto("default", "CLASSIC"));
   }
@@ -530,6 +541,7 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
     private final List<DeploymentDto> deployments = new ArrayList<>();
     private SnapshotDto currentSnapshot;
     private boolean unsavedChanges;
+    private ChainLoggingPropertiesDto loggingProperties;
 
     private ChainState(String chainId, String name, String description) {
       this.chainId = chainId;
