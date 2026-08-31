@@ -41,14 +41,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Node;
+import org.xmlunit.builder.Input;
 import org.xmlunit.matchers.CompareMatcher;
+import org.xmlunit.xpath.JAXPXPathEngine;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mockStatic;
 
@@ -219,6 +226,16 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_http.xml"
                 ),
                 Arguments.of(
+                        "HTTP Service Call element with several response handlers",
+                        "/testData/input/builder/templates/service_call_multi_response_handlers.yml",
+                        "/testData/output/builder/templates/service_call_multi_response_handlers.xml"
+                ),
+                Arguments.of(
+                        "HTTP Trigger element with idempotency",
+                        "/testData/input/builder/templates/http_trigger_idempotency.yml",
+                        "/testData/output/builder/templates/http_trigger_idempotency.xml"
+                ),
+                Arguments.of(
                         "SFTP Download element",
                         "/testData/input/builder/templates/sftp_download.yml",
                         "/testData/output/builder/templates/sftp_download.xml"
@@ -277,15 +294,7 @@ public class TemplateServiceTest {
     public void applyTemplateTest(String scenario, String inputPath, String outputPath) throws IOException {
         String expected = TestUtils.getResourceFileContent(outputPath);
 
-        ChainElement testData = chainMapper.toEntity(TestUtils.YAML_MAPPER.readValue(
-                        TestUtils.getResourceFileContent(inputPath),
-                        ChainImportDTO.class
-                ))
-                .getElements().stream()
-                .filter(element -> element.getParent() == null)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Incorrect test data"));
-        String actual = wrap(templateService.applyTemplate(testData));
+        String actual = wrap(templateService.applyTemplate(readRootElement(inputPath)));
 
         assertThat(actual, CompareMatcher.isIdenticalTo(expected).ignoreWhitespace());
     }
@@ -312,6 +321,39 @@ public class TemplateServiceTest {
         String actual = wrap(actualBuilder.toString());
 
         assertThat(actual, CompareMatcher.isIdenticalTo(expected).ignoreWhitespace());
+    }
+
+    @DisplayName("Test that node ids are unique within a route")
+    @ParameterizedTest(name = "#{index} => {0}")
+    @MethodSource("applyTemplateTestData")
+    public void nodeIdUniquenessTest(String scenario, String inputPath, String outputPath) throws IOException {
+        String route = wrap(templateService.applyTemplate(readRootElement(inputPath)));
+
+        List<String> duplicates = findDuplicateNodeIds(route);
+
+        assertTrue(duplicates.isEmpty(), "Duplicate node ids in a single route: " + duplicates);
+    }
+
+    private ChainElement readRootElement(String inputPath) throws IOException {
+        return chainMapper.toEntity(TestUtils.YAML_MAPPER.readValue(
+                        TestUtils.getResourceFileContent(inputPath),
+                        ChainImportDTO.class
+                ))
+                .getElements().stream()
+                .filter(element -> element.getParent() == null)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Incorrect test data"));
+    }
+
+    private static List<String> findDuplicateNodeIds(String routeXml) {
+        Set<String> seen = new HashSet<>();
+        List<String> duplicates = new ArrayList<>();
+        for (Node id : new JAXPXPathEngine().selectNodes("//@id", Input.fromString(routeXml).build())) {
+            if (!seen.add(id.getNodeValue())) {
+                duplicates.add(id.getNodeValue());
+            }
+        }
+        return duplicates;
     }
 
     private String wrap(String xml) {
