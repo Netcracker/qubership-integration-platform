@@ -11,7 +11,7 @@ if [[ ! -f "$SUMMARY" ]]; then
   {
     echo "# Transport parity runs — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo
-    echo "Stack: qip-ai-service 8094, certified Knowledge Package, evaluator 8099."
+    echo "Stack: qip-ai-service 8094, certified Knowledge Package, evaluator 8100."
     echo "APIHub MCP is assumed down; scenarios avoid it."
     echo
     echo "| scenario | transport | terminal | chain id | element types | gate | evaluator |"
@@ -31,7 +31,7 @@ run_one() {
       --scenario "$scenario" \
       --rep "$rep" \
       --base-url http://localhost:8094 \
-      --evaluator-url http://localhost:8099 \
+      --evaluator-url http://localhost:8100 \
       --transport "$transport" \
       --report "$report" >"$log" 2>&1
   local rc=$?
