@@ -34,6 +34,7 @@ import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.TurnR
 import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlanner;
 import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlanner.Capture;
 import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlanner.Kind;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 
 class OpenChainTurnContextFactoryTest {
 
@@ -192,6 +193,42 @@ class OpenChainTurnContextFactoryTest {
 
     assertEquals(CatalogRead.State.UNAVAILABLE, context.snapshots().state());
     assertTrue(context.snapshots().availableValue().isEmpty());
+  }
+
+  @Test
+  void describeChainLoadsFactsSnapshotsAndDeployments() {
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+    when(factsService.load(CHAIN_A)).thenReturn(facts(CHAIN_A));
+    when(catalogRestClient.listSnapshots(CHAIN_A))
+        .thenReturn(List.of(new CatalogRestClient.SnapshotDto("snap-1", "v1")));
+    when(catalogRestClient.listDeployments(CHAIN_A)).thenReturn(List.of());
+
+    OpenChainTurnContext context = factory.build(request("Describe chain"), CONVERSATION_ID);
+
+    assertEquals(CatalogRead.State.AVAILABLE, context.facts().state());
+    assertEquals(CatalogRead.State.AVAILABLE, context.snapshots().state());
+    assertEquals(1, context.snapshots().value().size());
+    assertEquals(CatalogRead.State.AVAILABLE, context.deployments().state());
+    verify(factsService).load(CHAIN_A);
+    verify(catalogRestClient).listSnapshots(CHAIN_A);
+    verify(catalogRestClient).listDeployments(CHAIN_A);
+  }
+
+  @Test
+  void askChainHintStillLoadsOperationalStateForDescribe() {
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+    when(factsService.load(CHAIN_A)).thenReturn(facts(CHAIN_A));
+    when(catalogRestClient.listSnapshots(CHAIN_A)).thenReturn(List.of());
+    when(catalogRestClient.listDeployments(CHAIN_A)).thenReturn(List.of());
+    ChatRequest request = request("Describe chain");
+    request.setScenarioHint(ScenarioType.ASK_CHAIN);
+
+    factory.build(request, CONVERSATION_ID);
+
+    verify(turnPlanner, never()).plan(anyString(), anyString(), anyString());
+    verify(factsService).load(CHAIN_A);
+    verify(catalogRestClient).listSnapshots(CHAIN_A);
+    verify(catalogRestClient).listDeployments(CHAIN_A);
   }
 
   @Test

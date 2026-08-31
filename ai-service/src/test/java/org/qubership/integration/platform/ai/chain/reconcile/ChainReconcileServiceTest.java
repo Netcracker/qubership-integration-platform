@@ -42,6 +42,36 @@ class ChainReconcileServiceTest {
   }
 
   @Test
+  void ignoresCompilerMappingMetadataAbsentFromCatalog() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo", null),
+            List.of(
+                new ChainPlanNode(
+                    "script-1",
+                    "script",
+                    "Script",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("script", "return body"),
+                        new PlanProperty("mappingIntentId", "request-map"),
+                        new PlanProperty("semanticEdgeId", "edge-1"),
+                        new PlanProperty("mappingId", "map-1"),
+                        new PlanProperty("mappingCoverage", "[\"Subject\"]")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("script-1", "catalog-script-1"), Map.of(), Map.of());
+    ChainCatalogFacts facts = factsWithProperty("catalog-script-1", "script", "return body");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches(), result.summary());
+    assertTrue(result.propertyMismatches().isEmpty());
+  }
+
+  @Test
   void matchesPlanStringScalarsAgainstCatalogBooleansAndNumbers() {
     ChainPlanGraph plan =
         new ChainPlanGraph(

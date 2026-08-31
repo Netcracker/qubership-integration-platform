@@ -47,4 +47,23 @@ class AttachmentKeysTest {
     assertEquals(List.of(), AttachmentKeys.normalize(null));
     assertEquals(List.of(), AttachmentKeys.normalize(List.of()));
   }
+
+  @Test
+  void ignoresOpenChainContextMarkdown() {
+    List<String> raw =
+        List.of(
+            "## Current Chain: OM to Salesforce WFM (ID: 7c6b6568-e338-4007-9f7f-b942aef6ea76)");
+
+    assertEquals(List.of(), AttachmentKeys.normalize(raw));
+  }
+
+  @Test
+  void extractsStorageKeysFromAttachmentThatAlsoNamesTheOpenChain() {
+    List<String> raw =
+        List.of(
+            "## Current Chain: Demo (ID: 11111111-1111-1111-1111-111111111111)\n\n"
+                + "- http://localhost:8080/api/v1/storage/objects?key=sessions/conv/spec.yaml");
+
+    assertEquals(List.of("sessions/conv/spec.yaml"), AttachmentKeys.normalize(raw));
+  }
 }

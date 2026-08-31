@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -182,8 +183,7 @@ public class ChainQuestionScenario implements ScenarioHandler {
     } else {
       fallback = KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE;
     }
-    String agentMessage =
-        buildExplainUserMessage(turn, pinnedSafeText, userMessage);
+    String agentMessage = buildExplainUserMessage(turn, userMessage);
 
     return chainPresentationAgent
         .chat(conversationId, agentMessage)
@@ -197,8 +197,7 @@ public class ChainQuestionScenario implements ScenarioHandler {
         });
   }
 
-  private String buildExplainUserMessage(
-      OpenChainTurnContext turn, String pinnedSafeText, String userMessage)
+  private String buildExplainUserMessage(OpenChainTurnContext turn, String userMessage)
       throws JsonProcessingException {
     String body =
         """
@@ -208,7 +207,7 @@ public class ChainQuestionScenario implements ScenarioHandler {
         Recent transcript (context, not a source of catalog facts):
         %s
 
-        Safe failure summary (may be empty; diagnostic details are intentionally omitted):
+        Safe failure summary (may be empty):
         %s
 
         User question:
@@ -220,13 +219,13 @@ public class ChainQuestionScenario implements ScenarioHandler {
         Snapshot evidence:
         %s
 
-        Deployment evidence (runtime errors are intentionally omitted):
+        Deployment evidence:
         %s
         """
             .formatted(
                 formatLastTurn(turn.lastAssistantTurn()),
                 turn.transcriptWindow() != null ? turn.transcriptWindow() : "",
-                pinnedSafeText != null ? pinnedSafeText : "",
+                formatPinnedFailure(turn.pinnedFailure()),
                 userMessage != null ? userMessage : "",
                 formatRead(turn.facts(), value -> value),
                 formatRead(turn.snapshots(), value -> value),
@@ -236,12 +235,17 @@ public class ChainQuestionScenario implements ScenarioHandler {
 
   private String formatRead(CatalogRead<?> read, java.util.function.Function<Object, Object> safe)
       throws JsonProcessingException {
+    if (read.state() == CatalogRead.State.NOT_REQUESTED) {
+      return "not requested";
+    }
     if (read.state() != CatalogRead.State.AVAILABLE) {
-      return read.state().name();
+      return "unavailable";
     }
     Object value = safe.apply(read.value());
-    return "AVAILABLE\n"
-        + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(value);
+    if (value instanceof Collection<?> items && items.isEmpty()) {
+      return "none";
+    }
+    return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(value);
   }
 
   private static List<Map<String, Object>> safeDeployments(Object value) {
@@ -255,15 +259,30 @@ public class ChainQuestionScenario implements ScenarioHandler {
               safe.put("snapshotId", deployment.snapshotId());
               safe.put("name", deployment.name());
               safe.put("domain", deployment.domain());
-              Map<String, String> states = new LinkedHashMap<>();
+              Map<String, Object> states = new LinkedHashMap<>();
               if (deployment.runtime() != null && deployment.runtime().states() != null) {
                 deployment.runtime().states().forEach(
-                    (name, state) -> states.put(name, state == null ? null : state.status()));
+                    (name, state) -> {
+                      if (state == null) {
+                        states.put(name, null);
+                        return;
+                      }
+                      Map<String, String> reported = new LinkedHashMap<>();
+                      reported.put("status", state.status());
+                      if (state.error() != null && !state.error().isBlank()) {
+                        reported.put("error", state.error());
+                      }
+                      states.put(name, reported);
+                    });
               }
               safe.put("states", states);
               return safe;
             })
         .toList();
+  }
+
+  private static String formatPinnedFailure(Optional<PinnedFailure> pin) {
+    return pin.map(ChainPatchScenario::pinnedFailureForEdit).orElse("");
   }
 
   private static String formatLastTurn(Optional<LastAssistantTurn> turn) {

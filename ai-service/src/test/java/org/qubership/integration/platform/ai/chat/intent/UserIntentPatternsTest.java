@@ -41,6 +41,7 @@ class UserIntentPatternsTest {
     assertTrue(UserIntentPatterns.matchesChainQuestion("explain this chain"));
     assertTrue(UserIntentPatterns.matchesChainQuestion("what does this chain do"));
     assertTrue(UserIntentPatterns.matchesChainQuestion("how does this chain work"));
+    assertTrue(UserIntentPatterns.matchesChainQuestion("Describe chain"));
     assertFalse(UserIntentPatterns.matchesChainQuestion("implement the chain"));
   }
 

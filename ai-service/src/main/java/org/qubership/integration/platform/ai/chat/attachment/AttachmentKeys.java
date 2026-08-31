@@ -44,7 +44,9 @@ public final class AttachmentKeys {
    *   <li>a URL with a {@code key} query parameter
    * </ul>
    *
-   * Returns a de-duplicated list of safe S3 object keys, preserving insertion order.
+   * Markdown headings (open-chain context such as {@code ## Current Chain: ...}) are not keys.
+   *
+   * <p>Returns a de-duplicated list of safe S3 object keys, preserving insertion order.
    */
   public static List<String> normalize(Collection<String> rawKeys) {
     if (rawKeys == null || rawKeys.isEmpty()) {
@@ -72,6 +74,9 @@ public final class AttachmentKeys {
           continue;
         }
         token = token.trim();
+        if (!looksLikeObjectKey(token)) {
+          continue;
+        }
         if (isSafe(token)) {
           seen.add(token);
         } else {
@@ -94,5 +99,10 @@ public final class AttachmentKeys {
   private static boolean looksLikeUrl(String value) {
     return value.regionMatches(true, 0, "http://", 0, 7)
         || value.regionMatches(true, 0, "https://", 0, 8);
+  }
+
+  /** Chat prose such as {@code ## Current Chain: ...} is not an S3 object key. */
+  private static boolean looksLikeObjectKey(String token) {
+    return !token.startsWith("#");
   }
 }

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.chat.service;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
@@ -33,5 +35,21 @@ class EffectiveUserTextServiceTest {
     verify(conversationService)
         .registerAllowedAttachmentKeys(
             "conv-1", List.of("sessions/conv/a.json", "sessions/conv/b.json"));
+  }
+
+  @Test
+  void openChainContextAttachmentIsNotAnUploadedSpecKey() {
+    ConversationService conversations = new ConversationService();
+    EffectiveUserTextService textService =
+        new EffectiveUserTextService(mock(S3Service.class), conversations);
+    ChatRequest request = new ChatRequest();
+    request.setMessage("Describe chain");
+    request.setAttachment(
+        "## Current Chain: OM to Salesforce WFM (ID: 7c6b6568-e338-4007-9f7f-b942aef6ea76)");
+
+    String text = textService.resolve(request, "conv-1");
+
+    assertTrue(text.contains("Current Chain"));
+    assertTrue(conversations.getAllowedAttachmentKeys("conv-1").isEmpty());
   }
 }

@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.helpers.test.AssertSubscriber;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,12 +25,17 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogViewService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
+import org.qubership.integration.platform.ai.chat.CatalogRead;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailure;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentRuntimeDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.RuntimeStateDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.SnapshotDto;
 import org.qubership.integration.platform.ai.llm.agent.ChainPresentationAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
@@ -123,6 +129,92 @@ class ChainQuestionScenarioTest {
     assertTrue(body.contains("Last assistant turn:"));
     assertTrue(body.contains("Snapshot evidence:"));
     assertTrue(body.contains("(none)"));
+  }
+
+  @Test
+  void describePromptIncludesSnapshotAndDeploymentEvidence() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of("chain-1"));
+    when(chainPresentationAgent.chat(eq(CONVERSATION_ID), any()))
+        .thenReturn(Multi.createFrom().item("ok"));
+
+    ChatRequest request =
+        chatRequest(
+            "Describe chain",
+            new OpenChainTurnContext(
+                CONVERSATION_ID,
+                "chain-1",
+                "Describe chain",
+                "",
+                Optional.empty(),
+                CatalogRead.available(sampleFacts()),
+                CatalogRead.available(List.of(new SnapshotDto("snap-1", "v1"))),
+                CatalogRead.available(List.of()),
+                Optional.empty()));
+
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(request, CONVERSATION_ID, ScenarioType.ASK_CHAIN)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(Long.MAX_VALUE));
+    sub.awaitCompletion();
+
+    ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+    verify(chainPresentationAgent).chat(eq(CONVERSATION_ID), prompt.capture());
+    String body = prompt.getValue();
+    assertTrue(body.contains("Snapshot evidence:"));
+    assertTrue(body.contains("snap-1"));
+    assertTrue(body.contains("Deployment evidence"));
+    assertTrue(body.contains("none"));
+    assertFalse(body.contains("AVAILABLE"));
+    assertFalse(body.contains("NOT_REQUESTED"));
+  }
+
+  @Test
+  void describePromptIncludesDeploymentRuntimeError() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of("chain-1"));
+    when(chainPresentationAgent.chat(eq(CONVERSATION_ID), any()))
+        .thenReturn(Multi.createFrom().item("ok"));
+
+    var failed =
+        new DeploymentDto(
+            "dep-1",
+            "chain-1",
+            "snap-1",
+            "V1",
+            "default",
+            new DeploymentRuntimeDto(
+                Map.of(
+                    "172.21.0.11",
+                    new RuntimeStateDto("FAILED", "HTTP trigger context path already bound"))));
+    ChatRequest request =
+        chatRequest(
+            "why deployment is failed?",
+            new OpenChainTurnContext(
+                CONVERSATION_ID,
+                "chain-1",
+                "why deployment is failed?",
+                "",
+                Optional.empty(),
+                CatalogRead.available(sampleFacts()),
+                CatalogRead.available(List.of()),
+                CatalogRead.available(List.of(failed)),
+                Optional.empty()));
+
+    AssertSubscriber<ChatEvent> sub =
+        scenario
+            .handle(request, CONVERSATION_ID, ScenarioType.ASK_CHAIN)
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(Long.MAX_VALUE));
+    sub.awaitCompletion();
+
+    ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
+    verify(chainPresentationAgent).chat(eq(CONVERSATION_ID), prompt.capture());
+    String body = prompt.getValue();
+    assertTrue(body.contains("FAILED"));
+    assertTrue(body.contains("HTTP trigger context path already bound"));
+    assertFalse(body.contains("intentionally omitted"));
   }
 
   @Test
@@ -226,7 +318,7 @@ class ChainQuestionScenarioTest {
     assertTrue(body.contains("User question:"));
     assertTrue(body.contains("what happened?"));
     assertTrue(body.contains("Chain facts evidence:"));
-    assertTrue(body.contains("UNAVAILABLE"));
+    assertTrue(body.contains("unavailable"));
     assertTrue(body.contains("Deployment evidence"));
   }
 
