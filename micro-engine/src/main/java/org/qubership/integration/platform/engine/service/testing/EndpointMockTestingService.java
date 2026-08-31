@@ -5,14 +5,18 @@ import io.quarkus.arc.lookup.LookupIfProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.Exchange;
 import org.apache.hc.client5.http.HttpRoute;
+import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
+import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.net.URIAuthority;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 
 import java.net.URI;
 
@@ -24,6 +28,10 @@ import java.net.URI;
 public class EndpointMockTestingService implements TestingService {
 
     private static final String MOCK_CALL_PATH = "/api/v1/endpoint-mocks/call";
+    // The key camel-http files the exchange under, and the one its own interceptors read it back from.
+    // Package-private so the test asserts against this constant rather than a second copy of the literal.
+    static final String CAMEL_EXCHANGE_ATTRIBUTE = "org.apache.camel.Exchange";
+    private static final HttpRoutePlanner LIVE_ROUTES = new DefaultRoutePlanner(null);
     private static final String REWRITE_ATTRIBUTE = EndpointMockTestingService.class.getName() + ".rewrite";
     private static final String HTTP_SCHEME = "http";
     private static final String HTTPS_SCHEME = "https";
@@ -32,13 +40,16 @@ public class EndpointMockTestingService implements TestingService {
 
     private final HttpHost testingServiceHost;
     private final String mockCallPath;
+    private final HttpRoute mockRoute;
 
     @Inject
     public EndpointMockTestingService(@ConfigProperty(name = "qip.testing.address") String address) {
         URI uri = parseAddress(address);
         this.testingServiceHost = resolveHost(uri);
         this.mockCallPath = basePath(uri) + MOCK_CALL_PATH;
-        log.info("Endpoint mocking is enabled: outbound HTTP calls of every chain go to {}{}",
+        this.mockRoute = new HttpRoute(
+                testingServiceHost, null, HTTPS_SCHEME.equals(testingServiceHost.getSchemeName()));
+        log.info("Endpoint mocking is enabled: outbound HTTP calls made by a test case run go to {}{}",
                 testingServiceHost, mockCallPath);
     }
 
@@ -60,6 +71,9 @@ public class EndpointMockTestingService implements TestingService {
         // EndpointInfo.path is the operation template, not a request path, despite the name.
         String operationPath = endpointInfo.getPath();
         return (request, entity, context) -> {
+            if (!belongsToTestCaseRun(context)) {
+                return;
+            }
             // On an authentication challenge hc5 restores the headers of the untouched original request and runs
             // the processor over the same request again. Replay the first pass: the path it would read back is
             // the mock endpoint, not the live target.
@@ -86,8 +100,23 @@ public class EndpointMockTestingService implements TestingService {
 
     @Override
     public HttpRoutePlanner buildRoutePlanner(String chainId, EndpointInfo endpointInfo) {
-        boolean secure = HTTPS_SCHEME.equals(testingServiceHost.getSchemeName());
-        return (target, context) -> new HttpRoute(testingServiceHost, null, secure);
+        return this::determineRoute;
+    }
+
+    // The route is chosen per exchange, not per client: the client is built once, when the chain is
+    // deployed, and every run of that chain goes through it, a live one included.
+    private HttpRoute determineRoute(HttpHost target, HttpContext context) throws HttpException {
+        return belongsToTestCaseRun(context) ? mockRoute : LIVE_ROUTES.determineRoute(target, context);
+    }
+
+    // camel-http passes the exchange down to the client in the context, and only when the endpoint carries
+    // an activity listener, which TestingHttpComponentCustomizerProducer installs for that reason alone.
+    // The GraphQL producer runs the client on a context of its own and files no exchange there, so its
+    // calls are never mocked and reach their endpoint, a test case run included.
+    private static boolean belongsToTestCaseRun(HttpContext context) {
+        Object exchange = context == null ? null : context.getAttribute(CAMEL_EXCHANGE_ATTRIBUTE);
+        return exchange instanceof Exchange camelExchange
+                && camelExchange.getProperty(Properties.TESTING_SESSION_ID) != null;
     }
 
     private static String replayedContext(HttpRequest request, HttpContext context) {

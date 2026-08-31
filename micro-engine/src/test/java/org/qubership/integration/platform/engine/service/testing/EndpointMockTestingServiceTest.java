@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.arc.Unremovable;
 import io.quarkus.arc.lookup.LookupIfProperty;
+import org.apache.camel.Exchange;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.core5.http.HttpHost;
@@ -14,6 +15,8 @@ import org.apache.hc.core5.http.protocol.BasicHttpContext;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.yaml.snakeyaml.Yaml;
 
@@ -29,8 +32,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class EndpointMockTestingServiceTest {
@@ -142,7 +148,7 @@ class EndpointMockTestingServiceTest {
         HttpRequestInterceptor interceptor =
                 service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH));
         HttpRequest request = request("http://orders:8080/orders/42?status=NEW");
-        HttpContext context = new BasicHttpContext();
+        HttpContext context = testCaseRunContext();
 
         process(interceptor, request, context);
         request.removeHeaders(TestingContext.HEADER_NAME);
@@ -173,7 +179,7 @@ class EndpointMockTestingServiceTest {
         HttpRequestInterceptor interceptor =
                 service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH));
         HttpRequest request = request("http://orders:8080/orders/42");
-        HttpContext context = new BasicHttpContext();
+        HttpContext context = testCaseRunContext();
 
         process(interceptor, request, context);
         request.setHeader(TestingContext.HEADER_NAME, "c3Bvb2ZlZA==");
@@ -187,7 +193,7 @@ class EndpointMockTestingServiceTest {
         // hc5 builds a new request for a redirect and keeps it on the context of the same exchange.
         HttpRequestInterceptor interceptor =
                 service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH));
-        HttpContext context = new BasicHttpContext();
+        HttpContext context = testCaseRunContext();
         HttpRequest first = request("http://orders:8080/orders/42");
         HttpRequest redirect = request("http://orders:8080/orders/43");
 
@@ -304,6 +310,55 @@ class EndpointMockTestingServiceTest {
         assertThrows(IllegalArgumentException.class, () -> new EndpointMockTestingService("/endpoint-mocks"));
     }
 
+    @Test
+    void shouldLeaveALiveCallAlone() {
+        HttpRequest request = request("http://orders:8080/orders/42");
+
+        process(service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH)), request,
+                liveRunContext());
+
+        assertNull(request.getFirstHeader(TestingContext.HEADER_NAME));
+        assertEquals("/orders/42", request.getPath());
+        assertEquals("orders", request.getAuthority().getHostName());
+    }
+
+    @Test
+    void shouldRouteALiveCallToItsOwnEndpoint() {
+        HttpRoute route = route(service(), liveRunContext());
+
+        assertEquals("orders", route.getTargetHost().getHostName());
+        assertEquals(8080, route.getTargetHost().getPort());
+    }
+
+    @Test
+    void shouldLeaveACallAloneWhenNoExchangeIsAtHand() {
+        // The GraphQL producer runs the client on a context of its own and files no exchange into it, so a
+        // graphql call is never mocked, whatever headers it carries.
+        HttpRequest request = request("http://orders:8080/orders/42");
+        request.setHeader(Headers.EXTERNAL_SESSION_CIP_ID, "testing-session-1");
+
+        process(service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH)), request,
+                new BasicHttpContext());
+
+        assertNull(request.getFirstHeader(TestingContext.HEADER_NAME));
+        assertEquals("/orders/42", request.getPath());
+        assertEquals("orders", request.getAuthority().getHostName());
+    }
+
+    @Test
+    void shouldIgnoreASessionHeaderTheCallerSupplied() {
+        // Camel copies the headers of an inbound request onto the outbound one, so a live call can carry the
+        // header of a run it does not belong to. Only the exchange decides.
+        HttpRequest request = request("http://orders:8080/orders/42");
+        request.setHeader(Headers.EXTERNAL_SESSION_CIP_ID, "testing-session-1");
+
+        process(service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH)), request,
+                liveRunContext());
+
+        assertNull(request.getFirstHeader(TestingContext.HEADER_NAME));
+        assertEquals("/orders/42", request.getPath());
+    }
+
     private static EndpointMockTestingService service() {
         return new EndpointMockTestingService(ADDRESS);
     }
@@ -345,7 +400,7 @@ class EndpointMockTestingServiceTest {
     }
 
     private static void process(HttpRequestInterceptor interceptor, HttpRequest request) {
-        process(interceptor, request, new BasicHttpContext());
+        process(interceptor, request, testCaseRunContext());
     }
 
     private static void process(HttpRequestInterceptor interceptor, HttpRequest request, HttpContext context) {
@@ -356,10 +411,33 @@ class EndpointMockTestingServiceTest {
         }
     }
 
+    // Mocking only takes a call the testing service started, and the exchange of such a run is what camel-http
+    // leaves in the client context.
+    private static HttpContext testCaseRunContext() {
+        Exchange exchange = mock(Exchange.class);
+        when(exchange.getProperty(Properties.TESTING_SESSION_ID)).thenReturn("testing-session-1");
+        return contextOf(exchange);
+    }
+
+    // An unstubbed mock answers null for every property, which is what a live run looks like.
+    private static HttpContext liveRunContext() {
+        return contextOf(mock(Exchange.class));
+    }
+
+    private static HttpContext contextOf(Exchange exchange) {
+        HttpContext context = new BasicHttpContext();
+        context.setAttribute(EndpointMockTestingService.CAMEL_EXCHANGE_ATTRIBUTE, exchange);
+        return context;
+    }
+
     private static HttpRoute route(EndpointMockTestingService service) {
+        return route(service, testCaseRunContext());
+    }
+
+    private static HttpRoute route(EndpointMockTestingService service, HttpContext context) {
         HttpRoutePlanner planner = service.buildRoutePlanner("chain-1", endpointInfo(OPERATION_PATH));
         try {
-            return planner.determineRoute(new HttpHost("http", "orders", 8080), null);
+            return planner.determineRoute(new HttpHost("http", "orders", 8080), context);
         } catch (Exception exception) {
             throw new IllegalStateException(exception);
         }

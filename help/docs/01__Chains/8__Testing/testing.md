@@ -255,25 +255,26 @@ The two sets are independent: holding one grants nothing under the other. Full r
 ## Endpoint Mocking
 
 ---
-Endpoint mocking is a feature of the **engine**, not of the chain: it is switched on for a whole engine installation, and it then applies to every chain deployed there.
+Endpoint mocking is a feature of the **engine**, not of the chain: it is switched on for a whole engine installation, and it then applies to every chain deployed there. It does not apply to every call those chains make. Only a call made by a **test case run** is mocked - a run the testing service started by activating the chain's HTTP Trigger. A chain called any other way reaches its real endpoints, on the same installation and at the same time.
 
-When it is on, the HTTP client the engine builds for a chain element is repointed at the testing service. An outbound call therefore never leaves for its real host. Instead, it arrives at the testing service carrying the chain identifier, the element identifier, the request path and the operation path of the element it came from, along with the original headers and body. The testing service then:
+The engine tells the two apart by the session header the testing service sends with the trigger request. It stores that header on the exchange, which carries it through a chain call and a split, so an element deep in a called chain is mocked as long as the run it belongs to started as a test case.
+
+When a call belongs to such a run, the HTTP client the engine built for the element is repointed at the testing service, and the call never leaves for its real host. It arrives at the testing service carrying the chain identifier, the element identifier, the request path and the operation path of the element it came from, along with the original headers and body. The testing service then:
 
 1. selects the **enabled** mocks bound to that chain and that element;
 2. orders them most specific first - the mock with the most enabled request matchers wins, and among equals the oldest one;
 3. answers with the first mock whose enabled request matchers all pass, honoring its status code, headers, body and delay.
 
-**An element with no matching mock receives `404`.** This is the defined behavior, not a defect: the engine has no fallback, so it never reaches the real endpoint. A chain element that must reach a live system while mocking is on therefore needs a mock that matches its calls.
+**An element with no matching mock receives `404`.** This is the defined behavior, not a defect: the engine has no fallback, so a mocked call never reaches the real endpoint. An element that must reach a live system during a test case run therefore needs a mock that matches its calls.
 
 Calls that are intercepted:
 
 - [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md);
-- [GraphQL Sender](../1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/graphql_sender.md);
-- [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) over HTTP or GraphQL.
+- [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) over HTTP.
 
 A Service Call over Kafka, AMQP or gRPC is never intercepted, and neither is an **HTTP Trigger**, which receives calls rather than making them.
 
-> ℹ️ **Note:** A mock can be created only for an **HTTP Sender** or for a **Service Call** over HTTP. A **GraphQL Sender**, and a **Service Call** over GraphQL, are still intercepted while mocking is on, and since no mock can be bound to them, their calls are answered `404`.
+> ℹ️ **Note:** A **GraphQL Sender**, and a **Service Call** over GraphQL, are not intercepted either: a mock cannot be bound to them in the first place, and the engine cannot tell which run a GraphQL call belongs to, because the Camel producer behind those elements builds its own client call and passes no exchange. They reach their real endpoint during a test case run, so a test that exercises a chain with a GraphQL element calls the live system.
 
 The two settings live on the engine:
 
@@ -292,5 +293,5 @@ A change takes effect when the engine restarts. No chain has to be redeployed.
 
 - Only an **HTTP Trigger** can be activated by a test case. A trigger of any other type cannot be tested this way.
 - Test cases and endpoint mocks are not part of the chain export. They are exported and imported from their own tables.
-- Mocking is off by default, and it is environment-wide. With mocking on and the testing service absent, every outbound HTTP call of every chain fails to connect; with the service present, every call without a matching mock is answered `404`. Switch it on only on an installation someone is testing on.
+- Mocking is off by default, and it is environment-wide: the switch covers an engine installation, not a chain. It narrows the traffic it touches to test case runs, so a chain run any other way keeps reaching its real endpoints even while mocking is on. With mocking on and the testing service absent, an outbound call of a test case run fails to connect; with the service present, a call without a matching mock is answered `404`.
 - An in-place edited cell commits on **Enter** only; clicking away discards the edit.

@@ -344,7 +344,8 @@ qip:
     runtime-catalog:
       url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}
   testing:
-    # Endpoint mocking. With it on, an outbound call with no matching mock gets 404 instead of reaching the endpoint.
+    # Endpoint mocking. With it on, an outbound call of a test case run goes to the testing service, and one with
+    # no matching mock gets 404 instead of reaching the endpoint. A live run reaches the endpoint as usual.
     enabled: ${TESTING_SERVICE_ENABLED:false}
     address: ${TESTING_SERVICE_ADDRESS:http://testing-service:8080}
   restclient:
