@@ -35,8 +35,14 @@ const ChainTriggerSelectField: React.FC<
         setElementsMap(
           new Map(elements.map((element) => [element.id, element])),
         );
+        // Ordered the way the option reads: chain tag first, then trigger name.
+        const orderedElements = [...elements].sort(
+          (a, b) =>
+            a.chainName.localeCompare(b.chainName) ||
+            a.name.localeCompare(b.name),
+        );
         setOptions(
-          elements.map((element) => ({
+          orderedElements.map((element) => ({
             value: element.id,
             labelString: element.name,
             label: (
