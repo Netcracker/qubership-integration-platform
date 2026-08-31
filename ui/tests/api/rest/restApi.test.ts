@@ -48,6 +48,32 @@ describe("RestApi - filterServices and searchServices", () => {
     restApi = new RestApi();
   });
 
+  it("getServices sends GET without chain usage by default", async () => {
+    mockGet.mockResolvedValue({ data: [] });
+
+    await restApi.getServices("all", false);
+
+    expect(mockGet).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems"),
+      {
+        params: { modelType: "all", withSpec: false, includeChainUsage: false },
+      },
+    );
+  });
+
+  it("getServices asks for chain usage when requested", async () => {
+    mockGet.mockResolvedValue({ data: [] });
+
+    await restApi.getServices("all", false, true);
+
+    expect(mockGet).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems"),
+      {
+        params: { modelType: "all", withSpec: false, includeChainUsage: true },
+      },
+    );
+  });
+
   it("filterServices sends POST with filter body", async () => {
     const filters: EntityFilterModel[] = [
       { column: "NAME", condition: "CONTAINS", value: "test" },

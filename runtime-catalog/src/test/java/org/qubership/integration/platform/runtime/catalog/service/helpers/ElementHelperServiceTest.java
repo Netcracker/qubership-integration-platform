@@ -1,8 +1,15 @@
 package org.qubership.integration.platform.runtime.catalog.service.helpers;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.library.constants.CamelOptions;
@@ -21,12 +28,14 @@ import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ContextConfiguration(classes = ElementHelperService.class)
 @ExtendWith(SpringExtension.class)
 @ExtendWith(MockitoExtension.class)
-public class ElementHelperServiceTest {
+class ElementHelperServiceTest {
 
     @MockitoBean
     ElementRepository elementRepository;
@@ -87,5 +96,54 @@ public class ElementHelperServiceTest {
                 .thenReturn(List.of());
 
         assertThat(elementHelperService.findChainsGroupedBySystemId().entrySet(), empty());
+    }
+
+    @Test
+    @DisplayName("An element carrying no service id is skipped rather than grouped under null")
+    void skipsElementWithoutSystemId() {
+        Chain chain = chain("chain-1");
+        when(elementRepository.findAll(ArgumentMatchers.<Specification<ChainElement>>any()))
+                .thenReturn(List.of(element(null, chain), element("system-1", chain)));
+
+        Map<String, List<Chain>> result = elementHelperService.findChainsGroupedBySystemId();
+
+        assertThat(result.keySet(), containsInAnyOrder("system-1"));
+    }
+
+    @Test
+    @DisplayName("The query asks for chain elements whose service id property is set")
+    void queriesElementsWithSystemIdProperty() {
+        when(elementRepository.findAll(ArgumentMatchers.<Specification<ChainElement>>any()))
+                .thenReturn(List.of());
+
+        elementHelperService.findChainsGroupedBySystemId();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Specification<ChainElement>> captor = ArgumentCaptor.forClass(Specification.class);
+        verify(elementRepository).findAll(captor.capture());
+
+        Root<ChainElement> root = mock(Root.class);
+        CriteriaQuery<?> query = mock(CriteriaQuery.class);
+        CriteriaBuilder builder = mock(CriteriaBuilder.class);
+        Path<Object> chainPath = mock(Path.class);
+        Path<String> propertiesPath = mock(Path.class);
+        Expression<String> extracted = mock(Expression.class);
+        Predicate chainNotNull = mock(Predicate.class);
+        Predicate systemIdNotNull = mock(Predicate.class);
+        Predicate conjunction = mock(Predicate.class);
+
+        when(root.get("chain")).thenReturn(chainPath);
+        when(root.<String>get("properties")).thenReturn(propertiesPath);
+        when(builder.function(eq("jsonb_extract_path_text"), eq(String.class), any(), any()))
+                .thenReturn(extracted);
+        when(builder.isNotNull(chainPath)).thenReturn(chainNotNull);
+        when(builder.isNotNull(extracted)).thenReturn(systemIdNotNull);
+        when(builder.and(chainNotNull, systemIdNotNull)).thenReturn(conjunction);
+
+        Predicate predicate = captor.getValue().toPredicate(root, query, builder);
+
+        assertThat(predicate, sameInstance(conjunction));
+        verify(builder).isNotNull(chainPath);
+        verify(builder).isNotNull(extracted);
     }
 }

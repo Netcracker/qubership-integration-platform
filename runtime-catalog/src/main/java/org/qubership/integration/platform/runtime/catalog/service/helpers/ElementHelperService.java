@@ -15,6 +15,9 @@ import java.util.stream.Collectors;
 public class ElementHelperService {
 
     private static final String CHAIN_ELEMENT_WITH_ID_NOT_FOUND_MESSAGE = "Can't find chain element with id: ";
+    private static final String CHAIN_ATTRIBUTE = "chain";
+    private static final String PROPERTIES_ATTRIBUTE = "properties";
+    private static final String JSON_EXTRACT_FUNCTION = "jsonb_extract_path_text";
 
     private final ElementRepository elementRepository;
 
@@ -38,12 +41,12 @@ public class ElementHelperService {
 
     public boolean isSystemUsedByElement(String systemId) {
         return elementRepository.exists((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
                 builder.equal(builder
                                 .function(
-                                        "jsonb_extract_path_text",
+                                        JSON_EXTRACT_FUNCTION,
                                         String.class,
-                                        root.<String>get("properties"),
+                                        root.<String>get(PROPERTIES_ATTRIBUTE),
                                         builder.literal(CamelOptions.SYSTEM_ID)
                                 ),
                         systemId)
@@ -52,12 +55,12 @@ public class ElementHelperService {
 
     public boolean isSpecificationGroupUsedByElement(String specificationGroupId) {
         return elementRepository.exists((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
                 builder.equal(builder
                                 .function(
-                                        "jsonb_extract_path_text",
+                                        JSON_EXTRACT_FUNCTION,
                                         String.class,
-                                        root.<String>get("properties"),
+                                        root.<String>get(PROPERTIES_ATTRIBUTE),
                                         builder.literal(CamelOptions.SPECIFICATION_GROUP_ID)
                                 ),
                         specificationGroupId)
@@ -66,12 +69,12 @@ public class ElementHelperService {
 
     public boolean isSystemModelUsedByElement(String modelId) {
         return elementRepository.exists((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
                 builder.equal(builder
                                 .function(
-                                        "jsonb_extract_path_text",
+                                        JSON_EXTRACT_FUNCTION,
                                         String.class,
-                                        root.<String>get("properties"),
+                                        root.<String>get(PROPERTIES_ATTRIBUTE),
                                         builder.literal(CamelOptions.MODEL_ID)
                                 ),
                         modelId)
@@ -80,9 +83,9 @@ public class ElementHelperService {
 
     public List<ChainElement> findBySystemIdAndOperationId(String systemId, String operationId) {
         return elementRepository.findAll((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
-                builder.equal(builder.function("jsonb_extract_path_text", String.class,
-                                root.<String>get("properties"), builder.literal(CamelOptions.OPERATION_ID)),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
+                builder.equal(builder.function(JSON_EXTRACT_FUNCTION, String.class,
+                                root.<String>get(PROPERTIES_ATTRIBUTE), builder.literal(CamelOptions.OPERATION_ID)),
                         operationId
                 )
         ));
@@ -90,9 +93,9 @@ public class ElementHelperService {
 
     public List<ChainElement> findBySystemIdAndSpecificationGroupId(String systemId, String specificationGroupId) {
         return elementRepository.findAll((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
-                builder.equal(builder.function("jsonb_extract_path_text", String.class,
-                                root.<String>get("properties"), builder.literal(CamelOptions.SPECIFICATION_GROUP_ID)),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
+                builder.equal(builder.function(JSON_EXTRACT_FUNCTION, String.class,
+                                root.<String>get(PROPERTIES_ATTRIBUTE), builder.literal(CamelOptions.SPECIFICATION_GROUP_ID)),
                         specificationGroupId
                 )
         ));
@@ -100,9 +103,9 @@ public class ElementHelperService {
 
     public List<ChainElement> findBySystemId(String systemId) {
         return elementRepository.findAll((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
-                builder.equal(builder.function("jsonb_extract_path_text", String.class,
-                                root.<String>get("properties"), builder.literal(CamelOptions.SYSTEM_ID)),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
+                builder.equal(builder.function(JSON_EXTRACT_FUNCTION, String.class,
+                                root.<String>get(PROPERTIES_ATTRIBUTE), builder.literal(CamelOptions.SYSTEM_ID)),
                         systemId
                 )
         ));
@@ -110,9 +113,9 @@ public class ElementHelperService {
 
     public List<ChainElement> findByContextServiceId(String contextServiceId) {
         return elementRepository.findAll((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
-                builder.equal(builder.function("jsonb_extract_path_text", String.class,
-                                root.<String>get("properties"), builder.literal(CamelOptions.CONTEXT_SYSTEM_ID)),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
+                builder.equal(builder.function(JSON_EXTRACT_FUNCTION, String.class,
+                                root.<String>get(PROPERTIES_ATTRIBUTE), builder.literal(CamelOptions.CONTEXT_SYSTEM_ID)),
                         contextServiceId
                 )
         ));
@@ -120,9 +123,9 @@ public class ElementHelperService {
 
     public List<Chain> findBySystemAndModelId(String systemId, String modelId) {
         List<ChainElement> elements = elementRepository.findAll((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
-                builder.equal(builder.function("jsonb_extract_path_text", String.class,
-                                root.<String>get("properties"), builder.literal(CamelOptions.MODEL_ID)),
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
+                builder.equal(builder.function(JSON_EXTRACT_FUNCTION, String.class,
+                                root.<String>get(PROPERTIES_ATTRIBUTE), builder.literal(CamelOptions.MODEL_ID)),
                         modelId
                 )
         ));
@@ -156,9 +159,9 @@ public class ElementHelperService {
      */
     public Map<String, List<Chain>> findChainsGroupedBySystemId() {
         List<ChainElement> elements = elementRepository.findAll((root, query, builder) -> builder.and(
-                builder.isNotNull(root.get("chain")),
-                builder.isNotNull(builder.function("jsonb_extract_path_text", String.class,
-                        root.<String>get("properties"), builder.literal(CamelOptions.SYSTEM_ID)))
+                builder.isNotNull(root.get(CHAIN_ATTRIBUTE)),
+                builder.isNotNull(builder.function(JSON_EXTRACT_FUNCTION, String.class,
+                        root.<String>get(PROPERTIES_ATTRIBUTE), builder.literal(CamelOptions.SYSTEM_ID)))
         ));
         Map<String, List<ChainElement>> systemChainElements = new HashMap<>();
         for (ChainElement element : elements) {
