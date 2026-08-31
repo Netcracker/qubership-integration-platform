@@ -54,7 +54,12 @@ public class CatalogBindingMatcher {
       String evidenceRef) {}
 
   public MatchResult match(String kind, String serviceName, String operationQuery) {
-    return match(kind, serviceName, operationQuery, null, null);
+    return match(kind, serviceName, operationQuery, null, null, null);
+  }
+
+  public MatchResult match(
+      String kind, String serviceName, String operationQuery, String conversationId) {
+    return match(kind, serviceName, operationQuery, null, null, conversationId);
   }
 
   public MatchResult match(
@@ -63,6 +68,16 @@ public class CatalogBindingMatcher {
       String operationQuery,
       String protocol,
       String requiredRelease) {
+    return match(kind, serviceName, operationQuery, protocol, requiredRelease, null);
+  }
+
+  public MatchResult match(
+      String kind,
+      String serviceName,
+      String operationQuery,
+      String protocol,
+      String requiredRelease,
+      String conversationId) {
     if (!"service-call".equalsIgnoreCase(kind) && !"async-api-trigger".equalsIgnoreCase(kind)) {
       return new MatchResult.None();
     }
@@ -99,7 +114,10 @@ public class CatalogBindingMatcher {
           continue;
         }
         List<CatalogRestClient.OperationDto> ops =
-            catalogReadTool.listCatalogOperations(spec.id(), system.id(), null);
+            CatalogStrings.blankToNull(conversationId) != null
+                ? catalogReadTool.listCatalogOperations(
+                    conversationId, spec.id(), system.id(), null)
+                : catalogReadTool.listCatalogOperations(spec.id(), system.id(), null);
         for (CatalogRestClient.OperationDto op : ops) {
           if (op == null || CatalogStrings.blankToNull(op.id()) == null) {
             continue;

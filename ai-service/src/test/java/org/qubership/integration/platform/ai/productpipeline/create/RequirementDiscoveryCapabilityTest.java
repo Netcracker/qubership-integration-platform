@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.integration.catalog.pipeline.Catalo
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
@@ -606,6 +607,83 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
     assertEquals("", completed.get().outcome().message());
     assertFalse(completed.get().outcome().message().contains("READY_FOR_PLAN"));
+  }
+
+  @Test
+  void approvedUploadedSpecsHandoffAdvancesNeedsInputDraftWithFacts() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft incomplete =
+        new RequirementDraft(
+            false,
+            "Call OM onTaskStart then Salesforce WFM createTask.",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Which catalog operation should Salesforce WFM createTask use?"),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.GOAL,
+                    "chain",
+                    "Create OM to Salesforce WFM"),
+                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
+            false,
+            List.of(
+                new RequirementServiceCall(
+                    "call-wfm-create-task",
+                    "call-wfm-create-task",
+                    "Salesforce WFM",
+                    "createTask",
+                    null)));
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "conv-uploaded-spec", List.of("sessions/conv/salesforce-wfm.json"));
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            null,
+            (conversationId, userText) -> {
+              store.beginTurn(conversationId);
+              store.put(conversationId, incomplete);
+              store.markCaptured(conversationId);
+              ProductCapabilityCaptureContext.offerDraft(incomplete);
+              return Multi.createFrom().empty();
+            },
+            conversations);
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-uploaded-spec",
+            "conv-uploaded-spec",
+            "requirement-discovery",
+            "exec-uploaded-spec",
+            "attempt-uploaded-spec",
+            discoveryProfile(
+                List.of(new ArtifactTypeRef("requirement-draft", 2)), List.of()),
+            null,
+            List.of(),
+            Map.of("userText", "Create OM to Salesforce WFM with the attached spec"));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability
+        .execute(context)
+        .subscribe()
+        .with(
+            signal -> {
+              if (signal instanceof CapabilitySignal.Completed c) {
+                completed.set(c);
+              }
+            });
+
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.get().outcome().outcomeClass());
+    assertEquals(1, completed.get().outcome().candidates().size());
+    assertEquals(
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT,
+        completed.get().outcome().candidates().get(0).kind());
   }
 
   @Test

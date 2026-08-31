@@ -11,6 +11,7 @@ import java.util.function.BiFunction;
 import io.smallrye.mutiny.Context;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsAgentCall;
@@ -44,20 +45,29 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final RequirementDraftStore draftStore;
   private final GatherRequirementsPromptBuilder promptBuilder;
   private final BiFunction<String, String, Multi<ChatEvent>> gatherRunner;
+  private final ConversationService conversationService;
 
   @Inject
   public RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
+      GatherRequirementsPromptBuilder promptBuilder,
+      ConversationService conversationService) {
+    this(gatherRequirementsAgent, draftStore, promptBuilder, null, conversationService);
+  }
+
+  RequirementDiscoveryCapability(
+      GatherRequirementsAgent gatherRequirementsAgent,
+      RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder) {
-    this(gatherRequirementsAgent, draftStore, promptBuilder, null);
+    this(gatherRequirementsAgent, draftStore, promptBuilder, null, null);
   }
 
   RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner) {
-    this(gatherRequirementsAgent, draftStore, null, gatherRunner);
+    this(gatherRequirementsAgent, draftStore, null, gatherRunner, null);
   }
 
   RequirementDiscoveryCapability(
@@ -65,10 +75,20 @@ public class RequirementDiscoveryCapability implements StageCapability {
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner) {
+    this(gatherRequirementsAgent, draftStore, promptBuilder, gatherRunner, null);
+  }
+
+  RequirementDiscoveryCapability(
+      GatherRequirementsAgent gatherRequirementsAgent,
+      RequirementDraftStore draftStore,
+      GatherRequirementsPromptBuilder promptBuilder,
+      BiFunction<String, String, Multi<ChatEvent>> gatherRunner,
+      ConversationService conversationService) {
     this.gatherRequirementsAgent = gatherRequirementsAgent;
     this.draftStore = Objects.requireNonNull(draftStore, "draftStore");
     this.promptBuilder = promptBuilder;
     this.gatherRunner = gatherRunner;
+    this.conversationService = conversationService;
   }
 
   @Override
@@ -164,9 +184,13 @@ public class RequirementDiscoveryCapability implements StageCapability {
               RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE));
     }
     // Pending APIHub import hands off to import-stage (ADR 0001) even when the draft
-    // is still NEEDS_INPUT with the pinned import-confirm open question.
+    // is still NEEDS_INPUT with the pinned import-confirm open question. Approved uploaded
+    // specs use the same handoff: catalog lookup cannot see them until uploaded-spec-import
+    // runs, so waiting here would ask the reader to import a spec they already approved.
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
-    if (!draft.readyForPlan() && !pendingImportHandoff) {
+    boolean pendingUploadedSpecHandoff =
+        hasAllowedUploadedSpecs(conversationId) && !draft.facts().isEmpty();
+    if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       // Blank on purpose: the gather agent already streamed the clarifying question. Emitting an
       // internal draft-state sentence glued it to that text and leaked READY_FOR_PLAN into chat.
       return new CapabilitySignal.Completed(
@@ -299,6 +323,18 @@ public class RequirementDiscoveryCapability implements StageCapability {
               CompilationArtifacts.Kind.CATALOG_BINDING_HINT, hint, List.of()));
     }
     return hints;
+  }
+
+  /**
+   * True when this conversation already has uploaded API specification keys. CREATE routing asks
+   * for import approval before the run starts, so keys here mean the import stage may bind them.
+   */
+  private boolean hasAllowedUploadedSpecs(String conversationId) {
+    if (conversationService == null || conversationId == null || conversationId.isBlank()) {
+      return false;
+    }
+    List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
+    return keys != null && !keys.isEmpty();
   }
 
   private Multi<ChatEvent> runGather(

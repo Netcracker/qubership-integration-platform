@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
@@ -58,6 +59,22 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("resolveApiOperation"));
     assertTrue(input.contains("searchCatalogSystems does not bind"));
     assertFalse(input.contains("searchCatalogSystems, getApiSpecifications, and listCatalogOperations"));
+  }
+
+  @Test
+  void wrapTellsTheAgentNotToSearchApiHubWhenUploadedSpecsAreApproved() {
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "conv-1", List.of("sessions/conv/salesforce-wfm.json"));
+    builder =
+        new GatherRequirementsPromptBuilder(
+            skillDocumentService, addonRepository, draftStore, conversations);
+
+    String input = builder.wrap("conv-1", "Create OM to Salesforce WFM", "en");
+
+    assertTrue(input.contains("already approved for catalog import after discovery"), input);
+    assertTrue(input.contains("Do not search API Hub for operations from those specs"), input);
+    assertTrue(input.contains("do not ask the reader to import or bind them"), input);
   }
 
   @Test

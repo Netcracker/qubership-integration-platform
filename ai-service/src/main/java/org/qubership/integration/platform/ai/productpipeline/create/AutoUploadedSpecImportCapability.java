@@ -316,7 +316,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       return completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, message));
     }
     RequirementDraft updatedDraft = draft;
-    FactRewrite rewrite = rewriteFactsAndHints(updatedDraft);
+    FactRewrite rewrite = rewriteFactsAndHints(updatedDraft, context.conversationId());
     RequirementDraft rewrittenDraft = rewrite.draft();
     if (draftStore != null) {
       draftStore.put(context.conversationId(), rewrittenDraft);
@@ -342,7 +342,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
    * hint for each exact local-catalog match. The imported specification is already in the runtime
    * catalog, so a read-only match is enough to pin the integration operation id.
    */
-  private FactRewrite rewriteFactsAndHints(RequirementDraft draft) {
+  private FactRewrite rewriteFactsAndHints(RequirementDraft draft, String conversationId) {
     if (catalogBindingMatcher == null
         || draft == null
         || draft.facts() == null
@@ -373,7 +373,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         operationQuery = parsed.operationId() + " " + parsed.channel();
       }
       CatalogBindingMatcher.MatchResult match =
-          catalogBindingMatcher.match("service-call", serviceName, operationQuery);
+          catalogBindingMatcher.match(
+              "service-call", serviceName, operationQuery, conversationId);
       LOG.infof(
           "auto-uploaded-spec-import: probing fact factId=%s service=%s query=%s match=%s",
           call.sourceFactId(),

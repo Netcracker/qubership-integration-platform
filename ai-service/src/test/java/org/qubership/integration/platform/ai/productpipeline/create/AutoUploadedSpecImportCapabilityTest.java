@@ -346,7 +346,7 @@ class AutoUploadedSpecImportCapabilityTest {
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
-    when(matcher.match(any(), nullable(String.class), nullable(String.class)))
+    when(matcher.match(any(), nullable(String.class), nullable(String.class), eq("conv-1")))
         .thenReturn(
             new CatalogBindingMatcher.MatchResult.Exact(
                 new CatalogBindingMatcher.CatalogMatch(
@@ -391,6 +391,7 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(
         "Call catalog-bound Stub OpenAPI Service stubOperation operation, POST /stub/path",
         storeDraft.getValue().facts().get(0).text());
+    verify(matcher).match(eq("service-call"), any(), any(), eq("conv-1"));
   }
 
   @Test
@@ -428,7 +429,7 @@ class AutoUploadedSpecImportCapabilityTest {
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
-    when(matcher.match(any(), nullable(String.class), nullable(String.class)))
+    when(matcher.match(any(), nullable(String.class), nullable(String.class), eq("conv-1")))
         .thenAnswer(
             invocation -> {
               String q = invocation.getArgument(2);

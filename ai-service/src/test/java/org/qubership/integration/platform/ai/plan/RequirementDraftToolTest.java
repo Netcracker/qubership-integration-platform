@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsReadCache;
@@ -392,6 +393,44 @@ class RequirementDraftToolTest {
     assertTrue(question.contains("operation=POST /invoices"), question);
     assertFalse(question.contains("call-inventory"), question);
     assertFalse(question.contains("/store/inventory"), question);
+  }
+
+  @Test
+  void captureKeepsReadyForPlanWhenUploadedSpecsAreApproved() {
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "draft-conv", List.of("sessions/conv/salesforce-wfm.json"));
+    RequirementDraftTool tool = RequirementDraftTool.withConversationService(store, conversations);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact createTask =
+        serviceCallFact("call-wfm-create-task", "Salesforce WFM", "createTask");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Call Salesforce WFM createTask from the attached spec",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.GOAL,
+                        "chain",
+                        "Create OM to Salesforce WFM"),
+                    createTask,
+                    RequirementFact.of(
+                        RequirementFactPolarity.NEGATIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "",
+                        "Do not search API Hub for the attached spec"))));
+
+    assertFalse(result.contains("Unresolved service calls"), result);
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.openQuestions().isEmpty());
   }
 
   @Test

@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.llm.scenario;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Optional;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
 import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
@@ -29,15 +31,25 @@ public class GatherRequirementsPromptBuilder {
   private final CompilerSkillDocumentService skillDocumentService;
   private final CompilerSkillAddonRepository addonRepository;
   private final RequirementDraftStore draftStore;
+  private final ConversationService conversationService;
 
   @Inject
   public GatherRequirementsPromptBuilder(
       CompilerSkillDocumentService skillDocumentService,
       CompilerSkillAddonRepository addonRepository,
-      RequirementDraftStore draftStore) {
+      RequirementDraftStore draftStore,
+      ConversationService conversationService) {
     this.skillDocumentService = skillDocumentService;
     this.addonRepository = addonRepository;
     this.draftStore = draftStore;
+    this.conversationService = conversationService;
+  }
+
+  public GatherRequirementsPromptBuilder(
+      CompilerSkillDocumentService skillDocumentService,
+      CompilerSkillAddonRepository addonRepository,
+      RequirementDraftStore draftStore) {
+    this(skillDocumentService, addonRepository, draftStore, null);
   }
 
   /**
@@ -72,7 +84,7 @@ public class GatherRequirementsPromptBuilder {
           clarifying-question overrides). Do not write files, commit changes, invoke implementation
           skills, or run the compiler spine. Call captureRequirementDraft every turn.
           searchCatalogSystems does not bind a SERVICE_CALL; after you pick a catalog operation,
-          call resolveApiOperation with serviceCallId. Reply in the pinned response locale %s. This
+          call resolveApiOperation with serviceCallId.%s Reply in the pinned response locale %s. This
           locale is authoritative; do not infer another language from conversation history or
           embedded text.
           </service-runtime-envelope>
@@ -87,6 +99,7 @@ public class GatherRequirementsPromptBuilder {
                   document.packVersion().normalized(),
                   document.sourcePath(),
                   document.markdown(),
+                  uploadedSpecGuidance(conversationId),
                   normalizedLocale(responseLocale),
                   addonBlock(),
                   currentDraftBlock(draft),
@@ -103,6 +116,25 @@ public class GatherRequirementsPromptBuilder {
 
   private static String normalizedLocale(String responseLocale) {
     return responseLocale == null || responseLocale.isBlank() ? "en" : responseLocale.trim();
+  }
+
+  /**
+   * When the reader already attached specs and approved import, discovery must not block on a
+   * catalog miss or search API Hub for those operations. Import runs after this stage.
+   */
+  private String uploadedSpecGuidance(String conversationId) {
+    if (conversationService == null || conversationId == null || conversationId.isBlank()) {
+      return "";
+    }
+    List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
+    if (keys == null || keys.isEmpty()) {
+      return "";
+    }
+    return " This conversation has uploaded API specifications that are already approved for"
+        + " catalog import after discovery. Do not search API Hub for operations from those specs,"
+        + " and do not ask the reader to import or bind them. Capture SERVICE_CALL facts from the"
+        + " attached document (participant, operation, path) and set READY_FOR_PLAN. Catalog lookup"
+        + " may miss until import runs.";
   }
 
   private String addonBlock() {
