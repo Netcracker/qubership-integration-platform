@@ -91,6 +91,7 @@ public class GatherRequirementsPromptBuilder {
           </service-runtime-envelope>
           %s
           %s
+          %s
           <user-message>
           %s
           </user-message>
@@ -104,6 +105,7 @@ public class GatherRequirementsPromptBuilder {
                   normalizedLocale(responseLocale),
                   addonBlock(),
                   currentDraftBlock(draft),
+                  lastCaptureRejectionBlock(conversationId, draft),
                   userMessage != null ? userMessage : "");
       return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
     } catch (RuntimeException e) {
@@ -166,6 +168,24 @@ public class GatherRequirementsPromptBuilder {
       }
     }
     return body.toString();
+  }
+
+  private String lastCaptureRejectionBlock(
+      String conversationId, Optional<RequirementDraft> draft) {
+    if (draft.isPresent() || draftStore == null || conversationId == null) {
+      return "";
+    }
+    return draftStore
+        .lastCaptureRejection(conversationId)
+        .map(
+            message ->
+                """
+
+                <last-capture-rejection tool="captureRequirementDraft">
+                %s
+                </last-capture-rejection>
+                """.formatted(message))
+        .orElse("");
   }
 
   private static String currentDraftBlock(Optional<RequirementDraft> draft) {

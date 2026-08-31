@@ -24,6 +24,39 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
 class RequirementDraftStoreLifecycleTest {
 
   @Test
+  void beginTurnKeepsCaptureRejectionUntilPutOrClear() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.recordCaptureRejection("conversation-1", "duplicate sourceFactId in facts: x");
+    store.beginTurn("conversation-1");
+    assertEquals(
+        "duplicate sourceFactId in facts: x",
+        store.lastCaptureRejection("conversation-1").orElseThrow());
+
+    store.put("conversation-1", new RequirementDraft(false, "first draft"));
+    assertTrue(store.lastCaptureRejection("conversation-1").isEmpty());
+  }
+
+  @Test
+  void clearTurnFlagsClearsCaptureRejection() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.recordCaptureRejection("conversation-1", "duplicate sourceFactId in facts: x");
+
+    store.clearTurnFlags("conversation-1");
+
+    assertTrue(store.lastCaptureRejection("conversation-1").isEmpty());
+  }
+
+  @Test
+  void removeClearsCaptureRejection() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.recordCaptureRejection("conversation-1", "duplicate sourceFactId in facts: x");
+
+    store.remove("conversation-1");
+
+    assertTrue(store.lastCaptureRejection("conversation-1").isEmpty());
+  }
+
+  @Test
   void resetStartsNewCompilationWithoutReusingItsDraft() {
     InMemoryArtifactBlobStore blobStore = new InMemoryArtifactBlobStore();
     TestRuntime runtime = runtime(blobStore);

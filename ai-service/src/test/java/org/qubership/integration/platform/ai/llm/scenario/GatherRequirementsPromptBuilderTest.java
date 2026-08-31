@@ -87,12 +87,34 @@ class GatherRequirementsPromptBuilderTest {
   }
 
   @Test
+  void wrapIncludesLastCaptureRejectionWhenDraftIsMissing() {
+    draftStore.recordCaptureRejection(
+        "conv-1",
+        "duplicate sourceFactId in facts: CAPABILITY sourceFactId=om-on-task-start and"
+            + " BEHAVIOR sourceFactId=om-on-task-start. Call captureRequirementDraft again with"
+            + " unique sourceFactId values. Rename one colliding fact or drop the duplicate.");
+
+    String input =
+        builder.wrap(
+            "conv-1",
+            RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE,
+            "en");
+
+    assertTrue(input.contains("<last-capture-rejection tool=\"captureRequirementDraft\">"), input);
+    assertTrue(input.contains("CAPABILITY sourceFactId=om-on-task-start"), input);
+    assertTrue(input.contains("Call captureRequirementDraft again"), input);
+    assertTrue(input.contains(RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE), input);
+    assertFalse(input.contains("<current-requirement-draft"), input);
+  }
+
+  @Test
   void wrapSkipsProcessSkillWhenDraftAlreadyReadyForPlan() {
     draftStore.put("conv-1", RequirementFactFixtures.readyDraft("already ready"));
 
     String input = builder.wrap("conv-1", "More detail");
 
     assertFalse(input.contains("<compiler-process-skill"));
+    assertFalse(input.contains("<last-capture-rejection"));
     assertTrue(input.contains("More detail"));
   }
 

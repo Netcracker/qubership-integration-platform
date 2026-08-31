@@ -425,6 +425,52 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureRejectsDuplicateSourceFactIdWithBothFactsAndNextAction() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    RequirementFact capability =
+        new RequirementFact(
+            "om-on-task-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Receive OM onTaskStart",
+            "",
+            "",
+            "",
+            "POST",
+            "/tasks/start");
+    RequirementFact behavior =
+        new RequirementFact(
+            "om-on-task-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.BEHAVIOR,
+            "",
+            "commandType is completeTask");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "OM onTaskStart then Salesforce createTask",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(capability, behavior),
+                null,
+                rockyFlow()));
+
+    assertTrue(result.contains("CAPABILITY sourceFactId=om-on-task-start"), result);
+    assertTrue(result.contains("BEHAVIOR sourceFactId=om-on-task-start"), result);
+    assertTrue(result.contains("Call captureRequirementDraft again"), result);
+    assertTrue(result.contains("unique sourceFactId"), result);
+    assertTrue(store.get("draft-conv").isEmpty());
+    assertFalse(store.wasCapturedThisTurn("draft-conv"));
+    assertEquals(result, store.lastCaptureRejection("draft-conv").orElseThrow());
+  }
+
+  @Test
   void captureNamesTheServiceCallThatIsStillUnresolved() {
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);
