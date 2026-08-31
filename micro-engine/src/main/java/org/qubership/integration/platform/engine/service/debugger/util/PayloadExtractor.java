@@ -40,6 +40,7 @@ import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePr
 import org.qubership.integration.platform.engine.service.debugger.masking.MaskingService;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -92,7 +93,13 @@ public class PayloadExtractor {
 
     private String extractBody(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
         String maskedBody = MessageHelper.extractBody(exchange);
-        MediaType contentType = extractContentType(exchange);
+        MediaType contentType = null;
+        try {
+            contentType = extractContentType(exchange);
+        } catch (Exception e) {
+            log.warn("Failed to parse content type for sessions logging: {}",
+                exchange.getMessage().getHeaders().getOrDefault(HttpHeaders.CONTENT_TYPE, ""), e);
+        }
 
         if (maskingEnabled && !maskedFields.isEmpty() && StringUtils.isNotEmpty(maskedBody) && contentType != null) {
             try {
@@ -171,6 +178,19 @@ public class PayloadExtractor {
     public static MediaType extractContentType(Exchange exchange) {
         Object contentType = exchange.getMessage().getHeaders().getOrDefault(
                 HttpHeaders.CONTENT_TYPE, null);
-        return contentType == null ? null : MediaType.valueOf(String.valueOf(contentType));
+        if (contentType == null) {
+            return null;
+        }
+        String contentTypeStr;
+        if (contentType instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return null;
+            }
+            contentTypeStr = String.valueOf(collection.iterator().next());
+        } else {
+            contentTypeStr = String.valueOf(contentType);
+        }
+
+        return MediaType.valueOf(contentTypeStr);
     }
 }

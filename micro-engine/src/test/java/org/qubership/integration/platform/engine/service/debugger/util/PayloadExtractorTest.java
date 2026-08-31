@@ -26,6 +26,8 @@ import org.apache.camel.Message;
 import org.apache.camel.support.http.HttpUtil;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
@@ -40,9 +42,7 @@ import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -398,6 +398,33 @@ class PayloadExtractorTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"application/json", "text/plain", "text/html", "application/xml"})
+    void shouldExtractContentTypeWhenHeaderIsValidString(String contentTypeValue) {
+        Exchange ex = MockExchanges.withMessage();
+        Map<String, Object> headers = attachHeaders(ex);
+        headers.put(HttpHeaders.CONTENT_TYPE, contentTypeValue);
+
+        MediaType result = PayloadExtractor.extractContentType(ex);
+
+        assertNotNull(result);
+        assertTrue(MediaType.valueOf(contentTypeValue).isCompatible(result));
+    }
+
+    @Test
+    void shouldExtractContentTypeWithParametersWhenCharsetPresent() {
+        Exchange ex = MockExchanges.withMessage();
+        Map<String, Object> headers = attachHeaders(ex);
+        headers.put(HttpHeaders.CONTENT_TYPE, "text/html;charset=UTF-8");
+
+        MediaType result = PayloadExtractor.extractContentType(ex);
+
+        assertNotNull(result);
+        assertEquals("text", result.getType());
+        assertEquals("html", result.getSubtype());
+        assertEquals("UTF-8", result.getParameters().get("charset"));
+    }
+
     @Test
     void shouldExtractContentTypeWhenHeaderPresent() {
         Exchange ex = MockExchanges.withMessage();
@@ -411,9 +438,59 @@ class PayloadExtractorTest {
     }
 
     @Test
-    void shouldReturnNullWhenContentTypeMissing() {
+    void shouldExtractContentTypeFromSingleElementCollection() {
+        Exchange ex = MockExchanges.withMessage();
+        Map<String, Object> headers = attachHeaders(ex);
+        headers.put(HttpHeaders.CONTENT_TYPE, List.of("text/xml"));
+
+        MediaType result = PayloadExtractor.extractContentType(ex);
+
+        assertNotNull(result);
+        assertEquals("text", result.getType());
+        assertEquals("xml", result.getSubtype());
+    }
+
+    @Test
+    void shouldReturnNullWhenContentTypeHeaderIsAbsent() {
         Exchange ex = MockExchanges.withMessage();
         attachHeaders(ex);
+
         assertNull(PayloadExtractor.extractContentType(ex));
+    }
+
+    @Test
+    void shouldReturnNullWhenContentTypeHeaderIsEmptyCollection() {
+        Exchange ex = MockExchanges.withMessage();
+        Map<String, Object> headers = attachHeaders(ex);
+        headers.put(HttpHeaders.CONTENT_TYPE, Collections.emptyList());
+
+        assertNull(PayloadExtractor.extractContentType(ex));
+    }
+
+    @Test
+    void shouldThrowExceptionWhenContentTypeHeaderIsInvalidMimeType() {
+        Exchange ex = MockExchanges.withMessage();
+        Map<String, Object> headers = attachHeaders(ex);
+        headers.put(HttpHeaders.CONTENT_TYPE, "not-a-valid-mime-type");
+
+        assertThrows(IllegalArgumentException.class, () -> PayloadExtractor.extractContentType(ex));
+    }
+
+    @Test
+    void shouldThrowExceptionWhenContentTypeHeaderIsEmptyString() {
+        Exchange ex = MockExchanges.withMessage();
+        Map<String, Object> headers = attachHeaders(ex);
+        headers.put(HttpHeaders.CONTENT_TYPE, "");
+
+        assertThrows(IllegalArgumentException.class, () -> PayloadExtractor.extractContentType(ex));
+    }
+
+    @Test
+    void shouldThrowExceptionWhenContentTypeHeaderIsNonStringObject() {
+        Exchange ex = MockExchanges.withMessage();
+        Map<String, Object> headers = attachHeaders(ex);
+        headers.put(HttpHeaders.CONTENT_TYPE, 12345);
+
+        assertThrows(IllegalArgumentException.class, () -> PayloadExtractor.extractContentType(ex));
     }
 }
