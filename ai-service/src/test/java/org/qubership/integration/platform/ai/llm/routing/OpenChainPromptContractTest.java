@@ -15,9 +15,12 @@ class OpenChainPromptContractTest {
 
     assertFalse(prompt.contains("Use **only** the facts JSON"));
     assertTrue(prompt.contains("last assistant turn"));
-    assertTrue(prompt.contains("NOT_REQUESTED"));
+    assertTrue(prompt.contains("not requested"));
     assertTrue(prompt.contains("untrusted evidence"));
     assertTrue(prompt.contains("same language"));
+    assertTrue(prompt.contains("runtime error"));
+    assertFalse(prompt.contains("AVAILABLE []"));
+    assertFalse(prompt.contains("reconcileResult"));
   }
 
   @Test

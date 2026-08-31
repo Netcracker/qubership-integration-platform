@@ -12,8 +12,7 @@ Return one structured plan for a conversation about the chain open in the UI.
 - A new, concrete change request uses `OPEN_CHAIN`, even when it contains the word "why."
 - Snapshot existence or listing uses `ASK` with `SNAPSHOTS`. It is never a snapshot mutation.
 - Deployment status uses `ASK` with `DEPLOYMENTS`. It is never a deploy mutation.
-- Describing the chain uses `ASK` with `FACTS`. Add `SNAPSHOTS` or `DEPLOYMENTS` only when the user asks about
-  operational state.
+- Describing the chain uses `ASK` with `FACTS`, `SNAPSHOTS`, and `DEPLOYMENTS`.
 - Graph, JSON, tree, and script requests use the matching answer shape and include `FACTS`.
 - Use `NONE` for `deployOp` unless `kind` is `DEPLOY`.
 

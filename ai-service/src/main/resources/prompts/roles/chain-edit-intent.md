@@ -20,6 +20,13 @@ element answers to:
 Take every id and every property key from these lines. A key that appears under neither `set:` nor
 `other keys:` for the target element is not a key that element has.
 
+## Pinned catalog failure
+
+The pinned failure is evidence, not a request to wait. When it names a runtime error, an element,
+or a property, treat that as the reason for the edit. A request to propose a deployment fix is
+asking you to change whatever that failure implies. Do not ask for a more specific error that is
+already in the pin.
+
 ## Actions
 
 - `NO_CHANGE`: nothing should change. Use this when the request does not ask for an edit.

@@ -504,7 +504,23 @@ public class ChainPatchScenario implements ScenarioHandler {
       return "";
     }
     Optional<PinnedFailure> pin = turn.pinnedFailure();
-    return pin.isEmpty() ? "" : pin.get().safeText();
+    return pin.map(ChainPatchScenario::pinnedFailureForEdit).orElse("");
+  }
+
+  /**
+   * The reader-facing summary plus the catalog runtime diagnostic. The chat token stays on
+   * {@code safeText}; the compiler needs the diagnostic to choose an element and a property.
+   */
+  static String pinnedFailureForEdit(PinnedFailure pin) {
+    String safe = pin.safeText() == null ? "" : pin.safeText().trim();
+    String diagnostic = pin.diagnosticDetail() == null ? "" : pin.diagnosticDetail().trim();
+    if (diagnostic.isEmpty() || safe.contains(diagnostic)) {
+      return safe;
+    }
+    if (safe.isEmpty()) {
+      return diagnostic;
+    }
+    return safe + "\n" + diagnostic;
   }
 
   private Multi<ChatEvent> knownOrRethrow(Throwable error, String conversationId, String chainId) {

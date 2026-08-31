@@ -188,6 +188,34 @@ class ChainPatchScenarioTest {
   }
 
   @Test
+  void proposeDeploymentFixPassesRuntimeDiagnosticToTheCompiler() {
+    String safeText =
+        "Deployment of snapshot V1 to domain default failed. Status: FAILED."
+            + " The chain was not reported as deployed.";
+    String diagnostic = "engine-0: HTTP trigger context path already bound";
+    ChatRequest chat = request("Would you like me to propose a chain fix?");
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION);
+    chat.setDecision(command);
+    chat.setOpenChainTurnContext(
+        new OpenChainTurnContext(
+            CONVERSATION_ID,
+            CHAIN_ID,
+            chat.getMessage(),
+            "assistant: " + safeText,
+            Optional.of(new PinnedFailure(CONVERSATION_ID, CHAIN_ID, safeText, diagnostic)),
+            Optional.empty(),
+            false));
+
+    run(chat);
+
+    ArgumentCaptor<ChainEditRequest> captured = ArgumentCaptor.forClass(ChainEditRequest.class);
+    verify(editCompiler).compile(captured.capture(), any());
+    assertTrue(captured.getValue().pinnedFailureSafeText().contains(safeText));
+    assertTrue(captured.getValue().pinnedFailureSafeText().contains(diagnostic));
+  }
+
+  @Test
   void compileCatalogTimeoutEmitsSanitizedTokenNotCompilerMessage() {
     when(editCompiler.compile(any(), any()))
         .thenThrow(

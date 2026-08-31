@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElem
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.integration.catalog.util.HttpMethodRestrictCatalogShape;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -139,7 +140,10 @@ public class ChainReconcileService {
     Map<String, Object> catalogProperties =
         element.properties() == null ? Map.of() : element.properties();
     for (PlanProperty property : planProperties) {
-      if (property == null || property.key() == null || property.key().isBlank()) {
+      if (property == null
+          || property.key() == null
+          || property.key().isBlank()
+          || MappingExecutionSite.isCompilerMetadataKey(property.key().trim())) {
         continue;
       }
       Object catalogValue = catalogProperties.get(property.key());

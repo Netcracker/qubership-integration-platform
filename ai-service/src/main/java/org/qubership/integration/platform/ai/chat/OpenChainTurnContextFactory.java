@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -17,6 +18,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
+import org.qubership.integration.platform.ai.chat.intent.UserIntentPatterns;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
@@ -27,6 +29,8 @@ import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.InfoN
 import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.TurnReferent;
 import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlanner;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.presentation.QuestionIntent;
+import org.qubership.integration.platform.ai.presentation.QuestionIntentClassifier;
 
 /** Builds {@link OpenChainTurnContext} when a chain is open; otherwise returns null. */
 @ApplicationScoped
@@ -116,8 +120,10 @@ public class OpenChainTurnContextFactory {
     }
     ScenarioType hint = request.getScenarioHint();
     if (hint == ScenarioType.ASK_CHAIN) {
-      return new OpenChainTurnPlan.Ask(
-          TurnReferent.OPEN_CHAIN, Set.of(InfoNeed.FACTS), AnswerShape.EXPLAIN);
+      return withOperationalReadsForDescription(
+          new OpenChainTurnPlan.Ask(
+              TurnReferent.OPEN_CHAIN, Set.of(InfoNeed.FACTS), AnswerShape.EXPLAIN),
+          request);
     }
     if (hint == ScenarioType.COMPARE_AND_PATCH || hint == ScenarioType.DEPLOY_CHAIN) {
       return null;
@@ -127,7 +133,33 @@ public class OpenChainTurnContextFactory {
             formatLastTurn(lastTurn),
             transcriptWindow,
             request.getEffectiveUserText() == null ? "" : request.getEffectiveUserText());
-    return OpenChainTurnPlanner.validate(capture);
+    return withOperationalReadsForDescription(OpenChainTurnPlanner.validate(capture), request);
+  }
+
+  /**
+   * A chain description is incomplete without catalog snapshots and deployment status. The planner
+   * and the ASK_CHAIN shortcut otherwise request facts only.
+   */
+  private static OpenChainTurnPlan withOperationalReadsForDescription(
+      OpenChainTurnPlan plan, ChatRequest request) {
+    if (!(plan instanceof OpenChainTurnPlan.Ask ask)) {
+      return plan;
+    }
+    if (ask.referent() != TurnReferent.OPEN_CHAIN || ask.answerShape() != AnswerShape.EXPLAIN) {
+      return plan;
+    }
+    String message = request.getEffectiveUserText();
+    if (!UserIntentPatterns.matchesChainQuestion(message)) {
+      return plan;
+    }
+    if (QuestionIntentClassifier.classify(message) != QuestionIntent.EXPLAIN) {
+      return plan;
+    }
+    LinkedHashSet<InfoNeed> needs = new LinkedHashSet<>(ask.needs());
+    needs.add(InfoNeed.FACTS);
+    needs.add(InfoNeed.SNAPSHOTS);
+    needs.add(InfoNeed.DEPLOYMENTS);
+    return new OpenChainTurnPlan.Ask(ask.referent(), needs, ask.answerShape());
   }
 
   private static Set<InfoNeed> needs(OpenChainTurnPlan plan) {
