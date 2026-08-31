@@ -23,6 +23,7 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedOperation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedTrigger;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -261,9 +262,9 @@ class ChainSemanticCaptureToolTest {
     ChainSemanticCapture mutated =
         new ChainSemanticCapture(
             capture.chainIdentity(),
-            capture.entryPoints(),
-            List.of(new CapturedTrigger("trigger-http", List.of("foreign-fact"))),
-            capture.operations(),
+            List.of(),
+            List.of(),
+            List.of(new CapturedOperation("op-shared", "script", List.of("foreign-fact"))),
             capture.sequenceRegions(),
             capture.conditionRegions(),
             capture.splitRegions(),
@@ -318,7 +319,7 @@ class ChainSemanticCaptureToolTest {
             capture,
             List.of(
                 new ChainSemanticCapture.CapturedEdge(
-                    "trigger-http", "op-shared", null, null, null, null, null, null),
+                    "http-in", "op-shared", null, null, null, null, null, null),
                 new ChainSemanticCapture.CapturedEdge(
                     "op-shared", "ghost-call", null, null, null, null, null, null)));
     String result = tool.captureChainSemanticRevision(mutated);
@@ -330,8 +331,8 @@ class ChainSemanticCaptureToolTest {
       ChainSemanticCapture capture, List<ChainSemanticCapture.CapturedEdge> edges) {
     return new ChainSemanticCapture(
         capture.chainIdentity(),
-        capture.entryPoints(),
-        capture.triggers(),
+        List.of(),
+        List.of(),
         capture.operations(),
         capture.sequenceRegions(),
         capture.conditionRegions(),
@@ -348,7 +349,7 @@ class ChainSemanticCaptureToolTest {
     return new ChainSemanticCapture(
         capture.chainIdentity(),
         entryPoints,
-        capture.triggers(),
+        List.of(),
         capture.operations(),
         capture.sequenceRegions(),
         capture.conditionRegions(),

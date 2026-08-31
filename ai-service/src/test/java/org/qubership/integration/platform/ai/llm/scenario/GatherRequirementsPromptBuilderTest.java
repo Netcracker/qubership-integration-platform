@@ -18,9 +18,11 @@ import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
-import org.qubership.integration.platform.ai.plan.RequirementFact;
-import org.qubership.integration.platform.ai.plan.RequirementFactKind;
-import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
 
@@ -57,7 +59,12 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("pinned response locale en"));
     assertTrue(input.contains("Create chain named Greetings via script"));
     assertTrue(input.contains("resolveApiOperation"));
+    assertTrue(input.contains("Capture RequirementFlow before catalog lookup"), input);
     assertTrue(input.contains("searchCatalogSystems does not bind"));
+    assertTrue(input.contains("after the flow is stored"), input);
+    assertTrue(input.contains("with the interactionId from the stored flow"), input);
+    assertFalse(input.contains("after you pick a catalog operation"), input);
+    assertFalse(input.contains("with serviceCallId"), input);
     assertFalse(input.contains("searchCatalogSystems, getApiSpecifications, and listCatalogOperations"));
   }
 
@@ -75,11 +82,13 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("already approved for catalog import after discovery"), input);
     assertTrue(input.contains("Do not search API Hub for operations from those specs"), input);
     assertTrue(input.contains("do not ask the reader to import or bind them"), input);
+    assertTrue(input.contains("Capture the business flow from the attached document"), input);
+    assertFalse(input.contains("Capture SERVICE_CALL facts"), input);
   }
 
   @Test
   void wrapSkipsProcessSkillWhenDraftAlreadyReadyForPlan() {
-    draftStore.put("conv-1", new RequirementDraft(true, "already ready"));
+    draftStore.put("conv-1", RequirementFactFixtures.readyDraft("already ready"));
 
     String input = builder.wrap("conv-1", "More detail");
 
@@ -92,46 +101,41 @@ class GatherRequirementsPromptBuilderTest {
     draftStore.put(
         "conv-1",
         new RequirementDraft(
-            false,
-            "Call OM then Salesforce WFM",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Which operations?"),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "1",
-            null,
-            null,
-            false,
-            List.of(
-                serviceCall("call-om-result", "OM", "onTaskResult"),
-                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
-            false));
+                false,
+                "Call OM then Salesforce WFM",
+                DraftDecision.NEEDS_INPUT,
+                List.of("Which operations?"),
+                RequirementDraftTool.SOURCE_SKILL_ID,
+                "1",
+                null,
+                null,
+                false,
+                List.of())
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "Caller", "onTaskStart", ""),
+                        new Interaction(
+                            "call-om-result", Direction.OUTBOUND, "OM", "onTaskResult", ""),
+                        new Interaction(
+                            "call-wfm-create-task",
+                            Direction.OUTBOUND,
+                            "Salesforce WFM",
+                            "createTask",
+                            "")),
+                    List.of(
+                        new Transition("http-in", "call-om-result"),
+                        new Transition("call-om-result", "call-wfm-create-task")))));
 
     String input = builder.wrap("conv-1", "Continue gathering", "en");
 
-    assertTrue(input.contains("serviceCallId=call-om-result"), input);
-    assertTrue(input.contains("serviceCallId=call-wfm-create-task"), input);
-    assertTrue(input.contains("sourceFactId=call-om-result"), input);
+    assertTrue(input.contains("interactionId=call-om-result"), input);
+    assertTrue(input.contains("interactionId=call-wfm-create-task"), input);
     assertTrue(input.contains("participant=OM"), input);
     assertTrue(input.contains("operation=onTaskResult"), input);
     assertTrue(input.contains("resolved=false"), input);
-    assertTrue(input.contains("reuse serviceCallId"), input);
+    assertTrue(input.contains("reuse interactionId"), input);
     assertFalse(input.contains("sys-"), input);
-  }
-
-  private static RequirementFact serviceCall(
-      String serviceCallId, String participant, String operation) {
-    return new RequirementFact(
-        serviceCallId,
-        RequirementFactPolarity.POSITIVE,
-        RequirementFactKind.SERVICE_CALL,
-        "",
-        "Call " + participant + " " + operation,
-        participant,
-        operation,
-        "",
-        "",
-        "",
-        serviceCallId);
   }
 
   private static CompilerSkillAddonContext brainstormingAddon() {

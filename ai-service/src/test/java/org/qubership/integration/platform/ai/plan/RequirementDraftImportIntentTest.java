@@ -96,7 +96,7 @@ class RequirementDraftImportIntentTest {
 
     assertNull(draft.apiHubCandidate());
     assertFalse(draft.importIntent());
-    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
+    assertEquals("sys-1", draft.catalogBindings().getFirst().systemId());
     // Ticket 10: binding no longer opens a "Continue" prose gate after import.
     assertFalse(draft.awaitingPlanContinuation());
     assertFalse(draft.hasPendingImport());

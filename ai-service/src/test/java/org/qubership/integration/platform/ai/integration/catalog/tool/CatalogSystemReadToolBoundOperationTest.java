@@ -52,7 +52,7 @@ class CatalogSystemReadToolBoundOperationTest {
   }
 
   @Test
-  void searchJsonTellsTheModelItDidNotBindAServiceCall() {
+  void searchJsonTellsTheModelItDidNotBindAnInteraction() {
     when(catalogRestClient.searchSystems(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
             List.of(new CatalogRestClient.SystemDto("sys-1", "Petstore Ext", "EXTERNAL", "http")));
@@ -60,8 +60,8 @@ class CatalogSystemReadToolBoundOperationTest {
     String json = readTool.searchCatalogSystemsJson("Petstore Ext");
 
     assertTrue(json.contains("resolveApiOperation"), json);
-    assertTrue(json.contains("serviceCallId"), json);
-    assertTrue(json.contains("not a SERVICE_CALL binding"), json);
+    assertTrue(json.contains("interactionId"), json);
+    assertTrue(json.contains("does not bind an interaction"), json);
   }
 
   @Test

@@ -7,6 +7,9 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 
 /** Shared Greetings / LangRouter fact fixtures for Task 10 coverage tests. */
 public final class RequirementFactFixtures {
@@ -37,9 +40,9 @@ public final class RequirementFactFixtures {
             "Create chain named \"Greetings\""));
     facts.add(
         new RequirementFact(
-            null,
+            "greetings",
             RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.ENDPOINT,
+            RequirementFactKind.CAPABILITY,
             "http-trigger",
             "GET /greetings",
             "",
@@ -97,9 +100,9 @@ public final class RequirementFactFixtures {
             "Create chain named \"LangRouter\""));
     facts.add(
         new RequirementFact(
-            null,
+            "lang-router",
             RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.ENDPOINT,
+            RequirementFactKind.CAPABILITY,
             "http-trigger",
             "GET /lang-router",
             "",
@@ -140,32 +143,46 @@ public final class RequirementFactFixtures {
     return List.copyOf(facts);
   }
 
+  public static RequirementFlow nativeHttpInbound(String interactionId, String operation) {
+    return new RequirementFlow(
+        List.of(
+            new Interaction(interactionId, Direction.INBOUND, "Caller", operation, "")),
+        List.of());
+  }
+
+  public static RequirementDraft readyDraft(String assembledText) {
+    return new RequirementDraft(true, assembledText)
+        .withFlow(nativeHttpInbound("http-in", "GET /"));
+  }
+
   public static RequirementDraft greetingsApprovedDraft() {
     return new RequirementDraft(
-        true,
-        GREETINGS_PROMPT,
-        DraftDecision.READY_FOR_PLAN,
-        List.of(),
-        "brainstorming",
-        "1",
-        null,
-        null,
-        false,
-        greetingsFacts());
+            true,
+            GREETINGS_PROMPT,
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            greetingsFacts())
+        .withFlow(nativeHttpInbound("greetings", "GET /greetings"));
   }
 
   public static RequirementDraft langRouterApprovedDraft() {
     return new RequirementDraft(
-        true,
-        LANG_ROUTER_PROMPT,
-        DraftDecision.READY_FOR_PLAN,
-        List.of(),
-        "brainstorming",
-        "1",
-        null,
-        null,
-        false,
-        langRouterFacts());
+            true,
+            LANG_ROUTER_PROMPT,
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            langRouterFacts())
+        .withFlow(nativeHttpInbound("lang-router", "GET /lang-router"));
   }
 
   private static void addNegative(List<RequirementFact> facts, String key, String text) {

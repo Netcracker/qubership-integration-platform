@@ -31,6 +31,20 @@ class CatalogOperationLookupTest {
       new CatalogRestClient.OperationDto(
           "op-start", "onTaskStart", "publish", "env05-bss.task.start", "spec-om");
 
+  private static final CatalogRestClient.SystemDto SALESFORCE =
+      new CatalogRestClient.SystemDto("sys-sf", "Salesforce WFM", "EXTERNAL", "http");
+
+  private static final CatalogRestClient.SpecificationDto SF_SPEC =
+      new CatalogRestClient.SpecificationDto("spec-sf", "1.0", "sg-sf", "sys-sf");
+
+  private static final CatalogRestClient.OperationDto CREATE_TASK =
+      new CatalogRestClient.OperationDto(
+          "op-create", "createTask", "POST", "/sobjects/Task", "spec-sf");
+
+  private static final CatalogRestClient.OperationDto GET_TOKEN =
+      new CatalogRestClient.OperationDto(
+          "op-token", "getSalesforceToken", "POST", "/oauth/token", "spec-sf");
+
   @Test
   @DisplayName("a spaced service hint still binds onTaskResult on the hyphenated catalog name")
   void spacedHintBindsHyphenatedOmService() {
@@ -72,5 +86,53 @@ class CatalogOperationLookupTest {
     CatalogLookupResult.TooBroad tooBroad =
         assertInstanceOf(CatalogLookupResult.TooBroad.class, result);
     assertEquals(80, tooBroad.candidateCount());
+  }
+
+  @Test
+  @DisplayName("a payload command name on a known system lists catalog operations, not a miss")
+  void knownSystemWithUnmatchedOperationIsAmbiguous() {
+    CatalogSystemFinder finder = mock(CatalogSystemFinder.class);
+    CatalogSystemReadTool readTool = mock(CatalogSystemReadTool.class);
+    CatalogQuery query =
+        new CatalogQuery(
+            "om-order-lifecycle-manager-WFMS", null, null, null, null, "completeTask", null);
+    when(finder.narrow(query)).thenReturn(new CatalogSystemFinder.Narrowed.Systems(List.of(OM)));
+    when(readTool.getApiSpecifications("sys-om")).thenReturn(List.of(OM_SPEC));
+    when(readTool.listCatalogOperations(eq("spec-om"), eq("sys-om"), isNull()))
+        .thenReturn(List.of(ON_TASK_RESULT, ON_TASK_START));
+
+    CatalogLookupResult result = new CatalogOperationLookup(finder, readTool).resolve(query);
+
+    CatalogLookupResult.Ambiguous ambiguous =
+        assertInstanceOf(CatalogLookupResult.Ambiguous.class, result);
+    assertEquals(List.of("op-result", "op-start"), ambiguous.candidateIds());
+  }
+
+  @Test
+  @DisplayName("a payload command name binds the partner op the same request already named")
+  void unmatchedPayloadNameBindsNamedPartnerOperation() {
+    CatalogSystemFinder finder = mock(CatalogSystemFinder.class);
+    CatalogSystemReadTool readTool = mock(CatalogSystemReadTool.class);
+    CatalogQuery query =
+        new CatalogQuery(
+            "Salesforce WFM",
+            null,
+            "http",
+            null,
+            null,
+            "completeTask",
+            null,
+            List.of("createTask", "onTaskResult", "completeTask"));
+    when(finder.narrow(query))
+        .thenReturn(new CatalogSystemFinder.Narrowed.Systems(List.of(SALESFORCE)));
+    when(readTool.getApiSpecifications("sys-sf")).thenReturn(List.of(SF_SPEC));
+    when(readTool.listCatalogOperations(eq("spec-sf"), eq("sys-sf"), isNull()))
+        .thenReturn(List.of(CREATE_TASK, GET_TOKEN));
+
+    CatalogLookupResult result = new CatalogOperationLookup(finder, readTool).resolve(query);
+
+    CatalogLookupResult.Exact exact = assertInstanceOf(CatalogLookupResult.Exact.class, result);
+    assertEquals("op-create", exact.match().integrationOperationId());
+    assertEquals("createTask", exact.match().operationName());
   }
 }

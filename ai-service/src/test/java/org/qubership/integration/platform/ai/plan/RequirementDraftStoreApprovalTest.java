@@ -14,13 +14,14 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 
 class RequirementDraftStoreApprovalTest {
 
   @Test
   void approvalSucceedsForExactCurrentDraft() {
     TestRuntime runtime = runtime(new InMemoryArtifactBlobStore());
-    runtime.store().put("conversation-1", new RequirementDraft(true, "ready draft"));
+    runtime.store().put("conversation-1", RequirementFactFixtures.readyDraft("ready draft"));
     Revision draftRevision = runtime.store().latestRevision("conversation-1").orElseThrow();
 
     runtime.store().approve("conversation-1", draftRevision.reference(), "user-1", null);
@@ -31,11 +32,11 @@ class RequirementDraftStoreApprovalTest {
   @Test
   void newDraftRevisionDoesNotInheritEarlierApproval() {
     TestRuntime runtime = runtime(new InMemoryArtifactBlobStore());
-    runtime.store().put("conversation-1", new RequirementDraft(true, "draft one"));
+    runtime.store().put("conversation-1", RequirementFactFixtures.readyDraft("draft one"));
     Revision draftOne = runtime.store().latestRevision("conversation-1").orElseThrow();
     runtime.store().approve("conversation-1", draftOne.reference(), "user-1", null);
 
-    runtime.store().put("conversation-1", new RequirementDraft(true, "draft two"));
+    runtime.store().put("conversation-1", RequirementFactFixtures.readyDraft("draft two"));
     Revision draftTwo = runtime.store().latestRevision("conversation-1").orElseThrow();
 
     assertTrue(runtime.store().isApproved("conversation-1", draftOne.reference()));
@@ -45,9 +46,9 @@ class RequirementDraftStoreApprovalTest {
   @Test
   void approvingOlderDraftFailsAsStale() {
     TestRuntime runtime = runtime(new InMemoryArtifactBlobStore());
-    runtime.store().put("conversation-1", new RequirementDraft(true, "draft one"));
+    runtime.store().put("conversation-1", RequirementFactFixtures.readyDraft("draft one"));
     Revision draftOne = runtime.store().latestRevision("conversation-1").orElseThrow();
-    runtime.store().put("conversation-1", new RequirementDraft(true, "draft two"));
+    runtime.store().put("conversation-1", RequirementFactFixtures.readyDraft("draft two"));
 
     IllegalStateException error =
         assertThrows(

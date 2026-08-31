@@ -2,7 +2,10 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.mode
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationDirection;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
@@ -10,7 +13,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
  */
 public record CatalogBindingHint(
     String schemaVersion,
-    String serviceCallId,
+    String interactionId,
     String sourceFactId,
     String operationQuery,
     String systemId,
@@ -24,12 +27,14 @@ public record CatalogBindingHint(
     Instant observedAt,
     String evidenceRef) {
 
+  public static final String SCHEMA_VERSION = "3";
+
   public CatalogBindingHint {
     schemaVersion = DesignArtifacts.requireText(schemaVersion, "schemaVersion");
-    serviceCallId = DesignArtifacts.requireText(serviceCallId, "serviceCallId");
+    interactionId = DesignArtifacts.requireText(interactionId, "interactionId");
     sourceFactId =
         sourceFactId == null || sourceFactId.isBlank()
-            ? serviceCallId
+            ? interactionId
             : DesignArtifacts.requireText(sourceFactId, "sourceFactId");
     operationQuery = DesignArtifacts.requireText(operationQuery, "operationQuery");
     systemId = DesignArtifacts.requireText(systemId, "systemId");
@@ -46,19 +51,33 @@ public record CatalogBindingHint(
     evidenceRef = DesignArtifacts.requireText(evidenceRef, "evidenceRef");
   }
 
+  public Optional<CatalogOperationDirection> operationDirection() {
+    return CatalogOperationDirection.from(protocol, method);
+  }
+
   public static CatalogBindingHint from(
-      RequirementServiceCall call,
+      RequirementFlow.Interaction interaction,
       CatalogMatch match,
       String release,
       Instant observedAt) {
-    Objects.requireNonNull(call, "call");
+    Objects.requireNonNull(interaction, "interaction");
     Objects.requireNonNull(match, "match");
-    String operationQuery = operationQuery(call, match);
+    boolean hasCatalogVerb =
+        notBlank(match.protocol()) || notBlank(match.method());
+    if (hasCatalogVerb
+        && CatalogOperationDirection.from(match.protocol(), match.method()).isEmpty()) {
+      throw new IllegalArgumentException(
+          "catalog operation direction is unknown for protocol="
+              + match.protocol()
+              + " method="
+              + match.method());
+    }
+    String occurrenceId = interaction.interactionId();
     return new CatalogBindingHint(
-        "2",
-        call.serviceCallId(),
-        call.sourceFactId(),
-        operationQuery,
+        SCHEMA_VERSION,
+        occurrenceId,
+        occurrenceId,
+        operationQuery(interaction, match),
         match.systemId(),
         match.specificationGroupId(),
         match.specificationId(),
@@ -71,17 +90,39 @@ public record CatalogBindingHint(
         match.evidenceRef());
   }
 
+  public static CatalogBindingHint from(
+      RequirementServiceCall call,
+      CatalogMatch match,
+      String release,
+      Instant observedAt) {
+    Objects.requireNonNull(call, "call");
+    return from(
+        new RequirementFlow.Interaction(
+            call.serviceCallId(),
+            RequirementFlow.Direction.OUTBOUND,
+            call.participant(),
+            call.operation(),
+            ""),
+        match,
+        release,
+        observedAt);
+  }
+
   private static String operationQuery(
-      RequirementServiceCall call, CatalogMatch match) {
+      RequirementFlow.Interaction interaction, CatalogMatch match) {
     if (match.method() != null && match.path() != null) {
       return match.method() + " " + match.path();
     }
-    if (call.operation() != null && !call.operation().isBlank()) {
-      return call.operation();
+    if (interaction.operation() != null && !interaction.operation().isBlank()) {
+      return interaction.operation();
     }
     if (match.operationName() != null && !match.operationName().isBlank()) {
       return match.operationName();
     }
-    return "service-call";
+    return interaction.interactionId();
+  }
+
+  private static boolean notBlank(String value) {
+    return value != null && !value.isBlank();
   }
 }

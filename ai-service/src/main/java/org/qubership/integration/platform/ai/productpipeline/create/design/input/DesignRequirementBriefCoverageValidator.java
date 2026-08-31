@@ -8,9 +8,9 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
-import org.qubership.integration.platform.ai.plan.RequirementTriggerRole;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
@@ -28,10 +28,13 @@ public final class DesignRequirementBriefCoverageValidator {
     requireUniqueServiceCallSteps(normalized);
     List<RequirementFact> outboundCalls =
         positiveFacts(normalized, RequirementFactKind.SERVICE_CALL);
-    List<RequirementFact> triggers =
-        RequirementTriggerRole.positiveTriggers(normalized.facts());
-    if (!outboundCalls.isEmpty() && triggers.isEmpty()) {
-      throw new IllegalArgumentException(RequirementTriggerRole.MISSING_ENTRY);
+    boolean hasOutbound = !outboundCalls.isEmpty() || !normalized.serviceCalls().isEmpty();
+    if (hasOutbound
+        && normalized.entryPoints().isEmpty()
+        && !normalized.flow().interactions().isEmpty()) {
+      throw new IllegalArgumentException(
+          "Requirement brief is missing a configured trigger entry. Capture a trigger before"
+              + " mapping validation.");
     }
     for (RequirementDataMapping mapping : normalized.dataMappings()) {
       validateMappingShape(mapping);
@@ -101,11 +104,27 @@ public final class DesignRequirementBriefCoverageValidator {
 
   private static List<RequirementDataMapping> topologyBoundMappings(RequirementBrief brief) {
     Set<String> topologyIds = new LinkedHashSet<>();
-    for (RequirementFact fact : RequirementTriggerRole.positiveTriggers(brief.facts())) {
-      topologyIds.add(fact.sourceFactId());
+    for (RequirementEntryPoint entryPoint : brief.entryPoints()) {
+      if (entryPoint == null) {
+        continue;
+      }
+      topologyIds.add(entryPoint.entryPointId());
+      topologyIds.add(entryPoint.sourceFactId());
     }
-    for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.SERVICE_CALL)) {
-      topologyIds.add(fact.sourceFactId());
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (call == null) {
+        continue;
+      }
+      topologyIds.add(call.serviceCallId());
+      topologyIds.add(call.sourceFactId());
+    }
+    if (topologyIds.isEmpty()) {
+      for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.ENDPOINT)) {
+        topologyIds.add(fact.sourceFactId());
+      }
+      for (RequirementFact fact : positiveFacts(brief, RequirementFactKind.SERVICE_CALL)) {
+        topologyIds.add(fact.sourceFactId());
+      }
     }
     return DesignRequirementDataMappingNormalizer.completeMappings(brief.dataMappings()).stream()
         .filter(

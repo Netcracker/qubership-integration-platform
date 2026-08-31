@@ -14,54 +14,56 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
 /**
  * API-resolution assessments produced during requirement gathering, kept per conversation.
  *
- * <p>A chain that calls several services resolves each call on its own turn. Keying by {@code
- * serviceCallId} lets a later stage tell which call an answer belongs to, so an unresolved call
- * cannot borrow the binding of a resolved one, and a resolved call is never searched for again.
+ * <p>A chain that resolves several interactions does so on its own turns. Keying by {@code
+ * interactionId} lets a later stage tell which interaction an answer belongs to, so an unresolved
+ * interaction cannot borrow the binding of a resolved one, and a resolved interaction is never
+ * searched for again.
  *
- * <p>Re-resolving the same call replaces its assessment: the newest answer is the only one that
- * counts. This map is process memory only; the requirement draft is the durable source of truth.
+ * <p>Re-resolving the same interaction replaces its assessment: the newest answer is the only one
+ * that counts. This map is process memory only; the requirement draft is the durable source of
+ * truth.
  */
 @ApplicationScoped
 public class ConversationApiResolutions {
 
-  private final Map<String, Map<String, ServiceCallAssessment>> byConversation =
+  private final Map<String, Map<String, InteractionAssessment>> byConversation =
       new ConcurrentHashMap<>();
 
-  public void remember(String conversationId, ServiceCallAssessment assessment) {
+  public void remember(String conversationId, InteractionAssessment assessment) {
     String id = CatalogStrings.blankToNull(conversationId);
     if (id == null || assessment == null) {
       return;
     }
     byConversation
         .computeIfAbsent(id, ignored -> Collections.synchronizedMap(new LinkedHashMap<>()))
-        .put(assessment.serviceCallId(), assessment);
+        .put(assessment.interactionId(), assessment);
   }
 
-  /** Every assessment this conversation produced, in insertion order of the service calls. */
-  public List<ServiceCallAssessment> assessments(String conversationId) {
-    return List.copyOf(byServiceCall(conversationId).values());
+  /** Every assessment this conversation produced, in insertion order of the interactions. */
+  public List<InteractionAssessment> assessments(String conversationId) {
+    return List.copyOf(byInteraction(conversationId).values());
   }
 
-  public Optional<ServiceCallAssessment> forServiceCall(
-      String conversationId, String serviceCallId) {
-    String callId = CatalogStrings.blankToNull(serviceCallId);
-    if (callId == null) {
+  public Optional<InteractionAssessment> forInteraction(
+      String conversationId, String interactionId) {
+    String id = CatalogStrings.blankToNull(interactionId);
+    if (id == null) {
       return Optional.empty();
     }
-    return Optional.ofNullable(byServiceCall(conversationId).get(callId));
+    return Optional.ofNullable(byInteraction(conversationId).get(id));
   }
 
-  /** Drops assessments whose service-call ids are no longer in the captured draft. */
-  public void retainServiceCalls(String conversationId, Set<String> serviceCallIds) {
+  /** Drops assessments whose interaction ids are no longer in the captured draft. */
+  public void retainInteractions(String conversationId, Set<String> interactionIds) {
     String id = CatalogStrings.blankToNull(conversationId);
     if (id == null) {
       return;
     }
-    Map<String, ServiceCallAssessment> assessments = byConversation.get(id);
+    Map<String, InteractionAssessment> assessments = byConversation.get(id);
     if (assessments == null) {
       return;
     }
-    Set<String> keep = serviceCallIds == null ? Set.of() : serviceCallIds;
+    Set<String> keep = interactionIds == null ? Set.of() : interactionIds;
     synchronized (assessments) {
       assessments.keySet().removeIf(key -> !keep.contains(key));
       if (assessments.isEmpty()) {
@@ -72,9 +74,9 @@ public class ConversationApiResolutions {
 
   /** Catalog matches this conversation resolved, newest per operation. */
   public List<CatalogMatch> resolved(String conversationId) {
-    return byServiceCall(conversationId).values().stream()
-        .filter(ServiceCallAssessment::isResolved)
-        .map(ServiceCallAssessment::binding)
+    return byInteraction(conversationId).values().stream()
+        .filter(InteractionAssessment::isResolved)
+        .map(InteractionAssessment::binding)
         .toList();
   }
 
@@ -85,12 +87,12 @@ public class ConversationApiResolutions {
     }
   }
 
-  private Map<String, ServiceCallAssessment> byServiceCall(String conversationId) {
+  private Map<String, InteractionAssessment> byInteraction(String conversationId) {
     String id = CatalogStrings.blankToNull(conversationId);
     if (id == null) {
       return Map.of();
     }
-    Map<String, ServiceCallAssessment> assessments = byConversation.get(id);
+    Map<String, InteractionAssessment> assessments = byConversation.get(id);
     if (assessments == null) {
       return Map.of();
     }

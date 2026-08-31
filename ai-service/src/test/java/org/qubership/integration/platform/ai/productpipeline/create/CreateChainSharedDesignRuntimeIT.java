@@ -1488,7 +1488,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   private static CatalogBindingHint omBindingHint() {
     return new CatalogBindingHint(
-        "2",
+        CatalogBindingHint.SCHEMA_VERSION,
         "call-om-result",
         "fact-om",
         "onTaskResult",
@@ -1506,7 +1506,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   private static CatalogBindingHint petsBindingHint() {
     return new CatalogBindingHint(
-        "2",
+        CatalogBindingHint.SCHEMA_VERSION,
         "call-1",
         "call-1",
         "GET /pets",
@@ -1524,7 +1524,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   private static CatalogBindingHint wfmBindingHint() {
     return new CatalogBindingHint(
-        "2",
+        CatalogBindingHint.SCHEMA_VERSION,
         "call-wfm-create-task",
         "fact-wfm",
         "createTask",

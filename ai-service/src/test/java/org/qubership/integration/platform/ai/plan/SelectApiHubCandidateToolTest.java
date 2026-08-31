@@ -19,6 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.ApiHubExistingCatalogBinder;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 class SelectApiHubCandidateToolTest {
 
@@ -38,18 +42,20 @@ class SelectApiHubCandidateToolTest {
     RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
     store.put(
         "select-conv",
-        new RequirementDraft(
-            false,
-            "Periodically check Party Management",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Which criteria?"),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "pack",
-            "hash",
-            null,
-            false,
-            List.of(call),
-            false));
+        withOutboundFlow(
+            new RequirementDraft(
+                false,
+                "Periodically check Party Management",
+                DraftDecision.NEEDS_INPUT,
+                List.of("Which criteria?"),
+                RequirementDraftTool.SOURCE_SKILL_ID,
+                "pack",
+                "hash",
+                null,
+                false,
+                List.of(call),
+                false),
+            call));
 
     String result =
         tool.selectApiHubCandidate(
@@ -100,18 +106,20 @@ class SelectApiHubCandidateToolTest {
     RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
     store.put(
         "select-bound",
-        new RequirementDraft(
-            false,
-            "Periodically check Party Management",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Which criteria?"),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "pack",
-            "hash",
-            null,
-            false,
-            List.of(call),
-            false));
+        withOutboundFlow(
+            new RequirementDraft(
+                false,
+                "Periodically check Party Management",
+                DraftDecision.NEEDS_INPUT,
+                List.of("Which criteria?"),
+                RequirementDraftTool.SOURCE_SKILL_ID,
+                "pack",
+                "hash",
+                null,
+                false,
+                List.of(call),
+                false),
+            call));
 
     ApiHubExistingCatalogBinder binder = mock(ApiHubExistingCatalogBinder.class);
     when(binder.resolve(eq("select-bound"), any()))
@@ -136,9 +144,8 @@ class SelectApiHubCandidateToolTest {
     assertFalse(result.contains("\"openQuestion\""));
     assertTrue(result.contains("already has this service"));
     RequirementDraft draft = store.get("select-bound").orElseThrow();
-    assertTrue(draft.readyForPlan());
     assertFalse(draft.hasPendingImport());
-    assertEquals("sys-1", draft.serviceCalls().getFirst().catalogBinding().systemId());
+    assertEquals("sys-1", draft.catalogBindings().getFirst().systemId());
   }
 
   @Test
@@ -159,20 +166,23 @@ class SelectApiHubCandidateToolTest {
     store.beginTurn("select-conv");
     store.put(
         "select-conv",
-        new RequirementDraft(
-            false,
-            "Call OM then Salesforce WFM",
-            DraftDecision.NEEDS_INPUT,
-            List.of(),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "pack",
-            "hash",
-            null,
-            false,
-            List.of(
-                serviceCall("call-om-result", "OM", "onTaskResult"),
-                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
-            false));
+        withOutboundFlow(
+            new RequirementDraft(
+                false,
+                "Call OM then Salesforce WFM",
+                DraftDecision.NEEDS_INPUT,
+                List.of(),
+                RequirementDraftTool.SOURCE_SKILL_ID,
+                "pack",
+                "hash",
+                null,
+                false,
+                List.of(
+                    serviceCall("call-om-result", "OM", "onTaskResult"),
+                    serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
+                false),
+            serviceCall("call-om-result", "OM", "onTaskResult"),
+            serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")));
 
     String result =
         tool.selectApiHubCandidate(
@@ -185,7 +195,7 @@ class SelectApiHubCandidateToolTest {
             null);
 
     assertTrue(result.contains("\"ok\":false"), result);
-    assertTrue(result.contains("serviceCallId is required"), result);
+    assertTrue(result.contains("interactionId is required"), result);
     assertTrue(result.contains("call-om-result"), result);
     assertTrue(result.contains("call-wfm-create-task"), result);
   }
@@ -196,18 +206,20 @@ class SelectApiHubCandidateToolTest {
     store.beginTurn("select-one");
     RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
     RequirementDraft original =
-        new RequirementDraft(
-            false,
-            "Call Party Management",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Select the operation"),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "pack",
-            "hash",
-            null,
-            false,
-            List.of(call),
-            false);
+        withOutboundFlow(
+            new RequirementDraft(
+                false,
+                "Call Party Management",
+                DraftDecision.NEEDS_INPUT,
+                List.of("Select the operation"),
+                RequirementDraftTool.SOURCE_SKILL_ID,
+                "pack",
+                "hash",
+                null,
+                false,
+                List.of(call),
+                false),
+            call);
     store.put("select-one", original);
 
     String result =
@@ -231,20 +243,23 @@ class SelectApiHubCandidateToolTest {
     MDC.put(ChatMdc.CONVERSATION_ID, "select-two");
     store.beginTurn("select-two");
     RequirementDraft original =
-        new RequirementDraft(
-            false,
-            "Call OM then Salesforce WFM",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Select the operations"),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "pack",
-            "hash",
-            null,
-            false,
-            List.of(
-                serviceCall("call-om-result", "OM", "onTaskResult"),
-                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
-            false);
+        withOutboundFlow(
+            new RequirementDraft(
+                false,
+                "Call OM then Salesforce WFM",
+                DraftDecision.NEEDS_INPUT,
+                List.of("Select the operations"),
+                RequirementDraftTool.SOURCE_SKILL_ID,
+                "pack",
+                "hash",
+                null,
+                false,
+                List.of(
+                    serviceCall("call-om-result", "OM", "onTaskResult"),
+                    serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
+                false),
+            serviceCall("call-om-result", "OM", "onTaskResult"),
+            serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask"));
     store.put("select-two", original);
 
     String result =
@@ -269,18 +284,20 @@ class SelectApiHubCandidateToolTest {
     store.beginTurn("select-document");
     RequirementFact call = serviceCall("call-party-search", "Party Management", "party search");
     RequirementDraft original =
-        new RequirementDraft(
-            false,
-            "Call Party Management",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Select the operation"),
-            RequirementDraftTool.SOURCE_SKILL_ID,
-            "pack",
-            "hash",
-            null,
-            false,
-            List.of(call),
-            false);
+        withOutboundFlow(
+            new RequirementDraft(
+                false,
+                "Call Party Management",
+                DraftDecision.NEEDS_INPUT,
+                List.of("Select the operation"),
+                RequirementDraftTool.SOURCE_SKILL_ID,
+                "pack",
+                "hash",
+                null,
+                false,
+                List.of(call),
+                false),
+            call);
     store.put("select-document", original);
     ApiHubExistingCatalogBinder binder = mock(ApiHubExistingCatalogBinder.class);
     SelectApiHubCandidateTool documentTool =
@@ -317,5 +334,24 @@ class SelectApiHubCandidateToolTest {
         "",
         "",
         serviceCallId);
+  }
+
+  private static RequirementDraft withOutboundFlow(RequirementDraft draft, RequirementFact... calls) {
+    List<Interaction> interactions = new java.util.ArrayList<>();
+    List<Transition> transitions = new java.util.ArrayList<>();
+    interactions.add(new Interaction("start", Direction.INBOUND, "Caller", "start", ""));
+    String previous = "start";
+    for (RequirementFact call : calls) {
+      interactions.add(
+          new Interaction(
+              call.serviceCallId(),
+              Direction.OUTBOUND,
+              call.participant(),
+              call.operation(),
+              ""));
+      transitions.add(new Transition(previous, call.serviceCallId()));
+      previous = call.serviceCallId();
+    }
+    return draft.withFlow(new RequirementFlow(interactions, transitions));
   }
 }

@@ -35,9 +35,14 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
@@ -49,6 +54,10 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class RequirementAnalysisCapabilityTest {
@@ -149,23 +158,33 @@ class RequirementAnalysisCapabilityTest {
             null,
             false,
             List.of(call),
-            false);
-    RequirementServiceCall serviceCall = staleDiscovery.serviceCalls().getFirst();
+            false)
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("start", Direction.INBOUND, "Caller", "start", ""),
+                        new Interaction(
+                            call.serviceCallId(),
+                            Direction.OUTBOUND,
+                            call.participant(),
+                            call.operation(),
+                            "")),
+                    List.of(new Transition("start", call.serviceCallId()))));
     RequirementDraft postImport =
-        staleDiscovery.withBoundServiceCall(
-            serviceCall.serviceCallId(),
+        staleDiscovery.withBoundInteraction(
+            call.serviceCallId(),
             new CatalogBindingHint(
-                "2",
-                serviceCall.serviceCallId(),
-                serviceCall.sourceFactId(),
-                serviceCall.operation().isBlank() ? "service-call" : serviceCall.operation(),
+                "3",
+                call.serviceCallId(),
+                call.sourceFactId(),
+                call.operation().isBlank() ? "service-call" : call.operation(),
                 "sys-1",
                 "group-1",
                 "spec-1",
                 "op-1",
-                null,
-                null,
-                null,
+                "http",
+                "GET",
+                "/greetings",
                 "catalog",
                 Instant.EPOCH,
                 "test"));
@@ -265,8 +284,15 @@ class RequirementAnalysisCapabilityTest {
 
     assertTrue(message.contains("dataMappings"));
     assertTrue(message.contains("Leave mappingIntents and dataMappings empty"));
+    assertTrue(message.contains("There are no projected outbound interactions"), message);
+    assertTrue(message.contains("RequirementFlow"), message);
+    assertTrue(message.contains("interactionId"), message);
+    assertTrue(message.contains("INBOUND"), message);
+    assertTrue(message.contains("OUTBOUND"), message);
+    assertTrue(message.contains("Do not author ENDPOINT or SERVICE_CALL topology facts"), message);
     assertFalse(message.contains("Capture typed dataMappings"), message);
     assertFalse(message.contains("every required edge"), message);
+    assertFalse(message.contains("There are no positive SERVICE_CALL"), message);
   }
 
   @Test
@@ -289,12 +315,25 @@ class RequirementAnalysisCapabilityTest {
                     "http-trigger",
                     "HTTP POST /orders"),
                 serviceCall(
-                    "call-inventory", "Inventory API", "Inventory API: reserve stock")));
+                    "call-inventory", "Inventory API", "Inventory API: reserve stock")))
+        .withFlow(
+            new RequirementFlow(
+                List.of(
+                    new Interaction("http-in", Direction.INBOUND, "Caller", "POST /orders", ""),
+                    new Interaction(
+                        "call-inventory",
+                        Direction.OUTBOUND,
+                        "Inventory API",
+                        "reserve stock",
+                        "")),
+                List.of(new Transition("http-in", "call-inventory"))));
     String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
 
     assertTrue(message.contains("Pass-through is the absence of a mapping intent"));
     assertTrue(message.contains("mappingIntents"));
     assertTrue(message.contains("Prose is enough"));
+    assertTrue(message.contains("interactionId=call-inventory"), message);
+    assertTrue(message.contains("direction=OUTBOUND"), message);
     assertFalse(message.contains("Capture typed dataMappings"), message);
     assertFalse(message.contains("every required edge"), message);
     assertFalse(message.contains("PASS_THROUGH"), message);
@@ -319,7 +358,8 @@ class RequirementAnalysisCapabilityTest {
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.CONSTRAINT,
                     "response",
-                    "body must be " + jsonBody)));
+                    "body must be " + jsonBody)))
+        .withFlow(RequirementFactFixtures.nativeHttpInbound("script-out", "POST /script"));
     AtomicReference<String> lastUserMessage = new AtomicReference<>();
     FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
     RequirementAnalysisCapability analyzerOnly =
@@ -1015,16 +1055,19 @@ class RequirementAnalysisCapabilityTest {
   }
 
   private static RequirementBrief coveringBrief(RequirementDraft approved, String goal) {
-    return new RequirementBrief(
-        goal,
-        List.of(),
-        List.of(),
-        List.of(),
-        List.of(),
-        goal,
-        "approved-draft",
-        approved.planningText(),
-        approved.facts());
+    return RequirementBriefProjector.project(
+        new RequirementBrief(
+                goal,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                goal,
+                "approved-draft",
+                approved.planningText(),
+                approved.facts())
+            .withFlow(approved.flow())
+            .withCatalogBindings(approved.catalogBindings()));
   }
 
   private static RequirementFact serviceCall(

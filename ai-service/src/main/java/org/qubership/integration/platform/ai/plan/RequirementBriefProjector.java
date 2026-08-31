@@ -14,11 +14,15 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
- * Fills v2 brief roles from captured facts and explicit mappings. Pass-through rows do not become
- * mapping intents. Field rules that share one source-to-target boundary stay on that intent.
+ * Fills brief roles from the approved {@link RequirementFlow}. Inbound interactions become entry
+ * points; outbound interactions become service calls. Pass-through rows do not become mapping
+ * intents. Field rules that share one source-to-target boundary stay on that intent.
  */
 public final class RequirementBriefProjector {
 
@@ -27,8 +31,10 @@ public final class RequirementBriefProjector {
   public static RequirementBrief project(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
     List<RequirementFact> facts = brief.facts();
-    List<RequirementEntryPoint> entryPoints = entryPointsFrom(facts);
-    List<RequirementServiceCall> serviceCalls = serviceCallsFrom(facts, brief.serviceCalls());
+    Map<String, CatalogBindingHint> bindings = indexBindings(brief.catalogBindings());
+    List<RequirementEntryPoint> entryPoints =
+        entryPointsFrom(brief.flow(), facts, bindings);
+    List<RequirementServiceCall> serviceCalls = serviceCallsFrom(brief.flow(), bindings);
     return new RequirementBrief(
         brief.goal(),
         brief.inputs(),
@@ -43,7 +49,9 @@ public final class RequirementBriefProjector {
         entryPoints,
         serviceCalls,
         requirementsFrom(facts, entryPoints, serviceCalls),
-        mappingIntentsFor(brief));
+        mappingIntentsFor(brief),
+        brief.flow(),
+        brief.catalogBindings());
   }
 
   private static List<MappingIntent> mappingIntentsFor(RequirementBrief brief) {
@@ -226,6 +234,12 @@ public final class RequirementBriefProjector {
   private static Topology topologyOf(RequirementBrief brief) {
     Set<String> ids = new LinkedHashSet<>();
     Set<String> callIds = new LinkedHashSet<>();
+    for (Interaction interaction : brief.flow().interactions()) {
+      rememberId(ids, interaction.interactionId());
+      if (interaction.direction() == Direction.OUTBOUND) {
+        rememberId(callIds, interaction.interactionId());
+      }
+    }
     for (RequirementFact fact : brief.facts()) {
       if (fact == null) {
         continue;
@@ -263,97 +277,118 @@ public final class RequirementBriefProjector {
 
   private record Topology(Set<String> ids, Set<String> callIds) {}
 
-  static List<RequirementEntryPoint> entryPointsFrom(List<RequirementFact> facts) {
+  static List<RequirementEntryPoint> entryPointsFrom(
+      RequirementFlow flow,
+      List<RequirementFact> facts,
+      Map<String, CatalogBindingHint> bindings) {
+    if (flow == null || flow.interactions().isEmpty()) {
+      return List.of();
+    }
     List<RequirementEntryPoint> entryPoints = new ArrayList<>();
-    for (RequirementFact fact : RequirementTriggerRole.positiveTriggers(facts)) {
-      entryPoints.add(
-          new RequirementEntryPoint(
-              fact.sourceFactId(),
-              fact.sourceFactId(),
-              fact.capabilityKey(),
-              fact.topic(),
-              fact.httpMethod(),
-              fact.path(),
-              fact.operation()));
+    for (Interaction interaction : flow.interactions()) {
+      if (interaction.direction() != Direction.INBOUND) {
+        continue;
+      }
+      entryPoints.add(entryPointFrom(interaction, facts, bindings));
     }
     return List.copyOf(entryPoints);
   }
 
-  /**
-   * Projects outbound calls from facts. A supplied call is kept when its {@code serviceCallId} and
-   * {@code sourceFactId} match the fact, including the frozen catalog binding. List order follows
-   * the facts; it is not identity. Facts without a matching supplied call become unbound
-   * compatibility records, which is also the path for a legacy brief that has facts but no
-   * service-call list.
-   */
-  private static List<RequirementServiceCall> serviceCallsFrom(
-      List<RequirementFact> facts, List<RequirementServiceCall> supplied) {
-    List<RequirementFact> callFacts = positiveServiceCallFacts(facts);
-    if (supplied == null || supplied.isEmpty()) {
-      return unboundCallsFrom(callFacts);
+  private static RequirementEntryPoint entryPointFrom(
+      Interaction interaction,
+      List<RequirementFact> facts,
+      Map<String, CatalogBindingHint> bindings) {
+    String interactionId = interaction.interactionId();
+    RequirementFact config = matchingFact(facts, interactionId);
+    boolean catalogBacked =
+        bindings.containsKey(interactionId)
+            || (config != null && "async-api-trigger".equals(config.capabilityKey()));
+    if (catalogBacked) {
+      return new RequirementEntryPoint(
+          interactionId,
+          interactionId,
+          "async-api-trigger",
+          config == null ? "" : config.topic(),
+          config == null ? "" : config.httpMethod(),
+          config == null ? "" : config.path(),
+          interaction.operation());
     }
-    Map<String, RequirementServiceCall> byId = indexSuppliedCalls(supplied);
+    return new RequirementEntryPoint(
+        interactionId,
+        interactionId,
+        config == null ? "" : config.capabilityKey(),
+        config == null ? "" : config.topic(),
+        config == null ? "" : config.httpMethod(),
+        config == null ? "" : config.path(),
+        config != null && !config.operation().isBlank()
+            ? config.operation()
+            : interaction.operation());
+  }
+
+  /**
+   * Projects one outbound service call per outbound interaction. Participant and operation come
+   * from the interaction. A catalog hint is attached when the brief already owns that binding.
+   */
+  static List<RequirementServiceCall> serviceCallsFrom(
+      RequirementFlow flow, Map<String, CatalogBindingHint> bindings) {
+    if (flow == null || flow.interactions().isEmpty()) {
+      return List.of();
+    }
     List<RequirementServiceCall> calls = new ArrayList<>();
-    for (RequirementFact fact : callFacts) {
-      RequirementServiceCall match = byId.get(fact.serviceCallId());
-      if (match != null && match.sourceFactId().equals(fact.sourceFactId())) {
-        calls.add(requireOwnedBinding(match));
-      } else {
-        calls.add(unboundCall(fact));
+    for (Interaction interaction : flow.interactions()) {
+      if (interaction.direction() != Direction.OUTBOUND) {
+        continue;
       }
+      String interactionId = interaction.interactionId();
+      CatalogBindingHint hint = bindings.get(interactionId);
+      calls.add(
+          requireOwnedBinding(
+              new RequirementServiceCall(
+                  interactionId,
+                  interactionId,
+                  interaction.participant(),
+                  interaction.operation(),
+                  hint)));
     }
     return List.copyOf(calls);
   }
 
-  private static List<RequirementFact> positiveServiceCallFacts(List<RequirementFact> facts) {
-    List<RequirementFact> callFacts = new ArrayList<>();
-    for (RequirementFact fact : facts) {
-      if (fact == null || !fact.needsCatalogBinding()) {
-        continue;
-      }
-      callFacts.add(fact);
+  private static RequirementFact matchingFact(List<RequirementFact> facts, String interactionId) {
+    if (facts == null || interactionId == null || interactionId.isBlank()) {
+      return null;
     }
-    return callFacts;
+    for (RequirementFact fact : facts) {
+      if (fact != null && interactionId.equals(fact.sourceFactId())) {
+        return fact;
+      }
+    }
+    return null;
   }
 
-  private static Map<String, RequirementServiceCall> indexSuppliedCalls(
-      List<RequirementServiceCall> supplied) {
-    Map<String, RequirementServiceCall> byId = new LinkedHashMap<>();
-    for (RequirementServiceCall call : supplied) {
-      if (call == null || call.serviceCallId().isBlank()) {
-        throw new IllegalArgumentException("service call is missing serviceCallId");
+  private static Map<String, CatalogBindingHint> indexBindings(List<CatalogBindingHint> bindings) {
+    Map<String, CatalogBindingHint> byId = new LinkedHashMap<>();
+    if (bindings == null) {
+      return byId;
+    }
+    for (CatalogBindingHint hint : bindings) {
+      if (hint == null || hint.interactionId().isBlank()) {
+        continue;
       }
-      RequirementServiceCall previous = byId.putIfAbsent(call.serviceCallId(), call);
-      if (previous != null) {
-        throw new IllegalArgumentException("duplicate serviceCallId=" + call.serviceCallId());
-      }
+      byId.putIfAbsent(hint.interactionId(), hint);
     }
     return byId;
   }
 
   private static RequirementServiceCall requireOwnedBinding(RequirementServiceCall call) {
     CatalogBindingHint hint = call.catalogBinding();
-    if (hint != null && !call.serviceCallId().equals(hint.serviceCallId())) {
+    if (hint != null && !call.serviceCallId().equals(hint.interactionId())) {
       throw new IllegalArgumentException(
-          "catalog binding serviceCallId="
-              + hint.serviceCallId()
+          "catalog binding interactionId="
+              + hint.interactionId()
               + " does not match call serviceCallId="
               + call.serviceCallId());
     }
     return call;
-  }
-
-  private static List<RequirementServiceCall> unboundCallsFrom(List<RequirementFact> callFacts) {
-    List<RequirementServiceCall> calls = new ArrayList<>();
-    for (RequirementFact fact : callFacts) {
-      calls.add(unboundCall(fact));
-    }
-    return List.copyOf(calls);
-  }
-
-  private static RequirementServiceCall unboundCall(RequirementFact fact) {
-    return new RequirementServiceCall(
-        fact.serviceCallId(), fact.sourceFactId(), fact.participant(), fact.operation());
   }
 
   private static List<RequirementFact> requirementsFrom(

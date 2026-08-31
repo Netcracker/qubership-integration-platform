@@ -18,11 +18,16 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationDirection;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 
@@ -60,17 +65,26 @@ public class RequirementDraftTool {
           + " Reply to the user only after a successful capture, in the user's language.";
 
   static final String BINDING_REQUIRED_OPEN_QUESTION =
-      "Which catalog operation should each unresolved service call use? Call resolveApiOperation"
-          + " for each serviceCallId before searching API Hub.";
+      "Which catalog operation should each unresolved interaction use? Call resolveApiOperation"
+          + " for each interactionId after capturing RequirementFlow.";
 
   static final String BINDING_SOFT_DOWNGRADE_PREFIX =
-      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): one or more service calls"
+      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): one or more catalog-backed"
+          + " interactions"
           + " are unresolved. ";
 
   static final String BINDING_SOFT_DOWNGRADE_HINT =
-      "Assign and reuse serviceCallId on each SERVICE_CALL fact. Call resolveApiOperation for"
-          + " each unresolved serviceCallId, then recapture after those tool results are recorded."
-          + " Do not invent catalog UUIDs.";
+      "Call resolveApiOperation for each unresolved interactionId, then recapture the same"
+          + " RequirementFlow. Do not author topology facts or invent catalog UUIDs.";
+
+  static final String FLOW_REQUIRED_OPEN_QUESTION =
+      "Capture the complete RequirementFlow with stable interactionId values before planning.";
+
+  static final String FLOW_SOFT_DOWNGRADE_PREFIX =
+      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): flow was empty. ";
+
+  static final String FLOW_SOFT_DOWNGRADE_HINT =
+      "Recapture the business interactions and transitions before catalog lookup.";
 
   static final String ALREADY_READY_STOP_HINT =
       "Requirement draft is already READY_FOR_PLAN for this turn. Do not call"
@@ -102,6 +116,7 @@ public class RequirementDraftTool {
       apiHubCache;
   private final ConversationApiResolutions resolutions;
   private final ConversationService conversationService;
+  private final CatalogOperationLookup catalogOperationLookup;
 
   @Inject
   RequirementDraftTool(
@@ -110,21 +125,23 @@ public class RequirementDraftTool {
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
       ConversationApiResolutions resolutions,
-      ConversationService conversationService) {
+      ConversationService conversationService,
+      CatalogOperationLookup catalogOperationLookup) {
     this.store = store;
     this.repository = repository;
     this.catalogCache = catalogCache;
     this.apiHubCache = apiHubCache;
     this.resolutions = resolutions;
     this.conversationService = conversationService;
+    this.catalogOperationLookup = catalogOperationLookup;
   }
 
   RequirementDraftTool(RequirementDraftStore store) {
-    this(store, null, null, null, null, null);
+    this(store, null, null, null, null, null, null);
   }
 
   RequirementDraftTool(RequirementDraftStore store, QipKnowledgePackRepository repository) {
-    this(store, repository, null, null, null, null);
+    this(store, repository, null, null, null, null, null);
   }
 
   RequirementDraftTool(
@@ -133,29 +150,37 @@ public class RequirementDraftTool {
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
       ConversationApiResolutions resolutions) {
-    this(store, repository, catalogCache, apiHubCache, resolutions, null);
+    this(store, repository, catalogCache, apiHubCache, resolutions, null, null);
   }
 
   static RequirementDraftTool withCache(
       RequirementDraftStore store, ConversationCatalogCache catalogCache) {
-    return new RequirementDraftTool(store, null, catalogCache, null, null, null);
+    return new RequirementDraftTool(store, null, catalogCache, null, null, null, null);
   }
 
   static RequirementDraftTool withCaches(
       RequirementDraftStore store,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache) {
-    return new RequirementDraftTool(store, null, catalogCache, apiHubCache, null, null);
+    return new RequirementDraftTool(store, null, catalogCache, apiHubCache, null, null, null);
   }
 
   static RequirementDraftTool withResolutions(
       RequirementDraftStore store, ConversationApiResolutions resolutions) {
-    return new RequirementDraftTool(store, null, null, null, resolutions, null);
+    return new RequirementDraftTool(store, null, null, null, resolutions, null, null);
+  }
+
+  static RequirementDraftTool withLookup(
+      RequirementDraftStore store,
+      ConversationApiResolutions resolutions,
+      CatalogOperationLookup catalogOperationLookup) {
+    return new RequirementDraftTool(
+        store, null, null, null, resolutions, null, catalogOperationLookup);
   }
 
   static RequirementDraftTool withConversationService(
       RequirementDraftStore store, ConversationService conversationService) {
-    return new RequirementDraftTool(store, null, null, null, null, conversationService);
+    return new RequirementDraftTool(store, null, null, null, null, conversationService, null);
   }
 
   @Tool("""
@@ -166,34 +191,31 @@ public class RequirementDraftTool {
       when no open questions remain, or BLOCKED when the request cannot proceed without an
       unavailable artifact or external decision.
       Keep openQuestions empty for READY_FOR_PLAN.
-      READY_FOR_PLAN requires facts: each item needs polarity (POSITIVE or NEGATIVE) and text.
+      Capture a complete RequirementFlow before catalog lookup. Each interaction needs a stable
+      interactionId, direction INBOUND or OUTBOUND, participant, and operation. Transitions name
+      sourceInteractionId and targetInteractionId. List position is not order.
+      Do not add publish or subscribe to the business flow; runtime validates those catalog verbs
+      against the captured direction. Keep payload constants and mapping rules out of operation
+      names.
+      Do not author ENDPOINT or SERVICE_CALL topology facts. Java projects those roles from the
+      flow. Keep facts as ordinary constraints and native-trigger configuration: polarity, text,
+      and optional kind (GOAL, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY, VISIBILITY, ROUTING).
+      Native trigger configuration uses a CAPABILITY fact whose sourceFactId matches the inbound
+      interactionId (http-trigger httpMethod and path, or kafka-trigger-2 topic).
       Distill facts from assembledText yourself; never ask the user for polarity labels.
-      When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT — retry the
+      When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT. Retry the
       same turn with facts, or keep NEEDS_INPUT with one open question.
-      Optional fact fields: kind (GOAL, ENDPOINT, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY,
-      VISIBILITY, ROUTING, SERVICE_CALL), capabilityKey, sourceFactId, serviceCallId, participant,
-      operation, topic, httpMethod, path. text is a human description only; later Java copies the
-      named identity fields and does not parse text.
-      ENDPOINT capabilityKey is the CIP trigger type (http-trigger, async-api-trigger, or
-      kafka-trigger-2). HTTP ENDPOINT facts set httpMethod and path (operation optional). Catalog
-      Kafka consume uses async-api-trigger: set participant, operation, and serviceCallId, then
-      call resolveApiOperation with that serviceCallId. Native Kafka consume (topic and brokers,
-      no catalog service) uses kafka-trigger-2: set topic and operation. SERVICE_CALL facts set
-      participant, operation, and a stable serviceCallId (example: serviceCallId=call-om-result,
-      participant=OM, operation=onTaskResult). Reuse the same serviceCallId when editing that
-      call; allocate a new id only for a new occurrence. Do not put trigger identity into
-      service-call fields.
-      For every SERVICE_CALL fact and every catalog Kafka consume (async-api-trigger ENDPOINT),
-      call resolveApiOperation with that serviceCallId before READY_FOR_PLAN. It checks the local
-      catalog first and searches API Hub only after a confirmed catalog miss. READY_FOR_PLAN
-      requires every active serviceCallId to have its own catalog binding from those tool results
-      (never invent UUIDs).
+      For every catalog-backed interaction, the server binds a unique local catalog match on
+      capture. Call resolveApiOperation only for interactions capture still reports as unresolved.
+      Catalog-backed inbound Kafka consumes use the same tool; do not skip them because they are
+      INBOUND. It checks the local catalog first and searches API Hub only after a confirmed
+      catalog miss. Never invent UUIDs.
       When this conversation has uploaded API specifications already approved for import, capture
-      SERVICE_CALL facts from those documents and set READY_FOR_PLAN without catalog bindings.
+      the flow from those documents and set READY_FOR_PLAN without catalog bindings.
       Do not search API Hub for operations the attached spec already defines; import after
       discovery binds them.
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
-      serviceCallId plus packageId, version, and operationId or documentId from the search hit
+      interactionId plus packageId, version, and operationId or documentId from the search hit
       (do not put apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave
       openQuestions empty; the server offers the import as a decision card.
       Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
@@ -207,18 +229,42 @@ public class RequirementDraftTool {
       {
         "complete": true,
         "decision": "READY_FOR_PLAN",
-        "assembledText": "HTTP GET /greetings returns Hello world via script; no service calls.",
+        "assembledText": "Receive an order and create it in the target system.",
         "openQuestions": [],
+        "flow": {
+          "interactions": [
+            {
+              "interactionId": "order-received",
+              "direction": "INBOUND",
+              "participant": "Caller",
+              "operation": "POST /orders",
+              "description": "The caller submits an order."
+            },
+            {
+              "interactionId": "create-order",
+              "direction": "OUTBOUND",
+              "participant": "Order System",
+              "operation": "createOrder",
+              "description": "The chain creates the order."
+            }
+          ],
+          "transitions": [
+            {
+              "sourceInteractionId": "order-received",
+              "targetInteractionId": "create-order"
+            }
+          ]
+        },
         "facts": [
           {
+            "sourceFactId": "order-received",
             "polarity": "POSITIVE",
-            "kind": "ENDPOINT",
+            "kind": "CAPABILITY",
             "capabilityKey": "http-trigger",
-            "text": "Internal HTTP GET /greetings",
-            "httpMethod": "GET",
-            "path": "/greetings"
-          },
-          {"polarity": "NEGATIVE", "kind": "CONSTRAINT", "text": "No service calls"}
+            "text": "Expose POST /orders.",
+            "httpMethod": "POST",
+            "path": "/orders"
+          }
         ]
       }""")
   public String captureRequirementDraft(RequirementDraftCapture capture) {
@@ -268,6 +314,7 @@ public class RequirementDraftTool {
           capture.openQuestions() == null ? List.of() : capture.openQuestions();
       List<RequirementFact> facts = capture.facts() == null ? List.of() : capture.facts();
       boolean softDowngradedForFacts = false;
+      boolean softDowngradedForFlow = false;
       boolean softDowngradedForImport = false;
       boolean softDowngradedForBinding = false;
       boolean softDowngradedBlockedWithCandidate = false;
@@ -297,14 +344,25 @@ public class RequirementDraftTool {
             conversationId, duplicateFactError);
         return finish(conversationId, startMs, duplicateFactError);
       }
-      try {
-        facts = RequirementTriggerRole.canonicalize(facts);
-      } catch (IllegalArgumentException ex) {
-        LOG.warnf(
-            "captureRequirementDraft: trigger kind rejected conversationId=%s reason=%s",
-            conversationId, ex.getMessage());
-        return finish(conversationId, startMs, ex.getMessage());
+      RequirementFlow capturedFlow =
+          capture.flow() == null ? RequirementFlow.EMPTY : capture.flow();
+      if (!capturedFlow.interactions().isEmpty()) {
+        Optional<String> structureError = RequirementFlowValidator.validateStructure(capturedFlow);
+        if (structureError.isPresent()) {
+          LOG.warnf(
+              "captureRequirementDraft: validation failed conversationId=%s reason=%s",
+              conversationId, structureError.get());
+          return finish(conversationId, startMs, structureError.get());
+        }
+        String topologyError = rejectTopologyFacts(facts);
+        if (topologyError != null) {
+          LOG.warnf(
+              "captureRequirementDraft: validation failed conversationId=%s reason=%s",
+              conversationId, topologyError);
+          return finish(conversationId, startMs, topologyError);
+        }
       }
+      final List<RequirementFact> capturedFacts = facts;
       String duplicateCallError = validateUniqueServiceCallIds(facts);
       if (duplicateCallError != null) {
         LOG.warnf(
@@ -343,10 +401,28 @@ public class RequirementDraftTool {
             candidate.packageId());
       }
 
+      if (decision == DraftDecision.READY_FOR_PLAN
+          && openQuestions.isEmpty()
+          && capturedFlow.interactions().isEmpty()
+          && positiveServiceCalls(facts).isEmpty()) {
+        softDowngradedForFlow = true;
+        decision = DraftDecision.NEEDS_INPUT;
+        openQuestions = List.of(FLOW_REQUIRED_OPEN_QUESTION);
+        LOG.warnf(
+            "captureRequirementDraft: soft-downgraded READY_FOR_PLAN without RequirementFlow"
+                + " conversationId=%s",
+            conversationId);
+      }
+
       List<RequirementFact> positiveCalls = positiveServiceCalls(facts);
       recordAssessmentsFromListedOperations(positiveCalls, conversationId);
+      resolveUnboundFromCatalog(capturedFlow, capturedFacts, conversationId);
       List<RequirementServiceCall> reconciledCalls =
           reconcileServiceCalls(facts, previous, conversationId);
+      List<CatalogBindingHint> catalogBindings =
+          capturedFlow.interactions().isEmpty()
+              ? hintsFromResolvedCalls(reconciledCalls)
+              : reconcileCatalogBindings(capturedFlow, previous, conversationId);
       List<RequirementServiceCall> unresolvedCalls =
           reconciledCalls.stream().filter(call -> call.catalogBinding() == null).toList();
       // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
@@ -355,8 +431,22 @@ public class RequirementDraftTool {
           positiveCalls.isEmpty()
               && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
       if (decision == DraftDecision.READY_FOR_PLAN
+          && !capturedFlow.interactions().isEmpty()) {
+        Optional<String> bindingError =
+            RequirementFlowValidator.validateBindings(capturedFlow, facts, catalogBindings);
+        if (bindingError.isPresent()) {
+          softDowngradedForBinding = true;
+          decision = DraftDecision.NEEDS_INPUT;
+          if (openQuestions.isEmpty()) {
+            openQuestions = List.of(bindingError.get());
+          }
+        }
+      }
+
+      if (decision == DraftDecision.READY_FOR_PLAN
           && (!unresolvedCalls.isEmpty() || bindingMissing)
-          && !hasAllowedUploadedSpecs(conversationId)) {
+          && !hasAllowedUploadedSpecs(conversationId)
+          && capturedFlow.interactions().isEmpty()) {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
@@ -379,17 +469,33 @@ public class RequirementDraftTool {
 
       boolean importIntent = candidate != null || (previous != null && previous.importIntent());
 
-      String owningCallId = null;
+      String owningInteractionId = null;
       if (candidate != null) {
-        if (previous != null && previous.apiHubCandidateServiceCallId() != null) {
-          owningCallId = previous.apiHubCandidateServiceCallId();
+        if (previous != null && previous.apiHubCandidateInteractionId() != null) {
+          owningInteractionId = previous.apiHubCandidateInteractionId();
+        } else if (!capturedFlow.interactions().isEmpty()) {
+          List<String> unresolved =
+              capturedFlow.interactions().stream()
+                  .filter(
+                      interaction ->
+                          RequirementFlowValidator.requiresCatalogBinding(interaction, capturedFacts))
+                  .map(RequirementFlow.Interaction::interactionId)
+                  .filter(
+                      id ->
+                          catalogBindings.stream()
+                              .noneMatch(hint -> id.equals(hint.interactionId())))
+                  .toList();
+          if (unresolved.size() == 1) {
+            owningInteractionId = unresolved.getFirst();
+          }
         } else if (reconciledCalls.size() == 1) {
-          owningCallId = reconciledCalls.getFirst().serviceCallId();
+          owningInteractionId = reconciledCalls.getFirst().serviceCallId();
         }
       }
       RequirementDraft draft =
           new RequirementDraft(
               softDowngradedForFacts
+                      || softDowngradedForFlow
                       || softDowngradedForImport
                       || softDowngradedForBinding
                       || softDowngradedBlockedWithCandidate
@@ -405,17 +511,24 @@ public class RequirementDraftTool {
               false,
               facts,
               importIntent,
-              reconciledCalls,
-              owningCallId,
-              idsRequested(capture, previous));
+              owningInteractionId,
+              idsRequested(capture, previous),
+              capturedFlow,
+              catalogBindings);
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
       if (resolutions != null) {
         Set<String> retained = new LinkedHashSet<>();
-        for (RequirementServiceCall call : reconciledCalls) {
-          retained.add(call.serviceCallId());
+        if (!capturedFlow.interactions().isEmpty()) {
+          for (RequirementFlow.Interaction interaction : capturedFlow.interactions()) {
+            retained.add(interaction.interactionId());
+          }
+        } else {
+          for (RequirementServiceCall call : reconciledCalls) {
+            retained.add(call.serviceCallId());
+          }
         }
-        resolutions.retainServiceCalls(conversationId, retained);
+        resolutions.retainInteractions(conversationId, retained);
       }
       org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
           .offerDraft(draft);
@@ -424,6 +537,7 @@ public class RequirementDraftTool {
           "captureRequirementDraft: stored draft conversationId=%s decision=%s complete=%s"
               + " openQuestions=%d facts=%d sourceSkill=%s sourceVersion=%s sourceHash=%s textChars=%d"
               + " hasApiHubCandidate=%s softDowngradedForFacts=%s"
+              + " softDowngradedForFlow=%s"
               + " softDowngradedForImport=%s softDowngradedForBinding=%s"
               + " softDowngradedBlockedWithCandidate=%s",
           conversationId,
@@ -437,6 +551,7 @@ public class RequirementDraftTool {
           draft.assembledText().length(),
           draft.apiHubCandidate() != null,
           softDowngradedForFacts,
+          softDowngradedForFlow,
           softDowngradedForImport,
           softDowngradedForBinding,
           softDowngradedBlockedWithCandidate);
@@ -470,8 +585,20 @@ public class RequirementDraftTool {
             conversationId,
             startMs,
             BINDING_SOFT_DOWNGRADE_PREFIX
-                + describeUnresolvedCalls(unresolvedCalls)
+                + (capturedFlow.interactions().isEmpty()
+                    ? describeUnresolvedCalls(unresolvedCalls)
+                    : describeUnresolvedInteractions(
+                        capturedFlow, facts, catalogBindings))
                 + BINDING_SOFT_DOWNGRADE_HINT
+                + " "
+                + storedPreview);
+      }
+      if (softDowngradedForFlow) {
+        return finish(
+            conversationId,
+            startMs,
+            FLOW_SOFT_DOWNGRADE_PREFIX
+                + FLOW_SOFT_DOWNGRADE_HINT
                 + " "
                 + storedPreview);
       }
@@ -523,11 +650,11 @@ public class RequirementDraftTool {
   List<RequirementServiceCall> reconcileServiceCalls(
       List<RequirementFact> facts, RequirementDraft previous, String conversationId) {
     List<RequirementFact> calls = positiveServiceCalls(facts);
-    Map<String, RequirementServiceCall> previousById = new LinkedHashMap<>();
+    Map<String, CatalogBindingHint> previousById = new LinkedHashMap<>();
     Map<String, RequirementFact> previousFactsById = new HashMap<>();
     if (previous != null) {
-      for (RequirementServiceCall call : previous.serviceCalls()) {
-        previousById.put(call.serviceCallId(), call);
+      for (CatalogBindingHint hint : previous.catalogBindings()) {
+        previousById.put(hint.interactionId(), hint);
       }
       for (RequirementFact fact : previous.facts()) {
         if (fact != null
@@ -539,13 +666,13 @@ public class RequirementDraftTool {
     }
     List<RequirementServiceCall> reconciled = new ArrayList<>();
     for (RequirementFact fact : calls) {
-      RequirementServiceCall prior = previousById.get(fact.serviceCallId());
+      CatalogBindingHint priorHint = previousById.get(fact.serviceCallId());
       RequirementFact priorFact = previousFactsById.get(fact.serviceCallId());
-      ServiceCallAssessment assessment =
+      InteractionAssessment assessment =
           resolutions == null
               ? null
-              : resolutions.forServiceCall(conversationId, fact.serviceCallId()).orElse(null);
-      CatalogBindingHint hint = bindingFor(fact, prior, priorFact, assessment);
+              : resolutions.forInteraction(conversationId, fact.serviceCallId()).orElse(null);
+      CatalogBindingHint hint = bindingFor(fact, priorHint, priorFact, assessment);
       reconciled.add(
           new RequirementServiceCall(
               fact.serviceCallId(),
@@ -570,11 +697,10 @@ public class RequirementDraftTool {
 
   private static CatalogBindingHint bindingFor(
       RequirementFact fact,
-      RequirementServiceCall prior,
+      CatalogBindingHint priorHint,
       RequirementFact priorFact,
-      ServiceCallAssessment assessment) {
+      InteractionAssessment assessment) {
     boolean identityUnchanged = priorFact != null && sameCallIdentity(fact, priorFact);
-    CatalogBindingHint priorHint = prior == null ? null : prior.catalogBinding();
     if (assessment != null
         && assessment.isResolved()
         && assessment.binding() != null
@@ -635,8 +761,8 @@ public class RequirementDraftTool {
     }
     for (RequirementFact call : calls) {
       if (resolutions
-          .forServiceCall(conversationId, call.serviceCallId())
-          .filter(ServiceCallAssessment::isResolved)
+          .forInteraction(conversationId, call.serviceCallId())
+          .filter(InteractionAssessment::isResolved)
           .isPresent()) {
         continue;
       }
@@ -658,9 +784,8 @@ public class RequirementDraftTool {
               match ->
                   resolutions.remember(
                       conversationId,
-                      ServiceCallAssessment.resolved(
+                      InteractionAssessment.resolved(
                           call.serviceCallId(),
-                          call.sourceFactId(),
                           intentFrom(call),
                           match)));
     }
@@ -720,8 +845,8 @@ public class RequirementDraftTool {
             "catalog-listed:" + systemId + "/" + specificationId + "/" + operation.id()));
   }
 
-  private static ServiceCallAssessment.Intent intentFrom(RequirementFact call) {
-    return new ServiceCallAssessment.Intent(
+  private static InteractionAssessment.Intent intentFrom(RequirementFact call) {
+    return new InteractionAssessment.Intent(
         call.text(),
         call.participant(),
         call.operation(),
@@ -800,6 +925,38 @@ public class RequirementDraftTool {
     return body.append(". ").toString();
   }
 
+  private static String describeUnresolvedInteractions(
+      RequirementFlow flow,
+      List<RequirementFact> facts,
+      List<CatalogBindingHint> catalogBindings) {
+    Set<String> resolvedIds = new LinkedHashSet<>();
+    for (CatalogBindingHint binding : catalogBindings) {
+      resolvedIds.add(binding.interactionId());
+    }
+    List<RequirementFlow.Interaction> unresolved =
+        flow.interactions().stream()
+            .filter(interaction -> RequirementFlowValidator.requiresCatalogBinding(interaction, facts))
+            .filter(interaction -> !resolvedIds.contains(interaction.interactionId()))
+            .toList();
+    if (unresolved.isEmpty()) {
+      return "";
+    }
+    StringBuilder body = new StringBuilder("Unresolved interactions: ");
+    for (int i = 0; i < unresolved.size(); i++) {
+      if (i > 0) {
+        body.append("; ");
+      }
+      RequirementFlow.Interaction interaction = unresolved.get(i);
+      body.append("interactionId=")
+          .append(interaction.interactionId())
+          .append(", participant=")
+          .append(interaction.participant())
+          .append(", operation=")
+          .append(interaction.operation());
+    }
+    return body.append(". ").toString();
+  }
+
   private static String describeUnresolvedCall(RequirementServiceCall call) {
     return "serviceCallId="
         + call.serviceCallId()
@@ -810,10 +967,10 @@ public class RequirementDraftTool {
   }
 
   private String clarification(RequirementServiceCall call, String conversationId) {
-    ServiceCallAssessment assessment =
+    InteractionAssessment assessment =
         resolutions == null
             ? null
-            : resolutions.forServiceCall(conversationId, call.serviceCallId()).orElse(null);
+            : resolutions.forInteraction(conversationId, call.serviceCallId()).orElse(null);
     String label = call.operation().isBlank() ? call.serviceCallId() : call.operation();
     if (assessment == null) {
       return "Which catalog operation should this chain call for \""
@@ -862,6 +1019,136 @@ public class RequirementDraftTool {
     }
     List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
     return keys != null && !keys.isEmpty();
+  }
+
+  private static String rejectTopologyFacts(List<RequirementFact> facts) {
+    if (facts == null) {
+      return null;
+    }
+    for (RequirementFact fact : facts) {
+      if (fact == null) {
+        continue;
+      }
+      if (fact.kind() == RequirementFactKind.ENDPOINT
+          || fact.kind() == RequirementFactKind.SERVICE_CALL) {
+        return "requirement facts must not include kind=ENDPOINT or kind=SERVICE_CALL";
+      }
+    }
+    return null;
+  }
+
+  private static List<CatalogBindingHint> hintsFromResolvedCalls(
+      List<RequirementServiceCall> calls) {
+    List<CatalogBindingHint> hints = new ArrayList<>();
+    for (RequirementServiceCall call : calls) {
+      if (call.catalogBinding() != null) {
+        hints.add(call.catalogBinding());
+      }
+    }
+    return List.copyOf(hints);
+  }
+
+  /**
+   * Binds unique local catalog matches before {@link #reconcileCatalogBindings} copies them onto
+   * the draft. Does not search API Hub; unresolved outbound interactions still soft-downgrade.
+   */
+  private void resolveUnboundFromCatalog(
+      RequirementFlow flow, List<RequirementFact> facts, String conversationId) {
+    if (catalogOperationLookup == null
+        || resolutions == null
+        || conversationId == null
+        || conversationId.isBlank()
+        || flow.interactions().isEmpty()) {
+      return;
+    }
+    List<String> named =
+        flow.interactions().stream()
+            .map(RequirementFlow.Interaction::operation)
+            .filter(operation -> !operation.isBlank())
+            .toList();
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      if (resolutions
+          .forInteraction(conversationId, interaction.interactionId())
+          .filter(InteractionAssessment::isResolved)
+          .isPresent()) {
+        continue;
+      }
+      if (RequirementFlowValidator.hasNativeInboundTriggerFact(interaction, facts)) {
+        continue;
+      }
+      String capability =
+          interaction.description().isBlank() ? interaction.operation() : interaction.description();
+      InteractionAssessment.Intent intent =
+          new InteractionAssessment.Intent(
+              capability, interaction.participant(), interaction.operation(), null, null);
+      if (!intent.missingFields().isEmpty()) {
+        continue;
+      }
+      CatalogLookupResult result =
+          catalogOperationLookup.resolve(
+              new CatalogQuery(
+                  intent.systemHint(),
+                  null,
+                  null,
+                  intent.method(),
+                  intent.path(),
+                  intent.operationHint(),
+                  null,
+                  named));
+      if (!(result instanceof CatalogLookupResult.Exact exact)) {
+        continue;
+      }
+      Optional<CatalogOperationDirection> catalogDirection =
+          CatalogOperationDirection.from(exact.match().protocol(), exact.match().method());
+      if (catalogDirection.isEmpty()) {
+        continue;
+      }
+      CatalogOperationDirection expected =
+          interaction.direction() == RequirementFlow.Direction.INBOUND
+              ? CatalogOperationDirection.PRODUCED_BY_SYSTEM
+              : CatalogOperationDirection.CONSUMED_BY_SYSTEM;
+      if (catalogDirection.get() != expected) {
+        continue;
+      }
+      resolutions.remember(
+          conversationId,
+          InteractionAssessment.resolved(interaction.interactionId(), intent, exact.match()));
+    }
+  }
+
+  private List<CatalogBindingHint> reconcileCatalogBindings(
+      RequirementFlow flow, RequirementDraft previous, String conversationId) {
+    if (flow.interactions().isEmpty()) {
+      return previous == null ? List.of() : previous.catalogBindings();
+    }
+    Map<String, CatalogBindingHint> prior = new LinkedHashMap<>();
+    if (previous != null) {
+      for (CatalogBindingHint hint : previous.catalogBindings()) {
+        prior.put(hint.interactionId(), hint);
+      }
+    }
+    List<CatalogBindingHint> hints = new ArrayList<>();
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      InteractionAssessment assessment =
+          resolutions == null
+              ? null
+              : resolutions.forInteraction(conversationId, interaction.interactionId()).orElse(null);
+      if (assessment != null && assessment.isResolved() && assessment.binding() != null) {
+        try {
+          hints.add(
+              CatalogBindingHint.from(
+                  interaction, assessment.binding(), "catalog", assessment.observedAt()));
+          continue;
+        } catch (IllegalArgumentException ignored) {
+          // Unknown catalog direction stays unbound so capture can return NEEDS_INPUT.
+        }
+      }
+      CatalogBindingHint existing = prior.get(interaction.interactionId());
+      if (existing != null) {
+        hints.add(existing);
+      }
+    }
+    return List.copyOf(hints);
   }
 
   private static String validateFactText(List<RequirementFact> facts) {

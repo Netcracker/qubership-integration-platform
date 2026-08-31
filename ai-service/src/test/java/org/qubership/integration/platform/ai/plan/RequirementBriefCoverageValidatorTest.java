@@ -8,8 +8,15 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class RequirementBriefCoverageValidatorTest {
@@ -18,18 +25,26 @@ class RequirementBriefCoverageValidatorTest {
 
   @Test
   void emptyApprovedDraftFactsAreCoverageNoOp() {
-    RequirementDraft approved = new RequirementDraft(true, "Proxy Geographic Site GET-by-id");
-    RequirementBrief brief =
-        new RequirementBrief(
-            "Proxy Geographic Site",
-            List.of("id path param"),
-            List.of("accessControlType NONE"),
-            List.of(),
-            List.of(),
-            "HTTP GET proxy of retrieveGeographicSite",
-            "approved-draft",
-            approved.planningText(),
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("geo-site", Direction.INBOUND, "Caller", "GET /geo-site", "")),
             List.of());
+    RequirementDraft approved =
+        new RequirementDraft(true, "Proxy Geographic Site GET-by-id").withFlow(flow);
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            new RequirementBrief(
+                    "Proxy Geographic Site",
+                    List.of("id path param"),
+                    List.of("accessControlType NONE"),
+                    List.of(),
+                    List.of(),
+                    "HTTP GET proxy of retrieveGeographicSite",
+                    "approved-draft",
+                    approved.planningText(),
+                    List.of())
+                .withFlow(flow));
 
     Optional<String> error = validator.validate(approved, brief);
 
@@ -247,47 +262,16 @@ class RequirementBriefCoverageValidatorTest {
 
   @Test
   void rejectsMissingServiceCallId() {
-    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
-    RequirementFact omFact =
-        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
-    RequirementFact wfmFact =
-        serviceCallFact("fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask");
-    CatalogBindingHint omHint =
-        catalogHint(
-            "call-om-result",
-            "fact-om",
-            "onTaskResult",
-            "sys-om",
-            "sg-om",
-            "spec-om",
-            "op-om",
-            observedAt);
-    CatalogBindingHint wfmHint =
-        catalogHint(
-            "call-wfm-create-task",
-            "fact-wfm",
-            "createTask",
-            "sys-wfm",
-            "sg-wfm",
-            "spec-wfm",
-            "op-wfm",
-            observedAt);
-    RequirementServiceCall omCall =
-        new RequirementServiceCall(
-            "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint);
-    RequirementServiceCall wfmCall =
-        new RequirementServiceCall(
-            "call-wfm-create-task", "fact-wfm", "Salesforce WFM", "createTask", wfmHint);
-    RequirementDraft approved = approvedDraft(List.of(omFact, wfmFact), List.of(omCall, wfmCall));
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief projected = RequirementBriefProjector.project(rockyBrief(approved));
     RequirementBrief brief =
-        briefWithCalls(approved, List.of(omFact, wfmFact), List.of(omCall));
+        projected.withServiceCalls(List.of(projected.serviceCalls().getFirst()));
 
     Optional<String> error = validator.validate(approved, brief);
 
     assertTrue(error.isPresent());
-    assertTrue(error.orElseThrow().contains("call-wfm-create-task"), error.orElseThrow());
-    assertTrue(
-        error.orElseThrow().contains("serviceCallId=call-wfm-create-task"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("task-result"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("serviceCallId=task-result"), error.orElseThrow());
   }
 
   @Test
@@ -332,6 +316,112 @@ class RequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void rejectsMappingRefAbsentFromFlow() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        rockyBrief(approved)
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-unknown",
+                        "missing-call",
+                        MappingPort.RESPONSE,
+                        "task-result",
+                        MappingPort.REQUEST,
+                        List.of(new MappingIntentRule("", "commandType", "completeTask")))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("missing-call"), error.orElseThrow());
+  }
+
+  @Test
+  void rejectsInboundUsedAsOutboundRequestTarget() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        rockyBrief(approved)
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-inverted-target",
+                        "create-task",
+                        MappingPort.RESPONSE,
+                        "task-start",
+                        MappingPort.REQUEST,
+                        List.of(new MappingIntentRule("id", "id", null)))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("task-start"), error.orElseThrow());
+    assertTrue(error.orElseThrow().toLowerCase().contains("inbound"), error.orElseThrow());
+  }
+
+  @Test
+  void rejectsOutboundUsedWithOutput() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        rockyBrief(approved)
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-outbound-output",
+                        "create-task",
+                        MappingPort.OUTPUT,
+                        "task-result",
+                        MappingPort.REQUEST,
+                        List.of(new MappingIntentRule("id", "id", null)))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("create-task"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("OUTPUT"), error.orElseThrow());
+  }
+
+  @Test
+  void rejectsInvertedResponseToRequestRoles() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        rockyBrief(approved)
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-inverted",
+                        "task-start",
+                        MappingPort.RESPONSE,
+                        "create-task",
+                        MappingPort.REQUEST,
+                        List.of(new MappingIntentRule("name", "Subject", null)))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("RESPONSE"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("REQUEST"), error.orElseThrow());
+  }
+
+  @Test
+  void rejectsBriefFlowDifferingFromApprovedDraft() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        rockyBrief(approved)
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+                        new Interaction(
+                            "task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                    List.of(new Transition("task-start", "task-result"))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().toLowerCase().contains("flow"), error.orElseThrow());
+  }
+
+  @Test
   void rejectsAServiceCallWithoutACatalogBinding() {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
     RequirementFact omFact =
@@ -359,6 +449,80 @@ class RequirementBriefCoverageValidatorTest {
     assertTrue(error.isPresent());
     assertTrue(error.orElseThrow().contains("no catalog binding"), error.orElseThrow());
     assertTrue(error.orElseThrow().contains("call-om-result"), error.orElseThrow());
+  }
+
+  private static RequirementDraft rockyApprovedDraft() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    return new RequirementDraft(
+        true,
+        "Consume onTaskStart, create a Salesforce task, publish onTaskResult",
+        DraftDecision.READY_FOR_PLAN,
+        List.of(),
+        "brainstorming",
+        "1",
+        null,
+        null,
+        false,
+        List.of(),
+        false,
+        null,
+        null,
+        rockyFlow(),
+        List.of(
+            catalogHint(
+                "task-start",
+                "task-start",
+                "onTaskStart",
+                "sys-om",
+                "sg-om",
+                "spec-om",
+                "op-start",
+                observedAt),
+            catalogHint(
+                "create-task",
+                "create-task",
+                "createTask",
+                "sys-sf",
+                "sg-sf",
+                "spec-sf",
+                "op-create",
+                observedAt),
+            catalogHint(
+                "task-result",
+                "task-result",
+                "onTaskResult",
+                "sys-om",
+                "sg-om",
+                "spec-om",
+                "op-result",
+                observedAt)));
+  }
+
+  private static RequirementBrief rockyBrief(RequirementDraft approved) {
+    return new RequirementBrief(
+            "OM to Salesforce WFM",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "summary",
+            "ref",
+            approved.planningText(),
+            List.of(),
+            List.of())
+        .withFlow(approved.flow())
+        .withCatalogBindings(approved.catalogBindings());
+  }
+
+  private static RequirementFlow rockyFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+            new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+            new Interaction("task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+        List.of(
+            new Transition("task-start", "create-task"),
+            new Transition("create-task", "task-result")));
   }
 
   private static RequirementDraft approvedDraft(

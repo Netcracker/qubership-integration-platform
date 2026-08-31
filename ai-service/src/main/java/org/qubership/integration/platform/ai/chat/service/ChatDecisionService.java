@@ -264,9 +264,11 @@ public class ChatDecisionService {
     if (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType())) {
       return handleUploadedSpecsApproval(conversationId, command, action);
     }
+    if (ChatEvent.REQUEST_CHANGES_ACTION.equals(action)) {
+      return requestChanges(conversationId, command);
+    }
     if (!ChatEvent.APPROVE_ACTION.equals(action)
         && !ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)) {
-      // Request-changes carries no command: the comment travels as an ordinary message instead.
       return Multi.createFrom().empty();
     }
 
@@ -290,6 +292,31 @@ public class ChatDecisionService {
       return approved.onCompletion().switchTo(() -> openGateEvents(conversationId));
     }
     return approved.onCompletion().switchTo(() -> createAfterApproval(conversationId));
+  }
+
+  /**
+   * Sends the change request into the run as typed input at the open approval card.
+   *
+   * <p>The UI does not post the comment as a chat message. An empty stream left the card answered
+   * while the run was still waiting.
+   */
+  private Multi<ChatEvent> requestChanges(String conversationId, ChatDecisionCommand command) {
+    String comment = command.getComment() == null ? "" : command.getComment().strip();
+    String text = comment.isEmpty() ? transcriptMarker(command) : comment;
+    return facade
+        .continueWithInput(
+            new ContinueCreateChainCommand(
+                conversationId, text, UUID.randomUUID().toString(), InputOrigin.TRUSTED))
+        .onItem()
+        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
+        .onCompletion()
+        .switchTo(() -> openGateEvents(conversationId))
+        .onCompletion()
+        .ifEmpty()
+        .switchTo(
+            () ->
+                Multi.createFrom()
+                    .item(ChatEvent.token(haltResumeProgress(ChatEvent.REQUEST_CHANGES_ACTION))));
   }
 
   /**

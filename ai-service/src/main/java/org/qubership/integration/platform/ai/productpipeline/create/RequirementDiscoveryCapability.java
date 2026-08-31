@@ -30,7 +30,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Product-pipeline requirement discovery stage. Uses brainstorming capture only; analysis never
@@ -298,26 +297,18 @@ public class RequirementDiscoveryCapability implements StageCapability {
   /**
    * Emits one {@code CATALOG_BINDING_HINT} per bound service call on the approved draft.
    *
-   * <p>Schema {@code 2} drafts store the frozen catalog identity on each
-   * {@link RequirementServiceCall}. Discovery copies those hints; it does not search the catalog,
-   * rank operations, or read the conversation resolution cache. Restarting between capture and
-   * this stage therefore cannot drop a binding that already landed on the draft.
+   * <p>Drafts store frozen catalog identity on {@link CatalogBindingHint} rows. Discovery copies
+   * those hints; it does not search the catalog, rank operations, or read the conversation
+   * resolution cache. Restarting between capture and this stage therefore cannot drop a binding
+   * that already landed on the draft.
    *
    */
   List<ArtifactCandidate> exactCatalogBindingHints(RequirementDraft draft) {
     if (draft == null) {
       return List.of();
     }
-    return hintsFromBoundServiceCalls(draft);
-  }
-
-  private static List<ArtifactCandidate> hintsFromBoundServiceCalls(RequirementDraft draft) {
     List<ArtifactCandidate> hints = new ArrayList<>();
-    for (RequirementServiceCall call : draft.serviceCalls()) {
-      CatalogBindingHint hint = call.catalogBinding();
-      if (hint == null) {
-        continue;
-      }
+    for (CatalogBindingHint hint : draft.catalogBindings()) {
       hints.add(
           new ArtifactCandidate(
               CompilationArtifacts.Kind.CATALOG_BINDING_HINT, hint, List.of()));

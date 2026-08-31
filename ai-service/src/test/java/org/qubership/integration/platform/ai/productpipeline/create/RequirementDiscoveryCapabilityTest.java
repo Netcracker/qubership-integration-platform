@@ -50,6 +50,10 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
@@ -133,7 +137,8 @@ class RequirementDiscoveryCapabilityTest {
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.BEHAVIOR,
                     "response",
-                    "returns string 'Good day'")));
+                    "returns string 'Good day'")))
+            .withFlow(RequirementFactFixtures.nativeHttpInbound("hello", "GET /hello"));
 
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDiscoveryCapability capability =
@@ -751,10 +756,11 @@ class RequirementDiscoveryCapabilityTest {
                         "chain",
                         "Create a chain named Pet Inventory Check"),
                     serviceCall))
+            .withFlow(outboundFlow(serviceCall))
             .withBoundServiceCall(
                 serviceCall.serviceCallId(),
                 new CatalogBindingHint(
-                    "2",
+                    "3",
                     serviceCall.serviceCallId(),
                     serviceCall.sourceFactId(),
                     "getInventory",
@@ -762,9 +768,9 @@ class RequirementDiscoveryCapabilityTest {
                     "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-sg",
                     "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-swagger-1.0.7",
                     "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-swagger-1.0.7-getInventory",
-                    null,
-                    null,
-                    null,
+                    "http",
+                    "GET",
+                    "/store/inventory",
                     "catalog",
                     Instant.EPOCH,
                     "test"));
@@ -807,7 +813,7 @@ class RequirementDiscoveryCapabilityTest {
         "bbf14771-de8d-48e8-a2ed-2e691f7f6eff-swagger-1.0.7-getInventory",
         hint.integrationOperationId());
     // The step the hint binds to is found by fact id, so the wording of the fact never decides.
-    assertEquals(serviceCall.serviceCallId(), hint.serviceCallId());
+    assertEquals(serviceCall.serviceCallId(), hint.interactionId());
     verifyNoInteractions(catalogReadTool);
   }
 
@@ -832,7 +838,7 @@ class RequirementDiscoveryCapabilityTest {
             "Then post the invoice through Billing using POST /invoices.");
     CatalogBindingHint inventoryHint =
         new CatalogBindingHint(
-            "2",
+            "3",
             inventoryCall.serviceCallId(),
             inventoryCall.sourceFactId(),
             "GET /store/inventory",
@@ -848,7 +854,7 @@ class RequirementDiscoveryCapabilityTest {
             "catalog-read:pet");
     CatalogBindingHint invoiceHint =
         new CatalogBindingHint(
-            "2",
+            "3",
             invoiceCall.serviceCallId(),
             invoiceCall.sourceFactId(),
             "POST /invoices",
@@ -896,7 +902,8 @@ class RequirementDiscoveryCapabilityTest {
                     invoiceCall.sourceFactId(),
                     "Billing",
                     "createInvoice",
-                    invoiceHint)));
+                    invoiceHint)))
+            .withFlow(outboundFlow(inventoryCall, invoiceCall));
 
     RequirementDiscoveryCapability capability =
         new RequirementDiscoveryCapability(
@@ -943,10 +950,10 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(3, candidates.size());
     CatalogBindingHint first = (CatalogBindingHint) candidates.get(1).payload();
     CatalogBindingHint second = (CatalogBindingHint) candidates.get(2).payload();
-    assertEquals(inventoryCall.serviceCallId(), first.serviceCallId());
+    assertEquals(inventoryCall.serviceCallId(), first.interactionId());
     assertEquals("op-inventory", first.integrationOperationId());
     assertEquals("sys-pet", first.systemId());
-    assertEquals(invoiceCall.serviceCallId(), second.serviceCallId());
+    assertEquals(invoiceCall.serviceCallId(), second.interactionId());
     assertEquals("op-invoice", second.integrationOperationId());
     assertEquals("sys-bill", second.systemId());
     verifyNoInteractions(catalogReadTool);
@@ -984,7 +991,7 @@ class RequirementDiscoveryCapabilityTest {
             "call-wfm-create-task");
     CatalogBindingHint omHint =
         new CatalogBindingHint(
-            "1",
+            "3",
             "call-om-result",
             "fact-om",
             "onTaskResult",
@@ -1000,7 +1007,7 @@ class RequirementDiscoveryCapabilityTest {
             "evidence-om");
     CatalogBindingHint wfmHint =
         new CatalogBindingHint(
-            "2",
+            "3",
             "call-wfm-create-task",
             "fact-wfm",
             "createTask",
@@ -1042,7 +1049,8 @@ class RequirementDiscoveryCapabilityTest {
                     "fact-wfm",
                     "Salesforce WFM",
                     "createTask",
-                    wfmHint)));
+                    wfmHint)))
+            .withFlow(outboundFlow(omCall, wfmCall));
 
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDiscoveryCapability capability =
@@ -1091,10 +1099,10 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, candidates.get(0).kind());
     CatalogBindingHint first = (CatalogBindingHint) candidates.get(1).payload();
     CatalogBindingHint second = (CatalogBindingHint) candidates.get(2).payload();
-    assertEquals("1", first.schemaVersion());
-    assertEquals("2", second.schemaVersion());
-    assertEquals("call-om-result", first.serviceCallId());
-    assertEquals("call-wfm-create-task", second.serviceCallId());
+    assertEquals("3", first.schemaVersion());
+    assertEquals("3", second.schemaVersion());
+    assertEquals("call-om-result", first.interactionId());
+    assertEquals("call-wfm-create-task", second.interactionId());
     assertEquals("op-shared", first.integrationOperationId());
     assertEquals("op-shared", second.integrationOperationId());
     assertEquals(omHint, first);
@@ -1187,7 +1195,7 @@ class RequirementDiscoveryCapabilityTest {
         serviceCall("call-pets", "Petstore Ext", "GET /pets");
     CatalogBindingHint hint =
         new CatalogBindingHint(
-            "2",
+            "3",
             call.serviceCallId(),
             call.sourceFactId(),
             "GET /pets",
@@ -1221,7 +1229,8 @@ class RequirementDiscoveryCapabilityTest {
         false,
         List.of(
             new RequirementServiceCall(
-                call.serviceCallId(), call.sourceFactId(), "Petstore Ext", "GET /pets", hint)));
+                call.serviceCallId(), call.sourceFactId(), "Petstore Ext", "GET /pets", hint)))
+        .withFlow(outboundFlow(call));
   }
 
   private static RequirementDraft readyDraftWithUnboundServiceCall() {
@@ -1248,6 +1257,25 @@ class RequirementDiscoveryCapabilityTest {
         List.of(
             new RequirementServiceCall(
                 call.serviceCallId(), call.sourceFactId(), "Petstore Ext", "GET /pets", null)));
+  }
+
+  private static RequirementFlow outboundFlow(RequirementFact... calls) {
+    List<Interaction> interactions = new java.util.ArrayList<>();
+    List<Transition> transitions = new java.util.ArrayList<>();
+    interactions.add(new Interaction("start", Direction.INBOUND, "Caller", "start", ""));
+    String previous = "start";
+    for (RequirementFact call : calls) {
+      interactions.add(
+          new Interaction(
+              call.serviceCallId(),
+              Direction.OUTBOUND,
+              call.participant(),
+              call.operation(),
+              ""));
+      transitions.add(new Transition(previous, call.serviceCallId()));
+      previous = call.serviceCallId();
+    }
+    return new RequirementFlow(interactions, transitions);
   }
 
   private static RequirementFact serviceCall(

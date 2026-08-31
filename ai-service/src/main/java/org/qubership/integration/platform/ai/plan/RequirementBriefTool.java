@@ -95,20 +95,17 @@ public class RequirementBriefTool {
       goal and summary cannot both be blank.
       Facts from the approved draft are pinned by the server (stable sourceFactId values). Focus\
        on goal, summary, inputs, constraints, and assumptions.
-      Omit facts when an approved draft exists. If you emit a SERVICE_CALL fact, include\
-       serviceCallId.
-      When there are no positive SERVICE_CALL facts, leave dataMappings and mappingIntents empty.\
-       Do not invent mappings. If you emit a legacy dataMapping, it must include stage and at\
-       least one sourceFactId.
+      Omit facts when an approved draft exists. The server projects entry points and service calls\
+       from the approved RequirementFlow and catalog bindings.
       When no field adaptation was requested, leave dataMappings and mappingIntents empty. The\
        server records that as pass-through: a direct connection with no mapping row. When the\
-       user requested field adaptation, capture mappingIntents. Prose is enough: Subject = name\
+       user requested field adaptation between projected outbound interactions, capture\
+       mappingIntents. Prose is enough: Subject = name\
        becomes sourcePath=name and targetPath=Subject. A computed rule such as a priority bucket,\
        a default, or JSON construction sets expression on that rule. One intent per\
        source-to-target boundary. Never invent identity copies for fields the user did not\
-       mention. EXPLICIT dataMappings still work. Reuse approved sourceFactId values as\
-       fromIntentRef and toIntentRef. The server records entry points from catalog trigger\
-       capabilities independently of fact kind.
+       mention. Use the approved interactionId values as sourceRef and targetRef. EXPLICIT legacy\
+       dataMappings still work; each one must include stage and at least one sourceFactId.
       Minimal example:
       {
         "goal": "Expose a greeting HTTP endpoint",
@@ -158,18 +155,16 @@ public class RequirementBriefTool {
           ProductCapabilityCaptureContext.approvedDraft(conversationId)
               .or(() -> draftStore.get(conversationId).filter(RequirementDraft::readyForPlan));
       if (approved.isPresent()) {
-        // LLM often paraphrases or omits sourceFactId. Draft facts are already normalized —
-        // pin them so coverage cannot fail on id drift while keeping the agent's prose fields.
-        brief = pinApprovedDraftFacts(brief, approved.get());
+        brief = pinApprovedDraft(brief, approved.get());
       } else if (ProductCapabilityCaptureContext.isBound(conversationId)) {
         String message = "approved draft is required before capturing a requirement brief";
         return finish(conversationId, startMs, message);
       }
       try {
-        brief = RequirementBriefProjector.project(withCanonicalTriggerFacts(brief));
+        brief = RequirementBriefProjector.project(brief);
       } catch (IllegalArgumentException ex) {
         LOG.warnf(
-            "captureRequirementBrief: trigger kind rejected conversationId=%s reason=%s",
+            "captureRequirementBrief: projection rejected conversationId=%s reason=%s",
             conversationId, ex.getMessage());
         return finish(conversationId, startMs, ex.getMessage());
       }
@@ -219,22 +214,15 @@ public class RequirementBriefTool {
   }
 
   /**
-   * Replaces capture facts, service calls, and draft text with the server-owned approved values.
-   * Goal/summary/inputs/constraints/assumptions stay from the agent.
+   * Replaces capture facts, flow, catalog bindings, and draft text with the server-owned approved
+   * values. Goal/summary/inputs/constraints/assumptions stay from the agent.
    */
-  static RequirementBrief pinApprovedDraftFacts(RequirementBrief brief, RequirementDraft approved) {
+  static RequirementBrief pinApprovedDraft(RequirementBrief brief, RequirementDraft approved) {
     return brief
         .withFacts(approved.facts())
         .withApprovedDraftText(approved.planningText())
-        .withServiceCalls(approved.serviceCalls());
-  }
-
-  static RequirementBrief withCanonicalTriggerFacts(RequirementBrief brief) {
-    List<RequirementFact> canonical = RequirementTriggerRole.canonicalize(brief.facts());
-    if (canonical.equals(brief.facts())) {
-      return brief;
-    }
-    return brief.withFacts(canonical);
+        .withFlow(approved.flow())
+        .withCatalogBindings(approved.catalogBindings());
   }
 
   private static RequirementBrief toRequirementBrief(RequirementBriefCapture capture) {

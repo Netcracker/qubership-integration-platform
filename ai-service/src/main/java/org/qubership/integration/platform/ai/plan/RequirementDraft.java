@@ -1,11 +1,12 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /** Iterative requirement vision accumulated before the compiler spine runs. */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -21,9 +22,10 @@ public record RequirementDraft(
     boolean awaitingPlanContinuation,
     List<RequirementFact> facts,
     boolean importIntent,
-    List<RequirementServiceCall> serviceCalls,
-    String apiHubCandidateServiceCallId,
-    Boolean idsRequested) {
+    @JsonAlias("apiHubCandidateServiceCallId") String apiHubCandidateInteractionId,
+    Boolean idsRequested,
+    RequirementFlow flow,
+    List<CatalogBindingHint> catalogBindings) {
 
   public RequirementDraft {
     decision = decision != null ? decision : decisionFromComplete(complete);
@@ -32,16 +34,79 @@ public record RequirementDraft(
     sourceSkillHash =
         sourceSkillHash != null && !sourceSkillHash.isBlank() ? sourceSkillHash.trim() : null;
     facts = facts == null ? List.of() : List.copyOf(facts);
-    if (serviceCalls == null || serviceCalls.isEmpty()) {
-      serviceCalls = serviceCallsFromFacts(facts);
-    } else {
-      serviceCalls = List.copyOf(serviceCalls);
-    }
-    apiHubCandidateServiceCallId =
-        apiHubCandidateServiceCallId == null || apiHubCandidateServiceCallId.isBlank()
+    apiHubCandidateInteractionId =
+        apiHubCandidateInteractionId == null || apiHubCandidateInteractionId.isBlank()
             ? null
-            : apiHubCandidateServiceCallId.trim();
+            : apiHubCandidateInteractionId.trim();
+    flow = flow == null ? RequirementFlow.EMPTY : flow;
+    catalogBindings = catalogBindings == null ? List.of() : List.copyOf(catalogBindings);
     complete = decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
+  }
+
+  /** Compatibility constructor for drafts captured before generic catalogBindings storage. */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId,
+      Boolean idsRequested,
+      RequirementFlow flow) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        List.of());
+  }
+
+  /** Compatibility constructor for drafts captured before business-first flow ownership. */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId,
+      Boolean idsRequested) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        RequirementFlow.EMPTY);
   }
 
   /** Compatibility constructor for drafts captured before the author could decline the IDS. */
@@ -57,8 +122,7 @@ public record RequirementDraft(
       boolean awaitingPlanContinuation,
       List<RequirementFact> facts,
       boolean importIntent,
-      List<RequirementServiceCall> serviceCalls,
-      String apiHubCandidateServiceCallId) {
+      String apiHubCandidateInteractionId) {
     this(
         complete,
         assembledText,
@@ -71,8 +135,7 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         importIntent,
-        serviceCalls,
-        apiHubCandidateServiceCallId,
+        apiHubCandidateInteractionId,
         null);
   }
 
@@ -95,7 +158,6 @@ public record RequirementDraft(
         false,
         List.of(),
         false,
-        null,
         null,
         null);
   }
@@ -120,7 +182,6 @@ public record RequirementDraft(
         false,
         List.of(),
         false,
-        null,
         null,
         null);
   }
@@ -147,7 +208,6 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         List.of(),
         false,
-        null,
         null,
         null);
   }
@@ -176,7 +236,6 @@ public record RequirementDraft(
         facts,
         false,
         null,
-        null,
         null);
   }
 
@@ -193,7 +252,6 @@ public record RequirementDraft(
         false,
         List.of(),
         false,
-        null,
         null,
         null);
   }
@@ -223,10 +281,13 @@ public record RequirementDraft(
         facts,
         importIntent,
         null,
-        null,
         null);
   }
 
+  /**
+   * Compatibility constructor for tests and call sites that still pass projected service calls.
+   * Bindings on those calls are copied onto {@link #catalogBindings()}.
+   */
   public RequirementDraft(
       boolean complete,
       String assembledText,
@@ -239,7 +300,8 @@ public record RequirementDraft(
       boolean awaitingPlanContinuation,
       List<RequirementFact> facts,
       boolean importIntent,
-      List<RequirementServiceCall> serviceCalls) {
+      List<org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall>
+          serviceCalls) {
     this(
         complete,
         assembledText,
@@ -252,57 +314,37 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         importIntent,
-        serviceCalls,
-        null);
+        null,
+        null,
+        RequirementFlow.EMPTY,
+        hintsFromCalls(serviceCalls));
   }
 
   public boolean readyForPlan() {
     return decision == DraftDecision.READY_FOR_PLAN
         && openQuestions.isEmpty()
-        && allServiceCallsResolved();
-  }
-
-  /** True when every active service call has a binding whose {@code serviceCallId} matches. */
-  public boolean allServiceCallsResolved() {
-    if (serviceCalls.isEmpty()) {
-      return true;
-    }
-    for (RequirementServiceCall call : serviceCalls) {
-      if (call.catalogBinding() == null
-          || !call.serviceCallId().equals(call.catalogBinding().serviceCallId())) {
-        return false;
-      }
-    }
-    return true;
+        && !flow.interactions().isEmpty()
+        && RequirementFlowValidator.validateBindings(flow, facts, catalogBindings).isEmpty();
   }
 
   public boolean hasPendingImport() {
     if (apiHubCandidate == null) {
       return false;
     }
-    if (apiHubCandidateServiceCallId != null) {
-      return serviceCalls.stream()
-          .filter(call -> apiHubCandidateServiceCallId.equals(call.serviceCallId()))
-          .findFirst()
-          .map(call -> call.catalogBinding() == null)
-          .orElse(true);
-    }
-    if (!serviceCalls.isEmpty()) {
-      return !allServiceCallsResolved();
+    if (apiHubCandidateInteractionId != null) {
+      return catalogBindings.stream()
+          .noneMatch(hint -> apiHubCandidateInteractionId.equals(hint.interactionId()));
     }
     return true;
   }
 
-  /** True when the call this pending import belongs to already has a catalog binding. */
+  /** True when the interaction this pending import belongs to already has a catalog binding. */
   public boolean selectedImportCallAlreadyBound() {
-    if (apiHubCandidateServiceCallId != null) {
-      return serviceCalls.stream()
-          .anyMatch(
-              call ->
-                  apiHubCandidateServiceCallId.equals(call.serviceCallId())
-                      && call.catalogBinding() != null);
+    if (apiHubCandidateInteractionId != null) {
+      return catalogBindings.stream()
+          .anyMatch(hint -> apiHubCandidateInteractionId.equals(hint.interactionId()));
     }
-    return !serviceCalls.isEmpty() && allServiceCallsResolved();
+    return !catalogBindings.isEmpty();
   }
 
   public String planningText() {
@@ -323,43 +365,64 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         importIntent,
-        serviceCalls,
-        apiHubCandidateServiceCallId,
-        requested);
+        apiHubCandidateInteractionId,
+        requested,
+        flow,
+        catalogBindings);
+  }
+
+  /** Same draft with a captured business interaction graph. */
+  public RequirementDraft withFlow(RequirementFlow nextFlow) {
+    return new RequirementDraft(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        nextFlow,
+        catalogBindings);
   }
 
   /**
-   * Replaces the catalog binding for one service call. Other calls keep their bindings. Ready for
-   * plan only when every remaining call is bound.
+   * Replaces or appends the catalog binding for one interaction. Other bindings stay in place.
    */
-  public RequirementDraft withBoundServiceCall(String serviceCallId, CatalogBindingHint hint) {
-    String id = serviceCallId == null ? "" : serviceCallId.trim();
-    List<RequirementServiceCall> next = new ArrayList<>();
+  public RequirementDraft withBoundInteraction(String interactionId, CatalogBindingHint hint) {
+    String id = interactionId == null ? "" : interactionId.trim();
+    if (id.isEmpty() || hint == null) {
+      return this;
+    }
+    List<CatalogBindingHint> next = new ArrayList<>();
     boolean replaced = false;
-    for (RequirementServiceCall call : serviceCalls) {
-      if (!replaced && call.serviceCallId().equals(id)) {
-        next.add(
-            new RequirementServiceCall(
-                call.serviceCallId(),
-                call.sourceFactId(),
-                call.participant(),
-                call.operation(),
-                hint));
+    for (CatalogBindingHint existing : catalogBindings) {
+      if (!replaced && existing.interactionId().equals(id)) {
+        next.add(hint);
         replaced = true;
       } else {
-        next.add(call);
+        next.add(existing);
       }
     }
     if (!replaced) {
-      return this;
+      if (!flow.interactions().isEmpty() && flow.interaction(id).isEmpty()) {
+        return this;
+      }
+      next.add(hint);
     }
-    boolean resolved =
-        next.stream().allMatch(call -> call.catalogBinding() != null) || next.isEmpty();
+    boolean bound =
+        !flow.interactions().isEmpty()
+            && RequirementFlowValidator.validateBindings(flow, facts, next).isEmpty();
     return new RequirementDraft(
-        resolved,
+        bound,
         assembledText,
-        resolved ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
-        resolved ? List.of() : openQuestions,
+        bound ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
+        bound ? List.of() : openQuestions,
         sourceSkillId,
         sourceSkillVersion,
         sourceSkillHash,
@@ -367,8 +430,14 @@ public record RequirementDraft(
         false,
         facts,
         false,
-        next,
-        null);
+        null,
+        idsRequested,
+        flow,
+        List.copyOf(next));
+  }
+
+  public RequirementDraft withBoundServiceCall(String interactionId, CatalogBindingHint hint) {
+    return withBoundInteraction(interactionId, hint);
   }
 
   public RequirementDraft withAwaitingPlanContinuation(boolean awaiting) {
@@ -384,8 +453,10 @@ public record RequirementDraft(
         awaiting,
         facts,
         importIntent,
-        serviceCalls,
-        apiHubCandidateServiceCallId);
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings);
   }
 
   /**
@@ -393,11 +464,11 @@ public record RequirementDraft(
    * the reader as a decision, so nothing is pinned as an open question.
    */
   public RequirementDraft withApiHubCandidate(ApiHubRequirementRefs candidate) {
-    return withApiHubCandidate(candidate, apiHubCandidateServiceCallId);
+    return withApiHubCandidate(candidate, apiHubCandidateInteractionId);
   }
 
   public RequirementDraft withApiHubCandidate(
-      ApiHubRequirementRefs candidate, String serviceCallId) {
+      ApiHubRequirementRefs candidate, String interactionId) {
     return new RequirementDraft(
         false,
         assembledText,
@@ -410,8 +481,10 @@ public record RequirementDraft(
         false,
         facts,
         true,
-        serviceCalls,
-        serviceCallId);
+        interactionId,
+        idsRequested,
+        flow,
+        catalogBindings);
   }
 
   /** Clears the pending candidate while keeping {@link #importIntent()} for re-gather. */
@@ -428,8 +501,10 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         importIntent,
-        serviceCalls,
-        apiHubCandidateServiceCallId);
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings);
   }
 
   public RequirementDraft withImportIntent(boolean intent) {
@@ -445,8 +520,10 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         facts,
         intent,
-        serviceCalls,
-        apiHubCandidateServiceCallId);
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings);
   }
 
   public RequirementDraft withFacts(List<RequirementFact> nextFacts) {
@@ -462,28 +539,37 @@ public record RequirementDraft(
         awaitingPlanContinuation,
         nextFacts,
         importIntent,
-        List.of(),
-        apiHubCandidateServiceCallId);
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings);
+  }
+
+  public java.util.Optional<CatalogBindingHint> catalogBinding(String interactionId) {
+    String id = interactionId == null ? "" : interactionId.trim();
+    if (id.isEmpty()) {
+      return java.util.Optional.empty();
+    }
+    return catalogBindings.stream().filter(hint -> id.equals(hint.interactionId())).findFirst();
   }
 
   private static DraftDecision decisionFromComplete(boolean complete) {
     return complete ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT;
   }
 
-  private static List<RequirementServiceCall> serviceCallsFromFacts(List<RequirementFact> facts) {
-    List<RequirementServiceCall> calls = new ArrayList<>();
-    for (RequirementFact fact : facts) {
-      if (fact == null || !fact.needsCatalogBinding()) {
-        continue;
-      }
-      calls.add(
-          new RequirementServiceCall(
-              fact.serviceCallId(),
-              fact.sourceFactId(),
-              fact.participant(),
-              fact.operation()));
+  private static List<CatalogBindingHint> hintsFromCalls(
+      List<org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall>
+          serviceCalls) {
+    if (serviceCalls == null || serviceCalls.isEmpty()) {
+      return List.of();
     }
-    return List.copyOf(calls);
+    List<CatalogBindingHint> hints = new ArrayList<>();
+    for (org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall call :
+        serviceCalls) {
+      if (call != null && call.catalogBinding() != null) {
+        hints.add(call.catalogBinding());
+      }
+    }
+    return List.copyOf(hints);
   }
-
 }

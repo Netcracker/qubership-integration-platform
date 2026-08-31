@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import java.time.Instant;
 import java.util.List;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -15,6 +16,10 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /** Shared design-input fixtures: one approved brief and the captures that project onto it. */
@@ -195,7 +200,7 @@ final class ChainSemanticCaptureFixtures {
         List.of(),
         List.of(),
         List.of(
-            new CapturedEdge("trigger-http", "op-shared", null, null, null, null, null, null),
+            new CapturedEdge("http-in", "op-shared", null, null, null, null, null, null),
             new CapturedEdge(
                 "op-shared",
                 SERVICE_CALL_NODE_ID,
@@ -206,5 +211,141 @@ final class ChainSemanticCaptureFixtures {
                 null,
                 mappingIntentId)),
         List.of());
+  }
+
+  /**
+   * Rocky OM/Salesforce WFM: inbound Kafka start, outbound HTTP create, outbound Kafka result.
+   * Mapping intents are cleared so topology tests do not also require a placed mapping.
+   */
+  static RequirementBrief rockyBrief() {
+    return RequirementBriefProjector.project(rockyBriefCandidate()).withMappingIntents(List.of());
+  }
+
+  /** Same Rocky flow with the create-task response to task-result request mapping kept. */
+  static RequirementBrief rockyBriefWithMapping() {
+    return RequirementBriefProjector.project(rockyBriefCandidate());
+  }
+
+  static ChainSemanticCapture rockyCapture() {
+    return rockyCapture(
+        List.of(new CapturedOperation("mapper-1", "script", List.of())),
+        List.of(
+            new CapturedEdge("task-start", "create-task", null, null, null, null, null, null),
+            new CapturedEdge("create-task", "mapper-1", null, null, null, null, null, null),
+            new CapturedEdge("mapper-1", "task-result", null, null, null, null, null, null)));
+  }
+
+  static ChainSemanticCapture rockyCapture(
+      List<CapturedOperation> operations, List<CapturedEdge> edges) {
+    return new ChainSemanticCapture(
+        "om-salesforce-wfm",
+        operations,
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        edges,
+        List.of());
+  }
+
+  private static RequirementBrief rockyBriefCandidate() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    return new RequirementBrief(
+            "OM to Salesforce WFM",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Consume onTaskStart, create a Salesforce task, publish onTaskResult",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withFlow(rockyFlow())
+        .withCatalogBindings(
+            List.of(
+                rockyHint(
+                    "task-start",
+                    "onTaskStart",
+                    "sys-om",
+                    "sg-om",
+                    "spec-om",
+                    "op-start",
+                    "kafka",
+                    "publish",
+                    "env05-bss.task.wfms_createWorkOrder.start",
+                    observedAt),
+                rockyHint(
+                    "create-task",
+                    "createTask",
+                    "sys-sf",
+                    "sg-sf",
+                    "spec-sf",
+                    "op-create",
+                    "http",
+                    "POST",
+                    "/tasks",
+                    observedAt),
+                rockyHint(
+                    "task-result",
+                    "onTaskResult",
+                    "sys-om",
+                    "sg-om",
+                    "spec-om",
+                    "op-result",
+                    "kafka",
+                    "subscribe",
+                    "env05-bss.order.command.queue",
+                    observedAt)))
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    "response-create-task-to-task-result",
+                    "create-task",
+                    MappingPort.RESPONSE,
+                    "task-result",
+                    MappingPort.REQUEST,
+                    List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")))));
+  }
+
+  private static RequirementFlow rockyFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+            new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+            new Interaction("task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+        List.of(
+            new Transition("task-start", "create-task"),
+            new Transition("create-task", "task-result")));
+  }
+
+  private static CatalogBindingHint rockyHint(
+      String interactionId,
+      String operationQuery,
+      String systemId,
+      String specificationGroupId,
+      String specificationId,
+      String integrationOperationId,
+      String protocol,
+      String method,
+      String path,
+      Instant observedAt) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        interactionId,
+        operationQuery,
+        systemId,
+        specificationGroupId,
+        specificationId,
+        integrationOperationId,
+        protocol,
+        method,
+        path,
+        "2024.4",
+        observedAt,
+        "evidence-" + interactionId);
   }
 }

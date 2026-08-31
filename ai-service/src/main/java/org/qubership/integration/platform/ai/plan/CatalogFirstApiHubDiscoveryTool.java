@@ -15,19 +15,21 @@ import org.qubership.integration.platform.ai.integration.catalog.cache.Conversat
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationDirection;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
  * Requirement-stage API resolver that makes a local catalog check a hard prerequisite for API Hub
  * discovery.
  *
- * <p>Every call is about one outbound service call, named by the fact text the caller will capture
- * for it. The answer is stored as that fact's assessment, so a chain with several outbound calls
- * ends up with one outcome per call rather than one binding for the whole draft.
+ * <p>Every call is about one requirement-flow interaction, named by {@code interactionId}. The
+ * answer is stored as that interaction's assessment, so a chain with several catalog-backed
+ * interactions ends up with one outcome per interaction rather than one binding for the whole
+ * draft.
  */
 @ApplicationScoped
 public class CatalogFirstApiHubDiscoveryTool {
@@ -81,50 +83,39 @@ public class CatalogFirstApiHubDiscoveryTool {
   }
 
   @Tool("""
-      Resolve one required outbound service operation. This tool always checks the local runtime
-      catalog first. It calls API Hub only when the catalog has no matching service and operation.
-      Pass serviceCallId as the stable SERVICE_CALL occurrence id from the draft, and
-      serviceCallFact as the exact SERVICE_CALL fact text you will capture for this call, so
-      the answer stays attached to that call. Give the operation name, or the HTTP method and path,
-      whenever you know them. If status is CATALOG_BOUND, recapture with that serviceCallId; do not
-      copy catalog UUIDs by hand. If status is APIHUB_CANDIDATES, select one result with
-      selectApiHubCandidate using the same serviceCallId. If status is AMBIGUOUS, ask the reader to
-      choose; never search API Hub for an ambiguous local catalog match. If status is INCOMPLETE,
-      ask the reader for the fields listed in missingFields; do not guess them. On a catalog miss,
-      the result is the API Hub search response and may contain multiple candidates.
+      Resolve one catalog-backed interaction, inbound or outbound. This tool always checks the
+      local runtime catalog first. It calls API Hub only when the catalog has no matching service
+      and operation. Pass interactionId from the stored RequirementFlow. Do not decide SERVICE_CALL
+      first and do not repeat interaction prose. Give HTTP method and path only as optional
+      narrowing hints. If status is CATALOG_BOUND, recapture with that interactionId; do not copy
+      catalog UUIDs by hand. If status is APIHUB_CANDIDATES, select one result with
+      selectApiHubCandidate using the same interactionId. If status is AMBIGUOUS, ask the reader
+      to choose; never search API Hub for an ambiguous local catalog match. If status is
+      INCOMPLETE, ask the reader for the fields listed in missingFields; do not guess them. On a
+      catalog miss, the result is the API Hub search response and may contain multiple candidates.
       """)
   public String resolveApiOperation(
-      @P("Stable SERVICE_CALL occurrence id from the draft") String serviceCallId,
-      @P("Exact SERVICE_CALL fact text for this outbound call") String serviceCallFact,
-      @P("Best known catalog service name, or empty when unknown") String systemHint,
-      @P("Required operation name, or empty when only method and path are known")
-          String operationHint,
+      @P("Stable interactionId from the stored RequirementFlow") String interactionId,
       @P("HTTP method, or empty when unknown") String method,
       @P("HTTP path, or empty when unknown") String path,
       @P("Specification or API name the reader gave, or empty when unknown")
           String specificationHint,
       @P("Transport: http, kafka, or amqp, or empty when unknown") String protocol,
       @P("Optional target release, for example 2024.4") String release) {
-    String factText = CatalogStrings.blankToNull(serviceCallFact);
-    if (factText == null) {
-      return error("serviceCallFact is required");
+    String resolvedInteractionId = CatalogStrings.blankToNull(interactionId);
+    if (resolvedInteractionId == null) {
+      return error("interactionId is required");
     }
-    String sourceFactId =
-        RequirementFact.deriveSourceFactId(RequirementFactPolarity.POSITIVE, factText);
     String conversationId = ChainPlanTool.resolveConversationId();
-    String resolvedCallId = resolveServiceCallId(serviceCallId);
-    if (resolvedCallId == null) {
-      return error(
-          "serviceCallId is required. Pass the id of the call you are resolving: "
-              + listedServiceCallIds(conversationId));
+    RequirementFlow.Interaction interaction = storedInteraction(conversationId, resolvedInteractionId);
+    if (interaction == null) {
+      return error("Capture RequirementFlow before resolving interactionId=" + resolvedInteractionId);
     }
-    ServiceCallAssessment.Intent intent =
-        new ServiceCallAssessment.Intent(
-            factText, systemHint, operationHint, method, path, specificationHint);
+    InteractionAssessment.Intent intent = intentFrom(interaction, method, path, specificationHint);
 
     if (!intent.missingFields().isEmpty()) {
       return remember(
-          conversationId, ServiceCallAssessment.incomplete(resolvedCallId, sourceFactId, intent));
+          conversationId, InteractionAssessment.incomplete(resolvedInteractionId, intent));
     }
 
     CatalogLookupResult result =
@@ -136,30 +127,38 @@ public class CatalogFirstApiHubDiscoveryTool {
                 intent.method(),
                 intent.path(),
                 intent.operationHint(),
-                release));
+                release,
+                namedInRequest(conversationId, intent)));
     if (result instanceof CatalogLookupResult.Exact exact) {
+      if (CatalogOperationDirection.from(exact.match().protocol(), exact.match().method())
+          .isEmpty()) {
+        return remember(
+            conversationId,
+            InteractionAssessment.tooBroad(
+                resolvedInteractionId, intent, List.of("catalogOperationDirection")));
+      }
       rememberCatalogEvidence(conversationId, exact.match());
       return remember(
           conversationId,
-          ServiceCallAssessment.resolved(resolvedCallId, sourceFactId, intent, exact.match()));
+          InteractionAssessment.resolved(resolvedInteractionId, intent, exact.match()));
     }
     if (result instanceof CatalogLookupResult.Ambiguous ambiguous) {
       return remember(
           conversationId,
-          ServiceCallAssessment.ambiguous(
-              resolvedCallId, sourceFactId, intent, ambiguous.candidateIds()));
+          InteractionAssessment.ambiguous(
+              resolvedInteractionId, intent, ambiguous.candidateIds()));
     }
     if (result instanceof CatalogLookupResult.TooBroad) {
       return remember(
           conversationId,
-          ServiceCallAssessment.tooBroad(
-              resolvedCallId, sourceFactId, intent, List.of("systemHint")));
+          InteractionAssessment.tooBroad(
+              resolvedInteractionId, intent, List.of("systemHint")));
     }
     conversationResolutions.remember(
-        conversationId, ServiceCallAssessment.catalogMiss(resolvedCallId, sourceFactId, intent));
-    // The miss is what authorizes the search, and it authorizes it for this call alone.
+        conversationId, InteractionAssessment.catalogMiss(resolvedInteractionId, intent));
+    // The miss is what authorizes the search, and it authorizes it for this interaction alone.
     searchAuthorizations.issue(
-        conversationId, resolvedCallId, intent.operationQuery(), "confirmed catalog miss");
+        conversationId, resolvedInteractionId, intent.operationQuery(), "confirmed catalog miss");
     return apiHubMcpTools.searchApiOperations(
         intent.operationQuery(), apiTypeFor(protocol), release, 0, 100, null);
   }
@@ -183,7 +182,7 @@ public class CatalogFirstApiHubDiscoveryTool {
     };
   }
 
-  private String remember(String conversationId, ServiceCallAssessment assessment) {
+  private String remember(String conversationId, InteractionAssessment assessment) {
     conversationResolutions.remember(conversationId, assessment);
     return encode(assessment);
   }
@@ -204,11 +203,10 @@ public class CatalogFirstApiHubDiscoveryTool {
     }
   }
 
-  private String encode(ServiceCallAssessment assessment) {
+  private String encode(InteractionAssessment assessment) {
     try {
       ObjectNode root = objectMapper.createObjectNode();
-      root.put("serviceCallId", assessment.serviceCallId());
-      root.put("sourceFactId", assessment.sourceFactId());
+      root.put("interactionId", assessment.interactionId());
       switch (assessment.outcome()) {
         case RESOLVED -> {
           root.put("status", "CATALOG_BOUND");
@@ -237,39 +235,64 @@ public class CatalogFirstApiHubDiscoveryTool {
     }
   }
 
-  private String resolveServiceCallId(String serviceCallId) {
-    return CatalogStrings.blankToNull(serviceCallId);
-  }
-
-  private List<String> activeServiceCallIds(String conversationId) {
+  private List<String> namedInRequest(
+      String conversationId, InteractionAssessment.Intent intent) {
+    List<String> named = new ArrayList<>();
+    if (intent.capability() != null) {
+      named.add(intent.capability());
+    }
+    if (intent.operationHint() != null) {
+      named.add(intent.operationHint());
+    }
     if (draftStore == null || conversationId == null || conversationId.isBlank()) {
-      return List.of();
+      return List.copyOf(named);
     }
     RequirementDraft draft = draftStore.get(conversationId).orElse(null);
     if (draft == null) {
-      return List.of();
+      return List.copyOf(named);
     }
-    if (!draft.serviceCalls().isEmpty()) {
-      List<String> ids = new ArrayList<>();
-      for (RequirementServiceCall call : draft.serviceCalls()) {
-        ids.add(call.serviceCallId());
+    if (!draft.assembledText().isBlank()) {
+      named.add(draft.assembledText());
+    }
+    for (RequirementFlow.Interaction interaction : draft.flow().interactions()) {
+      if (interaction != null && !interaction.operation().isBlank()) {
+        named.add(interaction.operation());
       }
-      return ids;
     }
-    List<String> ids = new ArrayList<>();
     for (RequirementFact fact : draft.facts()) {
-      if (fact != null
-          && fact.polarity() == RequirementFactPolarity.POSITIVE
-          && fact.kind() == RequirementFactKind.SERVICE_CALL
-          && !fact.serviceCallId().isBlank()) {
-        ids.add(fact.serviceCallId());
+      if (fact != null && !fact.operation().isBlank()) {
+        named.add(fact.operation());
       }
     }
-    return ids;
+    return List.copyOf(named);
   }
 
-  private String listedServiceCallIds(String conversationId) {
-    return String.join(", ", activeServiceCallIds(conversationId));
+  private RequirementFlow.Interaction storedInteraction(
+      String conversationId, String interactionId) {
+    if (draftStore == null || conversationId == null || conversationId.isBlank()) {
+      return null;
+    }
+    RequirementDraft draft = draftStore.get(conversationId).orElse(null);
+    if (draft == null) {
+      return null;
+    }
+    return draft.flow().interaction(interactionId).orElse(null);
+  }
+
+  private static InteractionAssessment.Intent intentFrom(
+      RequirementFlow.Interaction interaction,
+      String method,
+      String path,
+      String specificationHint) {
+    String capability =
+        interaction.description().isBlank() ? interaction.operation() : interaction.description();
+    return new InteractionAssessment.Intent(
+        capability,
+        interaction.participant(),
+        interaction.operation(),
+        method,
+        path,
+        specificationHint);
   }
 
   private String error(String message) {

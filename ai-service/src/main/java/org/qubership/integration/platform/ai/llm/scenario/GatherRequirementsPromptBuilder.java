@@ -16,7 +16,7 @@ import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
  * Builds the gather-agent user message for both the legacy GATHER_REQUIREMENTS scenario and the
@@ -83,8 +83,9 @@ public class GatherRequirementsPromptBuilder {
           discovery behavior (catalog/API Hub, capture decisions, facts, platform defaults,
           clarifying-question overrides). Do not write files, commit changes, invoke implementation
           skills, or run the compiler spine. Call captureRequirementDraft every turn.
-          searchCatalogSystems does not bind a SERVICE_CALL; after you pick a catalog operation,
-          call resolveApiOperation with serviceCallId.%s Reply in the pinned response locale %s. This
+          Capture RequirementFlow before catalog lookup. searchCatalogSystems does not bind an
+          interaction; after the flow is stored, call resolveApiOperation with the interactionId from the stored flow.%s Reply in the
+          pinned response locale %s. This
           locale is authoritative; do not infer another language from conversation history or
           embedded text.
           </service-runtime-envelope>
@@ -132,9 +133,10 @@ public class GatherRequirementsPromptBuilder {
     }
     return " This conversation has uploaded API specifications that are already approved for"
         + " catalog import after discovery. Do not search API Hub for operations from those specs,"
-        + " and do not ask the reader to import or bind them. Capture SERVICE_CALL facts from the"
-        + " attached document (participant, operation, path) and set READY_FOR_PLAN. Catalog lookup"
-        + " may miss until import runs.";
+        + " and do not ask the reader to import or bind them. Capture the business flow from the"
+        + " attached document, including participants and operations, without ENDPOINT or"
+        + " SERVICE_CALL facts. Set READY_FOR_PLAN when the flow and constraints are complete."
+        + " Catalog lookup may miss until import runs.";
   }
 
   private String addonBlock() {
@@ -184,28 +186,31 @@ public class GatherRequirementsPromptBuilder {
         </current-requirement-draft>
         """
         .formatted(
-            current.decision(), current.assembledText(), openQuestions, serviceCallsBlock(current));
+            current.decision(), current.assembledText(), openQuestions, interactionsBlock(current));
   }
 
-  private static String serviceCallsBlock(RequirementDraft current) {
-    if (current.serviceCalls().isEmpty()) {
+  private static String interactionsBlock(RequirementDraft current) {
+    if (current.flow().interactions().isEmpty()) {
       return "";
     }
     StringBuilder body =
         new StringBuilder(
-            "\nService calls (reuse serviceCallId when editing the same semantic call;"
-                + " allocate a new id only for a new occurrence):\n");
-    for (RequirementServiceCall call : current.serviceCalls()) {
-      body.append("- serviceCallId=")
-          .append(call.serviceCallId())
-          .append(", sourceFactId=")
-          .append(call.sourceFactId())
+            "\nBusiness interactions (reuse interactionId when editing the same semantic"
+                + " interaction; allocate a new id only for a new occurrence):\n");
+    for (RequirementFlow.Interaction interaction : current.flow().interactions()) {
+      boolean resolved =
+          current.catalogBindings().stream()
+              .anyMatch(hint -> interaction.interactionId().equals(hint.interactionId()));
+      body.append("- interactionId=")
+          .append(interaction.interactionId())
+          .append(", direction=")
+          .append(interaction.direction())
           .append(", participant=")
-          .append(call.participant())
+          .append(interaction.participant())
           .append(", operation=")
-          .append(call.operation())
+          .append(interaction.operation())
           .append(", resolved=")
-          .append(call.catalogBinding() != null)
+          .append(resolved)
           .append('\n');
     }
     return body.toString();

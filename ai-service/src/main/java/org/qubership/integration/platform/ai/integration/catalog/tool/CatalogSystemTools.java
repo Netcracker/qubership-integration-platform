@@ -28,10 +28,10 @@ public class CatalogSystemTools {
     this.support = support;
   }
 
-  @Tool("Search QIP catalog services (API Repository systems) by name substring. Call FIRST when"
-      + " locating a service: if a match exists, use systemId with getApiSpecifications then"
-      + " listCatalogOperations. Search does not record a SERVICE_CALL binding; call"
-      + " resolveApiOperation with serviceCallId to record the match. Only use APIHub"
+  @Tool("Search QIP catalog services (API Repository systems) by name substring. Capture"
+      + " RequirementFlow first; this browse does not bind an interaction. After the flow is"
+      + " stored, use a matching systemId with getApiSpecifications then listCatalogOperations,"
+      + " then call resolveApiOperation with that interactionId. Only use APIHub"
       + " (searchApiOperations) when no suitable catalog service is found and APIHub is"
       + " available. Returns JSON: { ok, tool, message, data: SystemDto[] }.")
   public String searchCatalogSystems(
@@ -77,8 +77,9 @@ public class CatalogSystemTools {
   }
 
   @Tool("Get API specifications (models) for a catalog system. Use systemId returned by"
-      + " searchCatalogSystems. This listing does not record a SERVICE_CALL binding; call"
-      + " resolveApiOperation with serviceCallId after you pick an operation. Returns JSON:"
+      + " searchCatalogSystems. This listing does not bind an interaction; call"
+      + " resolveApiOperation with the interactionId from the stored RequirementFlow after you"
+      + " pick an operation. Returns JSON:"
       + " { ok, tool, message, data: SpecificationDto[] }.")
   public String getApiSpecifications(
       @P("Catalog system UUID from searchCatalogSystems result") String systemId) {
@@ -99,8 +100,9 @@ public class CatalogSystemTools {
 
   @Tool("List operations for a catalog specification. Use specificationId (model id) returned by"
       + " getApiSpecifications. Optional searchFilter for name substring. This listing does not"
-      + " record a SERVICE_CALL binding; call resolveApiOperation with serviceCallId to record"
-      + " the match. Returns JSON: { ok, tool, message, data: OperationDto[] }.")
+      + " bind an interaction; call resolveApiOperation with the interactionId from the stored"
+      + " RequirementFlow to record the match. Returns JSON:"
+      + " { ok, tool, message, data: OperationDto[] }.")
   public String listCatalogOperations(
       @P("Specification UUID from getApiSpecifications result") String specificationId,
       @P("Optional system UUID for context") String systemId,

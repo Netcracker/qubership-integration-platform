@@ -85,8 +85,8 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
     if (node instanceof SemanticNode.Operation && port == MappingPort.OUTPUT) {
       return sideFromEnvelope(node, envelopes.get(node.nodeId()));
     }
-    if (node instanceof SemanticNode.Trigger trigger && port == MappingPort.OUTPUT) {
-      return resolveTriggerOutput(trigger, bindings, persisted);
+    if (node instanceof SemanticNode.Trigger trigger && port != MappingPort.REQUEST) {
+      return resolveTriggerOutput(trigger, bindings, persisted, port);
     }
     return selectUnique(persisted, ownerId(node, bindings), port, port);
   }
@@ -94,14 +94,15 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
   private MappingSchemaSide resolveTriggerOutput(
       SemanticNode.Trigger trigger,
       List<ResolvedServiceCallBinding> bindings,
-      List<MappingSchemaSide> persisted) {
+      List<MappingSchemaSide> persisted,
+      MappingPort resultDirection) {
     for (ResolvedServiceCallBinding binding : bindings) {
       if (trigger.nodeId().equals(binding.targetNodeId())) {
         return selectUnique(
-            persisted, binding.serviceCallId(), MappingPort.REQUEST, MappingPort.OUTPUT);
+            persisted, binding.serviceCallId(), MappingPort.REQUEST, resultDirection);
       }
     }
-    return selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, MappingPort.OUTPUT);
+    return selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, resultDirection);
   }
 
   private MappingSchemaSide sideFromEnvelope(SemanticNode node, MappingEnvelope envelope) {

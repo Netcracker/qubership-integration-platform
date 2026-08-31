@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.llm.routing.ConversationPhaseResolv
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 
 /** Shared in-memory compilation stores for plan lifecycle tests. */
 public final class PlanCompilationTestSupport {
@@ -53,7 +54,7 @@ public final class PlanCompilationTestSupport {
   public static Revision storeApprovedRequirement(
       Runtime runtime, String conversationId, String requirementText) {
     RequirementDraftStore draftStore = runtime.requirementDraftStore();
-    draftStore.put(conversationId, new RequirementDraft(true, requirementText));
+    draftStore.put(conversationId, RequirementFactFixtures.readyDraft(requirementText));
     Revision draftRevision = draftStore.latestRevision(conversationId).orElseThrow();
     draftStore.approve(conversationId, draftRevision.reference(), "test-user", null);
     return draftRevision;

@@ -68,13 +68,14 @@ public class ChainSemanticCaptureTool {
       Capture the chain topology for this design-input turn.
       Do not pass conversationId. The server binds capture to the current design session.
       Copy sourceFactIds and mappingIntentId from the approved requirement brief. Do not mint
-      occurrence ids. Do not send an entryPoints list; the server joins brief entry points to
-      your trigger nodes.
+      occurrence ids. External interaction anchors are server-owned. Reference these node ids
+      from edges, but do not list them under operations. Preserve every approved business
+      transition. You may insert internal processing nodes between its source and target, but
+      you may not reverse, omit, or add an external interaction transition.
       The server owns every id it can derive: leave out revision ids, edge ids, schema versions,
       and compiler contract versions, and leave out catalog values it reads from the brief.
-      List each node in the list that matches its kind: triggers or operations.
-      List each control-flow region in the list that matches its kind, and omit the region lists
-      when the chain is linear.
+      List each internal node you do author under operations, and each control-flow region
+      under the list that matches its kind; omit the region lists when the chain is linear.
       Call this once, then finish the turn.""")
   public String captureChainSemanticRevision(ChainSemanticCapture capture) {
     long startMs = System.currentTimeMillis();
@@ -91,10 +92,8 @@ public class ChainSemanticCaptureTool {
     if (capture == null) {
       return "null";
     }
-    return "entryPoints=%d triggers=%d operations=%d regions=%d edges=%d"
+    return "operations=%d regions=%d edges=%d"
         .formatted(
-            capture.entryPoints().size(),
-            capture.triggers().size(),
             capture.operations().size(),
             capture.sequenceRegions().size()
                 + capture.conditionRegions().size()
