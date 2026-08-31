@@ -21,6 +21,8 @@ import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainLoggingPropertiesDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainLoggingPropertiesSetDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.CreateDeploymentRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DomainDto;
@@ -37,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -79,7 +82,7 @@ public class DeployChainScenario implements ScenarioHandler {
   private static final String STATUS_DEPLOYED = "DEPLOYED";
   private static final String STATUS_FAILED = "FAILED";
   private static final String STATUS_PROCESSING = "PROCESSING";
-  private static final int DEFAULT_POLL_ATTEMPTS = 3;
+  private static final long DEFAULT_POLL_TIMEOUT_MS = 10_000L;
   private static final long DEFAULT_POLL_DELAY_MS = 500L;
 
   private final ChainContextExtractor chainContextExtractor;
@@ -87,7 +90,7 @@ public class DeployChainScenario implements ScenarioHandler {
   private final PendingRedeployStore pendingRedeployStore;
   private final KnownFailureMapper knownFailureMapper;
   private final PinnedFailureStore pinnedFailureStore;
-  private final int pollAttempts;
+  private final long pollTimeoutMillis;
   private final long pollDelayMillis;
 
   @Inject
@@ -103,7 +106,7 @@ public class DeployChainScenario implements ScenarioHandler {
         pendingRedeployStore,
         knownFailureMapper,
         pinnedFailureStore,
-        DEFAULT_POLL_ATTEMPTS,
+        DEFAULT_POLL_TIMEOUT_MS,
         DEFAULT_POLL_DELAY_MS);
   }
 
@@ -113,14 +116,14 @@ public class DeployChainScenario implements ScenarioHandler {
       PendingRedeployStore pendingRedeployStore,
       KnownFailureMapper knownFailureMapper,
       PinnedFailureStore pinnedFailureStore,
-      int pollAttempts,
+      long pollTimeoutMillis,
       long pollDelayMillis) {
     this.chainContextExtractor = chainContextExtractor;
     this.catalogRestClient = catalogRestClient;
     this.pendingRedeployStore = pendingRedeployStore;
     this.knownFailureMapper = knownFailureMapper;
     this.pinnedFailureStore = pinnedFailureStore;
-    this.pollAttempts = pollAttempts;
+    this.pollTimeoutMillis = pollTimeoutMillis;
     this.pollDelayMillis = pollDelayMillis;
   }
 
@@ -166,6 +169,11 @@ public class DeployChainScenario implements ScenarioHandler {
           refreshDeployment(request, conversationId, decision);
       case ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION ->
           dismissDeploymentFailure(request, conversationId);
+      case ChatEvent.SESSION_LOGGING_OFF_ACTION,
+          ChatEvent.SESSION_LOGGING_ERROR_ACTION,
+          ChatEvent.SESSION_LOGGING_INFO_ACTION,
+          ChatEvent.SESSION_LOGGING_DEBUG_ACTION ->
+          applySessionLogging(conversationId, decision);
       default -> null;
     };
   }
@@ -412,14 +420,25 @@ public class DeployChainScenario implements ScenarioHandler {
     Optional<DeploymentDto> onDomain =
         existing.stream().filter(item -> isDomain(item, domain)).findFirst();
     if (onDomain.isPresent()) {
-      return offerRedeploy(conversationId, chainId, domain, namedSnapshot, onDomain.get());
+      DeploymentDto current = onDomain.get();
+      if (STATUS_FAILED.equals(catalogStatus(current))) {
+        SnapshotDto snapshot =
+            namedSnapshot != null
+                ? namedSnapshot
+                : new SnapshotDto(current.snapshotId(), current.name());
+        return deploymentResult(
+            conversationId,
+            chainId,
+            snapshot,
+            domain,
+            new DeploymentObservation(STATUS_FAILED, current));
+      }
+      return offerRedeploy(conversationId, chainId, domain, namedSnapshot, current);
     }
     if (confirmFirstDeploy) {
       return offerFirstDeploy(conversationId, chainId, domain, namedSnapshot);
     }
-    SnapshotDto snapshot =
-        namedSnapshot != null ? namedSnapshot : resolveBareDeploySnapshot(chainId);
-    return deploySnapshot(conversationId, chainId, snapshot, domain);
+    return offerSessionLogging(conversationId, chainId, domain, namedSnapshot, null);
   }
 
   private Multi<ChatEvent> offerRedeploy(
@@ -452,6 +471,47 @@ public class DeployChainScenario implements ScenarioHandler {
             chainId, domain, null, operationId, namedSnapshot == null ? null : namedSnapshot.id()));
     return Multi.createFrom()
         .item(ChatEvent.deployDecision(operationId, deployQuestion(chainId, domain)));
+  }
+
+  private Multi<ChatEvent> offerSessionLogging(
+      String conversationId,
+      String chainId,
+      String domain,
+      SnapshotDto namedSnapshot,
+      String existingDeploymentId) {
+    String operationId = UUID.randomUUID().toString();
+    pendingRedeployStore.put(
+        conversationId,
+        PendingRedeploy.loggingWait(
+            chainId,
+            domain,
+            existingDeploymentId,
+            operationId,
+            namedSnapshot == null ? null : namedSnapshot.id()));
+    return Multi.createFrom()
+        .item(ChatEvent.sessionLoggingDecision(operationId, sessionLoggingQuestion(chainId)));
+  }
+
+  private String sessionLoggingQuestion(String chainId) {
+    return "Which session logging level should this chain use? Current: "
+        + currentSessionLevelLabel(chainId)
+        + ".";
+  }
+
+  private String currentSessionLevelLabel(String chainId) {
+    try {
+      ChainLoggingPropertiesSetDto set = catalogRestClient.getLoggingProperties(chainId);
+      if (set == null) {
+        return "unknown";
+      }
+      String level = set.effective().sessionsLoggingLevel();
+      return level == null || level.isBlank() ? "unknown" : level;
+    } catch (RuntimeException error) {
+      if (knownFailureMapper.tryMap(error, CatalogOperation.LOGGING).isPresent()) {
+        return "unknown";
+      }
+      throw error;
+    }
   }
 
   private String deployQuestion(String chainId, String domain) {
@@ -505,51 +565,104 @@ public class DeployChainScenario implements ScenarioHandler {
 
   private Multi<ChatEvent> applyDeploy(String conversationId, ChatDecisionCommand decision) {
     Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, false);
-    if (pending.isEmpty()) {
+    if (pending.isEmpty() || pending.get().waitingForLoggingLevel()) {
       return Multi.createFrom().item(ChatEvent.token(DEPLOY_GONE_MESSAGE));
     }
     PendingRedeploy confirm = pending.get();
     LOG.infof(
         "DEPLOY_CHAIN confirm-deploy conversationId=%s chainId=%s",
         conversationId, confirm.chainId());
-    try {
-      SnapshotDto snapshot = resolvePendingSnapshot(confirm);
-      if (snapshot == null) {
-        return Multi.createFrom()
-            .item(ChatEvent.token(unknownSnapshotMessage(confirm.snapshotId())));
-      }
-      Multi<ChatEvent> result =
-          deploySnapshot(conversationId, confirm.chainId(), snapshot, confirm.domain());
-      pendingRedeployStore.clear(conversationId);
-      return result;
-    } catch (RuntimeException e) {
-      return knownOrRethrow(e, CatalogOperation.DEPLOY, conversationId, confirm.chainId());
-    }
+    return offerSessionLogging(
+        conversationId, confirm.chainId(), confirm.domain(), pendingSnapshot(confirm), null);
   }
 
   private Multi<ChatEvent> applyRedeploy(String conversationId, ChatDecisionCommand decision) {
     Optional<PendingRedeploy> pending = matchingPending(conversationId, decision, false);
-    if (pending.isEmpty()) {
+    if (pending.isEmpty() || pending.get().waitingForLoggingLevel()) {
       return Multi.createFrom().item(ChatEvent.token(REDEPLOY_GONE_MESSAGE));
     }
     PendingRedeploy replace = pending.get();
     LOG.infof(
-        "DEPLOY_CHAIN redeploy conversationId=%s chainId=%s deploymentId=%s",
+        "DEPLOY_CHAIN confirm-redeploy conversationId=%s chainId=%s deploymentId=%s",
         conversationId, replace.chainId(), replace.existingDeploymentId());
+    return offerSessionLogging(
+        conversationId,
+        replace.chainId(),
+        replace.domain(),
+        pendingSnapshot(replace),
+        replace.existingDeploymentId());
+  }
+
+  private SnapshotDto pendingSnapshot(PendingRedeploy pending) {
+    if (pending.snapshotId() == null || pending.snapshotId().isBlank()) {
+      return null;
+    }
+    return new SnapshotDto(pending.snapshotId(), pending.snapshotId());
+  }
+
+  private Multi<ChatEvent> applySessionLogging(
+      String conversationId, ChatDecisionCommand decision) {
+    Optional<PendingRedeploy> pending =
+        pendingRedeployStore
+            .find(conversationId)
+            .filter(PendingRedeploy::waitingForLoggingLevel)
+            .filter(
+                item ->
+                    item.operationId() != null
+                        && item.operationId().equals(decision.getArtifactHash()));
+    if (pending.isEmpty()) {
+      return Multi.createFrom().item(ChatEvent.token(DEPLOY_GONE_MESSAGE));
+    }
+    PendingRedeploy wait = pending.get();
+    String level = sessionLevelForAction(decision.getAction());
+    LOG.infof(
+        "DEPLOY_CHAIN session-logging conversationId=%s chainId=%s level=%s",
+        conversationId, wait.chainId(), level);
     try {
-      SnapshotDto snapshot = resolvePendingSnapshot(replace);
+      postSessionLogging(wait.chainId(), level);
+    } catch (RuntimeException error) {
+      return knownOrRethrow(error, CatalogOperation.LOGGING, conversationId, wait.chainId());
+    }
+    try {
+      SnapshotDto snapshot = resolvePendingSnapshot(wait);
       if (snapshot == null) {
-        return Multi.createFrom()
-            .item(ChatEvent.token(unknownSnapshotMessage(replace.snapshotId())));
+        return Multi.createFrom().item(ChatEvent.token(unknownSnapshotMessage(wait.snapshotId())));
       }
-      catalogRestClient.deleteDeployment(replace.chainId(), replace.existingDeploymentId());
+      if (wait.existingDeploymentId() != null && !wait.existingDeploymentId().isBlank()) {
+        catalogRestClient.deleteDeployment(wait.chainId(), wait.existingDeploymentId());
+      }
       Multi<ChatEvent> result =
-          deploySnapshot(conversationId, replace.chainId(), snapshot, replace.domain());
+          deploySnapshot(conversationId, wait.chainId(), snapshot, wait.domain());
       pendingRedeployStore.clear(conversationId);
       return result;
-    } catch (RuntimeException e) {
-      return knownOrRethrow(e, CatalogOperation.DEPLOY, conversationId, replace.chainId());
+    } catch (RuntimeException error) {
+      return knownOrRethrow(error, CatalogOperation.DEPLOY, conversationId, wait.chainId());
     }
+  }
+
+  private void postSessionLogging(String chainId, String sessionLevel) {
+    ChainLoggingPropertiesSetDto set;
+    try {
+      set = catalogRestClient.getLoggingProperties(chainId);
+    } catch (RuntimeException error) {
+      if (knownFailureMapper.tryMap(error, CatalogOperation.LOGGING).isEmpty()) {
+        throw error;
+      }
+      set = new ChainLoggingPropertiesSetDto(null, null, null);
+    }
+    ChainLoggingPropertiesDto current =
+        set == null ? ChainLoggingPropertiesDto.catalogDefaults() : set.effective();
+    catalogRestClient.updateLoggingProperties(chainId, current.withSessionLevel(sessionLevel));
+  }
+
+  private static String sessionLevelForAction(String action) {
+    return switch (action) {
+      case ChatEvent.SESSION_LOGGING_OFF_ACTION -> "OFF";
+      case ChatEvent.SESSION_LOGGING_ERROR_ACTION -> "ERROR";
+      case ChatEvent.SESSION_LOGGING_INFO_ACTION -> "INFO";
+      case ChatEvent.SESSION_LOGGING_DEBUG_ACTION -> "DEBUG";
+      default -> throw new IllegalArgumentException("unsupported session logging action: " + action);
+    };
   }
 
   private Multi<ChatEvent> cancelDeploy(String conversationId, ChatDecisionCommand decision) {
@@ -1011,10 +1124,9 @@ public class DeployChainScenario implements ScenarioHandler {
       String chainId, String domain, DeploymentDto created) {
     DeploymentDto observed = created;
     String status = catalogStatus(observed);
-    for (int attempt = 0; attempt < pollAttempts; attempt++) {
-      if (attempt > 0) {
-        awaitPollDelay();
-      }
+    long deadlineNanos =
+        System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(Math.max(0L, pollTimeoutMillis));
+    while (true) {
       List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(chainId));
       DeploymentDto onDomain =
           listed.stream().filter(item -> isDomain(item, domain)).findFirst().orElse(null);
@@ -1023,10 +1135,14 @@ public class DeployChainScenario implements ScenarioHandler {
         status = catalogStatus(onDomain);
       }
       if (STATUS_DEPLOYED.equals(status) || STATUS_FAILED.equals(status)) {
-        break;
+        return new DeploymentObservation(status, observed);
       }
+      long remainingNanos = deadlineNanos - System.nanoTime();
+      if (pollDelayMillis <= 0 || remainingNanos <= 0) {
+        return new DeploymentObservation(status, observed);
+      }
+      awaitPollDelay();
     }
-    return new DeploymentObservation(status, observed);
   }
 
   private static List<DeploymentDto> safeList(List<DeploymentDto> listed) {

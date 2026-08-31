@@ -28,6 +28,10 @@ const ACTION_LABELS: Record<string, string> = {
   "refresh-deployment": "Refresh status",
   "propose-deployment-fix": "Propose a fix",
   "dismiss-deployment-failure": "Not now",
+  "session-logging-off": "Off",
+  "session-logging-error": "Error",
+  "session-logging-info": "Info",
+  "session-logging-debug": "Debug",
   yes: "Yes",
   no: "No",
   pass_through: "Pass through",
@@ -54,6 +58,10 @@ const COMMAND_ACTIONS = new Set([
   "refresh-deployment",
   "propose-deployment-fix",
   "dismiss-deployment-failure",
+  "session-logging-off",
+  "session-logging-error",
+  "session-logging-info",
+  "session-logging-debug",
   "import-specification",
 ]);
 

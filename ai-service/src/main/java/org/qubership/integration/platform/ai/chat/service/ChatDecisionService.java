@@ -241,6 +241,10 @@ public class ChatDecisionService {
           case ChatEvent.UNDEPLOY_ACTION -> "Undeploy the chain from domain " + domainName;
           case ChatEvent.CANCEL_UNDEPLOY_ACTION -> "Leave the live deployment in place";
           case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
+          case ChatEvent.SESSION_LOGGING_OFF_ACTION -> "Set session logging to Off";
+          case ChatEvent.SESSION_LOGGING_ERROR_ACTION -> "Set session logging to Error";
+          case ChatEvent.SESSION_LOGGING_INFO_ACTION -> "Set session logging to Info";
+          case ChatEvent.SESSION_LOGGING_DEBUG_ACTION -> "Set session logging to Debug";
           default -> "Answered " + command.getAction();
         };
     String comment = command.getComment() == null ? "" : command.getComment().strip();

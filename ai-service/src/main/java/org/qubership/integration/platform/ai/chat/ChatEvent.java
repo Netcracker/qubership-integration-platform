@@ -56,6 +56,26 @@ public sealed interface ChatEvent {
   /** Acknowledges a deployment failure without mutating the chain. */
   String DISMISS_DEPLOYMENT_FAILURE_ACTION = "dismiss-deployment-failure";
 
+  /** Session logging Off, chosen on the card that runs before createDeployment. */
+  String SESSION_LOGGING_OFF_ACTION = "session-logging-off";
+
+  /** Session logging Error. */
+  String SESSION_LOGGING_ERROR_ACTION = "session-logging-error";
+
+  /** Session logging Info. */
+  String SESSION_LOGGING_INFO_ACTION = "session-logging-info";
+
+  /** Session logging Debug. */
+  String SESSION_LOGGING_DEBUG_ACTION = "session-logging-debug";
+
+  /** Typed session-logging actions; the level is never parsed from free text. */
+  List<String> SESSION_LOGGING_ACTIONS =
+      List.of(
+          SESSION_LOGGING_OFF_ACTION,
+          SESSION_LOGGING_ERROR_ACTION,
+          SESSION_LOGGING_INFO_ACTION,
+          SESSION_LOGGING_DEBUG_ACTION);
+
   /** Artifact type a chain-patch card binds to. */
   String CHAIN_PATCH_ARTIFACT = "CHAIN_PATCH";
 
@@ -70,6 +90,9 @@ public sealed interface ChatEvent {
 
   /** Artifact type for a deployment result that needs a human follow-up. */
   String DEPLOYMENT_FAILURE_ARTIFACT = "DEPLOYMENT_FAILURE";
+
+  /** Artifact type a session-logging card binds to. */
+  String SESSION_LOGGING_ARTIFACT = "SESSION_LOGGING";
 
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
@@ -354,6 +377,26 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(PROPOSE_DEPLOYMENT_FIX_ACTION, DISMISS_DEPLOYMENT_FAILURE_ACTION));
+  }
+
+  /**
+   * Session logging level, offered after the reader has committed to deploy or redeploy.
+   *
+   * <p>Bound to the pending operation, so a leftover card cannot write logging or deploy a later
+   * request. The level comes from the typed action, never from free text.
+   */
+  static ChatEvent sessionLoggingDecision(String operationId, String question) {
+    Objects.requireNonNull(operationId, "operationId");
+    return new Decision(
+        "session-logging:" + operationId,
+        "clarify",
+        question == null ? "" : question.strip(),
+        SESSION_LOGGING_ARTIFACT,
+        operationId,
+        0L,
+        null,
+        List.of(),
+        SESSION_LOGGING_ACTIONS);
   }
 
   /**

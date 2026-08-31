@@ -6,6 +6,7 @@ public enum CatalogOperation {
   DEPLOY("deploy this chain"),
   UNDEPLOY("undeploy this chain"),
   STATUS("read deployment status"),
+  LOGGING("save session logging"),
   FACTS("load chain facts"),
   LOOKUP("find that chain");
 

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -20,6 +21,9 @@ import java.util.Optional;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
@@ -31,6 +35,8 @@ import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainLoggingPropertiesDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainLoggingPropertiesSetDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.CreateDeploymentRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.CurrentSnapshotDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
@@ -59,6 +65,8 @@ class DeployChainScenarioTest {
     chainContextExtractor = mock(ChainContextExtractor.class);
     catalogRestClient = mock(CatalogRestClient.class);
     when(catalogRestClient.listDomains()).thenReturn(List.of(domain("default")));
+    when(catalogRestClient.getLoggingProperties(any()))
+        .thenReturn(new ChainLoggingPropertiesSetDto(null, null, null));
     pinnedFailureStore = new PinnedFailureStore();
     scenario =
         new DeployChainScenario(
@@ -67,7 +75,7 @@ class DeployChainScenarioTest {
             new PendingRedeployStore(),
             new KnownFailureMapper(),
             pinnedFailureStore,
-            3,
+            0L,
             0L);
   }
 
@@ -210,7 +218,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of())
         .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
 
-    ChatEvent.Token token = tokenFrom("deploy this chain");
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain");
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
@@ -236,7 +244,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of())
         .thenReturn(List.of(deploymentOnDefault(NEW_SNAPSHOT_ID, "DEPLOYED")));
 
-    ChatEvent.Token token = tokenFrom("deploy this chain");
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain");
 
     verify(catalogRestClient).createSnapshot(CHAIN_ID);
     verify(catalogRestClient)
@@ -259,7 +267,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of())
         .thenReturn(List.of(deploymentOnDefault(NEW_SNAPSHOT_ID, "DEPLOYED")));
 
-    ChatEvent.Token token = tokenFrom("deploy the chain");
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy the chain");
 
     verify(catalogRestClient).createSnapshot(CHAIN_ID);
     verify(catalogRestClient)
@@ -281,7 +289,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of())
         .thenReturn(List.of(deploymentOnDefault(NEW_SNAPSHOT_ID, "DEPLOYED")));
 
-    ChatEvent.Token token = tokenFrom("deploy this chain");
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain");
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
@@ -312,7 +320,7 @@ class DeployChainScenarioTest {
                 }
                 """));
 
-    String text = replyTextFrom("deploy this chain");
+    String text = replyTextAfterSessionLogging("deploy this chain");
 
     verify(catalogRestClient).createSnapshot(CHAIN_ID);
     verify(catalogRestClient, never()).createDeployment(any(), any());
@@ -395,25 +403,24 @@ class DeployChainScenarioTest {
   }
 
   @Test
-  void openGraphWithoutExistingDeploymentDeploysImmediatelyWithoutCard() {
+  void openGraphWithoutExistingDeploymentAsksSessionLoggingWithoutCreate() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
     when(catalogRestClient.getChain(CHAIN_ID))
         .thenReturn(
             new ChainDto(
                 CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
-    when(catalogRestClient.listDeployments(CHAIN_ID))
-        .thenReturn(List.of())
-        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
 
     List<ChatEvent> events = eventsFrom("deploy this chain");
 
     verify(catalogRestClient, never()).searchFolderItems(any());
-    verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
-    assertEquals(0, events.stream().filter(ChatEvent.Decision.class::isInstance).count());
-    ChatEvent.Token token = (ChatEvent.Token) events.get(0);
-    assertTrue(token.text().contains("DEPLOYED"));
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).updateLoggingProperties(any(), any());
+    ChatEvent.Decision decision = onlyDecision(events);
+    assertEquals(ChatEvent.SESSION_LOGGING_ARTIFACT, decision.artifactType());
+    assertEquals(ChatEvent.SESSION_LOGGING_ACTIONS, decision.actions());
+    assertTrue(decision.question().contains("Current: OFF"), decision.question());
   }
 
   @Test
@@ -431,7 +438,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
 
     ChatEvent.Decision card = onlyDecision(eventsFrom("deploy the chain Orders"));
-    ChatEvent.Token token = tokenFrom(deployRequest(card.artifactHash()));
+    ChatEvent.Token token = tokenAfterSessionLogging(deployRequest(card.artifactHash()));
 
     verify(catalogRestClient)
         .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
@@ -491,6 +498,44 @@ class DeployChainScenarioTest {
   }
 
   @Test
+  void existingFailedDeploymentReportsFailureNotHealthyRedeploy() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    DeploymentDto failed =
+        new DeploymentDto(
+            "dep-failed",
+            CHAIN_ID,
+            SNAPSHOT_ID,
+            "V1",
+            "default",
+            new DeploymentRuntimeDto(
+                Map.of(
+                    "engine-0",
+                    new RuntimeStateDto("FAILED", "HTTP trigger context path already bound"))));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of(failed));
+
+    List<ChatEvent> events = eventsFrom("deploy this chain");
+
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    ChatEvent.Token token = (ChatEvent.Token) events.get(0);
+    ChatEvent.Decision decision = (ChatEvent.Decision) events.get(1);
+    assertTrue(token.text().contains("FAILED"));
+    assertFalse(token.text().toLowerCase().contains("already deployed"));
+    assertFalse(decision.question().toLowerCase().contains("already deployed"));
+    assertFalse(decision.question().toLowerCase().contains("live deployment"));
+    assertEquals(
+        List.of(
+            ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION,
+            ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION),
+        decision.actions());
+  }
+
+  @Test
   void openGraphWithExistingDeploymentStillEmitsDecisionWithoutMutating() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
@@ -525,9 +570,10 @@ class DeployChainScenarioTest {
         .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
 
     ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
-    ChatEvent.Token token = tokenFrom(redeployRequest(card.artifactHash()));
+    ChatEvent.Token token = tokenAfterSessionLogging(redeployRequest(card.artifactHash()));
 
     InOrder order = inOrder(catalogRestClient);
+    order.verify(catalogRestClient).updateLoggingProperties(eq(CHAIN_ID), any());
     order.verify(catalogRestClient).deleteDeployment(CHAIN_ID, "dep-1");
     order.verify(catalogRestClient)
         .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
@@ -562,7 +608,7 @@ class DeployChainScenarioTest {
                 """));
 
     ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
-    String text = replyTextFrom(redeployRequest(card.artifactHash()));
+    String text = replyTextAfterSessionLogging(redeployRequest(card.artifactHash()));
 
     verify(catalogRestClient).createSnapshot(CHAIN_ID);
     verify(catalogRestClient, never()).deleteDeployment(any(), any());
@@ -604,7 +650,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of())
         .thenReturn(List.of(deploymentOnDefault(NEW_SNAPSHOT_ID, "DEPLOYED")));
 
-    ChatEvent.Token token = tokenFrom("deploy V2");
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy V2");
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
@@ -645,7 +691,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of())
         .thenReturn(List.of(deployment("prod", SNAPSHOT_ID, "DEPLOYED")));
 
-    ChatEvent.Token token = tokenFrom("deploy this chain to prod");
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain to prod");
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
@@ -706,7 +752,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of(deployment("prod", SNAPSHOT_ID, "DEPLOYED")));
 
     String listed = replyTextFrom("deploy this chain");
-    ChatEvent.Token token = tokenFrom("prod");
+    ChatEvent.Token token = tokenAfterSessionLogging("prod");
 
     assertTrue(listed.contains("prod"), listed);
     verify(catalogRestClient, never()).createSnapshot(any());
@@ -735,7 +781,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of(deployment("prod", NEW_SNAPSHOT_ID, "DEPLOYED")));
 
     eventsFrom("which domain should I deploy V2 to");
-    ChatEvent.Token token = tokenFrom("prod");
+    ChatEvent.Token token = tokenAfterSessionLogging("prod");
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
@@ -803,9 +849,10 @@ class DeployChainScenarioTest {
         .thenReturn(List.of(deploymentOnDefault(NEW_SNAPSHOT_ID, "DEPLOYED")));
 
     ChatEvent.Decision card = onlyDecision(eventsFrom("deploy V2"));
-    ChatEvent.Token token = tokenFrom(redeployRequest(card.artifactHash()));
+    ChatEvent.Token token = tokenAfterSessionLogging(redeployRequest(card.artifactHash()));
 
     InOrder order = inOrder(catalogRestClient);
+    order.verify(catalogRestClient).updateLoggingProperties(eq(CHAIN_ID), any());
     order.verify(catalogRestClient).deleteDeployment(CHAIN_ID, "dep-1");
     order.verify(catalogRestClient)
         .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID));
@@ -1029,7 +1076,7 @@ class DeployChainScenarioTest {
         .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "PROCESSING")))
         .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "PROCESSING")));
 
-    ChatEvent.Token token = tokenFrom("deploy it");
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy it");
 
     verify(catalogRestClient)
         .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
@@ -1062,7 +1109,9 @@ class DeployChainScenarioTest {
         .thenReturn(List.of())
         .thenReturn(List.of(failed));
 
-    List<ChatEvent> events = eventsFrom("deploy it");
+    ChatEvent.Decision logging = onlyDecision(eventsFrom("deploy it"));
+    List<ChatEvent> events =
+        eventsFrom(sessionLoggingRequest(logging.artifactHash(), ChatEvent.SESSION_LOGGING_INFO_ACTION));
 
     ChatEvent.Token token = (ChatEvent.Token) events.get(0);
     ChatEvent.Decision decision = (ChatEvent.Decision) events.get(1);
@@ -1077,6 +1126,128 @@ class DeployChainScenarioTest {
     var pin = pinnedFailureStore.find(CONVERSATION_ID, CHAIN_ID).orElseThrow();
     assertEquals(token.text(), pin.safeText());
     assertTrue(pin.diagnosticDetail().contains("10.0.0.7"));
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "session-logging-off, OFF",
+    "session-logging-error, ERROR",
+    "session-logging-info, INFO",
+    "session-logging-debug, DEBUG"
+  })
+  void sessionLoggingActionPostsMatchingLevelThenDeploys(String action, String level) {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.getLoggingProperties(CHAIN_ID))
+        .thenReturn(
+            new ChainLoggingPropertiesSetDto(
+                null,
+                null,
+                new ChainLoggingPropertiesDto(
+                    "OFF", "WARN", List.of("BODY", "HEADERS"), true, false)));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    ChatEvent.Token token = tokenFrom(sessionLoggingRequest(card.artifactHash(), action));
+
+    ArgumentCaptor<ChainLoggingPropertiesDto> posted =
+        ArgumentCaptor.forClass(ChainLoggingPropertiesDto.class);
+    verify(catalogRestClient).updateLoggingProperties(eq(CHAIN_ID), posted.capture());
+    assertEquals(level, posted.getValue().sessionsLoggingLevel());
+    assertEquals("WARN", posted.getValue().logLoggingLevel());
+    assertEquals(List.of("BODY", "HEADERS"), posted.getValue().logPayload());
+    assertTrue(posted.getValue().dptEventsEnabled());
+    assertFalse(posted.getValue().maskingEnabled());
+    verify(catalogRestClient)
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+    assertTrue(token.text().contains("DEPLOYED"));
+  }
+
+  @Test
+  void staleSessionLoggingHashDoesNotPostOrDeploy() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
+
+    onlyDecision(eventsFrom("deploy this chain"));
+    String text =
+        replyTextFrom(sessionLoggingRequest("other-op", ChatEvent.SESSION_LOGGING_INFO_ACTION));
+
+    verify(catalogRestClient, never()).updateLoggingProperties(any(), any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    assertTrue(text.contains("no longer on offer"), text);
+  }
+
+  @Test
+  void sessionLoggingPostTimeoutDoesNotDeploy() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
+    doThrow(new TimeoutException("CatalogRestClient#updateLoggingProperties timed out"))
+        .when(catalogRestClient)
+        .updateLoggingProperties(any(), any());
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    String text =
+        replyTextFrom(sessionLoggingRequest(card.artifactHash(), ChatEvent.SESSION_LOGGING_INFO_ACTION));
+
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    assertEquals(KnownFailureMapper.CATALOG_TIMEOUT_MESSAGE, text);
+  }
+
+  @Test
+  void sessionLoggingGetTimeoutStillShowsCardWithUnknownCurrent() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID)).thenReturn(List.of());
+    when(catalogRestClient.getLoggingProperties(CHAIN_ID))
+        .thenThrow(new TimeoutException("CatalogRestClient#getLoggingProperties timed out"));
+
+    ChatEvent.Decision decision = onlyDecision(eventsFrom("deploy this chain"));
+
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).updateLoggingProperties(any(), any());
+    assertEquals(ChatEvent.SESSION_LOGGING_ACTIONS, decision.actions());
+    assertTrue(decision.question().contains("Current: unknown"), decision.question());
+  }
+
+  private ChatEvent.Token tokenAfterSessionLogging(String message) {
+    return tokenAfterSessionLogging(chatRequest(message));
+  }
+
+  private ChatEvent.Token tokenAfterSessionLogging(ChatRequest request) {
+    ChatEvent.Decision card = onlyDecision(eventsFrom(request));
+    assertEquals(ChatEvent.SESSION_LOGGING_ARTIFACT, card.artifactType());
+    assertEquals(ChatEvent.SESSION_LOGGING_ACTIONS, card.actions());
+    return tokenFrom(sessionLoggingRequest(card.artifactHash(), ChatEvent.SESSION_LOGGING_INFO_ACTION));
+  }
+
+  private String replyTextAfterSessionLogging(String message) {
+    return replyTextAfterSessionLogging(chatRequest(message));
+  }
+
+  private String replyTextAfterSessionLogging(ChatRequest request) {
+    ChatEvent.Decision card = onlyDecision(eventsFrom(request));
+    return replyTextFrom(
+        sessionLoggingRequest(card.artifactHash(), ChatEvent.SESSION_LOGGING_INFO_ACTION));
   }
 
   private ChatEvent.Token tokenFrom(String message) {
@@ -1127,6 +1298,10 @@ class DeployChainScenarioTest {
             .toList();
     assertEquals(1, decisions.size(), () -> "expected one Decision, got " + events);
     return decisions.get(0);
+  }
+
+  private static ChatRequest sessionLoggingRequest(String artifactHash, String action) {
+    return decisionRequest(action, artifactHash);
   }
 
   private static ChatRequest deployRequest(String artifactHash) {
