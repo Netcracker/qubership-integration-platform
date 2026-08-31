@@ -136,7 +136,7 @@ public class RequirementDraftTool {
     this.catalogOperationLookup = catalogOperationLookup;
   }
 
-  RequirementDraftTool(RequirementDraftStore store) {
+  public RequirementDraftTool(RequirementDraftStore store) {
     this(store, null, null, null, null, null, null);
   }
 
@@ -342,6 +342,7 @@ public class RequirementDraftTool {
         LOG.warnf(
             "captureRequirementDraft: validation failed conversationId=%s reason=%s",
             conversationId, duplicateFactError);
+        store.recordCaptureRejection(conversationId, duplicateFactError);
         return finish(conversationId, startMs, duplicateFactError);
       }
       RequirementFlow capturedFlow =
@@ -1167,13 +1168,23 @@ public class RequirementDraftTool {
     if (facts == null || facts.isEmpty()) {
       return null;
     }
-    java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+    Map<String, RequirementFact> firstById = new LinkedHashMap<>();
     for (RequirementFact fact : facts) {
       if (fact == null) {
         return "facts must not contain null entries";
       }
-      if (!seen.add(fact.sourceFactId())) {
-        return "duplicate sourceFactId in facts: " + fact.sourceFactId();
+      RequirementFact previous = firstById.putIfAbsent(fact.sourceFactId(), fact);
+      if (previous != null) {
+        return "duplicate sourceFactId in facts: "
+            + previous.kind()
+            + " sourceFactId="
+            + previous.sourceFactId()
+            + " and "
+            + fact.kind()
+            + " sourceFactId="
+            + fact.sourceFactId()
+            + ". Call captureRequirementDraft again with unique sourceFactId values. Rename one"
+            + " colliding fact or drop the duplicate.";
       }
     }
     return null;

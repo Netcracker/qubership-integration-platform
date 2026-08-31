@@ -34,6 +34,7 @@ import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftCapture;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
@@ -371,6 +372,103 @@ class RequirementDiscoveryCapabilityTest {
     assertTrue(input.getValue().contains("<compiler-process-skill id=\"brainstorming\""));
     assertTrue(input.getValue().contains("explicit `facts`"));
     assertTrue(input.getValue().contains(RequirementFactFixtures.GREETINGS_PROMPT));
+  }
+
+  @Test
+  void completeDiscoveryWithoutDraftKeepsLastCaptureRejectionOnNextWrap() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraftTool tool = new RequirementDraftTool(store);
+    CompilerSkillDocumentService skillDocumentService = mock(CompilerSkillDocumentService.class);
+    CompilerSkillAddonRepository addonRepository = mock(CompilerSkillAddonRepository.class);
+    when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+        .thenReturn(
+            new CompilerSkillDocument(
+                "brainstorming",
+                "brainstorming",
+                "skills/brainstorming/SKILL.md",
+                "Brainstorming Ideas Into Designs",
+                QipKnowledgeCapabilityPhase.UNSUPPORTED,
+                false,
+                new QipKnowledgePackVersion("cip_compiler_v2", "cip_compiler_v2"),
+                "# Brainstorming Ideas Into Designs\n"));
+    when(addonRepository.loadForSkill(RequirementDraftTool.SOURCE_SKILL_ID))
+        .thenReturn(
+            new CompilerSkillAddonContext(
+                List.of(),
+                new CompilerSkillAddonDocument(
+                    "skills/brainstorming.addon.md",
+                    "Every READY_FOR_PLAN capture must include explicit `facts`."),
+                List.of()));
+    GatherRequirementsPromptBuilder promptBuilder =
+        new GatherRequirementsPromptBuilder(skillDocumentService, addonRepository, store);
+
+    store.beginTurn("conv-dup");
+    try (ToolSession.Handle ignored = ToolSession.open("conv-dup")) {
+      tool.captureRequirementDraft(
+          new RequirementDraftCapture(
+              true,
+              "OM onTaskStart then Salesforce createTask",
+              DraftDecision.READY_FOR_PLAN,
+              List.of(),
+              null,
+              List.of(
+                  new RequirementFact(
+                      "om-on-task-start",
+                      RequirementFactPolarity.POSITIVE,
+                      RequirementFactKind.CAPABILITY,
+                      "http-trigger",
+                      "Receive OM onTaskStart",
+                      "",
+                      "",
+                      "",
+                      "POST",
+                      "/tasks/start"),
+                  new RequirementFact(
+                      "om-on-task-start",
+                      RequirementFactPolarity.POSITIVE,
+                      RequirementFactKind.BEHAVIOR,
+                      "",
+                      "commandType is completeTask"))));
+    }
+    assertTrue(store.get("conv-dup").isEmpty());
+
+    GatherRequirementsAgent agent = mock(GatherRequirementsAgent.class);
+    when(agent.chat(any(), any())).thenReturn(Multi.createFrom().empty());
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(agent, store, promptBuilder);
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-dup",
+            "conv-dup",
+            "requirement-discovery",
+            "exec-dup",
+            "attempt-dup",
+            null,
+            null,
+            List.of(),
+            Map.of("userText", RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability.execute(context).subscribe().with(signal -> {
+      if (signal instanceof CapabilitySignal.Completed c) {
+        completed.set(c);
+      }
+    });
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertEquals(
+        RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE, completed.get().outcome().message());
+
+    ArgumentCaptor<String> input = ArgumentCaptor.forClass(String.class);
+    verify(agent).chat(eq("conv-dup"), input.capture());
+    assertTrue(input.getValue().contains("CAPABILITY sourceFactId=om-on-task-start"), input.getValue());
+    assertTrue(input.getValue().contains("Call captureRequirementDraft again"), input.getValue());
+
+    String nextWrap =
+        promptBuilder.wrap("conv-dup", RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE, "en");
+    assertTrue(nextWrap.contains("CAPABILITY sourceFactId=om-on-task-start"), nextWrap);
+    assertTrue(nextWrap.contains("<last-capture-rejection"), nextWrap);
   }
 
   @Test

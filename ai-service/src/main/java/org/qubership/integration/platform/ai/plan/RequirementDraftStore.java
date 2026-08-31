@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public class RequirementDraftStore {
 
   private final ConcurrentHashMap<String, Boolean> capturedThisTurn = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, String> lastCaptureRejection = new ConcurrentHashMap<>();
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
 
@@ -48,6 +49,7 @@ public class RequirementDraftStore {
   }
 
   public void put(String conversationId, RequirementDraft draft) {
+    lastCaptureRejection.remove(conversationId);
     String compilationId = sessions.active(conversationId);
     String revisesArtifactId =
         artifacts
@@ -151,11 +153,13 @@ public class RequirementDraftStore {
   public void remove(String conversationId) {
     sessions.startNew(conversationId);
     capturedThisTurn.remove(conversationId);
+    lastCaptureRejection.remove(conversationId);
   }
 
   /** Clears per-turn gather flags without starting a new compilation. */
   public void clearTurnFlags(String conversationId) {
     capturedThisTurn.remove(conversationId);
+    lastCaptureRejection.remove(conversationId);
   }
 
   /** Returns the active compilation identity used for subsequent artifact revisions. */
@@ -174,6 +178,20 @@ public class RequirementDraftStore {
 
   public boolean wasCapturedThisTurn(String conversationId) {
     return Boolean.TRUE.equals(capturedThisTurn.get(conversationId));
+  }
+
+  public void recordCaptureRejection(String conversationId, String message) {
+    if (conversationId == null || conversationId.isBlank() || message == null || message.isBlank()) {
+      return;
+    }
+    lastCaptureRejection.put(conversationId, message);
+  }
+
+  public Optional<String> lastCaptureRejection(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    return Optional.ofNullable(lastCaptureRejection.get(conversationId));
   }
 
   /** Clears {@code awaitingPlanContinuation} when the user continues after import. */
