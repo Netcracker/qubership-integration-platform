@@ -150,6 +150,30 @@ public class ElementHelperService {
         return getElementsChains(elements);
     }
 
+    /**
+     * Chains grouped by the service they use, for every service at once.
+     * One query, so a service list does not turn into a query per row.
+     */
+    public Map<String, List<Chain>> findChainsGroupedBySystemId() {
+        List<ChainElement> elements = elementRepository.findAll((root, query, builder) -> builder.and(
+                builder.isNotNull(root.get("chain")),
+                builder.isNotNull(builder.function("jsonb_extract_path_text", String.class,
+                        root.<String>get("properties"), builder.literal(CamelOptions.SYSTEM_ID)))
+        ));
+        Map<String, List<ChainElement>> systemChainElements = new HashMap<>();
+        for (ChainElement element : elements) {
+            String systemId = (String) element.getProperty(CamelOptions.SYSTEM_ID);
+            if (systemId == null) {
+                continue;
+            }
+            systemChainElements.computeIfAbsent(systemId, s -> new ArrayList<>()).add(element);
+        }
+        Map<String, List<Chain>> systemChains = new HashMap<>();
+        systemChainElements.forEach((key, chainElements) -> systemChains.put(key, getElementsChains(chainElements)));
+
+        return systemChains;
+    }
+
     public Map<String, List<Chain>> findBySystemIdGroupBySpecificationGroup(String systemId) {
         List<ChainElement> elements = findBySystemId(systemId);
         Map<String, List<ChainElement>> specGroupChainElement = new HashMap<>();

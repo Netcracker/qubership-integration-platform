@@ -27,14 +27,12 @@ import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { render, fireEvent, waitFor, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { IntegrationSystemType } from "../../src/api/apiTypes";
-import type { BaseEntity, IntegrationSystem } from "../../src/api/apiTypes";
+import type { IntegrationSystem } from "../../src/api/apiTypes";
 import type { EntityFilterModel } from "../../src/components/table/filter/filterTypes";
 
 const mockGetServices = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockFilterSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockSearchSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
-const mockGetChainsUsedByService = jest.fn<Promise<BaseEntity[]>, unknown[]>();
-const mockRequestFailed = jest.fn();
 const mockShowModal = jest.fn();
 const mockNavigate = jest.fn();
 
@@ -45,8 +43,6 @@ jest.mock("../../src/api/api", () => ({
     getServices: (...args: unknown[]) => mockGetServices(...args),
     filterServices: (...args: unknown[]) => mockFilterSystems(...args),
     searchServices: (...args: unknown[]) => mockSearchSystems(...args),
-    getChainsUsedByService: (...args: unknown[]) =>
-      mockGetChainsUsedByService(...args),
     getApiSpecifications: jest.fn().mockResolvedValue([]),
     exportServices: jest.fn().mockResolvedValue(new File([], "test")),
     exportContextServices: jest.fn().mockResolvedValue(new File([], "test")),
@@ -69,7 +65,7 @@ jest.mock("react-router-dom", () => ({
 
 jest.mock("../../src/hooks/useNotificationService", () => ({
   useNotificationService: () => ({
-    requestFailed: mockRequestFailed,
+    requestFailed: jest.fn(),
     info: jest.fn(),
   }),
 }));
@@ -191,7 +187,6 @@ describe("ServicesListPage", () => {
     ]);
     mockFilterSystems.mockResolvedValue([]);
     mockSearchSystems.mockResolvedValue([]);
-    mockGetChainsUsedByService.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -200,11 +195,11 @@ describe("ServicesListPage", () => {
     messageInfoSpy.mockRestore();
   });
 
-  it("calls getServices on initial load when no search/filters", async () => {
+  it("asks the systems endpoint for chain usage on initial load", async () => {
     jest.useRealTimers();
     render(<ServicesList tab="external" />);
     await waitFor(() => {
-      expect(mockGetServices).toHaveBeenCalledWith("", false);
+      expect(mockGetServices).toHaveBeenCalledWith("", false, true);
     });
     expect(mockFilterSystems).not.toHaveBeenCalled();
     expect(mockSearchSystems).not.toHaveBeenCalled();
@@ -240,7 +235,7 @@ describe("ServicesListPage", () => {
     jest.advanceTimersByTime(500);
 
     await waitFor(() => {
-      expect(mockSearchSystems).toHaveBeenCalledWith("my-service");
+      expect(mockSearchSystems).toHaveBeenCalledWith("my-service", true);
     });
   });
 
@@ -250,7 +245,7 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="external" />);
 
     await waitFor(() => {
-      expect(mockFilterSystems).toHaveBeenCalledWith(mockFilters);
+      expect(mockFilterSystems).toHaveBeenCalledWith(mockFilters, true);
     });
   });
 
@@ -262,7 +257,7 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="internal" />);
 
     await waitFor(() => {
-      expect(mockGetServices).toHaveBeenCalledWith("", false);
+      expect(mockGetServices).toHaveBeenCalledWith("", false, true);
     });
   });
 
@@ -302,36 +297,6 @@ describe("ServicesListPage", () => {
         component: expect.anything(),
       }),
     );
-  });
-
-  it("loads chain usage for every service of the tab", async () => {
-    jest.useRealTimers();
-    render(<ServicesList tab="external" />);
-
-    await waitFor(() =>
-      expect(mockGetChainsUsedByService).toHaveBeenCalledTimes(2),
-    );
-    expect(mockGetChainsUsedByService).toHaveBeenCalledWith("1");
-    expect(mockGetChainsUsedByService).toHaveBeenCalledWith("2");
-  });
-
-  it("keeps every row when one chain-usage lookup fails, and reports it", async () => {
-    jest.useRealTimers();
-    mockGetChainsUsedByService.mockImplementation((systemId) =>
-      systemId === "1"
-        ? Promise.reject(new Error("boom"))
-        : Promise.resolve([]),
-    );
-    render(<ServicesList tab="external" />);
-
-    await waitFor(() => expect(mockRequestFailed).toHaveBeenCalledTimes(1));
-    const [description, reported] = mockRequestFailed.mock.calls[0] as [
-      string,
-      unknown,
-    ];
-    expect(description).not.toBe("");
-    expect(reported).toBeInstanceOf(Error);
-    expect(mockGetChainsUsedByService).toHaveBeenCalledTimes(2);
   });
 
   it("shows message when Download selected with no selection", async () => {

@@ -75,47 +75,21 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       let servicesArray: IntegrationSystem[];
       if (hasSearch && hasFilters) {
         const [searched, filtered] = await Promise.all([
-          api.searchServices(searchString.trim()),
-          api.filterServices(filters),
+          api.searchServices(searchString.trim(), true),
+          api.filterServices(filters, true),
         ]);
         const filteredIds = new Set(filtered.map((s) => s.id));
         servicesArray = searched.filter((s) => filteredIds.has(s.id));
       } else if (hasFilters) {
-        servicesArray = await api.filterServices(filters);
+        servicesArray = await api.filterServices(filters, true);
       } else if (hasSearch) {
-        servicesArray = await api.searchServices(searchString.trim());
+        servicesArray = await api.searchServices(searchString.trim(), true);
       } else {
-        const all = await api.getServices("", false);
+        const all = await api.getServices("", false, true);
         servicesArray = Array.isArray(all) ? all : [];
       }
 
-      const servicesOfType = servicesArray.filter(
-        (s) => s.type === getSystemType(tab),
-      );
-      // The systems endpoint carries no chain usage, so ask per service. A
-      // failed lookup costs that row its usage, not the whole list.
-      let usageError: unknown;
-      const usage = await Promise.all(
-        servicesOfType.map((service) =>
-          api.getChainsUsedByService(service.id).catch((e: unknown) => {
-            usageError = e;
-            return [];
-          }),
-        ),
-      );
-      if (usageError) {
-        notificationService.requestFailed(
-          // A 502 or a timeout carries no parsable body, so the message is empty.
-          getErrorMessage(usageError, "") || "Chain usage load error",
-          usageError,
-        );
-      }
-      setServices(
-        servicesOfType.map((service, index) => ({
-          ...service,
-          chains: usage[index],
-        })),
-      );
+      setServices(servicesArray.filter((s) => s.type === getSystemType(tab)));
     },
     { initialValue: undefined },
   );

@@ -63,6 +63,19 @@ describe("RestApi - filterServices and searchServices", () => {
         { column: "NAME", condition: "CONTAINS", value: "test" },
         { column: "PROTOCOL", condition: "IN", value: "HTTP" },
       ],
+      { params: { includeChainUsage: false } },
+    );
+  });
+
+  it("filterServices asks for chain usage when requested", async () => {
+    mockPost.mockResolvedValue({ data: [] });
+
+    await restApi.filterServices([], true);
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems/filter"),
+      [],
+      { params: { includeChainUsage: true } },
     );
   });
 
@@ -74,6 +87,19 @@ describe("RestApi - filterServices and searchServices", () => {
     expect(mockPost).toHaveBeenCalledWith(
       expect.stringContaining("/systems-catalog/systems/search"),
       { searchCondition: "my query" },
+      { params: { includeChainUsage: false } },
+    );
+  });
+
+  it("searchServices asks for chain usage when requested", async () => {
+    mockPost.mockResolvedValue({ data: [] });
+
+    await restApi.searchServices("my query", true);
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems/search"),
+      { searchCondition: "my query" },
+      { params: { includeChainUsage: true } },
     );
   });
 
