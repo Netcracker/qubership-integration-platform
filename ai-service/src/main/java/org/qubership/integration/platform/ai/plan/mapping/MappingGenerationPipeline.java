@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -37,6 +38,7 @@ public class MappingGenerationPipeline {
   public static final String SCRIPT_GENERATOR = "cip-script-generator";
   private static final String SCHEMA_VERSION = "1";
   private static final String PRODUCER_VERSION = "1";
+  private static final Logger LOG = Logger.getLogger(MappingGenerationPipeline.class);
 
   private final CompilationArtifacts artifacts;
   private final ObjectMapper objectMapper;
@@ -83,6 +85,9 @@ public class MappingGenerationPipeline {
           resolver.resolve(revision, bindings, intent, envelopesByTransformNodeId);
       Optional<String> blocked = MappingContractGate.blockedMessage(intent, schemas);
       if (blocked.isPresent()) {
+        LOG.warnf(
+            "Mapping contract blocked skillId=%s mappingIntentId=%s message=%s",
+            skillId, intent.mappingIntentId(), blocked.get());
         return Result.blocked(blocked.get(), context);
       }
       MappingEnvelope envelope =

@@ -69,12 +69,12 @@ class LegacyStageMappingCompileTest {
     assertEquals(MappingPort.OUTPUT, intent.sourcePort());
     assertEquals("call-1", intent.targetRef());
     assertEquals(MappingPort.REQUEST, intent.targetPort());
-    assertEquals(MappingMechanism.MAPPER_2, MappingMechanismSelector.select(intent).orElse(null));
+    assertEquals(MappingMechanism.SCRIPT, MappingMechanismSelector.select(intent).orElse(null));
 
     ChainPlanGraph compiled = compile(oneCallGraph(), adapted);
     List<ChainPlanNode> sites = transformSites(compiled);
     assertEquals(1, sites.size());
-    assertEquals("mapper-2", sites.getFirst().type());
+    assertEquals("script", sites.getFirst().type());
     assertEquals("map-init", MappingExecutionSite.mappingIntentId(sites.getFirst()));
     assertTrue(MappingExecutionSite.isConfigured(sites.getFirst()));
     assertTrue(hasEdge(compiled, "trigger-1", sites.getFirst().nodeId()));
@@ -177,9 +177,9 @@ class LegacyStageMappingCompileTest {
     ChainPlanNode init = requireSite(compiled, "map-init");
     ChainPlanNode conv = requireSite(compiled, "map-conv");
     ChainPlanNode resp = requireSite(compiled, "map-resp");
-    assertEquals("mapper-2", init.type());
-    assertEquals("mapper-2", conv.type());
-    assertEquals("mapper-2", resp.type());
+    assertEquals("script", init.type());
+    assertEquals("script", conv.type());
+    assertEquals("script", resp.type());
     assertTrue(hasEdge(compiled, "trigger-1", init.nodeId()));
     assertTrue(hasEdge(compiled, init.nodeId(), "call-1"));
     assertTrue(hasEdge(compiled, "call-1", conv.nodeId()));

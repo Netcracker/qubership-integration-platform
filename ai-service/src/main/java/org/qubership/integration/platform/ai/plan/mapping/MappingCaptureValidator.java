@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 
 /**
@@ -22,9 +23,32 @@ public final class MappingCaptureValidator {
   }
 
   public void validateScript(MappingIntent intent, String script, List<String> mappingCoverage) {
+    validateScript(intent, script, mappingCoverage, MappingContract.unknown());
+  }
+
+  public void validateScript(
+      MappingIntent intent,
+      String script,
+      List<String> mappingCoverage,
+      MappingEnvelope envelope) {
+    validateScript(intent, script, mappingCoverage, contractFromEnvelope(envelope));
+  }
+
+  public void validateScript(
+      MappingIntent intent,
+      String script,
+      List<String> mappingCoverage,
+      MappingContract targetContract) {
     Objects.requireNonNull(intent, "intent");
     Objects.requireNonNull(script, "script");
     SecureGroovyMappingCompiler.compile(script);
-    MappingParityValidator.requireScriptCoverage(intent, mappingCoverage);
+    MappingParityValidator.requireScriptCoverage(intent, mappingCoverage, targetContract);
+  }
+
+  private static MappingContract contractFromEnvelope(MappingEnvelope envelope) {
+    if (envelope == null) {
+      return MappingContract.unknown();
+    }
+    return MappingContract.fromHopPaths(envelope.idToPath().values());
   }
 }

@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.qipknowledge.artifact;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * One field copy, constant, default, or expression inside a {@link MappingIntent}. Status is
@@ -8,7 +10,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MappingIntentRule(
-    String sourcePath, String targetPath, String expression, MappingRuleStatus status) {
+    @JsonProperty("sourcePath") String sourcePath,
+    @JsonProperty("targetPath") String targetPath,
+    @JsonProperty("expression") String expression,
+    @JsonProperty("status") MappingRuleStatus status) {
 
   public MappingIntentRule {
     sourcePath = sourcePath == null ? "" : sourcePath.trim();
@@ -17,6 +22,7 @@ public record MappingIntentRule(
     status = status == null ? MappingRuleStatus.PROPOSED : status;
   }
 
+  @JsonIgnore
   public MappingIntentRule(String sourcePath, String targetPath, String expression) {
     this(sourcePath, targetPath, expression, MappingRuleStatus.PROPOSED);
   }

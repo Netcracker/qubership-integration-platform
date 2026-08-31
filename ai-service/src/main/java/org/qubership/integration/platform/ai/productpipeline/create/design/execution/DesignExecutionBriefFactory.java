@@ -110,7 +110,13 @@ public final class DesignExecutionBriefFactory {
             brief.approvedDraftReference(),
             firstNonBlank(brief.approvedDraftText()),
             List.copyOf(brief.facts()),
-            brief.dataMappings()));
+            brief.dataMappings(),
+            brief.entryPoints(),
+            brief.serviceCalls(),
+            brief.requirements(),
+            brief.mappingIntents().isEmpty()
+                ? revision.mappingIntents()
+                : brief.mappingIntents()));
   }
 
   private static RequirementBrief fromRevision(ChainSemanticRevision revision) {
@@ -127,7 +133,11 @@ public final class DesignExecutionBriefFactory {
             null,
             "",
             List.of(),
-            List.of()));
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            revision.mappingIntents()));
   }
 
   private static String firstNonBlank(String... values) {

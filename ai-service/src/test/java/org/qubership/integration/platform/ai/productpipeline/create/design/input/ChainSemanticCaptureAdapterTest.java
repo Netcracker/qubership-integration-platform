@@ -99,6 +99,39 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void coercesMapper2OperationsToScriptWhileMapper2IsDisabled() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.catalogBoundAsyncApiTriggerBrief();
+    ChainSemanticCapture capture =
+        new ChainSemanticCapture(
+            "chain-om",
+            List.of(
+                new CapturedEntryPoint(
+                    "async-in",
+                    "trigger-async",
+                    "op-shared",
+                    0,
+                    List.of("fact-consume"),
+                    "Consume OM",
+                    null)),
+            List.of(new CapturedTrigger("trigger-async", List.of("fact-consume"))),
+            List.of(new CapturedOperation("op-shared", "mapper-2", List.of())),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(
+                new CapturedEdge("trigger-async", "op-shared", null, null, null, null, null, null)),
+            List.of());
+
+    ChainSemanticRevision revision = adapt(capture, brief);
+
+    SemanticNode.Operation operation = node(revision, SemanticNode.Operation.class);
+    assertEquals("script", operation.elementType());
+  }
+
+  @Test
   void rewritesMappingRefsFromFactIdsOntoTheCarryingEdge() {
     ChainSemanticRevision revision =
         adapt(
@@ -116,6 +149,32 @@ class ChainSemanticCaptureAdapterTest {
     assertEquals(MappingPort.OUTPUT, projected.sourcePort());
     assertEquals(MappingPort.REQUEST, projected.targetPort());
     assertEquals(List.of(new MappingIntentRule("id", "orderId", null)), projected.rules());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+  }
+
+  @Test
+  void foldedPlaceholderDoesNotNeedItsOwnEdge() {
+    MappingIntent approved = ChainSemanticCaptureFixtures.briefWithMapping().mappingIntents().getFirst();
+    MappingIntent placeholder =
+        new MappingIntent(
+            "process-instance-to-process-id",
+            "edge-495d48ab0cc3cf30",
+            MappingPort.OUTPUT,
+            "edge-495d48ab0cc3cf30",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("processInstanceId", "orderId", "alias")));
+    RequirementBrief brief =
+        ChainSemanticCaptureFixtures.briefWithMapping()
+            .withMappingIntents(List.of(approved, placeholder));
+
+    ChainSemanticRevision revision =
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(), brief);
+
+    assertEquals(1, revision.mappingIntents().size());
+    assertEquals(
+        ChainSemanticCaptureFixtures.MAPPING_INTENT_ID,
+        revision.mappingIntents().getFirst().mappingIntentId());
+    assertEquals(2, revision.mappingIntents().getFirst().rules().size());
     new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
   }
 

@@ -68,11 +68,14 @@ class DefaultDesignProcessSkillRunnerTest {
             null,
             "Flow id: flow-1",
             Optional.empty(),
-            Optional.of("- outcomeClass: CONTRACT_FAILURE\n- failedStageId: design-planning\n"));
+            Optional.of(
+                "- outcomeClass: CONTRACT_FAILURE\n- failedStageId: design-planning\n"
+                    + "- errorEvidence:\nplanner report mapping-generator step is missing mappingIntentId\n"));
 
     assertTrue(prompt.contains("## Repair evidence from a previous halt"));
     assertTrue(prompt.contains("CONTRACT_FAILURE"));
     assertTrue(prompt.contains("do not repeat the rejected one"));
+    assertTrue(prompt.contains("mappingIntentId=<id>"));
   }
 
   @Test

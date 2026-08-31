@@ -14,9 +14,37 @@ public final class MappingMechanismSelector {
 
   private MappingMechanismSelector() {}
 
+  /**
+   * Mapper-2 is off. Copy, constant, and other rule sets use SCRIPT unless a MAPPER_2 or SCRIPT
+   * preference cannot express the rules.
+   */
+  static boolean mapper2Enabled() {
+    return false;
+  }
+
+  /**
+   * Element type for a transform shell. Mapper-2 captures become {@code script} while mapper-2 is
+   * off so configuration and generation stay on cip-script-generator.
+   */
+  public static String canonicalTransformElementType(String elementType) {
+    if (elementType == null) {
+      return null;
+    }
+    String trimmed = elementType.trim();
+    if (!MappingExecutionSite.ELEMENT_TYPE.equals(trimmed)) {
+      return trimmed;
+    }
+    return mapper2Enabled()
+        ? MappingExecutionSite.ELEMENT_TYPE
+        : MappingExecutionSite.SCRIPT_ELEMENT_TYPE;
+  }
+
   public static Optional<MappingMechanism> select(MappingIntent intent) {
-    if (intent == null || intent.rules().isEmpty()) {
+    if (intent == null) {
       return Optional.empty();
+    }
+    if (intent.rules().isEmpty()) {
+      return mapper2Enabled() ? Optional.empty() : Optional.of(MappingMechanism.SCRIPT);
     }
     Optional<MappingMechanism> preference = preference(intent);
     boolean mapper2Compatible = isMapper2Compatible(intent);
@@ -27,7 +55,8 @@ public final class MappingMechanismSelector {
         return Optional.of(MappingMechanism.SCRIPT);
       }
       if (wanted == MappingMechanism.MAPPER_2 && mapper2Compatible) {
-        return Optional.of(MappingMechanism.MAPPER_2);
+        return Optional.of(
+            mapper2Enabled() ? MappingMechanism.MAPPER_2 : MappingMechanism.SCRIPT);
       }
       return Optional.empty();
     }
@@ -35,7 +64,10 @@ public final class MappingMechanismSelector {
       return Optional.of(MappingMechanism.SCRIPT);
     }
     if (mapper2Compatible) {
-      return Optional.of(MappingMechanism.MAPPER_2);
+      return Optional.of(mapper2Enabled() ? MappingMechanism.MAPPER_2 : MappingMechanism.SCRIPT);
+    }
+    if (!mapper2Enabled()) {
+      return Optional.of(MappingMechanism.SCRIPT);
     }
     return Optional.empty();
   }
@@ -133,6 +165,20 @@ public final class MappingMechanismSelector {
         || normalized.contains("lowercase")
         || normalized.contains("touppercase")
         || normalized.contains("trim");
+  }
+
+  /**
+   * Script generation can write the mapping expression. Mapper-2 still only accepts uppercase,
+   * lowercase, and trim.
+   */
+  public static boolean scriptAcceptsExpression(String expression) {
+    if (expression == null || expression.isBlank()) {
+      return true;
+    }
+    if (!mapper2Enabled()) {
+      return true;
+    }
+    return isSupportedScriptExpression(expression);
   }
 
   static boolean isConstantLiteral(String sourcePath) {

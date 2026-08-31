@@ -184,6 +184,161 @@ class RequirementBriefProjectorTest {
   }
 
   @Test
+  void mergesRulesThatShareOneSourceToTargetBoundary() {
+    MappingIntent request =
+        new MappingIntent(
+            "request-onTaskStart-to-createTask",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-salesforce-createTask",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("name", "Subject", null)));
+    MappingIntent subjectFallback =
+        new MappingIntent(
+            "map-subject-fallback",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-salesforce-createTask",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "", "Subject", "{subRequestType} task for order {orderId}")));
+
+    RequirementBrief projected =
+        RequirementBriefProjector.project(briefWithIntents(List.of(request, subjectFallback)));
+
+    assertEquals(1, projected.mappingIntents().size());
+    MappingIntent merged = projected.mappingIntents().getFirst();
+    assertEquals("request-onTaskStart-to-createTask", merged.mappingIntentId());
+    assertEquals(2, merged.rules().size());
+    assertEquals("name", merged.rules().getFirst().sourcePath());
+    assertEquals("Subject", merged.rules().getFirst().targetPath());
+    assertEquals("Subject", merged.rules().get(1).targetPath());
+  }
+
+  @Test
+  void foldsPlaceholderFieldAliasIntoTheCallToCallBoundary() {
+    MappingIntent request =
+        new MappingIntent(
+            "request-onTaskStart-to-createTask",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-salesforce-createTask",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("name", "Subject", null)));
+    MappingIntent response =
+        new MappingIntent(
+            "response-createTask-to-onTaskResult",
+            "call-salesforce-createTask",
+            MappingPort.RESPONSE,
+            "call-om-onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "executionId, orderId, processId, executionNumber, taskId",
+                    "executionId, orderId, processId, executionNumber, taskId",
+                    "Echo the specified identifiers.")));
+    MappingIntent processIdAlias =
+        new MappingIntent(
+            "process-instance-to-process-id",
+            "edge-495d48ab0cc3cf30",
+            MappingPort.OUTPUT,
+            "edge-495d48ab0cc3cf30",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "processInstanceId",
+                    "processId",
+                    "Use processInstanceId as processId for the response.")));
+
+    RequirementBrief projected =
+        RequirementBriefProjector.project(
+            omSalesforceBrief(List.of(request, response, processIdAlias)));
+
+    assertEquals(2, projected.mappingIntents().size(), projected.mappingIntents().toString());
+    assertEquals(
+        "request-onTaskStart-to-createTask",
+        projected.mappingIntents().getFirst().mappingIntentId());
+    MappingIntent mergedResponse = projected.mappingIntents().get(1);
+    assertEquals("response-createTask-to-onTaskResult", mergedResponse.mappingIntentId());
+    assertEquals(2, mergedResponse.rules().size());
+    assertEquals("processInstanceId", mergedResponse.rules().get(1).sourcePath());
+    assertEquals("processId", mergedResponse.rules().get(1).targetPath());
+  }
+
+  @Test
+  void doesNotFoldAResponsePlaceholderIntoTheRequestBoundary() {
+    MappingIntent request =
+        new MappingIntent(
+            "request-onTaskStart-to-createTask",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-salesforce-createTask",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("name", "Subject", null),
+                new MappingIntentRule(
+                    "executionId, orderId, processInstanceId, executionNumber, taskId",
+                    "response context",
+                    "Preserve these fields for the response.")));
+    MappingIntent response =
+        new MappingIntent(
+            "response-createTask-to-onTaskResult",
+            "edge-aca101ba838d4bb4",
+            MappingPort.OUTPUT,
+            "edge-aca101ba838d4bb4",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("", "commandType", "Set to completeTask."),
+                new MappingIntentRule(
+                    "executionId, orderId, processId, executionNumber, taskId",
+                    "executionId, orderId, processId, executionNumber, taskId",
+                    "Echo the specified identifiers.")));
+
+    RequirementBrief projected =
+        RequirementBriefProjector.project(omSalesforceBrief(List.of(request, response)));
+
+    assertEquals(2, projected.mappingIntents().size(), projected.mappingIntents().toString());
+    assertEquals(
+        "request-onTaskStart-to-createTask",
+        projected.mappingIntents().getFirst().mappingIntentId());
+    assertEquals(
+        "response-createTask-to-onTaskResult",
+        projected.mappingIntents().get(1).mappingIntentId());
+  }
+
+  @Test
+  void keepsIndependentRequestAndResponseBoundariesSeparate() {
+    MappingIntent request =
+        new MappingIntent(
+            "request-onTaskStart-to-createTask",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-salesforce-createTask",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("name", "Subject", null)));
+    MappingIntent response =
+        new MappingIntent(
+            "response-createTask-to-onTaskResult",
+            "call-salesforce-createTask",
+            MappingPort.RESPONSE,
+            "call-om-onTaskResult",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
+
+    RequirementBrief projected =
+        RequirementBriefProjector.project(omSalesforceBrief(List.of(request, response)));
+
+    assertEquals(2, projected.mappingIntents().size());
+    assertEquals(
+        "request-onTaskStart-to-createTask",
+        projected.mappingIntents().getFirst().mappingIntentId());
+    assertEquals(
+        "response-createTask-to-onTaskResult",
+        projected.mappingIntents().get(1).mappingIntentId());
+  }
+
+  @Test
   void preservesExistingMappingIntentsInsteadOfReplacingThemFromDataMappings() {
     MappingIntent unresolved =
         new MappingIntent(
@@ -300,6 +455,60 @@ class RequirementBriefProjectorTest {
     assertEquals("call-om-again", projected.serviceCalls().get(1).serviceCallId());
     assertEquals("op-shared", projected.serviceCalls().get(0).catalogBinding().integrationOperationId());
     assertEquals("op-shared", projected.serviceCalls().get(1).catalogBinding().integrationOperationId());
+  }
+
+  private static RequirementBrief briefWithIntents(List<MappingIntent> mappingIntents) {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map the request only",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(mappingIntents);
+  }
+
+  private static RequirementBrief omSalesforceBrief(List<MappingIntent> mappingIntents) {
+    RequirementFact trigger =
+        new RequirementFact(
+            "trigger-onTaskStart",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "async-api-trigger",
+            "Consume OM onTaskStart",
+            "om-order-lifecycle-manager-WFMS",
+            "onTaskStart",
+            "env05-bss.task.wfms_createWorkOrder.start",
+            "",
+            "");
+    RequirementFact createTask =
+        serviceCallFact(
+            "fact-create-task",
+            "call-salesforce-createTask",
+            "Salesforce WFM",
+            "createTask");
+    RequirementFact onTaskResult =
+        serviceCallFact(
+            "fact-on-task-result",
+            "call-om-onTaskResult",
+            "om-order-lifecycle-manager-WFMS",
+            "onTaskResult");
+    return new RequirementBrief(
+            "OM to Salesforce WFM",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Consume onTaskStart, create a Salesforce task, publish onTaskResult",
+            "ref",
+            "draft",
+            List.of(trigger, createTask, onTaskResult),
+            List.of())
+        .withMappingIntents(mappingIntents);
   }
 
   private static RequirementBrief briefWithCalls(

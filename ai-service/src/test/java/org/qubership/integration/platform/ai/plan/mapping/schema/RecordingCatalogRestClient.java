@@ -55,6 +55,85 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
     }
   }
 
+  /** AsyncAPI: empty request, message payloads as flat JSON Schema under message names. */
+  public static RecordingCatalogRestClient withAsyncMessageSchemas() {
+    try {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode start =
+          mapper.readTree(
+              """
+              {
+                "type": "object",
+                "properties": { "taskId": { "type": "string" }, "orderId": { "type": "string" } },
+                "required": ["taskId", "orderId"]
+              }
+              """);
+      JsonNode suspend =
+          mapper.readTree(
+              """
+              {
+                "type": "object",
+                "properties": { "taskId": { "type": "string" }, "executionId": { "type": "string" } },
+                "required": ["taskId"]
+              }
+              """);
+      Map<String, JsonNode> responseSchemas = new LinkedHashMap<>();
+      responseSchemas.put("task-start", start);
+      responseSchemas.put("task-suspend", suspend);
+      CatalogRestClient.OperationSchemaMapsDto dto =
+          new CatalogRestClient.OperationSchemaMapsDto("op-1", Map.of(), responseSchemas);
+      return new RecordingCatalogRestClient(Map.of("op-1", dto));
+    } catch (Exception e) {
+      throw new IllegalStateException("cannot build async message schema fixture", e);
+    }
+  }
+
+  /** HTTP: one JSON request body and both a 2xx and a 4xx response. */
+  public static RecordingCatalogRestClient withJsonMapsAndErrorStatus() {
+    try {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode requestSchema =
+          mapper.readTree(
+              """
+              {
+                "type": "object",
+                "properties": { "orderId": { "type": "string" } },
+                "required": ["orderId"]
+              }
+              """);
+      JsonNode created =
+          mapper.readTree(
+              """
+              {
+                "type": "object",
+                "properties": { "id": { "type": "string" } }
+              }
+              """);
+      JsonNode badRequest =
+          mapper.readTree(
+              """
+              {
+                "type": "object",
+                "properties": { "error": { "type": "string" } }
+              }
+              """);
+      Map<String, JsonNode> request = new LinkedHashMap<>();
+      request.put("application/json", requestSchema);
+      Map<String, JsonNode> createdByType = new LinkedHashMap<>();
+      createdByType.put("application/json", created);
+      Map<String, JsonNode> errorByType = new LinkedHashMap<>();
+      errorByType.put("application/json", badRequest);
+      Map<String, JsonNode> responseSchemas = new LinkedHashMap<>();
+      responseSchemas.put("201", mapper.valueToTree(createdByType));
+      responseSchemas.put("400", mapper.valueToTree(errorByType));
+      CatalogRestClient.OperationSchemaMapsDto dto =
+          new CatalogRestClient.OperationSchemaMapsDto("op-1", request, responseSchemas);
+      return new RecordingCatalogRestClient(Map.of("op-1", dto));
+    } catch (Exception e) {
+      throw new IllegalStateException("cannot build HTTP error-status schema fixture", e);
+    }
+  }
+
   /** Async-style response: schema node directly under status key, not under a media type. */
   public static RecordingCatalogRestClient withFlatAsyncResponseSchema() {
     try {

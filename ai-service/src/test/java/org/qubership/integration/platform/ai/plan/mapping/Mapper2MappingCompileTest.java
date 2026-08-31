@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -32,7 +33,12 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipValidator;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
 
+@EnabledIf("mapper2Enabled")
 class Mapper2MappingCompileTest {
+
+  static boolean mapper2Enabled() {
+    return MappingMechanismSelector.mapper2Enabled();
+  }
 
   private static final ObjectMapper JSON = new ObjectMapper();
 

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.qipknowledge.validation.MaterializationRequirementsValidator;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
@@ -128,6 +129,57 @@ class CompilerValidationPipelineTest {
                         new PlanProperty("integrationOperationId", "op-1"),
                         new PlanProperty("integrationOperationMethod", "GET"),
                         new PlanProperty("integrationOperationPath", "/store/inventory")))),
+            List.of());
+
+    ValidationResult elementResult =
+        pipeline.validatePass("cip-element-validator", null, graph);
+
+    assertTrue(elementResult.valid(), elementResult.summary());
+  }
+
+  @Test
+  void elementValidatorAcceptsScriptWithCompilerMappingMetadata() {
+    ObjectMapper mapper = new ObjectMapper();
+    DeterministicElementSchemaService schemaService =
+        DeterministicElementSchemaService.createForUnitTests(mapper);
+    SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
+    SchemaRefResolver schemaRefResolver =
+        new SchemaRefResolver(schemaResourceLoader, new QipSchemaYamlParser());
+    MaterializationRequirementsValidator requirements =
+        mock(MaterializationRequirementsValidator.class);
+    when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+    CompilerValidationPipeline pipeline =
+        new CompilerValidationPipeline(
+            schemaResourceLoader,
+            schemaRefResolver,
+            mapper,
+            new ChainPlanGraphValidator(schemaService),
+            schemaService,
+            new CompilerSecurityValidator(),
+            new CompilerQualityValidator(requirements));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("c1", "MapRequest"),
+            List.of(
+                new ChainPlanNode(
+                    "script-1",
+                    "script",
+                    "Map request",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("script", "return body"),
+                        new PlanProperty(
+                            MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY,
+                            "request-onTaskStart-to-createTask"),
+                        new PlanProperty(
+                            MappingExecutionSite.SEMANTIC_EDGE_ID_PROPERTY, "edge-1"),
+                        new PlanProperty(MappingExecutionSite.MAPPING_ID_PROPERTY, "map-1"),
+                        new PlanProperty(
+                            MappingExecutionSite.MAPPING_COVERAGE_PROPERTY,
+                            "[\"Subject\",\"Description\"]")))),
             List.of());
 
     ValidationResult elementResult =

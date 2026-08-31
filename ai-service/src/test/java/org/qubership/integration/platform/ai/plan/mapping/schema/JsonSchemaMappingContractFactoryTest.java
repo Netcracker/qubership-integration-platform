@@ -64,6 +64,35 @@ class JsonSchemaMappingContractFactoryTest {
   }
 
   @Test
+  void oneOfObjectVariantsExposeUnionFields() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": { "taskId": { "type": "string" }, "orderId": { "type": "string" } },
+                  "required": ["taskId", "orderId"]
+                },
+                {
+                  "type": "object",
+                  "properties": { "taskId": { "type": "string" }, "executionId": { "type": "string" } },
+                  "required": ["taskId"]
+                }
+              ]
+            }
+            """);
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertTrue(contract.known());
+    assertTrue(contract.field("$.taskId").isPresent());
+    assertTrue(contract.field("$.orderId").isPresent());
+    assertTrue(contract.field("$.executionId").isPresent());
+    assertTrue(contract.field("$.taskId").orElseThrow().required());
+    assertFalse(contract.field("$.orderId").orElseThrow().required());
+  }
+
+  @Test
   void inDocumentRefViaDefinitionsResolvesProperties() throws Exception {
     JsonNode schema =
         MAPPER.readTree(
@@ -83,5 +112,28 @@ class JsonSchemaMappingContractFactoryTest {
     MappingContract.Field field = contract.field("$.orderId").orElseThrow();
     assertEquals("string", field.type());
     assertTrue(field.required());
+  }
+
+  @Test
+  void fieldLookupAcceptsBareNamesUsedInCapturedBriefs() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "Subject": { "type": "string" },
+                "parameters": {
+                  "type": "object",
+                  "properties": { "salesforceTaskId": { "type": "string" } }
+                }
+              },
+              "required": ["Subject"]
+            }
+            """);
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+    assertTrue(contract.field("Subject").isPresent());
+    assertTrue(contract.field("parameters.salesforceTaskId").isPresent());
+    assertEquals("$.Subject", contract.field("Subject").orElseThrow().path());
   }
 }

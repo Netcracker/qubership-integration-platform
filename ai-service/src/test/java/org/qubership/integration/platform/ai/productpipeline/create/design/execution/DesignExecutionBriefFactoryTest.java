@@ -12,6 +12,9 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
@@ -94,6 +97,37 @@ class DesignExecutionBriefFactoryTest {
     assertTrue(
         brief.dataMappings().getFirst().rules().stream()
             .anyMatch(rule -> rule.targetPath().equals("$.headers.X-Request-Id")));
+  }
+
+  @Test
+  void preservesStoredMappingIntents() {
+    MappingIntent intent =
+        new MappingIntent(
+            "map-request",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("name", "Subject", null)));
+    RequirementBrief stored =
+        new RequirementBrief(
+                "goal",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "summary",
+                null,
+                "approved text",
+                List.of(),
+                List.of())
+            .withMappingIntents(List.of(intent));
+
+    RequirementBrief brief = DesignExecutionBriefFactory.build(stored, sampleRevision());
+
+    assertEquals(1, brief.mappingIntents().size());
+    assertEquals("map-request", brief.mappingIntents().getFirst().mappingIntentId());
+    assertEquals("name", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
   }
 
   @Test

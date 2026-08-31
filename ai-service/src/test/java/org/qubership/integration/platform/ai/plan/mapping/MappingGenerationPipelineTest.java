@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.mockito.Mockito;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
@@ -88,7 +89,12 @@ class MappingGenerationPipelineTest {
             """);
   }
 
+  static boolean mapper2Enabled() {
+    return MappingMechanismSelector.mapper2Enabled();
+  }
+
   @Test
+  @EnabledIf("mapper2Enabled")
   void identityMapper2FakeCapturePassesValidator() {
     persistSide("trigger-http", MappingPort.OUTPUT, orderSchema);
     persistSide("call-1", MappingPort.REQUEST, orderSchema);
@@ -133,7 +139,7 @@ class MappingGenerationPipelineTest {
     MappingGenerationPipeline.Result prepared =
         pipeline.prepare(
             COMPILATION_ID,
-            TRANSFORMATION_SKILL,
+            SCRIPT_SKILL,
             revisionWith(unresolved),
             List.of(binding()),
             sampleContext(List.of()));
@@ -148,6 +154,7 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
+  @EnabledIf("mapper2Enabled")
   void chainedMapperOutputReusesPriorEnvelopeBySiteNodeId() throws Exception {
     JsonNode looseOrder =
         MAPPER.readTree(

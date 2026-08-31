@@ -191,7 +191,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
                     binding.serviceCallId(),
                     binding.operationId(),
                     contentType));
-    soleResponseStatusAndContentType(maps.responseByStatusThenContentType())
+    soleHttpSuccessResponse(maps.responseByStatusThenContentType())
         .ifPresent(
             selection ->
                 schemaLoader.persistResponse(
@@ -210,17 +210,31 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     return keys.size() == 1 ? Optional.of(keys.getFirst()) : Optional.empty();
   }
 
-  private static Optional<ResponseSchemaSelection> soleResponseStatusAndContentType(
+  private static Optional<ResponseSchemaSelection> soleHttpSuccessResponse(
       Map<String, Map<String, JsonNode>> byStatusThenContentType) {
     if (byStatusThenContentType == null || byStatusThenContentType.isEmpty()) {
       return Optional.empty();
     }
-    if (byStatusThenContentType.size() != 1) {
+    List<Map.Entry<String, Map<String, JsonNode>>> success = new ArrayList<>();
+    for (Map.Entry<String, Map<String, JsonNode>> entry : byStatusThenContentType.entrySet()) {
+      if (isHttpSuccessStatus(entry.getKey())) {
+        success.add(entry);
+      }
+    }
+    if (success.size() != 1) {
       return Optional.empty();
     }
-    Map.Entry<String, Map<String, JsonNode>> statusEntry = byStatusThenContentType.entrySet().iterator().next();
+    Map.Entry<String, Map<String, JsonNode>> statusEntry = success.getFirst();
     return soleContentType(statusEntry.getValue())
         .map(contentType -> new ResponseSchemaSelection(statusEntry.getKey(), contentType));
+  }
+
+  private static boolean isHttpSuccessStatus(String status) {
+    return status != null
+        && status.length() == 3
+        && status.charAt(0) == '2'
+        && Character.isDigit(status.charAt(1))
+        && Character.isDigit(status.charAt(2));
   }
 
   private record ResponseSchemaSelection(String responseCode, String contentType) {}

@@ -138,6 +138,30 @@ class BriefMappingValidatorTest {
   }
 
   @Test
+  void groovyExpressionCoveringARequiredTargetDoesNotBlock() {
+    Optional<MappingIntent> intent =
+        BriefMappingValidator.validateBoundary(
+            "map-request",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.orderId", "$.orderId", null),
+                new MappingIntentRule("$.userId", "$.personId", null),
+                new MappingIntentRule(
+                    "$.name",
+                    "$.fullName",
+                    "Use name when present; otherwise a fallback.")),
+            SOURCE,
+            TARGET);
+
+    assertTrue(intent.isPresent());
+    assertEquals(MappingRuleStatus.PROPOSED, intent.get().rules().get(2).status());
+    assertFalse(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+  }
+
+  @Test
   void unknownContractsDoNotInventUnresolvedRequiredTargets() {
     Optional<MappingIntent> intent =
         BriefMappingValidator.validateBoundary(
@@ -173,7 +197,77 @@ class BriefMappingValidatorTest {
   }
 
   @Test
-  void expressionStaysUnresolvedWithoutScriptPreference() {
+  void bareCapturedNamesCoverRequiredJsonSchemaPaths() {
+    Optional<MappingIntent> intent =
+        BriefMappingValidator.validateBoundary(
+            "request-subject",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("name", "Subject", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "", "Status", "Set to Not Started.", MappingRuleStatus.USER_DEFINED)),
+            MappingContract.of(
+                new MappingContract.Field("$.name", "string", false),
+                new MappingContract.Field("$.priority", "string", false)),
+            MappingContract.of(
+                new MappingContract.Field("$.Subject", "string", true),
+                new MappingContract.Field("$.Status", "string", false)));
+
+    assertTrue(intent.isPresent());
+    assertFalse(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+    assertTrue(
+        intent.get().rules().stream()
+            .anyMatch(
+                rule ->
+                    "$.Subject".equals(rule.targetPath())
+                        && rule.status() != MappingRuleStatus.UNRESOLVED));
+  }
+
+  @Test
+  void userDefinedContextEchoCoversRequiredTargetsMissingFromThisHop() {
+    Optional<MappingIntent> intent =
+        BriefMappingValidator.validateBoundary(
+            "response-result",
+            "call-sf",
+            MappingPort.RESPONSE,
+            "call-om",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "", "commandType", "Set to completeTask.", MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "executionId, orderId, processId, executionNumber, taskId",
+                    "executionId, orderId, processId, executionNumber, taskId",
+                    "Echo preserved execution context fields.",
+                    MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule("id", "parameters.salesforceTaskId", null, MappingRuleStatus.USER_DEFINED)),
+            MappingContract.of(
+                new MappingContract.Field("$.id", "string", true),
+                new MappingContract.Field("$.success", "boolean", true),
+                new MappingContract.Field("$.errors", "array", true)),
+            MappingContract.of(
+                new MappingContract.Field("$.executionId", "string", true),
+                new MappingContract.Field("$.commandType", "string", true),
+                new MappingContract.Field("$.orderId", "string", true),
+                new MappingContract.Field("$.processId", "string", false),
+                new MappingContract.Field("$.executionNumber", "integer", false),
+                new MappingContract.Field("$.taskId", "string", false),
+                new MappingContract.Field("$.parameters.salesforceTaskId", "string", false)));
+
+    assertTrue(intent.isPresent());
+    assertFalse(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+    assertEquals(
+        7,
+        intent.get().rules().stream()
+            .filter(rule -> rule.status() != MappingRuleStatus.UNRESOLVED)
+            .count());
+  }
+
+  @Test
+  void groovyExpressionDoesNotBlockWhenMapper2IsOff() {
     Optional<MappingIntent> intent =
         BriefMappingValidator.validateBoundary(
             "map-init",
@@ -188,8 +282,8 @@ class BriefMappingValidatorTest {
             MappingContract.unknown());
 
     assertTrue(intent.isPresent());
-    assertEquals(MappingRuleStatus.UNRESOLVED, intent.get().rules().getFirst().status());
-    assertTrue(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+    assertEquals(MappingRuleStatus.USER_DEFINED, intent.get().rules().getFirst().status());
+    assertFalse(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
   }
 
   @Test

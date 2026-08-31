@@ -24,9 +24,11 @@ import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescripti
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.NullType;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -57,6 +59,67 @@ class MappingBoundarySchemaResolverTest {
               "required": ["orderId"]
             }
             """);
+  }
+
+  @Test
+  void edgeMappedIntentResolvesTriggerOutputAndCallRequest() {
+    persistSide(
+        "trigger-http",
+        null,
+        MappingPort.OUTPUT,
+        "application/json",
+        null,
+        orderSchema);
+    persistSide("call-1", "op-1", MappingPort.REQUEST, "application/json", null, orderSchema);
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "edge-1",
+            MappingPort.OUTPUT,
+            "edge-1",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("id", "customerId", null)));
+
+    MappingBoundarySchemas sides =
+        resolver.resolve(
+            SemanticFixtures.linearOrdersWithMapping(),
+            List.of(binding("node-call", "call-1", "op-1")),
+            intent,
+            Map.of());
+
+    assertEquals(MappingPort.OUTPUT, sides.source().direction());
+    assertEquals(MappingPort.REQUEST, sides.target().direction());
+    assertEquals("application/json", sides.target().mediaType());
+  }
+
+  @Test
+  void mappingOnTriggerToScriptEdgeWalksDownstreamToTheCall() {
+    persistSide(
+        "trigger-http",
+        null,
+        MappingPort.OUTPUT,
+        "application/json",
+        null,
+        orderSchema);
+    persistSide("call-1", "op-1", MappingPort.REQUEST, "application/json", null, orderSchema);
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "edge-trigger-script",
+            MappingPort.OUTPUT,
+            "edge-trigger-script",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("id", "customerId", null)));
+
+    MappingBoundarySchemas sides =
+        resolver.resolve(
+            triggerScriptCall(),
+            List.of(binding("node-call", "call-1", "op-1")),
+            intent,
+            Map.of());
+
+    assertEquals(MappingPort.OUTPUT, sides.source().direction());
+    assertEquals(MappingPort.REQUEST, sides.target().direction());
   }
 
   @Test
@@ -226,6 +289,43 @@ class MappingBoundarySchemaResolverTest {
 
   private static List<ResolvedServiceCallBinding> twoCallBindings() {
     return List.of(binding("node-a", "call-a", "op-a"), binding("node-b", "call-b", "op-b"));
+  }
+
+  private static ChainSemanticRevision triggerScriptCall() {
+    ChainSemanticRevision base = SemanticFixtures.linearOrders();
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        base.revisionId(),
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        base.entryPoints(),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation("script-req", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "node-call", "call-1", "createOrder", new SemanticProvenance(List.of("fact-call")))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-trigger-script",
+                "trigger-http",
+                "script-req",
+                null,
+                new SemanticRoute.Sequence(),
+                "map-init"),
+            new SemanticExecutionEdge(
+                "edge-script-call",
+                "script-req",
+                "node-call",
+                null,
+                new SemanticRoute.Sequence(),
+                null)),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
   }
 
   private static ChainSemanticRevision twoCalls() {

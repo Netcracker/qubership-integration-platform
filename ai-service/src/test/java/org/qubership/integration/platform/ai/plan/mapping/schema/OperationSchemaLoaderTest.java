@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.lang.reflect.Field;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -110,7 +111,7 @@ class OperationSchemaLoaderTest {
   }
 
   @Test
-  void flatAsyncResponseStatusSkipsInnerContentTypeMap() {
+  void flatAsyncResponseStatusLoadsApplicationJson() {
     RecordingCatalogRestClient catalog = RecordingCatalogRestClient.withFlatAsyncResponseSchema();
     OperationSchemaLoader localLoader =
         new CatalogOperationSchemaLoader(catalog, artifacts, new ObjectMapper());
@@ -118,7 +119,22 @@ class OperationSchemaLoaderTest {
     OperationSchemaMaps maps = localLoader.load("op-1");
 
     assertTrue(maps.requestByContentType().containsKey("application/json"));
-    assertTrue(maps.responseByStatusThenContentType().get("message").isEmpty());
+    assertTrue(maps.responseByStatusThenContentType().get("message").containsKey("application/json"));
+  }
+
+  @Test
+  void asyncMessagesWithEmptyRequestBecomeJsonRequestSchema() {
+    RecordingCatalogRestClient catalog = RecordingCatalogRestClient.withAsyncMessageSchemas();
+    OperationSchemaLoader localLoader =
+        new CatalogOperationSchemaLoader(catalog, artifacts, new ObjectMapper());
+
+    OperationSchemaMaps maps = localLoader.load("op-1");
+
+    JsonNode request = maps.requestByContentType().get("application/json");
+    assertTrue(request.has("oneOf"), request.toString());
+    assertEquals(2, request.get("oneOf").size());
+    assertTrue(
+        maps.responseByStatusThenContentType().get("task-start").containsKey("application/json"));
   }
 
   @Test

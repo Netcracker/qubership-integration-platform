@@ -336,8 +336,8 @@ class DesignPlanProjectorTest {
         """
         1. Generate HTTP Trigger element (cip-trigger-generator)
         2. Generate Service Call element (cip-service-call-generator)
-        3. Encode mapping map-a (cip-transformation-generator mappingIntentId=map-a)
-        4. Encode mapping map-b (cip-transformation-generator mappingIntentId=map-b)
+        3. Encode mapping map-a (cip-script-generator mappingIntentId=map-a)
+        4. Encode mapping map-b (cip-script-generator mappingIntentId=map-b)
         5. Generate execution structure (cip-structure-generator)
         6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
         7. Validate the assembled chain (cip-chain-validator)
@@ -348,6 +348,79 @@ class DesignPlanProjectorTest {
         projector.project(new DesignPlanReport("1", report), revision, pin(revision));
     assertEquals("map-a", projected.steps().get(2).mappingIntentId());
     assertEquals("map-b", projected.steps().get(3).mappingIntentId());
+  }
+
+  @Test
+  void unnamedMappingStepsBindInRevisionOrder() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithTwoIdentityMappings();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode request mapping (cip-script-generator)
+        4. Encode response mapping (cip-script-generator)
+        5. Generate execution structure (cip-structure-generator)
+        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        7. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+    assertEquals("map-a", projected.steps().get(2).mappingIntentId());
+    assertEquals("map-b", projected.steps().get(3).mappingIntentId());
+  }
+
+  @Test
+  void extraUnnamedMappingStepIsDroppedAfterBinding() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithTwoIdentityMappings();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode request mapping (cip-script-generator)
+        4. Encode response mapping (cip-script-generator)
+        5. Encode leftover mapping (cip-script-generator)
+        6. Generate execution structure (cip-structure-generator)
+        7. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        8. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+    List<String> mappingIds =
+        projected.steps().stream()
+            .map(DesignExecutionPlan.Step::mappingIntentId)
+            .filter(id -> id != null && !id.isBlank())
+            .toList();
+    assertEquals(List.of("map-a", "map-b"), mappingIds);
+  }
+
+  @Test
+  void extraNamedMappingStepForUnknownIntentIsDropped() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithTwoIdentityMappings();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-a (cip-script-generator mappingIntentId=map-a)
+        4. Encode mapping map-b (cip-script-generator mappingIntentId=map-b)
+        5. Encode process-instance-to-process-id mapping (cip-script-generator mappingIntentId=process-instance-to-process-id)
+        6. Generate execution structure (cip-structure-generator)
+        7. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        8. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+    List<String> mappingIds =
+        projected.steps().stream()
+            .map(DesignExecutionPlan.Step::mappingIntentId)
+            .filter(id -> id != null && !id.isBlank())
+            .toList();
+    assertEquals(List.of("map-a", "map-b"), mappingIds);
   }
 
   @Test
@@ -378,7 +451,7 @@ class DesignPlanProjectorTest {
         """
         1. Generate HTTP Trigger element (cip-trigger-generator)
         2. Generate Service Call element (cip-service-call-generator)
-        3. Encode mapping map-init (cip-script-generator mappingIntentId=map-init)
+        3. Encode mapping map-init (cip-transformation-generator mappingIntentId=map-init)
         4. Generate execution structure (cip-structure-generator)
         5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
         6. Validate the assembled chain (cip-chain-validator)

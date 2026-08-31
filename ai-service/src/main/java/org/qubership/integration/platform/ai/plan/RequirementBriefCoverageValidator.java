@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -80,6 +81,10 @@ public final class RequirementBriefCoverageValidator {
         && !brief.approvedDraftText().equals(approvedDraft.planningText())) {
       return Optional.of("requirement brief approvedDraftText does not match approved draft");
     }
+    Optional<String> mappingError = validateCapturedMappings(approvedDraft, brief);
+    if (mappingError.isPresent()) {
+      return mappingError;
+    }
     Optional<String> serviceCallError = validateServiceCalls(approvedDraft, brief);
     if (serviceCallError.isPresent()) {
       return serviceCallError;
@@ -92,6 +97,35 @@ public final class RequirementBriefCoverageValidator {
       }
     }
     return Optional.empty();
+  }
+
+  /**
+   * Field adaptation in the approved draft must be captured as mapping intents. Pass-through stays
+   * the absence of an intent when the draft did not request field mapping.
+   */
+  private static Optional<String> validateCapturedMappings(
+      RequirementDraft approvedDraft, RequirementBrief brief) {
+    if (!describesFieldAdaptation(approvedDraft.planningText())) {
+      return Optional.empty();
+    }
+    if (!brief.mappingIntents().isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        "The approved draft describes field mappings. Capture them as mappingIntents with"
+            + " sourcePath and targetPath on each rule. Leave mappingIntents empty only when"
+            + " the payload is pass-through.");
+  }
+
+  private static boolean describesFieldAdaptation(String planningText) {
+    if (planningText == null || planningText.isBlank()) {
+      return false;
+    }
+    String text = planningText.toLowerCase(Locale.ROOT);
+    return text.contains("request mapping")
+        || text.contains("response mapping")
+        || text.contains("sourcepath")
+        || text.contains("targetpath");
   }
 
   /**

@@ -1,10 +1,15 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
 import groovy.json.JsonBuilder;
+import groovy.json.JsonOutput;
 import groovy.json.JsonSlurper;
 import groovy.lang.GString;
 import groovy.lang.GroovyClassLoader;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +72,16 @@ public final class SecureGroovyMappingCompiler {
             String.class,
             GString.class,
             JsonSlurper.class,
-            JsonBuilder.class));
+            JsonBuilder.class,
+            JsonOutput.class,
+            List.class,
+            Collection.class,
+            ArrayList.class,
+            Date.class,
+            LocalDate.class,
+            Number.class,
+            Integer.class,
+            Boolean.class));
     customizer.setDisallowedStarImports(List.of("java.io.*", "java.net.*"));
     customizer.setDisallowedImports(
         List.of(

@@ -48,4 +48,34 @@ class SecureGroovyMappingCompilerTest {
   void unknownFieldStillCompiles() {
     assertDoesNotThrow(() -> SecureGroovyMappingCompiler.compile("def x = source.notAField\n"));
   }
+
+  @Test
+  void jsonOutputToJsonCompiles() {
+    assertDoesNotThrow(
+        () ->
+            SecureGroovyMappingCompiler.compile(
+                """
+                def source = new groovy.json.JsonSlurper().parseText(exchange.in.body as String)
+                def payload = [taskId: source['taskId'], executionId: source['executionId']]
+                exchange.in.body = groovy.json.JsonOutput.toJson(payload)
+                """));
+  }
+
+  @Test
+  void listAndDateReceiversCompile() {
+    assertDoesNotThrow(
+        () ->
+            SecureGroovyMappingCompiler.compile(
+                """
+                def source = new groovy.json.JsonSlurper().parseText(exchange.in.body as String)
+                def names = ['a', 'b']
+                def subject = names.isEmpty() ? source['name'] : names[0]
+                def today = new java.util.Date()
+                def target = [:]
+                target['Subject'] = subject
+                target['ActivityDate'] = today.toString()
+                target['Priority'] = names.contains('a') ? 'High' : 'Normal'
+                exchange.in.body = new groovy.json.JsonBuilder(target).toString()
+                """));
+  }
 }

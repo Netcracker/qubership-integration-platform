@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.plan.mapping.schema;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +31,11 @@ public final class JsonSchemaMappingContractFactory {
     if (resolved == null || !resolved.isObject()) {
       return;
     }
+    JsonNode alternatives = firstArray(resolved.get("oneOf"), resolved.get("anyOf"));
+    if (alternatives != null) {
+      collectAlternativeFields(root, alternatives, pathPrefix, out);
+      return;
+    }
     JsonNode properties = resolved.get("properties");
     if (properties == null || !properties.isObject()) {
       return;
@@ -46,6 +53,45 @@ public final class JsonSchemaMappingContractFactory {
         collectFields(root, propertySchema, path, out);
       }
     }
+  }
+
+  private static void collectAlternativeFields(
+      JsonNode root, JsonNode alternatives, String pathPrefix, List<MappingContract.Field> out) {
+    Map<String, MappingContract.Field> union = new LinkedHashMap<>();
+    Map<String, Integer> presentCount = new HashMap<>();
+    Map<String, Integer> requiredCount = new HashMap<>();
+    int variants = 0;
+    for (JsonNode variant : alternatives) {
+      variants++;
+      List<MappingContract.Field> variantFields = new ArrayList<>();
+      collectFields(root, variant, pathPrefix, variantFields);
+      for (MappingContract.Field field : variantFields) {
+        union.putIfAbsent(field.path(), field);
+        presentCount.put(field.path(), presentCount.getOrDefault(field.path(), 0) + 1);
+        if (field.required()) {
+          requiredCount.put(field.path(), requiredCount.getOrDefault(field.path(), 0) + 1);
+        }
+      }
+    }
+    if (variants == 0) {
+      return;
+    }
+    for (MappingContract.Field field : union.values()) {
+      boolean required =
+          requiredCount.getOrDefault(field.path(), 0) == variants
+              && presentCount.getOrDefault(field.path(), 0) == variants;
+      out.add(new MappingContract.Field(field.path(), field.type(), required));
+    }
+  }
+
+  private static JsonNode firstArray(JsonNode first, JsonNode second) {
+    if (first != null && first.isArray() && !first.isEmpty()) {
+      return first;
+    }
+    if (second != null && second.isArray() && !second.isEmpty()) {
+      return second;
+    }
+    return null;
   }
 
   private static List<String> requiredNames(JsonNode node) {

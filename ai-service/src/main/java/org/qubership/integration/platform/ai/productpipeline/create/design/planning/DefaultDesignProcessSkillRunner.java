@@ -107,7 +107,10 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
     if (repairEvidence.isPresent() && !repairEvidence.get().isBlank()) {
       body.append("\n\n## Repair evidence from a previous halt\n\n");
       body.append(repairEvidence.get().trim());
-      body.append("\n\nProduce a plan that resolves this; do not repeat the rejected one.");
+      body.append("\n\nProduce a plan that resolves this; do not repeat the rejected one. ");
+      body.append(
+          "If the evidence names mappingIntentId, copy the rejected numbered steps and add the "
+              + "literal token mappingIntentId=<id> on each mapping-generator line.");
     }
     if (formatFailure.isPresent()) {
       body.append("\n\n## Format failure from previous attempt\n\n");

@@ -20,6 +20,9 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
@@ -269,6 +272,43 @@ class RequirementBriefToolTest {
     assertEquals(
         MappingRuleStatus.PROPOSED,
         brief.mappingIntents().getFirst().rules().getFirst().status());
+  }
+
+  @Test
+  void storesTypedMappingIntentsFromCapture() {
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
+
+    MappingIntent intent =
+        new MappingIntent(
+            "map-request",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-salesforce-createTask",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("name", "Subject", null)));
+
+    String result =
+        tool.captureRequirementBrief(
+            new RequirementBriefCapture(
+                "OM to Salesforce WFM",
+                List.of(),
+                List.of(),
+                List.of(),
+                "Map request fields",
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(intent)));
+
+    assertTrue(result.contains("Requirement brief captured"), result);
+    RequirementBrief brief = getBrief("conv-brief").orElseThrow();
+    assertEquals(1, brief.mappingIntents().size());
+    assertEquals("map-request", brief.mappingIntents().getFirst().mappingIntentId());
+    assertEquals("name", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertEquals("Subject", brief.mappingIntents().getFirst().rules().getFirst().targetPath());
   }
 
   @Test
@@ -546,7 +586,7 @@ class RequirementBriefToolTest {
 
     assertTrue(description.contains("\"dataMappings\": []"), description);
     assertTrue(description.contains("no positive SERVICE_CALL"), description);
-    assertTrue(description.contains("leave dataMappings empty"), description);
+    assertTrue(description.contains("leave dataMappings and mappingIntents empty"), description);
     assertTrue(description.contains("Omit facts when an approved draft exists"), description);
     assertTrue(description.contains("serviceCallId"), description);
     assertTrue(description.contains("stage"), description);
