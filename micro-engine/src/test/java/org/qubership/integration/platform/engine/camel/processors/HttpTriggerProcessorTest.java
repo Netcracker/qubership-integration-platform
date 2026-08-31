@@ -282,4 +282,31 @@ class HttpTriggerProcessorTest {
         verify(correlationIdSetter).setCorrelationId(exchange);
         verifyNoInteractions(validator);
     }
+
+    @Test
+    void shouldRememberTheTestCaseRunTheSessionHeaderNames() throws Exception {
+        exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
+
+        exchange.getMessage().setHeader(Exchange.HTTP_URL, "http://localhost:8080/routes/customers/123");
+        exchange.getMessage().setHeader(Exchange.HTTP_URI, "routes/customers/123");
+        exchange.getMessage().setHeader(Headers.URI_TEMPLATE, "customers/{customerId}");
+        exchange.getMessage().setHeader(Headers.EXTERNAL_SESSION_CIP_ID, "testing-session-1");
+
+        processor.process(exchange);
+
+        assertEquals("testing-session-1", exchange.getProperty(Properties.TESTING_SESSION_ID));
+    }
+
+    @Test
+    void shouldNotRememberATestCaseRunWhenTheSessionHeaderIsAbsent() throws Exception {
+        exchange.setProperty(Exchange.STEP_ID, "request--" + HTTP_TRIGGER_STEP_ID);
+
+        exchange.getMessage().setHeader(Exchange.HTTP_URL, "http://localhost:8080/routes/customers/123");
+        exchange.getMessage().setHeader(Exchange.HTTP_URI, "routes/customers/123");
+        exchange.getMessage().setHeader(Headers.URI_TEMPLATE, "customers/{customerId}");
+
+        processor.process(exchange);
+
+        assertNull(exchange.getProperty(Properties.TESTING_SESSION_ID));
+    }
 }
