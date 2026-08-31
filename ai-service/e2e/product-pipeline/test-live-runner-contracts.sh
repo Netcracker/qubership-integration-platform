@@ -611,8 +611,8 @@ rg -q 'qip-e2e-evaluator' "${COMPOSE_FILE}" \
   || fail "docker-compose.yml must define qip-e2e-evaluator"
 rg -q 'profiles: \[ai-e2e\]|profiles:\s*\[ai-e2e\]' "${COMPOSE_FILE}" \
   || fail "docker-compose.yml must use ai-e2e profile for evaluator"
-rg -q '"8099:8099"' "${COMPOSE_FILE}" \
-  || fail "docker-compose.yml must map evaluator port 8099:8099"
+rg -q '"8100:8099"' "${COMPOSE_FILE}" \
+  || fail "docker-compose.yml must map evaluator port 8100:8099"
 rg -q 'read_only: true' "${COMPOSE_FILE}" \
   || fail "docker-compose.yml must set read_only on evaluator"
 rg -q 'ai-service-dev\.env' "${COMPOSE_FILE}" \
@@ -715,7 +715,7 @@ out="$(resolve_contract 0 "http://eval.example/evaluate")"
   || fail "explicit evaluator URL must not invoke docker"
 
 out="$(resolve_contract 0 "")"
-[[ "${out}" == *"EVALUATOR_URL=http://localhost:8099/evaluate"* ]] \
+[[ "${out}" == *"EVALUATOR_URL=http://localhost:8100/evaluate"* ]] \
   || fail "missing URL must default to local evaluator endpoint"
 [[ -s "${DOCKER_STUB_LOG}" ]] \
   || fail "missing URL must invoke docker to start local evaluator"
