@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
@@ -100,6 +101,7 @@ public class RequirementDraftTool {
   private final org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache
       apiHubCache;
   private final ConversationApiResolutions resolutions;
+  private final ConversationService conversationService;
 
   @Inject
   RequirementDraftTool(
@@ -107,37 +109,53 @@ public class RequirementDraftTool {
       QipKnowledgePackRepository repository,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
-      ConversationApiResolutions resolutions) {
+      ConversationApiResolutions resolutions,
+      ConversationService conversationService) {
     this.store = store;
     this.repository = repository;
     this.catalogCache = catalogCache;
     this.apiHubCache = apiHubCache;
     this.resolutions = resolutions;
+    this.conversationService = conversationService;
   }
 
   RequirementDraftTool(RequirementDraftStore store) {
-    this(store, null, null, null, null);
+    this(store, null, null, null, null, null);
   }
 
   RequirementDraftTool(RequirementDraftStore store, QipKnowledgePackRepository repository) {
-    this(store, repository, null, null, null);
+    this(store, repository, null, null, null, null);
+  }
+
+  RequirementDraftTool(
+      RequirementDraftStore store,
+      QipKnowledgePackRepository repository,
+      ConversationCatalogCache catalogCache,
+      org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
+      ConversationApiResolutions resolutions) {
+    this(store, repository, catalogCache, apiHubCache, resolutions, null);
   }
 
   static RequirementDraftTool withCache(
       RequirementDraftStore store, ConversationCatalogCache catalogCache) {
-    return new RequirementDraftTool(store, null, catalogCache, null, null);
+    return new RequirementDraftTool(store, null, catalogCache, null, null, null);
   }
 
   static RequirementDraftTool withCaches(
       RequirementDraftStore store,
       ConversationCatalogCache catalogCache,
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache) {
-    return new RequirementDraftTool(store, null, catalogCache, apiHubCache, null);
+    return new RequirementDraftTool(store, null, catalogCache, apiHubCache, null, null);
   }
 
   static RequirementDraftTool withResolutions(
       RequirementDraftStore store, ConversationApiResolutions resolutions) {
-    return new RequirementDraftTool(store, null, null, null, resolutions);
+    return new RequirementDraftTool(store, null, null, null, resolutions, null);
+  }
+
+  static RequirementDraftTool withConversationService(
+      RequirementDraftStore store, ConversationService conversationService) {
+    return new RequirementDraftTool(store, null, null, null, null, conversationService);
   }
 
   @Tool("""
@@ -170,6 +188,10 @@ public class RequirementDraftTool {
       catalog first and searches API Hub only after a confirmed catalog miss. READY_FOR_PLAN
       requires every active serviceCallId to have its own catalog binding from those tool results
       (never invent UUIDs).
+      When this conversation has uploaded API specifications already approved for import, capture
+      SERVICE_CALL facts from those documents and set READY_FOR_PLAN without catalog bindings.
+      Do not search API Hub for operations the attached spec already defines; import after
+      discovery binds them.
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
       serviceCallId plus packageId, version, and operationId or documentId from the search hit
       (do not put apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave
@@ -333,7 +355,8 @@ public class RequirementDraftTool {
           positiveCalls.isEmpty()
               && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
       if (decision == DraftDecision.READY_FOR_PLAN
-          && (!unresolvedCalls.isEmpty() || bindingMissing)) {
+          && (!unresolvedCalls.isEmpty() || bindingMissing)
+          && !hasAllowedUploadedSpecs(conversationId)) {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
@@ -831,6 +854,14 @@ public class RequirementDraftTool {
                 fact != null
                     && fact.polarity() == RequirementFactPolarity.POSITIVE
                     && fact.kind() == RequirementFactKind.SERVICE_CALL);
+  }
+
+  private boolean hasAllowedUploadedSpecs(String conversationId) {
+    if (conversationService == null || conversationId == null || conversationId.isBlank()) {
+      return false;
+    }
+    List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
+    return keys != null && !keys.isEmpty();
   }
 
   private static String validateFactText(List<RequirementFact> facts) {
