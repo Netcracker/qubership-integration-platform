@@ -89,7 +89,33 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
         servicesArray = Array.isArray(all) ? all : [];
       }
 
-      setServices(servicesArray.filter((s) => s.type === getSystemType(tab)));
+      const servicesOfType = servicesArray.filter(
+        (s) => s.type === getSystemType(tab),
+      );
+      // The systems endpoint carries no chain usage, so ask per service. A
+      // failed lookup costs that row its usage, not the whole list.
+      let usageError: unknown;
+      const usage = await Promise.all(
+        servicesOfType.map((service) =>
+          api.getChainsUsedByService(service.id).catch((e: unknown) => {
+            usageError = e;
+            return [];
+          }),
+        ),
+      );
+      if (usageError) {
+        notificationService.requestFailed(
+          // A 502 or a timeout carries no parsable body, so the message is empty.
+          getErrorMessage(usageError, "") || "Chain usage load error",
+          usageError,
+        );
+      }
+      setServices(
+        servicesOfType.map((service, index) => ({
+          ...service,
+          chains: usage[index],
+        })),
+      );
     },
     { initialValue: undefined },
   );

@@ -1042,6 +1042,7 @@ export type IntegrationSystem = BaseEntity & {
   specification: string;
   labels?: EntityLabel[];
   discovered?: string;
+  chains?: BaseEntity[];
 };
 
 export type ContextSystem = BaseEntity & {

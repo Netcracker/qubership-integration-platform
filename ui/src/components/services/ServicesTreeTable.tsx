@@ -388,17 +388,6 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       key: "usedBy",
       width: 120,
       render: (_: unknown, record: ServiceEntity) => {
-        if (isIntegrationSystem(record))
-          return (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "100%",
-              }}
-            ></div>
-          );
         const chains =
           "chains" in record && Array.isArray(record.chains)
             ? record.chains
