@@ -8,6 +8,10 @@ import styles from "./SessionElementKVChanges.module.css";
 
 type ValueRenderer<ValueType = unknown> = (value: ValueType) => ReactNode;
 
+type ValueGetter<ValueType = unknown> = (
+  value: ValueType | undefined,
+) => string;
+
 type Comparator<ValueType = unknown> = (
   v1: ValueType | undefined,
   v2: ValueType | undefined,
@@ -27,6 +31,8 @@ type SessionElementKVChangesProps<ValueType = unknown> = {
   comparator?: Comparator<ValueType>;
   typeRenderer?: ValueRenderer<ValueType>;
   valueRenderer?: ValueRenderer<ValueType>;
+  typeGetter?: ValueGetter<ValueType>;
+  valueGetter?: ValueGetter<ValueType>;
   onColumnClick?: (
     item: KVChangesTableItem<ValueType>,
     column: ColumnName,
@@ -149,6 +155,21 @@ function renderValueColumnCell<ValueType>(
   return <span className={styles.valueChanged}>{inner}</span>;
 }
 
+function compareCaseInsensitive(s1: string, s2: string) {
+  return s1.toLowerCase().localeCompare(s2.toLowerCase());
+}
+
+function compareStringRepresentative<T>(
+  v1: T | undefined,
+  v2: T | undefined,
+  getter: ValueGetter<T> | undefined,
+): number {
+  return compareCaseInsensitive(
+    getter?.(v1) ?? String(v1 ?? ""),
+    getter?.(v2) ?? String(v2 ?? ""),
+  );
+}
+
 export const SessionElementKVChanges = <ValueType = unknown,>({
   before,
   after,
@@ -156,6 +177,8 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
   comparator,
   typeRenderer,
   valueRenderer,
+  typeGetter,
+  valueGetter,
   onColumnClick,
   ...rest
 }: SessionElementKVChangesProps<ValueType> &
@@ -176,6 +199,9 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
         onCell: (item) => ({
           onClick: () => onColumnClick?.(item, "name"),
         }),
+        sorter: (item1, item2) =>
+          compareCaseInsensitive(item1.name, item2.name),
+        defaultSortOrder: "ascend",
       },
       ...(addTypeColumns
         ? [
@@ -188,6 +214,15 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
               }),
               render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
                 renderTypeColumnCell(item, "before", typeRenderer),
+              sorter: (
+                item1: KVChangesTableItem<ValueType>,
+                item2: KVChangesTableItem<ValueType>,
+              ) =>
+                compareStringRepresentative(
+                  item1.before,
+                  item2.before,
+                  typeGetter,
+                ),
             },
           ]
         : []),
@@ -201,6 +236,8 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
         }),
         render: (_, item) =>
           renderValueColumnCell(item, "before", valueRenderer, comparator),
+        sorter: (item1, item2) =>
+          compareStringRepresentative(item1.before, item2.before, valueGetter),
       },
       ...(addTypeColumns
         ? [
@@ -213,6 +250,15 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
               }),
               render: (_: unknown, item: KVChangesTableItem<ValueType>) =>
                 renderTypeColumnCell(item, "after", typeRenderer),
+              sorter: (
+                item1: KVChangesTableItem<ValueType>,
+                item2: KVChangesTableItem<ValueType>,
+              ) =>
+                compareStringRepresentative(
+                  item1.after,
+                  item2.after,
+                  typeGetter,
+                ),
             },
           ]
         : []),
@@ -226,9 +272,19 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
         }),
         render: (_, item) =>
           renderValueColumnCell(item, "after", valueRenderer, comparator),
+        sorter: (item1, item2) =>
+          compareStringRepresentative(item1.after, item2.after, valueGetter),
       },
     ],
-    [addTypeColumns, comparator, onColumnClick, typeRenderer, valueRenderer],
+    [
+      addTypeColumns,
+      comparator,
+      onColumnClick,
+      typeGetter,
+      typeRenderer,
+      valueGetter,
+      valueRenderer,
+    ],
   );
 
   const { columnsWithResize, scrollX, components } =
