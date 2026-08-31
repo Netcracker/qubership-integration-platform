@@ -33,9 +33,8 @@ const ChainTriggerUsedByField: React.FC<
             });
           }
         });
-        setChains(
-          chainsUsingElement.sort((a, b) => a.name.localeCompare(b.name)),
-        );
+        chainsUsingElement.sort((a, b) => a.name.localeCompare(b.name));
+        setChains(chainsUsingElement);
       } catch (error) {
         notificationService.requestFailed(
           "Failed to load chain call elements",
