@@ -101,6 +101,7 @@ class ChainSemanticCaptureAdapterTest {
     SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
     assertEquals("async-api-trigger", trigger.capabilityKey());
     assertEquals("async-in", trigger.nodeId());
+    assertEquals("async-in", trigger.interactionId());
   }
 
   @Test
@@ -431,6 +432,7 @@ class ChainSemanticCaptureAdapterTest {
         adapt(ChainSemanticCaptureFixtures.rockyCapture(), ChainSemanticCaptureFixtures.rockyBrief());
     SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
     assertEquals("task-start", trigger.nodeId());
+    assertEquals("task-start", trigger.interactionId());
     assertEquals("async-api-trigger", trigger.capabilityKey());
     assertEquals(
         Set.of("create-task", "task-result"),

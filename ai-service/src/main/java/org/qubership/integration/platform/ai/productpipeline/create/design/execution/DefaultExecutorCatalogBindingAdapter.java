@@ -57,15 +57,20 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     List<BindingResolutionResult> results = new ArrayList<>();
     List<ResolvedServiceCallBinding> resolved = new ArrayList<>();
     for (SemanticNode.ServiceCall call : calls) {
-      BindingResolutionResult result = resolveCall(conversationId, call, hintList);
+      BindingResolutionResult result =
+          resolveOccurrence(
+              conversationId, call.nodeId(), call.serviceCallId(), hintList, true);
       results.add(result);
       if (result instanceof BindingResolutionResult.Resolved success) {
         resolved.add(success.binding());
         persistSchemas(conversationId, success.binding());
       }
     }
-    for (SemanticNode.Trigger trigger : asyncApiTriggers(revision)) {
-      BindingResolutionResult result = resolveTrigger(conversationId, trigger, hintList);
+    for (SemanticNode.Trigger trigger : triggers(revision)) {
+      boolean required = "async-api-trigger".equals(trigger.capabilityKey());
+      BindingResolutionResult result =
+          resolveOccurrence(
+              conversationId, trigger.nodeId(), trigger.interactionId(), hintList, required);
       if (result == null) {
         continue;
       }
@@ -85,23 +90,36 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     return List.copyOf(results);
   }
 
-  private BindingResolutionResult resolveCall(
-      String conversationId, SemanticNode.ServiceCall call, List<CatalogBindingHint> hints) {
-    HintLookup lookup = findHint(call, hints);
+  private BindingResolutionResult resolveOccurrence(
+      String conversationId,
+      String targetNodeId,
+      String occurrenceId,
+      List<CatalogBindingHint> hints,
+      boolean required) {
+    HintLookup lookup = findHint(occurrenceId, hints);
     if (lookup.failureReason() != null) {
       return new BindingResolutionResult.Failed(
-          call.serviceCallId(), lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
+          occurrenceId, lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
+    }
+    if (lookup.hint() == null) {
+      if (!required) {
+        return null;
+      }
+      return new BindingResolutionResult.Failed(
+          occurrenceId,
+          "no catalog binding hint for interactionId=" + occurrenceId,
+          StageOutcomeClass.DOMAIN_FAILURE);
     }
     CatalogBindingHint observed = lookup.hint();
     Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(conversationId, observed);
     if (revalidated.isPresent()) {
-      return toExisting(call.nodeId(), call.serviceCallId(), revalidated.get(), observed.release());
+      return toExisting(targetNodeId, occurrenceId, revalidated.get(), observed.release());
     }
     return new BindingResolutionResult.Failed(
-        call.serviceCallId(),
+        occurrenceId,
         "the approved catalog binding no longer resolves (operation "
             + observed.integrationOperationId()
-            + "); resolve this service call again before execution",
+            + "); resolve this interaction again before execution",
         StageOutcomeClass.DOMAIN_FAILURE,
         "catalog operation");
   }
@@ -152,30 +170,6 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
                 hint.evidenceRef()),
             system.type(),
             op));
-  }
-
-  private BindingResolutionResult resolveTrigger(
-      String conversationId, SemanticNode.Trigger trigger, List<CatalogBindingHint> hints) {
-    HintLookup lookup = findTriggerHint(trigger, hints);
-    if (lookup.hint() == null) {
-      return lookup.failureReason() == null
-          ? null
-          : new BindingResolutionResult.Failed(
-              trigger.nodeId(), lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
-    }
-    CatalogBindingHint observed = lookup.hint();
-    Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(conversationId, observed);
-    if (revalidated.isPresent()) {
-      return toExisting(
-          trigger.nodeId(), observed.interactionId(), revalidated.get(), observed.release());
-    }
-    return new BindingResolutionResult.Failed(
-        observed.interactionId(),
-        "the approved catalog binding no longer resolves (operation "
-            + observed.integrationOperationId()
-            + "); resolve this service call again before execution",
-        StageOutcomeClass.DOMAIN_FAILURE,
-        "catalog operation");
   }
 
   private void persistSchemas(String compilationId, ResolvedServiceCallBinding binding) {
@@ -266,8 +260,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     }
   }
 
-  private static HintLookup findHint(
-      SemanticNode.ServiceCall call, List<CatalogBindingHint> hints) {
+  private static HintLookup findHint(String occurrenceId, List<CatalogBindingHint> hints) {
     List<CatalogBindingHint> matches = new ArrayList<>();
     for (CatalogBindingHint hint : hints) {
       if (hint == null) {
@@ -277,7 +270,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
         return HintLookup.failed(
             "catalog binding hint must use schemaVersion=3, got " + hint.schemaVersion());
       }
-      if (call.serviceCallId().equals(hint.interactionId())) {
+      if (occurrenceId.equals(hint.interactionId())) {
         matches.add(hint);
       }
     }
@@ -286,10 +279,9 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     }
     if (matches.size() > 1) {
       return HintLookup.failed(
-          "multiple catalog binding hints for serviceCallId=" + call.serviceCallId());
+          "multiple catalog binding hints for interactionId=" + occurrenceId);
     }
-    return HintLookup.failed(
-        "no catalog binding hint for serviceCallId=" + call.serviceCallId());
+    return HintLookup.absent();
   }
 
   private record HintLookup(CatalogBindingHint hint, String failureReason) {
@@ -299,6 +291,10 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
 
     static HintLookup failed(String reason) {
       return new HintLookup(null, reason);
+    }
+
+    static HintLookup absent() {
+      return new HintLookup(null, null);
     }
   }
 
@@ -327,41 +323,13 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     return calls;
   }
 
-  private static List<SemanticNode.Trigger> asyncApiTriggers(ChainSemanticRevision revision) {
+  private static List<SemanticNode.Trigger> triggers(ChainSemanticRevision revision) {
     List<SemanticNode.Trigger> triggers = new ArrayList<>();
     for (SemanticNode node : revision.nodes()) {
-      if (node instanceof SemanticNode.Trigger trigger
-          && "async-api-trigger".equals(trigger.capabilityKey())) {
+      if (node instanceof SemanticNode.Trigger trigger) {
         triggers.add(trigger);
       }
     }
     return triggers;
-  }
-
-  private static HintLookup findTriggerHint(
-      SemanticNode.Trigger trigger, List<CatalogBindingHint> hints) {
-    List<String> sourceFactIds =
-        trigger.provenance() == null ? List.of() : trigger.provenance().sourceFactIds();
-    List<CatalogBindingHint> matches = new ArrayList<>();
-    for (CatalogBindingHint hint : hints) {
-      if (hint == null) {
-        continue;
-      }
-      if (!"3".equals(hint.schemaVersion())) {
-        return HintLookup.failed(
-            "catalog binding hint must use schemaVersion=3, got " + hint.schemaVersion());
-      }
-      if (sourceFactIds.contains(hint.interactionId())) {
-        matches.add(hint);
-      }
-    }
-    if (matches.size() == 1) {
-      return HintLookup.found(matches.getFirst());
-    }
-    if (matches.size() > 1) {
-      return HintLookup.failed(
-          "multiple catalog binding hints for trigger node " + trigger.nodeId());
-    }
-    return new HintLookup(null, null);
   }
 }

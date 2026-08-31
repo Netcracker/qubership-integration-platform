@@ -5,7 +5,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.util.List;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignArtifacts;
 
-/** Typed semantic node. Only {@link ServiceCall} owns {@code serviceCallId}. */
+/**
+ * Typed semantic node. Catalog occurrence id is {@link ServiceCall#serviceCallId()} or {@link
+ * Trigger#interactionId()}: the RequirementFlow interaction, not the graph {@code nodeId} and not a
+ * fact id.
+ */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
     include = JsonTypeInfo.As.EXISTING_PROPERTY,
@@ -28,6 +32,7 @@ public sealed interface SemanticNode
   record Trigger(
       String nodeId,
       SemanticNodeKind kind,
+      String interactionId,
       String capabilityKey,
       SemanticProvenance provenance)
       implements SemanticNode {
@@ -37,12 +42,21 @@ public sealed interface SemanticNode
       if (kind != SemanticNodeKind.TRIGGER) {
         throw new IllegalArgumentException("Trigger kind must be TRIGGER");
       }
+      interactionId =
+          interactionId == null || interactionId.isBlank()
+              ? nodeId
+              : DesignArtifacts.requireText(interactionId, "interactionId");
       capabilityKey = DesignArtifacts.requireText(capabilityKey, "capabilityKey");
       provenance = provenance == null ? new SemanticProvenance(List.of()) : provenance;
     }
 
     public Trigger(String nodeId, String capabilityKey, SemanticProvenance provenance) {
-      this(nodeId, SemanticNodeKind.TRIGGER, capabilityKey, provenance);
+      this(nodeId, SemanticNodeKind.TRIGGER, nodeId, capabilityKey, provenance);
+    }
+
+    public Trigger(
+        String nodeId, String interactionId, String capabilityKey, SemanticProvenance provenance) {
+      this(nodeId, SemanticNodeKind.TRIGGER, interactionId, capabilityKey, provenance);
     }
   }
 
