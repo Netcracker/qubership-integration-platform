@@ -221,6 +221,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_kafka.xml"
                 ),
                 Arguments.of(
+                        "AMQP MaaS Service Call element",
+                        "/testData/input/builder/templates/service_call_amqp_maas.yml",
+                        "/testData/output/builder/templates/service_call_amqp_maas.xml"
+                ),
+                Arguments.of(
                         "HTTP Service Call element",
                         "/testData/input/builder/templates/service_call_http.yml",
                         "/testData/output/builder/templates/service_call_http.xml"
