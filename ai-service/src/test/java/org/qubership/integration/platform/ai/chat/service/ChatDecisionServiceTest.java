@@ -220,6 +220,26 @@ class ChatDecisionServiceTest {
             command(ChatEvent.CANCEL_UNDEPLOY_ACTION, "UNDEPLOY", "op-1", null)));
   }
 
+  @Test
+  void markerNamesSessionLoggingWithoutGuessingAtWording() {
+    assertEquals(
+        "Set session logging to Off",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.SESSION_LOGGING_OFF_ACTION, "SESSION_LOGGING", "op-1", null)));
+    assertEquals(
+        "Set session logging to Error",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.SESSION_LOGGING_ERROR_ACTION, "SESSION_LOGGING", "op-1", null)));
+    assertEquals(
+        "Set session logging to Info",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.SESSION_LOGGING_INFO_ACTION, "SESSION_LOGGING", "op-1", null)));
+    assertEquals(
+        "Set session logging to Debug",
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.SESSION_LOGGING_DEBUG_ACTION, "SESSION_LOGGING", "op-1", null)));
+  }
+
   /**
    * Creating the chain can fail after the plan was approved. The run must stay at the
    * implementation gate with creation as its only action, never in a half-state the reader cannot

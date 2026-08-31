@@ -172,7 +172,11 @@ class ChatExecutionServiceTest {
         ChatEvent.UNDEPLOY_ACTION,
         ChatEvent.CANCEL_UNDEPLOY_ACTION,
         ChatEvent.REFRESH_DEPLOYMENT_ACTION,
-        ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION);
+        ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION,
+        ChatEvent.SESSION_LOGGING_OFF_ACTION,
+        ChatEvent.SESSION_LOGGING_ERROR_ACTION,
+        ChatEvent.SESSION_LOGGING_INFO_ACTION,
+        ChatEvent.SESSION_LOGGING_DEBUG_ACTION);
   }
 
   @Test

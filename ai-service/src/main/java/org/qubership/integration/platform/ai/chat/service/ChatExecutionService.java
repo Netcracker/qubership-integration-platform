@@ -106,7 +106,8 @@ public class ChatExecutionService {
         || ChatEvent.CANCEL_UNDEPLOY_ACTION.equals(action)
         || ChatEvent.REFRESH_DEPLOYMENT_ACTION.equals(action)
         || ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(action)
-        || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action);
+        || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action)
+        || ChatEvent.SESSION_LOGGING_ACTIONS.contains(action);
   }
 
   /** The click names the scenario, so the router does not guess it from transcript wording. */
@@ -131,7 +132,8 @@ public class ChatExecutionService {
         || ChatEvent.UNDEPLOY_ACTION.equals(action)
         || ChatEvent.CANCEL_UNDEPLOY_ACTION.equals(action)
         || ChatEvent.REFRESH_DEPLOYMENT_ACTION.equals(action)
-        || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action)) {
+        || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action)
+        || ChatEvent.SESSION_LOGGING_ACTIONS.contains(action)) {
       request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
     }
   }

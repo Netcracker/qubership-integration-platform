@@ -337,6 +337,40 @@ describe("AiDecisionCard", () => {
     expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
+  it("should send session logging buttons as typed decisions", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question:
+        "Which session logging level should this chain use? Current: OFF.",
+      missingEvidence: [],
+      actions: [
+        "session-logging-off",
+        "session-logging-error",
+        "session-logging-info",
+        "session-logging-debug",
+      ],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Off" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Error" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Info" })).toBeInTheDocument();
+    const debug = screen.getByRole("button", { name: "Debug" });
+    expect(debug.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(debug);
+
+    expect(onAnswer).toHaveBeenCalledWith("session-logging-debug", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
   it("should render Revise for a stage-revise clarify gate", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();
