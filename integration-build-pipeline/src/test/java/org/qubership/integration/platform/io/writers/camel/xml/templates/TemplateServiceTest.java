@@ -214,6 +214,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_http.xml"
                 ),
                 Arguments.of(
+                        "AMQP MaaS Service Call element",
+                        "/testData/input/builder/templates/service_call_amqp_maas.yml",
+                        "/testData/output/builder/templates/service_call_amqp_maas.xml"
+                ),
+                Arguments.of(
                         "HTTP Service Call element with several response handlers",
                         "/testData/input/builder/templates/service_call_multi_response_handlers.yml",
                         "/testData/output/builder/templates/service_call_multi_response_handlers.xml"

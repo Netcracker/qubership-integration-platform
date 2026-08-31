@@ -82,7 +82,7 @@
             <simple>{{escape (property 'integrationOperationPath')}}</simple>
         </setProperty>
         <setProperty name="serviceCallAddress">
-            <simple>{{integrationAddress}}</simple>
+            <simple>{{integrationEndpoint}}</simple>
         </setProperty>
 
         {{#each (asyncProperties)}}
