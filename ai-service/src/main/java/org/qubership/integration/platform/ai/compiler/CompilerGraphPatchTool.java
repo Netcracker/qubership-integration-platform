@@ -654,7 +654,7 @@ public class CompilerGraphPatchTool {
             && (nodeTouchesKey(graphPatch, nodeId, MappingExecutionSite.SCRIPT_PROPERTY)
                 || nodeTouchesKey(
                     graphPatch, nodeId, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY))) {
-          validateScriptCapture(context, node, graphPatch, nodeId);
+          validateScriptCapture(conversationId, context, node, graphPatch, nodeId);
         }
       }
       return Optional.empty();
@@ -677,7 +677,11 @@ public class CompilerGraphPatchTool {
   }
 
   private void validateScriptCapture(
-      GraphPatchExecutionContext context, ChainPlanNode node, GraphPatch graphPatch, String nodeId) {
+      String conversationId,
+      GraphPatchExecutionContext context,
+      ChainPlanNode node,
+      GraphPatch graphPatch,
+      String nodeId) {
     String intentId = MappingExecutionSite.mappingIntentId(node);
     if (intentId == null || intentId.isBlank()) {
       if (nodeTouchesKey(graphPatch, nodeId, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY)) {
@@ -690,7 +694,8 @@ public class CompilerGraphPatchTool {
     if (script == null) {
       throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " script body is required");
     }
-    mappingCaptureValidator.validateScript(intent, script, parseMappingCoverage(node));
+    MappingEnvelope envelope = requireEnvelope(conversationId, context, intentId);
+    mappingCaptureValidator.validateScript(intent, script, parseMappingCoverage(node), envelope);
   }
 
   private MappingIntent requireIntent(GraphPatchExecutionContext context, String mappingIntentId) {

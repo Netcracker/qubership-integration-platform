@@ -106,6 +106,73 @@ class DefaultExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void httpSuccessPlusErrorPersistsRequestAndUnique2xx() throws Exception {
+    catalog = RecordingCatalogRestClient.withJsonMapsAndErrorStatus();
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    CatalogToolSupport support = new CatalogToolSupport();
+    var mapperField = CatalogToolSupport.class.getDeclaredField("objectMapper");
+    mapperField.setAccessible(true);
+    mapperField.set(support, mapper);
+    CatalogSystemReadTool readTool =
+        new CatalogSystemReadTool(
+            catalog,
+            new CatalogOperationsLookupService(
+                new ConversationCatalogCache(new CatalogOperationsReadCache(catalog))),
+            support);
+    adapter =
+        new DefaultExecutorCatalogBindingAdapter(
+            readTool, SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, mapper));
+
+    adapter.resolve(
+        CONVERSATION_ID,
+        sampleOneCall(),
+        List.of(v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1")),
+        approved());
+
+    List<CompilationArtifacts.Revision> sides =
+        artifacts.history(CONVERSATION_ID, Kind.MAPPING_SCHEMA_SIDE);
+    assertEquals(2, sides.size());
+    MappingSchemaSide request = artifacts.payload(sides.get(0), MappingSchemaSide.class);
+    MappingSchemaSide response = artifacts.payload(sides.get(1), MappingSchemaSide.class);
+    assertEquals(MappingPort.REQUEST, request.direction());
+    assertEquals(MappingPort.RESPONSE, response.direction());
+    assertEquals("201", response.responseCode());
+  }
+
+  @Test
+  void asyncMessagesPersistAsRequestForTriggerOutput() throws Exception {
+    catalog = RecordingCatalogRestClient.withAsyncMessageSchemas();
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    CatalogToolSupport support = new CatalogToolSupport();
+    var mapperField = CatalogToolSupport.class.getDeclaredField("objectMapper");
+    mapperField.setAccessible(true);
+    mapperField.set(support, mapper);
+    CatalogSystemReadTool readTool =
+        new CatalogSystemReadTool(
+            catalog,
+            new CatalogOperationsLookupService(
+                new ConversationCatalogCache(new CatalogOperationsReadCache(catalog))),
+            support);
+    adapter =
+        new DefaultExecutorCatalogBindingAdapter(
+            readTool, SchemaLoaderTestSupport.catalogLoader(catalog, artifacts, mapper));
+
+    adapter.resolve(
+        CONVERSATION_ID,
+        sampleOneCall(),
+        List.of(v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1")),
+        approved());
+
+    List<CompilationArtifacts.Revision> sides =
+        artifacts.history(CONVERSATION_ID, Kind.MAPPING_SCHEMA_SIDE);
+    assertEquals(1, sides.size());
+    MappingSchemaSide request =
+        artifacts.payload(sides.getFirst(), MappingSchemaSide.class);
+    assertEquals(MappingPort.REQUEST, request.direction());
+    assertTrue(request.schema().has("oneOf"), request.schema().toString());
+  }
+
+  @Test
   void flatAsyncResponseSchemaSkipsResponsePersistAtBind() throws Exception {
     catalog = RecordingCatalogRestClient.withFlatAsyncResponseSchema();
     ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());

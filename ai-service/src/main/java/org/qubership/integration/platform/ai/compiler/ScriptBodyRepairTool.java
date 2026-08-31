@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -24,6 +25,7 @@ import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -63,6 +65,7 @@ public class ScriptBodyRepairTool {
   private final GraphPatchApplier patchApplier;
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final GraphPatchExecutionContextStore executionContextStore;
+  private final CompilationArtifacts compilationArtifacts;
   private final MappingCaptureValidator mappingCaptureValidator = new MappingCaptureValidator();
 
   @Inject
@@ -73,7 +76,8 @@ public class ScriptBodyRepairTool {
       GeneratorReadinessEvaluator readinessEvaluator,
       GraphPatchApplier patchApplier,
       CaptureAttemptFeedbackStore feedbackStore,
-      GraphPatchExecutionContextStore executionContextStore) {
+      GraphPatchExecutionContextStore executionContextStore,
+      CompilationArtifacts compilationArtifacts) {
     this.captureRouter = captureRouter;
     this.captureSession = captureSession;
     this.planStore = planStore;
@@ -81,6 +85,7 @@ public class ScriptBodyRepairTool {
     this.patchApplier = patchApplier;
     this.feedbackStore = feedbackStore;
     this.executionContextStore = executionContextStore;
+    this.compilationArtifacts = compilationArtifacts;
   }
 
   @Tool(
@@ -307,7 +312,10 @@ public class ScriptBodyRepairTool {
       try {
         MappingIntent intent = requireIntent(context, intentId);
         mappingCaptureValidator.validateScript(
-            intent, entry.script().trim(), entry.mappingCoverage());
+            intent,
+            entry.script().trim(),
+            entry.mappingCoverage(),
+            findEnvelope(conversationId, context, intentId));
       } catch (IllegalArgumentException e) {
         return e.getMessage();
       }
@@ -331,6 +339,34 @@ public class ScriptBodyRepairTool {
     }
     throw new IllegalArgumentException(
         MAPPING_CAPTURE_PREFIX + " mapping intent '" + mappingIntentId + "' is required");
+  }
+
+  private MappingEnvelope findEnvelope(
+      String conversationId, GraphPatchExecutionContext context, String mappingIntentId) {
+    if (compilationArtifacts == null
+        || context == null
+        || context.consumedArtifacts() == null
+        || mappingIntentId == null
+        || mappingIntentId.isBlank()) {
+      return null;
+    }
+    for (CompilationArtifacts.Reference reference : context.consumedArtifacts()) {
+      if (reference == null
+          || reference.kind() != CompilationArtifacts.Kind.MAPPING_ENVELOPE) {
+        continue;
+      }
+      Optional<CompilationArtifacts.Revision> revision =
+          compilationArtifacts.get(conversationId, reference);
+      if (revision.isEmpty()) {
+        continue;
+      }
+      MappingEnvelope envelope =
+          compilationArtifacts.payload(revision.get(), MappingEnvelope.class);
+      if (envelope != null && mappingIntentId.equals(envelope.mappingIntentId())) {
+        return envelope;
+      }
+    }
+    return null;
   }
 
   private static boolean isMappingSite(ChainPlanGraph graph, String nodeId) {

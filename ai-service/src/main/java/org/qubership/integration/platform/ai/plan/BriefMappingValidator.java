@@ -120,13 +120,15 @@ public final class BriefMappingValidator {
     MappingContract source = sourceContract == null ? MappingContract.unknown() : sourceContract;
     MappingContract target = targetContract == null ? MappingContract.unknown() : targetContract;
     boolean scriptPreferred = MappingMechanismSelector.isScriptPreference(implementationPreference);
-    List<MappingIntentRule> input = candidates == null ? List.of() : candidates;
+    List<MappingIntentRule> input = expandCommaSeparatedRules(candidates);
     Map<String, MappingIntentRule> byTarget = new LinkedHashMap<>();
     for (MappingIntentRule candidate : input) {
       if (candidate == null || candidate.targetPath().isBlank()) {
         continue;
       }
-      byTarget.put(candidate.targetPath(), classifyOne(candidate, source, target, scriptPreferred));
+      MappingIntentRule normalized = canonicalRule(candidate);
+      byTarget.put(
+          normalized.targetPath(), classifyOne(normalized, source, target, scriptPreferred));
     }
     if (target.known()) {
       for (MappingContract.Field field : target.fields()) {
@@ -190,7 +192,7 @@ public final class BriefMappingValidator {
       MappingContract target,
       boolean scriptPreferred) {
     if (candidate.status() == MappingRuleStatus.USER_DEFINED) {
-      return validateKnownPaths(candidate, source, target, scriptPreferred);
+        return validateKnownPaths(candidate, scriptPreferred);
     }
     if (candidate.status() == MappingRuleStatus.UNRESOLVED) {
       return candidate;
@@ -215,17 +217,7 @@ public final class BriefMappingValidator {
   }
 
   private static MappingIntentRule validateKnownPaths(
-      MappingIntentRule candidate,
-      MappingContract source,
-      MappingContract target,
-      boolean scriptPreferred) {
-    if (source.known() && !candidate.sourcePath().isBlank()
-        && !source.field(candidate.sourcePath()).isPresent()) {
-      return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
-    }
-    if (target.known() && !target.field(candidate.targetPath()).isPresent()) {
-      return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
-    }
+      MappingIntentRule candidate, boolean scriptPreferred) {
     if (candidate.expression() != null && !expressionSupported(candidate.expression(), scriptPreferred)) {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
     }
@@ -274,11 +266,46 @@ public final class BriefMappingValidator {
   }
 
   /**
-   * Non-blank expressions stay unresolved unless the intent prefers SCRIPT and the expression is
-   * one SCRIPT generation can write.
+   * One captured rule may echo several fields as a comma-separated list. Equal-arity lists become
+   * one rule per target so required coverage matches JSON Schema field paths.
+   */
+  private static List<MappingIntentRule> expandCommaSeparatedRules(
+      List<MappingIntentRule> candidates) {
+    List<MappingIntentRule> input = candidates == null ? List.of() : candidates;
+    List<MappingIntentRule> expanded = new ArrayList<>();
+    for (MappingIntentRule candidate : input) {
+      if (candidate == null) {
+        continue;
+      }
+      List<String> sources = MappingContract.commaSeparatedFieldNames(candidate.sourcePath());
+      List<String> targets = MappingContract.commaSeparatedFieldNames(candidate.targetPath());
+      if (sources.size() >= 2 && sources.size() == targets.size()) {
+        for (int i = 0; i < targets.size(); i++) {
+          expanded.add(
+              new MappingIntentRule(
+                  sources.get(i), targets.get(i), candidate.expression(), candidate.status()));
+        }
+      } else {
+        expanded.add(candidate);
+      }
+    }
+    return expanded;
+  }
+
+  private static MappingIntentRule canonicalRule(MappingIntentRule candidate) {
+    return new MappingIntentRule(
+        MappingContract.canonicalPath(candidate.sourcePath()),
+        MappingContract.canonicalPath(candidate.targetPath()),
+        candidate.expression(),
+        candidate.status());
+  }
+
+  /**
+   * Non-blank expressions stay unresolved only when mapper-2 is on and SCRIPT generation cannot
+   * write that expression.
    */
   private static boolean expressionSupported(String expression, boolean scriptPreferred) {
-    if (expression == null || expression.isBlank()) {
+    if (MappingMechanismSelector.scriptAcceptsExpression(expression)) {
       return true;
     }
     return scriptPreferred && MappingMechanismSelector.isSupportedScriptExpression(expression);

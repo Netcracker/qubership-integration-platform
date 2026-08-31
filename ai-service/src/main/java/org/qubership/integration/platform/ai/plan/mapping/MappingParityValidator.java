@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescripti
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.MappingAction;
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.MessageSchema;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
@@ -60,18 +61,46 @@ public final class MappingParityValidator {
 
   public static void requireScriptCoverage(
       MappingIntent intent, List<String> implementedTargetPaths) {
+    requireScriptCoverage(intent, implementedTargetPaths, MappingContract.unknown());
+  }
+
+  public static void requireScriptCoverage(
+      MappingIntent intent, List<String> implementedTargetPaths, MappingContract targetContract) {
     Objects.requireNonNull(intent, "intent");
     if (implementedTargetPaths == null) {
       throw parity("script coverage list is required");
     }
     rejectUnresolved(intent);
-    List<String> approved = approvedTargetPaths(intent);
-    List<String> implemented = new ArrayList<>(implementedTargetPaths);
-    Collections.sort(approved);
-    Collections.sort(implemented);
-    if (!approved.equals(implemented)) {
-      throw parity("script coverage does not match approved target paths");
+    MappingContract target = targetContract == null ? MappingContract.unknown() : targetContract;
+    List<String> approved =
+        new ArrayList<>(
+            target.hopBodyFieldsCoveredBy(approvedTargetPaths(intent)));
+    List<String> implemented =
+        new ArrayList<>(MappingContract.uniqueCanonicalPaths(implementedTargetPaths));
+    List<String> missing = new ArrayList<>();
+    for (String approvedPath : approved) {
+      if (!coveredBy(approvedPath, implemented)) {
+        missing.add(approvedPath);
+      }
     }
+    if (!missing.isEmpty()) {
+      Collections.sort(missing);
+      Collections.sort(implemented);
+      throw parity(
+          "script coverage does not match approved target paths. missing="
+              + missing
+              + " implemented="
+              + implemented);
+    }
+  }
+
+  private static boolean coveredBy(String approvedPath, List<String> implemented) {
+    for (String implementedPath : implemented) {
+      if (MappingContract.pathTouches(approvedPath, implementedPath)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void rejectUnresolved(MappingIntent intent) {

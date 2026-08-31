@@ -396,6 +396,24 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
+  void repairEvidenceTextOmitsStageIdFollowUpAndAddsMappingIntentHint() {
+    StageRepairEvidence repair =
+        new StageRepairEvidence(
+            "CONTRACT_FAILURE",
+            "design-planning",
+            "planner report mapping-generator step is missing mappingIntentId",
+            "planner report mapping-generator step is missing mappingIntentId",
+            "requirement-analysis");
+
+    String text = DesignPlanningCapability.repairEvidenceText(repair, "1. Encode mapping (cip-script-generator)");
+
+    assertFalse(text.contains("authorFollowUp:"), text);
+    assertTrue(text.contains("repairHint:"), text);
+    assertTrue(text.contains("mappingIntentId=<id>"), text);
+    assertTrue(text.contains("rejectedPlan:"), text);
+  }
+
+  @Test
   void rendererPreservesPlannerReportTextInOrder() {
     DesignPlanReport report = new DesignPlanReport("1", validReport());
     ChainSemanticRevision revision = sampleRevision();
@@ -422,6 +440,16 @@ class DesignPlanningCapabilityTest {
     }
     assertTrue(plan.planText().contains(ApprovalPolicy.CATALOG_FIRST_V1));
     assertTrue(plan.scriptOutcomes().isEmpty(), "pass-through mappings do not require scripts");
+  }
+
+  @Test
+  void plannerInputRequiresLiteralMappingIntentIdToken() {
+    String input =
+        DesignPlanningCapability.buildPlannerInput(
+            sampleIds(), SemanticFixtures.linearOrdersWithMapping(), "2024.4");
+
+    assertTrue(input.contains("mappingIntentId=<id>"), input);
+    assertTrue(input.contains("mappingIntentId=map-init"), input);
   }
 
   @Test

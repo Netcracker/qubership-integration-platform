@@ -64,7 +64,8 @@ class ScriptBodyRepairToolTest {
             new GeneratorReadinessEvaluator(),
             new GraphPatchApplier(),
             feedbackStore,
-            executionContextStore);
+            executionContextStore,
+            mock(org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.class));
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, CAPABILITY_ID);
   }

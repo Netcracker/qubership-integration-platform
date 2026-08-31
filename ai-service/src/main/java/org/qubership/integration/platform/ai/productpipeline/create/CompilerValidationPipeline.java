@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -205,7 +206,9 @@ public class CompilerValidationPipeline {
         continue;
       }
       for (PlanProperty property : node.properties()) {
-        if (property == null || property.key() == null) {
+        if (property == null
+            || property.key() == null
+            || MappingExecutionSite.isCompilerMetadataKey(property.key().trim())) {
           continue;
         }
         Object coerced =
@@ -256,7 +259,10 @@ public class CompilerValidationPipeline {
       var props = objectMapper.createObjectNode();
       if (properties != null) {
         for (PlanProperty property : properties) {
-          if (property == null || property.key() == null || property.key().isBlank()) {
+          if (property == null
+              || property.key() == null
+              || property.key().isBlank()
+              || MappingExecutionSite.isCompilerMetadataKey(property.key().trim())) {
             continue;
           }
           Object coerced =

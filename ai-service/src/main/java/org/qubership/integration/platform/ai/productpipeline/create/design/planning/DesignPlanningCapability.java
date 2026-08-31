@@ -287,13 +287,35 @@ public class DesignPlanningCapability implements StageCapability {
     if (repair.errorEvidence() != null && !repair.errorEvidence().isBlank()) {
       sb.append("- errorEvidence:\n").append(repair.errorEvidence().trim()).append('\n');
     }
-    if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
+    if (repair.haltFollowUpText() != null
+        && !repair.haltFollowUpText().isBlank()
+        && !isStageIdFollowUp(repair.haltFollowUpText())) {
       sb.append("- authorFollowUp: ").append(repair.haltFollowUpText().trim()).append('\n');
+    }
+    if (mentionsMappingIntentId(repair)) {
+      sb.append(
+          "- repairHint: Keep the rejected plan's numbered steps. On every mapping-generator "
+              + "line write the literal token mappingIntentId=<id> next to the skill, using an id "
+              + "from Mapping intents. Example: (cip-script-generator mappingIntentId=map-a).\n");
     }
     if (priorPlanMarkdown != null && !priorPlanMarkdown.isBlank()) {
       sb.append("- rejectedPlan:\n").append(priorPlanMarkdown.trim()).append('\n');
     }
     return sb.toString().trim();
+  }
+
+  private static boolean mentionsMappingIntentId(StageRepairEvidence repair) {
+    return containsIgnoreCase(repair.errorEvidence(), "mappingIntentId")
+        || containsIgnoreCase(repair.findings(), "mappingIntentId");
+  }
+
+  private static boolean containsIgnoreCase(String text, String token) {
+    return text != null && !text.isBlank() && text.toLowerCase(java.util.Locale.ROOT).contains(token.toLowerCase(java.util.Locale.ROOT));
+  }
+
+  /** Stage-id clicks are not a product correction the planner should copy. */
+  private static boolean isStageIdFollowUp(String text) {
+    return text != null && text.trim().matches("[a-z][a-z0-9]*(-[a-z0-9]+)+");
   }
 
   /** The API release an edit or a build targets, derived from the chain's language version. */
@@ -372,8 +394,10 @@ public class DesignPlanningCapability implements StageCapability {
       text.append("\nNo mapping intents. Do not plan mapping scripts.\n");
     } else {
       text.append(
-          "\nMapping intents. Each needs one step with mappingIntentId=<id> and the matching"
-              + " skill:\n");
+          "\nMapping intents. Each mapping-generator numbered line must include the literal token "
+              + "mappingIntentId=<id> inside the parentheses with the skill, for example "
+              + "`3. Encode mapping (cip-script-generator mappingIntentId=map-a)`. "
+              + "Naming the skill without that token fails projection. Do not invent ids.\n");
       for (MappingIntent mapping : revision.mappingIntents()) {
         text.append("- ")
             .append(mapping.mappingIntentId())

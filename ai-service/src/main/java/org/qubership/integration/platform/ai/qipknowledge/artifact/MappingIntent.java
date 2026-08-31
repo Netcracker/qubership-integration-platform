@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.qipknowledge.artifact;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 /**
@@ -9,13 +11,13 @@ import java.util.List;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MappingIntent(
-    String mappingIntentId,
-    String sourceRef,
-    MappingPort sourcePort,
-    String targetRef,
-    MappingPort targetPort,
-    List<MappingIntentRule> rules,
-    String implementationPreference) {
+    @JsonProperty("mappingIntentId") String mappingIntentId,
+    @JsonProperty("sourceRef") String sourceRef,
+    @JsonProperty("sourcePort") MappingPort sourcePort,
+    @JsonProperty("targetRef") String targetRef,
+    @JsonProperty("targetPort") MappingPort targetPort,
+    @JsonProperty("rules") List<MappingIntentRule> rules,
+    @JsonProperty("implementationPreference") String implementationPreference) {
 
   public MappingIntent {
     mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
@@ -28,6 +30,7 @@ public record MappingIntent(
             : implementationPreference.trim();
   }
 
+  @JsonIgnore
   public MappingIntent(
       String mappingIntentId,
       String sourceRef,

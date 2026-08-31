@@ -97,13 +97,18 @@ public class RequirementBriefTool {
        on goal, summary, inputs, constraints, and assumptions.
       Omit facts when an approved draft exists. If you emit a SERVICE_CALL fact, include\
        serviceCallId.
-      When there are no positive SERVICE_CALL facts, leave dataMappings empty. Do not invent\
-       mappings. If you emit a mapping, it must include stage and at least one sourceFactId.
-      When no transformation was requested, leave dataMappings empty. The server records that as\
-       pass-through: a direct connection with no mapping row. Use EXPLICIT dataMappings only for\
-       user-approved sourcePath and targetPath rules; never invent rules. Reuse approved\
-       sourceFactId values as fromIntentRef and toIntentRef. The server records entry points from\
-       catalog trigger capabilities independently of fact kind.
+      When there are no positive SERVICE_CALL facts, leave dataMappings and mappingIntents empty.\
+       Do not invent mappings. If you emit a legacy dataMapping, it must include stage and at\
+       least one sourceFactId.
+      When no field adaptation was requested, leave dataMappings and mappingIntents empty. The\
+       server records that as pass-through: a direct connection with no mapping row. When the\
+       user requested field adaptation, capture mappingIntents. Prose is enough: Subject = name\
+       becomes sourcePath=name and targetPath=Subject. A computed rule such as a priority bucket,\
+       a default, or JSON construction sets expression on that rule. One intent per\
+       source-to-target boundary. Never invent identity copies for fields the user did not\
+       mention. EXPLICIT dataMappings still work. Reuse approved sourceFactId values as\
+       fromIntentRef and toIntentRef. The server records entry points from catalog trigger\
+       capabilities independently of fact kind.
       Minimal example:
       {
         "goal": "Expose a greeting HTTP endpoint",
@@ -234,16 +239,17 @@ public class RequirementBriefTool {
 
   private static RequirementBrief toRequirementBrief(RequirementBriefCapture capture) {
     return new RequirementBrief(
-        nullToEmpty(capture.goal()),
-        copyList(capture.inputs()),
-        copyList(capture.constraints()),
-        copyList(capture.assumptions()),
-        capture.citations() == null ? List.of() : List.copyOf(capture.citations()),
-        nullToEmpty(capture.summary()),
-        capture.approvedDraftReference(),
-        nullToEmpty(capture.approvedDraftText()),
-        capture.facts() == null ? List.of() : List.copyOf(capture.facts()),
-        capture.dataMappings() == null ? List.of() : List.copyOf(capture.dataMappings()));
+            nullToEmpty(capture.goal()),
+            copyList(capture.inputs()),
+            copyList(capture.constraints()),
+            copyList(capture.assumptions()),
+            capture.citations() == null ? List.of() : List.copyOf(capture.citations()),
+            nullToEmpty(capture.summary()),
+            capture.approvedDraftReference(),
+            nullToEmpty(capture.approvedDraftText()),
+            capture.facts() == null ? List.of() : List.copyOf(capture.facts()),
+            capture.dataMappings() == null ? List.of() : List.copyOf(capture.dataMappings()))
+        .withMappingIntents(capture.mappingIntents());
   }
 
   private static List<String> copyList(List<String> values) {

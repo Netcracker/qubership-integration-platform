@@ -18,9 +18,11 @@ import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ErrorHandler;
@@ -315,7 +317,9 @@ public class ChainSemanticCaptureAdapter {
       if (serverOwnedNodeIds.contains(nodeId)) {
         continue;
       }
-      String elementType = requireText(operation.elementType(), "elementType");
+      String elementType =
+          MappingMechanismSelector.canonicalTransformElementType(
+              requireText(operation.elementType(), "elementType"));
       if (!contract.elements().containsKey(elementType)) {
         throw new IllegalArgumentException(
             "Operation node '"
@@ -583,7 +587,7 @@ public class ChainSemanticCaptureAdapter {
   private static List<MappingIntent> mappingIntents(
       RequirementBrief brief, List<SemanticExecutionEdge> edges, List<SemanticNode> nodes) {
     Map<String, MappingIntent> approved = new LinkedHashMap<>();
-    for (MappingIntent intent : brief.mappingIntents()) {
+    for (MappingIntent intent : RequirementBriefProjector.collapseMappingIntents(brief)) {
       if (intent != null && !intent.mappingIntentId().isBlank()) {
         approved.put(intent.mappingIntentId(), intent);
       }

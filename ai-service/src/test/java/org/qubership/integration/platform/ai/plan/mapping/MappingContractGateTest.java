@@ -54,6 +54,71 @@ class MappingContractGateTest {
   }
 
   @Test
+  void capturedBriefShapeDoesNotBlockScriptGeneration() {
+    MappingContract source =
+        contractFrom(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "success": { "type": "boolean" },
+                "errors": { "type": "array" }
+              },
+              "required": ["id", "success", "errors"]
+            }
+            """);
+    MappingContract target =
+        contractFrom(
+            """
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "executionId": { "type": "string" },
+                    "commandType": { "type": "string" },
+                    "orderId": { "type": "string" },
+                    "error": { "type": "object" }
+                  },
+                  "required": ["executionId", "commandType", "orderId", "error"]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "executionId": { "type": "string" },
+                    "commandType": { "type": "string" },
+                    "orderId": { "type": "string" },
+                    "executionNumber": { "type": "integer" }
+                  },
+                  "required": ["executionId", "commandType", "orderId", "executionNumber"]
+                }
+              ]
+            }
+            """);
+    MappingIntent intent =
+        new MappingIntent(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "", "commandType", "Set to completeTask.", MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "executionId, orderId",
+                    "executionId, orderId",
+                    "Echo preserved execution context fields.",
+                    MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "", "sourceAppName", "Set to salesforce.", MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "id", "parameters.salesforceTaskId", null, MappingRuleStatus.USER_DEFINED)));
+    assertTrue(MappingContractGate.blockedMessage(intent, source, target).isEmpty());
+  }
+
+  @Test
   void completeRulesPass() {
     MappingIntent intent =
         new MappingIntent(

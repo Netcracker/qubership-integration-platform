@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -27,6 +28,7 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
   static final String SCHEMA_VERSION = "1";
   static final String PRODUCER_ID = "catalog-operation-schema-loader";
   static final String PRODUCER_VERSION = "1";
+  private static final String JSON_CONTENT_TYPE = "application/json";
 
   private final CatalogRestClient catalogRestClient;
   private final CompilationArtifacts artifacts;
@@ -151,8 +153,46 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
         responseByStatus.put(entry.getKey(), parseResponseContentTypes(entry.getValue()));
       }
     }
+    if (requestByContentType.isEmpty()) {
+      JsonNode asyncRequest = asyncPayloadRequest(responseByStatus);
+      if (asyncRequest != null) {
+        requestByContentType.put(JSON_CONTENT_TYPE, asyncRequest);
+      }
+    }
     return new OperationSchemaMaps(
         operationId, Map.copyOf(requestByContentType), Map.copyOf(responseByStatus));
+  }
+
+  /**
+   * Catalog AsyncAPI stores channel messages as flat JSON Schema under {@code responseSchemas},
+   * with an empty request map. Mapping treats that payload as the operation body (trigger output
+   * or publish request). HTTP statuses are left alone so GET operations keep an empty request.
+   */
+  private JsonNode asyncPayloadRequest(Map<String, Map<String, JsonNode>> responseByStatus) {
+    if (responseByStatus == null || responseByStatus.isEmpty()) {
+      return null;
+    }
+    List<JsonNode> messages = new ArrayList<>();
+    for (Map.Entry<String, Map<String, JsonNode>> entry : responseByStatus.entrySet()) {
+      if (looksLikeHttpStatus(entry.getKey())) {
+        return null;
+      }
+      JsonNode schema = entry.getValue() == null ? null : entry.getValue().get(JSON_CONTENT_TYPE);
+      if (schema == null || schema.isNull()) {
+        return null;
+      }
+      messages.add(schema);
+    }
+    if (messages.size() == 1) {
+      return messages.getFirst();
+    }
+    var root = objectMapper.createObjectNode();
+    var oneOf = objectMapper.createArrayNode();
+    for (JsonNode message : messages) {
+      oneOf.add(message);
+    }
+    root.set("oneOf", oneOf);
+    return root;
   }
 
   private static Map<String, JsonNode> parseResponseContentTypes(JsonNode node) {
@@ -160,7 +200,7 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
       return Map.of();
     }
     if (looksLikeJsonSchema(node)) {
-      return Map.of();
+      return Map.of(JSON_CONTENT_TYPE, node);
     }
     if (!node.isObject()) {
       return Map.of();
@@ -174,6 +214,14 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
       }
     }
     return Map.copyOf(byContentType);
+  }
+
+  private static boolean looksLikeHttpStatus(String key) {
+    return key != null
+        && key.length() == 3
+        && Character.isDigit(key.charAt(0))
+        && Character.isDigit(key.charAt(1))
+        && Character.isDigit(key.charAt(2));
   }
 
   private static boolean looksLikeJsonSchema(JsonNode node) {

@@ -113,6 +113,45 @@ class RequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void fieldMappingDraftRequiresCapturedIntents() {
+    RequirementFact fact =
+        serviceCallFact(
+            "call-salesforce-createTask",
+            "call-salesforce-createTask",
+            "Salesforce WFM",
+            "createTask");
+    RequirementDraft approved =
+        new RequirementDraft(
+            true,
+            "Request mapping from onTaskStart to createTask: Subject = name",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            false,
+            List.of(fact),
+            false);
+    RequirementBrief brief =
+        new RequirementBrief(
+            "OM to Salesforce WFM",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "summary",
+            "ref",
+            approved.planningText(),
+            List.of(fact));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("field mappings"), error.orElse(""));
+  }
+
+  @Test
   void rejectsReversedTopologyBeforeBriefApproval() {
     RequirementFact endpoint =
         new RequirementFact(

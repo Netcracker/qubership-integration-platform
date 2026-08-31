@@ -70,6 +70,8 @@ public final class DesignPlanProjector {
     // Upstream design-planner still names cip-chain-validator; the runtime skill catalog
     // decomposed that gate into the pinned Validation producers. Rewrite before catalog checks.
     parsed = rewriteChainValidatorAlias(parsed, nodesBySkill);
+    parsed = bindUnnamedMappingSteps(parsed, revision);
+    parsed = dropUnboundMappingSteps(parsed, revision);
     validateUnknownSkills(parsed, nodesBySkill);
     validateNoCatalogCycles(nodesBySkill, selectedSkills(parsed));
     validateTriggerCoverage(parsed);
@@ -263,6 +265,107 @@ public final class DesignPlanProjector {
     visiting.remove(skillId);
     visited.add(skillId);
     return false;
+  }
+
+  /** Bind unnamed mapping-generator steps to remaining captured intents in revision order. */
+  private static ParsedPlannerReport bindUnnamedMappingSteps(
+      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
+    List<MappingIntent> remaining = new ArrayList<>(revision.mappingIntents());
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      if (!isMappingGeneratorStep(step) || step.mappingIntentId().isBlank()) {
+        continue;
+      }
+      remaining.removeIf(intent -> intent.mappingIntentId().equals(step.mappingIntentId()));
+    }
+    boolean changed = false;
+    List<ParsedPlannerReport.Step> steps = new ArrayList<>();
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      if (!isMappingGeneratorStep(step) || !step.mappingIntentId().isBlank()) {
+        steps.add(step);
+        continue;
+      }
+      MappingIntent assigned = takeNextMatchingIntent(remaining, step);
+      if (assigned == null) {
+        steps.add(step);
+        continue;
+      }
+      remaining.remove(assigned);
+      changed = true;
+      steps.add(
+          new ParsedPlannerReport.Step(
+              step.reportOrdinal(),
+              step.reportText(),
+              step.ownerKind(),
+              step.owningSkillIds(),
+              step.toolOperationRefs(),
+              step.participantRefs(),
+              step.operationQueryRefs(),
+              assigned.mappingIntentId()));
+    }
+    return changed ? new ParsedPlannerReport(steps, parsed.apiRelease()) : parsed;
+  }
+
+  /**
+   * Drop mapping-generator steps that still have no captured intent after binding. Extra named
+   * steps for an id the revision does not own are leftover aliases, not a planner contract error.
+   */
+  private static ParsedPlannerReport dropUnboundMappingSteps(
+      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
+    if (revision.mappingIntents().isEmpty()) {
+      return parsed;
+    }
+    Set<String> knownIds = new HashSet<>();
+    for (MappingIntent intent : revision.mappingIntents()) {
+      knownIds.add(intent.mappingIntentId());
+    }
+    boolean changed = false;
+    List<ParsedPlannerReport.Step> steps = new ArrayList<>();
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      if (!isMappingGeneratorStep(step)) {
+        steps.add(step);
+        continue;
+      }
+      boolean unnamed = step.mappingIntentId().isBlank();
+      boolean unknown = !unnamed && !knownIds.contains(step.mappingIntentId());
+      if (!unnamed && !unknown) {
+        steps.add(step);
+        continue;
+      }
+      LinkedHashSet<String> owners = new LinkedHashSet<>(step.owningSkillIds());
+      owners.remove(SCRIPT_GENERATOR_SKILL_ID);
+      owners.remove(TRANSFORMATION_GENERATOR_SKILL_ID);
+      changed = true;
+      if (owners.isEmpty()
+          && step.toolOperationRefs().isEmpty()
+          && step.ownerKind() == ParsedPlannerReport.OwnerKind.SKILL) {
+        continue;
+      }
+      steps.add(
+          new ParsedPlannerReport.Step(
+              step.reportOrdinal(),
+              step.reportText(),
+              step.ownerKind(),
+              List.copyOf(owners),
+              step.toolOperationRefs(),
+              step.participantRefs(),
+              step.operationQueryRefs(),
+              unnamed ? step.mappingIntentId() : ""));
+    }
+    if (!changed || steps.isEmpty()) {
+      return parsed;
+    }
+    return new ParsedPlannerReport(steps, parsed.apiRelease());
+  }
+
+  private static MappingIntent takeNextMatchingIntent(
+      List<MappingIntent> remaining, ParsedPlannerReport.Step step) {
+    for (MappingIntent intent : remaining) {
+      Optional<MappingMechanism> selected = MappingMechanismSelector.select(intent);
+      if (selected.isPresent() && step.owningSkillIds().contains(skillFor(selected.get()))) {
+        return intent;
+      }
+    }
+    return remaining.isEmpty() ? null : remaining.getFirst();
   }
 
   private static void validateTriggerCoverage(ParsedPlannerReport parsed) {

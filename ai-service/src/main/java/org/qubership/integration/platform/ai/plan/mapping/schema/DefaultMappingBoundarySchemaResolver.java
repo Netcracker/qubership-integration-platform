@@ -14,8 +14,10 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -79,7 +81,7 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       Map<String, MappingEnvelope> envelopes,
       String ref,
       MappingPort port) {
-    SemanticNode node = findNode(revision, ref);
+    SemanticNode node = findNode(revision, ref, port);
     if (node instanceof SemanticNode.Operation && port == MappingPort.OUTPUT) {
       return sideFromEnvelope(node, envelopes.get(node.nodeId()));
     }
@@ -184,7 +186,8 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
         chosen.schema());
   }
 
-  private static SemanticNode findNode(ChainSemanticRevision revision, String ref) {
+  private static SemanticNode findNode(
+      ChainSemanticRevision revision, String ref, MappingPort port) {
     if (ref == null || ref.isBlank()) {
       throw new IllegalStateException("Mapping ref is required");
     }
@@ -198,7 +201,83 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
         return call;
       }
     }
+    SemanticExecutionEdge edge = findEdge(revision, ref);
+    if (edge != null) {
+      return endpointForPort(revision, edge, port);
+    }
     throw new IllegalStateException("Unknown mapping ref " + ref);
+  }
+
+  private static SemanticExecutionEdge findEdge(ChainSemanticRevision revision, String edgeId) {
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      if (edgeId.equals(edge.edgeId())) {
+        return edge;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * After design-input, mapping intents sit on an edge: both refs are that edge id. OUTPUT/RESPONSE
+   * is the producer side; REQUEST is the consumer. A transform node on the edge is skipped so the
+   * schema comes from the trigger or service call.
+   */
+  private static SemanticNode endpointForPort(
+      ChainSemanticRevision revision, SemanticExecutionEdge edge, MappingPort port) {
+    boolean producer = port != MappingPort.REQUEST;
+    String nodeId = producer ? edge.sourceNodeId() : edge.targetNodeId();
+    SemanticNode node = requireNode(revision, nodeId);
+    if (!isTransform(node)) {
+      return node;
+    }
+    String walked =
+        producer
+            ? uniqueNeighbor(revision, node.nodeId(), true)
+            : uniqueNeighbor(revision, node.nodeId(), false);
+    return requireNode(revision, walked);
+  }
+
+  private static String uniqueNeighbor(
+      ChainSemanticRevision revision, String transformNodeId, boolean incoming) {
+    String found = null;
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      boolean match =
+          incoming
+              ? transformNodeId.equals(edge.targetNodeId())
+              : transformNodeId.equals(edge.sourceNodeId());
+      if (!match) {
+        continue;
+      }
+      String neighbor = incoming ? edge.sourceNodeId() : edge.targetNodeId();
+      if (found != null && !found.equals(neighbor)) {
+        throw new IllegalStateException(
+            "Ambiguous mapping endpoint around transform node " + transformNodeId);
+      }
+      found = neighbor;
+    }
+    if (found == null) {
+      throw new IllegalStateException(
+          "No mapping endpoint adjacent to transform node " + transformNodeId);
+    }
+    return found;
+  }
+
+  private static SemanticNode requireNode(ChainSemanticRevision revision, String nodeId) {
+    for (SemanticNode node : revision.nodes()) {
+      if (nodeId.equals(node.nodeId())) {
+        return node;
+      }
+    }
+    throw new IllegalStateException("Unknown mapping ref " + nodeId);
+  }
+
+  private static boolean isTransform(SemanticNode node) {
+    if (!(node instanceof SemanticNode.Operation operation)) {
+      return false;
+    }
+    String type = operation.elementType();
+    return MappingExecutionSite.ELEMENT_TYPE.equals(type)
+        || MappingExecutionSite.SCRIPT_ELEMENT_TYPE.equals(type);
   }
 
   private static String ownerId(

@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescripti
 import org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -85,6 +86,87 @@ class MappingParityValidatorTest {
   @Test
   void scriptCoverageMustEqualApprovedTargets() {
     MappingParityValidator.requireScriptCoverage(identityOrderId(), List.of("$.orderId"));
+  }
+
+  @Test
+  void scriptCoverageAcceptsBareNamesAndCommaSeparatedEcho() {
+    MappingIntent intent =
+        new MappingIntent(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "", "commandType", "Set to completeTask.", MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "executionId, orderId",
+                    "executionId, orderId",
+                    "Echo preserved context.",
+                    MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "name", "Subject", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "subRequestType, orderId",
+                    "Subject",
+                    "Fallback subject",
+                    MappingRuleStatus.USER_DEFINED)));
+    MappingParityValidator.requireScriptCoverage(
+        intent, List.of("commandType", "executionId", "orderId", "Subject"));
+    MappingParityValidator.requireScriptCoverage(
+        intent, List.of("$.commandType", "$.executionId", "$.orderId", "$.Subject"));
+  }
+
+  @Test
+  void scriptCoverageParentPathCoversNestedApprovedTargets() {
+    MappingIntent intent =
+        new MappingIntent(
+            "request-subject",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("taskId", "Description.taskId", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "executionId", "Description.executionId", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule("name", "Subject", null, MappingRuleStatus.USER_DEFINED)));
+    MappingParityValidator.requireScriptCoverage(intent, List.of("Description", "Subject"));
+  }
+
+  @Test
+  void scriptCoverageRequiresHopBodyFieldsNotPreserveForLaterContext() {
+    MappingIntent intent =
+        new MappingIntent(
+            "request-onTaskStart-to-createTask",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "createTask",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("name", "Subject", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "taskId", "Description.taskId", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "executionId",
+                    "responseContext.executionId",
+                    "Keep for the response.",
+                    MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "orderId",
+                    "responseContext.orderId",
+                    "Keep for the response.",
+                    MappingRuleStatus.USER_DEFINED)));
+    MappingContract createTask =
+        MappingContract.of(
+            new MappingContract.Field("$.Subject", "string", true),
+            new MappingContract.Field("$.Description", "string", false),
+            new MappingContract.Field("$.Priority", "string", false),
+            new MappingContract.Field("$.Status", "string", false),
+            new MappingContract.Field("$.ActivityDate", "string", false));
+    MappingParityValidator.requireScriptCoverage(
+        intent, List.of("Subject", "Description"), createTask);
   }
 
   @Test
