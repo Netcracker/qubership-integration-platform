@@ -29,6 +29,7 @@ apm_modules/
 .dev/
 .scratch/
 .superpowers/
+.qubership/superpowers-cip-pipeline.drawio
 
 # Private skills, addons, and certified knowledge package supplied out of band
 integration-platform-skills/
