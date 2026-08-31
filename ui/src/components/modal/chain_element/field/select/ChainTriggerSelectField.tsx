@@ -38,7 +38,9 @@ const ChainTriggerSelectField: React.FC<
         setOptions(
           elements.map((element) => ({
             value: element.id,
-            labelString: element.name,
+            // Searched text: the chain tag is what tells options apart, since
+            // triggers keep their default name.
+            labelString: `${element.chainName} ${element.name}`,
             label: (
               <>
                 <SelectTag value={element.chainName} />
