@@ -171,6 +171,18 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             .effectiveSeed()
             .preSatisfiedSkillIds()
             .contains(CompilerExecutionSeed.STRUCTURE_GENERATOR_SKILL));
+    assertTrue(
+        request
+            .effectiveSeed()
+            .preSatisfiedSkillIds()
+            .contains(CompilerExecutionSeed.PATTERN_SELECTOR_SKILL));
+    assertTrue(
+        request
+            .effectiveSeed()
+            .preSatisfiedSkillIds()
+            .contains(CompilerExecutionSeed.TRIGGER_GENERATOR_SKILL));
+    assertTrue(request.effectiveSeed().presentArtifactTypes().contains("SELECTED_PATTERN"));
+    assertTrue(request.effectiveSeed().presentArtifactTypes().contains("CONFIGURED_TRIGGER_SET"));
   }
 
   private static CompilerDagExecutionResult successfulEngineResult() {

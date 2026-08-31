@@ -82,9 +82,9 @@ public class CatalogSystemFinder {
       predicates.add(
           CatalogSystemFilter.contains("SPECIFICATION_GROUP", query.specificationHint()));
     }
-    if (query.protocol() != null) {
-      predicates.add(CatalogSystemFilter.in("PROTOCOL", query.protocol()));
-    }
+    // Protocol is a ranker hint, not a filter. AND-ing PROTOCOL=http drops kafka services
+    // such as om-order-lifecycle-manager-WFMS, then the empty answer drops NAME and the
+    // retry walks every HTTP service.
     String token = longestSignificantToken(query.systemHint());
     if (token != null) {
       predicates.add(CatalogSystemFilter.contains("NAME", token));

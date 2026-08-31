@@ -40,11 +40,27 @@ class CatalogSystemFinderTest {
     List<CatalogSystemFilter> predicates = CatalogSystemFinder.predicates(fullQuery());
 
     assertEquals(
-        List.of("URL", "SPECIFICATION_GROUP", "PROTOCOL", "NAME"),
+        List.of("URL", "SPECIFICATION_GROUP", "NAME"),
         predicates.stream().map(CatalogSystemFilter::column).toList());
-    assertEquals("lifecycle", predicates.get(3).value());
-    // PROTOCOL rejects IS: the catalog matches nothing for it and throws on an unknown value.
-    assertEquals("IN", predicates.get(2).condition());
+    assertEquals("lifecycle", predicates.get(2).value());
+  }
+
+  @Test
+  @DisplayName("a guessed HTTP protocol does not filter out a kafka service")
+  void protocolIsNotARejectingFilter() {
+    List<CatalogSystemFilter> predicates =
+        CatalogSystemFinder.predicates(
+            new CatalogQuery(
+                "om-order-lifecycle-manager-WFMS",
+                null,
+                "http",
+                null,
+                null,
+                "onTaskStart",
+                null));
+
+    assertEquals(List.of("NAME"), predicates.stream().map(CatalogSystemFilter::column).toList());
+    assertEquals("lifecycle", predicates.getFirst().value());
   }
 
   @Test
@@ -65,8 +81,7 @@ class CatalogSystemFinderTest {
     assertEquals(new CatalogSystemFinder.Narrowed.Systems(List.of(OM)), narrowed);
     assertEquals(
         List.of(
-            List.of("URL", "SPECIFICATION_GROUP", "PROTOCOL", "NAME"),
-            List.of("URL", "SPECIFICATION_GROUP", "PROTOCOL"),
+            List.of("URL", "SPECIFICATION_GROUP", "NAME"),
             List.of("URL", "SPECIFICATION_GROUP")),
         asked);
     verify(client, never()).searchSystems(any());

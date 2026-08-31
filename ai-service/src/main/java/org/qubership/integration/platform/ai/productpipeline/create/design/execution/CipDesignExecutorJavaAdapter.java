@@ -483,7 +483,10 @@ public class CipDesignExecutorJavaAdapter {
     }
 
     ValidationResult freshPlanValidation =
-        planValidator.validate(new PlanGraphValidationInput(graph));
+        planValidator.validate(
+            new PlanGraphValidationInput(
+                graph,
+                inputs.revision() == null ? List.of() : inputs.revision().mappingIntents()));
     PlanValidationResult planValidation =
         mergeCompilerBundleFindings(
             CompilerPlanningRunner.buildValidationResult(freshPlanValidation, List.of()),

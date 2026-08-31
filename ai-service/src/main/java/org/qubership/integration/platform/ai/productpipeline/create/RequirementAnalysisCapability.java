@@ -597,10 +597,13 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     if (hasPositiveServiceCall(approved)) {
       sb.append(
-          "Do not invent dataMappings or mappingIntents for trigger-to-call edges. "
-              + "Pass-through is the absence of a mapping intent. Capture mappingIntents only "
-              + "when the user requested field adaptation with explicit sourcePath and targetPath "
-              + "rules. Never invent rules.\n\n");
+          "Do not invent dataMappings or mappingIntents for trigger-to-call edges that only "
+              + "forward the payload. Pass-through is the absence of a mapping intent. When the "
+              + "user requested field adaptation, capture mappingIntents. Prose is enough: "
+              + "Subject = name becomes sourcePath=name and targetPath=Subject. A computed rule "
+              + "such as a priority bucket, a default, or JSON construction sets expression on "
+              + "that rule. One intent per source-to-target boundary. Never invent identity "
+              + "copies for fields the user did not mention.\n\n");
     } else {
       sb.append(
           "Leave mappingIntents and dataMappings empty. There are no positive SERVICE_CALL "

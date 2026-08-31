@@ -21,6 +21,8 @@ public final class RecoveryExecutor {
           "__OWNER_CANDIDATES__",
           "go back to");
   private static final String PARK_MESSAGE = "Recovery is parked for review.";
+  private static final String CAPTURE_STILL_INVALID =
+      "The previous capture was still rejected. What should change in the chain topology?";
 
   private RecoveryExecutor() {}
 
@@ -53,18 +55,14 @@ public final class RecoveryExecutor {
       return park(stageId, summary(decision));
     }
     if (identicalRejection && action == RecoveryAction.REGENERATE_ARTIFACT) {
-      return park(stageId, summary(decision));
+      return askUser(stageId, summary(decision));
     }
     return switch (action) {
       case REVISE_BRIEF -> new StageDecision.ReopenProducer(stageId, "requirement-analysis");
       case REGENERATE_ARTIFACT -> regenerate(stageId, decision, failedStage);
       case RETRY_OPERATION -> retry(stageId, failedStage);
       case ASK_USER ->
-          new StageDecision.WaitForInput(
-              stageId,
-              PipelineGates.tag(
-                  PipelineGates.STAGE_CLARIFICATION,
-                  join(summary(decision), sanitize(decision.question()))));
+          askUser(stageId, join(summary(decision), sanitize(decision.question())));
       case PARK -> park(stageId, summary(decision));
     };
   }
@@ -118,6 +116,12 @@ public final class RecoveryExecutor {
         stageId, PipelineGates.tag(PipelineGates.STAGE_RETRY, body));
   }
 
+  private static StageDecision.WaitForInput askUser(String stageId, String body) {
+    String question = body == null || body.isBlank() ? CAPTURE_STILL_INVALID : body;
+    return new StageDecision.WaitForInput(
+        stageId, PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, question));
+  }
+
   private static String summary(RecoveryDecision decision) {
     return decision == null ? "" : sanitize(decision.userSummary());
   }
@@ -126,8 +130,11 @@ public final class RecoveryExecutor {
     if (summary.isBlank()) {
       return question;
     }
-    if (question.isBlank()) {
+    if (question.isBlank() || question.equals(summary)) {
       return summary;
+    }
+    if (question.startsWith(summary) || summary.startsWith(question)) {
+      return question.length() >= summary.length() ? question : summary;
     }
     return summary + "\n\n" + question;
   }

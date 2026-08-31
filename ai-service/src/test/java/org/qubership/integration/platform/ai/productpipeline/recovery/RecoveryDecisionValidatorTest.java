@@ -70,6 +70,20 @@ class RecoveryDecisionValidatorTest {
   }
 
   @Test
+  void derivationDefectMayAskTheAuthor() {
+    RecoveryDecision decision =
+        new RecoveryDecision(
+            RecoveryCauseClass.DERIVATION_DEFECT,
+            planRef,
+            List.of(evidence.failureId()),
+            RecoveryAction.ASK_USER,
+            List.of(),
+            "Should onTaskResult be a produce instead of a trigger?",
+            "The captured topology still treats an outbound Kafka operation as a trigger.");
+    assertTrue(RecoveryDecisionValidator.validate(decision, context).accepted());
+  }
+
+  @Test
   void derivationDefectCannotReviseTheBrief() {
     RecoveryDecision decision =
         new RecoveryDecision(

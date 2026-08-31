@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
+import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
@@ -17,14 +18,19 @@ import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompiler
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
+import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -161,24 +167,29 @@ public class DesignInputCapability implements StageCapability {
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
     String agentText;
     try {
-      agentText = runDesignAgent(context.conversationId(), authoringPrompt(brief, contract));
+      agentText =
+          runDesignAgent(context.conversationId(), authoringPrompt(brief, contract, context));
     } finally {
       ProductCapabilityCaptureContext.unbind(context.conversationId());
       ToolSession.clear();
     }
     ChainSemanticRevision revision = captured.get();
     if (revision == null) {
-      // The stage message alone cannot tell "the model never called the tool" from "the tool
-      // rejected every attempt". The agent's closing text separates the two.
+      String message = captureFailureMessage(agentText);
       LOG.warnf(
           "design-input captured nothing: runId=%s, conversationId=%s, agentText=%s",
           context.runId(),
           context.conversationId(),
           AiTraceLog.previewOneLine(agentText, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS));
+      // CONTRACT_FAILURE, not NEEDS_INPUT: the reader cannot type a revision. Recovery retries
+      // this stage once, then can reopen requirement-analysis with this message as halt evidence.
       return StageOutcome.of(
-          StageOutcomeClass.NEEDS_INPUT,
-          "Design did not capture a chain semantic revision. The agent must call"
-              + " captureChainSemanticRevision before finishing.");
+          StageOutcomeClass.CONTRACT_FAILURE,
+          message,
+          new RecoveryCause(
+              RecoveryCauseCode.CONTRACT_SHAPE,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", message, true)),
+              ""));
     }
     IdsDocument ids = idsRenderer.render(revision, contract);
     // The stage carries no approval policy of its own: the topology is approved together with the
@@ -194,18 +205,38 @@ public class DesignInputCapability implements StageCapability {
   }
 
   private String runDesignAgent(String conversationId, String prompt) {
+    // Quarkus LangChain4j treats @UserMessage as a Qute template. Mapping snippets such as
+    // {subRequestType} must be escaped or render fails before the design agent can capture.
+    String safePrompt = QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt);
+    Context toolSessionContext = ToolSession.attachedContext();
     Multi<String> stream;
     if (designRunner != null) {
-      stream = designRunner.apply(conversationId, prompt);
+      stream = designRunner.apply(conversationId, safePrompt);
     } else if (designAgent != null) {
-      stream = designAgent.chat(conversationId, prompt);
+      stream = designAgent.chat(conversationId, safePrompt);
     } else {
       stream = Multi.createFrom().empty();
     }
-    return String.join("", stream.collect().asList().await().indefinitely());
+    return String.join(
+        "",
+        ToolSession.propagateBinding(toolSessionContext, stream)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely());
   }
 
   static String authoringPrompt(RequirementBrief brief, CompilerContract contract) {
+    return authoringPrompt(brief, contract, "");
+  }
+
+  static String authoringPrompt(
+      RequirementBrief brief, CompilerContract contract, StageExecutionContext context) {
+    return authoringPrompt(brief, contract, repairSection(context));
+  }
+
+  static String authoringPrompt(
+      RequirementBrief brief, CompilerContract contract, String repairSection) {
     StringBuilder prompt = new StringBuilder();
     prompt
         .append("Capture one ChainSemanticRevision from this approved requirement brief.\n\n")
@@ -240,16 +271,50 @@ public class DesignInputCapability implements StageCapability {
     prompt.append(
         """
 
-        Call captureChainSemanticRevision once. Copy sourceFactIds and mappingIntentId from the\
-         brief, taking the value after each matching `=` sign. Do not send an entryPoints list;\
-         the server joins each brief entry point to your trigger nodes and to the unique outgoing\
-         edge from that trigger. Do not mint occurrence ids. The server derives the\
-         revision id, every edge id, both versions above, the catalog capability behind each entry\
-         point, and every service call node, so leave them out. Do not list those node ids under\
-         operations. List each node you do author under triggers or operations, and each\
-         control-flow region under the list that matches its kind; omit the region lists when the\
-         chain is linear.""");
+        Call captureChainSemanticRevision once. Copy sourceFactIds from the brief, taking the\
+         value after each matching `=` sign. Copy mappingIntentId the same way only when the\
+         brief has a mappingIntentId= line; otherwise omit it on every edge. Field-mapping\
+         shells use elementType script. Do not mint a mapping id and do not reuse a\
+         sourceFactId as mappingIntentId. Do not send an\
+         entryPoints list; the server joins each brief entry point to your trigger nodes and to\
+         the unique outgoing edge from that trigger. Do not mint occurrence ids. The server\
+         derives the revision id, every edge id, both versions above, the catalog capability\
+         behind each entry point, and every service call node, so leave them out. Do not list\
+         those node ids under operations. List each node you do author under triggers or\
+         operations, and each control-flow region under the list that matches its kind; omit\
+         the region lists when the chain is linear.""");
+    if (repairSection != null && !repairSection.isBlank()) {
+      prompt.append(repairSection);
+    }
     return prompt.toString();
+  }
+
+  private static String repairSection(StageExecutionContext context) {
+    StageRepairEvidence repair = StageRepairEvidence.from(context);
+    if (repair == null || !repair.hasEvidence()) {
+      return "";
+    }
+    String rejection =
+        repair.findings() != null && !repair.findings().isBlank()
+            ? repair.findings()
+            : repair.errorEvidence();
+    StringBuilder extra = new StringBuilder();
+    extra.append("\n\nThe previous capture was rejected:\n").append(rejection);
+    if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
+      extra.append("\n\nAuthor correction:\n").append(repair.haltFollowUpText().trim());
+    }
+    extra.append(
+        "\nRebuild the topology so this rejection cannot recur. Call captureChainSemanticRevision"
+            + " once.");
+    return extra.toString();
+  }
+
+  static String captureFailureMessage(String agentText) {
+    String explained = agentText == null ? "" : agentText.strip();
+    if (explained.isBlank()) {
+      return "Design did not capture a chain semantic revision.";
+    }
+    return AiTraceLog.preview(explained, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS);
   }
 
   private static RequirementBrief requirementBrief(StageExecutionContext context) {

@@ -62,6 +62,7 @@ public final class RecoveryDecisionValidator {
                   || decision.action() == RecoveryAction.ASK_USER;
           case DERIVATION_DEFECT ->
               decision.action() == RecoveryAction.REGENERATE_ARTIFACT
+                  || decision.action() == RecoveryAction.ASK_USER
                   || decision.action() == RecoveryAction.PARK;
           case TECHNICAL_FAILURE ->
               decision.action() == RecoveryAction.RETRY_OPERATION

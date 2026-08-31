@@ -1808,7 +1808,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void identicalRegenerateValidationHaltParksWithPriorAttemptRefs() {
+  void identicalRegenerateValidationHaltAsksWithPriorAttemptRefs() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger executionCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
@@ -1832,7 +1832,8 @@ class ProductPipelineStageExecutorTest {
         assertInstanceOf(
             StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
 
-    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(runtime.support().diagnosedOwnerStageId(RUN_ID).isEmpty());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertFalse(wait.prompt().contains("__OWNER_CANDIDATES__"));
@@ -2390,6 +2391,107 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-input").status());
     assertFalse(seenError.get().isBlank());
+  }
+
+  @Test
+  void spentDesignInputCaptureRepairAsksInsteadOfEscalatingOwners() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger captureCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    StageCapability designInput =
+        capability(
+            "design-input-cap",
+            context -> {
+              captureCalls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(
+                              StageOutcomeClass.CONTRACT_FAILURE,
+                              "Trigger node 'trigger-om-onTaskResult' must have exactly one"
+                                  + " outgoing edge",
+                              new RecoveryCause(
+                                  RecoveryCauseCode.CONTRACT_SHAPE,
+                                  List.of(
+                                      new PlanValidationFinding(
+                                          "CONTRACT_SHAPE",
+                                          "Trigger node 'trigger-om-onTaskResult' must have"
+                                              + " exactly one outgoing edge",
+                                          true)),
+                                  ""))));
+            });
+    agent.recoverRegenerates(
+        Kind.CHAIN_SEMANTIC_REVISION, "The captured topology still has two triggers.");
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "requirement-analysis");
+
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
+
+    assertEquals(2, captureCalls.get());
+    assertEquals(
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
+    assertFalse(PipelineGates.strip(wait.prompt()).contains("requirement-analysis"));
+    assertTrue(PipelineGates.strip(wait.prompt()).contains("two triggers"));
+  }
+
+  @Test
+  void clarificationAnswerRetriesDesignInputInsteadOfEscalatingOwners() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger captureCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    StageCapability designInput =
+        capability(
+            "design-input-cap",
+            context -> {
+              captureCalls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(
+                              StageOutcomeClass.CONTRACT_FAILURE,
+                              "Trigger node 'trigger-om-onTaskResult' must have exactly one"
+                                  + " outgoing edge",
+                              new RecoveryCause(
+                                  RecoveryCauseCode.CONTRACT_SHAPE,
+                                  List.of(
+                                      new PlanValidationFinding(
+                                          "CONTRACT_SHAPE",
+                                          "Trigger node 'trigger-om-onTaskResult' must have"
+                                              + " exactly one outgoing edge",
+                                          true)),
+                                  ""))));
+            });
+    agent.recoverRegenerates(
+        Kind.CHAIN_SEMANTIC_REVISION, "The captured topology still has two triggers.");
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "requirement-analysis");
+    waitAfterOptionalSemanticRepair(runtime, "design-input");
+
+    runtime
+        .acceptInput(new AcceptInputCommand(RUN_ID, "For onTaskResult use service call"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(
+        "For onTaskResult use service call",
+        runtime.support().haltFollowUpText(RUN_ID).orElseThrow());
+    String prompt =
+        requireRun().transitions().stream()
+            .filter(transition -> transition.toStatus() == RunStatus.WAITING_FOR_INPUT)
+            .reduce((a, b) -> b)
+            .map(transition -> transition.reason() == null ? "" : transition.reason())
+            .orElse("");
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(prompt).orElseThrow());
+    assertTrue(PipelineGates.ownerCandidatesOf(prompt).isEmpty());
+    assertFalse(PipelineGates.strip(prompt).contains("Allowed stages"));
+    assertEquals(3, captureCalls.get());
   }
 
   @Test

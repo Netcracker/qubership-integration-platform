@@ -51,6 +51,9 @@ class OwnerCandidateSetTest {
         List.of("requirement-analysis"),
         OwnerCandidateSet.namedStages(
             "go back to requirements gathering and add that we need RBAC", candidates));
+    assertEquals(
+        List.of("requirement-analysis"),
+        OwnerCandidateSet.namedStages("back to brief", candidates));
   }
 
   @Test

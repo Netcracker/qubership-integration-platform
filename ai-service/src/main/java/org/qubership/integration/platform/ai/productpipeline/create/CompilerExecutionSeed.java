@@ -11,8 +11,11 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Mat
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ElementSkeleton;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
@@ -56,14 +59,20 @@ public record CompilerExecutionSeed(
   /** Structure is already projected from the compiled graph, so CREATE does not run this skill. */
   public static final String STRUCTURE_GENERATOR_SKILL = "cip-structure-generator";
 
+  /** Pattern is projected from the compiled graph, so CREATE does not run this skill. */
+  public static final String PATTERN_SELECTOR_SKILL = "cip-pattern-selector";
+
+  /** Triggers are projected from the compiled graph, so CREATE does not run this skill. */
+  public static final String TRIGGER_GENERATOR_SKILL = "cip-trigger-generator";
+
   /** Upstream CREATE skills that a property-only edit never runs. */
   public static final Set<String> EDIT_PRE_SATISFIED_SKILLS =
       Set.of(
           REQUIREMENT_ANALYZER_SKILL,
-          "cip-pattern-selector",
+          PATTERN_SELECTOR_SKILL,
           "cip-naming-generator",
-          "cip-trigger-generator",
-          "cip-structure-generator");
+          TRIGGER_GENERATOR_SKILL,
+          STRUCTURE_GENERATOR_SKILL);
 
   public CompilerExecutionSeed {
     workspaceId = Objects.requireNonNull(workspaceId, "workspaceId");
@@ -99,8 +108,9 @@ public record CompilerExecutionSeed(
 
   /**
    * CREATE seed after design-execution compiled the semantic revision. The workspace already holds
-   * the revision, the compiled graph, and a structure projection, so {@code
-   * cip-structure-generator} does not run again.
+   * the revision, the compiled graph, structure, pattern, and trigger set, so {@code
+   * cip-structure-generator}, {@code cip-pattern-selector}, and {@code cip-trigger-generator} do
+   * not run again.
    */
   public static CompilerExecutionSeed forCreate(
       String conversationId,
@@ -112,6 +122,9 @@ public record CompilerExecutionSeed(
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(graph, "graph");
     String text = planningSeedText(brief);
+    SelectedPattern pattern = CompilerCreateSeedProjector.pattern(graph);
+    ElementSkeleton skeleton = CompilerCreateSeedProjector.skeleton(graph, pattern.patternId());
+    ConfiguredTriggerSet triggerSet = CompilerCreateSeedProjector.triggerSet(graph);
     return new CompilerExecutionSeed(
         conversationId,
         false,
@@ -139,10 +152,26 @@ public record CompilerExecutionSeed(
                 new SkillArtifactPayload.ChainStructurePayload(
                     new ChainStructure(graph, List.of(), List.of()))),
             SkillArtifact.of(
+                SkillArtifactType.SELECTED_PATTERN,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.SelectedPatternPayload(pattern)),
+            SkillArtifact.of(
+                SkillArtifactType.ELEMENT_SKELETON,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.ElementSkeletonPayload(skeleton)),
+            SkillArtifact.of(
+                SkillArtifactType.CONFIGURED_TRIGGER_SET,
+                SEMANTIC_COMPILER_PRODUCER,
+                new SkillArtifactPayload.ConfiguredTriggerSetPayload(triggerSet)),
+            SkillArtifact.of(
                 SkillArtifactType.SERVICE_CALL_BINDINGS,
                 SEMANTIC_COMPILER_PRODUCER,
                 new SkillArtifactPayload.ServiceCallBindingsPayload(bindings))),
-        Set.of(REQUIREMENT_ANALYZER_SKILL, STRUCTURE_GENERATOR_SKILL));
+        Set.of(
+            REQUIREMENT_ANALYZER_SKILL,
+            STRUCTURE_GENERATOR_SKILL,
+            PATTERN_SELECTOR_SKILL,
+            TRIGGER_GENERATOR_SKILL));
   }
 
   /**
@@ -201,7 +230,7 @@ public record CompilerExecutionSeed(
                 bindings == null ? List.of() : bindings)));
     LinkedHashSet<String> preSatisfied = new LinkedHashSet<>(EDIT_PRE_SATISFIED_SKILLS);
     if (intent.requiresStructureStage()) {
-      preSatisfied.remove("cip-structure-generator");
+      preSatisfied.remove(STRUCTURE_GENERATOR_SKILL);
     }
     if (extraPreSatisfiedSkillIds != null) {
       preSatisfied.addAll(extraPreSatisfiedSkillIds);

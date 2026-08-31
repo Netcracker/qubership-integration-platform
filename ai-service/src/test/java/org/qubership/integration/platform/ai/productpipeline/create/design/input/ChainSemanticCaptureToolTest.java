@@ -108,6 +108,53 @@ class ChainSemanticCaptureToolTest {
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
   }
 
+  @Test
+  void captureSucceedsOnAWorkerThatHasNoConversationIdWhenOneDesignBindingExists()
+      throws Exception {
+    ChainSemanticCaptureTool tool = tool(completePack());
+    AtomicReference<Object> handedBack = new AtomicReference<>();
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), handedBack::set);
+    ExecutorService worker = Executors.newSingleThreadExecutor();
+    try {
+      String result =
+          worker
+              .submit(
+                  () ->
+                      tool.captureChainSemanticRevision(
+                          ChainSemanticCaptureFixtures.linearCapture()))
+              .get();
+      assertTrue(result.contains("captured"), result);
+    } finally {
+      worker.shutdownNow();
+    }
+    assertInstanceOf(ChainSemanticRevision.class, handedBack.get());
+  }
+
+  @Test
+  void captureStaysUnboundOnAWorkerWhenTwoDesignSessionsAreInFlight() throws Exception {
+    ChainSemanticCaptureTool tool = tool(completePack());
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-2", "conv-2", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    ExecutorService worker = Executors.newSingleThreadExecutor();
+    try {
+      String result =
+          worker
+              .submit(
+                  () ->
+                      tool.captureChainSemanticRevision(
+                          ChainSemanticCaptureFixtures.linearCapture()))
+              .get();
+      assertTrue(result.contains("not bound"), result);
+    } finally {
+      worker.shutdownNow();
+      ProductCapabilityCaptureContext.unbind("conv-1");
+      ProductCapabilityCaptureContext.unbind("conv-2");
+    }
+  }
+
   /**
    * Requirement analysis binds on one thread and releases on another, so a pooled worker can still
    * carry its binding when design-input's tool lands there. The stale binding must not win.
