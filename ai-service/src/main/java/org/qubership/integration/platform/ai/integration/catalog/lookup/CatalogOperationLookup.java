@@ -37,9 +37,17 @@ public class CatalogOperationLookup {
         || systems.systems().isEmpty()) {
       return new CatalogLookupResult.None();
     }
-    List<Scored> scored = score(query, systems.systems());
+    List<CatalogMatch> known = new ArrayList<>();
+    List<Scored> scored = score(query, systems.systems(), known);
     if (scored.isEmpty()) {
-      return new CatalogLookupResult.None();
+      if (known.isEmpty()) {
+        return new CatalogLookupResult.None();
+      }
+      CatalogMatch sibling = uniqueNamedPartner(query, known);
+      if (sibling != null) {
+        return new CatalogLookupResult.Exact(sibling);
+      }
+      return new CatalogLookupResult.Ambiguous(ids(known));
     }
     scored.sort(Comparator.comparingInt(Scored::score).reversed());
     Scored leader = scored.getFirst();
@@ -56,7 +64,8 @@ public class CatalogOperationLookup {
     return new CatalogLookupResult.Ambiguous(List.copyOf(tied));
   }
 
-  private List<Scored> score(CatalogQuery query, List<CatalogRestClient.SystemDto> systems) {
+  private List<Scored> score(
+      CatalogQuery query, List<CatalogRestClient.SystemDto> systems, List<CatalogMatch> known) {
     List<Scored> scored = new ArrayList<>();
     for (CatalogRestClient.SystemDto system : systems) {
       if (system == null || CatalogStrings.blankToNull(system.id()) == null) {
@@ -76,28 +85,70 @@ public class CatalogOperationLookup {
           if (operation == null || CatalogStrings.blankToNull(operation.id()) == null) {
             continue;
           }
+          CatalogMatch match =
+              new CatalogMatch(
+                  system.id(),
+                  spec.specificationGroupId(),
+                  spec.id(),
+                  operation.id(),
+                  system.name(),
+                  system.protocol(),
+                  operation.method(),
+                  operation.path(),
+                  operation.name(),
+                  "catalog-read:" + system.id() + "/" + spec.id() + "/" + operation.id());
+          known.add(match);
           int score = CatalogRanker.score(query, system, operation);
           if (score < CatalogRanker.THRESHOLD) {
             continue;
           }
-          scored.add(
-              new Scored(
-                  score,
-                  new CatalogMatch(
-                      system.id(),
-                      spec.specificationGroupId(),
-                      spec.id(),
-                      operation.id(),
-                      system.name(),
-                      system.protocol(),
-                      operation.method(),
-                      operation.path(),
-                      operation.name(),
-                      "catalog-read:" + system.id() + "/" + spec.id() + "/" + operation.id())));
+          scored.add(new Scored(score, match));
         }
       }
     }
     return scored;
+  }
+
+  /**
+   * A payload command name is not a catalog key. When Ranker scored nothing, bind the one catalog
+   * operation the same request already named.
+   */
+  private static CatalogMatch uniqueNamedPartner(CatalogQuery query, List<CatalogMatch> known) {
+    CatalogMatch found = null;
+    for (CatalogMatch match : known) {
+      if (!namedInRequest(query, match.operationName())) {
+        continue;
+      }
+      if (found != null) {
+        return null;
+      }
+      found = match;
+    }
+    return found;
+  }
+
+  private static boolean namedInRequest(CatalogQuery query, String operationName) {
+    String name = CatalogStrings.blankToNull(operationName);
+    if (name == null) {
+      return false;
+    }
+    for (String named : query.namedInRequest()) {
+      if (named == null || named.isBlank()) {
+        continue;
+      }
+      if (name.equalsIgnoreCase(named.trim()) || named.contains(name)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static List<String> ids(List<CatalogMatch> known) {
+    List<String> ids = new ArrayList<>(known.size());
+    for (CatalogMatch match : known) {
+      ids.add(match.integrationOperationId());
+    }
+    return List.copyOf(ids);
   }
 
   private record Scored(int score, CatalogMatch match) {}

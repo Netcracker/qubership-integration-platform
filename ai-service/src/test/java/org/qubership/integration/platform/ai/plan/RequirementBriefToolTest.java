@@ -26,6 +26,10 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
@@ -347,10 +351,8 @@ class RequirementBriefToolTest {
   }
 
   @Test
-  void recordsEntryPointsFromCatalogTriggerCapability() {
-    org.jboss.logmanager.MDC.put(
-        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
-
+  void recordsEntryPointsFromApprovedInboundFlow() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
     RequirementFact kafka =
         new RequirementFact(
             "trigger-1",
@@ -363,19 +365,38 @@ class RequirementBriefToolTest {
             "user/events",
             "",
             "");
-    RequirementFact call =
-        new RequirementFact(
+    CatalogBindingHint callHint =
+        catalogHint(
             "call-1",
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "http-service-call",
-            "Look up a pet",
-            "Petstore Ext",
+            "call-1",
             "getPetById",
-            "",
-            "",
-            "",
-            "call-1");
+            "sys-pet",
+            "sg-pet",
+            "spec-pet",
+            "op-pet",
+            observedAt);
+    RequirementDraft approved =
+        readyDraft(
+            "Consume events and look up a pet",
+            List.of(kafka),
+            new RequirementFlow(
+                List.of(
+                    new Interaction(
+                        "trigger-1", Direction.INBOUND, "Events", "consumeUserEvent", ""),
+                    new Interaction("call-1", Direction.OUTBOUND, "Petstore Ext", "getPetById", "")),
+                List.of(new Transition("trigger-1", "call-1"))),
+            List.of(callHint));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-brief", approved);
+    tool =
+        new RequirementBriefTool(
+            captureSession,
+            draftStore,
+            new ObjectMapper(),
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
 
     String result =
         tool.captureRequirementBrief(
@@ -386,8 +407,8 @@ class RequirementBriefToolTest {
                 List.of(),
                 "Consume events and look up a pet",
                 null,
-                null,
-                List.of(kafka, call),
+                approved.planningText(),
+                List.of(),
                 List.of(),
                 List.of()));
 
@@ -403,16 +424,12 @@ class RequirementBriefToolTest {
   }
 
   @Test
-  void pinsApprovedServiceCallsInsteadOfAgentCopies() {
+  void pinsApprovedFlowAndBindingsInsteadOfAgentCopies() {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
-    RequirementFact omFact =
-        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
-    RequirementFact wfmFact =
-        serviceCallFact("fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask");
     CatalogBindingHint omHint =
         catalogHint(
             "call-om-result",
-            "fact-om",
+            "call-om-result",
             "onTaskResult",
             "sys-om",
             "sg-om",
@@ -422,33 +439,19 @@ class RequirementBriefToolTest {
     CatalogBindingHint wfmHint =
         catalogHint(
             "call-wfm-create-task",
-            "fact-wfm",
+            "call-wfm-create-task",
             "createTask",
             "sys-wfm",
             "sg-wfm",
             "spec-wfm",
             "op-wfm",
             observedAt);
-    RequirementServiceCall omCall =
-        new RequirementServiceCall(
-            "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint);
-    RequirementServiceCall wfmCall =
-        new RequirementServiceCall(
-            "call-wfm-create-task", "fact-wfm", "Salesforce WFM", "createTask", wfmHint);
+    RequirementFlow flow =
+        twoOutboundFlow(
+            "call-om-result", "Order Management", "onTaskResult",
+            "call-wfm-create-task", "Salesforce WFM", "createTask");
     RequirementDraft approved =
-        new RequirementDraft(
-            true,
-            "Call OM then Salesforce WFM",
-            DraftDecision.READY_FOR_PLAN,
-            List.of(),
-            "brainstorming",
-            "1",
-            null,
-            null,
-            false,
-            List.of(omFact, wfmFact),
-            false,
-            List.of(omCall, wfmCall));
+        readyDraft("Call OM then Salesforce WFM", List.of(), flow, List.of(omHint, wfmHint));
     RequirementDraftStore draftStore = new RequirementDraftStore();
     draftStore.put("conv-brief", approved);
     tool =
@@ -462,29 +465,24 @@ class RequirementBriefToolTest {
     org.jboss.logmanager.MDC.put(
         org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
 
-    RequirementServiceCall agentCopy =
-        new RequirementServiceCall(
-            "call-om-result", "fact-om", "Order Management", "onTaskResult", null);
     RequirementBrief agentBrief =
         new RequirementBrief(
-                "Call OM then Salesforce WFM",
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                "summary only",
-                null,
-                "paraphrased draft that is not the pinned planning text",
-                List.of(omFact),
-                List.of())
-            .withServiceCalls(List.of(agentCopy));
-    RequirementBrief pinned = RequirementBriefTool.pinApprovedDraftFacts(agentBrief, approved);
+            "Call OM then Salesforce WFM",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "summary only",
+            null,
+            "paraphrased draft that is not the pinned planning text",
+            List.of(),
+            List.of());
+    RequirementBrief pinned = RequirementBriefTool.pinApprovedDraft(agentBrief, approved);
 
     assertEquals(approved.facts(), pinned.facts());
     assertEquals(approved.planningText(), pinned.approvedDraftText());
-    assertEquals(List.of(omCall, wfmCall), pinned.serviceCalls());
-    assertEquals(omHint, pinned.serviceCalls().get(0).catalogBinding());
-    assertEquals(wfmHint, pinned.serviceCalls().get(1).catalogBinding());
+    assertEquals(approved.flow(), pinned.flow());
+    assertEquals(approved.catalogBindings(), pinned.catalogBindings());
 
     String result =
         tool.captureRequirementBrief(
@@ -496,12 +494,14 @@ class RequirementBriefToolTest {
                 "summary only",
                 null,
                 "paraphrased draft that is not the pinned planning text",
-                List.of(omFact),
+                List.of(),
                 List.of()));
 
     assertTrue(result.contains("Requirement brief captured"), result);
     RequirementBrief stored = getBrief("conv-brief").orElseThrow();
-    assertEquals(List.of(omCall, wfmCall), stored.serviceCalls());
+    assertEquals(2, stored.serviceCalls().size());
+    assertEquals("call-om-result", stored.serviceCalls().get(0).serviceCallId());
+    assertEquals("call-wfm-create-task", stored.serviceCalls().get(1).serviceCallId());
     assertEquals(omHint, stored.serviceCalls().get(0).catalogBinding());
     assertEquals(wfmHint, stored.serviceCalls().get(1).catalogBinding());
   }
@@ -509,12 +509,10 @@ class RequirementBriefToolTest {
   @Test
   void pinsApprovedDraftWhenCaptureJsonOmitsServiceCallId() throws Exception {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
-    RequirementFact omFact =
-        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
     CatalogBindingHint omHint =
         catalogHint(
             "call-om-result",
-            "fact-om",
+            "call-om-result",
             "onTaskResult",
             "sys-om",
             "sg-om",
@@ -522,21 +520,23 @@ class RequirementBriefToolTest {
             "op-om",
             observedAt);
     RequirementDraft approved =
-        new RequirementDraft(
-            true,
+        readyDraft(
             "Call OM onTaskResult",
-            DraftDecision.READY_FOR_PLAN,
             List.of(),
-            "brainstorming",
-            "1",
-            null,
-            null,
-            false,
-            List.of(omFact),
-            false,
+            twoOutboundFlow(
+                "call-om-result", "Order Management", "onTaskResult",
+                "unused-second", "Other", "noop"),
             List.of(
-                new RequirementServiceCall(
-                    "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint)));
+                omHint,
+                catalogHint(
+                    "unused-second",
+                    "unused-second",
+                    "noop",
+                    "sys-other",
+                    "sg-other",
+                    "spec-other",
+                    "op-other",
+                    observedAt)));
     RequirementDraftStore draftStore = new RequirementDraftStore();
     draftStore.put("conv-brief", approved);
     ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
@@ -559,7 +559,7 @@ class RequirementBriefToolTest {
               "facts": [
                 {
                   "polarity": "POSITIVE",
-                  "kind": "SERVICE_CALL",
+                  "kind": "BEHAVIOR",
                   "text": "Call Order Management onTaskResult"
                 }
               ]
@@ -571,13 +571,12 @@ class RequirementBriefToolTest {
 
     assertTrue(result.contains("Requirement brief captured"), result);
     RequirementBrief stored = getBrief("conv-brief").orElseThrow();
-    assertEquals(List.of(omFact), stored.facts());
     assertEquals("call-om-result", stored.serviceCalls().getFirst().serviceCallId());
     assertEquals("op-om", stored.serviceCalls().getFirst().catalogBinding().integrationOperationId());
   }
 
   @Test
-  void toolDescriptionLeavesMappingsEmptyWithoutServiceCallFacts() throws Exception {
+  void toolDescriptionDerivesMappingsFromProjectedBusinessInteractions() throws Exception {
     Tool tool =
         RequirementBriefTool.class
             .getMethod("captureRequirementBrief", RequirementBriefCapture.class)
@@ -585,12 +584,13 @@ class RequirementBriefToolTest {
     String description = String.join("\n", tool.value());
 
     assertTrue(description.contains("\"dataMappings\": []"), description);
-    assertTrue(description.contains("no positive SERVICE_CALL"), description);
-    assertTrue(description.contains("leave dataMappings and mappingIntents empty"), description);
+    assertTrue(description.contains("projected outbound interactions"), description);
+    assertTrue(description.contains("interactionId values"), description);
     assertTrue(description.contains("Omit facts when an approved draft exists"), description);
-    assertTrue(description.contains("serviceCallId"), description);
     assertTrue(description.contains("stage"), description);
     assertTrue(description.contains("sourceFactId"), description);
+    assertFalse(description.contains("no positive SERVICE_CALL"), description);
+    assertFalse(description.contains("If you emit a SERVICE_CALL fact"), description);
   }
 
   @Test
@@ -604,6 +604,45 @@ class RequirementBriefToolTest {
 
     RequirementBrief brief = getBrief("conv-brief").orElseThrow();
     assertTrue(brief.dataMappings().isEmpty());
+  }
+
+  private static RequirementDraft readyDraft(
+      String assembledText,
+      List<RequirementFact> facts,
+      RequirementFlow flow,
+      List<CatalogBindingHint> bindings) {
+    return new RequirementDraft(
+        true,
+        assembledText,
+        DraftDecision.READY_FOR_PLAN,
+        List.of(),
+        "brainstorming",
+        "1",
+        null,
+        null,
+        false,
+        facts,
+        false,
+        null,
+        null,
+        flow,
+        bindings);
+  }
+
+  private static RequirementFlow twoOutboundFlow(
+      String firstId,
+      String firstParticipant,
+      String firstOperation,
+      String secondId,
+      String secondParticipant,
+      String secondOperation) {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("start", Direction.INBOUND, "Caller", "POST /start", ""),
+            new Interaction(firstId, Direction.OUTBOUND, firstParticipant, firstOperation, ""),
+            new Interaction(
+                secondId, Direction.OUTBOUND, secondParticipant, secondOperation, "")),
+        List.of(new Transition("start", firstId), new Transition(firstId, secondId)));
   }
 
   private static RequirementFact serviceCallFact(
@@ -623,7 +662,7 @@ class RequirementBriefToolTest {
   }
 
   private static CatalogBindingHint catalogHint(
-      String serviceCallId,
+      String interactionId,
       String sourceFactId,
       String operationQuery,
       String systemId,
@@ -632,8 +671,8 @@ class RequirementBriefToolTest {
       String integrationOperationId,
       Instant observedAt) {
     return new CatalogBindingHint(
-        "2",
-        serviceCallId,
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
         sourceFactId,
         operationQuery,
         systemId,
@@ -645,6 +684,6 @@ class RequirementBriefToolTest {
         "/tasks",
         "2024.4",
         observedAt,
-        "evidence-" + serviceCallId);
+        "evidence-" + interactionId);
   }
 }

@@ -94,4 +94,13 @@ class CatalogRankerTest {
     assertTrue(
         CatalogRanker.score(query, SALESFORCE, CREATE_TASK) >= CatalogRanker.OPERATION_IDENTITY);
   }
+
+  @Test
+  @DisplayName("system name and protocol never match an operation on their own")
+  void systemAndProtocolWithoutOperationStayBelowThreshold() {
+    CatalogQuery query =
+        new CatalogQuery("Salesforce WFM", null, "http", null, null, "completeTask", null);
+
+    assertTrue(CatalogRanker.score(query, SALESFORCE, CREATE_TASK) < CatalogRanker.THRESHOLD);
+  }
 }

@@ -304,8 +304,8 @@ class CreateChainArtifactContractsTest {
     CatalogBindingHint restoredOm = roundTrip(Kind.CATALOG_BINDING_HINT, omHint);
     CatalogBindingHint restoredWfm = roundTrip(Kind.CATALOG_BINDING_HINT, wfmHint);
 
-    assertEquals("call-om-result", restoredOm.serviceCallId());
-    assertEquals("call-wfm-create-task", restoredWfm.serviceCallId());
+    assertEquals("call-om-result", restoredOm.interactionId());
+    assertEquals("call-wfm-create-task", restoredWfm.interactionId());
     assertEquals("op-shared", restoredOm.integrationOperationId());
     assertEquals("op-shared", restoredWfm.integrationOperationId());
     assertEquals("POST", restoredOm.method());

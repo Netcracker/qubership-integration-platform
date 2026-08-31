@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /** LLM-facing draft input for {@link RequirementDraftTool#captureRequirementDraft}. */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -17,11 +18,25 @@ public record RequirementDraftCapture(
     @Description(
             "true when the author asked for an Integration Design Specification, false when they"
                 + " said they do not want one; omit while they have not said either way")
-        Boolean idsRequested) {
+        Boolean idsRequested,
+    RequirementFlow flow) {
 
   public RequirementDraftCapture {
     openQuestions = openQuestions == null ? List.of() : List.copyOf(openQuestions);
     facts = facts == null ? List.of() : List.copyOf(facts);
+    flow = flow == null ? RequirementFlow.EMPTY : flow;
+  }
+
+  /** Compatibility constructor for captures taken before business-first flow ownership. */
+  public RequirementDraftCapture(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      ApiHubRequirementRefs apiHubCandidate,
+      List<RequirementFact> facts,
+      Boolean idsRequested) {
+    this(complete, assembledText, decision, openQuestions, apiHubCandidate, facts, idsRequested, RequirementFlow.EMPTY);
   }
 
   /** Compatibility constructor for captures taken before the author could decline the IDS. */

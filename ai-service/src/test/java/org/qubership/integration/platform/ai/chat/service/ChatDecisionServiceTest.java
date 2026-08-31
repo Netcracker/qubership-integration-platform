@@ -62,10 +62,41 @@ class ChatDecisionServiceTest {
   }
 
   @Test
-  void changeRequestRunsNoCommand() {
+  void changeRequestContinuesTheRunWithTheComment() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.continueWithInput(any()))
+        .thenReturn(Multi.createFrom().item(new CreateChainEvent.Progress("revising")));
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
 
-    assertTrue(
+    List<ChatEvent> events =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .apply(
+                "conv-1",
+                command(
+                    ChatEvent.REQUEST_CHANGES_ACTION,
+                    "requirement-brief",
+                    "sha256:abc",
+                    "bind onTaskStart to the start topic"))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertFalse(events.isEmpty(), "request-changes must not close the stream empty");
+    ArgumentCaptor<ContinueCreateChainCommand> captor =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(captor.capture());
+    assertEquals("bind onTaskStart to the start topic", captor.getValue().clarificationText());
+    verify(facade, never()).streamApprove(any(ApproveCreateChainArtifactCommand.class));
+  }
+
+  @Test
+  void changeRequestWithoutCommentStillContinuesTheRun() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().empty());
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
+
+    List<ChatEvent> events =
         new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
             .apply(
                 "conv-1",
@@ -73,9 +104,14 @@ class ChatDecisionServiceTest {
             .collect()
             .asList()
             .await()
-            .indefinitely()
-            .isEmpty());
-    verify(facade, never()).streamApprove(any(ApproveCreateChainArtifactCommand.class));
+            .indefinitely();
+
+    assertFalse(events.isEmpty(), "an empty comment must still produce a chat event");
+    ArgumentCaptor<ContinueCreateChainCommand> captor =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(captor.capture());
+    assertEquals(
+        "Requested changes to implementation-plan", captor.getValue().clarificationText());
   }
 
   @Test

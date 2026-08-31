@@ -18,6 +18,74 @@ class RequirementBriefTextTest {
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   @Test
+  void formatsBusinessInteractionsAndTransitions() {
+    RequirementBrief brief =
+        new RequirementBrief(
+                "OM to Salesforce WFM",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "Consume onTaskStart, create a Salesforce task, publish onTaskResult")
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new RequirementFlow.Interaction(
+                            "task-start", RequirementFlow.Direction.INBOUND, "OM", "onTaskStart", ""),
+                        new RequirementFlow.Interaction(
+                            "create-task",
+                            RequirementFlow.Direction.OUTBOUND,
+                            "Salesforce",
+                            "createTask",
+                            ""),
+                        new RequirementFlow.Interaction(
+                            "task-result",
+                            RequirementFlow.Direction.OUTBOUND,
+                            "OM",
+                            "onTaskResult",
+                            "")),
+                    List.of(
+                        new RequirementFlow.Transition("task-start", "create-task"),
+                        new RequirementFlow.Transition("create-task", "task-result"))))
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-result",
+                        "create-task",
+                        MappingPort.RESPONSE,
+                        "task-result",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule("", "commandType", "Set to completeTask.")))));
+
+    String formatted = RequirementBriefText.format(brief);
+
+    assertTrue(
+        formatted.contains(
+            "interactionId=task-start direction=INBOUND participant=OM operation=onTaskStart"),
+        formatted);
+    assertTrue(
+        formatted.contains(
+            "interactionId=create-task direction=OUTBOUND participant=Salesforce operation=createTask"),
+        formatted);
+    assertTrue(
+        formatted.contains(
+            "interactionId=task-result direction=OUTBOUND participant=OM operation=onTaskResult"),
+        formatted);
+    assertTrue(formatted.contains("task-start -> create-task"), formatted);
+    assertTrue(formatted.contains("create-task -> task-result"), formatted);
+    int interactionsAt = formatted.indexOf("Business interactions:");
+    int transitionsAt = formatted.indexOf("Business transitions:");
+    String interactions = formatted.substring(interactionsAt, transitionsAt);
+    assertFalse(interactions.contains("publish"), interactions);
+    assertFalse(interactions.contains("subscribe"), interactions);
+    assertFalse(interactions.contains("completeTask"), interactions);
+    int mappingsAt = formatted.indexOf("Mapping intents:");
+    assertTrue(mappingsAt > transitionsAt, formatted);
+    assertTrue(formatted.substring(mappingsAt).contains("completeTask"), formatted);
+  }
+
+  @Test
   void formatsStructuredBriefFields() {
     RequirementBrief brief =
         new RequirementBrief(

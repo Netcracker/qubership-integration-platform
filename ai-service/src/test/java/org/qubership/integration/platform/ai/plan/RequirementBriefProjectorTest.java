@@ -14,75 +14,34 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleSt
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class RequirementBriefProjectorTest {
 
   @Test
-  void separatesEntryPointsFromFactKindUsingCatalogTriggerCapability() {
-    RequirementFact kafka =
-        new RequirementFact(
-            "trigger-1",
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.CAPABILITY,
-            "kafka-trigger-2",
-            "Consume user events",
-            "",
-            "consumeUserEvent",
-            "user/events",
-            "",
-            "");
-    RequirementFact call =
-        new RequirementFact(
-            "call-1",
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.SERVICE_CALL,
-            "http-service-call",
-            "Look up a pet",
-            "Petstore Ext",
-            "getPetById",
-            "",
-            "",
-            "",
-            "call-1");
-    RequirementFact behavior =
-        new RequirementFact(
-            "req-1",
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.BEHAVIOR,
-            "",
-            "Keep the original payload");
-    RequirementBrief projected =
-        RequirementBriefProjector.project(
-            new RequirementBrief(
-                "Kafka pet lookup",
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                "Consume events and look up a pet",
-                "ref",
-                "draft",
-                List.of(kafka, call, behavior),
-                List.of()));
+  void projectsRockyInboundAndOutboundRolesFromApprovedFlow() {
+    RequirementBrief projected = RequirementBriefProjector.project(rockyBriefCandidate());
 
     assertEquals(
-        List.of(
-            new RequirementEntryPoint(
-                "trigger-1",
-                "trigger-1",
-                "kafka-trigger-2",
-                "user/events",
-                "",
-                "",
-                "consumeUserEvent")),
-        projected.entryPoints());
+        List.of("task-start"),
+        projected.entryPoints().stream().map(RequirementEntryPoint::entryPointId).toList());
+    assertEquals("async-api-trigger", projected.entryPoints().getFirst().capabilityKey());
     assertEquals(
-        List.of(new RequirementServiceCall("call-1", "call-1", "Petstore Ext", "getPetById")),
-        projected.serviceCalls());
-    assertEquals(List.of(behavior), projected.requirements());
-    assertTrue(projected.mappingIntents().isEmpty());
-    assertTrue(projected.dataMappings().isEmpty());
+        List.of("create-task", "task-result"),
+        projected.serviceCalls().stream().map(RequirementServiceCall::serviceCallId).toList());
+    assertEquals("Salesforce", projected.serviceCalls().getFirst().participant());
+    assertEquals("createTask", projected.serviceCalls().getFirst().operation());
+    assertEquals("OM", projected.serviceCalls().get(1).participant());
+    assertEquals("onTaskResult", projected.serviceCalls().get(1).operation());
+    MappingIntent mapping = projected.mappingIntents().getFirst();
+    assertEquals("create-task", mapping.sourceRef());
+    assertEquals(MappingPort.RESPONSE, mapping.sourcePort());
+    assertEquals("task-result", mapping.targetRef());
+    assertEquals(MappingPort.REQUEST, mapping.targetPort());
   }
 
   @Test
@@ -370,14 +329,10 @@ class RequirementBriefProjectorTest {
   @Test
   void projectsBindingForEachServiceCall() {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
-    RequirementFact omFact =
-        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
-    RequirementFact wfmFact =
-        serviceCallFact("fact-wfm", "call-wfm-create-task", "Salesforce WFM", "createTask");
     CatalogBindingHint omHint =
         catalogHint(
             "call-om-result",
-            "fact-om",
+            "call-om-result",
             "onTaskResult",
             "sys-om",
             "sg-om",
@@ -387,25 +342,24 @@ class RequirementBriefProjectorTest {
     CatalogBindingHint wfmHint =
         catalogHint(
             "call-wfm-create-task",
-            "fact-wfm",
+            "call-wfm-create-task",
             "createTask",
             "sys-wfm",
             "sg-wfm",
             "spec-wfm",
             "op-wfm",
             observedAt);
-    RequirementServiceCall omCall =
-        new RequirementServiceCall(
-            "call-om-result", "fact-om", "Order Management", "onTaskResult", omHint);
-    RequirementServiceCall wfmCall =
-        new RequirementServiceCall(
-            "call-wfm-create-task", "fact-wfm", "Salesforce WFM", "createTask", wfmHint);
-
     RequirementBrief projected =
         RequirementBriefProjector.project(
-            briefWithCalls(List.of(omFact, wfmFact), List.of(omCall, wfmCall)));
+            briefWithCalls(List.of(), List.of())
+                .withFlow(
+                    twoOutboundFlow("call-om-result", "Order Management", "onTaskResult",
+                        "call-wfm-create-task", "Salesforce WFM", "createTask"))
+                .withCatalogBindings(List.of(omHint, wfmHint)));
 
-    assertEquals(List.of(omCall, wfmCall), projected.serviceCalls());
+    assertEquals(2, projected.serviceCalls().size());
+    assertEquals("call-om-result", projected.serviceCalls().get(0).serviceCallId());
+    assertEquals("call-wfm-create-task", projected.serviceCalls().get(1).serviceCallId());
     assertEquals(
         "op-om", projected.serviceCalls().get(0).catalogBinding().integrationOperationId());
     assertEquals(
@@ -415,14 +369,10 @@ class RequirementBriefProjectorTest {
   @Test
   void preservesDuplicateOperationBindingsByCallId() {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
-    RequirementFact firstFact =
-        serviceCallFact("fact-om", "call-om-result", "Order Management", "onTaskResult");
-    RequirementFact secondFact =
-        serviceCallFact("fact-om-again", "call-om-again", "Order Management", "onTaskResult");
     CatalogBindingHint firstHint =
         catalogHint(
             "call-om-result",
-            "fact-om",
+            "call-om-result",
             "onTaskResult",
             "sys-om",
             "sg-om",
@@ -432,29 +382,125 @@ class RequirementBriefProjectorTest {
     CatalogBindingHint secondHint =
         catalogHint(
             "call-om-again",
-            "fact-om-again",
+            "call-om-again",
             "onTaskResult",
             "sys-om",
             "sg-om",
             "spec-om",
             "op-shared",
             observedAt);
-    RequirementServiceCall firstCall =
-        new RequirementServiceCall(
-            "call-om-result", "fact-om", "Order Management", "onTaskResult", firstHint);
-    RequirementServiceCall secondCall =
-        new RequirementServiceCall(
-            "call-om-again", "fact-om-again", "Order Management", "onTaskResult", secondHint);
-
     RequirementBrief projected =
         RequirementBriefProjector.project(
-            briefWithCalls(List.of(firstFact, secondFact), List.of(firstCall, secondCall)));
+            briefWithCalls(List.of(), List.of())
+                .withFlow(
+                    twoOutboundFlow(
+                        "call-om-result",
+                        "Order Management",
+                        "onTaskResult",
+                        "call-om-again",
+                        "Order Management",
+                        "onTaskResult"))
+                .withCatalogBindings(List.of(firstHint, secondHint)));
 
-    assertEquals(List.of(firstCall, secondCall), projected.serviceCalls());
+    assertEquals(2, projected.serviceCalls().size());
     assertEquals("call-om-result", projected.serviceCalls().get(0).serviceCallId());
     assertEquals("call-om-again", projected.serviceCalls().get(1).serviceCallId());
     assertEquals("op-shared", projected.serviceCalls().get(0).catalogBinding().integrationOperationId());
     assertEquals("op-shared", projected.serviceCalls().get(1).catalogBinding().integrationOperationId());
+  }
+
+  private static RequirementBrief rockyBriefCandidate() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    CatalogBindingHint startHint =
+        catalogHint(
+            "task-start",
+            "task-start",
+            "onTaskStart",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-start",
+            "kafka",
+            "publish",
+            "env05-bss.task.wfms_createWorkOrder.start",
+            observedAt);
+    CatalogBindingHint createHint =
+        catalogHint(
+            "create-task",
+            "create-task",
+            "createTask",
+            "sys-sf",
+            "sg-sf",
+            "spec-sf",
+            "op-create",
+            "http",
+            "POST",
+            "/tasks",
+            observedAt);
+    CatalogBindingHint resultHint =
+        catalogHint(
+            "task-result",
+            "task-result",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-result",
+            "kafka",
+            "subscribe",
+            "env05-bss.order.command.queue",
+            observedAt);
+    MappingIntent response =
+        new MappingIntent(
+            "response-create-task-to-task-result",
+            "create-task",
+            MappingPort.RESPONSE,
+            "task-result",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
+    return new RequirementBrief(
+            "OM to Salesforce WFM",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Consume onTaskStart, create a Salesforce task, publish onTaskResult",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withFlow(rockyFlow())
+        .withCatalogBindings(List.of(startHint, createHint, resultHint))
+        .withMappingIntents(List.of(response));
+  }
+
+  private static RequirementFlow rockyFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+            new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+            new Interaction("task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+        List.of(
+            new Transition("task-start", "create-task"),
+            new Transition("create-task", "task-result")));
+  }
+
+  private static RequirementFlow twoOutboundFlow(
+      String firstId,
+      String firstParticipant,
+      String firstOperation,
+      String secondId,
+      String secondParticipant,
+      String secondOperation) {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("start", Direction.INBOUND, "Caller", "POST /start", ""),
+            new Interaction(firstId, Direction.OUTBOUND, firstParticipant, firstOperation, ""),
+            new Interaction(
+                secondId, Direction.OUTBOUND, secondParticipant, secondOperation, "")),
+        List.of(
+            new Transition("start", firstId),
+            new Transition(firstId, secondId)));
   }
 
   private static RequirementBrief briefWithIntents(List<MappingIntent> mappingIntents) {
@@ -555,8 +601,7 @@ class RequirementBriefProjectorTest {
       String specificationId,
       String integrationOperationId,
       Instant observedAt) {
-    return new CatalogBindingHint(
-        "2",
+    return catalogHint(
         serviceCallId,
         sourceFactId,
         operationQuery,
@@ -567,8 +612,35 @@ class RequirementBriefProjectorTest {
         "http",
         "POST",
         "/tasks",
+        observedAt);
+  }
+
+  private static CatalogBindingHint catalogHint(
+      String interactionId,
+      String sourceFactId,
+      String operationQuery,
+      String systemId,
+      String specificationGroupId,
+      String specificationId,
+      String integrationOperationId,
+      String protocol,
+      String method,
+      String path,
+      Instant observedAt) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        sourceFactId,
+        operationQuery,
+        systemId,
+        specificationGroupId,
+        specificationId,
+        integrationOperationId,
+        protocol,
+        method,
+        path,
         "2024.4",
         observedAt,
-        "evidence-" + serviceCallId);
+        "evidence-" + interactionId);
   }
 }

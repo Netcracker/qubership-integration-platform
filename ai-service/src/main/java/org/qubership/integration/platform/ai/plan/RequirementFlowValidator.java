@@ -209,7 +209,7 @@ public final class RequirementFlowValidator {
     return interaction.direction() == Direction.OUTBOUND;
   }
 
-  private static boolean hasNativeInboundTriggerFact(
+  static boolean hasNativeInboundTriggerFact(
       Interaction interaction, List<RequirementFact> facts) {
     return facts.stream()
         .anyMatch(

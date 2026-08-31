@@ -52,6 +52,9 @@ public final class CatalogRanker {
       return 0;
     }
     int score = operationScore(query, operation);
+    if (score == 0) {
+      return 0;
+    }
     score += systemNameScore(query.systemHint(), system == null ? null : system.name());
     if (query.protocol() != null
         && system != null

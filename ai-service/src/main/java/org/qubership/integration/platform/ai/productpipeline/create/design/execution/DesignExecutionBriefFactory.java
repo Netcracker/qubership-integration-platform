@@ -116,7 +116,9 @@ public final class DesignExecutionBriefFactory {
             brief.requirements(),
             brief.mappingIntents().isEmpty()
                 ? revision.mappingIntents()
-                : brief.mappingIntents()));
+                : brief.mappingIntents(),
+            brief.flow(),
+            brief.catalogBindings()));
   }
 
   private static RequirementBrief fromRevision(ChainSemanticRevision revision) {

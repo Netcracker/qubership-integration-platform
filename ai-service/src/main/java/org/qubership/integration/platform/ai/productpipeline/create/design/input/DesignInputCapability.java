@@ -246,9 +246,17 @@ public class DesignInputCapability implements StageCapability {
         .append("\nSemantic schema version: ")
         .append(contract.semanticSchemaVersion())
         .append(
-            "\n\nService call nodes the server has already created. Reference them from edges and"
-                + " containment by these node ids:");
-    boolean anyBinding = false;
+            "\n\nExternal interaction anchors are server-owned. Reference these node ids from"
+                + " edges:");
+    boolean anyAnchor = false;
+    for (var entryPoint : brief.entryPoints()) {
+      anyAnchor = true;
+      prompt
+          .append("\n- nodeId=")
+          .append(entryPoint.entryPointId())
+          .append(" role=INBOUND capabilityKey=")
+          .append(entryPoint.capabilityKey());
+    }
     Set<String> triggerFactIds = ChainSemanticCaptureAdapter.triggerFactIds(brief.entryPoints());
     for (RequirementServiceCall call : brief.serviceCalls()) {
       CatalogBindingHint hint = call.catalogBinding();
@@ -256,17 +264,27 @@ public class DesignInputCapability implements StageCapability {
           || !ChainSemanticCaptureAdapter.materializesServiceCallNode(call, triggerFactIds)) {
         continue;
       }
-      anyBinding = true;
+      anyAnchor = true;
       prompt
           .append("\n- nodeId=")
           .append(call.serviceCallId())
-          .append(" operation=")
+          .append(" role=OUTBOUND operation=")
           .append(call.operation())
           .append(" integrationOperationId=")
           .append(hint.integrationOperationId());
     }
-    if (!anyBinding) {
+    if (!anyAnchor) {
       prompt.append("\n- none");
+    }
+    if (!brief.flow().transitions().isEmpty()) {
+      prompt.append("\nApproved business transitions:");
+      for (var transition : brief.flow().transitions()) {
+        prompt
+            .append("\n- ")
+            .append(transition.sourceInteractionId())
+            .append(" -> ")
+            .append(transition.targetInteractionId());
+      }
     }
     prompt.append(
         """
@@ -275,12 +293,13 @@ public class DesignInputCapability implements StageCapability {
          value after each matching `=` sign. Copy mappingIntentId the same way only when the\
          brief has a mappingIntentId= line; otherwise omit it on every edge. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
-         sourceFactId as mappingIntentId. Do not send an\
-         entryPoints list; the server joins each brief entry point to your trigger nodes and to\
-         the unique outgoing edge from that trigger. Do not mint occurrence ids. The server\
-         derives the revision id, every edge id, both versions above, the catalog capability\
-         behind each entry point, and every service call node, so leave them out. Do not list\
-         those node ids under operations. List each node you do author under triggers or\
+         sourceFactId as mappingIntentId. External interaction anchors are server-owned.\
+         Reference these node ids from edges, but do not list them under operations. Preserve\
+         every approved business transition. You may insert internal processing nodes between\
+         its source and target, but you may not reverse, omit, or add an external interaction\
+         transition. Do not mint occurrence ids. The server derives the revision id, every edge\
+         id, both versions above, the catalog capability behind each entry point, and every\
+         service call node, so leave them out. List each internal node you do author under\
          operations, and each control-flow region under the list that matches its kind; omit\
          the region lists when the chain is linear.""");
     if (repairSection != null && !repairSection.isBlank()) {

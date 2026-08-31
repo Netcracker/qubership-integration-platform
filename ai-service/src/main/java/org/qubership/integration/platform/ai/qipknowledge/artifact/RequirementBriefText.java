@@ -20,12 +20,45 @@ public final class RequirementBriefText {
     appendList(body, "Inputs", brief.inputs());
     appendList(body, "Constraints", brief.constraints());
     appendList(body, "Assumptions", brief.assumptions());
+    appendFlow(body, brief.flow());
     appendFacts(body, brief.facts());
     appendEntryPoints(body, brief.entryPoints());
     appendServiceCalls(body, brief.serviceCalls());
     appendDataMappings(body, brief.dataMappings());
     appendMappingIntents(body, brief.mappingIntents());
     return body.toString().trim();
+  }
+
+  private static void appendFlow(StringBuilder body, RequirementFlow flow) {
+    if (flow == null || flow.interactions().isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append("Business interactions:");
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      body.append('\n')
+          .append("- interactionId=")
+          .append(interaction.interactionId())
+          .append(" direction=")
+          .append(interaction.direction())
+          .append(" participant=")
+          .append(interaction.participant())
+          .append(" operation=")
+          .append(interaction.operation());
+    }
+    if (flow.transitions().isEmpty()) {
+      return;
+    }
+    body.append('\n').append("Business transitions:");
+    for (RequirementFlow.Transition transition : flow.transitions()) {
+      body.append('\n')
+          .append("- ")
+          .append(transition.sourceInteractionId())
+          .append(" -> ")
+          .append(transition.targetInteractionId());
+    }
   }
 
   private static void appendEntryPoints(

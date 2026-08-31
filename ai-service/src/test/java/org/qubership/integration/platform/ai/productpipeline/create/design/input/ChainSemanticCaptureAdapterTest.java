@@ -5,8 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -86,7 +91,7 @@ class ChainSemanticCaptureAdapterTest {
             List.of(),
             List.of(),
             List.of(
-                new CapturedEdge("trigger-async", "op-shared", null, null, null, null, null, null)),
+                new CapturedEdge("async-in", "op-shared", null, null, null, null, null, null)),
             List.of());
 
     ChainSemanticRevision revision = adapt(capture, brief);
@@ -95,7 +100,7 @@ class ChainSemanticCaptureAdapterTest {
         0, revision.nodes().stream().filter(SemanticNode.ServiceCall.class::isInstance).count());
     SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
     assertEquals("async-api-trigger", trigger.capabilityKey());
-    assertEquals("trigger-async", trigger.nodeId());
+    assertEquals("async-in", trigger.nodeId());
   }
 
   @Test
@@ -122,7 +127,7 @@ class ChainSemanticCaptureAdapterTest {
             List.of(),
             List.of(),
             List.of(
-                new CapturedEdge("trigger-async", "op-shared", null, null, null, null, null, null)),
+                new CapturedEdge("async-in", "op-shared", null, null, null, null, null, null)),
             List.of());
 
     ChainSemanticRevision revision = adapt(capture, brief);
@@ -268,7 +273,7 @@ class ChainSemanticCaptureAdapterTest {
 
     assertEquals(1, revision.entryPoints().size());
     assertEquals("http-in", revision.entryPoints().getFirst().entryPointId());
-    assertEquals("trigger-http", revision.entryPoints().getFirst().triggerNodeId());
+    assertEquals("http-in", revision.entryPoints().getFirst().triggerNodeId());
     assertEquals("op-shared", revision.entryPoints().getFirst().initialTargetNodeId());
     SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
     assertEquals("http-trigger", trigger.capabilityKey());
@@ -296,16 +301,17 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
-  void rejectsAProvenanceFactOutsideTheApprovedBrief() {
+  void capturedTriggerProvenanceDoesNotOverrideTheApprovedBrief() {
     ChainSemanticCapture capture = ChainSemanticCaptureFixtures.linearCapture();
     ChainSemanticCapture foreign =
         withTriggers(
             capture, List.of(new CapturedTrigger("trigger-http", List.of("foreign-fact"))));
-    assertTrue(failure(foreign).contains("foreign-fact"));
+    ChainSemanticRevision revision = adapt(foreign);
+    assertEquals("http-in", node(revision, SemanticNode.Trigger.class).nodeId());
   }
 
   @Test
-  void ignoresAnOperationThatRestatesAServerOwnedServiceCallNode() {
+  void rejectsAnOperationThatRestatesAServerOwnedServiceCallNode() {
     ChainSemanticCapture capture =
         withOperations(
             ChainSemanticCaptureFixtures.linearCapture(),
@@ -314,33 +320,19 @@ class ChainSemanticCaptureAdapterTest {
                 new CapturedOperation(
                     ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "service-call", List.of())));
 
-    ChainSemanticRevision revision = adapt(capture);
-
-    assertEquals(
-        1, revision.nodes().stream().filter(SemanticNode.ServiceCall.class::isInstance).count());
-    assertEquals(
-        1, revision.nodes().stream().filter(SemanticNode.Operation.class::isInstance).count());
-    SemanticNode.ServiceCall call = node(revision, SemanticNode.ServiceCall.class);
-    assertEquals(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, call.nodeId());
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    assertTrue(failure(capture).contains("reuses an interaction id"), failure(capture));
   }
 
   @Test
-  void ignoresAnOperationThatRestatesATriggerNode() {
+  void rejectsAnOperationThatRestatesATriggerNode() {
     ChainSemanticCapture capture =
         withOperations(
             ChainSemanticCaptureFixtures.linearCapture(),
             List.of(
-                new CapturedOperation("trigger-http", "script", List.of()),
+                new CapturedOperation("http-in", "script", List.of()),
                 new CapturedOperation("op-shared", "script", List.of())));
 
-    ChainSemanticRevision revision = adapt(capture);
-
-    assertEquals(
-        1, revision.nodes().stream().filter(SemanticNode.Trigger.class::isInstance).count());
-    assertEquals(
-        1, revision.nodes().stream().filter(SemanticNode.Operation.class::isInstance).count());
-    assertEquals("op-shared", node(revision, SemanticNode.Operation.class).nodeId());
+    assertTrue(failure(capture).contains("reuses an interaction id"), failure(capture));
   }
 
   @Test
@@ -434,6 +426,84 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void rockyInboundCreatesATriggerWithoutACapturedTrigger() {
+    ChainSemanticRevision revision =
+        adapt(ChainSemanticCaptureFixtures.rockyCapture(), ChainSemanticCaptureFixtures.rockyBrief());
+    SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
+    assertEquals("task-start", trigger.nodeId());
+    assertEquals("async-api-trigger", trigger.capabilityKey());
+    assertEquals(
+        Set.of("create-task", "task-result"),
+        revision.nodes().stream()
+            .filter(SemanticNode.ServiceCall.class::isInstance)
+            .map(SemanticNode.ServiceCall.class::cast)
+            .map(SemanticNode.ServiceCall::nodeId)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+    assertTrue(
+        revision.nodes().stream()
+            .noneMatch(node -> "generic-barrier".equals(node.nodeId())));
+    assertEquals("mapper-1", node(revision, SemanticNode.Operation.class).nodeId());
+    assertEquals(
+        Set.of("task-start -> create-task", "create-task -> task-result"),
+        contracted(revision, Set.of("task-start", "create-task", "task-result")));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+  }
+
+  @Test
+  void rockyCaptureRejectsReversedBusinessTransitions() {
+    ChainSemanticCapture reversed =
+        ChainSemanticCaptureFixtures.rockyCapture(
+            List.of(),
+            List.of(
+                new CapturedEdge("task-start", "task-result", null, null, null, null, null, null),
+                new CapturedEdge("task-result", "create-task", null, null, null, null, null, null)));
+    assertTrue(
+        failure(reversed, ChainSemanticCaptureFixtures.rockyBrief())
+            .contains("do not preserve approved business transitions"));
+  }
+
+  @Test
+  void rockyCaptureRejectsReplacingAnOutboundAnchorWithAGenericBarrier() {
+    ChainSemanticCapture replaced =
+        ChainSemanticCaptureFixtures.rockyCapture(
+            List.of(new CapturedOperation("generic-barrier", "script", List.of())),
+            List.of(
+                new CapturedEdge("task-start", "create-task", null, null, null, null, null, null),
+                new CapturedEdge(
+                    "create-task", "generic-barrier", null, null, null, null, null, null)));
+    assertTrue(
+        failure(replaced, ChainSemanticCaptureFixtures.rockyBrief())
+            .contains("do not preserve approved business transitions"));
+  }
+
+  @Test
+  void rockyCaptureRejectsOmittingAnApprovedTransition() {
+    ChainSemanticCapture omitted =
+        ChainSemanticCaptureFixtures.rockyCapture(
+            List.of(),
+            List.of(
+                new CapturedEdge("task-start", "create-task", null, null, null, null, null, null)));
+    assertTrue(
+        failure(omitted, ChainSemanticCaptureFixtures.rockyBrief())
+            .contains("do not preserve approved business transitions"));
+  }
+
+  @Test
+  void rockyCaptureRejectsAnUnapprovedExternalTransition() {
+    ChainSemanticCapture extra =
+        ChainSemanticCaptureFixtures.rockyCapture(
+            List.of(new CapturedOperation("join-1", "script", List.of())),
+            List.of(
+                new CapturedEdge("task-start", "join-1", null, null, null, null, null, null),
+                new CapturedEdge("join-1", "create-task", null, null, null, null, null, null),
+                new CapturedEdge("join-1", "task-result", null, null, null, null, null, null),
+                new CapturedEdge("create-task", "task-result", null, null, null, null, null, null)));
+    assertTrue(
+        failure(extra, ChainSemanticCaptureFixtures.rockyBrief())
+            .contains("do not preserve approved business transitions"));
+  }
+
+  @Test
   void rejectsAMappingWithoutAnAdjacentTransformSite() {
     ChainSemanticCapture capture = ChainSemanticCaptureFixtures.mappedCapture();
     ChainSemanticCapture noTransform =
@@ -469,6 +539,36 @@ class ChainSemanticCaptureAdapterTest {
         .map(type::cast)
         .findFirst()
         .orElseThrow();
+  }
+
+  private static Set<String> contracted(
+      ChainSemanticRevision revision, Set<String> interactionIds) {
+    Map<String, List<String>> outgoing = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      outgoing
+          .computeIfAbsent(edge.sourceNodeId(), unused -> new ArrayList<>())
+          .add(edge.targetNodeId());
+    }
+    Set<String> contracted = new LinkedHashSet<>();
+    for (String source : interactionIds) {
+      ArrayDeque<String> pending = new ArrayDeque<>();
+      Set<String> seen = new LinkedHashSet<>();
+      pending.add(source);
+      seen.add(source);
+      while (!pending.isEmpty()) {
+        String current = pending.removeFirst();
+        for (String next : outgoing.getOrDefault(current, List.of())) {
+          if (interactionIds.contains(next) && !next.equals(source)) {
+            contracted.add(source + " -> " + next);
+            continue;
+          }
+          if (seen.add(next)) {
+            pending.add(next);
+          }
+        }
+      }
+    }
+    return contracted;
   }
 
   private static ChainSemanticCapture conditionCapture() {
@@ -507,7 +607,7 @@ class ChainSemanticCaptureAdapterTest {
         List.of(),
         List.of(),
         List.of(
-            new CapturedEdge("trigger-http", "op-condition", null, null, null, null, null, null),
+            new CapturedEdge("http-in", "op-condition", null, null, null, null, null, null),
             new CapturedEdge(
                 "op-condition",
                 ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
@@ -539,8 +639,8 @@ class ChainSemanticCaptureAdapterTest {
       ChainSemanticCapture capture, List<CapturedEdge> edges) {
     return new ChainSemanticCapture(
         capture.chainIdentity(),
-        capture.entryPoints(),
-        capture.triggers(),
+        List.of(),
+        List.of(),
         capture.operations(),
         capture.sequenceRegions(),
         capture.conditionRegions(),
@@ -557,7 +657,7 @@ class ChainSemanticCaptureAdapterTest {
     return new ChainSemanticCapture(
         capture.chainIdentity(),
         entryPoints,
-        capture.triggers(),
+        List.of(),
         capture.operations(),
         capture.sequenceRegions(),
         capture.conditionRegions(),
@@ -573,7 +673,7 @@ class ChainSemanticCaptureAdapterTest {
       ChainSemanticCapture capture, List<CapturedTrigger> triggers) {
     return new ChainSemanticCapture(
         capture.chainIdentity(),
-        capture.entryPoints(),
+        List.of(),
         triggers,
         capture.operations(),
         capture.sequenceRegions(),
@@ -609,8 +709,8 @@ class ChainSemanticCaptureAdapterTest {
       ChainSemanticCapture capture, List<CapturedOperation> operations) {
     return new ChainSemanticCapture(
         capture.chainIdentity(),
-        capture.entryPoints(),
-        capture.triggers(),
+        List.of(),
+        List.of(),
         operations,
         capture.sequenceRegions(),
         capture.conditionRegions(),

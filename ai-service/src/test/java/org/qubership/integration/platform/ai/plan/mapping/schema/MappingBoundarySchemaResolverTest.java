@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescripti
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.NullType;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
@@ -222,6 +223,35 @@ class MappingBoundarySchemaResolverTest {
   }
 
   @Test
+  void triggerResponseUsesPersistedAsyncRequestSchema() {
+    persistSide(
+        "call-om-result",
+        "op-result",
+        MappingPort.REQUEST,
+        "application/json",
+        null,
+        orderSchema);
+    persistSide("call-sf", "op-create", MappingPort.REQUEST, "application/json", null, orderSchema);
+    persistSide(
+        "call-sf", "op-create", MappingPort.RESPONSE, "application/json", "201", orderSchema);
+    MappingIntent intent =
+        new MappingIntent(
+            "response-createTask-to-onTaskResult",
+            "trigger-on-task-result",
+            MappingPort.RESPONSE,
+            "node-sf",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
+
+    MappingBoundarySchemas sides =
+        resolver.resolve(omResultTriggerToSalesforce(), omResultBindings(), intent, Map.of());
+
+    assertEquals("application/json", sides.source().mediaType());
+    assertEquals("call-om-result", sides.source().serviceCallId());
+    assertEquals(MappingPort.REQUEST, sides.target().direction());
+  }
+
+  @Test
   void missingSchemaFailsClosed() {
     MappingIntent intent =
         new MappingIntent(
@@ -289,6 +319,53 @@ class MappingBoundarySchemaResolverTest {
 
   private static List<ResolvedServiceCallBinding> twoCallBindings() {
     return List.of(binding("node-a", "call-a", "op-a"), binding("node-b", "call-b", "op-b"));
+  }
+
+  private static List<ResolvedServiceCallBinding> omResultBindings() {
+    return List.of(
+        binding("trigger-on-task-result", "call-om-result", "op-result"),
+        binding("node-sf", "call-sf", "op-create"));
+  }
+
+  private static ChainSemanticRevision omResultTriggerToSalesforce() {
+    ChainSemanticRevision base = SemanticFixtures.linearOrders();
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        "revision-om-sf",
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "entry-1",
+                "trigger-on-task-result",
+                "node-sf",
+                0,
+                new SemanticProvenance(List.of()),
+                new SemanticEntryPoint.Presentation("OM onTaskResult", null))),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-on-task-result",
+                "async-api-trigger",
+                new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "node-sf",
+                "call-sf",
+                "createTask",
+                new SemanticProvenance(List.of("fact-sf")))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-result",
+                "trigger-on-task-result",
+                "node-sf",
+                null,
+                new SemanticRoute.Sequence(),
+                "response-createTask-to-onTaskResult")),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
   }
 
   private static ChainSemanticRevision triggerScriptCall() {

@@ -14,20 +14,17 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
  * carries topology and references into the approved requirement brief; it is never persisted.
  *
  * <p>Server-owned state stays out of this contract: no {@code revisionId}, no {@code edgeId}, no
- * schema or compiler-contract version, no sealed domain type, no service-call node, and no
- * entry-point join. The server materializes one service-call node per approved brief entry and
- * names it after the brief's {@code serviceCallId}, and it joins each brief entry point to the
- * trigger nodes and unique outgoing edges in this capture. {@link ChainSemanticCaptureAdapter}
- * projects a capture onto the canonical {@code ChainSemanticRevision}.
+ * schema or compiler-contract version, no sealed domain type, no trigger node, no service-call
+ * node, and no entry-point join. The server materializes one trigger and one service-call node per
+ * approved interaction and names it after the interaction id. Captured edges may reference those
+ * node ids. {@link ChainSemanticCaptureAdapter} projects a capture onto the canonical
+ * {@code ChainSemanticRevision}.
  * Each variant gets its own homogeneous list so the generated tool schema stays free of polymorphic
  * {@code anyOf} branches.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 record ChainSemanticCapture(
     @Description("Short chain name, e.g. orders-intake") String chainIdentity,
-    @Description("Omit; the server derives entry points from the brief and trigger nodes")
-        List<CapturedEntryPoint> entryPoints,
-    @Description("Trigger nodes; one per entry point") List<CapturedTrigger> triggers,
     @Description("Processing nodes such as script, mapper-2, condition, split, loop, or try-catch")
         List<CapturedOperation> operations,
     @Description("Plain sequence regions; omit when there is no control-flow region")
@@ -48,8 +45,6 @@ record ChainSemanticCapture(
         List<CapturedContainment> containment) {
 
   ChainSemanticCapture {
-    entryPoints = copy(entryPoints);
-    triggers = copy(triggers);
     operations = copy(operations);
     sequenceRegions = copy(sequenceRegions);
     conditionRegions = copy(conditionRegions);
@@ -59,6 +54,36 @@ record ChainSemanticCapture(
     errorScopeRegions = copy(errorScopeRegions);
     edges = copy(edges);
     containment = copy(containment);
+  }
+
+  /**
+   * Compatibility constructor used by tests that still pass captured entry points and triggers. The
+   * server ignores those lists and materializes interaction anchors from the approved brief.
+   */
+  ChainSemanticCapture(
+      String chainIdentity,
+      List<CapturedEntryPoint> entryPoints,
+      List<CapturedTrigger> triggers,
+      List<CapturedOperation> operations,
+      List<CapturedSequenceRegion> sequenceRegions,
+      List<CapturedConditionRegion> conditionRegions,
+      List<CapturedSplitRegion> splitRegions,
+      List<CapturedLoopRegion> loopRegions,
+      List<CapturedRetryRegion> retryRegions,
+      List<CapturedErrorScopeRegion> errorScopeRegions,
+      List<CapturedEdge> edges,
+      List<CapturedContainment> containment) {
+    this(
+        chainIdentity,
+        operations,
+        sequenceRegions,
+        conditionRegions,
+        splitRegions,
+        loopRegions,
+        retryRegions,
+        errorScopeRegions,
+        edges,
+        containment);
   }
 
   /** Trigger occurrence that starts one exchange. {@code capabilityKey} comes from the brief. */

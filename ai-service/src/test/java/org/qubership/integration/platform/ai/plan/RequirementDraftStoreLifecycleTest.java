@@ -2,8 +2,6 @@ package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +15,10 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class RequirementDraftStoreLifecycleTest {
@@ -129,13 +131,13 @@ class RequirementDraftStoreLifecycleTest {
 
     RequirementDraft recovered = runtime(blobStore).store().get("conversation-1").orElseThrow();
 
-    assertEquals(2, recovered.serviceCalls().size());
-    assertEquals("call-om-result", recovered.serviceCalls().get(0).serviceCallId());
-    assertEquals("call-wfm-create-task", recovered.serviceCalls().get(1).serviceCallId());
-    assertEquals("op-shared", recovered.serviceCalls().get(0).catalogBinding().integrationOperationId());
-    assertEquals("op-shared", recovered.serviceCalls().get(1).catalogBinding().integrationOperationId());
-    assertEquals("sys-om", recovered.serviceCalls().get(0).catalogBinding().systemId());
-    assertEquals("sys-wfm", recovered.serviceCalls().get(1).catalogBinding().systemId());
+    assertEquals(2, recovered.catalogBindings().size());
+    assertEquals("call-om-result", recovered.catalogBindings().get(0).interactionId());
+    assertEquals("call-wfm-create-task", recovered.catalogBindings().get(1).interactionId());
+    assertEquals("op-shared", recovered.catalogBindings().get(0).integrationOperationId());
+    assertEquals("op-shared", recovered.catalogBindings().get(1).integrationOperationId());
+    assertEquals("sys-om", recovered.catalogBindings().get(0).systemId());
+    assertEquals("sys-wfm", recovered.catalogBindings().get(1).systemId());
   }
 
   @Test
@@ -161,7 +163,7 @@ class RequirementDraftStoreLifecycleTest {
         new ResolvedCatalogBinding("sys-imported", "spec-imported", "group-imported", "op-imported"));
 
     RequirementDraft unchanged = store.get("conversation-1").orElseThrow();
-    assertNull(unchanged.serviceCalls().getFirst().catalogBinding());
+    assertTrue(unchanged.catalogBindings().isEmpty());
   }
 
   @Test
@@ -180,14 +182,20 @@ class RequirementDraftStoreLifecycleTest {
         new ResolvedCatalogBinding("sys-imported", "spec-imported", "group-imported", "op-imported"));
 
     RequirementDraft unchanged = store.get("conversation-1").orElseThrow();
-    assertNull(unchanged.serviceCalls().get(0).catalogBinding());
-    assertNull(unchanged.serviceCalls().get(1).catalogBinding());
+    assertTrue(unchanged.catalogBindings().isEmpty());
   }
 
   @Test
   void withBoundServiceCallReturnsSameDraftForUnknownOwner() {
     RequirementDraft draft =
-        draftWithCalls(serviceCallFact("fact-om", "call-om-result", "OM", "onTaskResult"));
+        draftWithCalls(serviceCallFact("fact-om", "call-om-result", "OM", "onTaskResult"))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("start", Direction.INBOUND, "Caller", "start", ""),
+                        new Interaction(
+                            "call-om-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                    List.of(new Transition("start", "call-om-result"))));
     CatalogBindingHint hint =
         new CatalogBindingHint(
             "2",
@@ -205,10 +213,9 @@ class RequirementDraftStoreLifecycleTest {
             Instant.EPOCH,
             "test");
 
-    RequirementDraft unchanged = draft.withBoundServiceCall("unknown-call", hint);
+    RequirementDraft unchanged = draft.withBoundInteraction("unknown-call", hint);
 
-    assertSame(draft, unchanged);
-    assertNull(unchanged.serviceCalls().getFirst().catalogBinding());
+    assertTrue(unchanged.catalogBindings().isEmpty());
   }
 
   private static RequirementDraft draftWithCalls(RequirementFact... calls) {

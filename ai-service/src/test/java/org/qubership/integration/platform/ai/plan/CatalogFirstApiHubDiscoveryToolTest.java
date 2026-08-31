@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -24,6 +25,8 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogL
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 
 class CatalogFirstApiHubDiscoveryToolTest {
 
@@ -45,16 +48,23 @@ class CatalogFirstApiHubDiscoveryToolTest {
                     "/store/inventory",
                     "getInventory",
                     "catalog-read:system-1/spec-1/operation-1")));
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-exact",
+        interaction(
+            "call-stock",
+            "Petstore Ext",
+            "getInventory",
+            "The chain calls Petstore Ext to read stock levels"));
 
-    String result = tool(lookup, apiHub)
-            .resolveApiOperation(
-                "call-stock",
-                "The chain calls Petstore Ext to read stock levels",
-                "Petstore Ext",
-                "",
-                "GET",
-                "/store/inventory", null, null,
-                "2024.4");
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-exact")) {
+      result =
+          tool(lookup, apiHub, store)
+              .resolveApiOperation(
+                  "call-stock", "GET", "/store/inventory", null, null, "2024.4");
+    }
 
     assertTrue(result.contains("CATALOG_BOUND"), result);
     assertTrue(result.contains("operation-1"), result);
@@ -65,45 +75,48 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void catalogMissUsesApiHubDiscovery() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(lookup.resolve(any()))
-        .thenReturn(new CatalogLookupResult.None());
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
     when(apiHub.searchApiOperations(
             eq("getInventory"), eq("rest"), eq("2024.4"), eq(0), eq(100), eq(null)))
         .thenReturn("{\"hits\":[\"candidate\"]}");
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-miss",
+        interaction(
+            "call-stock",
+            "Petstore",
+            "getInventory",
+            "The chain calls Petstore to read stock levels"));
 
-    String result = tool(lookup, apiHub)
-            .resolveApiOperation(
-                "call-stock",
-                "The chain calls Petstore to read stock levels",
-                "Petstore",
-                "getInventory",
-                "",
-                "", null, null,
-                "2024.4");
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-miss")) {
+      result =
+          tool(lookup, apiHub, store)
+              .resolveApiOperation("call-stock", "", "", null, null, "2024.4");
+    }
 
     assertTrue(result.contains("candidate"), result);
     verify(apiHub).searchApiOperations("getInventory", "rest", "2024.4", 0, 100, null);
   }
-
 
   @Test
   void tooBroadCatalogDoesNotQueryApiHub() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.TooBroad(80));
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-broad",
+        interaction("call-om", "OM", "onTaskResult", "The chain consumes OM task results"));
 
-    String result =
-        tool(lookup, apiHub)
-            .resolveApiOperation(
-                "call-om",
-                "The chain consumes OM task results",
-                "OM",
-                "onTaskResult",
-                "",
-                "",
-                null,
-                "kafka",
-                "");
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-broad")) {
+      result =
+          tool(lookup, apiHub, store)
+              .resolveApiOperation("call-om", "", "", null, "kafka", "");
+    }
 
     assertTrue(result.contains("INCOMPLETE"), result);
     assertTrue(result.contains("systemHint"), result);
@@ -114,12 +127,19 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void intentWithoutOperationIdentityIsIncompleteAndNeverSearches() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-incomplete",
+        interaction(
+            "call-stock", "Petstore", "", "The chain reads stock levels from somewhere"));
 
-    String result =
-        tool(lookup, apiHub)
-            .resolveApiOperation(
-                "call-stock",
-                "The chain reads stock levels from somewhere", "Petstore", "", "", "", null, null, "");
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-incomplete")) {
+      result =
+          tool(lookup, apiHub, store)
+              .resolveApiOperation("call-stock", "", "", null, null, "");
+    }
 
     assertTrue(result.contains("INCOMPLETE"), result);
     assertTrue(result.contains("operationHint"), result);
@@ -128,7 +148,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
   }
 
   @Test
-  void everyServiceCallKeepsItsOwnAssessment() {
+  void everyInteractionKeepsItsOwnAssessment() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any()))
@@ -147,115 +167,81 @@ class CatalogFirstApiHubDiscoveryToolTest {
                     "catalog-read:system-1/spec-1/operation-1")))
         .thenReturn(new CatalogLookupResult.None());
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
-    CatalogFirstApiHubDiscoveryTool tool = tool(lookup, apiHub, resolutions);
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-assessments",
+        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        interaction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
+    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, resolutions, store);
     try (ToolSession.Handle ignored = ToolSession.open("conv-assessments")) {
-      tool.resolveApiOperation(
-          "call-stock",
-          "Read stock levels from Petstore Ext",
-          "Petstore Ext",
-          "",
-          "GET",
-          "/store/inventory",
-          null,
-          null,
-          "");
-      tool.resolveApiOperation(
-          "call-invoice",
-          "Raise an invoice in Billing",
-          "Billing",
-          "createInvoice",
-          "",
-          "",
-          null,
-          null,
-          "");
+      discovery.resolveApiOperation(
+          "call-stock", "GET", "/store/inventory", null, null, "");
+      discovery.resolveApiOperation("call-invoice", "", "", null, null, "");
     }
 
-    String conversationId = "conv-assessments";
-    List<ServiceCallAssessment> assessments = resolutions.assessments(conversationId);
+    List<InteractionAssessment> assessments = resolutions.assessments("conv-assessments");
     assertEquals(2, assessments.size());
-    assertEquals(ServiceCallAssessment.Outcome.RESOLVED, assessments.get(0).outcome());
-    assertEquals(ServiceCallAssessment.Outcome.CATALOG_MISS, assessments.get(1).outcome());
+    assertEquals(InteractionAssessment.Outcome.RESOLVED, assessments.get(0).outcome());
+    assertEquals(InteractionAssessment.Outcome.CATALOG_MISS, assessments.get(1).outcome());
     assertEquals(
         "operation-1",
         resolutions
-            .forServiceCall(conversationId, "call-stock")
+            .forInteraction("conv-assessments", "call-stock")
             .orElseThrow()
             .binding()
             .integrationOperationId());
   }
 
   @Test
-  void apiHubSearchesOnlyForTheCallTheCatalogCouldNotAnswer() {
+  void apiHubSearchesOnlyForTheInteractionTheCatalogCouldNotAnswer() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any()))
         .thenReturn(new CatalogLookupResult.Exact(petstoreMatch()))
         .thenReturn(new CatalogLookupResult.None());
-    CatalogFirstApiHubDiscoveryTool tool = tool(lookup, apiHub);
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-mixed",
+        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        interaction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
+    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, store);
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-mixed")) {
-      tool.resolveApiOperation(
-          "call-stock",
-          "Read stock levels from Petstore Ext",
-          "Petstore Ext",
-          "",
-          "GET",
-          "/store/inventory",
-          null,
-          null,
-          "");
-      tool.resolveApiOperation(
-          "call-invoice",
-          "Raise an invoice in Billing",
-          "Billing",
-          "createInvoice",
-          "",
-          "",
-          null,
-          null,
-          "");
+      discovery.resolveApiOperation(
+          "call-stock", "GET", "/store/inventory", null, null, "");
+      discovery.resolveApiOperation("call-invoice", "", "", null, null, "");
     }
 
-    verify(apiHub, times(1)).searchApiOperations(eq("createInvoice"), any(), any(), any(), any(), any());
+    verify(apiHub, times(1))
+        .searchApiOperations(eq("createInvoice"), any(), any(), any(), any(), any());
   }
 
   @Test
   void noApiHubCallWhenEveryOperationIsInTheCatalog() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(lookup.resolve(any()))
-        .thenReturn(new CatalogLookupResult.Exact(petstoreMatch()));
-    CatalogFirstApiHubDiscoveryTool tool = tool(lookup, apiHub);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.Exact(petstoreMatch()));
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-all-local",
+        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        interaction("call-stock-again", "Petstore Ext", "getInventory", "Read stock levels again"));
+    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, store);
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-all-local")) {
-      tool.resolveApiOperation(
-          "call-stock",
-          "Read stock levels from Petstore Ext",
-          "Petstore Ext",
-          "",
-          "GET",
-          "/store/inventory",
-          null,
-          null,
-          "");
-      tool.resolveApiOperation(
-          "call-stock-again",
-          "Read stock levels again",
-          "Petstore Ext",
-          "getInventory",
-          "",
-          "",
-          null,
-          null,
-          "");
+      discovery.resolveApiOperation(
+          "call-stock", "GET", "/store/inventory", null, null, "");
+      discovery.resolveApiOperation("call-stock-again", "", "", null, null, "");
     }
 
     verifyNoInteractions(apiHub);
   }
 
   @Test
-  void anApiHubFailureLeavesResolvedCallsAlone() {
+  void anApiHubFailureLeavesResolvedInteractionsAlone() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any()))
@@ -264,37 +250,25 @@ class CatalogFirstApiHubDiscoveryToolTest {
     when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any()))
         .thenThrow(new IllegalStateException("API Hub MCP timed out"));
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
-    CatalogFirstApiHubDiscoveryTool tool = tool(lookup, apiHub, resolutions);
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-timeout",
+        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        interaction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
+    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, resolutions, store);
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-timeout")) {
-      tool.resolveApiOperation(
-          "call-stock",
-          "Read stock levels from Petstore Ext",
-          "Petstore Ext",
-          "",
-          "GET",
-          "/store/inventory",
-          null,
-          null,
-          "");
+      discovery.resolveApiOperation(
+          "call-stock", "GET", "/store/inventory", null, null, "");
       assertThrows(
           IllegalStateException.class,
-          () ->
-              tool.resolveApiOperation(
-                  "call-invoice",
-                  "Raise an invoice in Billing",
-                  "Billing",
-                  "createInvoice",
-                  "",
-                  "",
-                  null,
-                  null,
-                  ""));
+          () -> discovery.resolveApiOperation("call-invoice", "", "", null, null, ""));
     }
 
-    List<ServiceCallAssessment> assessments = resolutions.assessments("conv-timeout");
+    List<InteractionAssessment> assessments = resolutions.assessments("conv-timeout");
     assertEquals(2, assessments.size());
-    assertEquals(ServiceCallAssessment.Outcome.RESOLVED, assessments.get(0).outcome());
+    assertEquals(InteractionAssessment.Outcome.RESOLVED, assessments.get(0).outcome());
     assertEquals("operation-1", assessments.get(0).binding().integrationOperationId());
   }
 
@@ -302,23 +276,25 @@ class CatalogFirstApiHubDiscoveryToolTest {
   void vagueCapabilitySearchesByTheOperationHintNotTheSentence() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    when(lookup.resolve(any()))
-        .thenReturn(new CatalogLookupResult.None());
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeFlow(
+        store,
+        "conv-vague",
+        interaction(
+            "call-stock",
+            "",
+            "retrieve inventory levels",
+            "The chain has to find out how many pets are left in stock before it answers"));
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-vague")) {
-      tool(lookup, apiHub)
-          .resolveApiOperation(
-              "call-stock",
-              "The chain has to find out how many pets are left in stock before it answers",
-              "",
-              "retrieve inventory levels",
-              "",
-              "", null, null,
-              "");
+      tool(lookup, apiHub, store)
+          .resolveApiOperation("call-stock", "", "", null, null, "");
     }
 
     verify(apiHub)
-        .searchApiOperations(eq("retrieve inventory levels"), eq("rest"), any(), any(), any(), any());
+        .searchApiOperations(
+            eq("retrieve inventory levels"), eq("rest"), any(), any(), any(), any());
   }
 
   @Test
@@ -326,145 +302,62 @@ class CatalogFirstApiHubDiscoveryToolTest {
     assertEquals("asyncapi", CatalogFirstApiHubDiscoveryTool.apiTypeFor("kafka"));
     assertEquals("asyncapi", CatalogFirstApiHubDiscoveryTool.apiTypeFor("AMQP"));
     assertEquals("rest", CatalogFirstApiHubDiscoveryTool.apiTypeFor("http"));
-    // An unnamed transport is not evidence of asynchrony; most calls are REST.
     assertEquals("rest", CatalogFirstApiHubDiscoveryTool.apiTypeFor(""));
     assertEquals("rest", CatalogFirstApiHubDiscoveryTool.apiTypeFor(null));
   }
 
   @Test
-  void omittedServiceCallIdErrorsWhenTheDraftHasSeveralCalls() {
-    RequirementDraftStore store = new RequirementDraftStore();
-    store.put(
-        "conv-many",
-        new RequirementDraft(
-            false,
-            "OM then WFM",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Which operations?"),
-            "brainstorming",
-            "1",
-            null,
-            null,
-            false,
-            List.of(
-                serviceCall("call-om-result", "OM", "onTaskResult"),
-                serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")),
-            false));
+  void omittedInteractionIdErrors() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, new ConversationApiResolutions(), store);
+    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, new RequirementDraftStore());
 
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-many")) {
-      result =
-          discovery.resolveApiOperation(
-              "",
-              "Call OM onTaskResult",
-              "OM",
-              "onTaskResult",
-              "",
-              "",
-              null,
-              null,
-              "");
+      result = discovery.resolveApiOperation("", "", "", null, null, "");
     }
 
     assertNotNull(result);
     assertTrue(result.contains("ERROR"), result);
-    assertTrue(result.contains("serviceCallId is required"), result);
-    assertTrue(result.contains("call-om-result"), result);
-    assertTrue(result.contains("call-wfm-create-task"), result);
+    assertTrue(result.contains("interactionId is required"), result);
     verifyNoInteractions(lookup);
     verifyNoInteractions(apiHub);
   }
 
   @Test
-  void omittedServiceCallIdDoesNotStoreFactDerivedAssessment() {
+  void unknownInteractionRequiresCapturedFlow() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
-    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, resolutions);
+    CatalogFirstApiHubDiscoveryTool discovery =
+        tool(lookup, apiHub, resolutions, new RequirementDraftStore());
 
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-no-draft")) {
-      result =
-          discovery.resolveApiOperation(
-              null,
-              "Call OM onTaskResult",
-              "OM",
-              "onTaskResult",
-              "",
-              "",
-              null,
-              null,
-              "");
+      result = discovery.resolveApiOperation("call-stock", "", "", null, null, "");
     }
 
     assertNotNull(result);
     assertTrue(result.contains("ERROR"), result);
-    assertTrue(result.contains("serviceCallId is required"), result);
+    assertTrue(
+        result.contains("Capture RequirementFlow before resolving interactionId=call-stock"),
+        result);
     assertTrue(resolutions.assessments("conv-no-draft").isEmpty());
     verifyNoInteractions(lookup);
     verifyNoInteractions(apiHub);
   }
 
-  @Test
-  void omittedServiceCallIdDoesNotUseTheOnlyDraftCall() {
-    RequirementDraftStore store = new RequirementDraftStore();
+  private static void storeFlow(
+      RequirementDraftStore store, String conversationId, Interaction... interactions) {
     store.put(
-        "conv-one",
-        new RequirementDraft(
-            false,
-            "Call OM",
-            DraftDecision.NEEDS_INPUT,
-            List.of("Resolve the operation"),
-            "brainstorming",
-            "1",
-            null,
-            null,
-            false,
-            List.of(serviceCall("call-om-result", "OM", "onTaskResult")),
-            false));
-    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
-    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
-    ConversationApiResolutions resolutions = new ConversationApiResolutions();
-    CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, resolutions, store);
-
-    String result;
-    try (ToolSession.Handle ignored = ToolSession.open("conv-one")) {
-      result =
-          discovery.resolveApiOperation(
-              "",
-              "Call OM onTaskResult",
-              "OM",
-              "onTaskResult",
-              "",
-              "",
-              null,
-              null,
-              "");
-    }
-
-    assertTrue(result.contains("ERROR"), result);
-    assertTrue(result.contains("serviceCallId is required"), result);
-    assertTrue(resolutions.assessments("conv-one").isEmpty());
-    verifyNoInteractions(lookup);
-    verifyNoInteractions(apiHub);
+        conversationId,
+        new RequirementDraft(false, "captured flow")
+            .withFlow(new RequirementFlow(List.of(interactions), List.of())));
   }
 
-  private static RequirementFact serviceCall(String serviceCallId, String participant, String operation) {
-    return new RequirementFact(
-        serviceCallId,
-        RequirementFactPolarity.POSITIVE,
-        RequirementFactKind.SERVICE_CALL,
-        "",
-        "Call " + participant + " " + operation,
-        participant,
-        operation,
-        "",
-        "",
-        "",
-        serviceCallId);
+  private static Interaction interaction(
+      String interactionId, String participant, String operation, String description) {
+    return new Interaction(interactionId, OUTBOUND, participant, operation, description);
   }
 
   private static CatalogMatch petstoreMatch() {
@@ -482,13 +375,8 @@ class CatalogFirstApiHubDiscoveryToolTest {
   }
 
   private static CatalogFirstApiHubDiscoveryTool tool(
-      CatalogOperationLookup lookup, ApiHubMcpTools apiHub) {
-    return tool(lookup, apiHub, new ConversationApiResolutions());
-  }
-
-  private static CatalogFirstApiHubDiscoveryTool tool(
-      CatalogOperationLookup lookup, ApiHubMcpTools apiHub, ConversationApiResolutions resolutions) {
-    return tool(lookup, apiHub, resolutions, null);
+      CatalogOperationLookup lookup, ApiHubMcpTools apiHub, RequirementDraftStore draftStore) {
+    return tool(lookup, apiHub, new ConversationApiResolutions(), draftStore);
   }
 
   private static CatalogFirstApiHubDiscoveryTool tool(

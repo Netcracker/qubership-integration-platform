@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.integration.catalog.lookup;
 
+import java.util.List;
 import java.util.Locale;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
@@ -20,6 +21,8 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
  * @param path HTTP path
  * @param operationHint operation name, or the raw operation query when no name was given
  * @param release specification version the author requires, for example {@code 2024.4}
+ * @param namedInRequest other operation names the same request already used, including payload
+ *     command names that are not catalog keys
  */
 public record CatalogQuery(
     String systemHint,
@@ -28,7 +31,8 @@ public record CatalogQuery(
     String method,
     String path,
     String operationHint,
-    String release) {
+    String release,
+    List<String> namedInRequest) {
 
   public CatalogQuery {
     systemHint = CatalogStrings.blankToNull(systemHint);
@@ -38,6 +42,22 @@ public record CatalogQuery(
     path = CatalogStrings.blankToNull(path);
     operationHint = CatalogStrings.blankToNull(operationHint);
     release = CatalogStrings.blankToNull(release);
+    namedInRequest =
+        namedInRequest == null || namedInRequest.isEmpty()
+            ? List.of()
+            : List.copyOf(namedInRequest);
+  }
+
+  /** Lookup with no sibling names from the same request. */
+  public CatalogQuery(
+      String systemHint,
+      String specificationHint,
+      String protocol,
+      String method,
+      String path,
+      String operationHint,
+      String release) {
+    this(systemHint, specificationHint, protocol, method, path, operationHint, release, List.of());
   }
 
   /** True when method and path together identify the operation, so the name need not. */

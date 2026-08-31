@@ -129,7 +129,8 @@ class DesignInputCapabilityTest {
             ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
     assertTrue(prompt.contains("sourceFactIds"), prompt);
     assertTrue(prompt.contains("omit it on every edge"), prompt);
-    assertTrue(prompt.contains("Do not send an entryPoints list"), prompt);
+    assertTrue(prompt.contains("External interaction anchors are server-owned"), prompt);
+    assertTrue(prompt.contains("nodeId=http-in"), prompt);
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
   }
 
@@ -138,8 +139,20 @@ class DesignInputCapabilityTest {
     String prompt =
         DesignInputCapability.authoringPrompt(
             ChainSemanticCaptureFixtures.catalogBoundAsyncApiTriggerBrief(), CONTRACT);
-    assertTrue(prompt.contains("\n- none"), prompt);
+    assertTrue(prompt.contains("nodeId=async-in"), prompt);
     assertFalse(prompt.contains("nodeId=consume-om"), prompt);
+  }
+
+  @Test
+  void authoringPromptListsApprovedBusinessTransitions() {
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.rockyBrief(), CONTRACT);
+    assertTrue(prompt.contains("nodeId=task-start"), prompt);
+    assertTrue(prompt.contains("nodeId=create-task"), prompt);
+    assertTrue(prompt.contains("nodeId=task-result"), prompt);
+    assertTrue(prompt.contains("task-start -> create-task"), prompt);
+    assertTrue(prompt.contains("create-task -> task-result"), prompt);
   }
 
   @Test

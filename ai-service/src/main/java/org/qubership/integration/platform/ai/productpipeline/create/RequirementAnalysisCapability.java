@@ -29,8 +29,8 @@ import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValida
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
-import org.qubership.integration.platform.ai.plan.RequirementFactKind;
-import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -595,7 +595,7 @@ public class RequirementAnalysisCapability implements StageCapability {
               + ". This locale is authoritative; do not infer another language from Planning text, "
               + "conversation history, approval controls, tool output, or this English instruction.\n\n");
     }
-    if (hasPositiveServiceCall(approved)) {
+    if (hasProjectedOutbound(approved)) {
       sb.append(
           "Do not invent dataMappings or mappingIntents for trigger-to-call edges that only "
               + "forward the payload. Pass-through is the absence of a mapping intent. When the "
@@ -606,22 +606,44 @@ public class RequirementAnalysisCapability implements StageCapability {
               + "copies for fields the user did not mention.\n\n");
     } else {
       sb.append(
-          "Leave mappingIntents and dataMappings empty. There are no positive SERVICE_CALL "
-              + "facts, so do not invent mappings.\n\n");
+          "Leave mappingIntents and dataMappings empty. There are no projected outbound "
+              + "interactions, so do not invent mappings.\n\n");
     }
     sb.append(
-        "Fact identity the later DERIVE step copies as-is (named fields, not text):\n"
-            + "- ENDPOINT capabilityKey is the CIP trigger type (http-trigger, async-api-trigger,"
-            + " or kafka-trigger-2).\n"
-            + "- HTTP ENDPOINT: set httpMethod and path; operation is the optional operation id.\n"
-            + "- Catalog Kafka consume: capabilityKey async-api-trigger; set participant,"
-            + " operation, and serviceCallId.\n"
-            + "- Native Kafka consume: capabilityKey kafka-trigger-2; set topic and operation.\n"
-            + "- SERVICE_CALL: set participant and operation. text is a description only.\n\n");
+        "Java projects INBOUND interactions to entry points and OUTBOUND interactions to "
+            + "service calls from the approved RequirementFlow. Do not author ENDPOINT or "
+            + "SERVICE_CALL topology facts. Keep facts as ordinary constraints and native-trigger "
+            + "configuration.\n\n");
+    RequirementFlow flow = approved.flow();
+    if (!flow.interactions().isEmpty()) {
+      sb.append("Approved RequirementFlow:\n");
+      for (var interaction : flow.interactions()) {
+        sb.append("- interactionId=")
+            .append(interaction.interactionId())
+            .append(" direction=")
+            .append(interaction.direction())
+            .append(" participant=")
+            .append(interaction.participant())
+            .append(" operation=")
+            .append(interaction.operation())
+            .append('\n');
+      }
+      if (!flow.transitions().isEmpty()) {
+        sb.append("Transitions:\n");
+        for (var transition : flow.transitions()) {
+          sb.append("- ")
+              .append(transition.sourceInteractionId())
+              .append(" -> ")
+              .append(transition.targetInteractionId())
+              .append('\n');
+        }
+      }
+      sb.append('\n');
+    }
     sb.append("Planning text:\n").append(planning).append('\n');
     if (!approved.facts().isEmpty()) {
       sb.append(
-          "\nApproved facts (server pins these sourceFactId values on capture — still include"
+          "\nApproved facts (server pins these sourceFactId values on capture. Still include"
               + " goal/summary/inputs/constraints):\n");
       for (var fact : approved.facts()) {
         sb.append("- id=")
@@ -840,13 +862,9 @@ public class RequirementAnalysisCapability implements StageCapability {
     return context.runManifest() == null ? "en" : context.runManifest().responseLocale();
   }
 
-  private static boolean hasPositiveServiceCall(RequirementDraft approved) {
-    return approved.facts().stream()
-        .anyMatch(
-            fact ->
-                fact != null
-                    && fact.polarity() == RequirementFactPolarity.POSITIVE
-                    && fact.kind() == RequirementFactKind.SERVICE_CALL);
+  private static boolean hasProjectedOutbound(RequirementDraft approved) {
+    return approved.flow().interactions().stream()
+        .anyMatch(interaction -> interaction.direction() == Direction.OUTBOUND);
   }
 
   private RequirementDraft resolveApprovedDraft(StageExecutionContext context) {

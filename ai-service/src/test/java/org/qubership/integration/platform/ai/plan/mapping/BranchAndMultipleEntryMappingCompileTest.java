@@ -149,8 +149,8 @@ class BranchAndMultipleEntryMappingCompileTest {
                 copyIntent("map-b", "router", "call-b", "$.name", "$.fullName")));
     ChainPlanGraph compiled = compile(branchedMergeGraph(), brief);
     ChainPlanNode siteBBefore = requireSite(compiled, "map-b");
-    String configB = MappingExecutionSite.mappingDescription(siteBBefore);
-    String configA = MappingExecutionSite.mappingDescription(requireSite(compiled, "map-a"));
+    String configB = MappingExecutionSite.scriptBody(siteBBefore);
+    String configA = MappingExecutionSite.scriptBody(requireSite(compiled, "map-a"));
 
     RequirementBrief updated =
         BriefMappingReview.editRule(brief, "map-a", "$.personId", "$.accountId", null);
@@ -164,12 +164,10 @@ class BranchAndMultipleEntryMappingCompileTest {
     ChainPlanGraph rebuilt = reconfigureChanged(compiled, updated, impact.changedMappingIntentIds());
     ChainPlanNode siteBAfter = requireSite(rebuilt, "map-b");
     assertSame(siteBBefore, siteBAfter);
-    assertEquals(configB, MappingExecutionSite.mappingDescription(siteBAfter));
-    assertNotEquals(
-        configA, MappingExecutionSite.mappingDescription(requireSite(rebuilt, "map-a")));
+    assertEquals(configB, MappingExecutionSite.scriptBody(siteBAfter));
+    assertNotEquals(configA, MappingExecutionSite.scriptBody(requireSite(rebuilt, "map-a")));
     assertTrue(
-        MappingExecutionSite.mappingDescription(requireSite(rebuilt, "map-a"))
-            .contains("accountId"));
+        MappingExecutionSite.scriptBody(requireSite(rebuilt, "map-a")).contains("accountId"));
     assertTrue(hasEdge(rebuilt, "router", requireSite(rebuilt, "map-a").nodeId(), "branch-a"));
     assertTrue(hasEdge(rebuilt, "router", siteBAfter.nodeId(), "branch-b"));
     List<ValidationIssue> issues =

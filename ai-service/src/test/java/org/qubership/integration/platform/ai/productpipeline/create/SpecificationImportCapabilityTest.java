@@ -34,7 +34,10 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Capabili
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 class SpecificationImportCapabilityTest {
 
@@ -119,9 +122,9 @@ class SpecificationImportCapabilityTest {
     RequirementDraft draft = pendingDraft();
     ResolvedCatalogBinding binding =
         new ResolvedCatalogBinding("sys", "spec", "group", "op", "INTERNAL");
-    RequirementServiceCall call = draft.serviceCalls().getFirst();
     RequirementDraft bound =
-        draft.withBoundServiceCall(call.serviceCallId(), bindingHint(call, binding));
+        draft.withBoundInteraction(
+            "call-geosite", bindingHint("call-geosite", "GeoSite catalog", binding));
     // resolveDraft prefers the store (ADR SoT); return pending first, then bound after apply.
     when(store.get("conv-1")).thenReturn(Optional.of(draft), Optional.of(bound));
     ApiHubSpecificationImportResult result =
@@ -140,7 +143,7 @@ class SpecificationImportCapabilityTest {
         (RequirementDraft) completed.outcome().candidates().get(0).payload();
     assertNull(produced.apiHubCandidate());
     assertFalse(produced.importIntent());
-    assertEquals("sys", produced.serviceCalls().getFirst().catalogBinding().systemId());
+    assertEquals("sys", produced.catalogBindings().getFirst().systemId());
     verify(gateway).importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class));
     verify(store).applyImportResult(eq("conv-1"), any(), any());
   }
@@ -215,6 +218,21 @@ class SpecificationImportCapabilityTest {
                 false,
                 List.of(om, wfm),
                 true)
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("start", Direction.INBOUND, "Caller", "start", ""),
+                        new Interaction(
+                            "call-om-result", Direction.OUTBOUND, "OM", "onTaskResult", ""),
+                        new Interaction(
+                            "call-wfm-create-task",
+                            Direction.OUTBOUND,
+                            "Salesforce WFM",
+                            "createTask",
+                            "")),
+                    List.of(
+                        new Transition("start", "call-om-result"),
+                        new Transition("call-om-result", "call-wfm-create-task"))))
             .withApiHubCandidate(candidate(), "call-om-result");
     store.put("conv-1", draft);
     ApiHubSpecificationImportResult result =
@@ -232,18 +250,20 @@ class SpecificationImportCapabilityTest {
     RequirementDraft produced =
         (RequirementDraft) completed.outcome().candidates().get(0).payload();
     assertNull(produced.apiHubCandidate());
-    assertEquals(2, produced.serviceCalls().size());
-    RequirementServiceCall storedOm = produced.serviceCalls().get(0);
-    RequirementServiceCall storedWfm = produced.serviceCalls().get(1);
-    assertEquals("call-om-result", storedOm.serviceCallId());
-    assertEquals("sys-om", storedOm.catalogBinding().systemId());
-    assertEquals("call-wfm-create-task", storedWfm.serviceCallId());
-    assertNull(storedWfm.catalogBinding());
+    assertEquals(1, produced.catalogBindings().size());
+    CatalogBindingHint storedOm = produced.catalogBindings().getFirst();
+    assertEquals("call-om-result", storedOm.interactionId());
+    assertEquals("sys-om", storedOm.systemId());
+    assertTrue(
+        produced.catalogBindings().stream()
+            .noneMatch(hint -> "call-wfm-create-task".equals(hint.interactionId())));
     assertFalse(produced.readyForPlan());
 
     RequirementDraft reread = store.get("conv-1").orElseThrow();
-    assertEquals("sys-om", reread.serviceCalls().get(0).catalogBinding().systemId());
-    assertNull(reread.serviceCalls().get(1).catalogBinding());
+    assertEquals("sys-om", reread.catalogBindings().getFirst().systemId());
+    assertTrue(
+        reread.catalogBindings().stream()
+            .noneMatch(hint -> "call-wfm-create-task".equals(hint.interactionId())));
   }
 
   private static SpecificationImportCapability capability(
@@ -290,8 +310,8 @@ class SpecificationImportCapabilityTest {
               false,
               List.of(fact),
               false);
-      RequirementServiceCall call = draft.serviceCalls().getFirst();
-      return draft.withBoundServiceCall(call.serviceCallId(), bindingHint(call, binding));
+      return draft.withBoundInteraction(
+          fact.serviceCallId(), bindingHint(fact.serviceCallId(), fact.operation(), binding));
     }
     return new RequirementDraft(
         true,
@@ -344,19 +364,19 @@ class SpecificationImportCapabilityTest {
   }
 
   private static CatalogBindingHint bindingHint(
-      RequirementServiceCall call, ResolvedCatalogBinding binding) {
+      String interactionId, String operation, ResolvedCatalogBinding binding) {
     return new CatalogBindingHint(
-        "2",
-        call.serviceCallId(),
-        call.sourceFactId(),
-        call.operation().isBlank() ? "service-call" : call.operation(),
+        "3",
+        interactionId,
+        interactionId,
+        operation == null || operation.isBlank() ? "service-call" : operation,
         binding.systemId(),
         binding.specificationGroupId(),
         binding.specificationId(),
         binding.integrationOperationId(),
-        null,
-        null,
-        null,
+        "http",
+        "POST",
+        "/imported",
         "catalog",
         Instant.EPOCH,
         "test");

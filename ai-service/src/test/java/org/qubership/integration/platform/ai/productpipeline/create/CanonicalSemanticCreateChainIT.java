@@ -906,7 +906,7 @@ class CanonicalSemanticCreateChainIT {
 
   private static CatalogBindingHint petsBindingHint() {
     return new CatalogBindingHint(
-        "2",
+        CatalogBindingHint.SCHEMA_VERSION,
         "call-1",
         "call-1",
         "GET /pets",

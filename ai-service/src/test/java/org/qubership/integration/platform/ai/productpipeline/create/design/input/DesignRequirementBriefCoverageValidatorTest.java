@@ -19,6 +19,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class DesignRequirementBriefCoverageValidatorTest {
@@ -315,7 +318,14 @@ class DesignRequirementBriefCoverageValidatorTest {
 
   @Test
   void missingTriggerStopsBeforeMappingValidation() {
-    RequirementBrief brief = briefWithFacts(List.of(call("call-1")), List.of());
+    RequirementBrief brief =
+        briefWithFacts(List.of(call("call-1")), List.of())
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "call-1", Direction.OUTBOUND, "External service", "call", "")),
+                    List.of()));
 
     assertTrue(designValidator.listMissingEdges(brief).isEmpty());
     IllegalArgumentException thrown =

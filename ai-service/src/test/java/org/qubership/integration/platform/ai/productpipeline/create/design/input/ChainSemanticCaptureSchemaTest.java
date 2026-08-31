@@ -43,7 +43,8 @@ class ChainSemanticCaptureSchemaTest {
           "schemaVersion",
           "compilerContractVersion",
           "serviceCallId",
-          "serviceCalls");
+          "serviceCalls",
+          "triggers");
 
   /** Injected only to prove the tool bean still resolves with its new adapter dependency. */
   @Inject ChainSemanticCaptureTool bean;
@@ -61,7 +62,7 @@ class ChainSemanticCaptureSchemaTest {
     for (String owned : SERVER_OWNED) {
       assertFalse(properties.contains(owned), owned + " must not be a tool schema property");
     }
-    assertTrue(properties.contains("entryPointId"), properties.toString());
+    assertFalse(properties.contains("entryPointId"), properties.toString());
     assertTrue(properties.contains("mappingIntentId"), properties.toString());
   }
 
@@ -70,7 +71,6 @@ class ChainSemanticCaptureSchemaTest {
     JsonObjectSchema capture = (JsonObjectSchema) parameters().properties().get(parameterName());
     for (String list :
         List.of(
-            "triggers",
             "operations",
             "sequenceRegions",
             "conditionRegions",
@@ -119,14 +119,9 @@ class ChainSemanticCaptureSchemaTest {
     return """
         {"%s": {
           "chainIdentity": "chain-orders",
-          %s"entryPoints": [
-            {"entryPointId": "http-in", "triggerNodeId": "trigger-http",
-             "initialTargetNodeId": "op-shared", "sourceFactIds": ["trigger-1"]}
-          ],
-          "triggers": [{"nodeId": "trigger-http", "sourceFactIds": ["trigger-1"]}],
-          "operations": [{"nodeId": "op-shared", "elementType": "script"}],
+          %s"operations": [{"nodeId": "op-shared", "elementType": "script"}],
           "edges": [
-            {"sourceNodeId": "trigger-http", "targetNodeId": "op-shared"},
+            {"sourceNodeId": "http-in", "targetNodeId": "op-shared"},
             {"sourceNodeId": "op-shared", "targetNodeId": "%s"}
           ]
         }}

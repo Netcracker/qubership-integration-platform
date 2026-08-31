@@ -229,7 +229,7 @@ class DefaultExecutorCatalogBindingAdapterTest {
       String systemId,
       String integrationOperationId) {
     return new CatalogBindingHint(
-        "2",
+        "3",
         serviceCallId,
         sourceFactId,
         operationQuery,

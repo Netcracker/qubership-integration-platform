@@ -150,8 +150,6 @@ class ImportSpecificationRoutingPolicyTest {
   }
 
   private static RequirementDraft pendingDraft(String assembledText) {
-    RequirementServiceCall call =
-        new RequirementServiceCall("call-1", "fact-1", "GeoSite", "getGeographicSite");
     return new RequirementDraft(
         false,
         assembledText,
@@ -171,9 +169,7 @@ class ImportSpecificationRoutingPolicyTest {
         false,
         List.of(),
         true,
-        List.of(call),
-        "call-1",
-        null);
+        "call-1");
   }
 
   private static RequirementDraft alreadyBoundDraft() {
@@ -207,9 +203,7 @@ class ImportSpecificationRoutingPolicyTest {
             false,
             List.of(),
             true,
-            List.of(call),
-            "call-1",
-            null)
+            "call-1")
         .withBoundServiceCall("call-1", hint);
   }
 }

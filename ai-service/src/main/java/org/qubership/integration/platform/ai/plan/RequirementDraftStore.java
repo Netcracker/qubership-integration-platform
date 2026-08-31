@@ -22,7 +22,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessio
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /** Stores requirement drafts as immutable revisions in the active compilation. */
 @ApplicationScoped
@@ -188,52 +188,57 @@ public class RequirementDraftStore {
 
   public void applyImportResult(String conversationId, ResolvedCatalogBinding binding) {
     RequirementDraft current = get(conversationId).orElse(null);
-    String serviceCallId = current == null ? null : current.apiHubCandidateServiceCallId();
-    applyImportResult(conversationId, serviceCallId, binding);
+    String interactionId = current == null ? null : current.apiHubCandidateInteractionId();
+    applyImportResult(conversationId, interactionId, binding);
   }
 
   public void applyImportResult(
-      String conversationId, String serviceCallId, ResolvedCatalogBinding binding) {
+      String conversationId, String interactionId, ResolvedCatalogBinding binding) {
     RequirementDraft current = get(conversationId).orElse(null);
     if (current == null || binding == null) {
       return;
     }
-    String owner = resolveImportOwner(current, serviceCallId);
-    if (owner == null || current.serviceCalls().isEmpty()) {
+    String owner = resolveImportOwner(current, interactionId);
+    if (owner == null) {
       return;
     }
-    RequirementServiceCall target =
-        current.serviceCalls().stream()
-            .filter(call -> owner.equals(call.serviceCallId()))
-            .findFirst()
-            .orElse(null);
+    RequirementFlow.Interaction target = current.flow().interaction(owner).orElse(null);
     if (target == null) {
       return;
     }
     CatalogBindingHint hint = hintFromImport(target, binding);
-    put(conversationId, current.withBoundServiceCall(target.serviceCallId(), hint));
+    put(conversationId, current.withBoundInteraction(target.interactionId(), hint));
   }
 
-  private static String resolveImportOwner(RequirementDraft current, String serviceCallId) {
-    if (serviceCallId != null && !serviceCallId.isBlank()) {
-      return serviceCallId.trim();
+  private static String resolveImportOwner(RequirementDraft current, String interactionId) {
+    if (interactionId != null && !interactionId.isBlank()) {
+      return interactionId.trim();
     }
-    if (current.apiHubCandidateServiceCallId() != null) {
-      return current.apiHubCandidateServiceCallId();
+    if (current.apiHubCandidateInteractionId() != null) {
+      return current.apiHubCandidateInteractionId();
     }
-    List<RequirementServiceCall> unbound =
-        current.serviceCalls().stream().filter(call -> call.catalogBinding() == null).toList();
+    List<String> unbound =
+        current.flow().interactions().stream()
+            .filter(
+                interaction ->
+                    RequirementFlowValidator.requiresCatalogBinding(interaction, current.facts()))
+            .map(RequirementFlow.Interaction::interactionId)
+            .filter(
+                id ->
+                    current.catalogBindings().stream()
+                        .noneMatch(hint -> id.equals(hint.interactionId())))
+            .toList();
     if (unbound.size() == 1) {
-      return unbound.getFirst().serviceCallId();
+      return unbound.getFirst();
     }
-    if (current.serviceCalls().size() == 1) {
-      return current.serviceCalls().getFirst().serviceCallId();
+    if (current.flow().interactions().size() == 1) {
+      return current.flow().interactions().getFirst().interactionId();
     }
     return null;
   }
 
   private static CatalogBindingHint hintFromImport(
-      RequirementServiceCall call, ResolvedCatalogBinding binding) {
+      RequirementFlow.Interaction interaction, ResolvedCatalogBinding binding) {
     CatalogMatch match =
         new CatalogMatch(
             binding.systemId(),
@@ -244,9 +249,9 @@ public class RequirementDraftStore {
             "",
             null,
             null,
-            call.operation(),
+            interaction.operation(),
             "import:" + binding.integrationOperationId());
-    return CatalogBindingHint.from(call, match, "catalog", Instant.now());
+    return CatalogBindingHint.from(interaction, match, "catalog", Instant.now());
   }
 
   /**
@@ -295,8 +300,10 @@ public class RequirementDraftStore {
               next.awaitingPlanContinuation(),
               next.facts(),
               true,
-              next.serviceCalls(),
-              next.apiHubCandidateServiceCallId());
+              next.apiHubCandidateInteractionId(),
+              next.idsRequested(),
+              next.flow(),
+              next.catalogBindings());
     }
     if (next != current) {
       put(conversationId, next);

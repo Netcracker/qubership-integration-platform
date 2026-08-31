@@ -21,7 +21,15 @@ import org.qubership.integration.platform.ai.integration.apihub.ConversationApiH
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsReadCache;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
@@ -44,7 +52,15 @@ class RequirementDraftToolTest {
 
     String result =
         tool.captureRequirementDraft(
-            new RequirementDraftCapture(true, "HTTP GET /orders returns status", DraftDecision.READY_FOR_PLAN, List.of(), null, sampleFacts()));
+            new RequirementDraftCapture(
+                true,
+                "HTTP GET /orders returns status",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                sampleFacts(),
+                null,
+                nativeHttpFlow()));
 
     assertTrue(result.contains("Requirement draft captured"));
     assertTrue(store.wasCapturedThisTurn("draft-conv"));
@@ -55,6 +71,33 @@ class RequirementDraftToolTest {
     assertEquals("brainstorming", draft.sourceSkillId());
     assertEquals("unknown", draft.sourceSkillVersion());
     assertEquals("unknown", draft.sourceSkillHash());
+  }
+
+  @Test
+  void captureToolDescriptionAuthorsBusinessFlowFirst() throws Exception {
+    String description =
+        String.join(
+            "\n",
+            RequirementDraftTool.class
+                .getMethod("captureRequirementDraft", RequirementDraftCapture.class)
+                .getAnnotation(dev.langchain4j.agent.tool.Tool.class)
+                .value());
+    assertTrue(description.contains("RequirementFlow"), description);
+    assertTrue(description.contains("interactionId"), description);
+    assertTrue(description.contains("INBOUND"), description);
+    assertTrue(description.contains("OUTBOUND"), description);
+    assertTrue(description.contains("Do not author ENDPOINT or SERVICE_CALL topology facts"), description);
+    assertTrue(description.contains("binds a unique local catalog match"), description);
+    assertFalse(description.contains("only outbound"), description);
+    assertFalse(description.contains("Only then run catalog"), description);
+    int flowJson = description.indexOf("\"flow\"");
+    assertTrue(flowJson >= 0, description);
+    String example = description.substring(flowJson);
+    assertFalse(example.contains("publish"), example);
+    assertFalse(example.contains("subscribe"), example);
+    assertFalse(example.contains("\"kind\": \"ENDPOINT\""), example);
+    assertFalse(example.contains("\"kind\": \"SERVICE_CALL\""), example);
+    assertTrue(example.contains("order-received"), example);
   }
 
   @Test
@@ -253,6 +296,10 @@ class RequirementDraftToolTest {
   void secondReadyForPlanCaptureSameTurnReturnsStopHint() {
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
+    RequirementFlow inbound =
+        new RequirementFlow(
+            List.of(new Interaction("orders", Direction.INBOUND, "Caller", "GET /orders", "")),
+            List.of());
 
     tool.captureRequirementDraft(
         new RequirementDraftCapture(
@@ -261,7 +308,9 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            sampleFacts()));
+            sampleFacts(),
+            null,
+            inbound));
 
     String second =
         tool.captureRequirementDraft(
@@ -271,7 +320,9 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                sampleFacts()));
+                sampleFacts(),
+                null,
+                inbound));
 
     assertTrue(second.contains("already READY_FOR_PLAN"));
     assertTrue(second.contains("Do not call captureRequirementDraft again"));
@@ -294,13 +345,20 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                sampleFacts()));
+                sampleFacts(),
+                null,
+                rockyHttpFlow()));
 
     assertFalse(result.contains("catalogBinding"), result);
     assertTrue(result.contains("resolveApiOperation"), result);
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
-    assertEquals(List.of(RequirementDraftTool.BINDING_REQUIRED_OPEN_QUESTION), draft.openQuestions());
+    assertTrue(
+        draft.openQuestions().getFirst().contains("interaction create-order has no catalog binding"),
+        draft.openQuestions().toString());
+    assertFalse(
+        draft.openQuestions().getFirst().contains("order-received has no catalog binding"),
+        draft.openQuestions().toString());
   }
 
   @Test
@@ -456,15 +514,15 @@ class RequirementDraftToolTest {
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
     assertTrue(draft.openQuestions().isEmpty());
-    assertEquals(2, draft.serviceCalls().size());
-    assertEquals("call-inventory", draft.serviceCalls().get(0).serviceCallId());
-    assertEquals("call-invoice", draft.serviceCalls().get(1).serviceCallId());
+    assertEquals(2, draft.catalogBindings().size());
+    assertEquals("call-inventory", draft.catalogBindings().get(0).interactionId());
+    assertEquals("call-invoice", draft.catalogBindings().get(1).interactionId());
     assertEquals(
         "op-call-inventory",
-        draft.serviceCalls().get(0).catalogBinding().integrationOperationId());
+        draft.catalogBindings().get(0).integrationOperationId());
     assertEquals(
         "op-call-invoice",
-        draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
+        draft.catalogBindings().get(1).integrationOperationId());
   }
 
   @Test
@@ -476,12 +534,11 @@ class RequirementDraftToolTest {
     RequirementFact call = serviceCallFact("call-petstore-inventory", "Petstore Ext", "getInventory");
     resolutions.remember(
         "draft-conv",
-        new ServiceCallAssessment(
+        new InteractionAssessment(
             call.serviceCallId(),
-            call.sourceFactId(),
-            new ServiceCallAssessment.Intent(
+            new InteractionAssessment.Intent(
                 call.text(), "Petstore Ext", "getInventory", "GET", "/store/inventory"),
-            ServiceCallAssessment.Outcome.RESOLVED,
+            InteractionAssessment.Outcome.RESOLVED,
             new CatalogMatch(
                 "bbf14771-sys",
                 "bbf14771-group",
@@ -511,7 +568,7 @@ class RequirementDraftToolTest {
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
     assertEquals(
         "bbf14771-spec-getInventory",
-        draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
+        draft.catalogBindings().getFirst().integrationOperationId());
   }
 
   @Test
@@ -556,18 +613,18 @@ class RequirementDraftToolTest {
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
     assertTrue(draft.openQuestions().isEmpty());
-    assertEquals(2, draft.serviceCalls().size());
-    RequirementServiceCall storedOm = draft.serviceCalls().get(0);
-    RequirementServiceCall storedWfm = draft.serviceCalls().get(1);
-    assertEquals("call-om-result", storedOm.serviceCallId());
-    assertEquals("call-wfm-create-task", storedWfm.serviceCallId());
-    assertEquals("op-onTaskResult", storedOm.catalogBinding().integrationOperationId());
-    assertEquals("op-createTask", storedWfm.catalogBinding().integrationOperationId());
+    assertEquals(2, draft.catalogBindings().size());
+    CatalogBindingHint storedOm = draft.catalogBindings().get(0);
+    CatalogBindingHint storedWfm = draft.catalogBindings().get(1);
+    assertEquals("call-om-result", storedOm.interactionId());
+    assertEquals("call-wfm-create-task", storedWfm.interactionId());
+    assertEquals("op-onTaskResult", storedOm.integrationOperationId());
+    assertEquals("op-createTask", storedWfm.integrationOperationId());
     assertTrue(
-        resolutions.forServiceCall("draft-conv", "call-om-result").orElseThrow().isResolved());
+        resolutions.forInteraction("draft-conv", "call-om-result").orElseThrow().isResolved());
     assertTrue(
         resolutions
-            .forServiceCall("draft-conv", "call-wfm-create-task")
+            .forInteraction("draft-conv", "call-wfm-create-task")
             .orElseThrow()
             .isResolved());
   }
@@ -582,9 +639,9 @@ class RequirementDraftToolTest {
         serviceCallFact("call-invoice", "Billing", "Raise an invoice somewhere in Billing");
     resolutions.remember(
         "draft-conv",
-        ServiceCallAssessment.incomplete(
-            call.sourceFactId(),
-            new ServiceCallAssessment.Intent(call.text(), "Billing", null, null, null)));
+        InteractionAssessment.incomplete(
+            call.serviceCallId(),
+            new InteractionAssessment.Intent(call.text(), "Billing", null, null, null)));
 
     tool.captureRequirementDraft(
         new RequirementDraftCapture(
@@ -612,9 +669,9 @@ class RequirementDraftToolTest {
         serviceCallFact("call-inventory", "Petstore Ext", "GET /store/inventory");
     resolutions.remember(
         "draft-conv",
-        ServiceCallAssessment.ambiguous(
-            call.sourceFactId(),
-            new ServiceCallAssessment.Intent(call.text(), "Petstore", null, "GET", "/store/inventory"),
+        InteractionAssessment.ambiguous(
+            call.serviceCallId(),
+            new InteractionAssessment.Intent(call.text(), "Petstore", null, "GET", "/store/inventory"),
             List.of("op-v1", "op-v2")));
 
     tool.captureRequirementDraft(
@@ -656,11 +713,11 @@ class RequirementDraftToolTest {
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
-    assertEquals(2, draft.serviceCalls().size());
-    assertEquals("op-shared", draft.serviceCalls().get(0).catalogBinding().integrationOperationId());
-    assertEquals("op-shared", draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
-    assertEquals("call-om-result", draft.serviceCalls().get(0).serviceCallId());
-    assertEquals("call-om-again", draft.serviceCalls().get(1).serviceCallId());
+    assertEquals(2, draft.catalogBindings().size());
+    assertEquals("op-shared", draft.catalogBindings().get(0).integrationOperationId());
+    assertEquals("op-shared", draft.catalogBindings().get(1).integrationOperationId());
+    assertEquals("call-om-result", draft.catalogBindings().get(0).interactionId());
+    assertEquals("call-om-again", draft.catalogBindings().get(1).interactionId());
   }
 
   @Test
@@ -694,14 +751,14 @@ class RequirementDraftToolTest {
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
-    assertEquals("call-wfm-create-task", draft.serviceCalls().get(0).serviceCallId());
-    assertEquals("call-om-result", draft.serviceCalls().get(1).serviceCallId());
+    assertEquals("call-wfm-create-task", draft.catalogBindings().get(0).interactionId());
+    assertEquals("call-om-result", draft.catalogBindings().get(1).interactionId());
     assertEquals(
         "op-call-wfm-create-task",
-        draft.serviceCalls().get(0).catalogBinding().integrationOperationId());
+        draft.catalogBindings().get(0).integrationOperationId());
     assertEquals(
         "op-call-om-result",
-        draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
+        draft.catalogBindings().get(1).integrationOperationId());
   }
 
   @Test
@@ -736,12 +793,14 @@ class RequirementDraftToolTest {
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
-    assertEquals("call-om-result", draft.serviceCalls().get(0).serviceCallId());
-    assertNull(draft.serviceCalls().get(0).catalogBinding());
-    assertEquals("call-wfm-create-task", draft.serviceCalls().get(1).serviceCallId());
+    assertTrue(
+        draft.catalogBindings().stream()
+            .noneMatch(hint -> "call-om-result".equals(hint.interactionId())));
+    assertEquals(1, draft.catalogBindings().size());
+    assertEquals("call-wfm-create-task", draft.catalogBindings().getFirst().interactionId());
     assertEquals(
         "op-call-wfm-create-task",
-        draft.serviceCalls().get(1).catalogBinding().integrationOperationId());
+        draft.catalogBindings().getFirst().integrationOperationId());
   }
 
   @Test
@@ -774,11 +833,11 @@ class RequirementDraftToolTest {
             List.of(om)));
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertEquals(1, draft.serviceCalls().size());
-    assertEquals("call-om-result", draft.serviceCalls().getFirst().serviceCallId());
-    assertTrue(draft.serviceCalls().getFirst().catalogBinding() != null);
-    assertTrue(resolutions.forServiceCall("draft-conv", "call-om-result").isPresent());
-    assertTrue(resolutions.forServiceCall("draft-conv", "call-wfm-create-task").isEmpty());
+    assertEquals(1, draft.catalogBindings().size());
+    assertEquals("call-om-result", draft.catalogBindings().getFirst().interactionId());
+    assertTrue(draft.catalogBindings().getFirst() != null);
+    assertTrue(resolutions.forInteraction("draft-conv", "call-om-result").isPresent());
+    assertTrue(resolutions.forInteraction("draft-conv", "call-wfm-create-task").isEmpty());
   }
 
   @Test
@@ -799,7 +858,7 @@ class RequirementDraftToolTest {
             null,
             List.of(om)));
     Instant stored =
-        store.get("draft-conv").orElseThrow().serviceCalls().getFirst().catalogBinding().observedAt();
+        store.get("draft-conv").orElseThrow().catalogBindings().getFirst().observedAt();
     store.beginTurn("draft-conv");
 
     tool.captureRequirementDraft(
@@ -812,8 +871,8 @@ class RequirementDraftToolTest {
             List.of(om)));
 
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
-    assertEquals(stored, draft.serviceCalls().getFirst().catalogBinding().observedAt());
-    assertEquals(observedAt, draft.serviceCalls().getFirst().catalogBinding().observedAt());
+    assertEquals(stored, draft.catalogBindings().getFirst().observedAt());
+    assertEquals(observedAt, draft.catalogBindings().getFirst().observedAt());
   }
 
   @Test
@@ -891,7 +950,7 @@ class RequirementDraftToolTest {
     assertTrue(result.contains("resolveApiOperation"), result);
   }
 
-  private static ServiceCallAssessment assessment(RequirementFact call) {
+  private static InteractionAssessment assessment(RequirementFact call) {
     return resolved(
         call,
         new CatalogMatch(
@@ -907,19 +966,18 @@ class RequirementDraftToolTest {
             "catalog-read:probe"));
   }
 
-  private static ServiceCallAssessment resolved(
+  private static InteractionAssessment resolved(
       RequirementFact call, CatalogMatch match) {
     return resolvedAt(call, match, Instant.parse("2026-08-27T09:00:00Z"));
   }
 
-  private static ServiceCallAssessment resolvedAt(
+  private static InteractionAssessment resolvedAt(
       RequirementFact call, CatalogMatch match, Instant observedAt) {
-    return new ServiceCallAssessment(
+    return new InteractionAssessment(
         call.serviceCallId(),
-        call.sourceFactId(),
-        new ServiceCallAssessment.Intent(
+        new InteractionAssessment.Intent(
             call.text(), call.participant(), call.operation(), call.httpMethod(), call.path()),
-        ServiceCallAssessment.Outcome.RESOLVED,
+        InteractionAssessment.Outcome.RESOLVED,
         match,
         List.of(),
         List.of(),
@@ -1017,7 +1075,7 @@ class RequirementDraftToolTest {
 
     assertTrue(result.contains("Requirement draft captured"), result);
     RequirementFact stored = store.get("draft-conv").orElseThrow().facts().getFirst();
-    assertEquals(RequirementFactKind.ENDPOINT, stored.kind());
+    assertEquals(RequirementFactKind.CAPABILITY, stored.kind());
     assertEquals("kafka-trigger-2", stored.capabilityKey());
   }
 
@@ -1069,9 +1127,9 @@ class RequirementDraftToolTest {
     assertTrue(result.contains("Requirement draft captured"), result);
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
-    assertEquals(1, draft.serviceCalls().size());
-    assertEquals("consume-om", draft.serviceCalls().getFirst().serviceCallId());
-    assertEquals("op-om", draft.serviceCalls().getFirst().catalogBinding().integrationOperationId());
+    assertEquals(1, draft.catalogBindings().size());
+    assertEquals("consume-om", draft.catalogBindings().getFirst().interactionId());
+    assertEquals("op-om", draft.catalogBindings().getFirst().integrationOperationId());
   }
 
   @Test
@@ -1104,11 +1162,407 @@ class RequirementDraftToolTest {
                         RequirementFactPolarity.NEGATIVE,
                         RequirementFactKind.CONSTRAINT,
                         "",
-                        "Do not call MCP"))));
+                        "Do not call MCP")),
+                null,
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "trigger-1", Direction.INBOUND, "Kafka", "consumeUserEvent", "")),
+                    List.of())));
 
-    assertTrue(result.contains("kafka-trigger-2"), result);
-    assertTrue(result.contains("SERVICE_CALL"), result);
+    assertTrue(result.contains("kind=ENDPOINT or kind=SERVICE_CALL"), result);
     assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
+  void storesBusinessFlowBeforeProjectingTechnicalRoles() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow = rockyFlow();
+
+    assertTrue(
+        captureTool
+            .captureRequirementDraft(flowCapture(true, DraftDecision.READY_FOR_PLAN, flow))
+            .contains("Requirement draft captured"));
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "task-start",
+            new InteractionAssessment.Intent("onTaskStart", "OM", "onTaskStart", "publish", null),
+            omStartMatch()));
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "create-task",
+            new InteractionAssessment.Intent("createTask", "Salesforce", "createTask", "POST", "/tasks"),
+            salesforceMatch()));
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "task-result",
+            new InteractionAssessment.Intent("onTaskResult", "OM", "onTaskResult", "subscribe", null),
+            omResultMatch()));
+
+    assertTrue(
+        captureTool
+            .captureRequirementDraft(flowCapture(true, DraftDecision.READY_FOR_PLAN, flow))
+            .contains("Requirement draft captured"));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(flow, stored.flow());
+    assertEquals(
+        List.of("task-start", "create-task", "task-result"),
+        stored.catalogBindings().stream().map(CatalogBindingHint::interactionId).toList());
+    assertTrue(stored.readyForPlan());
+  }
+
+  @Test
+  void rejectsEndpointAndServiceCallFactsWhenFlowIsCaptured() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Receive an order",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "order-received",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.ENDPOINT,
+                        "http-trigger",
+                        "Expose POST /orders")),
+                null,
+                rockyHttpFlow()));
+
+    assertTrue(result.contains("kind=ENDPOINT"), result);
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
+  void rejectsServiceCallFactsWhenFlowIsCaptured() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Call Salesforce",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(serviceCallFact("create-task", "Salesforce", "createTask")),
+                null,
+                rockyHttpFlow()));
+
+    assertTrue(result.contains("kind=SERVICE_CALL"), result);
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
+  void emptyFlowIsNotReadyForPlan() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "HTTP GET /orders",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                sampleFacts()));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertTrue(stored.flow().interactions().isEmpty());
+    assertFalse(stored.readyForPlan());
+    assertTrue(stored.openQuestions().getFirst().contains("RequirementFlow"), stored.toString());
+    assertTrue(result.contains("flow was empty"), result);
+  }
+
+  @Test
+  void missingRequiredBindingSoftDowngradesReadyCapture() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow = rockyFlow();
+
+    String result =
+        tool.captureRequirementDraft(flowCapture(true, DraftDecision.READY_FOR_PLAN, flow));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(flow, stored.flow());
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertFalse(stored.readyForPlan());
+    assertTrue(
+        stored.openQuestions().getFirst().contains("has no catalog binding"),
+        stored.openQuestions().toString());
+    assertTrue(result.contains("interactionId=create-task"), result);
+    assertTrue(result.contains("interactionId=task-result"), result);
+    assertFalse(result.contains("serviceCallId"), result);
+    assertFalse(result.contains("SERVICE_CALL"), result);
+  }
+
+  @Test
+  void captureBindsUniqueLocalCatalogMatchesWithoutResolveTool() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(org.mockito.ArgumentMatchers.any(CatalogQuery.class)))
+        .thenAnswer(
+            invocation -> {
+              CatalogQuery query = invocation.getArgument(0);
+              String operation = query.operationHint();
+              if ("onTaskStart".equals(operation)) {
+                return new CatalogLookupResult.Exact(omStartMatch());
+              }
+              if ("createTask".equals(operation)) {
+                return new CatalogLookupResult.Exact(salesforceMatch());
+              }
+              if ("onTaskResult".equals(operation)) {
+                return new CatalogLookupResult.Exact(omResultMatch());
+              }
+              return new CatalogLookupResult.None();
+            });
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, resolutions, lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            flowCapture(true, DraftDecision.READY_FOR_PLAN, rockyFlow()));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, stored.decision());
+    assertTrue(stored.readyForPlan());
+    assertEquals(3, stored.catalogBindings().size(), stored.catalogBindings().toString());
+    assertTrue(
+        stored.catalogBindings().stream()
+            .anyMatch(hint -> "task-start".equals(hint.interactionId())));
+    assertTrue(
+        stored.catalogBindings().stream()
+            .anyMatch(hint -> "create-task".equals(hint.interactionId())));
+    assertTrue(
+        stored.catalogBindings().stream()
+            .anyMatch(hint -> "task-result".equals(hint.interactionId())));
+    assertTrue(result.contains("Requirement draft captured"), result);
+    assertFalse(result.contains("has no catalog binding"), result);
+  }
+
+  @Test
+  void directionConflictSoftDowngradesReadyCapture() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow = rockyFlow();
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "task-start",
+            new InteractionAssessment.Intent("onTaskStart", "OM", "onTaskStart", "POST", "/start"),
+            new CatalogMatch(
+                "sys-om",
+                "sg-om",
+                "spec-om",
+                "op-start",
+                "OM",
+                "http",
+                "POST",
+                "/start",
+                "onTaskStart",
+                "catalog-read:om-start")));
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "create-task",
+            new InteractionAssessment.Intent("createTask", "Salesforce", "createTask", "POST", "/tasks"),
+            salesforceMatch()));
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "task-result",
+            new InteractionAssessment.Intent("onTaskResult", "OM", "onTaskResult", "subscribe", null),
+            omResultMatch()));
+
+    assertTrue(
+        captureTool
+            .captureRequirementDraft(flowCapture(true, DraftDecision.READY_FOR_PLAN, flow))
+            .contains("Requirement draft captured"));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertFalse(stored.readyForPlan());
+    assertTrue(
+        stored.openQuestions().getFirst().contains("conflicts with catalog direction"),
+        stored.openQuestions().toString());
+  }
+
+  @Test
+  void oldV2HintIsRejectedOnRecapture() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow = rockyHttpFlow();
+    CatalogBindingHint v2 =
+        new CatalogBindingHint(
+            "2",
+            "create-order",
+            "create-order",
+            "createOrder",
+            "sys-1",
+            "sg-1",
+            "spec-1",
+            "op-1",
+            "http",
+            "POST",
+            "/orders",
+            "catalog",
+            Instant.EPOCH,
+            "test");
+    store.put(
+        "draft-conv",
+        new RequirementDraft(
+            false,
+            "Receive an order",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Bind create-order"),
+            RequirementDraftTool.SOURCE_SKILL_ID,
+            "pack",
+            null,
+            null,
+            false,
+            rockyHttpFacts(),
+            false,
+            null,
+            null,
+            flow,
+            List.of(v2)));
+
+    assertTrue(
+        tool.captureRequirementDraft(
+                new RequirementDraftCapture(
+                    true,
+                    "Receive an order",
+                    DraftDecision.READY_FOR_PLAN,
+                    List.of(),
+                    null,
+                    rockyHttpFacts(),
+                    null,
+                    flow))
+            .contains("Requirement draft captured"));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertFalse(stored.readyForPlan());
+    assertTrue(
+        stored.openQuestions().getFirst().contains("schemaVersion=3"),
+        stored.openQuestions().toString());
+  }
+
+  private static RequirementDraftCapture flowCapture(
+      boolean complete, DraftDecision decision, RequirementFlow flow) {
+    return new RequirementDraftCapture(
+        complete,
+        "OM starts a task, Salesforce creates it, OM receives the result",
+        decision,
+        List.of(),
+        null,
+        rockyFacts(),
+        null,
+        flow);
+  }
+
+  private static List<RequirementFact> rockyFacts() {
+    return List.of(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.BEHAVIOR,
+            "",
+            "commandType is completeTask"));
+  }
+
+  private static List<RequirementFact> rockyHttpFacts() {
+    return List.of(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.BEHAVIOR,
+            "",
+            "Receive an order and create it"));
+  }
+
+  private static RequirementFlow rockyFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+            new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+            new Interaction("task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+        List.of(
+            new Transition("task-start", "create-task"),
+            new Transition("create-task", "task-result")));
+  }
+
+  private static RequirementFlow rockyHttpFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("order-received", Direction.INBOUND, "Caller", "POST /orders", ""),
+            new Interaction("create-order", Direction.OUTBOUND, "Order System", "createOrder", "")),
+        List.of(new Transition("order-received", "create-order")));
+  }
+
+  private static RequirementFlow nativeHttpFlow() {
+    return new RequirementFlow(
+        List.of(new Interaction("orders-http", Direction.INBOUND, "Caller", "GET /orders", "")),
+        List.of());
+  }
+
+  private static CatalogMatch omStartMatch() {
+    return new CatalogMatch(
+        "sys-om",
+        "sg-om",
+        "spec-om",
+        "op-start",
+        "OM",
+        "kafka",
+        "publish",
+        "task.start",
+        "onTaskStart",
+        "catalog-read:om-start");
+  }
+
+  private static CatalogMatch salesforceMatch() {
+    return new CatalogMatch(
+        "sys-sf",
+        "sg-sf",
+        "spec-sf",
+        "op-create",
+        "Salesforce",
+        "http",
+        "POST",
+        "/tasks",
+        "createTask",
+        "catalog-read:sf-create");
+  }
+
+  private static CatalogMatch omResultMatch() {
+    return new CatalogMatch(
+        "sys-om",
+        "sg-om",
+        "spec-om",
+        "op-result",
+        "OM",
+        "kafka",
+        "subscribe",
+        "task.result",
+        "onTaskResult",
+        "catalog-read:om-result");
   }
 
   private static List<RequirementFact> sampleFacts() {

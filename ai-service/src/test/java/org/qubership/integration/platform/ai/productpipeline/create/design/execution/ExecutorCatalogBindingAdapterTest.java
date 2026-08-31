@@ -258,7 +258,35 @@ class ExecutorCatalogBindingAdapterTest {
 
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
-    assertTrue(failed.reason().contains("schemaVersion=2"), failed.reason());
+    assertTrue(failed.reason().contains("schemaVersion=3"), failed.reason());
+  }
+
+  @Test
+  void v2HintIsRejected() {
+    CatalogBindingHint v2 =
+        new CatalogBindingHint(
+            "2",
+            "call-1",
+            "fact-1",
+            "getInventory",
+            "sys-1",
+            "sg-1",
+            "spec-1",
+            "op-1",
+            "http",
+            "GET",
+            "/store/inventory",
+            "catalog",
+            FIXED,
+            "catalog-read:sys-1/spec-1/op-1");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(v2), approved());
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertTrue(failed.reason().contains("schemaVersion=3"), failed.reason());
+    assertTrue(failed.reason().contains("got 2"), failed.reason());
   }
 
   @Test
@@ -341,7 +369,7 @@ class ExecutorCatalogBindingAdapterTest {
                             """))));
     CatalogBindingHint hint =
         new CatalogBindingHint(
-            "2",
+            "3",
             "consume-om",
             "fact-consume",
             "onTaskStart",
@@ -443,7 +471,7 @@ class ExecutorCatalogBindingAdapterTest {
       String integrationOperationId) {
     String suffix = systemId.startsWith("sys-") ? systemId.substring("sys-".length()) : systemId;
     return new CatalogBindingHint(
-        "2",
+        "3",
         serviceCallId,
         sourceFactId,
         operationQuery,
@@ -485,13 +513,13 @@ class ExecutorCatalogBindingAdapterTest {
                 "trigger-async",
                 "op-shared",
                 0,
-                new SemanticProvenance(List.of("fact-consume")),
+                new SemanticProvenance(List.of("consume-om")),
                 new SemanticEntryPoint.Presentation("OM WFMS", null))),
         List.of(
             new SemanticNode.Trigger(
                 "trigger-async",
                 "async-api-trigger",
-                new SemanticProvenance(List.of("fact-consume"))),
+                new SemanticProvenance(List.of("consume-om"))),
             new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of()))),
         List.of(),
         List.of(

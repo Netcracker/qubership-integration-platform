@@ -237,7 +237,8 @@ class CreateProductPipelineRefineBeforeAgreeIT {
                 null,
                 null,
                 false,
-                base.facts());
+                base.facts())
+                .withFlow(base.flow());
         return Multi.createFrom()
             .item(
                 new CapabilitySignal.Completed(

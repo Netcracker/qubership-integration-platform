@@ -8,18 +8,16 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogM
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
 /**
- * What one outbound service call resolved to, and on what evidence.
+ * What one requirement-flow interaction resolved to, and on what evidence.
  *
- * <p>One assessment per semantic service call. {@code serviceCallId} is the key: a chain that
- * calls three services carries three assessments, and resolving one of them leaves the other two
- * alone. {@code sourceFactId} is provenance back to the requirement fact.
+ * <p>One assessment per interaction. {@code interactionId} is the key: resolving one interaction
+ * leaves the others alone.
  *
  * <p>The outcome is explicit. A missing binding used to mean anything from "the catalog has no such
  * operation" to "nobody asked yet", and the difference decides whether an APIHub search is allowed.
  */
-public record ServiceCallAssessment(
-    String serviceCallId,
-    String sourceFactId,
+public record InteractionAssessment(
+    String interactionId,
     Intent intent,
     Outcome outcome,
     CatalogMatch binding,
@@ -28,7 +26,7 @@ public record ServiceCallAssessment(
     String evidenceRef,
     Instant observedAt) {
 
-  /** How the catalog answered for one service call. */
+  /** How the catalog answered for one interaction. */
   public enum Outcome {
     /** Exactly one catalog operation matched; the binding is frozen. */
     RESOLVED,
@@ -41,7 +39,7 @@ public record ServiceCallAssessment(
   }
 
   /**
-   * The identity of one outbound call, as fields rather than as one sentence.
+   * The identity of one interaction, as fields rather than as one sentence.
    *
    * <p>{@code capability} is what the author wants done and stays free text. The hints are what the
    * catalog can be searched by; a search built from the whole fact sentence matches by accident.
@@ -97,10 +95,8 @@ public record ServiceCallAssessment(
     }
   }
 
-  public ServiceCallAssessment {
-    sourceFactId = Objects.requireNonNull(CatalogStrings.blankToNull(sourceFactId), "sourceFactId");
-    String trimmedCallId = CatalogStrings.blankToNull(serviceCallId);
-    serviceCallId = trimmedCallId == null ? sourceFactId : trimmedCallId;
+  public InteractionAssessment {
+    interactionId = Objects.requireNonNull(CatalogStrings.blankToNull(interactionId), "interactionId");
     intent = Objects.requireNonNull(intent, "intent");
     outcome = Objects.requireNonNull(outcome, "outcome");
     candidateOperationIds =
@@ -113,19 +109,10 @@ public record ServiceCallAssessment(
     }
   }
 
-  public static ServiceCallAssessment resolved(
-      String sourceFactId, Intent intent, CatalogMatch binding) {
-    return resolved(sourceFactId, sourceFactId, intent, binding);
-  }
-
-  public static ServiceCallAssessment resolved(
-      String serviceCallId,
-      String sourceFactId,
-      Intent intent,
-      CatalogMatch binding) {
-    return new ServiceCallAssessment(
-        serviceCallId,
-        sourceFactId,
+  public static InteractionAssessment resolved(
+      String interactionId, Intent intent, CatalogMatch binding) {
+    return new InteractionAssessment(
+        interactionId,
         intent,
         Outcome.RESOLVED,
         binding,
@@ -135,19 +122,10 @@ public record ServiceCallAssessment(
         Instant.now());
   }
 
-  public static ServiceCallAssessment ambiguous(
-      String sourceFactId, Intent intent, List<String> candidateOperationIds) {
-    return ambiguous(sourceFactId, sourceFactId, intent, candidateOperationIds);
-  }
-
-  public static ServiceCallAssessment ambiguous(
-      String serviceCallId,
-      String sourceFactId,
-      Intent intent,
-      List<String> candidateOperationIds) {
-    return new ServiceCallAssessment(
-        serviceCallId,
-        sourceFactId,
+  public static InteractionAssessment ambiguous(
+      String interactionId, Intent intent, List<String> candidateOperationIds) {
+    return new InteractionAssessment(
+        interactionId,
         intent,
         Outcome.AMBIGUOUS,
         null,
@@ -157,15 +135,9 @@ public record ServiceCallAssessment(
         Instant.now());
   }
 
-  public static ServiceCallAssessment catalogMiss(String sourceFactId, Intent intent) {
-    return catalogMiss(sourceFactId, sourceFactId, intent);
-  }
-
-  public static ServiceCallAssessment catalogMiss(
-      String serviceCallId, String sourceFactId, Intent intent) {
-    return new ServiceCallAssessment(
-        serviceCallId, sourceFactId, intent, Outcome.CATALOG_MISS, null, List.of(), List.of(), null,
-        Instant.now());
+  public static InteractionAssessment catalogMiss(String interactionId, Intent intent) {
+    return new InteractionAssessment(
+        interactionId, intent, Outcome.CATALOG_MISS, null, List.of(), List.of(), null, Instant.now());
   }
 
   /**
@@ -176,27 +148,15 @@ public record ServiceCallAssessment(
    * outcome a too-broad answer must not produce. What is missing is a narrowing fact, so the caller
    * asks for one exactly as it does for an intent that never had the fields.
    */
-  public static ServiceCallAssessment tooBroad(
-      String sourceFactId, Intent intent, List<String> missingFields) {
-    return tooBroad(sourceFactId, sourceFactId, intent, missingFields);
+  public static InteractionAssessment tooBroad(
+      String interactionId, Intent intent, List<String> missingFields) {
+    return new InteractionAssessment(
+        interactionId, intent, Outcome.INCOMPLETE, null, List.of(), missingFields, null, Instant.now());
   }
 
-  public static ServiceCallAssessment tooBroad(
-      String serviceCallId, String sourceFactId, Intent intent, List<String> missingFields) {
-    return new ServiceCallAssessment(
-        serviceCallId, sourceFactId, intent, Outcome.INCOMPLETE, null, List.of(), missingFields, null,
-        Instant.now());
-  }
-
-  public static ServiceCallAssessment incomplete(String sourceFactId, Intent intent) {
-    return incomplete(sourceFactId, sourceFactId, intent);
-  }
-
-  public static ServiceCallAssessment incomplete(
-      String serviceCallId, String sourceFactId, Intent intent) {
-    return new ServiceCallAssessment(
-        serviceCallId,
-        sourceFactId,
+  public static InteractionAssessment incomplete(String interactionId, Intent intent) {
+    return new InteractionAssessment(
+        interactionId,
         intent,
         Outcome.INCOMPLETE,
         null,

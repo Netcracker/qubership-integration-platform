@@ -167,10 +167,10 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(conversationId, observed);
     if (revalidated.isPresent()) {
       return toExisting(
-          trigger.nodeId(), observed.serviceCallId(), revalidated.get(), observed.release());
+          trigger.nodeId(), observed.interactionId(), revalidated.get(), observed.release());
     }
     return new BindingResolutionResult.Failed(
-        observed.serviceCallId(),
+        observed.interactionId(),
         "the approved catalog binding no longer resolves (operation "
             + observed.integrationOperationId()
             + "); resolve this service call again before execution",
@@ -273,10 +273,11 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       if (hint == null) {
         continue;
       }
-      if (!"2".equals(hint.schemaVersion())) {
-        return HintLookup.failed("catalog binding hint must use schemaVersion=2");
+      if (!"3".equals(hint.schemaVersion())) {
+        return HintLookup.failed(
+            "catalog binding hint must use schemaVersion=3, got " + hint.schemaVersion());
       }
-      if (call.serviceCallId().equals(hint.serviceCallId())) {
+      if (call.serviceCallId().equals(hint.interactionId())) {
         matches.add(hint);
       }
     }
@@ -346,10 +347,11 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       if (hint == null) {
         continue;
       }
-      if (!"2".equals(hint.schemaVersion())) {
-        return HintLookup.failed("catalog binding hint must use schemaVersion=2");
+      if (!"3".equals(hint.schemaVersion())) {
+        return HintLookup.failed(
+            "catalog binding hint must use schemaVersion=3, got " + hint.schemaVersion());
       }
-      if (sourceFactIds.contains(hint.sourceFactId())) {
+      if (sourceFactIds.contains(hint.interactionId())) {
         matches.add(hint);
       }
     }

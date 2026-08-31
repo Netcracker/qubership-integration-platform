@@ -414,7 +414,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       if (!(candidate.payload() instanceof CatalogBindingHint hint)) {
         continue;
       }
-      rewritten = rewritten.withBoundServiceCall(hint.serviceCallId(), hint);
+      rewritten = rewritten.withBoundInteraction(hint.interactionId(), hint);
     }
     return new FactRewrite(List.copyOf(hints), rewritten);
   }
@@ -428,7 +428,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     String release =
         hit.systemName() == null || hit.systemName().isBlank() ? "default" : hit.systemName();
     return new CatalogBindingHint(
-        "2",
+        CatalogBindingHint.SCHEMA_VERSION,
         serviceCallId,
         call.sourceFactId(),
         operationQuery,

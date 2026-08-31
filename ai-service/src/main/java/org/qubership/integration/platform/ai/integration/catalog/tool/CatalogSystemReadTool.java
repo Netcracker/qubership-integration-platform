@@ -21,8 +21,8 @@ import java.util.Optional;
 public class CatalogSystemReadTool {
 
   static final String LISTING_IS_NOT_A_BINDING =
-      "This listing is not a SERVICE_CALL binding. Call resolveApiOperation with serviceCallId"
-          + " to record the match.";
+      "This listing does not bind an interaction. Call resolveApiOperation with the interactionId"
+          + " from the stored RequirementFlow to record the match.";
 
   private final CatalogRestClient catalogRestClient;
 

@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductPipelineChatAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -67,7 +68,7 @@ class ScenarioRouterTest {
 
   @Test
   void createChainWithReadyDraftStaysOnCreateChainPlan() {
-    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
     ChatRequest request = new ChatRequest();
     request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
     ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
@@ -121,7 +122,7 @@ class ScenarioRouterTest {
         .thenReturn(
             io.smallrye.mutiny.Multi.createFrom()
                 .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
-    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
     ScenarioRouter productRouter =
         new ScenarioRouter(
             routerAgent,
@@ -415,7 +416,7 @@ class ScenarioRouterTest {
   /** Without a chain in context there is nothing to patch, so the hint is honored as before. */
   @Test
   void createOwnedHintStillDecidesWithoutAChainInContext() {
-    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
     ChatRequest request = new ChatRequest();
     request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
     request.setResolvedEffectiveUserText("delete the audit step");
