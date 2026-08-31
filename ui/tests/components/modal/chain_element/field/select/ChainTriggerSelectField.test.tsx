@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { FieldProps } from "@rjsf/utils";
 import type { JSONSchema7 } from "json-schema";
@@ -27,23 +27,24 @@ jest.mock("../../../../../../src/hooks/useNotificationService", () => ({
   useNotificationService: () => mockNotificationService,
 }));
 
-// Expose what the field hands to the select: the text antd filters on, and the
-// property it is told to filter by.
+type CapturedProps = {
+  selectOptions?: { value: string }[];
+  selectFilterOption?: (
+    input: string,
+    option?: { value?: string | number | null },
+  ) => boolean;
+};
+
+// Capture what the field hands to the select, so the test can run the very
+// filter antd would run.
+let captured: CapturedProps = {};
 jest.mock(
   "../../../../../../src/components/modal/chain_element/field/select/SelectAndNavigateField",
   () => ({
-    SelectAndNavigateField: (props: {
-      selectOptions?: { value: string; labelString: string }[];
-      selectOptionFilterProp?: string;
-    }) => (
-      <ul data-testid="select" data-filter-prop={props.selectOptionFilterProp}>
-        {props.selectOptions?.map((option) => (
-          <li key={option.value} data-testid="option">
-            {option.labelString}
-          </li>
-        ))}
-      </ul>
-    ),
+    SelectAndNavigateField: (props: CapturedProps) => {
+      captured = props;
+      return <div data-testid="select" />;
+    },
   }),
 );
 
@@ -66,36 +67,50 @@ const props = {
   },
 } as unknown as Props;
 
-// Triggers keep their default name, so the chain name is the only thing that
-// tells these two apart.
+// The first two keep the default trigger name, so only the chain name tells
+// them apart.
 const triggerElements = [
   { id: "t-1", name: "Chain Trigger", chainId: "c-1", chainName: "Payments" },
   { id: "t-2", name: "Chain Trigger", chainId: "c-2", chainName: "Billing" },
   { id: "t-3", name: "Intake trigger", chainId: "c-3", chainName: "Orders" },
 ];
 
+async function renderAndSearch(): Promise<(query: string) => string[]> {
+  mockGetElementsByType.mockResolvedValue(triggerElements);
+  render(<ChainTriggerSelectField {...props} />);
+  await waitFor(() => {
+    expect(captured.selectOptions).toHaveLength(triggerElements.length);
+  });
+
+  return (query: string) =>
+    (captured.selectOptions ?? [])
+      .filter((option) => captured.selectFilterOption?.(query, option))
+      .map((option) => option.value);
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("ChainTriggerSelectField", () => {
-  it("should search options by chain name as well as by trigger name", async () => {
-    mockGetElementsByType.mockResolvedValue(triggerElements);
+  it("should match the chain name as well as the trigger name", async () => {
+    const search = await renderAndSearch();
 
-    const { findAllByTestId, getByTestId } = render(
-      <ChainTriggerSelectField {...props} />,
-    );
+    expect(search("payments")).toEqual(["t-1"]);
+    expect(search("Intake")).toEqual(["t-3"]);
+    expect(search("chain trigger")).toEqual(["t-1", "t-2"]);
+  });
 
-    const options = await findAllByTestId("option");
-    const searchable = options.map((li) => li.textContent);
+  it("should not match a query spanning the chain name and the trigger name", async () => {
+    const search = await renderAndSearch();
 
-    expect(searchable).toEqual([
-      "Payments Chain Trigger",
-      "Billing Chain Trigger",
-      "Orders Intake trigger",
-    ]);
-    // The searched text only reaches antd through this property.
-    expect(getByTestId("select")).toHaveAttribute(
-      "data-filter-prop",
-      "labelString",
+    expect(search("payments chain")).toEqual([]);
+    expect(search("orders intake")).toEqual([]);
+  });
+
+  it("should match nothing for an option it cannot resolve", async () => {
+    await renderAndSearch();
+
+    expect(captured.selectFilterOption?.("payments", { value: "gone" })).toBe(
+      false,
     );
   });
 });
