@@ -190,7 +190,10 @@ public class ChainSemanticCaptureAdapter {
       List<String> provenance = entryPointProvenance(approved, factIds);
       nodes.add(
           new SemanticNode.Trigger(
-              nodeId, approved.capabilityKey(), new SemanticProvenance(provenance)));
+              nodeId,
+              approved.entryPointId(),
+              approved.capabilityKey(),
+              new SemanticProvenance(provenance)));
     }
     Set<String> triggerFactIds = triggerFactIds(briefEntryPoints.values());
     for (RequirementServiceCall approved : briefServiceCalls.values()) {

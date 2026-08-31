@@ -397,6 +397,73 @@ class ExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void bindsTriggerByInteractionIdWhenFactIdDiffers() {
+    stubKafkaCatalogHit();
+    CatalogBindingHint hint =
+        kafkaHint("om-on-task-start", "fact-om-start-catalog");
+    ChainSemanticRevision revision =
+        catalogTriggerRevision(
+            "trigger-local",
+            "om-on-task-start",
+            "async-api-trigger",
+            List.of("fact-om-start-catalog"));
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, revision, List.of(hint), approved());
+
+    BindingResolutionResult.Resolved resolved =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
+    assertEquals("trigger-local", resolved.binding().targetNodeId());
+    assertEquals("om-on-task-start", resolved.binding().serviceCallId());
+    assertEquals("op-om", resolved.binding().operationId());
+  }
+
+  @Test
+  void bindsHttpTriggerWhenHintMatchesInteractionId() {
+    stubExactCatalogHit("Orders API", "sys-http", "sg-http", "spec-http", "op-get", "GET", "/orders");
+    CatalogBindingHint hint = v2Hint("http-in", "fact-http", "GET /orders", "sys-http", "op-get");
+    ChainSemanticRevision revision =
+        catalogTriggerRevision("trigger-http", "http-in", "http-trigger", List.of("fact-http"));
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, revision, List.of(hint), approved());
+
+    BindingResolutionResult.Resolved resolved =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
+    assertEquals("trigger-http", resolved.binding().targetNodeId());
+    assertEquals("http-in", resolved.binding().serviceCallId());
+    assertEquals("op-get", resolved.binding().operationId());
+  }
+
+  @Test
+  void skipsCustomHttpTriggerWithoutHint() {
+    ChainSemanticRevision revision =
+        catalogTriggerRevision("trigger-http", "http-in", "http-trigger", List.of());
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, revision, List.of(), approved());
+
+    assertEquals(List.of(), results);
+    verify(catalogReadTool, never()).searchCatalogSystems(anyString());
+  }
+
+  @Test
+  void missingAsyncApiTriggerHintFailsWithoutCatalogSearch() {
+    ChainSemanticRevision revision =
+        catalogTriggerRevision(
+            "trigger-async", "om-on-task-start", "async-api-trigger", List.of("fact-om"));
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, revision, List.of(), approved());
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertEquals("om-on-task-start", failed.serviceCallId());
+    assertTrue(failed.reason().contains("no catalog binding hint"), failed.reason());
+    verify(catalogReadTool, never()).searchCatalogSystems(anyString());
+  }
+
+  @Test
   void rejectsResolveWithoutMatchingApproval() {
     assertThrows(
         IllegalArgumentException.class,
@@ -500,8 +567,64 @@ class ExecutorCatalogBindingAdapterTest {
         List.of());
   }
 
+  private void stubKafkaCatalogHit() {
+    try {
+      when(catalogReadTool.searchCatalogSystems("sys-om"))
+          .thenReturn(
+              List.of(new CatalogRestClient.SystemDto("sys-om", "OM WFMS", "INTERNAL", "kafka")));
+      when(catalogReadTool.getApiSpecifications("sys-om"))
+          .thenReturn(
+              List.of(new CatalogRestClient.SpecificationDto("spec-om", "WFMS", "sg-om", "sys-om")));
+      when(catalogReadTool.listCatalogOperations(CONVERSATION_ID, "spec-om", "sys-om", null))
+          .thenReturn(
+              List.of(
+                  new CatalogRestClient.OperationDto(
+                      "op-om",
+                      "onTaskStart",
+                      "subscribe",
+                      null,
+                      "spec-om",
+                      new ObjectMapper()
+                          .readTree(
+                              """
+                              {
+                                "topic": "task.wfms_createWorkOrder.start",
+                                "maasClassifierName": "wfms",
+                                "groupId": "g-1"
+                              }
+                              """))));
+    } catch (Exception exception) {
+      throw new IllegalStateException(exception);
+    }
+  }
+
+  private static CatalogBindingHint kafkaHint(String interactionId, String sourceFactId) {
+    return new CatalogBindingHint(
+        "3",
+        interactionId,
+        sourceFactId,
+        "onTaskStart",
+        "sys-om",
+        "sg-om",
+        "spec-om",
+        "op-om",
+        "kafka",
+        "subscribe",
+        "",
+        "catalog",
+        FIXED,
+        "evidence-" + interactionId);
+  }
+
   private static ChainSemanticRevision asyncTriggerRevision() {
+    return catalogTriggerRevision(
+        "trigger-async", "consume-om", "async-api-trigger", List.of("fact-consume"));
+  }
+
+  private static ChainSemanticRevision catalogTriggerRevision(
+      String nodeId, String interactionId, String capabilityKey, List<String> sourceFactIds) {
     ChainSemanticRevision template = SemanticFixtures.linearOrders();
+    SemanticProvenance provenance = new SemanticProvenance(sourceFactIds);
     return new ChainSemanticRevision(
         template.schemaVersion(),
         "revision-async",
@@ -509,22 +632,17 @@ class ExecutorCatalogBindingAdapterTest {
         template.compilerContractVersion(),
         List.of(
             new SemanticEntryPoint(
-                "entry-1",
-                "trigger-async",
+                interactionId,
+                nodeId,
                 "op-shared",
                 0,
-                new SemanticProvenance(List.of("consume-om")),
+                provenance,
                 new SemanticEntryPoint.Presentation("OM WFMS", null))),
         List.of(
-            new SemanticNode.Trigger(
-                "trigger-async",
-                "async-api-trigger",
-                new SemanticProvenance(List.of("consume-om"))),
+            new SemanticNode.Trigger(nodeId, interactionId, capabilityKey, provenance),
             new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of()))),
         List.of(),
-        List.of(
-            new SemanticExecutionEdge(
-                "edge-1", "trigger-async", "op-shared", null, null, null)),
+        List.of(new SemanticExecutionEdge("edge-1", nodeId, "op-shared", null, null, null)),
         List.of(),
         List.of(),
         List.of(),

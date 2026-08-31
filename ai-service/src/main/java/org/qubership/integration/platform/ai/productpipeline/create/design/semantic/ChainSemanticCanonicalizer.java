@@ -97,7 +97,8 @@ public class ChainSemanticCanonicalizer {
     SemanticProvenance provenance = sortedProvenance(node.provenance());
     return switch (node) {
       case SemanticNode.Trigger trigger ->
-          new SemanticNode.Trigger(trigger.nodeId(), trigger.capabilityKey(), provenance);
+          new SemanticNode.Trigger(
+              trigger.nodeId(), trigger.interactionId(), trigger.capabilityKey(), provenance);
       case SemanticNode.ServiceCall call ->
           new SemanticNode.ServiceCall(
               call.nodeId(), call.serviceCallId(), call.operation(), provenance);
