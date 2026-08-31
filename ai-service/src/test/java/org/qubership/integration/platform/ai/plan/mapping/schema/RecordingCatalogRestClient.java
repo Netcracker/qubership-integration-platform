@@ -198,6 +198,16 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public ChainLoggingPropertiesSetDto getLoggingProperties(String chainId) {
+    throw unsupported("getLoggingProperties");
+  }
+
+  @Override
+  public void updateLoggingProperties(String chainId, ChainLoggingPropertiesDto body) {
+    throw unsupported("updateLoggingProperties");
+  }
+
+  @Override
   public List<DomainDto> listDomains() {
     throw unsupported("listDomains");
   }
