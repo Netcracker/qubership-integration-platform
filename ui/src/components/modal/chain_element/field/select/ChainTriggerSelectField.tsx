@@ -8,6 +8,7 @@ import { useNotificationService } from "../../../../../hooks/useNotificationServ
 import { api } from "../../../../../api/api";
 import { ElementWithChainName } from "../../../../../api/apiTypes";
 import { SelectTag } from "./SelectTag";
+import styles from "./selectOptionValue.module.css";
 
 const ChainTriggerSelectField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -46,10 +47,12 @@ const ChainTriggerSelectField: React.FC<
             value: element.id,
             labelString: element.name,
             label: (
-              <>
-                <SelectTag value={element.chainName} />
-                {element.name}
-              </>
+              <span className={styles.row}>
+                <span className={styles.chainCol}>
+                  <SelectTag value={element.chainName} />
+                </span>
+                <span className={styles.text}>{element.name}</span>
+              </span>
             ),
           })),
         );
