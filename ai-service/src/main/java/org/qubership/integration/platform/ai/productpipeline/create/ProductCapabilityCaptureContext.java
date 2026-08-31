@@ -142,7 +142,31 @@ public final class ProductCapabilityCaptureContext {
   }
 
   public static Optional<Binding> designBinding(String conversationId) {
-    return binding(conversationId).filter(found -> found.mode() == Mode.DESIGN);
+    Optional<Binding> found = binding(conversationId).filter(bound -> bound.mode() == Mode.DESIGN);
+    if (found.isPresent()) {
+      return found;
+    }
+    String id = conversationId == null ? "" : conversationId.trim();
+    if (!id.isEmpty()) {
+      return Optional.empty();
+    }
+    // LangChain4j tool workers often have no conversation id. One in-flight design binding is
+    // still the session that called bindDesign.
+    return soleRegistered(Mode.DESIGN);
+  }
+
+  static Optional<Binding> soleRegistered(Mode mode) {
+    Binding match = null;
+    for (Binding registered : BY_CONVERSATION.values()) {
+      if (registered == null || registered.mode() != mode) {
+        continue;
+      }
+      if (match != null) {
+        return Optional.empty();
+      }
+      match = registered;
+    }
+    return Optional.ofNullable(match);
   }
 
   /** Approved draft for one conversation, immune to a stale binding on this worker thread. */

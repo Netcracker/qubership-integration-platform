@@ -91,15 +91,17 @@ public final class PipelineGates {
   }
 
   /**
-   * True when the wait is a recoverable halt (Retry, Revise, internal failure, or owner choice). A
-   * typed follow-up at such a wait stays on the run instead of being classified as a new request.
+   * True when the wait is a recoverable halt (Retry, Revise, internal failure, owner choice, or
+   * clarification). A typed follow-up at such a wait stays on the run instead of being classified
+   * as a new request.
    */
   public static boolean isRecoverableHaltGate(String gateId) {
     return STAGE_RETRY.equals(gateId)
         || STAGE_REVISE.equals(gateId)
         || STAGE_INTERNAL_FAILURE.equals(gateId)
         || STAGE_ESCALATED.equals(gateId)
-        || OWNER_CHOICE.equals(gateId);
+        || OWNER_CHOICE.equals(gateId)
+        || STAGE_CLARIFICATION.equals(gateId);
   }
 
   private static final Pattern MARKER = Pattern.compile("__GATE:([a-z0-9-]+)__");

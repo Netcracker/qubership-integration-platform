@@ -88,6 +88,7 @@ class PipelineGatesTest {
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_INTERNAL_FAILURE));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_ESCALATED));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.OWNER_CHOICE));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_CLARIFICATION));
     assertFalse(PipelineGates.isRecoverableHaltGate(PipelineGates.MAPPING_GAP));
   }
 

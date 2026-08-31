@@ -130,7 +130,7 @@ class RecoveryExecutorTest {
   }
 
   @Test
-  void identicalRegenerateParksWithoutReopeningBrief() {
+  void identicalRegenerateAsksTheAuthorWithoutReopeningBrief() {
     RecoveryEvidence evidence = derivationEvidence(GRAPH_REF);
     RecoveryDecision decision =
         new RecoveryDecision(
@@ -147,7 +147,9 @@ class RecoveryExecutorTest {
             StageDecision.WaitForInput.class,
             RecoveryExecutor.execute(decision, evidence, null, FAILED_STAGE, false, true));
 
-    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals("The graph is still invalid.", PipelineGates.strip(wait.prompt()));
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
   }
 
@@ -202,6 +204,28 @@ class RecoveryExecutorTest {
 
     assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertFalse(wait.prompt().contains("__OWNER_CANDIDATES__"));
+  }
+
+  @Test
+  void askUserDoesNotRepeatAnIdenticalSummaryAndQuestion() {
+    String captureError =
+        "CONTRACT_SHAPE: Trigger node 'trigger-onTaskResult' must have exactly one outgoing edge.";
+    StageDecision decision =
+        RecoveryExecutor.execute(
+            decision(
+                RecoveryCauseClass.DERIVATION_DEFECT,
+                RecoveryAction.ASK_USER,
+                captureError,
+                captureError),
+            null,
+            FAILED_STAGE,
+            false);
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, decision);
+    String body = PipelineGates.strip(wait.prompt());
+    assertEquals(captureError, body);
+    assertEquals(1, body.split(java.util.regex.Pattern.quote(captureError), -1).length - 1);
   }
 
   @Test

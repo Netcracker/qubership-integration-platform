@@ -285,6 +285,11 @@ public final class OwnerCandidateSet {
         && (containsPhrase(haystack, type) || containsPhrase(haystack, type.replace('-', ' ')))) {
       return true;
     }
+    if (goBack
+        && BRIEF_ARTIFACT_TYPES.contains(type)
+        && containsPhrase(haystack, "brief")) {
+      return true;
+    }
     return goBack && fuzzyStageMatch(haystack, stageId);
   }
 

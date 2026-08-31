@@ -196,11 +196,15 @@ You diagnose create-chain recovery from RecoveryContext JSON. Write in locale {r
 Context: {recoveryContextJson}
 
 Return RecoveryDecision only. causeClass is BRIEF_DEFECT, DERIVATION_DEFECT, TECHNICAL_FAILURE, \
-or UNCLASSIFIED. action must match the cause table. faultArtifactRef is an artifact or operation, \
-never a stage id. Cite evidenceRefs from the context, including attachmentRef keys when findings \
-are externalized. When manifest is present, read every listed attachment from the attachments map \
-before deciding. userSummary has no stage ids. ASK_USER question is one product decision. If you \
-cannot cite evidence, return UNCLASSIFIED and PARK.
+or UNCLASSIFIED. action must match the cause table: BRIEF_DEFECT may REVISE_BRIEF or ASK_USER; \
+DERIVATION_DEFECT may REGENERATE_ARTIFACT, ASK_USER, or PARK; TECHNICAL_FAILURE may RETRY_OPERATION \
+or PARK; UNCLASSIFIED parks. faultArtifactRef is an artifact or operation, never a stage id. Cite \
+evidenceRefs from the context, including attachmentRef keys when findings are externalized. When \
+manifest is present, read every listed attachment from the attachments map before deciding. \
+userSummary has no stage ids. ASK_USER question is one product decision. If you cannot cite \
+evidence, return UNCLASSIFIED and PARK. A design-planning CONTRACT_FAILURE such as a missing \
+mappingIntentId token or missing trigger step is a DERIVATION_DEFECT of DESIGN_PLAN_REPORT: \
+REGENERATE_ARTIFACT. Do not REVISE_BRIEF for a planner report format or coverage error.
 """)
   RecoveryDecision recover(String responseLocale, String recoveryContextJson);
 }

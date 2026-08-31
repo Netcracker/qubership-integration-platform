@@ -617,12 +617,6 @@ public final class ProductPipelineRunSupport {
                   return refuseWithGuard(doc, command, retryRefusal);
                 }
               }
-              if (isClarificationWait(doc) && !haltCardClick) {
-                HaltRecoveryGuard clarificationRefusal = diagnoseAttemptRefusal(doc, command);
-                if (clarificationRefusal != null) {
-                  return refuseWithGuard(doc, command, clarificationRefusal);
-                }
-              }
               if (!haltCardClick) {
                 artifactStore.append(
                     new AppendCommand(
@@ -648,6 +642,9 @@ public final class ProductPipelineRunSupport {
                       command.runId(), ignored -> new ConcurrentHashMap<>());
               if (!haltCardClick) {
                 attributes.put("userText", command.text());
+                if (isClarificationWait(doc)) {
+                  attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text() == null ? "" : command.text());
+                }
                 // Leak checks must cover the original requirement ask, not later clarifications
                 // or process instructions sent while discovery is WAITING_FOR_INPUT.
                 Object priorDiscovery = attributes.get("discoveryUserText");
@@ -659,8 +656,16 @@ public final class ProductPipelineRunSupport {
                 return recordRevise(doc, command);
               }
               String reason = "accepted input";
-              if (retryClick || isClarificationWait(doc)) {
+              if (retryClick) {
                 reason = recordAttempt(doc, command);
+              } else if (isClarificationWait(doc)) {
+                // The clarification card is the ask after repair budget. Retry the stage with the
+                // author's text; do not escalate to owner-stage buttons when repairs are spent.
+                if (diagnoseAttemptRefusal(doc, command) == null) {
+                  reason = recordAttempt(doc, command);
+                } else {
+                  reason = "accepted clarification";
+                }
               }
               commitStatus(
                   doc,
@@ -1604,8 +1609,11 @@ public final class ProductPipelineRunSupport {
     if (isOwnerChoicePick(doc, text)) {
       return false;
     }
-    return PipelineGates.isRecoverableHaltGate(
-        PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""));
+    String gate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+    if (PipelineGates.STAGE_CLARIFICATION.equals(gate)) {
+      return OwnerCandidateSet.requestsNamedStage(text);
+    }
+    return PipelineGates.isRecoverableHaltGate(gate);
   }
 
   private static String haltFollowUpInputId(AcceptInputCommand command) {
@@ -2226,6 +2234,27 @@ public final class ProductPipelineRunSupport {
     technicalRetriesByStage.keySet().removeIf(key -> key.startsWith(runId + ":"));
     technicalRetriesByStage.putAll(consecutiveTechnicalRetries(runId, doc.attempts()));
     restoreHaltEvidence(doc, attributes);
+  }
+
+  /**
+   * Puts this stage's last halt JSON onto {@code attributes} when that stage is about to run. A
+   * causal reopen moves {@code currentStageId} and hydrate would otherwise restore only the new
+   * owner's attempts, dropping the observing stage's error. Overlaying from the stage that is
+   * executing gives planning its rejected-plan halt back after analysis returns.
+   */
+  public static void overlayHaltEvidenceForStage(
+      ProductPipelineRunDocument doc, String stageId, Map<String, Object> attributes) {
+    if (doc == null || stageId == null || stageId.isBlank() || attributes == null) {
+      return;
+    }
+    doc.attempts().stream()
+        .filter(attempt -> stageId.equals(attempt.stageId()))
+        .map(StageAttempt::failureEvidence)
+        .filter(Objects::nonNull)
+        .map(ProductPipelineRunSupport::readHaltEvidence)
+        .filter(evidence -> !evidence.isEmpty())
+        .reduce((first, second) -> second)
+        .ifPresent(attributes::putAll);
   }
 
   static Map<String, Integer> consecutiveTechnicalRetries(

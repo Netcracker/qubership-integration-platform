@@ -17,6 +17,7 @@ import java.time.temporal.ChronoUnit;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.jboss.resteasy.reactive.MultipartForm;
@@ -32,7 +33,7 @@ import org.jboss.resteasy.reactive.MultipartForm;
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
 @RegisterProvider(CatalogResponseExceptionMapper.class)
 @Produces(MediaType.APPLICATION_JSON)
-@Timeout(value = 2, unit = ChronoUnit.SECONDS)
+@Timeout(value = 10, unit = ChronoUnit.SECONDS)
 @Retry(
     maxRetries = 2,
     delay = 200,
@@ -42,6 +43,7 @@ import org.jboss.resteasy.reactive.MultipartForm;
       ConnectException.class,
       SocketTimeoutException.class,
       HttpTimeoutException.class,
+      TimeoutException.class,
       WebApplicationException.class
     },
     abortOn = CatalogNonRetryableResponseException.class)

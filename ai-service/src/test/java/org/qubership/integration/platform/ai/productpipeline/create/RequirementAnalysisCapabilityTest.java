@@ -294,6 +294,7 @@ class RequirementAnalysisCapabilityTest {
 
     assertTrue(message.contains("Pass-through is the absence of a mapping intent"));
     assertTrue(message.contains("mappingIntents"));
+    assertTrue(message.contains("Prose is enough"));
     assertFalse(message.contains("Capture typed dataMappings"), message);
     assertFalse(message.contains("every required edge"), message);
     assertFalse(message.contains("PASS_THROUGH"), message);

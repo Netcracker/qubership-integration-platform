@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.integration.catalog.descriptor.Cata
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
@@ -34,6 +35,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
@@ -126,6 +128,7 @@ class DesignInputCapabilityTest {
         DesignInputCapability.authoringPrompt(
             ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
     assertTrue(prompt.contains("sourceFactIds"), prompt);
+    assertTrue(prompt.contains("omit it on every edge"), prompt);
     assertTrue(prompt.contains("Do not send an entryPoints list"), prompt);
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
   }
@@ -207,7 +210,7 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void missingCaptureWaitsForTheAgent() {
+  void missingCaptureIsAContractFailureThePipelineCanRepair() {
     DesignInputCapability capability =
         new DesignInputCapability(
             (conversationId, prompt) -> Multi.createFrom().item("prose without a tool call"),
@@ -220,8 +223,83 @@ class DesignInputCapabilityTest {
                 Map.of(
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertEquals("prose without a tool call", prepared.message());
+    assertEquals(
+        RecoveryCauseCode.CONTRACT_SHAPE, prepared.recoveryCause().causeCode());
     assertTrue(prepared.candidates().isEmpty());
+  }
+
+  @Test
+  void rejectedCaptureKeepsTheAgentExplanation() {
+    String explanation =
+        "The semantic revision could not be captured because the onTaskResult trigger must have"
+            + " exactly one outgoing edge.";
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> Multi.createFrom().item(explanation),
+            new DefaultChainSemanticIdsRenderer());
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "requirementBrief",
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertEquals(explanation, prepared.message());
+    assertEquals(explanation, prepared.recoveryCause().findings().getFirst().message());
+  }
+
+  @Test
+  void repairTurnPromptIncludesTheCaptureRejectionAndAuthorCorrection() {
+    java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    String rejection =
+        "Trigger node 'trigger-om-onTaskResult' must have exactly one outgoing edge";
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              seenPrompt.set(prompt);
+              return Multi.createFrom().item("prose without a tool call");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    Map<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief());
+    attributes.put("userText", "OM to Salesforce WFM original request");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, rejection);
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "CONTRACT_SHAPE: " + rejection);
+    attributes.put(
+        ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR,
+        "Treat onTaskResult as a Kafka produce, not a trigger");
+    outcome(capability, context("design-input", attributes));
+    String prompt = seenPrompt.get();
+    assertTrue(prompt.contains(rejection));
+    assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
+    assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));
+    assertFalse(prompt.contains("OM to Salesforce WFM original request"));
+  }
+
+  @Test
+  void designAgentPromptEscapesQuteBracesFromTheBrief() {
+    java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              seenPrompt.set(prompt);
+              return Multi.createFrom().item("prose without a tool call");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    outcome(
+        capability,
+        context(
+            "design-input",
+            Map.of("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
+    String prompt = seenPrompt.get();
+    assertTrue(prompt.contains("path=/orders/\\{id}"), prompt);
+    assertFalse(prompt.contains("path=/orders/{id}"), prompt);
   }
 
   private static DesignInputCapability capturingCapability() {
