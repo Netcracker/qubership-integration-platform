@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +29,10 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipValidator;
+import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
 
 class ScriptMappingCompileTest {
@@ -39,25 +40,22 @@ class ScriptMappingCompileTest {
   private static final ObjectMapper JSON = new ObjectMapper();
 
   @Test
-  void scriptPreferenceWithPlainLanguageProducesOneConfiguredScriptSite() {
+  void scriptPreferenceWithPlainLanguageProducesOneScriptShell() {
     RequirementBrief brief = approvedScriptBrief();
     assertFalse(briefContainsGroovy(brief));
 
-    ChainPlanGraph compiled =
-        ScriptConfigurationPhase.configure(
-            MappingStructurePhase.placeShells(passThroughGraph(), brief), brief);
+    ChainPlanGraph shells = MappingStructurePhase.placeShells(passThroughGraph(), brief);
 
-    List<ChainPlanNode> scripts = scriptNodes(compiled);
+    List<ChainPlanNode> scripts = scriptNodes(shells);
     assertEquals(1, scripts.size());
     ChainPlanNode site = scripts.getFirst();
     assertEquals("script", site.type());
     assertEquals("map-init", MappingExecutionSite.mappingIntentId(site));
-    assertTrue(MappingExecutionSite.isConfigured(site));
-    assertTrue(MappingExecutionSite.scriptBody(site).contains("toUpperCase"));
-    assertTrue(hasEdge(compiled, "trigger-1", site.nodeId()));
-    assertTrue(hasEdge(compiled, site.nodeId(), "call-1"));
-    assertFalse(hasEdge(compiled, "trigger-1", "call-1"));
-    assertTrue(mapper2Nodes(compiled).isEmpty());
+    assertFalse(MappingExecutionSite.isConfigured(site));
+    assertTrue(hasEdge(shells, "trigger-1", site.nodeId()));
+    assertTrue(hasEdge(shells, site.nodeId(), "call-1"));
+    assertFalse(hasEdge(shells, "trigger-1", "call-1"));
+    assertTrue(mapper2Nodes(shells).isEmpty());
   }
 
   @Test
@@ -74,12 +72,6 @@ class ScriptMappingCompileTest {
     assertTrue(hasEdge(shells, "trigger-1", scripts.getFirst().nodeId()));
     assertTrue(hasEdge(shells, scripts.getFirst().nodeId(), "call-1"));
     assertEquals(topology.nodes().size() + 1, shells.nodes().size());
-
-    ChainPlanGraph configured = ScriptConfigurationPhase.configure(shells, brief);
-
-    assertEquals(shells.nodes().size(), configured.nodes().size());
-    assertEquals(shells.edges().size(), configured.edges().size());
-    assertTrue(MappingExecutionSite.isConfigured(scriptNodes(configured).getFirst()));
   }
 
   @Test
@@ -139,18 +131,6 @@ class ScriptMappingCompileTest {
   }
 
   @Test
-  void configurationDoesNotInventAMissingScriptShell() {
-    RequirementBrief brief = approvedScriptBrief();
-
-    IllegalStateException thrown =
-        assertThrows(
-            IllegalStateException.class,
-            () -> ScriptConfigurationPhase.configure(passThroughGraph(), brief));
-    assertTrue(thrown.getMessage().contains("map-init"));
-    assertTrue(thrown.getMessage().contains("cip-script-generator"));
-  }
-
-  @Test
   void assemblerDoesNotInventAMissingScriptNode() {
     GraphAssemblyService assembler = new GraphAssemblyService(new CanonicalGraphDigest(JSON));
     ChainStructure structure = new ChainStructure(passThroughGraph(), List.of(), List.of());
@@ -165,7 +145,23 @@ class ScriptMappingCompileTest {
   void scriptPatchConfiguresExistingShellWithoutTopologyChanges() {
     RequirementBrief brief = approvedScriptBrief();
     ChainPlanGraph shells = MappingStructurePhase.placeShells(passThroughGraph(), brief);
-    GraphPatch patch = ScriptConfigurationPhase.configurationPatch(shells, brief);
+    ChainPlanNode site = scriptNodes(shells).getFirst();
+    GraphPatch patch =
+        new GraphPatch(
+            "configure-script",
+            "cip-script-generator",
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatch(
+                    GraphPatchOperation.ADD,
+                    site.nodeId(),
+                    new PlanProperty(
+                        MappingExecutionSite.SCRIPT_PROPERTY,
+                        "exchange.in.body = 'mapped'\nreturn exchange.in.body"))),
+            List.of(),
+            List.of(),
+            "Configure existing script shell");
     assertTrue(patch.nodePatches().isEmpty());
     assertTrue(patch.edgePatches().isEmpty());
     assertFalse(patch.propertyPatches().isEmpty());
@@ -194,21 +190,6 @@ class ScriptMappingCompileTest {
         MappingMechanismSelector.select(approvedScriptBrief().mappingIntents().getFirst());
 
     assertEquals(Optional.of(MappingMechanism.SCRIPT), mechanism);
-  }
-
-  @Test
-  void generatedScriptTransformsApprovedInputToExpectedOutput() throws Exception {
-    RequirementBrief brief = approvedScriptBrief();
-    ChainPlanGraph compiled =
-        ScriptConfigurationPhase.configure(
-            MappingStructurePhase.placeShells(passThroughGraph(), brief), brief);
-
-    String output =
-        SimpleScriptExecutor.apply(compiled, "{\"userId\":\"u-1\",\"name\":\"Ada\"}");
-
-    JsonNode body = JSON.readTree(output);
-    assertEquals("u-1", body.path("personId").asText());
-    assertEquals("ADA", body.path("fullName").asText());
   }
 
   @Test

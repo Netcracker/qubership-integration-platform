@@ -160,6 +160,17 @@ public final class MappingMechanismSelector {
     return parsePreference(raw).orElse(null) == MappingMechanism.SCRIPT;
   }
 
+  /**
+   * SCRIPT may copy a field that is not on this hop's source schema by reading a Camel exchange
+   * property captured upstream. Mapper-2 cannot.
+   */
+  public static boolean allowsOffHopSource(String implementationPreference) {
+    if (!mapper2Enabled()) {
+      return true;
+    }
+    return isScriptPreference(implementationPreference);
+  }
+
   public static boolean isSupportedScriptExpression(String expression) {
     if (expression == null || expression.isBlank()) {
       return true;
@@ -186,7 +197,7 @@ public final class MappingMechanismSelector {
     return isSupportedScriptExpression(expression);
   }
 
-  static boolean isConstantLiteral(String sourcePath) {
+  public static boolean isConstantLiteral(String sourcePath) {
     return sourcePath != null
         && sourcePath.length() >= 2
         && sourcePath.startsWith("\"")

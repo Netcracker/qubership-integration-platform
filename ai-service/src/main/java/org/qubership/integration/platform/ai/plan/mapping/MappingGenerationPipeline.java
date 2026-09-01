@@ -20,10 +20,12 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.mapping.schema.DefaultMappingBoundarySchemaResolver;
+import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingBoundarySchemas;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
 
@@ -83,7 +85,7 @@ public class MappingGenerationPipeline {
     List<Reference> envelopeRefs = new ArrayList<>();
     List<Reference> consumed =
         new ArrayList<>(context == null ? List.of() : context.consumedArtifacts());
-    StringBuilder rendered = new StringBuilder();
+    List<FrozenHop> hops = new ArrayList<>();
     for (MappingIntent intent : intents) {
       MappingBoundarySchemas schemas =
           resolver.resolve(revision, bindings, intent, envelopesByTransformNodeId);
@@ -112,12 +114,28 @@ public class MappingGenerationPipeline {
       envelopeRefs.add(stored.reference());
       consumed.add(stored.reference());
       indexEnvelope(envelopesByTransformNodeId, intent, envelope, context);
+      hops.add(new FrozenHop(intent, schemas, envelope));
+    }
+    Map<String, MappingContract> sourceContracts = new LinkedHashMap<>();
+    for (FrozenHop hop : hops) {
+      sourceContracts.put(
+          hop.intent().mappingIntentId(),
+          JsonSchemaMappingContractFactory.from(hop.schemas().source().schema()));
+    }
+    List<MappingIntent> revisionIntents = revision.mappingIntents();
+    StringBuilder rendered = new StringBuilder();
+    for (FrozenHop hop : hops) {
       if (!rendered.isEmpty()) {
         rendered.append("\n\n");
       }
       rendered.append(
           contextBuilder.renderMappingGenerationContext(
-              intent, envelope, schemas.source(), schemas.target()));
+              hop.intent(),
+              hop.envelope(),
+              hop.schemas().source(),
+              hop.schemas().target(),
+              revisionIntents,
+              sourceContracts));
     }
     String mappingContext = rendered.toString();
     GraphPatchExecutionContext updated = context;
@@ -201,6 +219,9 @@ public class MappingGenerationPipeline {
     }
     return false;
   }
+
+  private record FrozenHop(
+      MappingIntent intent, MappingBoundarySchemas schemas, MappingEnvelope envelope) {}
 
   public record Result(
       boolean blocked,

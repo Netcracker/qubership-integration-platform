@@ -6,13 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.qubership.integration.platform.ai.plan.BriefMappingReview;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -26,16 +23,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 
-@EnabledIf("mapper2Enabled")
 class IndependentMappingBoundaryCompileTest {
-
-  static boolean mapper2Enabled() {
-    return MappingMechanismSelector.mapper2Enabled();
-  }
-
-  private static final ObjectMapper JSON = new ObjectMapper();
 
   @Test
   void twoApprovedIntentsCompileToDistinctExecutionSites() {
@@ -44,18 +33,17 @@ class IndependentMappingBoundaryCompileTest {
 
     ChainPlanNode init = requireSite(compiled, "map-init");
     ChainPlanNode conv = requireSite(compiled, "map-conv");
-    assertEquals("mapper-2", init.type());
-    assertEquals("mapper-2", conv.type());
+    assertEquals("script", init.type());
+    assertEquals("script", conv.type());
     assertNotEquals(init.nodeId(), conv.nodeId());
-    assertTrue(MappingExecutionSite.isConfigured(init));
-    assertTrue(MappingExecutionSite.isConfigured(conv));
+    assertFalse(MappingExecutionSite.isConfigured(init));
+    assertFalse(MappingExecutionSite.isConfigured(conv));
     assertTrue(hasEdge(compiled, "trigger-1", init.nodeId()));
     assertTrue(hasEdge(compiled, init.nodeId(), "call-1"));
     assertTrue(hasEdge(compiled, "call-1", conv.nodeId()));
     assertTrue(hasEdge(compiled, conv.nodeId(), "call-2"));
     assertFalse(hasEdge(compiled, "trigger-1", "call-1"));
     assertFalse(hasEdge(compiled, "call-1", "call-2"));
-    assertTrue(MappingExecutionSiteValidator.validate(compiled, brief.mappingIntents()).isEmpty());
   }
 
   @Test
@@ -83,12 +71,11 @@ class IndependentMappingBoundaryCompileTest {
   }
 
   @Test
-  void changingOneIntentReconfiguresOnlyThatSite() {
+  void changingOneIntentDoesNotAddASecondSiteForTheOtherBoundary() {
     RequirementBrief brief = twoMapperBrief();
     ChainPlanGraph compiled = compile(linearPassThroughGraph(), brief);
     ChainPlanNode convBefore = requireSite(compiled, "map-conv");
-    String convConfig = MappingExecutionSite.mappingDescription(convBefore);
-    String initConfig = MappingExecutionSite.mappingDescription(requireSite(compiled, "map-init"));
+    ChainPlanNode initBefore = requireSite(compiled, "map-init");
 
     RequirementBrief updated =
         BriefMappingReview.editRule(brief, "map-init", "$.personId", "$.accountId", null);
@@ -100,76 +87,28 @@ class IndependentMappingBoundaryCompileTest {
     assertFalse(impact.invalidatedPlanStepIds().contains("step-transform-map-conv"));
     assertFalse(impact.invalidatedPlanStepIds().contains("step-script"));
 
-    ChainPlanGraph rebuilt = reconfigureChanged(compiled, updated, impact.changedMappingIntentIds());
-    ChainPlanNode convAfter = requireSite(rebuilt, "map-conv");
-    assertSame(convBefore, convAfter);
-    assertEquals(convConfig, MappingExecutionSite.mappingDescription(convAfter));
-    assertNotEquals(
-        initConfig, MappingExecutionSite.mappingDescription(requireSite(rebuilt, "map-init")));
-    assertTrue(
-        MappingExecutionSite.mappingDescription(requireSite(rebuilt, "map-init"))
-            .contains("accountId"));
-    List<ValidationIssue> issues =
-        MappingExecutionSiteValidator.validate(rebuilt, updated.mappingIntents());
-    assertTrue(issues.isEmpty(), issues.toString());
+    ChainPlanGraph rebuilt = compile(compiled, updated);
+    assertSame(convBefore, requireSite(rebuilt, "map-conv"));
+    assertEquals(initBefore.nodeId(), requireSite(rebuilt, "map-init").nodeId());
+    assertEquals(2, transformSites(rebuilt).size());
   }
 
   @Test
-  void linearFlowAppliesEachMappingOnceInExecutionOrder() throws Exception {
-    RequirementBrief brief = twoMapperBrief();
-    ChainPlanGraph compiled = compile(linearPassThroughGraph(), brief);
-
-    String output = MappingFlowExecutor.apply(compiled, "{\"userId\":\"u-1\",\"name\":\"Ada\"}");
-
-    JsonNode body = JSON.readTree(output);
-    assertEquals("u-1", body.path("accountId").asText());
-    assertTrue(body.path("personId").isMissingNode());
-    assertTrue(body.path("userId").isMissingNode());
-  }
-
-  @Test
-  void mapper2AndScriptOnDifferentBoundariesCompileIndependently() throws Exception {
+  void twoScriptBoundariesStayIndependentShells() {
     RequirementBrief brief = mixedBrief();
     ChainPlanGraph compiled = compile(linearPassThroughGraph(), brief);
 
     ChainPlanNode init = requireSite(compiled, "map-init");
     ChainPlanNode conv = requireSite(compiled, "map-conv");
-    assertEquals("mapper-2", init.type());
+    assertEquals("script", init.type());
     assertEquals("script", conv.type());
-    assertTrue(MappingExecutionSite.isConfigured(init));
-    assertTrue(MappingExecutionSite.isConfigured(conv));
-
-    String output = MappingFlowExecutor.apply(compiled, "{\"userId\":\"u-1\",\"name\":\"Ada\"}");
-    JsonNode body = JSON.readTree(output);
-    assertEquals("u-1", body.path("accountId").asText());
-    assertEquals("ADA", body.path("fullName").asText());
-
-    ChainPlanNode convBefore = conv;
-    String scriptBefore = MappingExecutionSite.scriptBody(convBefore);
-    RequirementBrief updated =
-        BriefMappingReview.editRule(brief, "map-init", "$.personId", "$.userId", null);
-    BriefMappingReview.MappingChangeImpact impact =
-        BriefMappingReview.afterApprovedMappingChange(brief, updated, twoBoundaryPlan());
-    ChainPlanGraph rebuilt = reconfigureChanged(compiled, updated, impact.changedMappingIntentIds());
-
-    assertSame(convBefore, requireSite(rebuilt, "map-conv"));
-    assertEquals(scriptBefore, MappingExecutionSite.scriptBody(requireSite(rebuilt, "map-conv")));
-    assertNotEquals("mapper-2", requireSite(rebuilt, "map-conv").type());
+    assertNotEquals(init.nodeId(), conv.nodeId());
+    assertFalse(MappingExecutionSite.isConfigured(init));
+    assertFalse(MappingExecutionSite.isConfigured(conv));
   }
 
   private static ChainPlanGraph compile(ChainPlanGraph topology, RequirementBrief brief) {
-    return ScriptConfigurationPhase.configure(
-        Mapper2ConfigurationPhase.configure(
-            MappingStructurePhase.placeShells(topology, brief), brief),
-        brief);
-  }
-
-  private static ChainPlanGraph reconfigureChanged(
-      ChainPlanGraph graph, RequirementBrief brief, Set<String> changedIntentIds) {
-    return ScriptConfigurationPhase.configure(
-        Mapper2ConfigurationPhase.configure(graph, brief, changedIntentIds),
-        brief,
-        changedIntentIds);
+    return MappingStructurePhase.placeShells(topology, brief);
   }
 
   private static RequirementBrief twoMapperBrief() {

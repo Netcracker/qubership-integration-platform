@@ -6,6 +6,9 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.Map;
+import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -96,6 +99,82 @@ class MappingGeneratorContextTest {
     assertTrue(message.contains(sourceSide.sha256()));
     assertTrue(message.contains("$.orderId"));
     assertTrue(message.contains("must be copied unchanged"));
+  }
+
+  @Test
+  void offHopProcessIdTellsScriptToUseExchangeProperty() throws Exception {
+    JsonNode salesforceResponse =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } }
+            }
+            """);
+    JsonNode omTrigger =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "processInstanceId": { "type": "string" } },
+              "required": ["processInstanceId"]
+            }
+            """);
+    JsonNode omResult =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "processId": { "type": "string" } }
+            }
+            """);
+    MappingSchemaSide resultSource =
+        side("createTask", MappingPort.RESPONSE, salesforceResponse, "sha-sf-resp");
+    MappingSchemaSide resultTarget =
+        side("onTaskResult", MappingPort.REQUEST, omResult, "sha-om-result");
+    MappingEnvelope resultEnvelope =
+        new JsonSchemaMessageSchemaFactory(MAPPER).fromSides(resultSource, resultTarget);
+    MappingIntent requestIntent =
+        new MappingIntent(
+            "map-request",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "createTask",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name", "$.Subject", null, MappingRuleStatus.USER_DEFINED)));
+    MappingIntent resultIntent =
+        new MappingIntent(
+            "map-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.processInstanceId",
+                    "$.processId",
+                    null,
+                    MappingRuleStatus.PROPOSED)));
+    Map<String, MappingContract> sourceContracts =
+        Map.of(
+            "map-request", JsonSchemaMappingContractFactory.from(omTrigger),
+            "map-result", JsonSchemaMappingContractFactory.from(salesforceResponse));
+
+    String mappingContext =
+        builder.renderMappingGenerationContext(
+            resultIntent,
+            resultEnvelope,
+            resultSource,
+            resultTarget,
+            List.of(requestIntent, resultIntent),
+            sourceContracts);
+
+    assertTrue(mappingContext.contains("setProperty"));
+    assertTrue(mappingContext.contains("getProperty"));
+    assertTrue(mappingContext.contains("map-request"));
+    assertTrue(mappingContext.contains("must be copied unchanged"));
   }
 
   private static MappingIntent identityOrderId() {

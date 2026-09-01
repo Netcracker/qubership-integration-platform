@@ -246,6 +246,54 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
+  void scriptEchoOfOffHopProcessIdDoesNotBlockScriptGenerator() throws Exception {
+    JsonNode salesforceResponse =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } },
+              "required": ["id"]
+            }
+            """);
+    JsonNode omResult =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "processId": { "type": "string" } }
+            }
+            """);
+    persistSide("call-a", MappingPort.RESPONSE, salesforceResponse);
+    persistSide("call-b", MappingPort.REQUEST, omResult);
+    MappingIntent intent =
+        new MappingIntent(
+            "map-result",
+            "node-call-a",
+            MappingPort.RESPONSE,
+            "node-call-b",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.processInstanceId",
+                    "$.processId",
+                    null,
+                    MappingRuleStatus.PROPOSED)));
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            chainedMapperRevision(List.of(intent)),
+            List.of(
+                binding("node-call-a", "call-a", "op-a"),
+                binding("node-call-b", "call-b", "op-b")),
+            sampleContext(List.of()));
+
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+  }
+
+  @Test
   void unresolvedRequiredBlocksScriptGeneratorForEmptyRules() {
     persistSide("trigger-http", MappingPort.OUTPUT, orderSchema);
     persistSide("call-1", MappingPort.REQUEST, orderSchema);
@@ -272,36 +320,23 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
-  void productionDoesNotCallMappingCodegenPhases() throws Exception {
+  void productionDoesNotShipMappingCodegenPhases() throws Exception {
     Path root = Path.of("src/main/java");
     if (!Files.isDirectory(root)) {
       root = Path.of("ai-service/src/main/java");
     }
     assertTrue(Files.isDirectory(root), "production sources not found at " + root.toAbsolutePath());
+    List<String> forbidden =
+        List.of(
+            "ScriptConfigurationPhase.java",
+            "SimpleScriptExecutor.java",
+            "MappingFlowExecutor.java",
+            "Mapper2ConfigurationPhase.java",
+            "SimpleMapper2Executor.java");
     try (Stream<Path> walk = Files.walk(root)) {
-      List<Path> offenders =
-          walk.filter(path -> path.toString().endsWith(".java"))
-              .filter(path -> !isCodegenPhaseSource(path))
-              .filter(MappingGenerationPipelineTest::referencesCodegenPhase)
-              .toList();
-      assertTrue(offenders.isEmpty(), "production callers of mapping codegen phases: " + offenders);
-    }
-  }
-
-  private static boolean isCodegenPhaseSource(Path path) {
-    String name = path.getFileName().toString();
-    return "Mapper2ConfigurationPhase.java".equals(name)
-        || "ScriptConfigurationPhase.java".equals(name);
-  }
-
-  private static boolean referencesCodegenPhase(Path path) {
-    try {
-      String text = Files.readString(path);
-      return text.contains("Mapper2ConfigurationPhase.configure")
-          || text.contains("ScriptConfigurationPhase.configure")
-          || text.contains("ScriptConfigurationPhase.generateScript");
-    } catch (Exception e) {
-      throw new IllegalStateException(path.toString(), e);
+      List<Path> leftovers =
+          walk.filter(path -> forbidden.contains(path.getFileName().toString())).toList();
+      assertTrue(leftovers.isEmpty(), "deleted mapping codegen still present: " + leftovers);
     }
   }
 
