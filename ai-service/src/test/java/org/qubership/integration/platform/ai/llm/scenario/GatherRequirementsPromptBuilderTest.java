@@ -63,6 +63,7 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("searchCatalogSystems does not bind"));
     assertTrue(input.contains("after the flow is stored"), input);
     assertTrue(input.contains("with the interactionId from the stored flow"), input);
+    assertTrue(input.contains("empty openQuestions"), input);
     assertFalse(input.contains("after you pick a catalog operation"), input);
     assertFalse(input.contains("with serviceCallId"), input);
     assertFalse(input.contains("searchCatalogSystems, getApiSpecifications, and listCatalogOperations"));

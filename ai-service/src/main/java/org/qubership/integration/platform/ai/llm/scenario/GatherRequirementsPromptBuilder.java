@@ -83,7 +83,8 @@ public class GatherRequirementsPromptBuilder {
           discovery behavior (catalog/API Hub, capture decisions, facts, platform defaults,
           clarifying-question overrides). Do not write files, commit changes, invoke implementation
           skills, or run the compiler spine. Call captureRequirementDraft every turn.
-          Capture RequirementFlow before catalog lookup. searchCatalogSystems does not bind an
+          Capture RequirementFlow before catalog lookup. That first capture may use
+          NEEDS_INPUT with empty openQuestions. searchCatalogSystems does not bind an
           interaction; after the flow is stored, call resolveApiOperation with the interactionId from the stored flow.%s Reply in the
           pinned response locale %s. This
           locale is authoritative; do not infer another language from conversation history or
