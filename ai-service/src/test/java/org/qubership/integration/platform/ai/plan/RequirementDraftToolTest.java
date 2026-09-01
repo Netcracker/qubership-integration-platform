@@ -98,6 +98,8 @@ class RequirementDraftToolTest {
     assertFalse(example.contains("\"kind\": \"ENDPOINT\""), example);
     assertFalse(example.contains("\"kind\": \"SERVICE_CALL\""), example);
     assertTrue(example.contains("order-received"), example);
+    assertTrue(description.contains("process checkpoint"), description);
+    assertTrue(description.contains("do not invent a user question"), description);
   }
 
   @Test
@@ -205,6 +207,9 @@ class RequirementDraftToolTest {
             flowCapture(false, DraftDecision.NEEDS_INPUT, rockyFlow()));
 
     assertFalse(result.contains("openQuestions is required"), result);
+    assertTrue(result.contains("Unresolved interactions"), result);
+    assertTrue(result.contains("resolveApiOperation"), result);
+    assertFalse(result.contains("CATALOG_BOUND"), result);
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
     assertTrue(draft.openQuestions().isEmpty());
@@ -1482,6 +1487,62 @@ class RequirementDraftToolTest {
             .anyMatch(hint -> "task-result".equals(hint.interactionId())));
     assertTrue(result.contains("Requirement draft captured"), result);
     assertFalse(result.contains("has no catalog binding"), result);
+  }
+
+  @Test
+  void needsInputCaptureEchoesCatalogBoundAfterExactLocalMatches() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(org.mockito.ArgumentMatchers.any(CatalogQuery.class)))
+        .thenAnswer(
+            invocation -> {
+              CatalogQuery query = invocation.getArgument(0);
+              String operation = query.operationHint();
+              if ("onTaskStart".equals(operation)) {
+                return new CatalogLookupResult.Exact(omStartMatch());
+              }
+              if ("createTask".equals(operation)) {
+                return new CatalogLookupResult.Exact(salesforceMatch());
+              }
+              if ("onTaskResult".equals(operation)) {
+                return new CatalogLookupResult.Exact(omResultMatch());
+              }
+              return new CatalogLookupResult.None();
+            });
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, resolutions, lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String first =
+        captureTool.captureRequirementDraft(
+            flowCapture(false, DraftDecision.NEEDS_INPUT, rockyFlow()));
+
+    assertFalse(first.contains("openQuestions is required"), first);
+    assertTrue(first.contains("CATALOG_BOUND"), first);
+    assertTrue(first.contains("task-start"), first);
+    assertTrue(first.contains("create-task"), first);
+    assertTrue(first.contains("task-result"), first);
+    assertTrue(first.contains("sys-om"), first);
+    assertTrue(first.contains("sys-sf"), first);
+    assertTrue(first.contains("READY_FOR_PLAN"), first);
+    assertTrue(first.contains("Do not ask the user"), first);
+    assertFalse(first.contains("Unresolved interactions"), first);
+    RequirementDraft afterBind = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, afterBind.decision());
+    assertFalse(afterBind.readyForPlan());
+    assertTrue(afterBind.openQuestions().isEmpty());
+    assertEquals(3, afterBind.catalogBindings().size(), afterBind.catalogBindings().toString());
+
+    String second =
+        captureTool.captureRequirementDraft(
+            flowCapture(true, DraftDecision.READY_FOR_PLAN, rockyFlow()));
+
+    assertTrue(second.contains("Requirement draft captured"), second);
+    RequirementDraft ready = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, ready.decision());
+    assertTrue(ready.readyForPlan());
+    assertTrue(ready.openQuestions().isEmpty());
   }
 
   @Test

@@ -77,6 +77,10 @@ public class RequirementDraftTool {
       "Call resolveApiOperation for each unresolved interactionId, then recapture the same"
           + " RequirementFlow. Do not author topology facts or invent catalog UUIDs.";
 
+  static final String CATALOG_BOUND_CAPTURE_HINT =
+      " Recapture READY_FOR_PLAN with empty openQuestions when every catalog-backed interaction"
+          + " is bound. Do not ask the user for a specification name.";
+
   static final String FLOW_REQUIRED_OPEN_QUESTION =
       "Capture the complete RequirementFlow with stable interactionId values before planning.";
 
@@ -187,9 +191,10 @@ public class RequirementDraftTool {
       Capture the accumulated requirement draft decision for this conversation in the same turn.
       Do not pass conversationId: the server binds the draft to the current chat session.
       Pass the full accumulated vision text every time. The store replaces the previous draft.
-      Set decision to NEEDS_INPUT when one user answer is still required, READY_FOR_PLAN only
-      when no open questions remain, or BLOCKED when the request cannot proceed without an
-      unavailable artifact or external decision.
+      Set decision to NEEDS_INPUT when one user answer is still required, or when storing the
+      flow before catalog bind (empty openQuestions is a process checkpoint; do not invent a user question).
+      READY_FOR_PLAN only when no open questions remain, or BLOCKED when the request cannot proceed
+      without an unavailable artifact or external decision.
       Keep openQuestions empty for READY_FOR_PLAN.
       Capture a complete RequirementFlow before catalog lookup. Each interaction needs a stable
       interactionId, direction INBOUND or OUTBOUND, participant, and operation. Transitions name
@@ -611,6 +616,28 @@ public class RequirementDraftTool {
             conversationId,
             startMs,
             FACTS_SOFT_DOWNGRADE_PREFIX + FACTS_SOFT_DOWNGRADE_HINT + " " + storedPreview);
+      }
+      String unresolved =
+          capturedFlow.interactions().isEmpty()
+              ? ""
+              : describeUnresolvedInteractions(capturedFlow, capturedFacts, catalogBindings);
+      if (!catalogBindings.isEmpty() || !unresolved.isEmpty()) {
+        StringBuilder body = new StringBuilder();
+        if (!catalogBindings.isEmpty()) {
+          body.append("CATALOG_BOUND");
+          for (CatalogBindingHint hint : catalogBindings) {
+            body.append(" interactionId=")
+                .append(hint.interactionId())
+                .append(" systemId=")
+                .append(hint.systemId());
+          }
+          body.append('.').append(CATALOG_BOUND_CAPTURE_HINT).append(' ');
+        }
+        if (!unresolved.isEmpty()) {
+          body.append(unresolved).append(BINDING_SOFT_DOWNGRADE_HINT).append(' ');
+        }
+        body.append(storedPreview);
+        return finish(conversationId, startMs, body.toString());
       }
       return finish(conversationId, startMs, storedPreview);
     } catch (Exception e) {
