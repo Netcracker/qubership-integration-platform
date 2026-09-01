@@ -95,14 +95,16 @@ class DesignPlanningCapabilityTest {
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     profile = designPlanningProfile();
     runtime =
-        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(new SeedDesignInputsCapability(), designPlanningCapability())),
-            null,
-            stubPinResolver(),
-            Clock.fixed(FIXED, ZoneOffset.UTC)), runStore);
+        new CreateChainTestOrchestrator(
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(new SeedDesignInputsCapability(), designPlanningCapability())),
+                    Clock.fixed(FIXED, ZoneOffset.UTC))
+                .compilerRunPinResolver(stubPinResolver())
+                .build(),
+            runStore);
   }
 
   @AfterEach

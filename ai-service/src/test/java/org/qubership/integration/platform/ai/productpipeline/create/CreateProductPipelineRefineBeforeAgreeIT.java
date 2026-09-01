@@ -94,16 +94,19 @@ class CreateProductPipelineRefineBeforeAgreeIT {
     CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
     profile = createProfile();
     runtime =
-        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(
-                    discovery(),
-                    importStage(),
-                    realAnalysis(captureSession, feedbackStore),
-                    planning())),
-            clock), runStore);
+        new CreateChainTestOrchestrator(
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(
+                            discovery(),
+                            importStage(),
+                            realAnalysis(captureSession, feedbackStore),
+                            planning())),
+                    clock)
+                .build(),
+            runStore);
   }
 
   @Test

@@ -87,10 +87,34 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
         (item): item is string => typeof item === "string",
       );
     }
+    if (isRecoveryPayload(parsed.recovery)) {
+      decision.recovery = parsed.recovery;
+    }
     return decision;
   } catch {
     return null;
   }
+}
+
+function isRecoveryPayload(
+  value: unknown,
+): value is NonNullable<ChatDecision["recovery"]> {
+  if (typeof value !== "object" || value === null) return false;
+  const recovery = value as Record<string, unknown>;
+  const category = recovery.category;
+  return (
+    (category === "temporary-technical-failure" ||
+      category === "regeneratable-execution-failure") &&
+    typeof recovery.title === "string" &&
+    typeof recovery.summary === "string" &&
+    typeof recovery.preservedWork === "string" &&
+    typeof recovery.technicalDetails === "string" &&
+    (recovery.retryDelayMs === undefined ||
+      typeof recovery.retryDelayMs === "number") &&
+    (recovery.runId === undefined || typeof recovery.runId === "string") &&
+    (recovery.failedStageId === undefined ||
+      typeof recovery.failedStageId === "string")
+  );
 }
 
 /**

@@ -508,21 +508,24 @@ class CreateChainSharedDesignRuntimeIT {
     DesignPlanningCapability planning = designPlanningCapability();
 
     CreateChainTestOrchestrator runtime =
-        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(
-                    designInput,
-                    discovery,
-                    UploadedSpecImportPassthrough.capability(),
-                    analysis,
-                    planning,
-                    designExecutionCapability(),
-                    materializationCapability)),
-            new ProductPipelineProfileCatalog(List.of(v2Profile)),
-            stubPinResolver(),
-            clock), runStore);
+        new CreateChainTestOrchestrator(
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(
+                            designInput,
+                            discovery,
+                            UploadedSpecImportPassthrough.capability(),
+                            analysis,
+                            planning,
+                            designExecutionCapability(),
+                            materializationCapability)),
+                    clock)
+                .profileCatalog(new ProductPipelineProfileCatalog(List.of(v2Profile)))
+                .compilerRunPinResolver(stubPinResolver())
+                .build(),
+            runStore);
 
     startV2(runtime);
     runtime
@@ -575,21 +578,24 @@ class CreateChainSharedDesignRuntimeIT {
     plannerCalls.set(0);
 
     CreateChainTestOrchestrator restarted =
-        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(
-                    designInputCapability(),
-                    discoveryStub(),
-                    UploadedSpecImportPassthrough.capability(),
-                    analysisStub(approvedBrief()),
-                    designPlanningCapability(),
-                    designExecutionCapability(),
-                    materializationCapability)),
-            new ProductPipelineProfileCatalog(List.of(v2Profile)),
-            stubPinResolver(),
-            clock), runStore);
+        new CreateChainTestOrchestrator(
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(
+                            designInputCapability(),
+                            discoveryStub(),
+                            UploadedSpecImportPassthrough.capability(),
+                            analysisStub(approvedBrief()),
+                            designPlanningCapability(),
+                            designExecutionCapability(),
+                            materializationCapability)),
+                    clock)
+                .profileCatalog(new ProductPipelineProfileCatalog(List.of(v2Profile)))
+                .compilerRunPinResolver(stubPinResolver())
+                .build(),
+            runStore);
     restarted
         .startOrResume(
             new StartOrResumeCommand(CONVERSATION_ID, RUN_ID, v2Profile, runManifestV2()))
@@ -861,41 +867,45 @@ class CreateChainSharedDesignRuntimeIT {
     if (stubs != null) {
       stubs.run();
     }
-    return new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-        runStore,
-        artifactStore,
-        new StageCapabilityRegistry(
-            List.of(
-                designInputCapability(),
-                discoveryStub(List.of(petsBindingHint())),
-                UploadedSpecImportPassthrough.capability(),
-                analysisStub(approvedBrief()),
-                designPlanningCapability(),
-                designExecutionCapability(),
-                materializationCapability)),
-        new ProductPipelineProfileCatalog(List.of(v2Profile)),
-        stubPinResolver(),
-        clock), runStore);
+    return new CreateChainTestOrchestrator(
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(
+                        designInputCapability(),
+                        discoveryStub(List.of(petsBindingHint())),
+                        UploadedSpecImportPassthrough.capability(),
+                        analysisStub(approvedBrief()),
+                        designPlanningCapability(),
+                        designExecutionCapability(),
+                        materializationCapability)),
+                clock)
+            .profileCatalog(new ProductPipelineProfileCatalog(List.of(v2Profile)))
+            .compilerRunPinResolver(stubPinResolver())
+            .build(),
+        runStore);
   }
 
   private CreateChainTestOrchestrator runtimeWithOmWfmDesignStack() {
     omWfmCatalogStubs().run();
     return new CreateChainTestOrchestrator(
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(
-                    designInputCapability(),
-                    discoveryStub(List.of(omBindingHint(), wfmBindingHint())),
-                    UploadedSpecImportPassthrough.capability(),
-                    analysisStub(omWfmBrief()),
-                    designPlanningCapability(),
-                    designExecutionCapability(),
-                    materializationCapability)),
-            new ProductPipelineProfileCatalog(List.of(v2Profile)),
-            stubPinResolver(),
-            clock),
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(
+                        designInputCapability(),
+                        discoveryStub(List.of(omBindingHint(), wfmBindingHint())),
+                        UploadedSpecImportPassthrough.capability(),
+                        analysisStub(omWfmBrief()),
+                        designPlanningCapability(),
+                        designExecutionCapability(),
+                        materializationCapability)),
+                clock)
+            .profileCatalog(new ProductPipelineProfileCatalog(List.of(v2Profile)))
+            .compilerRunPinResolver(stubPinResolver())
+            .build(),
         runStore);
   }
 

@@ -757,8 +757,13 @@ class ProductPipelineStageExecutorTest {
     assertEquals(2, attempts.get());
     assertEquals("work", wait.stageId());
     assertEquals(
-        PipelineGates.tag(PipelineGates.STAGE_RETRY, "persistent transport failure"),
-        wait.prompt());
+        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals("persistent transport failure", PipelineGates.strip(wait.prompt()));
+    assertEquals(
+        "persistent transport failure",
+        PipelineGates.recoveryTechnicalDetailsOf(wait.prompt()).orElseThrow());
+    assertEquals(1L, PipelineGates.recoveryRetryDelayMsOf(wait.prompt()).orElseThrow());
     ProductPipelineRunDocument doc = requireRun();
     assertEquals(RunStatus.WAITING_FOR_INPUT, doc.run().status());
     StageAttempt latest = doc.attempts().get(doc.attempts().size() - 1);
@@ -1101,7 +1106,10 @@ class ProductPipelineStageExecutorTest {
 
     assertEquals("work", wait.stageId());
     assertEquals(
-        PipelineGates.tag(PipelineGates.STAGE_RETRY, "Connection refused"), wait.prompt());
+        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals("Connection refused", PipelineGates.strip(wait.prompt()));
+    assertEquals(25L, PipelineGates.recoveryRetryDelayMsOf(wait.prompt()).orElseThrow());
   }
 
   @Test
@@ -1825,8 +1833,23 @@ class ProductPipelineStageExecutorTest {
     agent.recoverRegenerates(
         Kind.PLAN_VALIDATION_RESULT, "Regenerate the rejected validation artifact.");
 
-    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
+    StageDecision.WaitForInput firstWait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    assertEquals(
+        PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+        PipelineGates.gateOf(firstWait.prompt()).orElseThrow());
+    assertTrue(
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REGENERATE_EXECUTION)
+            .contains(ChatEvent.RETRY_CREATION_ACTION));
     assertEquals(1, executionCalls.get());
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
 
     StageDecision.WaitForInput wait =
         assertInstanceOf(
@@ -3020,14 +3043,29 @@ class ProductPipelineStageExecutorTest {
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
 
     assertEquals(
-        PipelineGates.tag(
-            PipelineGates.STAGE_RETRY, "The connection dropped while calling the catalog."),
-        wait.prompt());
+        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals(
-        List.of(PipelineGates.RETRY_ACTION),
+        "The connection dropped while calling the catalog.", PipelineGates.strip(wait.prompt()));
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow()));
+    assertEquals(
+        "persistent transport failure",
+        PipelineGates.recoveryTechnicalDetailsOf(wait.prompt()).orElseThrow());
+    assertEquals(1L, PipelineGates.recoveryRetryDelayMsOf(wait.prompt()).orElseThrow());
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertNotEquals(RunStatus.FAILED, requireRun().run().status());
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.STOP_WITH_REPORT_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.FAILED, requireRun().run().status());
+    assertTrue(artifactStore.latest(RUN_ID, Kind.FAILURE_RECORD).isPresent());
   }
 
   @Test
@@ -3054,10 +3092,12 @@ class ProductPipelineStageExecutorTest {
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution")
             .decision());
 
-    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals(
-        List.of(PipelineGates.RETRY_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.STAGE_RETRY));
+        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_RETRY_TECHNICAL));
     assertFalse(wait.prompt().toLowerCase().contains("revise"), wait.prompt());
     assertNull(agent.lastCandidateSet.get());
     assertEquals("RETRYABLE_TECHNICAL_FAILURE", agent.lastOutcome.get());
@@ -3663,16 +3703,13 @@ class ProductPipelineStageExecutorTest {
       ProductPipelineProfile ignoredProfile,
       StageCapability... capabilities) {
     return new CreateChainTestOrchestrator(
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(List.of(capabilities)),
-            null,
-            null,
-            Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
-            null,
-            narrative),
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(List.of(capabilities)),
+                Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(narrative)
+            .build(),
         runStore);
   }
 
@@ -3689,19 +3726,16 @@ class ProductPipelineStageExecutorTest {
       ProductPipelineProfile ignoredProfile,
       StageCapability... capabilities) {
     return new CreateChainTestOrchestrator(
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(List.of(capabilities)),
-            null,
-            null,
-            Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
-            null,
-            new FailureNarrative(),
-            Duration.ofHours(1),
-            repeatedFailureThreshold,
-            ledger),
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(List.of(capabilities)),
+                Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(new FailureNarrative())
+            .cacheIdleTimeout(Duration.ofHours(1))
+            .repeatedFailureThreshold(repeatedFailureThreshold)
+            .recoveryLedger(ledger)
+            .build(),
         runStore);
   }
 

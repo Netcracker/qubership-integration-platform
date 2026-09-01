@@ -359,21 +359,22 @@ class CanonicalSemanticCreateChainIT {
     org.mockito.Mockito.doNothing()
         .when(pinResolver)
         .verifyPersistedPin(any(), any(ChainSemanticRevision.class));
-    return new ProductPipelineRunSupport(
-        store,
-        artifacts,
-        new StageCapabilityRegistry(
-            List.of(
-                designInputCapability(),
-                discoveryStub(),
-                UploadedSpecImportPassthrough.capability(),
-                analysisStub(),
-                designPlanningCapability(artifacts),
-                designExecutionCapability(artifacts),
-                materializationCapability(artifacts))),
-        new ProductPipelineProfileCatalog(List.of(v2Profile)),
-        pinResolver,
-        clock);
+    return ProductPipelineRunSupport.builder(
+            store,
+            artifacts,
+            new StageCapabilityRegistry(
+                List.of(
+                    designInputCapability(),
+                    discoveryStub(),
+                    UploadedSpecImportPassthrough.capability(),
+                    analysisStub(),
+                    designPlanningCapability(artifacts),
+                    designExecutionCapability(artifacts),
+                    materializationCapability(artifacts))),
+            clock)
+        .profileCatalog(new ProductPipelineProfileCatalog(List.of(v2Profile)))
+        .compilerRunPinResolver(pinResolver)
+        .build();
   }
 
   private StageCapability materializationCapability(ProductPipelineArtifactStore artifacts) {

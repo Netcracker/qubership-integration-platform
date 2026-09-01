@@ -44,12 +44,14 @@ class ProductPipelineDerivedRunTest {
         new ProductPipelineRunStore(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     runtime =
         new CreateChainTestOrchestrator(
-            new ProductPipelineRunSupport(
-                runStore,
-                artifactStore,
-                new StageCapabilityRegistry(
-                    List.of(FakeStageCapabilities.collector(), FakeStageCapabilities.finisher())),
-                Clock.fixed(FIXED, ZoneOffset.UTC)),
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(
+                            FakeStageCapabilities.collector(), FakeStageCapabilities.finisher())),
+                    Clock.fixed(FIXED, ZoneOffset.UTC))
+                .build(),
             runStore);
     try (InputStream in =
         getClass().getResourceAsStream("/product-pipelines/two-stage-approval-v1.yaml")) {

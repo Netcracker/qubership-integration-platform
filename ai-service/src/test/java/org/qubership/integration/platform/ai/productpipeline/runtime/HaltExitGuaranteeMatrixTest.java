@@ -262,16 +262,13 @@ class HaltExitGuaranteeMatrixTest {
     agent = narrativeAgent;
     profile = twoStageProfile();
     support =
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(List.of(analysisCapability(), countingPlanning())),
-            null,
-            null,
-            Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
-            null,
-            new FailureNarrative(agent, maxCalls, timeout));
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(List.of(analysisCapability(), countingPlanning())),
+                Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(new FailureNarrative(agent, maxCalls, timeout))
+            .build();
     runtime = new CreateChainTestOrchestrator(support, runStore);
     startThroughAnalysisApproval();
   }
@@ -292,17 +289,14 @@ class HaltExitGuaranteeMatrixTest {
     agent = narrativeAgent;
     profile = twoStageProfile();
     support =
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(analysisCapability(), catalogResolutionPlanning())),
-            null,
-            null,
-            Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
-            null,
-            new FailureNarrative(agent));
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(analysisCapability(), catalogResolutionPlanning())),
+                Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(new FailureNarrative(agent))
+            .build();
     runtime = new CreateChainTestOrchestrator(support, runStore);
     startThroughAnalysisApproval();
   }

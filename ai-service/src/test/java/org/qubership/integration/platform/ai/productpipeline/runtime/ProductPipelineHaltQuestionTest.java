@@ -167,16 +167,13 @@ class ProductPipelineHaltQuestionTest {
     agent = narrativeAgent;
     profile = twoStageProfile();
     support =
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(List.of(analysisCapability(), planningCapability())),
-            null,
-            null,
-            Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
-            null,
-            new FailureNarrative(agent));
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(List.of(analysisCapability(), planningCapability())),
+                Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(new FailureNarrative(agent))
+            .build();
     runtime = new CreateChainTestOrchestrator(support, runStore);
     runtime
         .startOrResume(new StartOrResumeCommand("conv-halt-question", RUN_ID, profile, manifest()))

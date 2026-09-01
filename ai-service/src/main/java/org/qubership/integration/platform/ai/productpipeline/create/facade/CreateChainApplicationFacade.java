@@ -1156,6 +1156,18 @@ public class CreateChainApplicationFacade {
     String gateId = PipelineGates.gateOf(waitPrompt).orElse("");
     String prompt = publicPrompt(waitPrompt);
     if (!prompt.isBlank()) {
+      if (PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gateId)
+          || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gateId)) {
+        ProductPipelineRunDocument doc = runStore.loadByConversation(taskId).orElse(null);
+        return new CreateChainPendingAction.Clarify(
+            prompt,
+            List.of(),
+            gateId,
+            PipelineGates.recoveryTechnicalDetailsOf(waitPrompt).orElse(""),
+            PipelineGates.recoveryRetryDelayMsOf(waitPrompt).orElse(null),
+            doc == null ? "" : doc.run().runId(),
+            doc == null ? "" : doc.run().currentStageId());
+      }
       if (PipelineGates.MAPPING_GAP.equals(gateId)) {
         MappingGapWait.View view = MappingGapWait.parse(prompt);
         return new CreateChainPendingAction.Clarify(

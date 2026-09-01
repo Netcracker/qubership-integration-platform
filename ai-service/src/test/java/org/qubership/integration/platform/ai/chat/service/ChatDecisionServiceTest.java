@@ -36,6 +36,83 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecover
 class ChatDecisionServiceTest {
 
   @Test
+  void openDecisionProjectsAContextualRetryFromServerOwnedState() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-retry"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-retry",
+                    "run-retry",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    7L,
+                    new CreateChainPendingAction.Clarify(
+                        "The provider temporarily limited requests.",
+                        List.of(),
+                        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+                        "rate_limit_exceeded",
+                        2_000L,
+                        "run-retry",
+                        "design-execution"),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-retry")
+            .orElseThrow();
+
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        decision.actions());
+    assertEquals("temporary-technical-failure", decision.recovery().category());
+    assertEquals("The provider temporarily limited requests.", decision.recovery().summary());
+    assertEquals("rate_limit_exceeded", decision.recovery().technicalDetails());
+    assertEquals(2_000L, decision.recovery().retryDelayMs());
+    assertEquals("run-retry", decision.recovery().runId());
+    assertEquals("design-execution", decision.recovery().failedStageId());
+  }
+
+  @Test
+  void semanticRetrySubmissionMapsToTheInternalRetryCommand() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    CreateChainPendingAction.Clarify pending =
+        new CreateChainPendingAction.Clarify(
+            "The provider temporarily limited requests.",
+            List.of(),
+            PipelineGates.RECOVERY_RETRY_TECHNICAL,
+            "rate_limit_exceeded",
+            null,
+            "run-retry",
+            "design-execution");
+    when(facade.snapshot("conv-retry"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-retry",
+                    "run-retry",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    7L,
+                    pending,
+                    "")));
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.RETRY_CREATION_ACTION);
+    command.setRevision(7L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-retry", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals(PipelineGates.RETRY_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
   void markerNamesTheApprovedArtifactInEnglish() {
     assertEquals(
         "Approved implementation-plan sha256:abc",

@@ -33,6 +33,13 @@ public final class PipelineGates {
   /** The current stage halted; Retry re-enters it without treating the click as new requirements. */
   public static final String STAGE_RETRY = "stage-retry";
 
+  /** A temporary dependency failure for which another create attempt can change the outcome. */
+  public static final String RECOVERY_RETRY_TECHNICAL = "recovery-retry-technical";
+
+  /** A failed execution output that can be regenerated from the approved inputs. */
+  public static final String RECOVERY_REGENERATE_EXECUTION =
+      "recovery-regenerate-execution";
+
   /**
    * The run needs one missing fact from the author. The next typed answer resumes the owning
    * producer; it is not a recoverable halt card.
@@ -81,6 +88,9 @@ public final class PipelineGates {
   private static final String DROP_ELEMENT_MARKER = "__DROP_ELEMENT_ALLOWED__";
   private static final String HALT_IDENTITY_MARKER = "__HALT_IDENTITY__";
   private static final String GUARD_MARKER = "__GUARD__";
+  private static final String RECOVERY_TECHNICAL_DETAILS_MARKER =
+      "__RECOVERY_TECHNICAL_DETAILS__";
+  private static final String RECOVERY_RETRY_DELAY_MARKER = "__RECOVERY_RETRY_DELAY_MS__";
 
   /**
    * True when {@code action} is a halt-card button (Retry or Revise). A typed follow-up is not a
@@ -96,7 +106,9 @@ public final class PipelineGates {
    * as a new request.
    */
   public static boolean isRecoverableHaltGate(String gateId) {
-    return STAGE_RETRY.equals(gateId)
+    return RECOVERY_RETRY_TECHNICAL.equals(gateId)
+        || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
+        || STAGE_RETRY.equals(gateId)
         || STAGE_REVISE.equals(gateId)
         || STAGE_INTERNAL_FAILURE.equals(gateId)
         || STAGE_ESCALATED.equals(gateId)
@@ -190,6 +202,50 @@ public final class PipelineGates {
     return text + GUARD_MARKER + guardName.trim();
   }
 
+  /** Keeps raw recovery evidence and an optional retry delay on the durable wait. */
+  public static String tagRecoveryDetails(
+      String prompt, String technicalDetails, Long retryDelayMs) {
+    String tagged = prompt == null ? "" : prompt;
+    if (technicalDetails != null && !technicalDetails.isBlank()) {
+      String encoded =
+          Base64.getUrlEncoder()
+              .withoutPadding()
+              .encodeToString(technicalDetails.getBytes(StandardCharsets.UTF_8));
+      tagged += RECOVERY_TECHNICAL_DETAILS_MARKER + encoded;
+    }
+    if (retryDelayMs != null && retryDelayMs > 0L) {
+      tagged += RECOVERY_RETRY_DELAY_MARKER + retryDelayMs;
+    }
+    return tagged;
+  }
+
+  /** Raw technical evidence stored on a contextual recovery wait. */
+  public static Optional<String> recoveryTechnicalDetailsOf(String prompt) {
+    String encoded = markerValue(prompt, RECOVERY_TECHNICAL_DETAILS_MARKER);
+    if (encoded.isBlank()) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(
+          new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8));
+    } catch (IllegalArgumentException malformed) {
+      return Optional.empty();
+    }
+  }
+
+  /** Delay before a contextual retry becomes useful. */
+  public static Optional<Long> recoveryRetryDelayMsOf(String prompt) {
+    String value = markerValue(prompt, RECOVERY_RETRY_DELAY_MARKER);
+    if (value.isBlank()) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(Long.parseLong(value));
+    } catch (NumberFormatException malformed) {
+      return Optional.empty();
+    }
+  }
+
   /** Guard recorded on a wait, or empty when the wait names none. */
   public static Optional<String> guardOf(String prompt) {
     String value = markerValue(prompt, GUARD_MARKER);
@@ -251,6 +307,8 @@ public final class PipelineGates {
     boolean drop = dropElementAllowed(prompt);
     String identity = haltIdentityOf(prompt).orElse("");
     String guard = guardOf(prompt).orElse("");
+    String technicalDetails = recoveryTechnicalDetailsOf(prompt).orElse("");
+    Long retryDelayMs = recoveryRetryDelayMsOf(prompt).orElse(null);
     String rebuilt;
     if (STAGE_ESCALATED.equals(gate)) {
       rebuilt = tagEscalated(text, owners, drop, identity);
@@ -275,7 +333,7 @@ public final class PipelineGates {
     if (!guard.isBlank()) {
       rebuilt = tagGuard(rebuilt, guard);
     }
-    return rebuilt;
+    return tagRecoveryDetails(rebuilt, technicalDetails, retryDelayMs);
   }
 
   /** Candidate stage ids encoded on an owner-choice wait, or empty. */
@@ -347,7 +405,9 @@ public final class PipelineGates {
             OWNER_CANDIDATES_MARKER,
             DROP_ELEMENT_MARKER,
             HALT_IDENTITY_MARKER,
-            GUARD_MARKER)) {
+            GUARD_MARKER,
+            RECOVERY_TECHNICAL_DETAILS_MARKER,
+            RECOVERY_RETRY_DELAY_MARKER)) {
       int next = prompt.indexOf(candidate, start);
       if (next >= 0 && next < end) {
         end = next;
@@ -363,7 +423,9 @@ public final class PipelineGates {
             OWNER_CANDIDATES_MARKER,
             DROP_ELEMENT_MARKER,
             HALT_IDENTITY_MARKER,
-            GUARD_MARKER)) {
+            GUARD_MARKER,
+            RECOVERY_TECHNICAL_DETAILS_MARKER,
+            RECOVERY_RETRY_DELAY_MARKER)) {
       int candidate = prompt.indexOf(marker);
       if (candidate >= 0 && (first < 0 || candidate < first)) {
         first = candidate;

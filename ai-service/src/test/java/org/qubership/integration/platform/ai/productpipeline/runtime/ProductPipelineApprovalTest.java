@@ -491,16 +491,14 @@ class ProductPipelineApprovalTest {
     when(catalog.require(profile.profileId(), profile.profileVersion())).thenReturn(profile);
     CreateChainTestOrchestrator restarted =
         new CreateChainTestOrchestrator(
-            new ProductPipelineRunSupport(
-                runStore,
-                artifactStore,
-                new StageCapabilityRegistry(List.of(new ScriptedCapability(validCreateChainCandidate()))),
-                catalog,
-                null,
-                Clock.fixed(FIXED, ZoneOffset.UTC),
-                null,
-                null,
-                null),
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(new ScriptedCapability(validCreateChainCandidate()))),
+                    Clock.fixed(FIXED, ZoneOffset.UTC))
+                .profileCatalog(catalog)
+                .build(),
             runStore);
 
     restarted
@@ -549,16 +547,13 @@ class ProductPipelineApprovalTest {
     when(catalog.require(profile.profileId(), profile.profileVersion())).thenReturn(profile);
     CreateChainTestOrchestrator restarted =
         new CreateChainTestOrchestrator(
-            new ProductPipelineRunSupport(
-                runStore,
-                artifactStore,
-                new StageCapabilityRegistry(List.of(capability)),
-                catalog,
-                null,
-                Clock.fixed(FIXED, ZoneOffset.UTC),
-                null,
-                null,
-                null),
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(List.of(capability)),
+                    Clock.fixed(FIXED, ZoneOffset.UTC))
+                .profileCatalog(catalog)
+                .build(),
             runStore);
     restarted
         .startOrResume(
@@ -641,15 +636,15 @@ class ProductPipelineApprovalTest {
   private void configureRuntime(
       ProductPipelineProfile profile, StageCapability capability, S3Service s3Service) {
     runtime =
-        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(List.of(capability)),
-            null,
-            null,
-            Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
-            s3Service), runStore);
+        new CreateChainTestOrchestrator(
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(List.of(capability)),
+                    Clock.fixed(FIXED, ZoneOffset.UTC))
+                .s3Service(s3Service)
+                .build(),
+            runStore);
     this.profile = profile;
   }
 

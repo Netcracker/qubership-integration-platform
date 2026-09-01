@@ -207,16 +207,13 @@ class ProductPipelineApprovalQuestionTest {
     agent = narrativeAgent;
     profile = singleGatedStageProfile();
     ProductPipelineRunSupport support =
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(List.of(analysisCapability())),
-            null,
-            null,
-            Clock.fixed(FIXED, ZoneOffset.UTC),
-            null,
-            null,
-            new FailureNarrative(agent, maxCalls, timeout));
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(List.of(analysisCapability())),
+                Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(new FailureNarrative(agent, maxCalls, timeout))
+            .build();
     runtime = new CreateChainTestOrchestrator(support, runStore);
     runtime
         .startOrResume(

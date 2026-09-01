@@ -83,6 +83,8 @@ class PipelineGatesTest {
 
   @Test
   void everyHaltGateIsRecoverableAndAQuestionGateIsNot() {
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_RETRY_TECHNICAL));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_REGENERATE_EXECUTION));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_RETRY));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_REVISE));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_INTERNAL_FAILURE));
@@ -90,6 +92,24 @@ class PipelineGatesTest {
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.OWNER_CHOICE));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_CLARIFICATION));
     assertFalse(PipelineGates.isRecoverableHaltGate(PipelineGates.MAPPING_GAP));
+  }
+
+  @Test
+  void contextualRecoveryKeepsTechnicalDetailsAndDelayOutOfTheReaderSummary() {
+    String tagged =
+        PipelineGates.tagRecoveryDetails(
+            PipelineGates.tag(
+                PipelineGates.RECOVERY_RETRY_TECHNICAL,
+                "The provider temporarily limited requests."),
+            "rate_limit_exceeded: Try again in 2 seconds.",
+            2_000L);
+
+    assertEquals(
+        "The provider temporarily limited requests.", PipelineGates.strip(tagged));
+    assertEquals(
+        "rate_limit_exceeded: Try again in 2 seconds.",
+        PipelineGates.recoveryTechnicalDetailsOf(tagged).orElseThrow());
+    assertEquals(2_000L, PipelineGates.recoveryRetryDelayMsOf(tagged).orElseThrow());
   }
 
   @Test

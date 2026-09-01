@@ -348,12 +348,22 @@ class CreateChainProductPipelineRestartIT {
   }
 
   private CreateChainTestOrchestrator runtimeWith(StageCapability materialization) {
-    return new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-        runStore,
-        artifactStore,
-        new StageCapabilityRegistry(List.of(discovery(), importStage(), UploadedSpecImportPassthrough.capability(), analysis(), planning(), materialization)),
-        new ProductPipelineProfileCatalog(List.of(createChainProfile)),
-        clock), runStore);
+    return new CreateChainTestOrchestrator(
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(
+                        discovery(),
+                        importStage(),
+                        UploadedSpecImportPassthrough.capability(),
+                        analysis(),
+                        planning(),
+                        materialization)),
+                clock)
+            .profileCatalog(new ProductPipelineProfileCatalog(List.of(createChainProfile)))
+            .build(),
+        runStore);
   }
 
   private String runToWaitingForImplement(CreateChainTestOrchestrator runtime) {

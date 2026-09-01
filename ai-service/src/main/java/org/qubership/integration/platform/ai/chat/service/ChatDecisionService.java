@@ -241,6 +241,8 @@ public class ChatDecisionService {
           case ChatEvent.UNDEPLOY_ACTION -> "Undeploy the chain from domain " + domainName;
           case ChatEvent.CANCEL_UNDEPLOY_ACTION -> "Leave the live deployment in place";
           case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
+          case ChatEvent.RETRY_CREATION_ACTION -> "Retry chain creation";
+          case PipelineGates.STOP_WITH_REPORT_ACTION -> "End the run and keep its report";
           case ChatEvent.SESSION_LOGGING_OFF_ACTION -> "Set session logging to Off";
           case ChatEvent.SESSION_LOGGING_ERROR_ACTION -> "Set session logging to Error";
           case ChatEvent.SESSION_LOGGING_INFO_ACTION -> "Set session logging to Info";
@@ -334,17 +336,20 @@ public class ChatDecisionService {
         || command.getRevision() != open.get().revision()) {
       return openGateEvents(conversationId);
     }
+    String pipelineAction =
+        ChatEvent.RETRY_CREATION_ACTION.equals(action) ? PipelineGates.RETRY_ACTION : action;
     return facade
         .continueWithInput(
             new ContinueCreateChainCommand(
-                conversationId, action, UUID.randomUUID().toString(), InputOrigin.TRUSTED))
+                conversationId, pipelineAction, UUID.randomUUID().toString(), InputOrigin.TRUSTED))
         .onItem()
         .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
         .onCompletion()
         .switchTo(() -> openGateEvents(conversationId))
         .onCompletion()
         .ifEmpty()
-        .switchTo(() -> Multi.createFrom().item(ChatEvent.token(haltResumeProgress(action))));
+        .switchTo(
+            () -> Multi.createFrom().item(ChatEvent.token(haltResumeProgress(pipelineAction))));
   }
 
   /**
@@ -364,6 +369,8 @@ public class ChatDecisionService {
   private static boolean isPipelineInputAction(String action) {
     return ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(action)
         || ChatEvent.MAPPING_GAP_ACTIONS.contains(action)
+        || ChatEvent.RETRY_CREATION_ACTION.equals(action)
+        || PipelineGates.STOP_WITH_REPORT_ACTION.equals(action)
         || PipelineGates.isHaltCardAction(action);
   }
 

@@ -1,5 +1,5 @@
 import { Button, Input, List, Space, Typography } from "antd";
-import React, { useRef, useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import type { ChatDecision } from "../../ai/modelProviders/types.ts";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 import {
@@ -38,6 +38,8 @@ const ACTION_LABELS: Record<string, string> = {
   describe_mappings: "Describe mappings",
   retry: "Retry",
   revise: "Revise",
+  "retry-creation": "Retry creation",
+  "stop-with-report": "End run and keep report",
 };
 
 /**
@@ -63,6 +65,8 @@ const COMMAND_ACTIONS = new Set([
   "session-logging-info",
   "session-logging-debug",
   "import-specification",
+  "retry-creation",
+  "stop-with-report",
 ]);
 
 /** Actions that run the primary command of their gate. */
@@ -81,6 +85,7 @@ const PRIMARY_ACTIONS = new Set([
   "pass_through",
   "retry",
   "revise",
+  "retry-creation",
 ]);
 
 function actionLabel(action: string): string {
@@ -140,6 +145,8 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
     isClarify && decision.actions.includes("pass_through");
   const isFreeTextClarify = isClarify && decision.actions.length === 0;
   const answeredAction = decision.answeredAction;
+  const titleId = useId();
+  const summaryId = useId();
   const [text, setText] = useState("");
   // Guards against a double click sending the answer twice before `busy` catches up.
   const clickedRef = useRef(false);
@@ -172,6 +179,77 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   const cardText = decisionCardText(decision);
   const missingEvidence = visibleMissingEvidence(decision);
   const showTextArea = isFreeTextClarify || isMappingGapClarify || !isClarify;
+
+  const recoveryDetails = decision.recovery
+    ? [
+        decision.recovery.technicalDetails
+          ? `Raw error: ${decision.recovery.technicalDetails}`
+          : "",
+        decision.recovery.failedStageId
+          ? `Internal stage: ${decision.recovery.failedStageId}`
+          : "",
+        decision.recovery.runId ? `Run identifier: ${decision.recovery.runId}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+  const retryDelaySeconds = decision.recovery?.retryDelayMs
+    ? Math.ceil(decision.recovery.retryDelayMs / 1000)
+    : 0;
+
+  if (decision.recovery) {
+    return (
+      <div
+        className="ai-decision-card ai-decision-card--recovery"
+        data-decision-id={decision.id}
+        role="alert"
+        aria-labelledby={titleId}
+        aria-describedby={summaryId}
+      >
+        <Typography.Title id={titleId} level={5}>
+          {decision.recovery.title}
+        </Typography.Title>
+        <div id={summaryId} className="ai-decision-card__recovery-summary">
+          <MarkdownRenderer>{decision.recovery.summary}</MarkdownRenderer>
+          <Typography.Paragraph>
+            {decision.recovery.preservedWork}
+          </Typography.Paragraph>
+          {retryDelaySeconds > 0 ? (
+            <Typography.Text type="secondary">
+              Retry in {retryDelaySeconds} {retryDelaySeconds === 1 ? "second" : "seconds"}.
+            </Typography.Text>
+          ) : null}
+        </div>
+
+        {recoveryDetails ? (
+          <details className="ai-decision-card__technical-details">
+            <summary>Technical details</summary>
+            <pre>{recoveryDetails}</pre>
+          </details>
+        ) : null}
+
+        {answeredAction !== undefined ? (
+          <Typography.Text type="secondary">
+            {answeredLabel(decision)}
+          </Typography.Text>
+        ) : (
+          <Space className="ai-decision-card__actions" wrap>
+            {decision.actions.map((action) => (
+              <Button
+                key={action}
+                size="small"
+                type={PRIMARY_ACTIONS.has(action) ? "primary" : "default"}
+                disabled={disabled}
+                onClick={() => handleClick(action)}
+              >
+                {actionLabel(action)}
+              </Button>
+            ))}
+          </Space>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="ai-decision-card" data-decision-id={decision.id}>
@@ -216,7 +294,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
               disabled={disabled}
             />
           ) : null}
-          <Space style={{ marginTop: 8 }}>
+          <Space className="ai-decision-card__actions" wrap>
             {isFreeTextClarify ? (
               <Button
                 size="small"

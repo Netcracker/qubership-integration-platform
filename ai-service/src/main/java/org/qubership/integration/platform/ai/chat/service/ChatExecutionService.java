@@ -458,6 +458,9 @@ public class ChatExecutionService {
     if (!decision.missingEvidence().isEmpty()) {
       payload.put("missingEvidence", decision.missingEvidence());
     }
+    if (decision.recovery() != null) {
+      payload.put("recovery", decision.recovery());
+    }
     return payload;
   }
 

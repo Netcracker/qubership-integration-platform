@@ -83,12 +83,15 @@ class ProductPipelineRefineReapproveTest {
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     profile = createProfile();
     runtime =
-        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(discovery(), importStage(), analysis(), planning())),
-            Clock.fixed(FIXED, ZoneOffset.UTC)), runStore);
+        new CreateChainTestOrchestrator(
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(discovery(), importStage(), analysis(), planning())),
+                    Clock.fixed(FIXED, ZoneOffset.UTC))
+                .build(),
+            runStore);
   }
 
   @Test

@@ -312,6 +312,49 @@ describe("AiDecisionCard", () => {
     expect(onSubmitClarification).toHaveBeenCalledWith("retry");
   });
 
+  it("should render a contextual retry with collapsed technical details and semantic actions", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "The provider temporarily limited requests.",
+      actions: ["retry-creation", "stop-with-report"],
+      recovery: {
+        category: "temporary-technical-failure",
+        title: "Creation paused temporarily",
+        summary: "The provider temporarily limited requests.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails: "rate_limit_exceeded",
+        retryDelayMs: 2_000,
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByRole("alert")).toHaveAttribute("aria-labelledby");
+    expect(screen.getByText("Creation paused temporarily")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements and plan are saved."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Retry in 2 seconds.")).toBeInTheDocument();
+    const details = screen.getByText("Technical details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+
+    fireEvent.click(screen.getByText("Technical details"));
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByText(/rate_limit_exceeded/)).toBeInTheDocument();
+
+    const retry = screen.getByRole("button", { name: "Retry creation" });
+    expect(retry.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(retry);
+
+    expect(onAnswer).toHaveBeenCalledWith("retry-creation", "");
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
   it("should send deployment follow-up buttons as typed decisions", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();

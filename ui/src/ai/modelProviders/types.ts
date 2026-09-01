@@ -34,6 +34,19 @@ export interface ChatDecision {
   missingEvidence?: string[];
   /** Actions the gate accepts, in display order, e.g. ["approve", "request-changes"]. */
   actions: string[];
+  /** Contextual create-chain recovery authored and routed by the server. */
+  recovery?: {
+    category:
+      | "temporary-technical-failure"
+      | "regeneratable-execution-failure";
+    title: string;
+    summary: string;
+    preservedWork: string;
+    technicalDetails: string;
+    retryDelayMs?: number;
+    runId?: string;
+    failedStageId?: string;
+  };
   /** Set once the reader answered; the card then renders frozen. */
   answeredAction?: string;
 }
