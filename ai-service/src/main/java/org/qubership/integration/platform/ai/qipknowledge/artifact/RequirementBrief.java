@@ -17,7 +17,6 @@ public record RequirementBrief(
     String approvedDraftReference,
     String approvedDraftText,
     List<RequirementFact> facts,
-    List<RequirementDataMapping> dataMappings,
     List<RequirementEntryPoint> entryPoints,
     List<RequirementServiceCall> serviceCalls,
     List<RequirementFact> requirements,
@@ -31,7 +30,6 @@ public record RequirementBrief(
     assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);
     citations = citations == null ? List.of() : List.copyOf(citations);
     facts = facts == null ? List.of() : List.copyOf(facts);
-    dataMappings = dataMappings == null ? List.of() : List.copyOf(dataMappings);
     entryPoints = entryPoints == null ? List.of() : List.copyOf(entryPoints);
     serviceCalls = serviceCalls == null ? List.of() : List.copyOf(serviceCalls);
     requirements = requirements == null ? List.of() : List.copyOf(requirements);
@@ -58,7 +56,6 @@ public record RequirementBrief(
       String approvedDraftReference,
       String approvedDraftText,
       List<RequirementFact> facts,
-      List<RequirementDataMapping> dataMappings,
       List<RequirementEntryPoint> entryPoints,
       List<RequirementServiceCall> serviceCalls,
       List<RequirementFact> requirements,
@@ -73,41 +70,11 @@ public record RequirementBrief(
         approvedDraftReference,
         approvedDraftText,
         facts,
-        dataMappings,
         entryPoints,
         serviceCalls,
         requirements,
         mappingIntents,
         RequirementFlow.EMPTY,
-        List.of());
-  }
-
-  /** Compatibility constructor used while v2 roles are projected beside legacy facts. */
-  public RequirementBrief(
-      String goal,
-      List<String> inputs,
-      List<String> constraints,
-      List<String> assumptions,
-      List<QipKnowledgeCitation> citations,
-      String summary,
-      String approvedDraftReference,
-      String approvedDraftText,
-      List<RequirementFact> facts,
-      List<RequirementDataMapping> dataMappings) {
-    this(
-        goal,
-        inputs,
-        constraints,
-        assumptions,
-        citations,
-        summary,
-        approvedDraftReference,
-        approvedDraftText,
-        facts,
-        dataMappings,
-        List.of(),
-        List.of(),
-        List.of(),
         List.of());
   }
 
@@ -135,6 +102,34 @@ public record RequirementBrief(
         List.of());
   }
 
+  /** Facts plus mapping intents; roles are still projected from the approved flow. */
+  public RequirementBrief(
+      String goal,
+      List<String> inputs,
+      List<String> constraints,
+      List<String> assumptions,
+      List<QipKnowledgeCitation> citations,
+      String summary,
+      String approvedDraftReference,
+      String approvedDraftText,
+      List<RequirementFact> facts,
+      List<MappingIntent> mappingIntents) {
+    this(
+        goal,
+        inputs,
+        constraints,
+        assumptions,
+        citations,
+        summary,
+        approvedDraftReference,
+        approvedDraftText,
+        facts,
+        List.of(),
+        List.of(),
+        List.of(),
+        mappingIntents);
+  }
+
   /** Legacy constructor without draft reference or normalized facts. */
   public RequirementBrief(
       String goal,
@@ -143,19 +138,12 @@ public record RequirementBrief(
       List<String> assumptions,
       List<QipKnowledgeCitation> citations,
       String summary) {
-    this(goal, inputs, constraints, assumptions, citations, summary, null, "", List.of(), List.of());
+    this(goal, inputs, constraints, assumptions, citations, summary, null, "", List.of());
   }
 
   public RequirementBrief withFacts(List<RequirementFact> facts) {
     return copy(
-        facts,
-        dataMappings,
-        entryPoints,
-        serviceCalls,
-        requirements,
-        mappingIntents,
-        flow,
-        catalogBindings);
+        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
   }
 
   public RequirementBrief withApprovedDraftText(String approvedDraftText) {
@@ -169,7 +157,6 @@ public record RequirementBrief(
         approvedDraftReference,
         approvedDraftText,
         facts,
-        dataMappings,
         entryPoints,
         serviceCalls,
         requirements,
@@ -180,67 +167,26 @@ public record RequirementBrief(
 
   public RequirementBrief withServiceCalls(List<RequirementServiceCall> serviceCalls) {
     return copy(
-        facts,
-        dataMappings,
-        entryPoints,
-        serviceCalls,
-        requirements,
-        mappingIntents,
-        flow,
-        catalogBindings);
-  }
-
-  public RequirementBrief withDataMappings(List<RequirementDataMapping> dataMappings) {
-    return copy(
-        facts,
-        dataMappings,
-        entryPoints,
-        serviceCalls,
-        requirements,
-        mappingIntents,
-        flow,
-        catalogBindings);
+        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
   }
 
   public RequirementBrief withMappingIntents(List<MappingIntent> mappingIntents) {
     return copy(
-        facts,
-        dataMappings,
-        entryPoints,
-        serviceCalls,
-        requirements,
-        mappingIntents,
-        flow,
-        catalogBindings);
+        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
   }
 
   public RequirementBrief withFlow(RequirementFlow flow) {
     return copy(
-        facts,
-        dataMappings,
-        entryPoints,
-        serviceCalls,
-        requirements,
-        mappingIntents,
-        flow,
-        catalogBindings);
+        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
   }
 
   public RequirementBrief withCatalogBindings(List<CatalogBindingHint> catalogBindings) {
     return copy(
-        facts,
-        dataMappings,
-        entryPoints,
-        serviceCalls,
-        requirements,
-        mappingIntents,
-        flow,
-        catalogBindings);
+        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
   }
 
   private RequirementBrief copy(
       List<RequirementFact> facts,
-      List<RequirementDataMapping> dataMappings,
       List<RequirementEntryPoint> entryPoints,
       List<RequirementServiceCall> serviceCalls,
       List<RequirementFact> requirements,
@@ -257,7 +203,6 @@ public record RequirementBrief(
         approvedDraftReference,
         approvedDraftText,
         facts,
-        dataMappings,
         entryPoints,
         serviceCalls,
         requirements,

@@ -68,7 +68,6 @@ final class ChainSemanticCaptureFixtures {
                 "",
                 "",
                 "call-1")),
-        List.of(),
         List.of(
             new RequirementEntryPoint(
                 "http-in", "trigger-1", "http-trigger", "", "POST", "/orders", "createOrder")),
@@ -136,7 +135,6 @@ final class ChainSemanticCaptureFixtures {
                 "",
                 "",
                 "consume-om")),
-        List.of(),
         List.of(
             new RequirementEntryPoint(
                 "async-in",

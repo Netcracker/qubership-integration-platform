@@ -52,7 +52,6 @@ public final class MappingContractGate {
             "",
             null,
             "",
-            List.of(),
             List.of())
             .withMappingIntents(List.of(validated.get()));
     return BriefMappingValidator.unresolvedRequiredMessage(brief);

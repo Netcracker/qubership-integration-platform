@@ -21,7 +21,6 @@ import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
-import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
@@ -92,7 +91,7 @@ public class ChainSemanticCaptureAdapter {
     Objects.requireNonNull(brief, "brief");
     Objects.requireNonNull(contract, "contract");
 
-    RequirementBrief authoritative = LegacyStageMappingAdapter.ensureIntents(brief);
+    RequirementBrief authoritative = brief;
     Set<String> factIds = factIds(authoritative);
     Map<String, RequirementEntryPoint> briefEntryPoints = briefEntryPoints(authoritative);
     Map<String, RequirementServiceCall> briefServiceCalls = briefServiceCalls(authoritative);

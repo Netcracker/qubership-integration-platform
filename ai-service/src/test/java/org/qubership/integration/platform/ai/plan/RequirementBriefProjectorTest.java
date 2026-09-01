@@ -12,7 +12,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -45,92 +44,78 @@ class RequirementBriefProjectorTest {
   }
 
   @Test
-  void projectsExplicitMappingsAndOmitsPassThroughRowsFromIntents() {
-    RequirementDataMapping explicit =
-        new RequirementDataMapping(
-            "map-init",
-            RequirementDataMapping.Stage.INITIALIZATION,
-            "trigger-1",
-            "call-1",
-            RequirementDataMapping.Mode.EXPLICIT,
-            List.of(new RequirementDataMapping.Rule("$.id", "$.petId", null)),
-            List.of("trigger-1"));
-    RequirementDataMapping passThrough =
-        new RequirementDataMapping(
-            "map-resp",
-            RequirementDataMapping.Stage.RESPONSE,
-            "call-1",
-            "trigger-1",
-            RequirementDataMapping.Mode.PASS_THROUGH,
-            List.of(),
-            List.of("call-1"));
+  void overwritesCapturedPortsFromFlowDirections() {
+    MappingIntent capturedWrongPorts =
+        new MappingIntent(
+            "response-create-task-to-task-result",
+            "create-task",
+            MappingPort.OUTPUT,
+            "task-result",
+            MappingPort.OUTPUT,
+            List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
     RequirementBrief projected =
         RequirementBriefProjector.project(
-            new RequirementBrief(
-                "Orders",
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                "Map the request only",
-                "ref",
-                "draft",
-                List.of(),
-                List.of(explicit, passThrough)));
+            rockyBriefCandidate().withMappingIntents(List.of(capturedWrongPorts)));
 
-    assertEquals(
-        List.of(
-            new MappingIntent(
-                "map-init",
-                "trigger-1",
-                MappingPort.OUTPUT,
-                "call-1",
-                MappingPort.REQUEST,
-                List.of(
-                    new MappingIntentRule(
-                        "$.id", "$.petId", null, MappingRuleStatus.PROPOSED)))),
-        projected.mappingIntents());
-    assertEquals(List.of(explicit, passThrough), projected.dataMappings());
+    MappingIntent mapping = projected.mappingIntents().getFirst();
+    assertEquals("create-task", mapping.sourceRef());
+    assertEquals(MappingPort.RESPONSE, mapping.sourcePort());
+    assertEquals("task-result", mapping.targetRef());
+    assertEquals(MappingPort.REQUEST, mapping.targetPort());
+  }
+
+  @Test
+  void projectsExplicitMappingsAndOmitsPassThroughRowsFromIntents() {
+    MappingIntent explicit =
+        new MappingIntent(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.id", "$.petId", null, MappingRuleStatus.PROPOSED)));
+    MappingIntent passThrough =
+        new MappingIntent(
+            "map-resp",
+            "call-1",
+            MappingPort.RESPONSE,
+            "trigger-1",
+            MappingPort.OUTPUT,
+            List.of());
+    RequirementBrief projected =
+        RequirementBriefProjector.project(briefWithIntents(List.of(explicit, passThrough)));
+
+    assertEquals(List.of(explicit), projected.mappingIntents());
   }
 
   @Test
   void groupsFiveRulesAtOneBoundaryAndOmitsIdentityOnlyAuto() {
-    RequirementDataMapping fiveRules =
-        new RequirementDataMapping(
+    MappingIntent fiveRules =
+        new MappingIntent(
             "map-init",
-            RequirementDataMapping.Stage.INITIALIZATION,
             "trigger-1",
+            MappingPort.OUTPUT,
             "call-1",
-            RequirementDataMapping.Mode.EXPLICIT,
+            MappingPort.REQUEST,
             List.of(
-                new RequirementDataMapping.Rule("$.orderId", "$.orderId", null),
-                new RequirementDataMapping.Rule("$.userId", "$.personId", null),
-                new RequirementDataMapping.Rule("$.name", "$.fullName", null),
-                new RequirementDataMapping.Rule("$.createdAt", "$.registrationDate", null),
-                new RequirementDataMapping.Rule("$.status", "$.state", null)),
-            List.of("trigger-1"));
-    RequirementDataMapping identityOnly =
-        new RequirementDataMapping(
+                new MappingIntentRule("$.orderId", "$.orderId", null, MappingRuleStatus.AUTO),
+                new MappingIntentRule("$.userId", "$.personId", null, MappingRuleStatus.PROPOSED),
+                new MappingIntentRule("$.name", "$.fullName", null, MappingRuleStatus.PROPOSED),
+                new MappingIntentRule(
+                    "$.createdAt", "$.registrationDate", null, MappingRuleStatus.PROPOSED),
+                new MappingIntentRule("$.status", "$.state", null, MappingRuleStatus.PROPOSED)));
+    MappingIntent identityOnly =
+        new MappingIntent(
             "map-resp",
-            RequirementDataMapping.Stage.RESPONSE,
             "call-1",
+            MappingPort.RESPONSE,
             "trigger-1",
-            RequirementDataMapping.Mode.EXPLICIT,
-            List.of(new RequirementDataMapping.Rule("$.id", "$.id", null)),
-            List.of("call-1"));
+            MappingPort.OUTPUT,
+            List.of(new MappingIntentRule("$.id", "$.id", null, MappingRuleStatus.AUTO)));
     RequirementBrief projected =
-        RequirementBriefProjector.project(
-            new RequirementBrief(
-                "Orders",
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                "Map the request only",
-                "ref",
-                "draft",
-                List.of(),
-                List.of(fiveRules, identityOnly)));
+        RequirementBriefProjector.project(briefWithIntents(List.of(fiveRules, identityOnly)));
 
     assertEquals(1, projected.mappingIntents().size());
     MappingIntent intent = projected.mappingIntents().getFirst();
@@ -569,7 +554,6 @@ class RequirementBriefProjectorTest {
         "ref",
         "draft",
         facts,
-        List.of(),
         List.of(),
         serviceCalls,
         List.of(),

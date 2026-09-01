@@ -116,7 +116,6 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
@@ -1646,20 +1645,7 @@ class CreateChainSharedDesignRuntimeIT {
                 "http-service-call",
                 "List pets from Petstore Ext",
                 "Petstore Ext",
-                "GET /pets")),
-        List.of(
-            mapping(
-                "map-init",
-                RequirementDataMapping.Stage.INITIALIZATION,
-                "trigger-1",
-                "call-1",
-                RequirementDataMapping.Mode.PASS_THROUGH),
-            mapping(
-                "map-response",
-                RequirementDataMapping.Stage.RESPONSE,
-                "call-1",
-                "trigger-1",
-                RequirementDataMapping.Mode.PASS_THROUGH)));
+                "GET /pets")));
   }
 
   private static RequirementBrief briefMissingMappings() {
@@ -1685,8 +1671,7 @@ class CreateChainSharedDesignRuntimeIT {
                 "http-service-call",
                 "List pets from Petstore Ext",
                 "Petstore Ext",
-                "GET /pets")),
-        List.of());
+                "GET /pets")));
   }
 
   private static RequirementFact fact(
@@ -1744,15 +1729,6 @@ class CreateChainSharedDesignRuntimeIT {
         "",
         "",
         serviceCallId);
-  }
-
-  private static RequirementDataMapping mapping(
-      String id,
-      RequirementDataMapping.Stage stage,
-      String from,
-      String to,
-      RequirementDataMapping.Mode mode) {
-    return new RequirementDataMapping(id, stage, from, to, mode, List.of(), List.of(id));
   }
 
   private static String singleApiHubHitJson() {

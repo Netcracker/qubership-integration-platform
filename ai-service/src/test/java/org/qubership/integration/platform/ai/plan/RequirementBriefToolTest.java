@@ -8,11 +8,17 @@ import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
+import io.smallrye.mutiny.Context;
+import io.smallrye.mutiny.Multi;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessageBuilder;
@@ -23,9 +29,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -221,75 +225,15 @@ class RequirementBriefToolTest {
   }
 
   @Test
-  void storesTypedDataMappingsWhenProvided() {
-    org.jboss.logmanager.MDC.put(
-        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
-
-    RequirementDataMapping initialization =
-        new RequirementDataMapping(
-            "map-init",
-            RequirementDataMapping.Stage.INITIALIZATION,
-            "trigger-1",
-            "call-1",
-            RequirementDataMapping.Mode.EXPLICIT,
-            List.of(new RequirementDataMapping.Rule("$.id", "$.customerId", null)),
-            List.of("fact-init"));
-    RequirementDataMapping conversion =
-        new RequirementDataMapping(
-            "map-conv",
-            RequirementDataMapping.Stage.CONVERSION,
-            "call-1",
-            "call-2",
-            RequirementDataMapping.Mode.EXPLICIT,
-            List.of(new RequirementDataMapping.Rule("$.a", "$.b", null)),
-            List.of("fact-conv"));
-    RequirementDataMapping response =
-        new RequirementDataMapping(
-            "map-resp",
-            RequirementDataMapping.Stage.RESPONSE,
-            "call-2",
-            "trigger-1",
-            RequirementDataMapping.Mode.PASS_THROUGH,
-            List.of(),
-            List.of("fact-resp"));
-
-    String result =
-        tool.captureRequirementBrief(
-            new RequirementBriefCapture(
-                "Order flow",
-                List.of(),
-                List.of(),
-                List.of(),
-                "Two calls with mappings",
-                null,
-                null,
-                List.of(),
-                List.of(),
-                List.of(initialization, conversion, response)));
-
-    assertTrue(result.contains("Requirement brief captured"), result);
-    RequirementBrief brief = getBrief("conv-brief").orElseThrow();
-    assertEquals(List.of(initialization, conversion, response), brief.dataMappings());
-    assertEquals(2, brief.mappingIntents().size());
-    assertEquals("map-init", brief.mappingIntents().getFirst().mappingIntentId());
-    assertEquals("map-conv", brief.mappingIntents().get(1).mappingIntentId());
-    assertEquals(
-        MappingRuleStatus.PROPOSED,
-        brief.mappingIntents().getFirst().rules().getFirst().status());
-  }
-
-  @Test
   void storesTypedMappingIntentsFromCapture() {
     org.jboss.logmanager.MDC.put(
         org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
 
-    MappingIntent intent =
-        new MappingIntent(
+    CapturedMappingIntent intent =
+        new CapturedMappingIntent(
             "map-request",
             "trigger-onTaskStart",
-            MappingPort.OUTPUT,
             "call-salesforce-createTask",
-            MappingPort.REQUEST,
             List.of(new MappingIntentRule("name", "Subject", null)));
 
     String result =
@@ -304,7 +248,6 @@ class RequirementBriefToolTest {
                 null,
                 List.of(),
                 List.of(),
-                List.of(),
                 List.of(intent)));
 
     assertTrue(result.contains("Requirement brief captured"), result);
@@ -316,19 +259,86 @@ class RequirementBriefToolTest {
   }
 
   @Test
-  void identityOnlyAutoDoesNotCreateMappingIntent() {
+  void assignsPortsFromApprovedRockyFlowWhenCaptureOmitsThem() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    CatalogBindingHint createHint =
+        catalogHint(
+            "create-task",
+            "create-task",
+            "createTask",
+            "sys-sf",
+            "sg-sf",
+            "spec-sf",
+            "op-create",
+            observedAt);
+    CatalogBindingHint resultHint =
+        catalogHint(
+            "task-result",
+            "task-result",
+            "onTaskResult",
+            "sys-om",
+            "sg-om",
+            "spec-om",
+            "op-result",
+            observedAt);
+    RequirementDraft approved =
+        readyDraft(
+            "Consume onTaskStart, create a Salesforce task, publish onTaskResult",
+            List.of(),
+            new RequirementFlow(
+                List.of(
+                    new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+                    new Interaction(
+                        "create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+                    new Interaction("task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                List.of(
+                    new Transition("task-start", "create-task"),
+                    new Transition("create-task", "task-result"))),
+            List.of(createHint, resultHint));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-brief", approved);
+    tool =
+        new RequirementBriefTool(
+            captureSession,
+            draftStore,
+            new ObjectMapper(),
+            feedbackStore,
+            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
     org.jboss.logmanager.MDC.put(
         org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
 
-    RequirementDataMapping identity =
-        new RequirementDataMapping(
-            "map-init",
-            RequirementDataMapping.Stage.INITIALIZATION,
-            "trigger-1",
-            "call-1",
-            RequirementDataMapping.Mode.EXPLICIT,
-            List.of(new RequirementDataMapping.Rule("$.id", "$.id", null)),
-            List.of("fact-init"));
+    CapturedMappingIntent captured =
+        new CapturedMappingIntent(
+            "response-create-task-to-task-result",
+            "create-task",
+            "task-result",
+            List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
+    String result =
+        tool.captureRequirementBrief(
+            new RequirementBriefCapture(
+                "OM to Salesforce WFM",
+                List.of(),
+                List.of(),
+                List.of(),
+                "Map the createTask response into onTaskResult.",
+                null,
+                approved.planningText(),
+                List.of(),
+                List.of(),
+                List.of(captured)));
+
+    assertTrue(result.contains("Requirement brief captured"), result);
+    MappingIntent mapping = getBrief("conv-brief").orElseThrow().mappingIntents().getFirst();
+    assertEquals("create-task", mapping.sourceRef());
+    assertEquals(MappingPort.RESPONSE, mapping.sourcePort());
+    assertEquals("task-result", mapping.targetRef());
+    assertEquals(MappingPort.REQUEST, mapping.targetPort());
+  }
+
+  @Test
+  void emptyMappingIntentsStayPassThrough() {
+    org.jboss.logmanager.MDC.put(
+        org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
 
     String result =
         tool.captureRequirementBrief(
@@ -337,16 +347,10 @@ class RequirementBriefToolTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                "Identity copy only",
-                null,
-                null,
-                List.of(),
-                List.of(),
-                List.of(identity)));
+                "Identity copy only"));
 
     assertTrue(result.contains("Requirement brief captured"), result);
     RequirementBrief brief = getBrief("conv-brief").orElseThrow();
-    assertEquals(List.of(identity), brief.dataMappings());
     assertTrue(brief.mappingIntents().isEmpty());
   }
 
@@ -420,7 +424,7 @@ class RequirementBriefToolTest {
     assertEquals(1, brief.serviceCalls().size());
     assertEquals("Petstore Ext", brief.serviceCalls().getFirst().participant());
     assertTrue(brief.mappingIntents().isEmpty());
-    assertTrue(brief.dataMappings().isEmpty());
+    assertTrue(brief.mappingIntents().isEmpty());
   }
 
   @Test
@@ -583,18 +587,60 @@ class RequirementBriefToolTest {
             .getAnnotation(Tool.class);
     String description = String.join("\n", tool.value());
 
-    assertTrue(description.contains("\"dataMappings\": []"), description);
+    assertFalse(description.contains("dataMappings"), description);
+    assertFalse(description.contains("stage"), description);
+    assertFalse(description.contains("sourcePort"), description);
     assertTrue(description.contains("projected outbound interactions"), description);
     assertTrue(description.contains("interactionId values"), description);
     assertTrue(description.contains("Omit facts when an approved draft exists"), description);
-    assertTrue(description.contains("stage"), description);
-    assertTrue(description.contains("sourceFactId"), description);
+    assertTrue(description.contains("mappingIntents"), description);
+    assertTrue(description.contains("the server assigns them"), description);
     assertFalse(description.contains("no positive SERVICE_CALL"), description);
     assertFalse(description.contains("If you emit a SERVICE_CALL fact"), description);
   }
 
   @Test
-  void absentDataMappingsCaptureAsEmptyList() {
+  void captureRequirementBriefOnWorkerAfterPropagateBindingResolvesConversationId()
+      throws Exception {
+    ExecutorService worker = Executors.newSingleThreadExecutor();
+    worker.submit(ToolSession::clear).get();
+    ToolSession.bind("conv-worker-brief");
+    Context toolContext = ToolSession.attachedContext();
+    AtomicReference<String> result = new AtomicReference<>();
+    try {
+      ToolSession.propagateBinding(
+              toolContext,
+              Multi.createFrom()
+                  .item("go")
+                  .onItem()
+                  .invoke(
+                      ignored ->
+                          result.set(
+                              tool.captureRequirementBrief(
+                                  new RequirementBriefCapture(
+                                      "Greeting endpoint",
+                                      List.of(),
+                                      List.of(),
+                                      List.of(),
+                                      "summary"))))
+                  .runSubscriptionOn(worker))
+          .collect()
+          .asList()
+          .await()
+          .indefinitely();
+    } finally {
+      ToolSession.clear();
+      worker.shutdownNow();
+    }
+
+    assertFalse(
+        result.get().contains("no active chat session"), result.get());
+    assertTrue(result.get().contains("Requirement brief captured"), result.get());
+    assertTrue(getBrief("conv-worker-brief").isPresent());
+  }
+
+  @Test
+  void absentMappingIntentsCaptureAsEmptyList() {
     org.jboss.logmanager.MDC.put(
         org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
 
@@ -603,7 +649,7 @@ class RequirementBriefToolTest {
             "Greeting endpoint", List.of(), List.of(), List.of(), "summary"));
 
     RequirementBrief brief = getBrief("conv-brief").orElseThrow();
-    assertTrue(brief.dataMappings().isEmpty());
+    assertTrue(brief.mappingIntents().isEmpty());
   }
 
   private static RequirementDraft readyDraft(

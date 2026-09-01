@@ -12,7 +12,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -124,7 +123,6 @@ class RequirementBriefCoverageValidatorTest {
     Optional<String> error = validator.validate(approvedV1Draft, v1BriefWithoutMappings);
 
     assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
-    assertTrue(v1BriefWithoutMappings.dataMappings().isEmpty());
   }
 
   @Test
@@ -200,11 +198,7 @@ class RequirementBriefCoverageValidatorTest {
             "Check inventory",
             "ref",
             approved.planningText(),
-            approved.facts(),
-            List.of(
-                passThrough(
-                    RequirementDataMapping.Stage.INITIALIZATION, "call-1", "trigger-1"),
-                passThrough(RequirementDataMapping.Stage.RESPONSE, "call-1", "trigger-1")));
+            approved.facts());
 
     Optional<String> error = validator.validate(approved, reversed);
 
@@ -557,7 +551,6 @@ class RequirementBriefCoverageValidatorTest {
         approved.planningText(),
         facts,
         List.of(),
-        List.of(),
         serviceCalls,
         List.of(),
         List.of());
@@ -603,17 +596,5 @@ class RequirementBriefCoverageValidatorTest {
         "2024.4",
         observedAt,
         "evidence-" + serviceCallId);
-  }
-
-  private static RequirementDataMapping passThrough(
-      RequirementDataMapping.Stage stage, String from, String to) {
-    return new RequirementDataMapping(
-        "map-" + stage.name().toLowerCase(),
-        stage,
-        from,
-        to,
-        RequirementDataMapping.Mode.PASS_THROUGH,
-        List.of(),
-        List.of("mapping-fact"));
   }
 }

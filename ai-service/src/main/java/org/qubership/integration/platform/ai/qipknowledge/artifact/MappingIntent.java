@@ -51,4 +51,15 @@ public record MappingIntent(
         newRules,
         implementationPreference);
   }
+
+  public MappingIntent withPorts(MappingPort source, MappingPort target) {
+    return new MappingIntent(
+        mappingIntentId,
+        sourceRef,
+        source,
+        targetRef,
+        target,
+        rules,
+        implementationPreference);
+  }
 }

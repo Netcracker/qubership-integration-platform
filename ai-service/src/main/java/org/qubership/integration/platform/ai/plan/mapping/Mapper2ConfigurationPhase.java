@@ -28,7 +28,7 @@ public final class Mapper2ConfigurationPhase {
   private Mapper2ConfigurationPhase() {}
 
   public static ChainPlanGraph configure(ChainPlanGraph graph, RequirementBrief brief) {
-    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    RequirementBrief adapted = brief;
     return configure(graph, adapted, intentIds(adapted));
   }
 
@@ -38,7 +38,7 @@ public final class Mapper2ConfigurationPhase {
    */
   public static ChainPlanGraph configure(
       ChainPlanGraph graph, RequirementBrief brief, Set<String> mappingIntentIds) {
-    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    RequirementBrief adapted = brief;
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
@@ -71,7 +71,7 @@ public final class Mapper2ConfigurationPhase {
     List<MappingIntent> intents =
         brief == null
             ? List.of()
-            : LegacyStageMappingAdapter.ensureIntents(brief).mappingIntents();
+            : brief.mappingIntents();
     for (MappingIntent intent : intents) {
       if (!isMapper2Intent(intent)) {
         continue;

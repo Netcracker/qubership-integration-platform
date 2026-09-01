@@ -586,6 +586,10 @@ public class ChainPlanGraphValidator {
     if ("catch-2".equals(elementType) && "exceptionType".equals(key)) {
       return "catch-2 uses exception, not exceptionType.";
     }
+    if ("script".equals(elementType)
+        && ("exception".equals(key) || "priority".equals(key))) {
+      return "Those keys belong on catch-2, not on script.";
+    }
     return null;
   }
 

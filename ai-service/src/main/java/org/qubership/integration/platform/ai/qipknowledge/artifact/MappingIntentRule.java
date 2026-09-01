@@ -27,20 +27,8 @@ public record MappingIntentRule(
     this(sourcePath, targetPath, expression, MappingRuleStatus.PROPOSED);
   }
 
-  public static MappingIntentRule fromLegacy(
-      RequirementDataMapping.Rule rule, MappingRuleStatus status) {
-    if (rule == null) {
-      return new MappingIntentRule("", "", null, status);
-    }
-    return new MappingIntentRule(rule.sourcePath(), rule.targetPath(), rule.expression(), status);
-  }
-
   public MappingIntentRule withStatus(MappingRuleStatus newStatus) {
     return new MappingIntentRule(sourcePath, targetPath, expression, newStatus);
-  }
-
-  public RequirementDataMapping.Rule toLegacy() {
-    return new RequirementDataMapping.Rule(sourcePath, targetPath, expression);
   }
 
   public boolean identityCopy() {

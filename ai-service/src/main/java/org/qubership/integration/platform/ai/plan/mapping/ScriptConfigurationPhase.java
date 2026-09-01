@@ -24,7 +24,7 @@ public final class ScriptConfigurationPhase {
   private ScriptConfigurationPhase() {}
 
   public static ChainPlanGraph configure(ChainPlanGraph graph, RequirementBrief brief) {
-    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    RequirementBrief adapted = brief;
     return configure(graph, adapted, intentIds(adapted));
   }
 
@@ -34,7 +34,7 @@ public final class ScriptConfigurationPhase {
    */
   public static ChainPlanGraph configure(
       ChainPlanGraph graph, RequirementBrief brief, Set<String> mappingIntentIds) {
-    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    RequirementBrief adapted = brief;
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
@@ -65,7 +65,7 @@ public final class ScriptConfigurationPhase {
     List<MappingIntent> intents =
         brief == null
             ? List.of()
-            : LegacyStageMappingAdapter.ensureIntents(brief).mappingIntents();
+            : brief.mappingIntents();
     for (MappingIntent intent : intents) {
       if (!isScriptIntent(intent)) {
         continue;

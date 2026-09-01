@@ -69,6 +69,25 @@ class CaptureRepairMessageBuilderTest {
   }
 
   @Test
+  void unknownExceptionOnScriptMentionsCatch2AndRemoval() {
+    when(schemaService.allowedPatchPropertyKeys("script"))
+        .thenReturn(Set.of("script", "exportFileExtension"));
+
+    String message =
+        builder.build(
+            new CaptureAttemptFeedback(
+                CaptureFailureKind.VALIDATION,
+                "Structure validation failed:\n"
+                    + "node 'script-1' (script) has unknown property key 'exception'."),
+            "captureChainStructure");
+
+    assertTrue(message.contains("Remove property key 'exception'"), message);
+    assertTrue(message.contains("catch-2"), message);
+    assertTrue(
+        message.contains("Those keys belong on catch-2, not on script."), message);
+  }
+
+  @Test
   void unknownPropertyMessageRequiresRemovalAndListsSchemaAlternatives() {
     when(schemaService.allowedPatchPropertyKeys("script"))
         .thenReturn(Set.of("script", "exportFileExtension"));

@@ -144,6 +144,66 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
+  void missingBriefWithConversationIdFailureIsNotNeedsInput() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    CaptureSession captureSession = new CaptureSession();
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            captureSession,
+            feedbackStore,
+            null,
+            ctx -> {
+              feedbackStore.recordPlanValidationFailure(
+                  ctx.conversationId(),
+                  "conversationId is required (no active chat session)");
+              return null;
+            },
+            null,
+            null);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, "conv-session-missing", null);
+
+    assertNotEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    assertEquals(
+        StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(
+        completed.outcome().message().contains("conversationId is required"),
+        completed.outcome().message());
+    assertFalse(
+        completed.outcome().message().toLowerCase().contains("mapping port"),
+        completed.outcome().message());
+  }
+
+  @Test
+  void missingBriefWithoutRecordedFailureIsNotNeedsInput() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> null);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+
+    assertNotEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(
+        completed.outcome().message().contains("did not capture a requirement brief"),
+        completed.outcome().message());
+    assertFalse(
+        completed.outcome().message().toLowerCase().contains("mapping port"),
+        completed.outcome().message());
+  }
+
+  @Test
   void prefersPostImportDraftFromStoreOverStaleNeedsInputAttribute() {
     RequirementFact call = serviceCall("call-greeting", "Greetings", "getGreeting");
     RequirementDraft staleDiscovery =
@@ -282,8 +342,8 @@ class RequirementAnalysisCapabilityTest {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved);
 
-    assertTrue(message.contains("dataMappings"));
-    assertTrue(message.contains("Leave mappingIntents and dataMappings empty"));
+    assertFalse(message.contains("dataMappings"));
+    assertTrue(message.contains("Leave mappingIntents empty"));
     assertTrue(message.contains("There are no projected outbound interactions"), message);
     assertTrue(message.contains("RequirementFlow"), message);
     assertTrue(message.contains("interactionId"), message);

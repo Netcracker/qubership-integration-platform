@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -45,7 +44,6 @@ public final class RequirementBriefProjector {
         brief.approvedDraftReference(),
         brief.approvedDraftText(),
         facts,
-        brief.dataMappings(),
         entryPoints,
         serviceCalls,
         requirementsFrom(facts, entryPoints, serviceCalls),
@@ -55,10 +53,49 @@ public final class RequirementBriefProjector {
   }
 
   private static List<MappingIntent> mappingIntentsFor(RequirementBrief brief) {
-    if (!brief.mappingIntents().isEmpty()) {
-      return collapseMappingIntents(brief);
+    return assignPorts(collapseMappingIntents(brief), brief.flow());
+  }
+
+  /**
+   * Mapping sockets belong to the approved flow, not to capture. Inbound refs use OUTPUT on both
+   * sides. Outbound refs use RESPONSE as source and REQUEST as target. Refs absent from the flow
+   * keep the captured ports so placeholder fold can still merge them.
+   */
+  static List<MappingIntent> assignPorts(List<MappingIntent> intents, RequirementFlow flow) {
+    if (intents == null || intents.isEmpty()) {
+      return List.of();
     }
-    return LegacyStageMappingAdapter.fromDataMappings(brief.dataMappings());
+    List<MappingIntent> assigned = new ArrayList<>(intents.size());
+    for (MappingIntent intent : intents) {
+      assigned.add(assignPorts(intent, flow));
+    }
+    return List.copyOf(assigned);
+  }
+
+  private static MappingIntent assignPorts(MappingIntent intent, RequirementFlow flow) {
+    MappingPort source = portFor(flow, intent.sourceRef(), true, intent.sourcePort());
+    MappingPort target = portFor(flow, intent.targetRef(), false, intent.targetPort());
+    if (source == intent.sourcePort() && target == intent.targetPort()) {
+      return intent;
+    }
+    return intent.withPorts(source, target);
+  }
+
+  private static MappingPort portFor(
+      RequirementFlow flow, String ref, boolean asSource, MappingPort captured) {
+    if (flow == null) {
+      return captured;
+    }
+    return flow.interaction(ref)
+        .map(interaction -> portForDirection(interaction.direction(), asSource))
+        .orElse(captured);
+  }
+
+  private static MappingPort portForDirection(Direction direction, boolean asSource) {
+    if (direction == Direction.INBOUND) {
+      return MappingPort.OUTPUT;
+    }
+    return asSource ? MappingPort.RESPONSE : MappingPort.REQUEST;
   }
 
   /**

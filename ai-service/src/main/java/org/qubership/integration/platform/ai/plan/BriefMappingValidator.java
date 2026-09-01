@@ -15,7 +15,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
 /**
  * Validates one source-port to target-port mapping boundary. Pass-through is the absence of a
@@ -88,21 +87,6 @@ public final class BriefMappingValidator {
             targetPort,
             classified,
             implementationPreference));
-  }
-
-  public static List<MappingIntentRule> classifyFromLegacy(
-      List<RequirementDataMapping.Rule> rules) {
-    if (rules == null || rules.isEmpty()) {
-      return List.of();
-    }
-    List<MappingIntentRule> candidates = new ArrayList<>();
-    for (RequirementDataMapping.Rule rule : rules) {
-      if (rule == null) {
-        continue;
-      }
-      candidates.add(MappingIntentRule.fromLegacy(rule, inferStatus(rule)));
-    }
-    return classify(candidates, MappingContract.unknown(), MappingContract.unknown(), null);
   }
 
   public static List<MappingIntentRule> classify(
@@ -222,13 +206,6 @@ public final class BriefMappingValidator {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
     }
     return candidate;
-  }
-
-  private static MappingRuleStatus inferStatus(RequirementDataMapping.Rule rule) {
-    if (rule == null) {
-      return MappingRuleStatus.PROPOSED;
-    }
-    return inferStatus(rule.sourcePath(), rule.targetPath(), rule.expression());
   }
 
   private static MappingRuleStatus inferStatus(MappingIntentRule rule) {
