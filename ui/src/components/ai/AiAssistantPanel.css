@@ -770,6 +770,37 @@ button.ai-activity-inline__row:not(:disabled):hover {
   font-size: inherit;
 }
 
+.ai-decision-card--recovery {
+  overflow-wrap: anywhere;
+}
+
+.ai-decision-card--recovery .ant-typography {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.ai-decision-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  max-width: 100%;
+}
+
+.ai-decision-card__technical-details {
+  margin-top: 8px;
+}
+
+.ai-decision-card__technical-details summary {
+  cursor: pointer;
+}
+
+.ai-decision-card__technical-details pre {
+  margin: 8px 0 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .ai-markdown ol,
 .ai-markdown ul {
   margin: 0;

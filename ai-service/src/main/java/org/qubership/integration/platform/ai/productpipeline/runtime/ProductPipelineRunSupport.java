@@ -182,153 +182,95 @@ public final class ProductPipelineRunSupport {
 
   private final RecoveryAttemptLedger recoveryLedger;
 
-  public ProductPipelineRunSupport(
+  /** Fluent builder for the optional collaborators; required ones are constructor args. */
+  public static Builder builder(
       ProductPipelineRunStore runStore,
       ProductPipelineArtifactStore artifactStore,
       StageCapabilityRegistry capabilities,
       Clock clock) {
-    this(runStore, artifactStore, capabilities, null, null, clock, null);
+    return new Builder(runStore, artifactStore, capabilities, clock);
   }
 
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      Clock clock) {
-    this(runStore, artifactStore, capabilities, profileCatalog, null, clock, null, null);
-  }
+  public static final class Builder {
+    private final ProductPipelineRunStore runStore;
+    private final ProductPipelineArtifactStore artifactStore;
+    private final StageCapabilityRegistry capabilities;
+    private final Clock clock;
+    private ProductPipelineProfileCatalog profileCatalog;
+    private CompilerRunPinResolver compilerRunPinResolver;
+    private ApprovalPrompts approvalPrompts;
+    private S3Service s3Service;
+    private FailureNarrative failureNarrative;
+    private Duration cacheIdleTimeout = DEFAULT_CACHE_IDLE_TIMEOUT;
+    private int repeatedFailureThreshold = 2;
+    private RecoveryAttemptLedger recoveryLedger;
 
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        null);
-  }
+    private Builder(
+        ProductPipelineRunStore runStore,
+        ProductPipelineArtifactStore artifactStore,
+        StageCapabilityRegistry capabilities,
+        Clock clock) {
+      this.runStore = runStore;
+      this.artifactStore = artifactStore;
+      this.capabilities = capabilities;
+      this.clock = clock;
+    }
 
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock,
-      ApprovalPrompts approvalPrompts) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        approvalPrompts,
-        null);
-  }
+    public Builder profileCatalog(ProductPipelineProfileCatalog profileCatalog) {
+      this.profileCatalog = profileCatalog;
+      return this;
+    }
 
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock,
-      ApprovalPrompts approvalPrompts,
-      S3Service s3Service) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        approvalPrompts,
-        s3Service,
-        null);
-  }
+    public Builder compilerRunPinResolver(CompilerRunPinResolver compilerRunPinResolver) {
+      this.compilerRunPinResolver = compilerRunPinResolver;
+      return this;
+    }
 
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock,
-      ApprovalPrompts approvalPrompts,
-      S3Service s3Service,
-      FailureNarrative failureNarrative) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        approvalPrompts,
-        s3Service,
-        failureNarrative,
-        DEFAULT_CACHE_IDLE_TIMEOUT);
-  }
+    public Builder approvalPrompts(ApprovalPrompts approvalPrompts) {
+      this.approvalPrompts = approvalPrompts;
+      return this;
+    }
 
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock,
-      ApprovalPrompts approvalPrompts,
-      S3Service s3Service,
-      FailureNarrative failureNarrative,
-      Duration cacheIdleTimeout) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        approvalPrompts,
-        s3Service,
-        failureNarrative,
-        cacheIdleTimeout,
-        2);
-  }
+    public Builder s3Service(S3Service s3Service) {
+      this.s3Service = s3Service;
+      return this;
+    }
 
-  public ProductPipelineRunSupport(
-      ProductPipelineRunStore runStore,
-      ProductPipelineArtifactStore artifactStore,
-      StageCapabilityRegistry capabilities,
-      ProductPipelineProfileCatalog profileCatalog,
-      CompilerRunPinResolver compilerRunPinResolver,
-      Clock clock,
-      ApprovalPrompts approvalPrompts,
-      S3Service s3Service,
-      FailureNarrative failureNarrative,
-      Duration cacheIdleTimeout,
-      int repeatedFailureThreshold) {
-    this(
-        runStore,
-        artifactStore,
-        capabilities,
-        profileCatalog,
-        compilerRunPinResolver,
-        clock,
-        approvalPrompts,
-        s3Service,
-        failureNarrative,
-        cacheIdleTimeout,
-        repeatedFailureThreshold,
-        new RecoveryAttemptLedger());
+    public Builder failureNarrative(FailureNarrative failureNarrative) {
+      this.failureNarrative = failureNarrative;
+      return this;
+    }
+
+    public Builder cacheIdleTimeout(Duration cacheIdleTimeout) {
+      this.cacheIdleTimeout = cacheIdleTimeout;
+      return this;
+    }
+
+    public Builder repeatedFailureThreshold(int repeatedFailureThreshold) {
+      this.repeatedFailureThreshold = repeatedFailureThreshold;
+      return this;
+    }
+
+    public Builder recoveryLedger(RecoveryAttemptLedger recoveryLedger) {
+      this.recoveryLedger = recoveryLedger;
+      return this;
+    }
+
+    public ProductPipelineRunSupport build() {
+      return new ProductPipelineRunSupport(
+          runStore,
+          artifactStore,
+          capabilities,
+          profileCatalog,
+          compilerRunPinResolver,
+          clock,
+          approvalPrompts,
+          s3Service,
+          failureNarrative,
+          cacheIdleTimeout,
+          repeatedFailureThreshold,
+          recoveryLedger);
+    }
   }
 
   public ProductPipelineRunSupport(
@@ -867,7 +809,9 @@ public final class ProductPipelineRunSupport {
     }
     String gate =
         PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
-    if (PipelineGates.STAGE_RETRY.equals(gate)) {
+    if (PipelineGates.STAGE_RETRY.equals(gate)
+        || PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
+        || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate)) {
       return reemitHaltCard(doc);
     }
     List<OwnerCandidate> closed = haltOwnerCandidates(doc);
@@ -1207,6 +1151,14 @@ public final class ProductPipelineRunSupport {
     }
     RecoveryCause cause = currentRecoveryCause(doc.run().runId());
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    if (PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(
+        PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""))) {
+      artifact =
+          artifactStore
+              .latest(doc.run().runId(), Kind.REQUIREMENT_BRIEF)
+              .map(revision -> revision.reference().contentHash())
+              .orElse(artifact);
+    }
     return recoveryLedger.key(owner, cause, artifact, doc.transitions());
   }
 
@@ -1478,8 +1430,11 @@ public final class ProductPipelineRunSupport {
     if (PipelineGates.STAGE_ESCALATED.equals(gate)) {
       return PipelineGates.escalatedActionsOf(prompt).contains(text);
     }
-    return PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)
-        && PipelineGates.internalFailureActionsOf(prompt).contains(text);
+    if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
+      return PipelineGates.internalFailureActionsOf(prompt).contains(text);
+    }
+    return PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
+        || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate);
   }
 
   private static boolean isEscalatedAction(

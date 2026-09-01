@@ -29,6 +29,9 @@ public sealed interface ChatEvent {
   /** Writes a proposed change into a chain the user already has: irreversible, so never a model's. */
   String APPLY_CHAIN_PATCH_ACTION = "apply-chain-patch";
 
+  /** Retries the supported create operation without exposing its pipeline stage. */
+  String RETRY_CREATION_ACTION = "retry-creation";
+
   /** Replaces a live deployment after the reader confirms: irreversible, so never a model's. */
   String REDEPLOY_ACTION = "redeploy-chain";
 
@@ -144,14 +147,49 @@ public sealed interface ChatEvent {
       long revision,
       String reason,
       List<String> missingEvidence,
-      List<String> actions)
+      List<String> actions,
+      RecoveryPresentation recovery)
       implements ChatEvent {
+
+    public Decision(
+        String id,
+        String kind,
+        String question,
+        String artifactType,
+        String artifactHash,
+        long revision,
+        String reason,
+        List<String> missingEvidence,
+        List<String> actions) {
+      this(
+          id,
+          kind,
+          question,
+          artifactType,
+          artifactHash,
+          revision,
+          reason,
+          missingEvidence,
+          actions,
+          null);
+    }
 
     public Decision {
       missingEvidence = missingEvidence == null ? List.of() : List.copyOf(missingEvidence);
       actions = actions == null ? List.of() : List.copyOf(actions);
     }
   }
+
+  /** Server-owned presentation for a contextual create-chain recovery card. */
+  record RecoveryPresentation(
+      String category,
+      String title,
+      String summary,
+      String preservedWork,
+      String technicalDetails,
+      Long retryDelayMs,
+      String runId,
+      String failedStageId) {}
 
   /** Terminal error surfaced to the user (rendered as {@code event: error}). */
   record Error(String message) implements ChatEvent {}
@@ -212,7 +250,8 @@ public sealed interface ChatEvent {
           approve.revision(),
           null,
           List.of(),
-          actions == null ? List.of(APPROVE_ACTION, REQUEST_CHANGES_ACTION) : actions);
+          actions == null ? List.of(APPROVE_ACTION, REQUEST_CHANGES_ACTION) : actions,
+          null);
     }
     if (pending instanceof PendingAction.Clarify clarify) {
       return new Decision(
@@ -224,7 +263,8 @@ public sealed interface ChatEvent {
           revision,
           clarify.reason(),
           clarify.missingEvidence(),
-          actions == null ? List.of() : actions);
+          actions == null ? List.of() : actions,
+          recoveryFor(clarify));
     }
     throw new IllegalArgumentException("unsupported pending action: " + pending.action());
   }
@@ -415,11 +455,32 @@ public sealed interface ChatEvent {
       case PipelineGates.IDS_PATH_CHOICE -> IDS_PATH_CHOICE_ACTIONS;
       case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
       case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);
+      case PipelineGates.RECOVERY_RETRY_TECHNICAL,
+              PipelineGates.RECOVERY_REGENERATE_EXECUTION ->
+          List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
       case PipelineGates.STAGE_ESCALATED -> List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       default -> null;
     };
+  }
+
+  private static RecoveryPresentation recoveryFor(PendingAction.Clarify clarify) {
+    String gate = clarify.gateId();
+    if (!PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
+        && !PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate)) {
+      return null;
+    }
+    boolean technical = PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate);
+    return new RecoveryPresentation(
+        technical ? "temporary-technical-failure" : "regeneratable-execution-failure",
+        technical ? "Creation paused temporarily" : "Creation output needs regeneration",
+        clarify.reason(),
+        "Your approved requirements and plan are saved.",
+        clarify.technicalDetails(),
+        clarify.retryDelayMs(),
+        clarify.runId(),
+        clarify.failedStageId());
   }
 
   /** Actions a clarify gate offers, including owner-choice stage ids from missing evidence. */

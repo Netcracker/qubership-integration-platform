@@ -368,8 +368,12 @@ public class CreateProductPipelineCoordinatorTest {
               List.of(discovery(), importStage(), UploadedSpecImportPassthrough.capability(), analysis(), planning(),
                   materialization(materializationCalls)));
       CreateChainTestOrchestrator runtime =
-          new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-              runStore, storeFacade, capabilities, catalog, stubPinResolver(), clock), runStore);
+          new CreateChainTestOrchestrator(
+              ProductPipelineRunSupport.builder(runStore, storeFacade, capabilities, clock)
+                  .profileCatalog(catalog)
+                  .compilerRunPinResolver(stubPinResolver())
+                  .build(),
+              runStore);
       CreateChainApplicationFacade facade =
           new CreateChainApplicationFacade(selection, bindingStore, runtime, runStore, catalog);
       CreateProductPipelineCoordinator coordinator =

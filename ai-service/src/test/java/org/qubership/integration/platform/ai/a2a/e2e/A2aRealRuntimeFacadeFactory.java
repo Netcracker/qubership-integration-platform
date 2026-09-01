@@ -103,8 +103,12 @@ final class A2aRealRuntimeFacadeFactory {
                   planning(mapper),
                   materialization(materialize)));
       CreateChainTestOrchestrator runtime =
-          new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-              runStore, artifactStore, capabilities, catalog, stubPinResolver(), clock), runStore);
+          new CreateChainTestOrchestrator(
+              ProductPipelineRunSupport.builder(runStore, artifactStore, capabilities, clock)
+                  .profileCatalog(catalog)
+                  .compilerRunPinResolver(stubPinResolver())
+                  .build(),
+              runStore);
       CreateChainApplicationFacade facade =
           new CreateChainApplicationFacade(
               selectionService, bindingStore, runtime, runStore, catalog, artifactStore);

@@ -40,5 +40,21 @@ public interface PendingAction {
      * @see PipelineGates
      */
     String gateId();
+
+    default String technicalDetails() {
+      return "";
+    }
+
+    default Long retryDelayMs() {
+      return null;
+    }
+
+    default String runId() {
+      return "";
+    }
+
+    default String failedStageId() {
+      return "";
+    }
   }
 }

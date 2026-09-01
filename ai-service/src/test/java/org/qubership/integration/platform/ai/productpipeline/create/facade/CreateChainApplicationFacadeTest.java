@@ -194,7 +194,10 @@ class CreateChainApplicationFacadeTest {
     assertFalse(halted.finished());
     CreateChainPendingAction.Clarify haltCard =
         assertInstanceOf(CreateChainPendingAction.Clarify.class, halted.pendingAction());
-    assertEquals(PipelineGates.STAGE_RETRY, haltCard.gateId());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, haltCard.gateId());
+    assertEquals("catalog discovery transport failed", haltCard.technicalDetails());
+    assertEquals(halted.runId(), haltCard.runId());
+    assertEquals("requirement-discovery", haltCard.failedStageId());
     String runId = halted.runId();
     int attemptsAtHalt = fixture.discoveryAttempts();
     assertEquals(RunStatus.WAITING_FOR_INPUT, fixture.runStore().load(runId).orElseThrow().run().status());
@@ -212,7 +215,9 @@ class CreateChainApplicationFacadeTest {
     assertFalse(afterFollowUp.finished());
     CreateChainPendingAction.Clarify stillHalted =
         assertInstanceOf(CreateChainPendingAction.Clarify.class, afterFollowUp.pendingAction());
-    assertEquals(PipelineGates.STAGE_RETRY, stillHalted.gateId());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, stillHalted.gateId());
+    assertEquals(haltCard.technicalDetails(), stillHalted.technicalDetails());
+    assertEquals(haltCard.retryDelayMs(), stillHalted.retryDelayMs());
     assertEquals(
         "use a different service",
         fixture.runtime().support().haltFollowUpText(runId).orElseThrow());
@@ -952,8 +957,12 @@ class CreateChainApplicationFacadeTest {
                   planning(),
                   materialization()));
       runtime =
-          new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-              runStore, storeFacade, capabilities, catalog, stubPinResolver(), clock), runStore);
+          new CreateChainTestOrchestrator(
+              ProductPipelineRunSupport.builder(runStore, storeFacade, capabilities, clock)
+                  .profileCatalog(catalog)
+                  .compilerRunPinResolver(stubPinResolver())
+                  .build(),
+              runStore);
       facade =
           draftStore == null
               ? new CreateChainApplicationFacade(

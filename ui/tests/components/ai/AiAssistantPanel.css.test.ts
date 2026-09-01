@@ -121,6 +121,22 @@ describe("AiAssistantPanel.css polish contracts", () => {
     expect(errorBubble).toContain("--vscode-editorWidget-background");
   });
 
+  it("should keep contextual recovery actions inside a narrow chat panel", () => {
+    const card = declarationsFor(css, ".ai-decision-card--recovery");
+    expect(card).toContain("overflow-wrap: anywhere");
+
+    const actions = declarationsFor(css, ".ai-decision-card__actions");
+    expect(actions).toContain("flex-wrap: wrap");
+    expect(actions).toContain("max-width: 100%");
+
+    const technicalDetails = declarationsFor(
+      css,
+      ".ai-decision-card__technical-details pre",
+    );
+    expect(technicalDetails).toContain("max-width: 100%");
+    expect(technicalDetails).toContain("white-space: pre-wrap");
+  });
+
   it("should keep every painted color on a vscode token", () => {
     const withoutTokens = stripCssVars(css);
     expect(withoutTokens).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);

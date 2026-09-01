@@ -657,6 +657,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               emitted,
               false,
               false,
+              null,
               null);
         }
         List<Reference> refs =
@@ -718,6 +719,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         String key = stageRetryKey(runId, stage.stageId());
         int used = technicalRetriesByStage.getOrDefault(key, 0);
         int max = stage.retry().maxTechnicalRetries();
+        long delayMs =
+            outcome.retryDelayMs() != null
+                ? outcome.retryDelayMs()
+                : stage.retry().defaultDelayMs();
         if (used >= max) {
           yield haltRecoverable(
               doc,
@@ -729,13 +734,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               emitted,
               false,
               true,
-              outcome.recoveryCause());
+              outcome.recoveryCause(),
+              Math.max(delayMs, 0L));
         }
         technicalRetriesByStage.put(key, used + 1);
-        long delayMs =
-            outcome.retryDelayMs() != null
-                ? outcome.retryDelayMs()
-                : stage.retry().defaultDelayMs();
         yield new StageExecutionResult(
             new StageDecision.Retry(stage.stageId(), Duration.ofMillis(Math.max(delayMs, 0L))),
             emitted);
@@ -757,7 +759,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             emitted,
             true,
             true,
-            outcome.recoveryCause());
+            outcome.recoveryCause(),
+            null);
       }
       case POLICY_FAILURE, MISSING_MANDATORY_INPUT -> {
         List<Reference> refs =
@@ -772,7 +775,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             emitted,
             false,
             true,
-            outcome.recoveryCause());
+            outcome.recoveryCause(),
+            null);
       }
     };
   }
@@ -787,7 +791,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       List<PipelineSignal> emitted,
       boolean diagnoseOwner,
       boolean producerRepairAllowed,
-      RecoveryCause recoveryCause) {
+      RecoveryCause recoveryCause,
+      Long retryDelayMs) {
     boolean internal = outcomeClass == StageOutcomeClass.INTERNAL_FAILURE;
     String evidence = evidenceText(outcomeClass, message, doc.run().runId());
     RecoveryCause cause =
@@ -1020,6 +1025,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               + HaltRecoveryGuard.remainingLine(
                   recoveryLedger.remaining(doc.transitions(), parkKey, InputOrigin.TRUSTED));
     }
+    if (PipelineGates.STAGE_RETRY.equals(gate)) {
+      if (outcomeClass == StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE) {
+        gate = PipelineGates.RECOVERY_RETRY_TECHNICAL;
+      }
+    }
     // Both paths strip markers out of the body before tagging, so model-authored text that happens
     // to spell a marker cannot move the wait to a gate the executor did not choose.
     String prompt;
@@ -1038,6 +1048,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           PipelineGates.OWNER_CHOICE.equals(gate)
               ? PipelineGates.tagOwnerChoice(body, choiceIds)
               : PipelineGates.retag(gate, body);
+    }
+    if (PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
+        || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate)) {
+      prompt = PipelineGates.tagRecoveryDetails(prompt, evidence, retryDelayMs);
     }
     String durablePrompt = PipelineGates.tagHaltIdentity(prompt, haltIdentity);
     List<StageSnapshot> stages =
@@ -1159,7 +1173,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       RecoveryAttemptKey key =
           recoveryLedger.key(stage.stageId(), cause, briefIdentity, doc.transitions());
       identicalRejection =
-          recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED) > 0;
+          contextualRegenerationAttempted(doc)
+              || recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED) > 0;
       if (!identicalRejection) {
         String observingIdentity =
             RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
@@ -1243,7 +1258,32 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (mapped instanceof StageDecision.Retry) {
       if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
-        recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, cause);
+        String body = accepted.userSummary();
+        if (body == null || body.isBlank()) {
+          body = findings.isBlank() ? evidenceText : findings;
+        }
+        String prompt =
+            PipelineGates.tagRecoveryDetails(
+                PipelineGates.retag(PipelineGates.RECOVERY_REGENERATE_EXECUTION, body),
+                evidenceText,
+                null);
+        String durablePrompt =
+            PipelineGates.tagHaltIdentity(
+                prompt, ToolCallFingerprints.failureSignature(evidenceText));
+        List<StageSnapshot> stages =
+            refs.isEmpty()
+                ? doc.run().stages()
+                : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
+        commitStatus(
+            doc,
+            RunStatus.WAITING_FOR_INPUT,
+            StageStatus.WAITING_FOR_INPUT,
+            stages,
+            durablePrompt,
+            ProductPipelineRunSupport.haltEvidence(attributesByRun.get(runId), null));
+        emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
+        return new StageExecutionResult(
+            new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
       }
       emitted.add(new PipelineSignal.Progress(stage.stageId(), "Retrying from recovery evidence"));
       return new StageExecutionResult(mapped, emitted);
@@ -1502,6 +1542,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return "";
     }
     return evidence.approvedBriefRef().contentHash();
+  }
+
+  private static boolean contextualRegenerationAttempted(ProductPipelineRunDocument doc) {
+    List<RunTransition> transitions = doc.transitions();
+    for (int index = transitions.size() - 1; index > 0; index--) {
+      RunTransition attempt = transitions.get(index);
+      if (attempt.reason() == null
+          || !attempt.reason().startsWith(PRODUCER_REPAIR_REASON_PREFIX)) {
+        continue;
+      }
+      return PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(
+          PipelineGates.gateOf(transitions.get(index - 1).reason()).orElse(""));
+    }
+    return false;
   }
 
   private List<Reference> priorRecoveryEvidenceRefs(String runId) {

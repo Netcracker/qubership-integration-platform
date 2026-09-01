@@ -133,13 +133,21 @@ class ProductPipelineImplementationGateTest {
                             null))));
     createChainProfile = loadCreateChainProfileOrFallback();
     runtime =
-        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(discovery(), importStage(), analysis(), planning(), materializationCapability)),
-            new ProductPipelineProfileCatalog(List.of(createChainProfile)),
-            clock), runStore);
+        new CreateChainTestOrchestrator(
+            ProductPipelineRunSupport.builder(
+                    runStore,
+                    artifactStore,
+                    new StageCapabilityRegistry(
+                        List.of(
+                            discovery(),
+                            importStage(),
+                            analysis(),
+                            planning(),
+                            materializationCapability)),
+                    clock)
+                .profileCatalog(new ProductPipelineProfileCatalog(List.of(createChainProfile)))
+                .build(),
+            runStore);
   }
 
   @Test

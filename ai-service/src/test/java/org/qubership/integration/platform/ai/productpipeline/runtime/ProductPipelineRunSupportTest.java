@@ -85,13 +85,11 @@ class ProductPipelineRunSupportTest {
         .verifyPersistedPin(any(), any(), any(CompilerContract.class));
 
     ProductPipelineRunSupport support =
-        new ProductPipelineRunSupport(
-            runStore,
-            artifactStore,
-            new StageCapabilityRegistry(List.of()),
-            new ProductPipelineProfileCatalog(List.of(profile)),
-            pinResolver,
-            clock);
+        ProductPipelineRunSupport.builder(
+                runStore, artifactStore, new StageCapabilityRegistry(List.of()), clock)
+            .profileCatalog(new ProductPipelineProfileCatalog(List.of(profile)))
+            .compilerRunPinResolver(pinResolver)
+            .build();
 
     RunManifest manifest = restoreManifest(profile);
     StartOrResumeCommand command =

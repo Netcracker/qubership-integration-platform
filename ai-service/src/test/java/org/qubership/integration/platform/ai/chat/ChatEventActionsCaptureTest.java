@@ -35,6 +35,19 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void contextualRetryOffersSemanticCreationActions() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The provider temporarily limited requests.",
+                List.of(),
+                PipelineGates.RECOVERY_RETRY_TECHNICAL));
+
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
   void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
     assertEquals(
         List.of(),

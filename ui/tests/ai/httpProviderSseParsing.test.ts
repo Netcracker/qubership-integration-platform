@@ -56,6 +56,28 @@ describe("parseCipSseBlock", () => {
     ]);
   });
 
+  it("parses contextual recovery metadata without deriving it from the summary", () => {
+    const chunks = parseCipSseBlock(
+      'event: decision\ndata: {"id":"clarify:7","kind":"clarify","question":"The provider paused requests.",' +
+        '"revision":7,"actions":["retry-creation","stop-with-report"],"recovery":{' +
+        '"category":"temporary-technical-failure","title":"Creation paused temporarily",' +
+        '"summary":"The provider paused requests.","preservedWork":"Your approved requirements and plan are saved.",' +
+        '"technicalDetails":"rate_limit_exceeded","retryDelayMs":2000,"runId":"run-1",' +
+        '"failedStageId":"design-execution"}}\n',
+    );
+
+    expect(chunks[0]?.decision?.recovery).toEqual({
+      category: "temporary-technical-failure",
+      title: "Creation paused temporarily",
+      summary: "The provider paused requests.",
+      preservedWork: "Your approved requirements and plan are saved.",
+      technicalDetails: "rate_limit_exceeded",
+      retryDelayMs: 2000,
+      runId: "run-1",
+      failedStageId: "design-execution",
+    });
+  });
+
   it("drops a decision when the kind is unknown", () => {
     expect(
       parseCipSseBlock('event: decision\ndata: {"id":"x","kind":"vote"}\n'),

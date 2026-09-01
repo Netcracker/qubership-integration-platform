@@ -332,6 +332,37 @@ class ChatExecutionServiceTest {
     assertTrue(frame.contains("That stage is not a candidate for this defect."), frame);
   }
 
+  @Test
+  void contextualRecoveryIsObservableSseOutput() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "clarify:7",
+            "clarify",
+            "The provider temporarily limited requests.",
+            null,
+            null,
+            7L,
+            null,
+            List.of(),
+            List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+            new ChatEvent.RecoveryPresentation(
+                "temporary-technical-failure",
+                "Creation paused temporarily",
+                "The provider temporarily limited requests.",
+                "Your approved requirements and plan are saved.",
+                "rate_limit_exceeded",
+                2_000L,
+                "run-1",
+                "design-execution"));
+
+    String frame = ChatExecutionService.toSse(decision, new ObjectMapper());
+
+    assertTrue(frame.contains("\"recovery\""), frame);
+    assertTrue(frame.contains("temporary-technical-failure"), frame);
+    assertTrue(frame.contains("rate_limit_exceeded"), frame);
+    assertFalse(frame.contains("__GATE:"), frame);
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION})
   void anAllowedHaltResumeDoesNotCloseSseWithoutTokenDecisionOrError(String action) {
