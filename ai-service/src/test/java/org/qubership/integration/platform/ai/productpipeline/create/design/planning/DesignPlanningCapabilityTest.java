@@ -452,6 +452,8 @@ class DesignPlanningCapabilityTest {
 
     assertTrue(input.contains("mappingIntentId=<id>"), input);
     assertTrue(input.contains("mappingIntentId=map-init"), input);
+    assertTrue(input.contains("Do not plan cip-transformation-generator"), input);
+    assertFalse(input.contains("cip-transformation-generator mappingIntentId="), input);
   }
 
   @Test

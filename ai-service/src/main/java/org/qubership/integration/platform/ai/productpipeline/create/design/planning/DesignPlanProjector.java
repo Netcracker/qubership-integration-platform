@@ -72,6 +72,7 @@ public final class DesignPlanProjector {
     parsed = rewriteChainValidatorAlias(parsed, nodesBySkill);
     parsed = bindUnnamedMappingSteps(parsed, revision);
     parsed = dropUnboundMappingSteps(parsed, revision);
+    validateDisabledTransformationGenerator(parsed);
     validateUnknownSkills(parsed, nodesBySkill);
     validateNoCatalogCycles(nodesBySkill, selectedSkills(parsed));
     validateTriggerCoverage(parsed);
@@ -217,6 +218,19 @@ public final class DesignPlanProjector {
     }
     String phase = node.compilerPhase();
     return phase != null && phase.toLowerCase(Locale.ROOT).startsWith("validation");
+  }
+
+  private static void validateDisabledTransformationGenerator(ParsedPlannerReport parsed) {
+    if (MappingMechanismSelector.transformationGeneratorAllowed()) {
+      return;
+    }
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      if (step.owningSkillIds().contains(TRANSFORMATION_GENERATOR_SKILL_ID)) {
+        throw new PlannerContractException(
+            "cip-transformation-generator is disabled because mapper-2 is off. Plan mapping with"
+                + " cip-script-generator.");
+      }
+    }
   }
 
   private static void validateUnknownSkills(

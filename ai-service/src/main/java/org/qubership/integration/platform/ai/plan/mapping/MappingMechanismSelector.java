@@ -22,6 +22,11 @@ public final class MappingMechanismSelector {
     return false;
   }
 
+  /** False while mapper-2 is off. */
+  public static boolean transformationGeneratorAllowed() {
+    return mapper2Enabled();
+  }
+
   /**
    * Element type for a transform shell. Mapper-2 captures become {@code script} while mapper-2 is
    * off so configuration and generation stay on cip-script-generator.
