@@ -43,10 +43,6 @@ public class CatalogOperationLookup {
       if (known.isEmpty()) {
         return new CatalogLookupResult.None();
       }
-      CatalogMatch sibling = uniqueNamedPartner(query, known);
-      if (sibling != null) {
-        return new CatalogLookupResult.Exact(sibling);
-      }
       return new CatalogLookupResult.Ambiguous(ids(known));
     }
     scored.sort(Comparator.comparingInt(Scored::score).reversed());
@@ -107,40 +103,6 @@ public class CatalogOperationLookup {
       }
     }
     return scored;
-  }
-
-  /**
-   * A payload command name is not a catalog key. When Ranker scored nothing, bind the one catalog
-   * operation the same request already named.
-   */
-  private static CatalogMatch uniqueNamedPartner(CatalogQuery query, List<CatalogMatch> known) {
-    CatalogMatch found = null;
-    for (CatalogMatch match : known) {
-      if (!namedInRequest(query, match.operationName())) {
-        continue;
-      }
-      if (found != null) {
-        return null;
-      }
-      found = match;
-    }
-    return found;
-  }
-
-  private static boolean namedInRequest(CatalogQuery query, String operationName) {
-    String name = CatalogStrings.blankToNull(operationName);
-    if (name == null) {
-      return false;
-    }
-    for (String named : query.namedInRequest()) {
-      if (named == null || named.isBlank()) {
-        continue;
-      }
-      if (name.equalsIgnoreCase(named.trim()) || named.contains(name)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private static List<String> ids(List<CatalogMatch> known) {

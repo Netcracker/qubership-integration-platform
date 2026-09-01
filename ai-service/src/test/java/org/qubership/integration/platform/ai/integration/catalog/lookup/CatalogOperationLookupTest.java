@@ -109,8 +109,8 @@ class CatalogOperationLookupTest {
   }
 
   @Test
-  @DisplayName("a payload command name binds the partner op the same request already named")
-  void unmatchedPayloadNameBindsNamedPartnerOperation() {
+  @DisplayName("a payload command name does not bind a partner op the same request already named")
+  void unmatchedPayloadNameDoesNotBindNamedPartnerOperation() {
     CatalogSystemFinder finder = mock(CatalogSystemFinder.class);
     CatalogSystemReadTool readTool = mock(CatalogSystemReadTool.class);
     CatalogQuery query =
@@ -131,8 +131,8 @@ class CatalogOperationLookupTest {
 
     CatalogLookupResult result = new CatalogOperationLookup(finder, readTool).resolve(query);
 
-    CatalogLookupResult.Exact exact = assertInstanceOf(CatalogLookupResult.Exact.class, result);
-    assertEquals("op-create", exact.match().integrationOperationId());
-    assertEquals("createTask", exact.match().operationName());
+    CatalogLookupResult.Ambiguous ambiguous =
+        assertInstanceOf(CatalogLookupResult.Ambiguous.class, result);
+    assertEquals(List.of("op-create", "op-token"), ambiguous.candidateIds());
   }
 }
