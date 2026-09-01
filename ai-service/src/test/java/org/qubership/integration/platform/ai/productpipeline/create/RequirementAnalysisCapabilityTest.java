@@ -392,8 +392,13 @@ class RequirementAnalysisCapabilityTest {
     assertTrue(message.contains("Pass-through is the absence of a mapping intent"));
     assertTrue(message.contains("mappingIntents"));
     assertTrue(message.contains("Prose is enough"));
+    assertTrue(message.contains("approved flow transition"), message);
+    assertTrue(message.contains("Transitions:"), message);
+    assertTrue(message.contains("http-in -> call-inventory"), message);
+    assertTrue(message.contains("only allowed sourceRef and targetRef"), message);
     assertTrue(message.contains("interactionId=call-inventory"), message);
     assertTrue(message.contains("direction=OUTBOUND"), message);
+    assertFalse(message.contains("source-to-target boundary"), message);
     assertFalse(message.contains("Capture typed dataMappings"), message);
     assertFalse(message.contains("every required edge"), message);
     assertFalse(message.contains("PASS_THROUGH"), message);

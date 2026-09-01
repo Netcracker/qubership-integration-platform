@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
@@ -211,6 +212,10 @@ public final class RequirementBriefCoverageValidator {
       if (targetError.isPresent()) {
         return targetError;
       }
+      Optional<String> transitionError = validateMappingTransition(flow, intent);
+      if (transitionError.isPresent()) {
+        return transitionError;
+      }
       if (intent.sourcePort() == MappingPort.RESPONSE
           && intent.targetPort() == MappingPort.REQUEST) {
         Interaction source = byId.get(intent.sourceRef());
@@ -241,6 +246,30 @@ public final class RequirementBriefCoverageValidator {
       return Optional.of("outbound interaction " + ref + " cannot use OUTPUT");
     }
     return Optional.empty();
+  }
+
+  private static Optional<String> validateMappingTransition(
+      RequirementFlow flow, MappingIntent intent) {
+    String sourceRef = intent.sourceRef();
+    String targetRef = intent.targetRef();
+    if (sourceRef.isBlank() || targetRef.isBlank()) {
+      return Optional.empty();
+    }
+    for (Transition transition : flow.transitions()) {
+      if (sourceRef.equals(transition.sourceInteractionId())
+          && targetRef.equals(transition.targetInteractionId())) {
+        return Optional.empty();
+      }
+    }
+    return Optional.of(
+        "Mapping intent "
+            + intent.mappingIntentId()
+            + " uses "
+            + sourceRef
+            + " -> "
+            + targetRef
+            + ", which is not an approved flow transition. Capture one intent per transition."
+            + " Put preserve or echo rules on the hop that writes the target payload.");
   }
 
   private static Optional<String> validateServiceCalls(RequirementBrief brief) {
