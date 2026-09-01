@@ -85,7 +85,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       if (ownerId != null) {
         ownerByRegionId.put(region.regionId(), ownerId);
       }
-      applyRegion(region, extraByNode, orderByNode);
+      applyRegion(region, nodesById, extraByNode, orderByNode);
     }
     applyMappingSites(revision, nodesById, extraByNode);
     applyServiceCallProperties(revision.revisionId(), calls, extraByNode);
@@ -170,6 +170,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
 
   private static void applyRegion(
       SemanticRegion region,
+      Map<String, SemanticNode> nodesById,
       Map<String, List<PlanProperty>> extraByNode,
       Map<String, Integer> orderByNode) {
     switch (region) {
@@ -216,8 +217,11 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       case SemanticRegion.ErrorScope scope -> {
         int index = 0;
         for (ErrorHandler handler : scope.handlers()) {
-          addProperty(extraByNode, handler.entryNodeId(), "exception", handler.exceptionClass());
-          addProperty(extraByNode, handler.entryNodeId(), "priority", Integer.toString(index));
+          SemanticNode entry = nodesById.get(handler.entryNodeId());
+          if ("catch-2".equals(contractType(entry))) {
+            addProperty(extraByNode, handler.entryNodeId(), "exception", handler.exceptionClass());
+            addProperty(extraByNode, handler.entryNodeId(), "priority", Integer.toString(index));
+          }
           orderByNode.put(handler.entryNodeId(), index);
           index++;
         }
