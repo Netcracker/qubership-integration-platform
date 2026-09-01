@@ -31,37 +31,6 @@ public final class DesignRequirementBriefCoverageValidator {
     }
   }
 
-  /**
-   * Stage-ordered mapping holes are not a coverage gap. Returns empty so callers cannot block
-   * approval by inventing {@code INITIALIZATION}/{@code CONVERSION}/{@code RESPONSE} edges.
-   */
-  public List<String> listMissingEdges(RequirementBrief brief) {
-    Objects.requireNonNull(brief, "brief");
-    return List.of();
-  }
-
-  /**
-   * Same as {@link #listMissingEdges(RequirementBrief)}: no inferred stage edges to show.
-   */
-  public List<String> listReadableMissingEdges(RequirementBrief brief) {
-    return listMissingEdges(brief);
-  }
-
-  /**
-   * Mapping rows are no longer a design-coverage concern. Returns the brief unchanged.
-   */
-  public RequirementBrief retainTopologyBoundMappings(RequirementBrief brief) {
-    Objects.requireNonNull(brief, "brief");
-    return brief;
-  }
-
-  /**
-   * Does not invent pass-through rows. Returns the brief unchanged.
-   */
-  public RequirementBrief withPassThroughForMissingEdges(RequirementBrief brief) {
-    return retainTopologyBoundMappings(brief);
-  }
-
   private static void requireUniqueServiceCallSteps(RequirementBrief brief) {
     LinkedHashSet<String> seen = new LinkedHashSet<>();
     if (!brief.serviceCalls().isEmpty()) {

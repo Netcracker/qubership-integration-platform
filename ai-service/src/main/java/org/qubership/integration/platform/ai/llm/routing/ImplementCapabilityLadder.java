@@ -12,29 +12,9 @@ public final class ImplementCapabilityLadder {
   public static final String NO_READY_DRAFT_MESSAGE =
       "Describe the integration requirements first so a requirement draft can be captured.";
 
-  /** Guidance when demotion lands on design review (legacy wording; routes to product CREATE). */
-  public static final String NO_APPROVED_DESIGN_MESSAGE =
-      "Approve the latest requirement draft before creating the chain plan.";
-
   /** Guidance when demotion lands on planning. */
   public static final String NO_APPROVED_PLAN_MESSAGE =
       "Approve the latest implementation plan before creating the chain plan.";
-
-  /**
-   * Legacy terminal strings retained for negative assertions / docs only. Routing no longer emits
-   * these; the ladder soft-advances instead.
-   */
-  public static final String NO_BUNDLE_FOR_IMPLEMENT_MESSAGE =
-      "Create a current chain bundle before implementation.";
-
-  public static final String NO_PASSING_PLAN_VALIDATION_MESSAGE =
-      "Current passing plan validation is required before implementation. Re-run planning or"
-          + " refine the approved artifacts first.";
-
-  /** @deprecated Prefer soft-advance; retained for negative assertions only. */
-  @Deprecated(forRemoval = false)
-  public static final String NO_READY_REQUIREMENT_DRAFT_MESSAGE =
-      "No ready requirement draft available.";
 
   private ImplementCapabilityLadder() {}
 
