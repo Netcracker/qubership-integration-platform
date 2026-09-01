@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.plan.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger;
@@ -72,6 +74,22 @@ class PlanPropertyListDeserializerTest {
     ChainPlanNode node = objectMapper.readValue(json, ChainPlanNode.class);
 
     assertEquals(List.of(new PlanProperty("script", "return 'ok';")), node.properties());
+  }
+
+  @Test
+  void rejectsKeylessPropertyObjectInsteadOfAssumingScript() {
+    String json =
+        """
+        {
+          "nodeId": "http-trigger",
+          "type": "http-trigger",
+          "label": "Receive Greetings Request",
+          "properties": [{"value": "false"}]
+        }
+        """;
+
+    assertThrows(
+        MismatchedInputException.class, () -> objectMapper.readValue(json, ChainPlanNode.class));
   }
 
   @Test

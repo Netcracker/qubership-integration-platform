@@ -10,12 +10,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Tolerant deserializer for {@link ChainPlanNode#properties()}.
+ * Deserializer for {@link ChainPlanNode#properties()} that accepts a few unambiguous shapes.
  *
  * <p>LLMs sometimes emit script bodies as a raw string array ({@code ["def x = 1"]}) instead of
  * {@code [{"key":"script","value":"def x = 1"}]}. That shape fails LangChain4j argument binding
- * with {@code ToolArgumentsException} before {@code captureGraphPatch} runs. Coerce known bad
- * shapes here so the tool can return a normal validation message instead of crashing the skill.
+ * with {@code ToolArgumentsException} before {@code captureGraphPatch} runs, so it is mapped here
+ * to the property it can only mean.
+ *
+ * <p>Coercion stops where the property key would have to be guessed. A shape that names no key —
+ * a keyless {@code {"value": "..."}}, for instance — reports an input mismatch rather than
+ * defaulting to {@code script}, because a wrong key binds the text to the wrong element and
+ * nothing downstream can tell. The mismatch surfaces as {@code ToolArgumentsException}, which the
+ * capture-repair path already retries with feedback.
  */
 public final class PlanPropertyListDeserializer extends JsonDeserializer<List<PlanProperty>> {
 
@@ -91,17 +97,16 @@ public final class PlanPropertyListDeserializer extends JsonDeserializer<List<Pl
       String value = valueNode == null || valueNode.isNull() ? null : valueAsString(valueNode);
       return new PlanProperty(key, value);
     }
-    // Bare script-shaped object without key — treat textual "value" / "script" as script body.
-    if (valueNode != null && valueNode.isTextual() && !valueNode.asText().isBlank()) {
-      return new PlanProperty(SCRIPT_PROPERTY_KEY, valueNode.asText());
-    }
+    // A keyless {"value": "..."} names no property, so the key can only be guessed. Reporting a
+    // mismatch routes the call into the tool-argument retry instead of mislabeling it as a script.
     JsonNode scriptNode = node.get(SCRIPT_PROPERTY_KEY);
     if (scriptNode != null && scriptNode.isTextual() && !scriptNode.asText().isBlank()) {
       return new PlanProperty(SCRIPT_PROPERTY_KEY, scriptNode.asText());
     }
     return context.reportInputMismatch(
         PlanProperty.class,
-        "property object must include key/value (or a script body string under value/script)");
+        "property object must include a textual key with its value (or a script body under"
+            + " \"script\")");
   }
 
   private static String valueAsString(JsonNode valueNode) {
