@@ -2754,6 +2754,49 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void missingRecoveryDecisionOnCaptureContractShapeOffersRetryCreation() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger captureCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    StageCapability designInput =
+        capability(
+            "design-input-cap",
+            context -> {
+              captureCalls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(
+                              StageOutcomeClass.CONTRACT_FAILURE,
+                              "The response mapping edge targets a node with multiple incoming"
+                                  + " edges",
+                              new RecoveryCause(
+                                  RecoveryCauseCode.CONTRACT_SHAPE,
+                                  List.of(
+                                      new PlanValidationFinding(
+                                          "CONTRACT_SHAPE",
+                                          "The response mapping edge targets a node with multiple"
+                                              + " incoming edges",
+                                          true)),
+                                  ""))));
+            });
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "requirement-analysis");
+
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
+
+    assertEquals(1, captureCalls.get());
+    assertEquals(
+        PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow())
+        .contains(ChatEvent.RETRY_CREATION_ACTION));
+    assertFalse(PipelineGates.strip(wait.prompt()).contains("design-input"));
+  }
+
+  @Test
   void spentDesignInputCaptureRepairAsksInsteadOfEscalatingOwners() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
@@ -2789,13 +2832,12 @@ class ProductPipelineStageExecutorTest {
 
     StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
 
-    assertEquals(2, captureCalls.get());
+    assertEquals(1, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+        PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertFalse(PipelineGates.strip(wait.prompt()).contains("requirement-analysis"));
-    assertEquals(
-        ProductPipelineStageExecutor.REPEATED_RECOVERY_SUMMARY, PipelineGates.strip(wait.prompt()));
   }
 
   @Test
@@ -2831,24 +2873,26 @@ class ProductPipelineStageExecutorTest {
         newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "requirement-analysis");
-    waitAfterOptionalSemanticRepair(runtime, "design-input");
+    StageDecision.WaitForInput first = waitAfterOptionalSemanticRepair(runtime, "design-input");
+    applyLifecycle(runtime, new StageExecutionResult(first, List.of()));
 
     runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, "For onTaskResult use service call"))
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
         .collect()
         .asList()
         .await()
         .indefinitely();
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class, execute(runtime, "design-input").decision());
 
-    String prompt =
-        requireRun().transitions().stream()
-            .filter(transition -> transition.toStatus() == RunStatus.WAITING_FOR_INPUT)
-            .reduce((a, b) -> b)
-            .map(transition -> transition.reason() == null ? "" : transition.reason())
-            .orElse("");
-    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(prompt).orElseThrow());
-    assertTrue(PipelineGates.ownerCandidatesOf(prompt).isEmpty());
-    assertFalse(PipelineGates.strip(prompt).contains("Allowed stages"));
+    assertEquals(2, captureCalls.get());
+    assertEquals(
+        PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
+    assertFalse(PipelineGates.strip(wait.prompt()).contains("Allowed stages"));
+    assertEquals(
+        ProductPipelineStageExecutor.REPEATED_RECOVERY_SUMMARY, PipelineGates.strip(wait.prompt()));
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
   }
 
