@@ -75,21 +75,13 @@ class DesignRequirementBriefCoverageValidatorTest {
     RequirementBrief brief =
         briefWithFacts(List.of(kafkaCapability("trigger-1", "kafka-trigger-2"), call("call-1")));
 
-    assertTrue(designValidator.listMissingEdges(brief).isEmpty(), brief.toString());
-    assertTrue(designValidator.listReadableMissingEdges(brief).isEmpty());
     assertDoesNotThrow(() -> designValidator.validate(brief));
-    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
-    assertTrue(filled.mappingIntents().isEmpty(), filled.mappingIntents().toString());
   }
 
   @Test
   void missingStageEdgesAreNotInventedAsPassThroughRows() {
     RequirementBrief brief = twoCallBrief();
 
-    assertTrue(designValidator.listMissingEdges(brief).isEmpty());
-    assertTrue(designValidator.listReadableMissingEdges(brief).isEmpty());
-    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
-    assertTrue(filled.mappingIntents().isEmpty(), filled.mappingIntents().toString());
     assertDoesNotThrow(() -> designValidator.validate(brief));
   }
 
@@ -123,7 +115,6 @@ class DesignRequirementBriefCoverageValidatorTest {
     RequirementBrief brief =
         briefWithFacts(List.of(kafkaCapability("trigger-1", "kafka-trigger-2"), call("call-1")));
 
-    assertTrue(designValidator.listMissingEdges(brief).isEmpty());
     assertDoesNotThrow(() -> designValidator.validate(brief));
     assertTrue(brief.mappingIntents().isEmpty());
   }
@@ -148,20 +139,11 @@ class DesignRequirementBriefCoverageValidatorTest {
                             "call-1", Direction.OUTBOUND, "External service", "call", "")),
                     List.of()));
 
-    assertTrue(designValidator.listMissingEdges(brief).isEmpty());
     IllegalArgumentException thrown =
         assertThrows(IllegalArgumentException.class, () -> designValidator.validate(brief));
     assertTrue(thrown.getMessage().contains("configured trigger entry"), thrown.getMessage());
     assertFalse(thrown.getMessage().contains("INITIALIZATION"), thrown.getMessage());
     assertFalse(thrown.getMessage().contains("no ENDPOINT fact"), thrown.getMessage());
-  }
-
-  @Test
-  void passThroughCannotInventAMissingTriggerSource() {
-    RequirementBrief brief = briefWithFacts(List.of(call("call-1")));
-
-    RequirementBrief filled = designValidator.withPassThroughForMissingEdges(brief);
-    assertTrue(filled.mappingIntents().isEmpty());
   }
 
   @Test
@@ -177,7 +159,6 @@ class DesignRequirementBriefCoverageValidatorTest {
         briefWithFacts(List.of(asyncTrigger, call("call-1"), call("call-2")));
 
     assertDoesNotThrow(() -> designValidator.validate(brief));
-    assertTrue(designValidator.listMissingEdges(brief).isEmpty());
   }
 
   private static RequirementBrief twoCallBrief() {
