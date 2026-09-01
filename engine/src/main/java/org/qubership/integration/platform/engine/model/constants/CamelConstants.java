@@ -72,6 +72,7 @@ public final class CamelConstants {
         // from, so endpoint mocking asks this property instead.
         public static final String TESTING_SESSION_ID = INTERNAL_PROPERTY_PREFIX + "testingSessionId";
         public static final String SESSION_SHOULD_BE_LOGGED = INTERNAL_PROPERTY_PREFIX + "sessionShouldBeLogged";
+        public static final String GQL_ENDPOINT_URI = INTERNAL_PROPERTY_PREFIX + "graphQLEndpointUri";
         public static final String STEPS = INTERNAL_PROPERTY_PREFIX + "steps";
         public static final String EXCHANGES = INTERNAL_PROPERTY_PREFIX + "exchanges";
         public static final String START_TIME = INTERNAL_PROPERTY_PREFIX + "startTime";
