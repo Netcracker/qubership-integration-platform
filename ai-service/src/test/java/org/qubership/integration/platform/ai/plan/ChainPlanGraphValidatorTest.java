@@ -82,6 +82,35 @@ class ChainPlanGraphValidatorTest {
   }
 
   @Test
+  void rejectsExceptionOnScriptWithCatch2Hint() {
+    when(schemaService.hasElementSchema("script")).thenReturn(true);
+    when(schemaService.allowedPatchPropertyKeys("script"))
+        .thenReturn(Set.of("script", "exportFileExtension"));
+
+    List<String> errors =
+        validator.validate(
+            new ChainPlanGraph(
+                "1.0",
+                new ChainSection("greetings", "Greetings"),
+                List.of(
+                    new ChainPlanNode(
+                        "script-1",
+                        "script",
+                        "Return",
+                        null,
+                        null,
+                        List.of(new PlanProperty("exception", "java.lang.Exception")))),
+                List.of()));
+
+    assertFalse(errors.isEmpty());
+    assertTrue(
+        errors.stream().anyMatch(error -> error.contains("unknown property key 'exception'")));
+    assertTrue(
+        errors.stream()
+            .anyMatch(error -> error.contains("Those keys belong on catch-2, not on script.")));
+  }
+
+  @Test
   void rejectsUnknownHttpTriggerPropertyKey() {
     when(schemaService.hasElementSchema("http-trigger")).thenReturn(true);
     when(schemaService.allowedPatchPropertyKeys("http-trigger"))

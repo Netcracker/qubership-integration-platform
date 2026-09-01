@@ -16,7 +16,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
 class DesignExecutionBriefFactoryTest {
 
@@ -66,36 +65,33 @@ class DesignExecutionBriefFactoryTest {
 
   @Test
   void preservesStoredBriefMappingsInsteadOfInventingThem() {
-    RequirementDataMapping mapping =
-        new RequirementDataMapping(
+    MappingIntent mapping =
+        new MappingIntent(
             "map-init",
-            RequirementDataMapping.Stage.INITIALIZATION,
             "step-trigger",
+            MappingPort.OUTPUT,
             "call-1",
-            RequirementDataMapping.Mode.EXPLICIT,
-            List.of(
-                new RequirementDataMapping.Rule(
-                    "$.request.id", "$.headers.X-Request-Id", null)),
-            List.of("fact-map"));
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("$.request.id", "$.headers.X-Request-Id", null)));
     RequirementBrief stored =
         new RequirementBrief(
-            "goal",
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            "summary",
-            null,
-            "approved text",
-            List.of(),
-            List.of(mapping));
+                "goal",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "summary",
+                null,
+                "approved text",
+                List.of())
+            .withMappingIntents(List.of(mapping));
 
     RequirementBrief brief = DesignExecutionBriefFactory.build(stored, sampleRevision());
 
     assertTrue(
-        brief.dataMappings().stream().anyMatch(item -> item.mappingId().equals("map-init")));
+        brief.mappingIntents().stream().anyMatch(item -> item.mappingIntentId().equals("map-init")));
     assertTrue(
-        brief.dataMappings().getFirst().rules().stream()
+        brief.mappingIntents().getFirst().rules().stream()
             .anyMatch(rule -> rule.targetPath().equals("$.headers.X-Request-Id")));
   }
 

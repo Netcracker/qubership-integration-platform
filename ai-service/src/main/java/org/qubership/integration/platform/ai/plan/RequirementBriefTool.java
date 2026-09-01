@@ -97,22 +97,22 @@ public class RequirementBriefTool {
        on goal, summary, inputs, constraints, and assumptions.
       Omit facts when an approved draft exists. The server projects entry points and service calls\
        from the approved RequirementFlow and catalog bindings.
-      When no field adaptation was requested, leave dataMappings and mappingIntents empty. The\
+      When no field adaptation was requested, leave mappingIntents empty. The\
        server records that as pass-through: a direct connection with no mapping row. When the\
        user requested field adaptation between projected outbound interactions, capture\
        mappingIntents. Prose is enough: Subject = name\
        becomes sourcePath=name and targetPath=Subject. A computed rule such as a priority bucket,\
        a default, or JSON construction sets expression on that rule. One intent per\
        source-to-target boundary. Never invent identity copies for fields the user did not\
-       mention. Use the approved interactionId values as sourceRef and targetRef. EXPLICIT legacy\
-       dataMappings still work; each one must include stage and at least one sourceFactId.
+       mention. Use the approved interactionId values as sourceRef and targetRef. Do not set\
+       mapping ports; the server assigns them from the approved flow.
       Minimal example:
       {
         "goal": "Expose a greeting HTTP endpoint",
         "inputs": ["HTTP request body"],
         "constraints": ["External route", "RBAC required"],
         "assumptions": [],
-        "dataMappings": [],
+        "mappingIntents": [],
         "summary": "HTTP trigger forwards to a script that returns a greeting."
       }""")
   public String captureRequirementBrief(RequirementBriefCapture capture) {
@@ -235,9 +235,8 @@ public class RequirementBriefTool {
             nullToEmpty(capture.summary()),
             capture.approvedDraftReference(),
             nullToEmpty(capture.approvedDraftText()),
-            capture.facts() == null ? List.of() : List.copyOf(capture.facts()),
-            capture.dataMappings() == null ? List.of() : List.copyOf(capture.dataMappings()))
-        .withMappingIntents(capture.mappingIntents());
+            capture.facts() == null ? List.of() : List.copyOf(capture.facts()))
+        .withMappingIntents(capture.toIntents());
   }
 
   private static List<String> copyList(List<String> values) {

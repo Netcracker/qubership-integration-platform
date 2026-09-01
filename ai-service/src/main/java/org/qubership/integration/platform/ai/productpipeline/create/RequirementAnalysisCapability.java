@@ -7,6 +7,7 @@ import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -400,14 +401,21 @@ public class RequirementAnalysisCapability implements StageCapability {
     if (brief == null) {
       if (feedbackStore != null) {
         var lastFailure = feedbackStore.lastPlanFailure(context.conversationId());
-        if (lastFailure.isPresent() && lastFailure.get().kind() == CaptureFailureKind.VALIDATION) {
-          return new CapabilitySignal.Completed(
-              StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, lastFailure.get().summary()));
+        if (lastFailure.isPresent()) {
+          String summary = lastFailure.get().summary();
+          if (isMissingChatSession(summary)) {
+            return new CapabilitySignal.Completed(
+                StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, summary));
+          }
+          if (lastFailure.get().kind() == CaptureFailureKind.VALIDATION) {
+            return new CapabilitySignal.Completed(
+                StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, summary));
+          }
         }
       }
       return new CapabilitySignal.Completed(
           StageOutcome.of(
-              StageOutcomeClass.NEEDS_INPUT,
+              StageOutcomeClass.CONTRACT_FAILURE,
               "Requirement analysis did not capture a requirement brief"));
     }
     var unresolvedMapping = BriefMappingValidator.unresolvedRequiredMessage(brief);
@@ -448,6 +456,14 @@ public class RequirementAnalysisCapability implements StageCapability {
             : "Requirement brief ready";
     return new CapabilitySignal.Completed(
         new StageOutcome(outcomeClass, List.of(candidate), message, null));
+  }
+
+  static boolean isMissingChatSession(String summary) {
+    if (summary == null || summary.isBlank()) {
+      return false;
+    }
+    String text = summary.toLowerCase(Locale.ROOT);
+    return text.contains("conversationid") || text.contains("no active chat session");
   }
 
   /** True when the active profile stage declares an approval gate for this capability run. */
@@ -597,16 +613,17 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     if (hasProjectedOutbound(approved)) {
       sb.append(
-          "Do not invent dataMappings or mappingIntents for trigger-to-call edges that only "
+          "Do not invent mappingIntents for trigger-to-call edges that only "
               + "forward the payload. Pass-through is the absence of a mapping intent. When the "
               + "user requested field adaptation, capture mappingIntents. Prose is enough: "
               + "Subject = name becomes sourcePath=name and targetPath=Subject. A computed rule "
               + "such as a priority bucket, a default, or JSON construction sets expression on "
               + "that rule. One intent per source-to-target boundary. Never invent identity "
-              + "copies for fields the user did not mention.\n\n");
+              + "copies for fields the user did not mention. Do not set mapping ports; the "
+              + "server assigns them from the approved flow.\n\n");
     } else {
       sb.append(
-          "Leave mappingIntents and dataMappings empty. There are no projected outbound "
+          "Leave mappingIntents empty. There are no projected outbound "
               + "interactions, so do not invent mappings.\n\n");
     }
     sb.append(

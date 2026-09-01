@@ -224,6 +224,10 @@ public class CaptureRepairMessageBuilder {
         .append("' from node '")
         .append(nodeId)
         .append("'.");
+    if ("script".equals(elementType)
+        && ("exception".equals(key) || "priority".equals(key))) {
+      message.append(" Those keys belong on catch-2, not on script.");
+    }
     Set<String> allowedKeys =
         schemaService.allowedPatchPropertyKeys(elementType);
     if (allowedKeys.isEmpty()) {

@@ -23,7 +23,7 @@ public final class MappingStructurePhase {
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
-    RequirementBrief adapted = LegacyStageMappingAdapter.ensureIntents(brief);
+    RequirementBrief adapted = brief;
     if (adapted == null || adapted.mappingIntents().isEmpty()) {
       return graph;
     }

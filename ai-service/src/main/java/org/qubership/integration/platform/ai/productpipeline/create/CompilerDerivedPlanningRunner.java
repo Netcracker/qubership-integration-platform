@@ -29,7 +29,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Recovery
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner.PlanningSpineOutcome;
-import org.qubership.integration.platform.ai.plan.mapping.LegacyStageMappingAdapter;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
@@ -387,7 +386,6 @@ public class CompilerDerivedPlanningRunner {
             artifact ->
                 ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload())
                     .brief())
-        .map(LegacyStageMappingAdapter::ensureIntents)
         .map(RequirementBrief::mappingIntents)
         .orElse(List.of());
   }

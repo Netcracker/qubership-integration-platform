@@ -76,13 +76,11 @@ class BusinessFirstRequirementFlowPipelineTest {
             new ObjectMapper().findAndRegisterModules(),
             new CaptureAttemptFeedbackStore(),
             new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
-    MappingIntent mapping =
-        new MappingIntent(
+    CapturedMappingIntent mapping =
+        new CapturedMappingIntent(
             "response-create-task-to-task-result",
             "create-task",
-            MappingPort.RESPONSE,
             "task-result",
-            MappingPort.REQUEST,
             List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
 
     String briefResult =
@@ -95,7 +93,6 @@ class BusinessFirstRequirementFlowPipelineTest {
                 "Map the createTask response into onTaskResult.",
                 null,
                 null,
-                List.of(),
                 List.of(),
                 List.of(),
                 List.of(mapping)));
@@ -114,7 +111,9 @@ class BusinessFirstRequirementFlowPipelineTest {
             .map(call -> call.serviceCallId())
             .collect(Collectors.toSet()));
     assertEquals("create-task", brief.mappingIntents().getFirst().sourceRef());
+    assertEquals(MappingPort.RESPONSE, brief.mappingIntents().getFirst().sourcePort());
     assertEquals("task-result", brief.mappingIntents().getFirst().targetRef());
+    assertEquals(MappingPort.REQUEST, brief.mappingIntents().getFirst().targetPort());
   }
 
   private static RequirementFlow rockyFlow() {

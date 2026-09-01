@@ -101,7 +101,6 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResu
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -888,20 +887,7 @@ class CanonicalSemanticCreateChainIT {
                 "http-service-call",
                 "List pets from Petstore Ext",
                 "Petstore Ext",
-                "GET /pets")),
-        List.of(
-            mapping(
-                "map-init",
-                RequirementDataMapping.Stage.INITIALIZATION,
-                "trigger-1",
-                "call-1",
-                RequirementDataMapping.Mode.PASS_THROUGH),
-            mapping(
-                "map-response",
-                RequirementDataMapping.Stage.RESPONSE,
-                "call-1",
-                "trigger-1",
-                RequirementDataMapping.Mode.PASS_THROUGH)));
+                "GET /pets")));
   }
 
   private static CatalogBindingHint petsBindingHint() {
@@ -956,15 +942,6 @@ class CanonicalSemanticCreateChainIT {
         "",
         "",
         id);
-  }
-
-  private static RequirementDataMapping mapping(
-      String id,
-      RequirementDataMapping.Stage stage,
-      String from,
-      String to,
-      RequirementDataMapping.Mode mode) {
-    return new RequirementDataMapping(id, stage, from, to, mode, List.of(), List.of(id));
   }
 
   private String plannerReport() {

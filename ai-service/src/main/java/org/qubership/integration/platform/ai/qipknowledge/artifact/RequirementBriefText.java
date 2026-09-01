@@ -24,7 +24,6 @@ public final class RequirementBriefText {
     appendFacts(body, brief.facts());
     appendEntryPoints(body, brief.entryPoints());
     appendServiceCalls(body, brief.serviceCalls());
-    appendDataMappings(body, brief.dataMappings());
     appendMappingIntents(body, brief.mappingIntents());
     return body.toString().trim();
   }
@@ -148,43 +147,6 @@ public final class RequirementBriefText {
             .append("  - ")
             .append(rule.status())
             .append(' ')
-            .append(rule.sourcePath())
-            .append(" -> ")
-            .append(rule.targetPath());
-        if (rule.expression() != null) {
-          body.append(" | expression: ").append(rule.expression());
-        }
-      }
-    }
-  }
-
-  private static void appendDataMappings(
-      StringBuilder body, List<RequirementDataMapping> mappings) {
-    if (mappings == null || mappings.isEmpty()) {
-      return;
-    }
-    if (!body.isEmpty()) {
-      body.append('\n');
-    }
-    body.append("Data mappings:");
-    for (RequirementDataMapping mapping : mappings) {
-      if (mapping == null) {
-        continue;
-      }
-      body.append('\n')
-          .append("- ")
-          .append(mapping.mappingId())
-          .append(" [")
-          .append(mapping.stage())
-          .append(", ")
-          .append(mapping.mode())
-          .append("] ")
-          .append(mapping.fromIntentRef())
-          .append(" -> ")
-          .append(mapping.toIntentRef());
-      for (RequirementDataMapping.Rule rule : mapping.rules()) {
-        body.append('\n')
-            .append("  - ")
             .append(rule.sourcePath())
             .append(" -> ")
             .append(rule.targetPath());

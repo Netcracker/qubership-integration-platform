@@ -50,8 +50,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
-
 class ProductPipelineProfileCatalogCutoverTest {
 
   private static final String VALID_IDS =
@@ -326,22 +324,7 @@ class ProductPipelineProfileCatalogCutoverTest {
         "draft",
         List.of(
             fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
-            fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
-        List.of(
-            mapping(
-                "map-init",
-                RequirementDataMapping.Stage.INITIALIZATION,
-                "trigger-1",
-                "call-1",
-                RequirementDataMapping.Mode.PASS_THROUGH,
-                List.of("fact-map")),
-            mapping(
-                "map-resp",
-                RequirementDataMapping.Stage.RESPONSE,
-                "call-1",
-                "trigger-1",
-                RequirementDataMapping.Mode.PASS_THROUGH,
-                List.of("fact-map-resp"))));
+            fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")));
   }
 
   private static RequirementBrief deriveBrief() {
@@ -358,15 +341,7 @@ class ProductPipelineProfileCatalogCutoverTest {
             fact("fact-trigger", RequirementFactKind.ENDPOINT, "async-api-trigger"),
             fact("fact-step", RequirementFactKind.SERVICE_CALL, "http-service-call"),
             fact("fact-p", RequirementFactKind.BEHAVIOR, null),
-            fact("fact-map", RequirementFactKind.BEHAVIOR, null)),
-        List.of(
-            mapping(
-                "map-init",
-                RequirementDataMapping.Stage.INITIALIZATION,
-                "fact-trigger",
-                "fact-step",
-                RequirementDataMapping.Mode.PASS_THROUGH,
-                List.of("fact-map"))));
+            fact("fact-map", RequirementFactKind.BEHAVIOR, null)));
   }
 
   private static RequirementFact fact(
@@ -383,16 +358,6 @@ class ProductPipelineProfileCatalogCutoverTest {
         "",
         "",
         kind == RequirementFactKind.SERVICE_CALL ? id : "");
-  }
-
-  private static RequirementDataMapping mapping(
-      String id,
-      RequirementDataMapping.Stage stage,
-      String from,
-      String to,
-      RequirementDataMapping.Mode mode,
-      List<String> sourceFactIds) {
-    return new RequirementDataMapping(id, stage, from, to, mode, List.of(), sourceFactIds);
   }
 
   private static List<String> allProfileArtifactNames() throws Exception {
