@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -358,6 +359,26 @@ class CatalogFirstApiHubDiscoveryToolTest {
   private static Interaction interaction(
       String interactionId, String participant, String operation, String description) {
     return new Interaction(interactionId, OUTBOUND, participant, operation, description);
+  }
+
+  @Test
+  void specificationHintParameterTreatsEmptyAsNormal() throws Exception {
+    String description =
+        CatalogFirstApiHubDiscoveryTool.class
+            .getMethod(
+                "resolveApiOperation",
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class)
+            .getParameters()[3]
+            .getAnnotation(dev.langchain4j.agent.tool.P.class)
+            .value();
+    assertTrue(description.contains("Empty is normal"), description);
+    assertTrue(description.contains("Do not ask the user for a specification name"), description);
+    assertFalse(description.contains("the reader gave"), description);
   }
 
   private static CatalogMatch petstoreMatch() {
