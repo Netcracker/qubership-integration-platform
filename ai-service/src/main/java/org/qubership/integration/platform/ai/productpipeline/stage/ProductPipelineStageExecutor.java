@@ -77,6 +77,7 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSig
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignalLiveSink;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptKey;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry;
 import org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptLedger;
 import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
@@ -109,6 +110,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final FailureNarrative failureNarrative;
   private final int repeatedFailureThreshold;
   private final RecoveryAttemptLedger recoveryLedger;
+  private final RecoveryOutcomeTelemetry recoveryTelemetry;
   private volatile RecoveryValidationDeps recoveryValidationDeps;
 
   private static final class RecoveryValidationDeps {
@@ -227,6 +229,36 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       FailureNarrative failureNarrative,
       int repeatedFailureThreshold,
       RecoveryAttemptLedger recoveryLedger) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        clock,
+        profilesByRun,
+        manifestsByRun,
+        attributesByRun,
+        technicalRetriesByStage,
+        approvalPrompts,
+        failureNarrative,
+        repeatedFailureThreshold,
+        recoveryLedger,
+        new RecoveryOutcomeTelemetry());
+  }
+
+  public ProductPipelineStageExecutor(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      Clock clock,
+      Map<String, ProductPipelineProfile> profilesByRun,
+      Map<String, RunManifest> manifestsByRun,
+      Map<String, Map<String, Object>> attributesByRun,
+      Map<String, Integer> technicalRetriesByStage,
+      ApprovalPrompts approvalPrompts,
+      FailureNarrative failureNarrative,
+      int repeatedFailureThreshold,
+      RecoveryAttemptLedger recoveryLedger,
+      RecoveryOutcomeTelemetry recoveryTelemetry) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -242,6 +274,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         failureNarrative == null ? new FailureNarrative() : failureNarrative;
     this.repeatedFailureThreshold = Math.max(2, repeatedFailureThreshold);
     this.recoveryLedger = recoveryLedger == null ? new RecoveryAttemptLedger() : recoveryLedger;
+    this.recoveryTelemetry =
+        recoveryTelemetry == null ? new RecoveryOutcomeTelemetry() : recoveryTelemetry;
   }
 
   public ApprovalRecordV2 approveCandidate(
@@ -727,6 +761,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         if (profile.terminal().stageId().equals(stage.stageId())) {
           RunStatus terminalStatus = terminalStatus(profile);
           commitStatus(doc, terminalStatus, StageStatus.SUCCEEDED, updated, outcome.message());
+          if (terminalStatus == RunStatus.CHAIN_MATERIALIZED) {
+            recoveryTelemetry.recordSuccess(runId);
+          }
           emitted.add(new PipelineSignal.Completed(terminalStatus));
           yield new StageExecutionResult(
               new StageDecision.Complete(stage.stageId(), terminalStatus), emitted);
@@ -1058,10 +1095,17 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           null,
           emitted);
     }
-    if (PipelineGates.STAGE_RETRY.equals(gate)) {
-      if (outcomeClass == StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE) {
-        gate = PipelineGates.RECOVERY_RETRY_TECHNICAL;
-      }
+    if (PipelineGates.STAGE_RETRY.equals(gate)
+        && outcomeClass == StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE) {
+      return waitContextualRecovery(
+          doc,
+          stage,
+          refs,
+          PipelineGates.RECOVERY_RETRY_TECHNICAL,
+          body,
+          evidence,
+          retryDelayMs,
+          emitted);
     }
     // Strip markers out of the body before tagging, so model-authored text that happens to spell a
     // marker cannot move the wait to a gate the executor did not choose.
@@ -1420,6 +1464,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         durablePrompt,
         ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null));
     emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
+    String rawEvidence = stageErrorContext(doc.run().runId());
+    if (rawEvidence == null || rawEvidence.isBlank()) {
+      rawEvidence = evidenceText;
+    }
+    recoveryTelemetry.recordPresented(
+        doc.run().runId(),
+        gate,
+        ToolCallFingerprints.failureSignature(rawEvidence),
+        evidenceText);
     return new StageExecutionResult(
         new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
   }
@@ -2432,6 +2485,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RunManifest manifest = manifestsByRun.get(runId);
     String responseLocale = manifest == null ? "en" : manifest.responseLocale();
     return approvalPrompts.stageApprovalPrompt(stageId, responseLocale, languageReferenceFor(runId));
+  }
+
+  private String stageErrorContext(String runId) {
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes == null) {
+      return "";
+    }
+    Object error = attributes.get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR);
+    return error instanceof String text ? text : "";
   }
 
   private boolean isBriefRepairApproval(String runId, String stageId) {

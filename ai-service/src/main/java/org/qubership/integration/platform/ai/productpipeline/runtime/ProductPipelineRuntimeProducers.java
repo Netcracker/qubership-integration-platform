@@ -55,6 +55,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTyp
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineCompatibilityVerifier;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileValidator;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -171,7 +172,8 @@ public class ProductPipelineRuntimeProducers {
       ApprovalPromptAgent approvalPromptAgent,
       FailureNarrativeAgent failureNarrativeAgent,
       S3Service s3Service,
-      AppConfig appConfig) {
+      AppConfig appConfig,
+      RecoveryOutcomeTelemetry recoveryTelemetry) {
     AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
         appConfig.create().failureNarrative();
     return new ProductPipelineRunSupport(
@@ -194,7 +196,8 @@ public class ProductPipelineRuntimeProducers {
                 new RecoveryAttemptLedger.Limits(
                     appConfig.create().maxSemanticRepairs(),
                     appConfig.create().maxCausalReopens(),
-                    appConfig.create().recoveryAttemptCeiling())));
+                    appConfig.create().recoveryAttemptCeiling())),
+            recoveryTelemetry);
   }
 
   @Produces

@@ -170,7 +170,9 @@ retry, clarification, or park. Domain and contract failures retain owner diagnos
 reopen when one owner is diagnosed. Ambiguous owners, internal defects, repeated failures, and
 permanent environment failures offer only End run and keep report. Missing mandatory input and
 policy failures halt on a Decision card; the model does not rewrite policy. No outcome class may
-leave the user with nothing to do.
+leave the user with nothing to do. Recovery dialogs record privacy-safe telemetry for category,
+semantic action, failure identity, attempt, and outcome; they do not record raw requirements or
+exception payloads.
 
 **Internal failure**:
 An invariant broken inside the service, as opposed to a model reply the contract rejects: a
