@@ -174,8 +174,19 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals("try-catch-1", node(graph, "try-body").parentNodeId());
     assertEquals("try-catch-1", node(graph, "catch-body").parentNodeId());
     assertEquals("try-catch-1", node(graph, "finally-script").parentNodeId());
-    assertEquals("java.lang.Exception", property(node(graph, "catch-body"), "exception"));
+    assertNull(property(node(graph, "catch-body"), "exception"));
+    assertNull(property(node(graph, "catch-body"), "priority"));
     assertEquals("try-catch-1", edge(graph, "edge-catch").scopeNodeId());
+  }
+
+  @Test
+  void stampsExceptionAndPriorityWhenHandlerEntryIsCatch2() {
+    ChainPlanGraph graph = compiler.compile(errorScopeRevision("catch-2"), CONTRACT, List.of());
+
+    ChainPlanNode catchEntry = node(graph, "catch-body");
+    assertEquals("catch-2", catchEntry.type());
+    assertEquals("java.lang.Exception", property(catchEntry, "exception"));
+    assertEquals("0", property(catchEntry, "priority"));
   }
 
   @Test
@@ -501,6 +512,10 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   private static ChainSemanticRevision errorScopeRevision() {
+    return errorScopeRevision("script");
+  }
+
+  private static ChainSemanticRevision errorScopeRevision(String catchEntryElementType) {
     return revision(
         List.of(entry("http-in", "trigger-http", "try-catch-1")),
         List.of(
@@ -509,7 +524,8 @@ class DefaultChainSemanticGraphCompilerTest {
             new SemanticNode.Operation(
                 "try-catch-1", "try-catch-finally-2", new SemanticProvenance(List.of())),
             new SemanticNode.Operation("try-body", "script", new SemanticProvenance(List.of())),
-            new SemanticNode.Operation("catch-body", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "catch-body", catchEntryElementType, new SemanticProvenance(List.of())),
             new SemanticNode.Operation(
                 "finally-script", "script", new SemanticProvenance(List.of()))),
         List.of(
