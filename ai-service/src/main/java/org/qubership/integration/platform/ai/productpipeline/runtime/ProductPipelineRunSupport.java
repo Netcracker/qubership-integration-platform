@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
@@ -52,6 +53,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ImplementationGatePolicy;
@@ -181,6 +183,7 @@ public final class ProductPipelineRunSupport {
   private final FailureNarrative failureNarrative;
 
   private final RecoveryAttemptLedger recoveryLedger;
+  private final RecoveryOutcomeTelemetry recoveryTelemetry;
 
   /** Fluent builder for the optional collaborators; required ones are constructor args. */
   public static Builder builder(
@@ -204,6 +207,7 @@ public final class ProductPipelineRunSupport {
     private Duration cacheIdleTimeout = DEFAULT_CACHE_IDLE_TIMEOUT;
     private int repeatedFailureThreshold = 2;
     private RecoveryAttemptLedger recoveryLedger;
+    private RecoveryOutcomeTelemetry recoveryTelemetry;
 
     private Builder(
         ProductPipelineRunStore runStore,
@@ -256,6 +260,11 @@ public final class ProductPipelineRunSupport {
       return this;
     }
 
+    public Builder recoveryTelemetry(RecoveryOutcomeTelemetry recoveryTelemetry) {
+      this.recoveryTelemetry = recoveryTelemetry;
+      return this;
+    }
+
     public ProductPipelineRunSupport build() {
       return new ProductPipelineRunSupport(
           runStore,
@@ -269,7 +278,8 @@ public final class ProductPipelineRunSupport {
           failureNarrative,
           cacheIdleTimeout,
           repeatedFailureThreshold,
-          recoveryLedger);
+          recoveryLedger,
+          recoveryTelemetry);
     }
   }
 
@@ -285,7 +295,8 @@ public final class ProductPipelineRunSupport {
       FailureNarrative failureNarrative,
       Duration cacheIdleTimeout,
       int repeatedFailureThreshold,
-      RecoveryAttemptLedger recoveryLedger) {
+      RecoveryAttemptLedger recoveryLedger,
+      RecoveryOutcomeTelemetry recoveryTelemetry) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -300,6 +311,8 @@ public final class ProductPipelineRunSupport {
     this.technicalRetriesByStage = idleCache(cacheIdleTimeout);
     this.failureNarrative = failureNarrative == null ? new FailureNarrative() : failureNarrative;
     this.recoveryLedger = recoveryLedger == null ? new RecoveryAttemptLedger() : recoveryLedger;
+    this.recoveryTelemetry =
+        recoveryTelemetry == null ? new RecoveryOutcomeTelemetry() : recoveryTelemetry;
     this.stageExecutor =
         new ProductPipelineStageExecutor(
             runStore,
@@ -313,7 +326,8 @@ public final class ProductPipelineRunSupport {
             this.approvalPrompts,
             this.failureNarrative,
             repeatedFailureThreshold,
-            this.recoveryLedger);
+            this.recoveryLedger,
+            this.recoveryTelemetry);
   }
 
   /** Single-stage execution seam used by Flow. */
@@ -553,9 +567,10 @@ public final class ProductPipelineRunSupport {
               boolean retryClick = PipelineGates.RETRY_ACTION.equals(command.text());
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(command.text());
               boolean haltCardClick = retryClick || reviseClick;
+              String haltGate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+              recordRecoverySelection(command.runId(), haltGate, command.text());
               if (haltCardClick
-                  && PipelineGates.isTerminalRecoveryGate(
-                      PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""))) {
+                  && PipelineGates.isTerminalRecoveryGate(haltGate)) {
                 return reemitHaltCard(doc);
               }
               if (retryClick) {
@@ -1399,8 +1414,21 @@ public final class ProductPipelineRunSupport {
     return Multi.createFrom().empty();
   }
 
+  private void recordRecoverySelection(String runId, String gate, String pipelineAction) {
+    if (!PipelineGates.isContextualRecoveryGate(gate) || pipelineAction == null) {
+      return;
+    }
+    String semantic = recoveryTelemetry.semanticAction(gate, pipelineAction);
+    List<String> offered = ChatEvent.actionsForGate(gate);
+    if (offered == null || !offered.contains(semantic)) {
+      return;
+    }
+    recoveryTelemetry.recordSelected(runId, semantic);
+  }
+
   private Multi<PipelineSignal> stopWithReport(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    recoveryTelemetry.recordUserExit(command.runId());
     StageOutcomeClass outcomeClass = haltOutcomeClass(command.runId());
     String evidence = stringAttribute(command.runId(), STAGE_ERROR_CONTEXT_ATTR).orElse("halted");
     Revision report =

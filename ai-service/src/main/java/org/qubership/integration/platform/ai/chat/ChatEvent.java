@@ -483,54 +483,64 @@ public sealed interface ChatEvent {
     };
   }
 
+  /** Normalized recovery category for a contextual halt gate, or {@code null} when not recovery. */
+  public static String recoveryCategoryOf(String gateId) {
+    if (gateId == null) {
+      return null;
+    }
+    return switch (gateId) {
+      case PipelineGates.RECOVERY_RETRY_TECHNICAL -> "temporary-technical-failure";
+      case PipelineGates.RECOVERY_REGENERATE_EXECUTION -> "regeneratable-execution-failure";
+      case PipelineGates.RECOVERY_REVISE_BRIEF -> "requirement-brief-defect";
+      case PipelineGates.RECOVERY_REBUILD_PLAN -> "plan-artifact-defect";
+      case PipelineGates.RECOVERY_ENVIRONMENT -> "permanent-environment-failure";
+      case PipelineGates.RECOVERY_INTERNAL -> "internal-service-failure";
+      case PipelineGates.RECOVERY_REPEATED -> "repeated-identical-failure";
+      case PipelineGates.RECOVERY_UNCLASSIFIED -> "unclassified-failure";
+      default -> null;
+    };
+  }
+
   private static RecoveryPresentation recoveryFor(PendingAction.Clarify clarify) {
     String gate = clarify.gateId();
-    String category;
+    String category = recoveryCategoryOf(gate);
+    if (category == null) {
+      return null;
+    }
     String title;
     String preservedWork;
     switch (gate) {
       case PipelineGates.RECOVERY_RETRY_TECHNICAL -> {
-        category = "temporary-technical-failure";
         title = "Creation paused temporarily";
         preservedWork = "Your approved requirements and plan are saved.";
       }
       case PipelineGates.RECOVERY_REGENERATE_EXECUTION -> {
-        category = "regeneratable-execution-failure";
         title = "Creation output needs regeneration";
         preservedWork = "Your approved requirements and plan are saved.";
       }
       case PipelineGates.RECOVERY_REVISE_BRIEF -> {
-        category = "requirement-brief-defect";
         title = "Requirements need correction";
         preservedWork = "Your approved product facts stay available.";
       }
       case PipelineGates.RECOVERY_REBUILD_PLAN -> {
-        category = "plan-artifact-defect";
         title = "The plan cannot be used";
         preservedWork = "Your approved requirements stay unchanged.";
       }
       case PipelineGates.RECOVERY_ENVIRONMENT -> {
-        category = "permanent-environment-failure";
         title = "Creation cannot continue here";
         preservedWork = "Your approved requirements and plan are saved.";
       }
       case PipelineGates.RECOVERY_INTERNAL -> {
-        category = "internal-service-failure";
         title = "Creation hit an internal problem";
         preservedWork = "Your approved requirements and plan are saved.";
       }
       case PipelineGates.RECOVERY_REPEATED -> {
-        category = "repeated-identical-failure";
         title = "The same problem came back";
         preservedWork = "Your approved requirements and plan are saved.";
       }
-      case PipelineGates.RECOVERY_UNCLASSIFIED -> {
-        category = "unclassified-failure";
+      default -> {
         title = "Creation cannot continue";
         preservedWork = "Your approved requirements and plan are saved.";
-      }
-      default -> {
-        return null;
       }
     }
     return new RecoveryPresentation(
