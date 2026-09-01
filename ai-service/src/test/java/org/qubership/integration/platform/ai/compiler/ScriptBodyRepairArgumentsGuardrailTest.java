@@ -1,12 +1,9 @@
 package org.qubership.integration.platform.ai.compiler;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import io.quarkiverse.langchain4j.guardrails.ToolInputGuardrailRequest;
 import io.quarkiverse.langchain4j.guardrails.ToolInputGuardrailResult;
@@ -16,7 +13,6 @@ class ScriptBodyRepairArgumentsGuardrailTest {
 
   private final ScriptBodyRepairArgumentsGuardrail guardrail =
       new ScriptBodyRepairArgumentsGuardrail();
-  private final ObjectMapper mapper = new ObjectMapper();
 
   @Test
   void passesValidArgumentsUnchanged() {
@@ -25,11 +21,11 @@ class ScriptBodyRepairArgumentsGuardrailTest {
             + "\"script\":\"return 1\"}],\"rationale\":\"r\"}}";
     ToolInputGuardrailResult result = guardrail.validate(request(valid));
     assertTrue(result.isSuccess());
-    assertEquals(null, result.modifiedRequest());
+    assertNull(result.modifiedRequest());
   }
 
   @Test
-  void sanitizesUnescapedQuotesInScriptAndReturnsModifiedRequest() throws Exception {
+  void repromptsOnUnescapedQuotesInScriptInsteadOfRewritingThem() {
     String broken =
         "{\"capture\":{\"patchId\":\"catch-error-response\",\"scripts\":[{"
             + "\"targetNodeId\":\"error-handler\","
@@ -38,13 +34,19 @@ class ScriptBodyRepairArgumentsGuardrailTest {
             + "}],\"rationale\":\"R-504\"}}";
 
     ToolInputGuardrailResult result = guardrail.validate(request(broken));
+
+    assertFalse(result.isSuccess());
+    assertFalse(result.isFatalFailure());
+    assertNull(result.modifiedRequest());
+    assertTrue(result.errorMessage().contains("JsonOutput.toJson"));
+  }
+
+  @Test
+  void passesBlankArgumentsThroughToToolBinding() {
+    ToolInputGuardrailResult result = guardrail.validate(request("   "));
+
     assertTrue(result.isSuccess());
-    assertNotNull(result.modifiedRequest());
-    String repairedArgs = result.modifiedRequest().arguments();
-    assertTrue(ScriptBodyToolArgumentsSanitizer.isValidJson(repairedArgs));
-    JsonNode script =
-        mapper.readTree(repairedArgs).path("capture").path("scripts").get(0).path("script");
-    assertTrue(script.asText().contains("exception?.message"));
+    assertNull(result.modifiedRequest());
   }
 
   @Test
