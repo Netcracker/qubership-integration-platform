@@ -111,12 +111,16 @@ _Avoid_: auto-approved fix, in-place edit of an approved plan
 For domain and contract failures, the runtime still traces defective inputs through earlier
 producers. Validation failures use a structured `RecoveryDecision` instead: the agent returns the
 decision, Java validates it and resolves the referenced artifact to its producer, and the author
-never selects an internal stage.
+never selects an internal stage. When more than one producer stays plausible, the run ends on a
+diagnostic report. Stage ids stay in technical details; they are never buttons or selectable
+recovery values.
 _Avoid_: previous-approval heuristic, unconstrained LLM blame, owner-choice stage cards
 
 **Recoverable halt**:
-A pause that keeps the run inside the product pipeline. The user can retry the current stage, go
-back to an earlier approval, ask questions, or revise the plan. The run is not finished and is not
+A pause that keeps the run inside the product pipeline. User recovery actions are semantic
+(Retry creation, Edit requirements, Rebuild plan, End run and keep report). Internal pipeline
+stages remain diagnostic metadata. The user can retry a recoverable step, revise a diagnosed
+owner, ask questions, or end a terminal failure with a report. The run is not finished and is not
 a tombstone. A typed message at this pause is a halt follow-up: it stays on this run and continues
 the diagnosis, and it is not a new router classification. Every command at this pause advances the
 semantic recovery state, or produces a transcript message that answers what was typed. No command
@@ -159,21 +163,21 @@ _Avoid_: rationing questions by a per-run count, keyword matching for "why", mov
 
 **Failure routing** (decided):
 A recoverable halt is the only user-visible stop. Same-stage technical retry still runs first;
-when that budget is exhausted the halt card always includes Retry (including connection loss).
-Validation failures persist lossless `RecoveryEvidence`, project it to the recovery LLM, request a
-structured `RecoveryDecision`, validate it in Java, and execute a brief reopen, artifact retry,
-clarification, or park without owner choice. Domain and contract failures retain owner diagnosis
-and causal reopen. Missing mandatory input and policy failures halt on a Decision card; the model
-does not rewrite policy. No outcome class may leave the user with nothing to do.
+when that budget is exhausted the card offers Retry creation if another attempt can change the
+outcome. Validation failures persist lossless `RecoveryEvidence`, project it to the recovery LLM,
+request a structured `RecoveryDecision`, validate it in Java, and execute a brief reopen, artifact
+retry, clarification, or park. Domain and contract failures retain owner diagnosis and causal
+reopen when one owner is diagnosed. Ambiguous owners, internal defects, repeated failures, and
+permanent environment failures offer only End run and keep report. Missing mandatory input and
+policy failures halt on a Decision card; the model does not rewrite policy. No outcome class may
+leave the user with nothing to do.
 
 **Internal failure**:
 An invariant broken inside the service, as opposed to a model reply the contract rejects: a
 capability that emits the wrong number of completion signals, an artifact kind the profile never
-declared, or a throwable nothing classified. It halts recoverably like every other outcome, and
-the card carries the run identifier the author hands to support, but it offers no Retry, because
-re-entering the stage meets the same defect. Owner diagnosis considers only earlier producers. The
-card binds a valid producer stage directly. Without one, the card offers Stop with report so the
-author can end the run.
+declared, or a throwable nothing classified. It halts recoverably like every other outcome. The
+card carries the run identifier the author hands to support and offers only End run and keep
+report, because re-entering the stage meets the same defect. Stage ids stay in technical details.
 _Avoid_: contract failure for a service defect, a Retry that cannot work, terminal FAILED
 
 **Causal reopen window** (decided):
@@ -196,8 +200,9 @@ gate the run actually waits at. This replaced approval by prose: matching an Eng
 "Agree" in the next message was removed from the codebase, because no reply in another language
 ever matched it. Any new user confirmation belongs here, not in a phrase the user has to type.
 `CREATE_ACTION` states the underlying rule: writing to the catalog is "the one irreversible step,
-never a model's to take".
-_Avoid_: approval prose, "type yes to confirm"
+never a model's to take". Recovery cards use the same Decision card surface with server-owned
+`recovery` metadata and semantic actions. Internal pipeline stage ids are not user actions.
+_Avoid_: approval prose, "type yes to confirm", stage-id recovery buttons
 
 **DEPLOY_CHAIN** (decided, does not exist yet):
 The chat scenario for catalog Snapshot, deploy/redeploy, undeploy, and deployment status of an

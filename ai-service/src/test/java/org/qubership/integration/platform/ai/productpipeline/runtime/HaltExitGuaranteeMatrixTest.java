@@ -89,10 +89,10 @@ class HaltExitGuaranteeMatrixTest {
             "STAGE_CLARIFICATION × Retry: Retry is not a clarification action; the gate accepts free text",
             "STAGE_CLARIFICATION × Revise: Revise is not a clarification action",
             "STAGE_CLARIFICATION × owner-choice pick: no owner candidates on this gate",
-            "OWNER_CHOICE × Retry: Retry is not on the owner-choice card",
-            "OWNER_CHOICE × Revise: Revise is not on the owner-choice card",
-            "STAGE_INTERNAL_FAILURE × Retry: internal failure does not offer Retry",
-            "STAGE_ESCALATED × Retry as an offered action: Retry is omitted once the guard refuses it",
+            "OWNER_CHOICE × Retry: leftover owner-choice waits offer End run, not Retry",
+            "OWNER_CHOICE × Revise: leftover owner-choice waits offer End run, not Revise",
+            "STAGE_INTERNAL_FAILURE × Retry: leftover internal-failure waits offer End run",
+            "STAGE_ESCALATED × Retry as an offered action: leftover escalated waits offer End run",
             "WAITING_FOR_APPROVAL × halt follow-up: not a halt gate",
             "catalog written × automatic ReopenProducer: the executor never emits that decision after a catalog write",
             "STAGE_RETRY × Revise: Revise is not on the retry-only card",
@@ -116,16 +116,12 @@ class HaltExitGuaranteeMatrixTest {
                         || signal instanceof PipelineSignal.Message),
         signals.toString());
     String prompt = latestWaitingPrompt();
-    assertEquals(PipelineGates.STAGE_ESCALATED, PipelineGates.gateOf(prompt).orElseThrow());
-    assertEquals(
-        HaltRecoveryGuard.NAMED_STAGE_OUTSIDE_CANDIDATE_SET.name(),
-        PipelineGates.guardOf(prompt).orElseThrow());
+    assertEquals(PipelineGates.RECOVERY_UNCLASSIFIED, PipelineGates.gateOf(prompt).orElseThrow());
     assertTrue(
         PipelineGates.strip(prompt)
-            .contains(HaltRecoveryGuard.NAMED_STAGE_OUTSIDE_CANDIDATE_SET.cardSentence()),
+            .contains("Creation stopped without a recoverable cause."),
         prompt);
-    assertTrue(
-        PipelineGates.escalatedActionsOf(prompt).contains(PipelineGates.STOP_WITH_REPORT_ACTION));
+    assertTrue(PipelineGates.ownerCandidatesOf(prompt).isEmpty());
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
     assertTrue(artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).isPresent());
   }
@@ -162,14 +158,14 @@ class HaltExitGuaranteeMatrixTest {
                 List.of(),
                 PipelineGates.RECOVERY_UNCLASSIFIED)));
     assertEquals(
-        List.of("requirement-analysis", PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
                 HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER.cardSentence(),
                 List.of("requirement-analysis", PipelineGates.STOP_WITH_REPORT_ACTION),
                 PipelineGates.STAGE_ESCALATED)));
     assertEquals(
-        List.of("requirement-analysis", "planning"),
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
                 "pick an owner",
@@ -203,8 +199,8 @@ class HaltExitGuaranteeMatrixTest {
     type("requirement-analysis");
     type(PipelineGates.REVISE_ACTION);
 
-    assertEquals("requirement-analysis", run().run().currentStageId());
-    assertEquals(RunStatus.RUNNING, run().run().status());
+    assertEquals("planning", run().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
     assertEquals(callsBefore, planningCalls.get());
   }
 

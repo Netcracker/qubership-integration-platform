@@ -553,7 +553,7 @@ public final class ProductPipelineRunSupport {
               boolean retryClick = PipelineGates.RETRY_ACTION.equals(command.text());
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(command.text());
               boolean haltCardClick = retryClick || reviseClick;
-              if (retryClick
+              if (haltCardClick
                   && PipelineGates.isTerminalRecoveryGate(
                       PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""))) {
                 return reemitHaltCard(doc);
@@ -773,15 +773,13 @@ public final class ProductPipelineRunSupport {
   }
 
   /**
-   * Typed message at a recoverable halt: same run, original requirements unchanged, Retry still
-   * open. At {@link PipelineGates#STAGE_RETRY}, persist the text and re-emit the same halt card;
-   * Retry remains the only action that reruns the stage. When the text names one stage in the
-   * closed candidate set, that owner is used and the run follows the same Revise path (causal
-   * reopen counts against the run budget). Ambiguous names become an owner-choice card. A named
-   * stage outside the set stays halted and lists the allowed stage ids. A bare go-back reopens
+   * Typed message at a recoverable halt: same run, original requirements unchanged. At {@link
+   * PipelineGates#STAGE_RETRY} or a contextual recovery gate, persist the text and re-emit the same
+   * halt card. When the text names one stage in the closed candidate set on a revise halt, that
+   * owner is used and the run follows the Revise path. Naming more than one stage re-emits the
+   * current card. A named stage outside the set stays halted with End run. A bare go-back reopens
    * the diagnosed owner. Whatever none of those branches claims goes to {@link
-   * #answerQuestionOrStayWaiting}, which answers a question and leaves an instruction waiting. The
-   * next diagnosis turn reads {@link #HALT_FOLLOW_UP_TEXT_ATTR}.
+   * #answerQuestionOrStayWaiting}. The next diagnosis turn reads {@link #HALT_FOLLOW_UP_TEXT_ATTR}.
    */
   private Multi<PipelineSignal> recordHaltFollowUp(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
@@ -816,7 +814,7 @@ public final class ProductPipelineRunSupport {
         PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
     if (PipelineGates.STAGE_RETRY.equals(gate)
         || PipelineGates.isContextualRecoveryGate(gate)) {
-      return reemitHaltCard(doc);
+      return answerQuestionOrStayWaiting(doc, command, haltOwnerCandidates(doc), priorFollowUp);
     }
     List<OwnerCandidate> closed = haltOwnerCandidates(doc);
     List<String> named = OwnerCandidateSet.namedStages(command.text(), closed);
@@ -826,19 +824,7 @@ public final class ProductPipelineRunSupport {
     }
     if (named.size() > 1) {
       attributes.put(DIAGNOSED_OWNER_STAGE_ATTR, "");
-      String body = PipelineGates.strip(latestWaitingForInputPrompt(doc));
-      String prompt = PipelineGates.tagOwnerChoice(body, named);
-      commitStatus(
-          doc,
-          RunStatus.WAITING_FOR_INPUT,
-          StageStatus.WAITING_FOR_INPUT,
-          doc.run().stages(),
-          prompt,
-          null,
-          command.commandId(),
-          command.commandPayloadHash());
-      return Multi.createFrom()
-          .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
+      return reemitHaltCard(doc);
     }
     if (OwnerCandidateSet.isBareGoBack(command.text())) {
       return applyBareGoBack(doc, command, closed);
@@ -888,6 +874,13 @@ public final class ProductPipelineRunSupport {
                 return showUnanswerableHalt(doc, command, priorFollowUp);
               }
               if (asked.isNotAQuestion()) {
+                String gate =
+                    PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+                if (PipelineGates.STAGE_RETRY.equals(gate)
+                    || PipelineGates.isContextualRecoveryGate(gate)) {
+                  restoreHaltFollowUpText(command.runId(), priorFollowUp);
+                  return reemitHaltCard(doc);
+                }
                 return applyDiagnosedOwner(doc, command);
               }
               restoreHaltFollowUpText(command.runId(), priorFollowUp);
@@ -995,15 +988,15 @@ public final class ProductPipelineRunSupport {
   }
 
   /**
-   * Refuses a halt command by advancing to an escalated wait that names {@code guard}. Re-committing
-   * the previous wait is not a legal answer. A second refusal of the same already-escalated guard
-   * emits the guard sentence as a message and keeps the terminal card.
+   * Refuses a halt command by advancing to a repeated-failure recovery wait that names {@code
+   * guard}. Re-committing the previous wait is not a legal answer. A second refusal of the same
+   * already-recorded guard emits the guard sentence as a message and keeps the terminal card.
    */
   private Multi<PipelineSignal> refuseWithGuard(
       ProductPipelineRunDocument doc, AcceptInputCommand command, HaltRecoveryGuard guard) {
     HaltRecoveryGuard named = guard == null ? HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS : guard;
     String previous = latestWaitingForInputPrompt(doc);
-    if (PipelineGates.STAGE_ESCALATED.equals(PipelineGates.gateOf(previous).orElse(""))
+    if (PipelineGates.RECOVERY_REPEATED.equals(PipelineGates.gateOf(previous).orElse(""))
         && named.name().equals(PipelineGates.guardOf(previous).orElse(""))) {
       return Multi.createFrom()
           .item((PipelineSignal) new PipelineSignal.Message(named.cardSentence()))
@@ -1013,30 +1006,15 @@ public final class ProductPipelineRunSupport {
     String evidence =
         stringAttribute(command.runId(), STAGE_ERROR_CONTEXT_ATTR)
             .orElseGet(() -> PipelineGates.strip(previous));
-    List<OwnerCandidate> closed = haltOwnerCandidates(doc);
-    String allowed = String.join(", ", OwnerCandidateSet.stageIds(closed));
-    SemanticRecoveryState.RemainingAttempts remaining = remainingOf(doc, command);
-    String body =
-        named.cardSentence()
-            + (allowed.isBlank() ? "" : " Allowed stages: " + allowed + ".")
-            + (evidence.isBlank() ? "" : " " + evidence)
-            + " (runId="
-            + command.runId()
-            + ")"
-            + HaltRecoveryGuard.remainingLine(remaining);
-    List<String> working = workingEscalatedActions(doc, command, closed);
-    boolean drop = working.contains(PipelineGates.DROP_ELEMENT_ACTION);
-    List<String> stages = new ArrayList<>();
-    for (String action : working) {
-      if (!PipelineGates.DROP_ELEMENT_ACTION.equals(action)
-          && !PipelineGates.STOP_WITH_REPORT_ACTION.equals(action)) {
-        stages.add(action);
-      }
-    }
-    String haltIdentity = PipelineGates.haltIdentityOf(previous).orElse("");
+    String details =
+        (evidence.isBlank() ? "" : evidence + " ") + "(runId=" + command.runId() + ")";
     String prompt =
         PipelineGates.tagGuard(
-            PipelineGates.tagEscalated(body, stages, drop, haltIdentity), named.name());
+            PipelineGates.tagRecoveryDetails(
+                PipelineGates.retag(PipelineGates.RECOVERY_REPEATED, named.cardSentence()),
+                details,
+                null),
+            named.name());
     commitStatus(
         doc,
         RunStatus.WAITING_FOR_INPUT,
@@ -1048,52 +1026,6 @@ public final class ProductPipelineRunSupport {
         command.commandPayloadHash());
     return Multi.createFrom()
         .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
-  }
-
-  private List<String> workingEscalatedActions(
-      ProductPipelineRunDocument doc, AcceptInputCommand command, List<OwnerCandidate> closed) {
-    List<String> actions = new ArrayList<>();
-    if (bareGoBackAtOwnerChoice(doc, command)) {
-      actions.addAll(PipelineGates.ownerCandidatesOf(latestWaitingForInputPrompt(doc)));
-    } else if (namedStageListing(command)) {
-      actions.addAll(OwnerCandidateSet.stageIds(closed));
-    } else {
-      for (String stageId : OwnerCandidateSet.stageIds(closed)) {
-        if (isCurrentUnapprovedOwner(doc, stageId)
-            || shouldCausalReopen(
-                doc, stageId, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
-          actions.add(stageId);
-        }
-      }
-    }
-    ProfileStage stage = currentStageOrNull(doc);
-    if (stage != null && stage.skip() != null) {
-      actions.add(PipelineGates.DROP_ELEMENT_ACTION);
-    }
-    actions.add(PipelineGates.STOP_WITH_REPORT_ACTION);
-    return actions;
-  }
-
-  private static boolean namedStageListing(AcceptInputCommand command) {
-    return OwnerCandidateSet.requestsNamedStage(command.text());
-  }
-
-  private static boolean bareGoBackAtOwnerChoice(
-      ProductPipelineRunDocument doc, AcceptInputCommand command) {
-    return OwnerCandidateSet.isBareGoBack(command.text())
-        && PipelineGates.OWNER_CHOICE.equals(
-            PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""));
-  }
-
-  private ProfileStage currentStageOrNull(ProductPipelineRunDocument doc) {
-    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
-    if (profile == null || profile.stages() == null) {
-      return null;
-    }
-    return profile.stages().stream()
-        .filter(stage -> stage.stageId().equals(doc.run().currentStageId()))
-        .findFirst()
-        .orElse(null);
   }
 
   private HaltRecoveryGuard diagnoseReopenRefusal(

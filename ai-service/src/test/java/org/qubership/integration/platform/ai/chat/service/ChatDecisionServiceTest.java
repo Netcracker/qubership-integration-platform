@@ -899,7 +899,7 @@ class ChatDecisionServiceTest {
   }
 
   @Test
-  void anOwnerChoiceGateOffersTheCandidateStageIds() {
+  void anOwnerChoiceGateOffersOnlyEndRun() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-choice"))
         .thenReturn(
@@ -921,11 +921,11 @@ class ChatDecisionServiceTest {
             .orElseThrow();
 
     assertEquals("clarify", decision.kind());
-    assertEquals(List.of("planning", "analysis"), decision.actions());
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
   }
 
   @Test
-  void anInternalFailureGateOffersTheBoundStageIds() {
+  void anInternalFailureGateOffersOnlyEndRun() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-internal"))
         .thenReturn(
@@ -947,9 +947,11 @@ class ChatDecisionServiceTest {
             .orElseThrow();
 
     assertEquals("clarify", decision.kind());
-    assertEquals(List.of("analysis", "design"), decision.actions());
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
     assertFalse(decision.actions().contains(PipelineGates.RETRY_ACTION));
     assertFalse(decision.actions().contains(PipelineGates.REVISE_ACTION));
+    assertFalse(decision.actions().contains("analysis"));
+    assertFalse(decision.actions().contains("design"));
   }
 
   @Test
@@ -1007,7 +1009,7 @@ class ChatDecisionServiceTest {
   }
 
   @Test
-  void ownerChoiceContinuesTheOpenGateWithoutRoutingThroughTheModel() {
+  void leftoverOwnerChoiceContinuesOnlyThroughEndRun() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-choice"))
         .thenReturn(
@@ -1024,7 +1026,7 @@ class ChatDecisionServiceTest {
                     "")));
     when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
         .thenReturn(Multi.createFrom().empty());
-    ChatDecisionCommand command = command("analysis", null, null, null);
+    ChatDecisionCommand command = command(PipelineGates.STOP_WITH_REPORT_ACTION, null, null, null);
     command.setRevision(6L);
 
     new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
@@ -1037,7 +1039,7 @@ class ChatDecisionServiceTest {
     ArgumentCaptor<ContinueCreateChainCommand> input =
         ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
     verify(facade).continueWithInput(input.capture());
-    assertEquals("analysis", input.getValue().clarificationText());
+    assertEquals(PipelineGates.STOP_WITH_REPORT_ACTION, input.getValue().clarificationText());
   }
 
   @Test

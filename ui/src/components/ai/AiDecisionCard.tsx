@@ -98,6 +98,11 @@ function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;
 }
 
+/** Drop identifiers the interface has no label for, including internal pipeline stage ids. */
+function labeledActions(actions: string[]): string[] {
+  return actions.filter((action) => ACTION_LABELS[action] !== undefined);
+}
+
 function commentPlaceholder(
   isMappingGapClarify: boolean,
   isFreeTextClarify: boolean,
@@ -194,7 +199,9 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         decision.recovery.failedStageId
           ? `Internal stage: ${decision.recovery.failedStageId}`
           : "",
-        decision.recovery.runId ? `Run identifier: ${decision.recovery.runId}` : "",
+        decision.recovery.runId
+          ? `Run identifier: ${decision.recovery.runId}`
+          : "",
       ]
         .filter(Boolean)
         .join("\n")
@@ -222,7 +229,8 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
           </Typography.Paragraph>
           {retryDelaySeconds > 0 ? (
             <Typography.Text type="secondary">
-              Retry in {retryDelaySeconds} {retryDelaySeconds === 1 ? "second" : "seconds"}.
+              Retry in {retryDelaySeconds}{" "}
+              {retryDelaySeconds === 1 ? "second" : "seconds"}.
             </Typography.Text>
           ) : null}
         </div>
@@ -240,7 +248,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
           </Typography.Text>
         ) : (
           <Space className="ai-decision-card__actions" wrap>
-            {decision.actions.map((action) => (
+            {labeledActions(decision.actions).map((action) => (
               <Button
                 key={action}
                 size="small"
@@ -311,7 +319,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                 Submit
               </Button>
             ) : (
-              decision.actions.map((action) => (
+              labeledActions(decision.actions).map((action) => (
                 <Button
                   key={action}
                   size="small"

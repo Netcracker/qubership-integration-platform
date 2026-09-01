@@ -533,6 +533,62 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("stop-with-report", "");
   });
 
+  it("should omit unlabeled pipeline stage ids from recovery and clarify buttons", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const recovery = buildDecision({
+      kind: "clarify",
+      question: "Creation stopped without a recoverable cause.",
+      actions: ["planning", "analysis", "stop-with-report"],
+      recovery: {
+        category: "unclassified-failure",
+        title: "Creation cannot continue",
+        summary: "Creation stopped without a recoverable cause.",
+        preservedWork: "Your approved requirements and plan are saved.",
+      },
+    });
+    const { rerender } = render(
+      <AiDecisionCard
+        decision={recovery}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "planning" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "analysis" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+
+    rerender(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Either artifact could be wrong.",
+          missingEvidence: [],
+          actions: ["planning", "analysis", "stop-with-report"],
+        })}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "planning" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "analysis" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
   it("should send deployment follow-up buttons as typed decisions", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();
