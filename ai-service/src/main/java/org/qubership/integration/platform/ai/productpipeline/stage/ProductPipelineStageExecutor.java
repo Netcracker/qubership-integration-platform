@@ -916,6 +916,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           null,
           emitted);
     }
+    if (usesStructuredContractRecovery(stage, outcomeClass, cause)) {
+      putRunAttribute(
+          doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+      return recoverValidationFailure(
+          doc, stage, refs, cause, findings, evidence, emitted);
+    }
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
     List<OwnerCandidate> closed = ownerCandidates(profile, stage.stageId());
     String artifactIdentity =
@@ -1010,8 +1016,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return new StageExecutionResult(
           new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
     }
-    if (outcomeClass == StageOutcomeClass.VALIDATION_FAILURE
-        || usesStructuredContractRecovery(stage, outcomeClass, cause)) {
+    if (outcomeClass == StageOutcomeClass.VALIDATION_FAILURE) {
       putRunAttribute(
           doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
       return recoverValidationFailure(
@@ -1144,6 +1149,23 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE;
   }
 
+  private static RecoveryDecision captureRegenerateDecision(
+      RecoveryEvidence evidence, String summary) {
+    Reference fault =
+        evidence.rejectedArtifactRefs().isEmpty()
+            ? null
+            : evidence.rejectedArtifactRefs().getFirst();
+    String body = summary == null ? "" : summary;
+    return new RecoveryDecision(
+        RecoveryCauseClass.DERIVATION_DEFECT,
+        fault,
+        List.of(evidence.failureId()),
+        RecoveryAction.REGENERATE_ARTIFACT,
+        List.of(),
+        "",
+        body);
+  }
+
   private StageExecutionResult recoverValidationFailure(
       ProductPipelineRunDocument doc,
       ProfileStage stage,
@@ -1199,20 +1221,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RecoveryDecision accepted = acceptedRecovery.decision();
     if (accepted == null) {
       if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
-        String question = findings.isBlank() ? evidenceText : findings;
-        Reference captureFault =
-            recoveryEvidence.rejectedArtifactRefs().isEmpty()
-                ? null
-                : recoveryEvidence.rejectedArtifactRefs().getFirst();
         accepted =
-            new RecoveryDecision(
-                RecoveryCauseClass.DERIVATION_DEFECT,
-                captureFault,
-                List.of(recoveryEvidence.failureId()),
-                RecoveryAction.ASK_USER,
-                List.of(),
-                question,
-                question);
+            captureRegenerateDecision(
+                recoveryEvidence, findings.isBlank() ? evidenceText : findings);
       } else {
         accepted =
             new RecoveryDecision(
@@ -1224,6 +1235,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 "",
                 findings.isBlank() ? evidenceText : findings);
       }
+    }
+    if (accepted.action() == RecoveryAction.ASK_USER
+        && usesStructuredContractRecovery(stage, StageOutcomeClass.CONTRACT_FAILURE, cause)) {
+      accepted =
+          captureRegenerateDecision(
+              recoveryEvidence,
+              accepted.userSummary() == null || accepted.userSummary().isBlank()
+                  ? (findings.isBlank() ? evidenceText : findings)
+                  : accepted.userSummary());
     }
 
     boolean identicalRejection = false;

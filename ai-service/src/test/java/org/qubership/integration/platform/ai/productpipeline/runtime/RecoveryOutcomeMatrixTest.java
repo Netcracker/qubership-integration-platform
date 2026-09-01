@@ -31,6 +31,8 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
@@ -221,6 +223,33 @@ class RecoveryOutcomeMatrixTest {
         presented.offeredActions());
     assertFalse(presented.offeredActions().contains("design-planning"));
     assertFalse(presented.offeredActions().contains("design-execution"));
+    endRun(runtime);
+    assertEquals(
+        RecoveryOutcomeTelemetry.OUTCOME_USER_EXIT,
+        lastKind(RecoveryOutcomeTelemetry.KIND_OUTCOME).outcome());
+  }
+
+  @Test
+  void designInputContractShapeOffersRetryCreationNotSubmit() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            designInputContractShapeFailure());
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    execute(runtime, "design-input");
+
+    RecoveryOutcomeTelemetry.Event presented = presented();
+    assertEquals("regeneratable-execution-failure", presented.category());
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        presented.offeredActions());
+    assertFalse(presented.offeredActions().contains("submit"));
+    assertFalse(presented.offeredActions().contains("design-input"));
     endRun(runtime);
     assertEquals(
         RecoveryOutcomeTelemetry.OUTCOME_USER_EXIT,
@@ -506,6 +535,27 @@ class RecoveryOutcomeMatrixTest {
                 .item(new CapabilitySignal.Completed(StageOutcome.of(outcomeClass, evidence))));
   }
 
+  private static StageCapability designInputContractShapeFailure() {
+    return capability(
+        "design-input-cap",
+        context ->
+            Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        StageOutcome.of(
+                            StageOutcomeClass.CONTRACT_FAILURE,
+                            "The response mapping edge targets a node with multiple incoming edges",
+                            new RecoveryCause(
+                                RecoveryCauseCode.CONTRACT_SHAPE,
+                                List.of(
+                                    new PlanValidationFinding(
+                                        "CONTRACT_SHAPE",
+                                        "The response mapping edge targets a node with multiple"
+                                            + " incoming edges",
+                                        true)),
+                                "")))));
+  }
+
   private static StageCapability executionValidationFailure() {
     return capability(
         "execution-cap",
@@ -671,6 +721,35 @@ class RecoveryOutcomeMatrixTest {
                 new RetryPolicy(0, 1L))),
         new TerminalPolicy("design-execution", "PLAN_APPROVED"),
         List.of("analysis-cap", "planning-cap", "execution-cap"));
+  }
+
+  private static ProductPipelineProfile analysisThenDesignInputProfile() {
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef flow = new ArtifactTypeRef("chain-semantic-revision", 1);
+    return new ProductPipelineProfile(
+        1,
+        "analysis-then-design-input",
+        "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "requirement-analysis",
+                "analysis-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-input",
+                "design-input-cap",
+                List.of(brief),
+                List.of(flow),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-input", "PLAN_APPROVED"),
+        List.of("analysis-cap", "design-input-cap"));
   }
 
   private static ProductPipelineProfile analysisThenPlanning(
