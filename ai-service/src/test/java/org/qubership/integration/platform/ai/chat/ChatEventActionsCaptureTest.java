@@ -48,6 +48,33 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void contextualBriefDefectOffersEditRequirements() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The approved requirements need correction.",
+                List.of(),
+                PipelineGates.RECOVERY_REVISE_BRIEF));
+
+    assertEquals(
+        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        actions);
+  }
+
+  @Test
+  void contextualPlanDefectOffersRebuildPlan() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The plan is missing information required to create the chain.",
+                List.of(),
+                PipelineGates.RECOVERY_REBUILD_PLAN));
+
+    assertEquals(
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
   void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
     assertEquals(
         List.of(),

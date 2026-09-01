@@ -363,6 +363,70 @@ class ChatExecutionServiceTest {
     assertFalse(frame.contains("__GATE:"), frame);
   }
 
+  @Test
+  void contextualBriefDefectIsObservableSseOutput() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "clarify:7",
+            "clarify",
+            "The approved requirements need correction.",
+            null,
+            null,
+            7L,
+            null,
+            List.of(),
+            List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+            new ChatEvent.RecoveryPresentation(
+                "requirement-brief-defect",
+                "Requirements need correction",
+                "The approved requirements need correction.",
+                "Your approved product facts stay available.",
+                "PLAN_BLOCKER: missing quartz",
+                null,
+                "run-1",
+                "planning"));
+
+    String frame = ChatExecutionService.toSse(decision, new ObjectMapper());
+
+    assertTrue(frame.contains("\"recovery\""), frame);
+    assertTrue(frame.contains("requirement-brief-defect"), frame);
+    assertTrue(frame.contains("edit-requirements"), frame);
+    assertFalse(frame.contains("requirement-analysis"), frame);
+    assertFalse(frame.contains("__GATE:"), frame);
+  }
+
+  @Test
+  void contextualPlanDefectIsObservableSseOutput() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "clarify:9",
+            "clarify",
+            "The plan is missing information required to create the chain.",
+            null,
+            null,
+            9L,
+            null,
+            List.of(),
+            List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+            new ChatEvent.RecoveryPresentation(
+                "plan-artifact-defect",
+                "The plan cannot be used",
+                "The plan is missing information required to create the chain.",
+                "Your approved requirements stay unchanged.",
+                "PLAN_BLOCKER: invalid graph edge",
+                null,
+                "run-1",
+                "design-execution"));
+
+    String frame = ChatExecutionService.toSse(decision, new ObjectMapper());
+
+    assertTrue(frame.contains("\"recovery\""), frame);
+    assertTrue(frame.contains("plan-artifact-defect"), frame);
+    assertTrue(frame.contains("rebuild-plan"), frame);
+    assertFalse(frame.contains("design-planning"), frame);
+    assertFalse(frame.contains("__GATE:"), frame);
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION})
   void anAllowedHaltResumeDoesNotCloseSseWithoutTokenDecisionOrError(String action) {

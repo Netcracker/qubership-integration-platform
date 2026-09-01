@@ -1156,8 +1156,7 @@ public class CreateChainApplicationFacade {
     String gateId = PipelineGates.gateOf(waitPrompt).orElse("");
     String prompt = publicPrompt(waitPrompt);
     if (!prompt.isBlank()) {
-      if (PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gateId)
-          || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gateId)) {
+      if (PipelineGates.isContextualRecoveryGate(gateId)) {
         ProductPipelineRunDocument doc = runStore.loadByConversation(taskId).orElse(null);
         return new CreateChainPendingAction.Clarify(
             prompt,

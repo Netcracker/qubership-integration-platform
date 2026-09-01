@@ -1713,13 +1713,204 @@ class ProductPipelineStageExecutorTest {
     agent.recoverReviseBrief(
         approvedBrief, List.of(), "The approved requirements need correction.");
 
-    StageDecision.ReopenProducer reopen =
-        assertInstanceOf(StageDecision.ReopenProducer.class, execute(runtime, "planning").decision());
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
 
-    assertEquals("planning", reopen.stageId());
-    assertEquals("requirement-analysis", reopen.producerStageId());
-    assertTrue(runtime.support().diagnosedOwnerStageId(RUN_ID).isEmpty());
+    assertEquals(
+        PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals("The approved requirements need correction.", PipelineGates.strip(wait.prompt()));
+    assertEquals(
+        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REVISE_BRIEF));
+    assertEquals(
+        "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     assertNull(agent.lastCandidateSet.get());
+    assertFalse(wait.prompt().contains("requirement-analysis"), wait.prompt());
+  }
+
+  @Test
+  void editRequirementsReopensRequirementAnalysisAndKeepsTheApprovedBrief() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = requirementAnalysisThenPlanningProfile(brief, validation);
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningValidationFailure());
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    String approvedHash =
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().contentHash();
+    agent.recoverReviseBrief(
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().reference(),
+        List.of(),
+        "The approved requirements need correction.");
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
+    assertEquals(
+        PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(
+        approvedHash,
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().contentHash());
+
+    StageExecutionResult analysis = execute(runtime, "requirement-analysis");
+    assertInstanceOf(StageDecision.WaitForApproval.class, analysis.decision());
+    applyLifecycle(runtime, analysis);
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+  }
+
+  @Test
+  void briefDefectEndWithReportKeepsTheFailureRecord() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = analysisThenPlanningProfile(brief, validation);
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningValidationFailure());
+    startAndRecordInput(runtime, profile);
+    approveAnalysis(runtime);
+    agent.recoverReviseBrief(
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().reference(),
+        List.of(),
+        "The approved requirements need correction.");
+
+    execute(runtime, "planning");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.STOP_WITH_REPORT_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.FAILED, requireRun().run().status());
+    assertTrue(artifactStore.latest(RUN_ID, Kind.FAILURE_RECORD).isPresent());
+  }
+
+  @Test
+  void planDefectOffersRebuildPlanWithoutStageChoices() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger executionCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningAlwaysCandidate(),
+            executionRejectedPlanFailure(executionCalls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    agent.recoverRegenerates(
+        Kind.IMPLEMENTATION_PLAN, "The plan is missing information required to create the chain.");
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+
+    assertEquals(
+        PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REBUILD_PLAN));
+    assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    assertFalse(wait.prompt().contains("design-planning"), wait.prompt());
+    assertFalse(wait.prompt().contains("design-execution"), wait.prompt());
+    assertEquals(1, executionCalls.get());
+  }
+
+  @Test
+  void rebuildPlanReopensDesignPlanningAndKeepsTheApprovedBrief() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger executionCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningAlwaysCandidate(),
+            executionRejectedPlanFailure(executionCalls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    String approvedBriefHash =
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().contentHash();
+    agent.recoverRegenerates(
+        Kind.IMPLEMENTATION_PLAN, "The plan is missing information required to create the chain.");
+
+    execute(runtime, "design-execution");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals("design-planning", requireRun().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
+    assertEquals(
+        approvedBriefHash,
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().contentHash());
+
+    StageExecutionResult planning = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.WaitForApproval.class, planning.decision());
+    applyLifecycle(runtime, planning);
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+    assertEquals("design-planning", requireRun().run().currentStageId());
+    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
+    assertEquals(1, executionCalls.get());
+  }
+
+  @Test
+  void planDefectEndWithReportKeepsTheFailureRecord() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger executionCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningAlwaysCandidate(),
+            executionRejectedPlanFailure(executionCalls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    agent.recoverRegenerates(
+        Kind.IMPLEMENTATION_PLAN, "The plan is missing information required to create the chain.");
+
+    execute(runtime, "design-execution");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.STOP_WITH_REPORT_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.FAILED, requireRun().run().status());
+    assertTrue(artifactStore.latest(RUN_ID, Kind.FAILURE_RECORD).isPresent());
+    assertEquals(1, executionCalls.get());
   }
 
   @Test
@@ -3779,6 +3970,34 @@ class ProductPipelineStageExecutorTest {
         List.of("analysis-cap", "planning-cap"));
   }
 
+  private static ProductPipelineProfile requirementAnalysisThenPlanningProfile(
+      ArtifactTypeRef brief, ArtifactTypeRef validation) {
+    return new ProductPipelineProfile(
+        1,
+        "brief-recovery-reopen",
+        "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "requirement-analysis",
+                "analysis-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "planning",
+                "planning-cap",
+                List.of(brief),
+                List.of(validation),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("planning", "PLAN_APPROVED"),
+        List.of("analysis-cap", "planning-cap"));
+  }
+
   private static ProductPipelineProfile planningThenExecutionProfile() {
     ArtifactTypeRef plan = new ArtifactTypeRef("implementation-plan", 1);
     ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
@@ -4152,6 +4371,19 @@ class ProductPipelineStageExecutorTest {
                                   List.of())),
                           "execution validation failed",
                           null)));
+        });
+  }
+
+  private StageCapability executionRejectedPlanFailure(AtomicInteger executionCalls) {
+    return capability(
+        "execution-cap",
+        context -> {
+          executionCalls.incrementAndGet();
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      StageOutcome.of(
+                          StageOutcomeClass.VALIDATION_FAILURE, "plan cannot be executed")));
         });
   }
 

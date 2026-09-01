@@ -242,6 +242,8 @@ public class ChatDecisionService {
           case ChatEvent.CANCEL_UNDEPLOY_ACTION -> "Leave the live deployment in place";
           case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
           case ChatEvent.RETRY_CREATION_ACTION -> "Retry chain creation";
+          case ChatEvent.EDIT_REQUIREMENTS_ACTION -> "Edit the requirements";
+          case ChatEvent.REBUILD_PLAN_ACTION -> "Rebuild the plan";
           case PipelineGates.STOP_WITH_REPORT_ACTION -> "End the run and keep its report";
           case ChatEvent.SESSION_LOGGING_OFF_ACTION -> "Set session logging to Off";
           case ChatEvent.SESSION_LOGGING_ERROR_ACTION -> "Set session logging to Error";
@@ -336,8 +338,7 @@ public class ChatDecisionService {
         || command.getRevision() != open.get().revision()) {
       return openGateEvents(conversationId);
     }
-    String pipelineAction =
-        ChatEvent.RETRY_CREATION_ACTION.equals(action) ? PipelineGates.RETRY_ACTION : action;
+    String pipelineAction = toPipelineAction(action);
     return facade
         .continueWithInput(
             new ContinueCreateChainCommand(
@@ -370,8 +371,22 @@ public class ChatDecisionService {
     return ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(action)
         || ChatEvent.MAPPING_GAP_ACTIONS.contains(action)
         || ChatEvent.RETRY_CREATION_ACTION.equals(action)
+        || ChatEvent.EDIT_REQUIREMENTS_ACTION.equals(action)
+        || ChatEvent.REBUILD_PLAN_ACTION.equals(action)
         || PipelineGates.STOP_WITH_REPORT_ACTION.equals(action)
         || PipelineGates.isHaltCardAction(action);
+  }
+
+  /** Maps a user-facing recovery action to the runtime command the run already understands. */
+  private static String toPipelineAction(String action) {
+    if (ChatEvent.RETRY_CREATION_ACTION.equals(action)) {
+      return PipelineGates.RETRY_ACTION;
+    }
+    if (ChatEvent.EDIT_REQUIREMENTS_ACTION.equals(action)
+        || ChatEvent.REBUILD_PLAN_ACTION.equals(action)) {
+      return PipelineGates.REVISE_ACTION;
+    }
+    return action;
   }
 
   /**

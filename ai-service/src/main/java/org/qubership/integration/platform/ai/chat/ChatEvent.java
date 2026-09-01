@@ -32,6 +32,12 @@ public sealed interface ChatEvent {
   /** Retries the supported create operation without exposing its pipeline stage. */
   String RETRY_CREATION_ACTION = "retry-creation";
 
+  /** Reopens requirement analysis for a defective requirement brief. */
+  String EDIT_REQUIREMENTS_ACTION = "edit-requirements";
+
+  /** Reopens design planning for a defective implementation plan. */
+  String REBUILD_PLAN_ACTION = "rebuild-plan";
+
   /** Replaces a live deployment after the reader confirms: irreversible, so never a model's. */
   String REDEPLOY_ACTION = "redeploy-chain";
 
@@ -458,6 +464,10 @@ public sealed interface ChatEvent {
       case PipelineGates.RECOVERY_RETRY_TECHNICAL,
               PipelineGates.RECOVERY_REGENERATE_EXECUTION ->
           List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.RECOVERY_REVISE_BRIEF ->
+          List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.RECOVERY_REBUILD_PLAN ->
+          List.of(REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
       case PipelineGates.STAGE_ESCALATED -> List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
@@ -467,16 +477,39 @@ public sealed interface ChatEvent {
 
   private static RecoveryPresentation recoveryFor(PendingAction.Clarify clarify) {
     String gate = clarify.gateId();
-    if (!PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
-        && !PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate)) {
-      return null;
+    String category;
+    String title;
+    String preservedWork;
+    switch (gate) {
+      case PipelineGates.RECOVERY_RETRY_TECHNICAL -> {
+        category = "temporary-technical-failure";
+        title = "Creation paused temporarily";
+        preservedWork = "Your approved requirements and plan are saved.";
+      }
+      case PipelineGates.RECOVERY_REGENERATE_EXECUTION -> {
+        category = "regeneratable-execution-failure";
+        title = "Creation output needs regeneration";
+        preservedWork = "Your approved requirements and plan are saved.";
+      }
+      case PipelineGates.RECOVERY_REVISE_BRIEF -> {
+        category = "requirement-brief-defect";
+        title = "Requirements need correction";
+        preservedWork = "Your approved product facts stay available.";
+      }
+      case PipelineGates.RECOVERY_REBUILD_PLAN -> {
+        category = "plan-artifact-defect";
+        title = "The plan cannot be used";
+        preservedWork = "Your approved requirements stay unchanged.";
+      }
+      default -> {
+        return null;
+      }
     }
-    boolean technical = PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate);
     return new RecoveryPresentation(
-        technical ? "temporary-technical-failure" : "regeneratable-execution-failure",
-        technical ? "Creation paused temporarily" : "Creation output needs regeneration",
+        category,
+        title,
         clarify.reason(),
-        "Your approved requirements and plan are saved.",
+        preservedWork,
         clarify.technicalDetails(),
         clarify.retryDelayMs(),
         clarify.runId(),
