@@ -98,7 +98,10 @@ public class CatalogFirstApiHubDiscoveryTool {
       @P("Stable interactionId from the stored RequirementFlow") String interactionId,
       @P("HTTP method, or empty when unknown") String method,
       @P("HTTP path, or empty when unknown") String path,
-      @P("Specification or API name the reader gave, or empty when unknown")
+      @P(
+          "Optional specification or specification-group name when the author already named one."
+              + " Empty is normal. Do not ask the user for a specification name when service and"
+              + " operation are known.")
           String specificationHint,
       @P("Transport: http, kafka, or amqp, or empty when unknown") String protocol,
       @P("Optional target release, for example 2024.4") String release) {
