@@ -826,8 +826,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String locale = manifest == null ? "en" : manifest.responseLocale();
     String followUp = followUpText(doc.run().runId());
     String body;
-    String gate = internal ? PipelineGates.STAGE_INTERNAL_FAILURE : PipelineGates.STAGE_RETRY;
-    List<String> choiceIds = List.of();
+    String gate = PipelineGates.STAGE_RETRY;
     String diagnosedOwner = "";
     putRunAttribute(
         doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, evidence);
@@ -982,13 +981,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           doc, stage, refs, cause, findings, evidence, emitted);
     }
     if (diagnoseOwner) {
-      List<OwnerCandidate> diagnosisSet = closed;
-      if (internal) {
-        diagnosisSet =
-            closed.stream()
-                .filter(candidate -> !stage.stageId().equals(candidate.stageId()))
-                .toList();
-      }
       OwnerDiagnosis diagnosis =
           failureNarrative.diagnose(
               doc.run().runId(),
@@ -997,35 +989,36 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               outcomeClass,
               evidence,
               findings,
-              diagnosisSet,
+              closed,
               followUp,
               cause);
       body = diagnosis.cardBody(evidence);
-      if (diagnosis.ambiguous()) {
-        gate = internal ? PipelineGates.STAGE_INTERNAL_FAILURE : PipelineGates.OWNER_CHOICE;
-        choiceIds = OwnerCandidateSet.stageIds(diagnosisSet);
+      if (diagnosis.ambiguous() || diagnosis.owner().isEmpty()) {
         putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
-      } else if (diagnosis.owner().isPresent()) {
-        // An internal failure keeps its own gate even with an owner: reopening that owner may route
-        // around the defect, but re-entering this stage cannot.
-        diagnosedOwner = diagnosis.owner().orElseThrow();
-        putRunAttribute(
-            doc.run().runId(),
-            ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
-            diagnosedOwner);
-        if (internal) {
-          gate = PipelineGates.STAGE_INTERNAL_FAILURE;
-          choiceIds = List.of(diagnosedOwner);
-        } else if (canCausalReopen(doc, diagnosedOwner, cause, evidence)
-            || isCurrentUnapprovedOwner(doc, diagnosedOwner)) {
-          gate = PipelineGates.STAGE_REVISE;
-        } else {
-          gate = PipelineGates.STAGE_RETRY;
-        }
+        return waitContextualRecovery(
+            doc,
+            stage,
+            refs,
+            PipelineGates.RECOVERY_UNCLASSIFIED,
+            UNCLASSIFIED_RECOVERY_SUMMARY,
+            terminalRecoveryDetails(
+                findings.isBlank() ? evidence : findings,
+                evidence,
+                doc.run().runId(),
+                PROGRESS_HALTED),
+            null,
+            emitted);
+      }
+      diagnosedOwner = diagnosis.owner().orElseThrow();
+      putRunAttribute(
+          doc.run().runId(),
+          ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
+          diagnosedOwner);
+      if (canCausalReopen(doc, diagnosedOwner, cause, evidence)
+          || isCurrentUnapprovedOwner(doc, diagnosedOwner)) {
+        gate = PipelineGates.STAGE_REVISE;
       } else {
-        putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
-        gate = PipelineGates.STAGE_INTERNAL_FAILURE;
-        choiceIds = List.of();
+        gate = PipelineGates.STAGE_RETRY;
       }
     } else {
       body =
@@ -1070,17 +1063,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         gate = PipelineGates.RECOVERY_RETRY_TECHNICAL;
       }
     }
-    // Both paths strip markers out of the body before tagging, so model-authored text that happens
-    // to spell a marker cannot move the wait to a gate the executor did not choose.
-    String prompt;
-    if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
-      prompt = PipelineGates.tagInternalFailure(body, choiceIds);
-    } else {
-      prompt =
-          PipelineGates.OWNER_CHOICE.equals(gate)
-              ? PipelineGates.tagOwnerChoice(body, choiceIds)
-              : PipelineGates.retag(gate, body);
-    }
+    // Strip markers out of the body before tagging, so model-authored text that happens to spell a
+    // marker cannot move the wait to a gate the executor did not choose.
+    String prompt = PipelineGates.retag(gate, body);
     if (PipelineGates.isContextualRecoveryGate(gate)) {
       prompt = PipelineGates.tagRecoveryDetails(prompt, evidence, retryDelayMs);
     }

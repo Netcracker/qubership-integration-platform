@@ -12,6 +12,7 @@ import org.qubership.integration.platform.ai.a2a.artifacts.CreateChainPublicArti
 import org.qubership.integration.platform.ai.a2a.artifacts.CreateChainPublicArtifactProjector;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
@@ -210,16 +211,9 @@ public final class CreateChainA2aStateMapper {
       data.put("missingEvidence", clarify.missingEvidence());
       if (PipelineGates.STAGE_RETRY.equals(clarify.gateId())) {
         data.put("action", PipelineGates.RETRY_ACTION);
-        data.put("allowedActions", List.of(PipelineGates.RETRY_ACTION));
-      } else if (PipelineGates.STAGE_REVISE.equals(clarify.gateId())) {
-        data.put("allowedActions", List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION));
-      } else if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(clarify.gateId())) {
-        data.put("allowedActions", clarify.missingEvidence());
-      } else if (PipelineGates.OWNER_CHOICE.equals(clarify.gateId())) {
-        data.put("allowedActions", clarify.missingEvidence());
-      } else {
-        data.put("allowedActions", List.of("clarify"));
       }
+      List<String> actions = ChatEvent.actionsForClarify(clarify);
+      data.put("allowedActions", actions == null ? List.of("clarify") : actions);
     }
     return Map.copyOf(data);
   }
@@ -265,25 +259,6 @@ public final class CreateChainA2aStateMapper {
     if (PipelineGates.STAGE_REVISE.equals(gate)) {
       return reason
           + "\nReply \"retry\" to repeat this stage, or \"revise\" to reopen the diagnosed owner.";
-    }
-    if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
-      if (clarify.missingEvidence().isEmpty()) {
-        return reason;
-      }
-      StringBuilder text = new StringBuilder(reason);
-      for (String stageId : clarify.missingEvidence()) {
-        text.append("\n- ").append(stageId);
-      }
-      text.append("\nReply with one of those stage ids to reopen it.");
-      return text.toString();
-    }
-    if (PipelineGates.OWNER_CHOICE.equals(gate)) {
-      StringBuilder text = new StringBuilder(reason);
-      for (String stageId : clarify.missingEvidence()) {
-        text.append("\n- ").append(stageId);
-      }
-      text.append("\nReply with one of those stage ids.");
-      return text.toString();
     }
     return reason;
   }

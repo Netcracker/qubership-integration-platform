@@ -1172,17 +1172,10 @@ public class CreateChainApplicationFacade {
         return new CreateChainPendingAction.Clarify(
             view.question(), view.missingEdges(), gateId);
       }
-      if (PipelineGates.OWNER_CHOICE.equals(gateId)) {
-        return new CreateChainPendingAction.Clarify(
-            prompt, PipelineGates.ownerCandidatesOf(waitPrompt), gateId);
-      }
-      if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gateId)) {
-        return new CreateChainPendingAction.Clarify(
-            prompt, PipelineGates.internalFailureActionsOf(waitPrompt), gateId);
-      }
-      if (PipelineGates.STAGE_ESCALATED.equals(gateId)) {
-        return new CreateChainPendingAction.Clarify(
-            prompt, PipelineGates.escalatedActionsOf(waitPrompt), gateId);
+      if (PipelineGates.OWNER_CHOICE.equals(gateId)
+          || PipelineGates.STAGE_INTERNAL_FAILURE.equals(gateId)
+          || PipelineGates.STAGE_ESCALATED.equals(gateId)) {
+        return new CreateChainPendingAction.Clarify(prompt, List.of(), gateId);
       }
       return new CreateChainPendingAction.Clarify(prompt, List.of(), gateId);
     }

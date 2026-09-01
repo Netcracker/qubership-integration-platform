@@ -475,7 +475,10 @@ public sealed interface ChatEvent {
           List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
-      case PipelineGates.STAGE_ESCALATED -> List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.OWNER_CHOICE,
+              PipelineGates.STAGE_INTERNAL_FAILURE,
+              PipelineGates.STAGE_ESCALATED ->
+          List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       default -> null;
     };
   }
@@ -541,7 +544,7 @@ public sealed interface ChatEvent {
         clarify.failedStageId());
   }
 
-  /** Actions a clarify gate offers, including owner-choice stage ids from missing evidence. */
+  /** Actions a clarify gate offers. Leftover owner-choice and internal-failure waits offer End run. */
   public static List<String> actionsForClarify(PendingAction.Clarify clarify) {
     if (clarify == null) {
       return null;
@@ -549,7 +552,7 @@ public sealed interface ChatEvent {
     if (PipelineGates.OWNER_CHOICE.equals(clarify.gateId())
         || PipelineGates.STAGE_INTERNAL_FAILURE.equals(clarify.gateId())
         || PipelineGates.STAGE_ESCALATED.equals(clarify.gateId())) {
-      return clarify.missingEvidence();
+      return actionsForGate(clarify.gateId());
     }
     if (PipelineGates.MAPPING_GAP.equals(clarify.gateId())
         && mappingGapSourceIsMissing(clarify.missingEvidence())) {

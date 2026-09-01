@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ImplementationBlockedRecovery;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
 class A2aLifecycleStateMappingTest {
 
@@ -166,7 +167,7 @@ class A2aLifecycleStateMappingTest {
   }
 
   @Test
-  void internalFailurePublishesOnlyTheUpstreamStagesBoundToItsCard() {
+  void leftoverInternalFailurePublishesEndRunWithoutStageIds() {
     CreateChainPendingAction.Clarify halt =
         new CreateChainPendingAction.Clarify(
             "A step inside the service broke.",
@@ -181,8 +182,10 @@ class A2aLifecycleStateMappingTest {
     assertEquals(A2aTaskState.INPUT_REQUIRED, projected.state());
     assertFalse(projected.terminal());
     assertEquals(
-        List.of("requirement-analysis", "design-planning"),
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
         projected.pendingActionData().get("allowedActions"));
+    assertFalse(projected.statusText().contains("requirement-analysis"));
+    assertFalse(projected.statusText().contains("Reply with one of those stage ids"));
   }
 
   @Test

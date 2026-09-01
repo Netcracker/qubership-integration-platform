@@ -390,8 +390,8 @@ public class ChatDecisionService {
   }
 
   /**
-   * Owner-choice buttons are stage ids, not the Retry/Revise tokens. Route them the same way when
-   * they are on the open clarify card.
+   * Owner-choice leftover waits still continue through the open gate when the click matches an
+   * action the card actually offers. New recovery cards never list stage ids.
    */
   private boolean isOpenClarifyChoice(String conversationId, String action) {
     if (action == null || action.isBlank() || ChatEvent.IMPORT_ACTION.equals(action)) {

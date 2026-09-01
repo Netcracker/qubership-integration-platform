@@ -71,18 +71,21 @@ public final class PipelineGates {
   public static final String STAGE_REVISE = "stage-revise";
 
   /**
-   * More than one owner stayed plausible. Actions are the candidate stage ids in missing evidence,
-   * not free text.
+   * More than one owner stayed plausible. Encoding leftover for durable waits; chat and A2A no
+   * longer project candidate stage ids as user actions.
    */
   public static final String OWNER_CHOICE = "owner-choice";
 
   /**
-   * The stage broke an invariant inside the service. Retry re-enters the same defect, so the card
-   * binds upstream producer stage ids. Without a producer, the card offers Stop with report.
+   * The stage broke an invariant inside the service. Encoding leftover for durable waits; new
+   * internal failures use {@link #RECOVERY_INTERNAL}.
    */
   public static final String STAGE_INTERNAL_FAILURE = "stage-internal-failure";
 
-  /** The same failure repeated enough times that retry is no longer an offered exit. */
+  /**
+   * The same failure repeated enough times that retry is no longer an offered exit. Encoding
+   * leftover for durable waits; new repeated failures use {@link #RECOVERY_REPEATED}.
+   */
   public static final String STAGE_ESCALATED = "stage-escalated";
 
   /** Wire action for {@link #STAGE_RETRY}. */
@@ -119,9 +122,9 @@ public final class PipelineGates {
   }
 
   /**
-   * True when the wait is a recoverable halt (Retry, Revise, internal failure, owner choice, or
-   * clarification). A typed follow-up at such a wait stays on the run instead of being classified
-   * as a new request.
+   * True when the wait is a recoverable halt (Retry, Revise, leftover internal or owner-choice
+   * encoding, or clarification). A typed follow-up at such a wait stays on the run instead of being
+   * classified as a new request.
    */
   public static boolean isRecoverableHaltGate(String gateId) {
     return isContextualRecoveryGate(gateId)
