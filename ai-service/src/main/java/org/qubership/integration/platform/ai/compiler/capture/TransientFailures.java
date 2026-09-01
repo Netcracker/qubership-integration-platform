@@ -5,10 +5,20 @@ import jakarta.ws.rs.WebApplicationException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpTimeoutException;
+import java.security.cert.CertificateException;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLPeerUnverifiedException;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
 
-/** Detects transport and rate-limit failures that may succeed on a later pipeline attempt. */
+/**
+ * Detects transport and rate-limit failures that may succeed on a later pipeline attempt, and
+ * environment restrictions that will not.
+ */
 public final class TransientFailures {
+
+  /** User-facing summary when TLS or trust material blocked the request. */
+  public static final String ENVIRONMENT_SUMMARY =
+      "A secure connection or environment policy blocked creation. Repeating the same request will not help.";
 
   private TransientFailures() {}
 
@@ -24,6 +34,21 @@ public final class TransientFailures {
       if (current instanceof WebApplicationException webException
           && webException.getResponse() != null
           && isTransientStatus(webException.getResponse().getStatus())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * True for certificate, trust-store, and peer-verification failures. A handshake that wraps a
+   * connection timeout stays transient because {@link #isTransient(Throwable)} runs first.
+   */
+  public static boolean isPermanentEnvironment(Throwable error) {
+    for (Throwable current = error; current != null; current = current.getCause()) {
+      if (current instanceof SSLHandshakeException
+          || current instanceof SSLPeerUnverifiedException
+          || current instanceof CertificateException) {
         return true;
       }
     }

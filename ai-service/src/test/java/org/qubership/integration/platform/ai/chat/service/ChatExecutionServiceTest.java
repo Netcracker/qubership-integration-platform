@@ -427,6 +427,38 @@ class ChatExecutionServiceTest {
     assertFalse(frame.contains("__GATE:"), frame);
   }
 
+  @Test
+  void contextualEnvironmentFailureIsObservableSseOutput() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "clarify:10",
+            "clarify",
+            "This region is not supported for chain creation.",
+            null,
+            null,
+            10L,
+            null,
+            List.of(),
+            List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+            new ChatEvent.RecoveryPresentation(
+                "permanent-environment-failure",
+                "Creation cannot continue here",
+                "This region is not supported for chain creation.",
+                "Your approved requirements and plan are saved.",
+                "PKIX path building failed (runId=run-1)",
+                null,
+                "run-1",
+                "design-execution"));
+
+    String frame = ChatExecutionService.toSse(decision, new ObjectMapper());
+
+    assertTrue(frame.contains("\"recovery\""), frame);
+    assertTrue(frame.contains("permanent-environment-failure"), frame);
+    assertTrue(frame.contains("stop-with-report"), frame);
+    assertFalse(frame.contains("retry-creation"), frame);
+    assertFalse(frame.contains("__GATE:"), frame);
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION})
   void anAllowedHaltResumeDoesNotCloseSseWithoutTokenDecisionOrError(String action) {

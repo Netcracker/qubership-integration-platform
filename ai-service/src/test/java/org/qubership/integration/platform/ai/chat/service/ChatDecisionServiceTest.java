@@ -266,6 +266,40 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void openDecisionProjectsAContextualEnvironmentFailureFromServerOwnedState() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-env"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-env",
+                    "run-env",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    7L,
+                    new CreateChainPendingAction.Clarify(
+                        "This region is not supported for chain creation.",
+                        List.of(),
+                        PipelineGates.RECOVERY_ENVIRONMENT,
+                        "PKIX path building failed",
+                        null,
+                        "run-env",
+                        "design-execution"),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-env")
+            .orElseThrow();
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
+    assertEquals("permanent-environment-failure", decision.recovery().category());
+    assertEquals(
+        "This region is not supported for chain creation.", decision.recovery().summary());
+    assertFalse(decision.actions().contains(ChatEvent.RETRY_CREATION_ACTION));
+    assertFalse(decision.actions().contains("design-execution"));
+  }
+
+  @Test
   void markerNamesTheApprovedArtifactInEnglish() {
     assertEquals(
         "Approved implementation-plan sha256:abc",

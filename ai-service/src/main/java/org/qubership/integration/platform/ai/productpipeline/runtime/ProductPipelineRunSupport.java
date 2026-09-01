@@ -553,6 +553,11 @@ public final class ProductPipelineRunSupport {
               boolean retryClick = PipelineGates.RETRY_ACTION.equals(command.text());
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(command.text());
               boolean haltCardClick = retryClick || reviseClick;
+              if (retryClick
+                  && PipelineGates.RECOVERY_ENVIRONMENT.equals(
+                      PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""))) {
+                return reemitHaltCard(doc);
+              }
               if (retryClick) {
                 HaltRecoveryGuard retryRefusal = diagnoseRetryRefusal(doc, command);
                 if (retryRefusal != null) {
