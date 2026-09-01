@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +23,13 @@ import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntime
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
@@ -186,10 +190,30 @@ public class CompilerSkillContextBuilder {
       MappingEnvelope envelope,
       MappingSchemaSide sourceSide,
       MappingSchemaSide targetSide) {
+    MappingContract hopSource = JsonSchemaMappingContractFactory.from(sourceSide.schema());
+    return renderMappingGenerationContext(
+        intent,
+        envelope,
+        sourceSide,
+        targetSide,
+        List.of(intent),
+        Map.of(intent.mappingIntentId(), hopSource));
+  }
+
+  public String renderMappingGenerationContext(
+      MappingIntent intent,
+      MappingEnvelope envelope,
+      MappingSchemaSide sourceSide,
+      MappingSchemaSide targetSide,
+      List<MappingIntent> revisionIntents,
+      Map<String, MappingContract> sourceContractsByIntentId) {
     Objects.requireNonNull(intent, "intent");
     Objects.requireNonNull(envelope, "envelope");
     Objects.requireNonNull(sourceSide, "sourceSide");
     Objects.requireNonNull(targetSide, "targetSide");
+    revisionIntents = revisionIntents == null ? List.of() : revisionIntents;
+    sourceContractsByIntentId =
+        sourceContractsByIntentId == null ? Map.of() : sourceContractsByIntentId;
 
     StringBuilder section = new StringBuilder();
     section.append("Mapping generation:\n\n");
@@ -216,6 +240,8 @@ public class CompilerSkillContextBuilder {
       section.append(" [").append(rule.status()).append("]\n");
     }
     section.append('\n');
+    appendExchangePropertyGuidance(
+        section, intent, revisionIntents, sourceContractsByIntentId);
 
     section.append("Schema artifact hashes:\n");
     section.append("- source: ").append(sourceSide.sha256()).append('\n');
@@ -233,6 +259,109 @@ public class CompilerSkillContextBuilder {
             + "unchanged in capture.");
 
     return section.toString();
+  }
+
+  private static void appendExchangePropertyGuidance(
+      StringBuilder section,
+      MappingIntent intent,
+      List<MappingIntent> revisionIntents,
+      Map<String, MappingContract> sourceContractsByIntentId) {
+    MappingContract hopSource =
+        sourceContractsByIntentId.getOrDefault(
+            intent.mappingIntentId(), MappingContract.unknown());
+    if (!hopSource.known()) {
+      return;
+    }
+    List<String> lines = new ArrayList<>();
+    for (MappingIntentRule rule : intent.rules()) {
+      String sourcePath = rule.sourcePath();
+      if (!isCopyField(sourcePath) || hopSource.field(sourcePath).isPresent()) {
+        continue;
+      }
+      StringBuilder line = new StringBuilder();
+      line.append("- ")
+          .append(MappingContract.canonicalPath(sourcePath))
+          .append(" -> ")
+          .append(rule.targetPath())
+          .append(
+              ": source not on this hop schema; encode with exchange.setProperty /"
+                  + " exchange.getProperty (CIP GEN-10). Capture on the upstream script site whose"
+                  + " source schema has this path");
+      String upstream =
+          upstreamIntentId(
+              sourcePath, intent.mappingIntentId(), revisionIntents, sourceContractsByIntentId);
+      if (upstream != null && !upstream.isBlank()) {
+        line.append(" (mappingIntentId=").append(upstream).append(')');
+      }
+      line.append('.');
+      lines.add(line.toString());
+    }
+    for (MappingIntent sibling : revisionIntents) {
+      if (sibling.mappingIntentId().equals(intent.mappingIntentId())) {
+        continue;
+      }
+      MappingContract siblingSource =
+          sourceContractsByIntentId.getOrDefault(
+              sibling.mappingIntentId(), MappingContract.unknown());
+      if (!siblingSource.known()) {
+        continue;
+      }
+      for (MappingIntentRule siblingRule : sibling.rules()) {
+        String sourcePath = siblingRule.sourcePath();
+        if (!isCopyField(sourcePath)
+            || siblingSource.field(sourcePath).isPresent()
+            || hopSource.field(sourcePath).isEmpty()) {
+          continue;
+        }
+        lines.add(
+            "- Preserve "
+                + jsonFieldName(sourcePath)
+                + " with exchange.setProperty using the JSON field name. Downstream mappingIntentId "
+                + sibling.mappingIntentId()
+                + " reads it with getProperty.");
+      }
+    }
+    if (lines.isEmpty()) {
+      return;
+    }
+    section.append("Exchange properties:\n");
+    for (String line : lines) {
+      section.append(line).append('\n');
+    }
+    section.append('\n');
+  }
+
+  private static String upstreamIntentId(
+      String sourcePath,
+      String currentIntentId,
+      List<MappingIntent> revisionIntents,
+      Map<String, MappingContract> sourceContractsByIntentId) {
+    for (MappingIntent sibling : revisionIntents) {
+      if (sibling.mappingIntentId().equals(currentIntentId)) {
+        continue;
+      }
+      MappingContract siblingSource =
+          sourceContractsByIntentId.getOrDefault(
+              sibling.mappingIntentId(), MappingContract.unknown());
+      if (siblingSource.known() && siblingSource.field(sourcePath).isPresent()) {
+        return sibling.mappingIntentId();
+      }
+    }
+    return null;
+  }
+
+  private static boolean isCopyField(String sourcePath) {
+    return sourcePath != null
+        && !sourcePath.isBlank()
+        && !MappingMechanismSelector.isConstantLiteral(sourcePath);
+  }
+
+  private static String jsonFieldName(String sourcePath) {
+    String canonical = MappingContract.canonicalPath(sourcePath);
+    if (canonical.startsWith("$.")) {
+      return canonical.substring(2);
+    }
+    return canonical;
   }
 
   public String buildScriptRepairMessage(

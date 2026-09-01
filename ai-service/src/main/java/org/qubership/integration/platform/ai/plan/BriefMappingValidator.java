@@ -104,6 +104,8 @@ public final class BriefMappingValidator {
     MappingContract source = sourceContract == null ? MappingContract.unknown() : sourceContract;
     MappingContract target = targetContract == null ? MappingContract.unknown() : targetContract;
     boolean scriptPreferred = MappingMechanismSelector.isScriptPreference(implementationPreference);
+    boolean allowOffHopSource =
+        MappingMechanismSelector.allowsOffHopSource(implementationPreference);
     List<MappingIntentRule> input = expandCommaSeparatedRules(candidates);
     Map<String, MappingIntentRule> byTarget = new LinkedHashMap<>();
     for (MappingIntentRule candidate : input) {
@@ -112,7 +114,8 @@ public final class BriefMappingValidator {
       }
       MappingIntentRule normalized = canonicalRule(candidate);
       byTarget.put(
-          normalized.targetPath(), classifyOne(normalized, source, target, scriptPreferred));
+          normalized.targetPath(),
+          classifyOne(normalized, source, target, scriptPreferred, allowOffHopSource));
     }
     if (target.known()) {
       for (MappingContract.Field field : target.fields()) {
@@ -174,7 +177,8 @@ public final class BriefMappingValidator {
       MappingIntentRule candidate,
       MappingContract source,
       MappingContract target,
-      boolean scriptPreferred) {
+      boolean scriptPreferred,
+      boolean allowOffHopSource) {
     if (candidate.status() == MappingRuleStatus.USER_DEFINED) {
         return validateKnownPaths(candidate, scriptPreferred);
     }
@@ -184,7 +188,9 @@ public final class BriefMappingValidator {
     if (!source.known() && !target.known()) {
       return candidate.withStatus(inferStatus(candidate));
     }
-    if (source.known() && !source.field(candidate.sourcePath()).isPresent()) {
+    if (source.known()
+        && !allowOffHopSource
+        && source.field(candidate.sourcePath()).isEmpty()) {
       return candidate.withStatus(MappingRuleStatus.UNRESOLVED);
     }
     if (target.known() && !target.field(candidate.targetPath()).isPresent()) {

@@ -267,6 +267,29 @@ class BriefMappingValidatorTest {
   }
 
   @Test
+  void scriptProposedEchoOfOffHopSourceIsNotUnresolved() {
+    Optional<MappingIntent> intent =
+        BriefMappingValidator.validateBoundary(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.processInstanceId",
+                    "$.processId",
+                    null,
+                    MappingRuleStatus.PROPOSED)),
+            MappingContract.of(new MappingContract.Field("$.id", "string", true)),
+            MappingContract.of(new MappingContract.Field("$.processId", "string", false)));
+
+    assertTrue(intent.isPresent());
+    assertEquals(MappingRuleStatus.PROPOSED, intent.get().rules().getFirst().status());
+    assertFalse(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+  }
+
+  @Test
   void groovyExpressionDoesNotBlockWhenMapper2IsOff() {
     Optional<MappingIntent> intent =
         BriefMappingValidator.validateBoundary(

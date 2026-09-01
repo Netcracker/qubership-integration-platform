@@ -119,6 +119,41 @@ class MappingContractGateTest {
   }
 
   @Test
+  void scriptEchoOfOffHopSourceDoesNotBlock() {
+    MappingContract source =
+        contractFrom(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } },
+              "required": ["id"]
+            }
+            """);
+    MappingContract target =
+        contractFrom(
+            """
+            {
+              "type": "object",
+              "properties": { "processId": { "type": "string" } }
+            }
+            """);
+    MappingIntent intent =
+        new MappingIntent(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "processInstanceId",
+                    "processId",
+                    null,
+                    MappingRuleStatus.PROPOSED)));
+    assertTrue(MappingContractGate.blockedMessage(intent, source, target).isEmpty());
+  }
+
+  @Test
   void completeRulesPass() {
     MappingIntent intent =
         new MappingIntent(
