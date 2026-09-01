@@ -549,7 +549,10 @@ public final class FailureNarrative {
     }
     for (PlanValidationFinding finding : result.findings()) {
       if (finding != null) {
-        lines.add(formatFinding(finding));
+        String line = formatFinding(finding);
+        if (!lines.contains(line)) {
+          lines.add(line);
+        }
       }
     }
   }

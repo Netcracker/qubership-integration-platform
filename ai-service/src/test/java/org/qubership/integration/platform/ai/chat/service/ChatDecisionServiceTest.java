@@ -300,6 +300,71 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void openDecisionProjectsAContextualInternalFailureFromServerOwnedState() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-internal-recovery"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-internal-recovery",
+                    "run-internal",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    8L,
+                    new CreateChainPendingAction.Clarify(
+                        "A step inside the service broke. Repeating the same request will not help.",
+                        List.of(),
+                        PipelineGates.RECOVERY_INTERNAL,
+                        "java.lang.IllegalStateException: catalog lookup broke (runId=run-internal)",
+                        null,
+                        "run-internal",
+                        "design-execution"),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-internal-recovery")
+            .orElseThrow();
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
+    assertEquals("internal-service-failure", decision.recovery().category());
+    assertEquals("Creation hit an internal problem", decision.recovery().title());
+    assertFalse(decision.actions().contains(ChatEvent.RETRY_CREATION_ACTION));
+    assertFalse(decision.actions().contains("design-execution"));
+  }
+
+  @Test
+  void openDecisionProjectsAContextualRepeatedFailureFromServerOwnedState() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-repeated"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-repeated",
+                    "run-repeated",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    9L,
+                    new CreateChainPendingAction.Clarify(
+                        "The same problem came back. Repeating the same request will not help.",
+                        List.of(),
+                        PipelineGates.RECOVERY_REPEATED,
+                        "same failure identity=abc progress=none",
+                        null,
+                        "run-repeated",
+                        "work"),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-repeated")
+            .orElseThrow();
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
+    assertEquals("repeated-identical-failure", decision.recovery().category());
+    assertEquals("The same problem came back", decision.recovery().title());
+    assertFalse(decision.actions().contains("work"));
+  }
+
+  @Test
   void markerNamesTheApprovedArtifactInEnglish() {
     assertEquals(
         "Approved implementation-plan sha256:abc",

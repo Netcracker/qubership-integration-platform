@@ -554,7 +554,7 @@ public final class ProductPipelineRunSupport {
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(command.text());
               boolean haltCardClick = retryClick || reviseClick;
               if (retryClick
-                  && PipelineGates.RECOVERY_ENVIRONMENT.equals(
+                  && PipelineGates.isTerminalRecoveryGate(
                       PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse(""))) {
                 return reemitHaltCard(doc);
               }

@@ -91,6 +91,17 @@ class PipelineGatesTest {
     assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_REVISE_BRIEF));
     assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_REBUILD_PLAN));
     assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_ENVIRONMENT));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_INTERNAL));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_REPEATED));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_UNCLASSIFIED));
+    assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_INTERNAL));
+    assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_REPEATED));
+    assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_UNCLASSIFIED));
+    assertTrue(PipelineGates.isTerminalRecoveryGate(PipelineGates.RECOVERY_ENVIRONMENT));
+    assertTrue(PipelineGates.isTerminalRecoveryGate(PipelineGates.RECOVERY_INTERNAL));
+    assertTrue(PipelineGates.isTerminalRecoveryGate(PipelineGates.RECOVERY_REPEATED));
+    assertTrue(PipelineGates.isTerminalRecoveryGate(PipelineGates.RECOVERY_UNCLASSIFIED));
+    assertFalse(PipelineGates.isTerminalRecoveryGate(PipelineGates.RECOVERY_RETRY_TECHNICAL));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_RETRY));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_REVISE));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_INTERNAL_FAILURE));

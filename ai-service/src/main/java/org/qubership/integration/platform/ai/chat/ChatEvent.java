@@ -468,7 +468,10 @@ public sealed interface ChatEvent {
           List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_PLAN ->
           List.of(REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
-      case PipelineGates.RECOVERY_ENVIRONMENT ->
+      case PipelineGates.RECOVERY_ENVIRONMENT,
+              PipelineGates.RECOVERY_INTERNAL,
+              PipelineGates.RECOVERY_REPEATED,
+              PipelineGates.RECOVERY_UNCLASSIFIED ->
           List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
@@ -506,6 +509,21 @@ public sealed interface ChatEvent {
       case PipelineGates.RECOVERY_ENVIRONMENT -> {
         category = "permanent-environment-failure";
         title = "Creation cannot continue here";
+        preservedWork = "Your approved requirements and plan are saved.";
+      }
+      case PipelineGates.RECOVERY_INTERNAL -> {
+        category = "internal-service-failure";
+        title = "Creation hit an internal problem";
+        preservedWork = "Your approved requirements and plan are saved.";
+      }
+      case PipelineGates.RECOVERY_REPEATED -> {
+        category = "repeated-identical-failure";
+        title = "The same problem came back";
+        preservedWork = "Your approved requirements and plan are saved.";
+      }
+      case PipelineGates.RECOVERY_UNCLASSIFIED -> {
+        category = "unclassified-failure";
+        title = "Creation cannot continue";
         preservedWork = "Your approved requirements and plan are saved.";
       }
       default -> {

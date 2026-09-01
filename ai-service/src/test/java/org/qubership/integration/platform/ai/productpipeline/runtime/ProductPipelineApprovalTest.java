@@ -520,7 +520,7 @@ class ProductPipelineApprovalTest {
     List<List<Reference>> priorPerTurn = new ArrayList<>();
     StageOutcome halt =
         new StageOutcome(
-            StageOutcomeClass.VALIDATION_FAILURE,
+            StageOutcomeClass.MISSING_MANDATORY_INPUT,
             List.of(artifact(Kind.CHAIN_PLAN_GRAPH, Map.of("graph", "rejected"))),
             "the assembled graph failed validation",
             null);
@@ -602,7 +602,7 @@ class ProductPipelineApprovalTest {
         new ScriptedCapability(outcome),
         approvalPolicy,
         produces,
-        PipelineGates.STAGE_INTERNAL_FAILURE);
+        PipelineGates.RECOVERY_INTERNAL);
   }
 
   private ProductPipelineRunDocument runAndExpectHalt(

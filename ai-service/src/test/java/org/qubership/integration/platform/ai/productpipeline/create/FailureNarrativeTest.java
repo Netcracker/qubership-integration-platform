@@ -523,6 +523,20 @@ class FailureNarrativeTest {
   }
 
   @Test
+  void findingsTextConsolidatesDuplicateBlockers() {
+    PlanValidationFinding duplicate =
+        new PlanValidationFinding("UNKNOWN_PROPERTY", "orders.v2", true);
+    String text =
+        FailureNarrative.findingsText(
+            List.of(
+                new ArtifactCandidate(
+                    Kind.PLAN_VALIDATION_RESULT,
+                    new PlanValidationResult(List.of(duplicate, duplicate, duplicate)),
+                    List.of())));
+    assertEquals("UNKNOWN_PROPERTY: orders.v2 (blocker)", text);
+  }
+
+  @Test
   void answersAHaltQuestionWithWhatTheModelWroteAndNothingSubstituted() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.narrates("")

@@ -128,6 +128,17 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   public static final int MAX_SEMANTIC_REPAIRS = 1;
   public static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
 
+  static final String INTERNAL_RECOVERY_SUMMARY =
+      "A step inside the service broke. Repeating the same request will not help.";
+  static final String UNKNOWN_PROPERTY_RECOVERY_SUMMARY =
+      "The generator produced an invalid property. Repeating the same request will not help.";
+  static final String REPEATED_RECOVERY_SUMMARY =
+      "The same problem came back. Repeating the same request will not help.";
+  static final String UNCLASSIFIED_RECOVERY_SUMMARY =
+      "Creation stopped without a recoverable cause. Repeating the same request will not help.";
+  private static final String PROGRESS_HALTED = "halted";
+  private static final String PROGRESS_NONE = "none";
+
   public ProductPipelineStageExecutor(
       ProductPipelineRunStore runStore,
       ProductPipelineArtifactStore artifactStore,
@@ -852,6 +863,23 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           null,
           emitted);
     }
+    if (outcomeClass == StageOutcomeClass.INTERNAL_FAILURE
+        || cause.causeCode() == RecoveryCauseCode.UNKNOWN_PROPERTY) {
+      String summary =
+          cause.causeCode() == RecoveryCauseCode.UNKNOWN_PROPERTY
+              ? UNKNOWN_PROPERTY_RECOVERY_SUMMARY
+              : INTERNAL_RECOVERY_SUMMARY;
+      String diagnostic = findings.isBlank() ? evidence : findings;
+      return waitContextualRecovery(
+          doc,
+          stage,
+          refs,
+          PipelineGates.RECOVERY_INTERNAL,
+          summary,
+          terminalRecoveryDetails(diagnostic, evidence, doc.run().runId(), PROGRESS_HALTED),
+          null,
+          emitted);
+    }
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
     List<OwnerCandidate> closed = ownerCandidates(profile, stage.stageId());
     String artifactIdentity =
@@ -905,35 +933,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           recoveryLedger.key(
               recovery.producerStageId(), cause, ownerArtifact, doc.transitions());
       if (!recoveryLedger.mayRepair(doc.transitions(), clarificationKey, InputOrigin.TRUSTED)) {
-        String exhausted =
-            HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.cardSentence()
-                + " "
-                + evidence
-                + " (runId="
-                + doc.run().runId()
-                + ")"
-                + HaltRecoveryGuard.remainingLine(
-                    recoveryLedger.remaining(
-                        doc.transitions(), clarificationKey, InputOrigin.TRUSTED));
-        String prompt =
-            PipelineGates.tagGuard(
-                PipelineGates.tagEscalated(
-                    exhausted, List.of(), stage.skip() != null, ToolCallFingerprints.failureSignature(evidence)),
-                HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name());
-        List<StageSnapshot> stages =
-            refs.isEmpty()
-                ? doc.run().stages()
-                : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
-        commitStatus(
+        return waitContextualRecovery(
             doc,
-            RunStatus.WAITING_FOR_INPUT,
-            StageStatus.WAITING_FOR_INPUT,
-            stages,
-            prompt,
-            ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null));
-        emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
-        return new StageExecutionResult(
-            new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
+            stage,
+            refs,
+            PipelineGates.RECOVERY_REPEATED,
+            REPEATED_RECOVERY_SUMMARY,
+            terminalRecoveryDetails(evidence, evidence, doc.run().runId(), PROGRESS_NONE),
+            null,
+            emitted);
       }
       String question =
           failureNarrative
@@ -1042,15 +1050,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             && (repairsExhausted
                 || repeatedHaltCount(doc, stage.stageId(), haltIdentity) + 1
                     >= repeatedFailureThreshold);
-    if (escalated && choiceIds.isEmpty() && !diagnosedOwner.isBlank()) {
-      choiceIds = List.of(diagnosedOwner);
-    }
     if (escalated) {
-      body =
-          (repairsExhausted ? HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.cardSentence() + " " : "")
-              + body
-              + HaltRecoveryGuard.remainingLine(
-                  recoveryLedger.remaining(doc.transitions(), parkKey, InputOrigin.TRUSTED));
+      return waitContextualRecovery(
+          doc,
+          stage,
+          refs,
+          PipelineGates.RECOVERY_REPEATED,
+          REPEATED_RECOVERY_SUMMARY,
+          terminalRecoveryDetails(
+              findings.isBlank() ? evidence : findings,
+              evidence,
+              doc.run().runId(),
+              PROGRESS_NONE),
+          null,
+          emitted);
     }
     if (PipelineGates.STAGE_RETRY.equals(gate)) {
       if (outcomeClass == StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE) {
@@ -1060,15 +1073,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     // Both paths strip markers out of the body before tagging, so model-authored text that happens
     // to spell a marker cannot move the wait to a gate the executor did not choose.
     String prompt;
-    if (escalated) {
-      prompt = PipelineGates.tagEscalated(body, choiceIds, stage.skip() != null, "");
-      prompt =
-          PipelineGates.tagGuard(
-              prompt,
-              repairsExhausted
-                  ? HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name()
-                  : HaltRecoveryGuard.REPEATED_FAILURE_THRESHOLD.name());
-    } else if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
+    if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
       prompt = PipelineGates.tagInternalFailure(body, choiceIds);
     } else {
       prompt =
@@ -1267,6 +1272,21 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             stage,
             catalogHasBeenWritten(runId),
             identicalRejection);
+    if (identicalRejection) {
+      return waitContextualRecovery(
+          doc,
+          stage,
+          refs,
+          PipelineGates.RECOVERY_REPEATED,
+          REPEATED_RECOVERY_SUMMARY,
+          terminalRecoveryDetails(
+              findings.isBlank() ? evidenceText : findings,
+              evidenceText,
+              runId,
+              PROGRESS_NONE),
+          null,
+          emitted);
+    }
     if (mapped instanceof StageDecision.ReopenProducer reopen) {
       if (accepted.action() == RecoveryAction.REVISE_BRIEF) {
         putRunAttributeObject(
@@ -1327,6 +1347,22 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return new StageExecutionResult(mapped, emitted);
     }
 
+    if (accepted.action() == RecoveryAction.PARK) {
+      return waitContextualRecovery(
+          doc,
+          stage,
+          refs,
+          PipelineGates.RECOVERY_UNCLASSIFIED,
+          UNCLASSIFIED_RECOVERY_SUMMARY,
+          terminalRecoveryDetails(
+              findings.isBlank() ? evidenceText : findings,
+              evidenceText,
+              runId,
+              PROGRESS_HALTED),
+          null,
+          emitted);
+    }
+
     StageDecision.WaitForInput wait = (StageDecision.WaitForInput) mapped;
     List<StageSnapshot> stages =
         refs.isEmpty()
@@ -1350,6 +1386,26 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return body;
     }
     return findings == null || findings.isBlank() ? evidenceText : findings;
+  }
+
+  private static String terminalRecoveryDetails(
+      String diagnostic, String evidence, String runId, String progress) {
+    String body = diagnostic == null || diagnostic.isBlank() ? evidence : diagnostic;
+    if (body == null) {
+      body = "";
+    }
+    String identity = ToolCallFingerprints.failureSignature(evidence);
+    StringBuilder details = new StringBuilder(body);
+    if (runId != null && !runId.isBlank() && !details.toString().contains("runId=")) {
+      details.append(" (runId=").append(runId).append(")");
+    }
+    if (identity != null && !identity.isBlank()) {
+      details.append(" identity=").append(identity);
+    }
+    if (progress != null && !progress.isBlank()) {
+      details.append(" progress=").append(progress);
+    }
+    return details.toString();
   }
 
   private StageExecutionResult waitContextualRecovery(

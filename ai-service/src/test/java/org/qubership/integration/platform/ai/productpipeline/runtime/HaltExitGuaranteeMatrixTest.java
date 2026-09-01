@@ -141,6 +141,27 @@ class HaltExitGuaranteeMatrixTest {
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify("revise", List.of(), PipelineGates.STAGE_REVISE)));
     assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "Creation hit an internal problem",
+                List.of(),
+                PipelineGates.RECOVERY_INTERNAL)));
+    assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The same problem came back",
+                List.of(),
+                PipelineGates.RECOVERY_REPEATED)));
+    assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "Creation cannot continue",
+                List.of(),
+                PipelineGates.RECOVERY_UNCLASSIFIED)));
+    assertEquals(
         List.of("requirement-analysis", PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
@@ -207,9 +228,10 @@ class HaltExitGuaranteeMatrixTest {
 
     String second = latestWaitingPrompt();
     assertNotEquals(PipelineGates.strip(first), PipelineGates.strip(second));
-    assertEquals(PipelineGates.STAGE_ESCALATED, PipelineGates.gateOf(second).orElseThrow());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(second).orElseThrow());
     assertEquals(
-        HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name(), PipelineGates.guardOf(second).orElseThrow());
+        "The same problem came back. Repeating the same request will not help.",
+        PipelineGates.strip(second));
     assertInstanceOf(
         SemanticRecoveryState.CompareResult.Advanced.class,
         before.compareTo(runtime.captureSemanticRecoveryState(RUN_ID)));

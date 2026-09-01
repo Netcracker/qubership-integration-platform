@@ -459,6 +459,38 @@ class ChatExecutionServiceTest {
     assertFalse(frame.contains("__GATE:"), frame);
   }
 
+  @Test
+  void contextualInternalFailureIsObservableSseOutput() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "clarify:11",
+            "clarify",
+            "A step inside the service broke. Repeating the same request will not help.",
+            null,
+            null,
+            11L,
+            null,
+            List.of(),
+            List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+            new ChatEvent.RecoveryPresentation(
+                "internal-service-failure",
+                "Creation hit an internal problem",
+                "A step inside the service broke. Repeating the same request will not help.",
+                "Your approved requirements and plan are saved.",
+                "java.lang.IllegalStateException: catalog lookup broke (runId=run-1)",
+                null,
+                "run-1",
+                "design-execution"));
+
+    String frame = ChatExecutionService.toSse(decision, new ObjectMapper());
+
+    assertTrue(frame.contains("\"recovery\""), frame);
+    assertTrue(frame.contains("internal-service-failure"), frame);
+    assertTrue(frame.contains("stop-with-report"), frame);
+    assertFalse(frame.contains("retry-creation"), frame);
+    assertFalse(frame.contains("__GATE:"), frame);
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION})
   void anAllowedHaltResumeDoesNotCloseSseWithoutTokenDecisionOrError(String action) {
