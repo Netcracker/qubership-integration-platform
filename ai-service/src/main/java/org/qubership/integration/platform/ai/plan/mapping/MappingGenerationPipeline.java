@@ -55,7 +55,11 @@ public class MappingGenerationPipeline {
   }
 
   public boolean isMappingGenerator(String skillId) {
-    return TRANSFORMATION_GENERATOR.equals(skillId) || SCRIPT_GENERATOR.equals(skillId);
+    if (SCRIPT_GENERATOR.equals(skillId)) {
+      return true;
+    }
+    return TRANSFORMATION_GENERATOR.equals(skillId)
+        && MappingMechanismSelector.transformationGeneratorAllowed();
   }
 
   public Result prepare(

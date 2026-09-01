@@ -464,6 +464,33 @@ class DesignPlanProjectorTest {
   }
 
   @Test
+  void rejectsTransformationGeneratorWhileMapper2IsOff() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithMapping();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-init (cip-script-generator mappingIntentId=map-init)
+        4. Encode mapping map-init (cip-transformation-generator mappingIntentId=map-init)
+        5. Generate execution structure (cip-structure-generator)
+        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        7. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    PlannerContractException thrown =
+        assertThrows(
+            PlannerContractException.class,
+            () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+
+    assertTrue(
+        thrown.getMessage().contains("cip-transformation-generator"), thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("mapper-2 is off"), thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("cip-script-generator"), thrown.getMessage());
+  }
+
+  @Test
   void extraMappingStepWithoutIdFails() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrders();
     String report =

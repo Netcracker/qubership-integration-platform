@@ -397,7 +397,9 @@ public class DesignPlanningCapability implements StageCapability {
           "\nMapping intents. Each mapping-generator numbered line must include the literal token "
               + "mappingIntentId=<id> inside the parentheses with the skill, for example "
               + "`3. Encode mapping (cip-script-generator mappingIntentId=map-a)`. "
-              + "Naming the skill without that token fails projection. Do not invent ids.\n");
+              + "Naming the skill without that token fails projection. Do not invent ids. "
+              + "Do not plan cip-transformation-generator. Mapper-2 is off; use"
+              + " cip-script-generator.\n");
       for (MappingIntent mapping : revision.mappingIntents()) {
         text.append("- ")
             .append(mapping.mappingIntentId())
