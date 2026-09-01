@@ -460,7 +460,10 @@ public class RequirementDraftTool {
             conversationId);
       }
 
-      String invalidDecision = validateDecision(decision, openQuestions, candidate);
+      boolean catalogBindCheckpoint =
+          catalogBindCheckpoint(capturedFlow, capturedFacts, conversationId);
+      String invalidDecision =
+          validateDecision(decision, openQuestions, candidate, catalogBindCheckpoint);
       if (invalidDecision != null) {
         LOG.warnf(
             "captureRequirementDraft: validation failed conversationId=%s reason=%s",
@@ -626,9 +629,12 @@ public class RequirementDraftTool {
   private static String validateDecision(
       DraftDecision decision,
       List<String> openQuestions,
-      ApiHubRequirementRefs candidate) {
-    boolean pendingImport = candidate != null;
-    if (decision == DraftDecision.NEEDS_INPUT && openQuestions.isEmpty() && !pendingImport) {
+      ApiHubRequirementRefs candidate,
+      boolean catalogBindCheckpoint) {
+    boolean emptyQuestionsAllowed = candidate != null || catalogBindCheckpoint;
+    if (decision == DraftDecision.NEEDS_INPUT
+        && openQuestions.isEmpty()
+        && !emptyQuestionsAllowed) {
       return "openQuestions is required when decision=NEEDS_INPUT";
     }
     if (decision == DraftDecision.READY_FOR_PLAN && !openQuestions.isEmpty()) {
@@ -642,6 +648,32 @@ public class RequirementDraftTool {
           + " use NEEDS_INPUT until the user imports the specification";
     }
     return null;
+  }
+
+  private boolean catalogBindCheckpoint(
+      RequirementFlow flow, List<RequirementFact> facts, String conversationId) {
+    if (flow == null || flow.interactions().isEmpty()) {
+      return false;
+    }
+    if (facts == null || facts.isEmpty()) {
+      return false;
+    }
+    boolean catalogBacked = false;
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      InteractionAssessment assessment =
+          resolutions == null
+              ? null
+              : resolutions.forInteraction(conversationId, interaction.interactionId()).orElse(null);
+      if (assessment != null
+          && (assessment.outcome() == InteractionAssessment.Outcome.INCOMPLETE
+              || assessment.outcome() == InteractionAssessment.Outcome.AMBIGUOUS)) {
+        return false;
+      }
+      if (RequirementFlowValidator.requiresCatalogBinding(interaction, facts)) {
+        catalogBacked = true;
+      }
+    }
+    return catalogBacked;
   }
 
   /**

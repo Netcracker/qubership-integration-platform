@@ -196,6 +196,87 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void needsInputWithoutOpenQuestionsIsAllowedForCatalogBindCheckpoint() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            flowCapture(false, DraftDecision.NEEDS_INPUT, rockyFlow()));
+
+    assertFalse(result.contains("openQuestions is required"), result);
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertTrue(draft.openQuestions().isEmpty());
+    assertFalse(draft.readyForPlan());
+    assertEquals(rockyFlow(), draft.flow());
+  }
+
+  @Test
+  void needsInputWithoutOpenQuestionsIsRejectedWhenFactsAreEmpty() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                false,
+                "OM starts a task, Salesforce creates it, OM receives the result",
+                DraftDecision.NEEDS_INPUT,
+                List.of(),
+                null,
+                List.of(),
+                null,
+                rockyFlow()));
+
+    assertTrue(result.contains("openQuestions is required"));
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
+  void needsInputWithoutOpenQuestionsIsRejectedWhenAssessmentIsIncomplete() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.incomplete(
+            "create-task",
+            new InteractionAssessment.Intent(
+                "createTask", "Salesforce", "createTask", "POST", "/tasks")));
+
+    String result =
+        captureTool.captureRequirementDraft(
+            flowCapture(false, DraftDecision.NEEDS_INPUT, rockyFlow()));
+
+    assertTrue(result.contains("openQuestions is required"));
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
+  void needsInputWithoutOpenQuestionsIsRejectedWhenAssessmentIsAmbiguous() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool = RequirementDraftTool.withResolutions(store, resolutions);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.ambiguous(
+            "create-task",
+            new InteractionAssessment.Intent(
+                "createTask", "Salesforce", "createTask", "POST", "/tasks"),
+            List.of("op-a", "op-b")));
+
+    String result =
+        captureTool.captureRequirementDraft(
+            flowCapture(false, DraftDecision.NEEDS_INPUT, rockyFlow()));
+
+    assertTrue(result.contains("openQuestions is required"));
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
   void readyForPlanWithPendingApiHubCandidateSoftDowngradesToNeedsInput() {
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
     store.beginTurn("draft-conv");
