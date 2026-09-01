@@ -102,6 +102,9 @@ const RECOVERY_CATEGORIES = new Set([
   "requirement-brief-defect",
   "plan-artifact-defect",
   "permanent-environment-failure",
+  "internal-service-failure",
+  "repeated-identical-failure",
+  "unclassified-failure",
 ]);
 
 function isRecoveryPayload(

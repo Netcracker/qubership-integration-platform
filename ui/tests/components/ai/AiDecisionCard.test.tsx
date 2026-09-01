@@ -374,11 +374,15 @@ describe("AiDecisionCard", () => {
 
     render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
 
-    expect(screen.getByText("Requirements need correction")).toBeInTheDocument();
+    expect(
+      screen.getByText("Requirements need correction"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Your approved product facts stay available."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "planning" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "planning" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "requirement-analysis" }),
     ).not.toBeInTheDocument();
@@ -386,7 +390,9 @@ describe("AiDecisionCard", () => {
     const details = screen.getByText("Technical details").closest("details");
     expect(details).not.toHaveAttribute("open");
     fireEvent.click(screen.getByText("Technical details"));
-    expect(screen.getByText(/PLAN_BLOCKER: missing quartz/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/PLAN_BLOCKER: missing quartz/),
+    ).toBeInTheDocument();
 
     const edit = screen.getByRole("button", { name: "Edit requirements" });
     expect(edit.className).toMatch(/ant-btn-primary/);
@@ -407,7 +413,8 @@ describe("AiDecisionCard", () => {
       recovery: {
         category: "plan-artifact-defect",
         title: "The plan cannot be used",
-        summary: "The plan is missing information required to create the chain.",
+        summary:
+          "The plan is missing information required to create the chain.",
         preservedWork: "Your approved requirements stay unchanged.",
         technicalDetails: "PLAN_BLOCKER: invalid graph edge",
         runId: "run-1",
@@ -454,7 +461,9 @@ describe("AiDecisionCard", () => {
 
     render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
 
-    expect(screen.getByText("Creation cannot continue here")).toBeInTheDocument();
+    expect(
+      screen.getByText("Creation cannot continue here"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Your approved requirements and plan are saved."),
     ).toBeInTheDocument();
@@ -471,7 +480,53 @@ describe("AiDecisionCard", () => {
       screen.queryByRole("button", { name: "design-execution" }),
     ).not.toBeInTheDocument();
 
-    const endRun = screen.getByRole("button", { name: "End run and keep report" });
+    const endRun = screen.getByRole("button", {
+      name: "End run and keep report",
+    });
+    expect(endRun.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(endRun);
+
+    expect(onAnswer).toHaveBeenCalledWith("stop-with-report", "");
+  });
+
+  it("should render an internal failure with only End run and keep report", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question:
+        "A step inside the service broke. Repeating the same request will not help.",
+      actions: ["stop-with-report"],
+      recovery: {
+        category: "internal-service-failure",
+        title: "Creation hit an internal problem",
+        summary:
+          "A step inside the service broke. Repeating the same request will not help.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails:
+          "java.lang.IllegalStateException: catalog lookup broke",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText("Creation hit an internal problem"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements and plan are saved."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry creation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "design-execution" }),
+    ).not.toBeInTheDocument();
+
+    const endRun = screen.getByRole("button", {
+      name: "End run and keep report",
+    });
     expect(endRun.className).not.toMatch(/ant-btn-primary/);
     fireEvent.click(endRun);
 

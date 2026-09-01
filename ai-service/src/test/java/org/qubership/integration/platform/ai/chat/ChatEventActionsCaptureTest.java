@@ -87,6 +87,42 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void contextualInternalFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "A step inside the service broke. Repeating the same request will not help.",
+                List.of(),
+                PipelineGates.RECOVERY_INTERNAL));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualRepeatedFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The same problem came back. Repeating the same request will not help.",
+                List.of(),
+                PipelineGates.RECOVERY_REPEATED));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
+  void contextualUnclassifiedFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "Creation stopped without a recoverable cause. Repeating the same request will not help.",
+                List.of(),
+                PipelineGates.RECOVERY_UNCLASSIFIED));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
   void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
     assertEquals(
         List.of(),

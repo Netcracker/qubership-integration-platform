@@ -49,6 +49,15 @@ public final class PipelineGates {
   /** A permanent environment or policy restriction that another create attempt cannot lift. */
   public static final String RECOVERY_ENVIRONMENT = "recovery-environment";
 
+  /** An internal service defect that another create attempt cannot repair. */
+  public static final String RECOVERY_INTERNAL = "recovery-internal";
+
+  /** The same blocker returned after recovery without material progress. */
+  public static final String RECOVERY_REPEATED = "recovery-repeated";
+
+  /** A halt the product could not classify into a recoverable route. */
+  public static final String RECOVERY_UNCLASSIFIED = "recovery-unclassified";
+
   /**
    * The run needs one missing fact from the author. The next typed answer resumes the owning
    * producer; it is not a recoverable halt card.
@@ -130,7 +139,21 @@ public final class PipelineGates {
         || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
         || RECOVERY_REVISE_BRIEF.equals(gateId)
         || RECOVERY_REBUILD_PLAN.equals(gateId)
-        || RECOVERY_ENVIRONMENT.equals(gateId);
+        || RECOVERY_ENVIRONMENT.equals(gateId)
+        || RECOVERY_INTERNAL.equals(gateId)
+        || RECOVERY_REPEATED.equals(gateId)
+        || RECOVERY_UNCLASSIFIED.equals(gateId);
+  }
+
+  /**
+   * True when the wait is a contextual recovery that cannot change the outcome from this run.
+   * Retry re-emits the same card instead of re-entering the failed step.
+   */
+  public static boolean isTerminalRecoveryGate(String gateId) {
+    return RECOVERY_ENVIRONMENT.equals(gateId)
+        || RECOVERY_INTERNAL.equals(gateId)
+        || RECOVERY_REPEATED.equals(gateId)
+        || RECOVERY_UNCLASSIFIED.equals(gateId);
   }
 
   private static final Pattern MARKER = Pattern.compile("__GATE:([a-z0-9-]+)__");

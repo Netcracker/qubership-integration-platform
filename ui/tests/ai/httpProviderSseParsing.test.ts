@@ -114,7 +114,10 @@ describe("parseCipSseBlock", () => {
         '"failedStageId":"design-execution"}}\n',
     );
 
-    expect(chunks[0]?.decision?.actions).toEqual(["rebuild-plan", "stop-with-report"]);
+    expect(chunks[0]?.decision?.actions).toEqual([
+      "rebuild-plan",
+      "stop-with-report",
+    ]);
     expect(chunks[0]?.decision?.recovery).toEqual({
       category: "plan-artifact-defect",
       title: "The plan cannot be used",
@@ -146,6 +149,41 @@ describe("parseCipSseBlock", () => {
       runId: "run-1",
       failedStageId: "design-execution",
     });
+  });
+
+  it("parses internal, repeated, and unclassified failures without retry", () => {
+    const internal = parseCipSseBlock(
+      'event: decision\ndata: {"id":"clarify:11","kind":"clarify","question":"A step inside the service broke.",' +
+        '"revision":11,"actions":["stop-with-report"],"recovery":{' +
+        '"category":"internal-service-failure","title":"Creation hit an internal problem",' +
+        '"summary":"A step inside the service broke.","preservedWork":"Your approved requirements and plan are saved.",' +
+        '"technicalDetails":"catalog lookup broke","runId":"run-1","failedStageId":"design-execution"}}\n',
+    );
+    const repeated = parseCipSseBlock(
+      'event: decision\ndata: {"id":"clarify:12","kind":"clarify","question":"The same problem came back.",' +
+        '"revision":12,"actions":["stop-with-report"],"recovery":{' +
+        '"category":"repeated-identical-failure","title":"The same problem came back",' +
+        '"summary":"The same problem came back.","preservedWork":"Your approved requirements and plan are saved.",' +
+        '"technicalDetails":"same failure identity=abc progress=none","runId":"run-1","failedStageId":"work"}}\n',
+    );
+    const unclassified = parseCipSseBlock(
+      'event: decision\ndata: {"id":"clarify:13","kind":"clarify","question":"Creation cannot continue.",' +
+        '"revision":13,"actions":["stop-with-report"],"recovery":{' +
+        '"category":"unclassified-failure","title":"Creation cannot continue",' +
+        '"summary":"Creation cannot continue.","preservedWork":"Your approved requirements and plan are saved.",' +
+        '"technicalDetails":"unclassified park","runId":"run-1","failedStageId":"work"}}\n',
+    );
+
+    expect(internal[0]?.decision?.actions).toEqual(["stop-with-report"]);
+    expect(internal[0]?.decision?.recovery?.category).toBe(
+      "internal-service-failure",
+    );
+    expect(repeated[0]?.decision?.recovery?.category).toBe(
+      "repeated-identical-failure",
+    );
+    expect(unclassified[0]?.decision?.recovery?.category).toBe(
+      "unclassified-failure",
+    );
   });
 
   it("drops a decision when the kind is unknown", () => {

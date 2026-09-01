@@ -41,7 +41,10 @@ export interface ChatDecision {
       | "regeneratable-execution-failure"
       | "requirement-brief-defect"
       | "plan-artifact-defect"
-      | "permanent-environment-failure";
+      | "permanent-environment-failure"
+      | "internal-service-failure"
+      | "repeated-identical-failure"
+      | "unclassified-failure";
     title: string;
     summary: string;
     preservedWork: string;
