@@ -293,6 +293,9 @@ export const Snapshots: React.FC = () => {
       render: (_, snapshot) =>
         snapshot.createdWhen ? formatTimestamp(snapshot.createdWhen) : "-",
       sorter: (a, b) => (a.createdWhen ?? 0) - (b.createdWhen ?? 0),
+      defaultSortOrder: "descend",
+      // Ascend, not unsorted, on the first header click.
+      sortDirections: ["descend", "ascend", null],
       filterDropdown: (props) => <TimestampColumnFilterDropdown {...props} />,
       onFilter: getTimestampColumnFilterFn(
         (snapshot) => snapshot.createdWhen ?? 0,

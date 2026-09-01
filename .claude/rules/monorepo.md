@@ -1,0 +1,103 @@
+---
+paths:
+  - "**/*"
+---
+
+### Monorepo nature
+
+Each top-level directory is a former standalone repository, consolidated with its full Git
+history. Module guidance ships as APM instructions under `.apm/instructions/`, one file per
+module, scoped by `applyTo` to that module's path:
+
+- `engine` — Spring Boot execution engine (Camel runtime, custom components, deployment lifecycle, multi-datasource)
+- `micro-engine` — Quarkus variant of the engine
+- `runtime-catalog` — chains/elements/deployments catalog, ANTLR mapper DSL, Consul publishing
+- `sessions-management` — session storage/search over OpenSearch
+- `schemas` — JSON Schema sources + ts-node build/codegen pipeline (npm + Maven publish)
+- `vscode-extension` — offline web extension, embeds `@netcracker/qip-ui`
+- `infrastructure` — Docker Compose + Helm for the local stack
+- `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, with a hand-maintained `testing-service/AGENTS.md`
+- `integration-build-pipeline` — `qip-integration-build-pipeline`, the chain-compilation library runtime-catalog depends on (codegen, parsers, mapper, library, chain, io). No instruction of its own yet.
+
+The `ui` module is covered by the four `ui-*` skills rather than an instruction, because its
+guidance is long enough to be worth loading on demand. Two directories carry shared build
+configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact) and
+`parent/` (the Maven parent POM `qip-monorepo-parent`).
+
+Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
+
+### Top-level build commands
+
+#### Maven aggregator (`pom.xml`, `groupId: org.qubership.integration.platform`, `artifactId: qip-monorepo`)
+
+```bash
+mvn clean install -Dgpg.skip=true              # Build all Java modules (see <modules> in the root pom.xml)
+mvn -pl engine -am clean install -Dgpg.skip=true   # Single module + its dependencies
+```
+
+`-Dgpg.skip=true` is required locally (GPG signing is configured in `parent/pom.xml` for release publishing).
+
+Published Maven artifacts retain their original coordinates — the monorepo did not rename them:
+`qip-engine`, `qip-runtime-catalog`, `qip-sessions-management`, `qip-micro-engine`, `qip-checkstyle`, `qip-integration-build-pipeline` (all under `org.qubership.integration.platform`).
+
+#### npm workspaces (root `package.json`)
+
+```bash
+npm install                                    # Installs all workspaces (schemas, ui, vscode-extension) + creates symlinks between them
+npm run build                                  # schemas → ui → vscode-extension (full chain)
+npm -w @netcracker/qip-ui run dev              # Vite dev server (port 4200)
+npm -w @netcracker/qip-ui run build            # Vite app build (the working one)
+npm test --workspaces --if-present             # Run tests in all workspaces that define them
+```
+
+Node `>=22` required (see `engines` in root `package.json`).
+
+#### Local stack
+
+```bash
+docker compose -f infrastructure/docker-compose.yml up -d --build
+```
+
+See the `infrastructure` instruction and `infrastructure/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`).
+
+### Build order between workspaces
+
+`@netcracker/qip-ui` imports `@netcracker/qip-schemas` as a workspace dep, and `@netcracker/qip-vscode-extension` embeds the qip-ui library bundle. So the build order matters:
+
+1. `npm -w @netcracker/qip-schemas run build` — writes `schemas/dist/index.mjs` (the runtime `schemasByType` map). Without this, qip-ui's vite build can't resolve `@netcracker/qip-schemas`.
+2. `npm -w @netcracker/qip-ui run build:lib` — writes `ui/dist-lib/index.es.js` + `qip-ui.css` (external library bundle; the one the vscode-extension webview actually loads). `build:lib:bundled` additionally writes `index.bundled.es.js` with React embedded (avoids the esm.sh `<importmap>` fallback in the extension); `build:lib:all` is the full chain — external + bundled + types + `scripts/fix-preload.mjs` (works as of 2026-05-25).
+3. `npm -w @netcracker/qip-vscode-extension run compile-web` — webpack + copy-webpack-plugin pulls `ui/dist-lib` into `vscode-extension/dist/web/qip-ui/`.
+
+Shortcut: `npm -w @netcracker/qip-vscode-extension run build` runs all three steps (1 → 2 → 3) in order.
+
+`npm -w @netcracker/qip-ui run build` (the **app** build, not `build:lib`) builds the standalone web UI bundle, not the library — it's a separate output and is what the root `npm run build` script uses for the UI app.
+
+### Branch model
+
+- `main` — every module at HEAD
+- `release/0.1` … `release/0.5` — historical release snapshots (renamed from the old `v0.X` tags/branches), each with the module set that existed at release time
+- `feature/#173-core-adaptation` (engine), `feature/#109-core-adaptation` (runtime-catalog), `feature/#33` (sessions-management) — single-module feature branches that still depend on private `com.netcracker.cloud` artifacts. Building these requires `~/.m2/settings.xml` with a GitHub PAT authorized for `maven.pkg.github.com/Netcracker/*`.
+
+When working on feature branches, expect Maven to fail without GitHub Packages credentials — that's a credential problem, not a code problem.
+
+### CI workflows
+
+`.github/workflows/` is organized by module with a consistent `<module>-build.yaml` / `<module>-release.yaml` pair (`engine-build.yaml`, `runtime-catalog-build.yaml`, `ui-build.yaml`, etc.) plus repo-wide ones: `release-all.yaml`, `pr-conventional-commits.yaml`, `pr-lint-title.yaml`, `super-linter.yaml`. **Conventional Commits** is enforced on PR titles and commit messages — non-conforming PRs are rejected at the CI gate.
+
+### Release process
+
+Version-type driven — you never type a version number. Pick `patch`/`minor`/`major` (a `*-release.yaml` dispatch, or `release-all.yaml` for a wave): the version is computed from the file in the repo, published, tagged (`<module>-vX.Y.Z`), and the bumped version is committed back to the branch as `qubership-actions[bot]`. The file in the repo is the source of truth for the next version.
+
+- **Maven** (`${revision}${changelist}`, reusable `_maven-module-release.yaml`): releases the current `<revision>`; `release-type` sets the next dev `<revision>`.
+- **micro-engine** is the exception — it publishes to GitHub Packages (`profile=github`, fixed in its wrapper) because its private `com.netcracker.cloud` deps are not on Central.
+- **npm** (`npm version`, reusable `_npm-module-release.yaml`): bumps `package.json` by `release-type` and releases that; cascade schemas → ui → vscode-extension is auto-`patch`.
+- The bump commit is pushed via the runner token, so `github-actions[bot]` must be allowed to bypass branch protection on the target branch — otherwise the next release of a module fails (its tag already exists). `scripts/commit-and-push.sh` does the commit + rebase-retry push (shared by both reusables).
+- Optional `version` input overrides the computed version for edge cases (first release, explicit jump).
+- **Snapshot/dev publish** (on-demand, GitHub Packages only, no tag/bump/commit/GitHub Release): Maven → `snapshot-publish.yaml` (current `X.Y.Z-SNAPSHOT`); npm → `snapshot-publish-npm.yaml` (ephemeral `<next>-dev.<UTC-ts>` under dist-tag `dev`, for `ui`/`vscode-extension`). For testing unreleased branch code in consumers — runnable from any branch.
+
+### Cross-module change tips
+
+- A change touching schemas + UI + vscode-extension usually only needs `npm install` once at the root — workspace symlinks propagate. No publish step required for local testing.
+- A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am install -Dgpg.skip=true`.
+- The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
+- The `qip-checkstyle` rules version is pinned via `qip-checkstyle-revision` in `parent/pom.xml`. Java modules also keep a `checkstyle-suppressions.xml` for module-local exceptions.

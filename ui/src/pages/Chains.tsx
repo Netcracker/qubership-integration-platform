@@ -20,6 +20,7 @@ import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
+import { shouldIgnoreRowClick } from "../components/table/rowClick.ts";
 import { nameLinkStyle } from "../components/table/nameLinkStyle.ts";
 import type { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
@@ -122,18 +123,6 @@ type Operation = {
 };
 
 const chainExpandIcon = treeExpandIcon<ChainTableItem>();
-
-// A row click opens the details drawer, except on interactive controls and the
-// table's own selection/expand cells. The portaled actions menu stops its own
-// click (see the menu onClick below).
-const ROW_CLICK_IGNORE_SELECTOR =
-  "a, button, input, label, .ant-table-selection-column, .ant-table-row-expand-icon";
-
-function shouldIgnoreRowClick(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element && !!target.closest(ROW_CLICK_IGNORE_SELECTOR)
-  );
-}
 
 const Chains = () => {
   const navigate = useNavigate();

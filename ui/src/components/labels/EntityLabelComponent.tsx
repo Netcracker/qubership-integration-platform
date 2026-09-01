@@ -7,7 +7,11 @@ export const EntityLabelComponent: React.FC<EntityLabel> = (
 ) => {
   const color = label.technical ? "blue" : "default";
   return (
-    <Tag color={color} key={label?.name}>
+    <Tag
+      color={color}
+      key={label?.name}
+      style={{ fontSize: "inherit", lineHeight: "22px", paddingInline: 8 }}
+    >
       {label?.name}
     </Tag>
   );

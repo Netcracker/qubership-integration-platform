@@ -22,6 +22,7 @@ properties:
       contextPath:
         type: string
         title: Path Template
+        readOnly: true
       externalRoute:
         type: boolean
         const: false

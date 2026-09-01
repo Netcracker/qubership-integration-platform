@@ -1,5 +1,6 @@
 import {
   createContext,
+  FocusEvent,
   ReactNode,
   useCallback,
   useEffect,
@@ -57,13 +58,22 @@ export function InlineEdit<Values>({
     });
   }, [form, values, onCancel]);
 
+  const handleBlur = useCallback(
+    (e: FocusEvent<HTMLDivElement>) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        form.submit();
+      }
+    },
+    [form],
+  );
+
   const contextValue = useMemo(() => ({ toggle }), [toggle]);
 
   return (
     <InlineEditContext.Provider value={contextValue}>
       {active ? (
         <div className={styles.inlineEditEditorWrap}>
-          <div>
+          <div onBlur={handleBlur}>
             <Form<Values>
               form={form}
               disabled={processing}
@@ -87,9 +97,7 @@ export function InlineEdit<Values>({
                   console.error(e);
                   setProcessing(false);
                 }
-                toggle();
               }}
-              onBlur={toggle}
             >
               {editor}
             </Form>
