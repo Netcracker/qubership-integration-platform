@@ -99,11 +99,13 @@ public class RequirementBriefTool {
        from the approved RequirementFlow and catalog bindings.
       When no field adaptation was requested, leave mappingIntents empty. The\
        server records that as pass-through: a direct connection with no mapping row. When the\
-       user requested field adaptation between projected outbound interactions, capture\
+       user requested field adaptation across an approved flow transition, capture\
        mappingIntents. Prose is enough: Subject = name\
        becomes sourcePath=name and targetPath=Subject. A computed rule such as a priority bucket,\
        a default, or JSON construction sets expression on that rule. One intent per\
-       source-to-target boundary. Never invent identity copies for fields the user did not\
+       approved flow transition. sourceRef and targetRef must match a listed transition.\
+       Put preserve or echo rules on the transition that writes the target payload.\
+       Never invent identity copies for fields the user did not\
        mention. Use the approved interactionId values as sourceRef and targetRef. Do not set\
        mapping ports; the server assigns them from the approved flow.
       Minimal example:

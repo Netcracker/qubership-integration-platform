@@ -331,6 +331,100 @@ class RequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void rejectsSkipHopMappingThatIsNotAFlowTransition() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            rockyBrief(approved)
+                .withMappingIntents(
+                    List.of(
+                        new MappingIntent(
+                            "onTaskStart-to-onTaskResult-context",
+                            "task-start",
+                            MappingPort.OUTPUT,
+                            "task-result",
+                            MappingPort.REQUEST,
+                            List.of(
+                                new MappingIntentRule("executionId", "executionId", null),
+                                new MappingIntentRule("orderId", "orderId", null))))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("task-start"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("task-result"), error.orElseThrow());
+    assertTrue(error.orElseThrow().toLowerCase().contains("transition"), error.orElseThrow());
+  }
+
+  @Test
+  void acceptsEchoRulesOnTheHopThatWritesTheTarget() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            rockyBrief(approved)
+                .withMappingIntents(
+                    List.of(
+                        new MappingIntent(
+                            "createTask-to-onTaskResult",
+                            "create-task",
+                            MappingPort.RESPONSE,
+                            "task-result",
+                            MappingPort.REQUEST,
+                            List.of(
+                                new MappingIntentRule("executionId", "executionId", null),
+                                new MappingIntentRule("orderId", "orderId", null))))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
+  }
+
+  @Test
+  void acceptsRequestMappingOnTheFirstApprovedTransition() {
+    RequirementDraft approved = rockyApprovedDraft();
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            rockyBrief(approved)
+                .withMappingIntents(
+                    List.of(
+                        new MappingIntent(
+                            "onTaskStart-to-createTask",
+                            "task-start",
+                            MappingPort.OUTPUT,
+                            "create-task",
+                            MappingPort.REQUEST,
+                            List.of(new MappingIntentRule("name", "Subject", null))))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
+  }
+
+  @Test
+  void rejectsMappingWhenApprovedFlowHasNoTransitions() {
+    RequirementFlow flowWithoutTransitions =
+        new RequirementFlow(rockyFlow().interactions(), List.of());
+    RequirementDraft approved = rockyApprovedDraft().withFlow(flowWithoutTransitions);
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            rockyBrief(approved)
+                .withMappingIntents(
+                    List.of(
+                        new MappingIntent(
+                            "createTask-to-onTaskResult",
+                            "create-task",
+                            MappingPort.RESPONSE,
+                            "task-result",
+                            MappingPort.REQUEST,
+                            List.of(new MappingIntentRule("id", "id", null))))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().toLowerCase().contains("transition"), error.orElseThrow());
+  }
+
+  @Test
   void rejectsInboundUsedAsOutboundRequestTarget() {
     RequirementDraft approved = rockyApprovedDraft();
     RequirementBrief brief =

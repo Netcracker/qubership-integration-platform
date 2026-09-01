@@ -618,7 +618,9 @@ public class RequirementAnalysisCapability implements StageCapability {
               + "user requested field adaptation, capture mappingIntents. Prose is enough: "
               + "Subject = name becomes sourcePath=name and targetPath=Subject. A computed rule "
               + "such as a priority bucket, a default, or JSON construction sets expression on "
-              + "that rule. One intent per source-to-target boundary. Never invent identity "
+              + "that rule. One intent per approved flow transition. sourceRef and targetRef "
+              + "must match a listed transition. Put preserve or echo rules on the transition "
+              + "that writes the target payload. Never invent identity "
               + "copies for fields the user did not mention. Do not set mapping ports; the "
               + "server assigns them from the approved flow.\n\n");
     } else {
@@ -654,6 +656,7 @@ public class RequirementAnalysisCapability implements StageCapability {
               .append(transition.targetInteractionId())
               .append('\n');
         }
+        sb.append("These pairs are the only allowed sourceRef and targetRef values.\n");
       }
       sb.append('\n');
     }
