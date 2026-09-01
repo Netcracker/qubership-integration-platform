@@ -55,6 +55,29 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
     }
   }
 
+  /** HTTP GET: empty request; catalog stores the body under OpenAPI default and 2XX. */
+  public static RecordingCatalogRestClient withHttpGetDefaultAndWildcardStatuses() {
+    try {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode body =
+          mapper.readTree(
+              """
+              {
+                "type": "object",
+                "properties": { "id": { "type": "string" } }
+              }
+              """);
+      Map<String, JsonNode> responseSchemas = new LinkedHashMap<>();
+      responseSchemas.put("default", body);
+      responseSchemas.put("2XX", body);
+      CatalogRestClient.OperationSchemaMapsDto dto =
+          new CatalogRestClient.OperationSchemaMapsDto("op-1", Map.of(), responseSchemas);
+      return new RecordingCatalogRestClient(Map.of("op-1", dto));
+    } catch (Exception e) {
+      throw new IllegalStateException("cannot build HTTP GET schema fixture", e);
+    }
+  }
+
   /** AsyncAPI: empty request, message payloads as flat JSON Schema under message names. */
   public static RecordingCatalogRestClient withAsyncMessageSchemas() {
     try {

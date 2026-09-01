@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan.mapping.schema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -264,9 +265,11 @@ class MappingBoundarySchemaResolverTest {
     ChainSemanticRevision revision = SemanticFixtures.linearOrders();
     List<ResolvedServiceCallBinding> noBindings = List.of();
 
-    assertThrows(
-        IllegalStateException.class,
-        () -> resolver.resolve(revision, noBindings, intent, Map.of()));
+    MappingBoundarySchemas sides =
+        resolver.resolve(revision, noBindings, intent, Map.of());
+
+    assertNull(sides.source().schema());
+    assertNull(sides.target().schema());
   }
 
   private void persistSide(

@@ -217,11 +217,19 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
   }
 
   private static boolean looksLikeHttpStatus(String key) {
-    return key != null
-        && key.length() == 3
+    if (key == null) {
+      return false;
+    }
+    if ("default".equals(key)) {
+      return true;
+    }
+    if (key.length() == 3
         && Character.isDigit(key.charAt(0))
         && Character.isDigit(key.charAt(1))
-        && Character.isDigit(key.charAt(2));
+        && Character.isDigit(key.charAt(2))) {
+      return true;
+    }
+    return key.matches("^[1-5]XX$");
   }
 
   private static boolean looksLikeJsonSchema(JsonNode node) {
