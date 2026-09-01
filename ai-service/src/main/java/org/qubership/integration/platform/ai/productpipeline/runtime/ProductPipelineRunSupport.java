@@ -810,8 +810,7 @@ public final class ProductPipelineRunSupport {
     String gate =
         PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
     if (PipelineGates.STAGE_RETRY.equals(gate)
-        || PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
-        || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate)) {
+        || PipelineGates.isContextualRecoveryGate(gate)) {
       return reemitHaltCard(doc);
     }
     List<OwnerCandidate> closed = haltOwnerCandidates(doc);
@@ -1433,8 +1432,7 @@ public final class ProductPipelineRunSupport {
     if (PipelineGates.STAGE_INTERNAL_FAILURE.equals(gate)) {
       return PipelineGates.internalFailureActionsOf(prompt).contains(text);
     }
-    return PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
-        || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate);
+    return PipelineGates.isContextualRecoveryGate(gate);
   }
 
   private static boolean isEscalatedAction(

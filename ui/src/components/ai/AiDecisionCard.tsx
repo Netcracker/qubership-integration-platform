@@ -39,6 +39,8 @@ const ACTION_LABELS: Record<string, string> = {
   retry: "Retry",
   revise: "Revise",
   "retry-creation": "Retry creation",
+  "edit-requirements": "Edit requirements",
+  "rebuild-plan": "Rebuild plan",
   "stop-with-report": "End run and keep report",
 };
 
@@ -66,6 +68,8 @@ const COMMAND_ACTIONS = new Set([
   "session-logging-debug",
   "import-specification",
   "retry-creation",
+  "edit-requirements",
+  "rebuild-plan",
   "stop-with-report",
 ]);
 
@@ -86,6 +90,8 @@ const PRIMARY_ACTIONS = new Set([
   "retry",
   "revise",
   "retry-creation",
+  "edit-requirements",
+  "rebuild-plan",
 ]);
 
 function actionLabel(action: string): string {

@@ -40,6 +40,12 @@ public final class PipelineGates {
   public static final String RECOVERY_REGENERATE_EXECUTION =
       "recovery-regenerate-execution";
 
+  /** An incomplete or contradictory requirement brief that the author can repair. */
+  public static final String RECOVERY_REVISE_BRIEF = "recovery-revise-brief";
+
+  /** A defective implementation plan that can be rebuilt from the approved brief. */
+  public static final String RECOVERY_REBUILD_PLAN = "recovery-rebuild-plan";
+
   /**
    * The run needs one missing fact from the author. The next typed answer resumes the owning
    * producer; it is not a recoverable halt card.
@@ -106,14 +112,21 @@ public final class PipelineGates {
    * as a new request.
    */
   public static boolean isRecoverableHaltGate(String gateId) {
-    return RECOVERY_RETRY_TECHNICAL.equals(gateId)
-        || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
+    return isContextualRecoveryGate(gateId)
         || STAGE_RETRY.equals(gateId)
         || STAGE_REVISE.equals(gateId)
         || STAGE_INTERNAL_FAILURE.equals(gateId)
         || STAGE_ESCALATED.equals(gateId)
         || OWNER_CHOICE.equals(gateId)
         || STAGE_CLARIFICATION.equals(gateId);
+  }
+
+  /** True when the wait is a server-owned contextual recovery dialog. */
+  public static boolean isContextualRecoveryGate(String gateId) {
+    return RECOVERY_RETRY_TECHNICAL.equals(gateId)
+        || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
+        || RECOVERY_REVISE_BRIEF.equals(gateId)
+        || RECOVERY_REBUILD_PLAN.equals(gateId);
   }
 
   private static final Pattern MARKER = Pattern.compile("__GATE:([a-z0-9-]+)__");

@@ -1049,8 +1049,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               ? PipelineGates.tagOwnerChoice(body, choiceIds)
               : PipelineGates.retag(gate, body);
     }
-    if (PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)
-        || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gate)) {
+    if (PipelineGates.isContextualRecoveryGate(gate)) {
       prompt = PipelineGates.tagRecoveryDetails(prompt, evidence, retryDelayMs);
     }
     String durablePrompt = PipelineGates.tagHaltIdentity(prompt, haltIdentity);
@@ -1247,6 +1246,35 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             runId,
             ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR,
             accepted.proposedBriefChanges());
+        putRunAttribute(
+            runId,
+            ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
+            reopen.producerStageId());
+        return waitContextualRecovery(
+            doc,
+            stage,
+            refs,
+            PipelineGates.RECOVERY_REVISE_BRIEF,
+            recoveryWaitBody(accepted, findings, evidenceText),
+            evidenceText,
+            null,
+            emitted);
+      }
+      if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
+          && "design-planning".equals(reopen.producerStageId())) {
+        putRunAttribute(
+            runId,
+            ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
+            reopen.producerStageId());
+        return waitContextualRecovery(
+            doc,
+            stage,
+            refs,
+            PipelineGates.RECOVERY_REBUILD_PLAN,
+            recoveryWaitBody(accepted, findings, evidenceText),
+            evidenceText,
+            null,
+            emitted);
       }
       if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
         recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, cause);
@@ -1258,32 +1286,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (mapped instanceof StageDecision.Retry) {
       if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
-        String body = accepted.userSummary();
-        if (body == null || body.isBlank()) {
-          body = findings.isBlank() ? evidenceText : findings;
-        }
-        String prompt =
-            PipelineGates.tagRecoveryDetails(
-                PipelineGates.retag(PipelineGates.RECOVERY_REGENERATE_EXECUTION, body),
-                evidenceText,
-                null);
-        String durablePrompt =
-            PipelineGates.tagHaltIdentity(
-                prompt, ToolCallFingerprints.failureSignature(evidenceText));
-        List<StageSnapshot> stages =
-            refs.isEmpty()
-                ? doc.run().stages()
-                : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
-        commitStatus(
+        return waitContextualRecovery(
             doc,
-            RunStatus.WAITING_FOR_INPUT,
-            StageStatus.WAITING_FOR_INPUT,
-            stages,
-            durablePrompt,
-            ProductPipelineRunSupport.haltEvidence(attributesByRun.get(runId), null));
-        emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
-        return new StageExecutionResult(
-            new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
+            stage,
+            refs,
+            PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+            recoveryWaitBody(accepted, findings, evidenceText),
+            evidenceText,
+            null,
+            emitted);
       }
       emitted.add(new PipelineSignal.Progress(stage.stageId(), "Retrying from recovery evidence"));
       return new StageExecutionResult(mapped, emitted);
@@ -1303,6 +1314,46 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         ProductPipelineRunSupport.haltEvidence(attributesByRun.get(runId), null));
     emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), wait.prompt()));
     return new StageExecutionResult(wait, emitted);
+  }
+
+  private static String recoveryWaitBody(
+      RecoveryDecision accepted, String findings, String evidenceText) {
+    String body = accepted == null ? "" : accepted.userSummary();
+    if (body != null && !body.isBlank()) {
+      return body;
+    }
+    return findings == null || findings.isBlank() ? evidenceText : findings;
+  }
+
+  private StageExecutionResult waitContextualRecovery(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      String gate,
+      String body,
+      String evidenceText,
+      Long retryDelayMs,
+      List<PipelineSignal> emitted) {
+    String prompt =
+        PipelineGates.tagRecoveryDetails(
+            PipelineGates.retag(gate, body), evidenceText, retryDelayMs);
+    String durablePrompt =
+        PipelineGates.tagHaltIdentity(
+            prompt, ToolCallFingerprints.failureSignature(evidenceText));
+    List<StageSnapshot> stages =
+        refs.isEmpty()
+            ? doc.run().stages()
+            : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        stages,
+        durablePrompt,
+        ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null));
+    emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
+    return new StageExecutionResult(
+        new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
   }
 
   private record AcceptedRecovery(RecoveryDecision decision, RecoveryEvidence evidence) {}
@@ -1547,13 +1598,21 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private static boolean contextualRegenerationAttempted(ProductPipelineRunDocument doc) {
     List<RunTransition> transitions = doc.transitions();
     for (int index = transitions.size() - 1; index > 0; index--) {
-      RunTransition attempt = transitions.get(index);
-      if (attempt.reason() == null
-          || !attempt.reason().startsWith(PRODUCER_REPAIR_REASON_PREFIX)) {
+      String reason = transitions.get(index).reason();
+      if (reason == null) {
         continue;
       }
-      return PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(
-          PipelineGates.gateOf(transitions.get(index - 1).reason()).orElse(""));
+      String previousGate =
+          PipelineGates.gateOf(transitions.get(index - 1).reason()).orElse("");
+      if (PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(previousGate)
+          && reason.startsWith(PRODUCER_REPAIR_REASON_PREFIX)) {
+        return true;
+      }
+      if (PipelineGates.RECOVERY_REBUILD_PLAN.equals(previousGate)
+          && (reason.startsWith(PRODUCER_REPAIR_REASON_PREFIX)
+              || reason.startsWith(RecoveryAttemptLedger.AUTHOR_REOPEN_REASON_PREFIX))) {
+        return true;
+      }
     }
     return false;
   }

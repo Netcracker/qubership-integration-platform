@@ -78,6 +78,54 @@ describe("parseCipSseBlock", () => {
     });
   });
 
+  it("parses a requirement-brief defect without treating stage ids as actions", () => {
+    const chunks = parseCipSseBlock(
+      'event: decision\ndata: {"id":"clarify:8","kind":"clarify","question":"The approved requirements need correction.",' +
+        '"revision":8,"actions":["edit-requirements","stop-with-report"],"recovery":{' +
+        '"category":"requirement-brief-defect","title":"Requirements need correction",' +
+        '"summary":"The approved requirements need correction.","preservedWork":"Your approved product facts stay available.",' +
+        '"technicalDetails":"PLAN_BLOCKER: missing quartz","runId":"run-1",' +
+        '"failedStageId":"planning"}}\n',
+    );
+
+    expect(chunks[0]?.decision?.actions).toEqual([
+      "edit-requirements",
+      "stop-with-report",
+    ]);
+    expect(chunks[0]?.decision?.recovery).toEqual({
+      category: "requirement-brief-defect",
+      title: "Requirements need correction",
+      summary: "The approved requirements need correction.",
+      preservedWork: "Your approved product facts stay available.",
+      technicalDetails: "PLAN_BLOCKER: missing quartz",
+      runId: "run-1",
+      failedStageId: "planning",
+    });
+  });
+
+  it("parses a plan-artifact defect without treating stage ids as actions", () => {
+    const chunks = parseCipSseBlock(
+      'event: decision\ndata: {"id":"clarify:9","kind":"clarify","question":"The plan is missing information required to create the chain.",' +
+        '"revision":9,"actions":["rebuild-plan","stop-with-report"],"recovery":{' +
+        '"category":"plan-artifact-defect","title":"The plan cannot be used",' +
+        '"summary":"The plan is missing information required to create the chain.",' +
+        '"preservedWork":"Your approved requirements stay unchanged.",' +
+        '"technicalDetails":"PLAN_BLOCKER: invalid graph edge","runId":"run-1",' +
+        '"failedStageId":"design-execution"}}\n',
+    );
+
+    expect(chunks[0]?.decision?.actions).toEqual(["rebuild-plan", "stop-with-report"]);
+    expect(chunks[0]?.decision?.recovery).toEqual({
+      category: "plan-artifact-defect",
+      title: "The plan cannot be used",
+      summary: "The plan is missing information required to create the chain.",
+      preservedWork: "Your approved requirements stay unchanged.",
+      technicalDetails: "PLAN_BLOCKER: invalid graph edge",
+      runId: "run-1",
+      failedStageId: "design-execution",
+    });
+  });
+
   it("drops a decision when the kind is unknown", () => {
     expect(
       parseCipSseBlock('event: decision\ndata: {"id":"x","kind":"vote"}\n'),

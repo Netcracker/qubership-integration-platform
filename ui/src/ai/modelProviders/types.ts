@@ -38,7 +38,9 @@ export interface ChatDecision {
   recovery?: {
     category:
       | "temporary-technical-failure"
-      | "regeneratable-execution-failure";
+      | "regeneratable-execution-failure"
+      | "requirement-brief-defect"
+      | "plan-artifact-defect";
     title: string;
     summary: string;
     preservedWork: string;

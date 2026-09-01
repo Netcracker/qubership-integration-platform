@@ -113,6 +113,159 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void openDecisionProjectsAContextualBriefDefectFromServerOwnedState() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-brief"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-brief",
+                    "run-brief",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    7L,
+                    new CreateChainPendingAction.Clarify(
+                        "The approved requirements need correction.",
+                        List.of(),
+                        PipelineGates.RECOVERY_REVISE_BRIEF,
+                        "PLAN_BLOCKER: missing quartz",
+                        null,
+                        "run-brief",
+                        "planning"),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-brief")
+            .orElseThrow();
+
+    assertEquals(
+        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        decision.actions());
+    assertEquals("requirement-brief-defect", decision.recovery().category());
+    assertEquals("The approved requirements need correction.", decision.recovery().summary());
+    assertEquals("PLAN_BLOCKER: missing quartz", decision.recovery().technicalDetails());
+    assertEquals("run-brief", decision.recovery().runId());
+    assertEquals("planning", decision.recovery().failedStageId());
+    assertFalse(decision.actions().contains("planning"));
+    assertFalse(decision.actions().contains("requirement-analysis"));
+  }
+
+  @Test
+  void semanticEditRequirementsSubmissionMapsToTheInternalReviseCommand() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    CreateChainPendingAction.Clarify pending =
+        new CreateChainPendingAction.Clarify(
+            "The approved requirements need correction.",
+            List.of(),
+            PipelineGates.RECOVERY_REVISE_BRIEF,
+            "PLAN_BLOCKER: missing quartz",
+            null,
+            "run-brief",
+            "planning");
+    when(facade.snapshot("conv-brief"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-brief",
+                    "run-brief",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    7L,
+                    pending,
+                    "")));
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.EDIT_REQUIREMENTS_ACTION);
+    command.setRevision(7L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-brief", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals(PipelineGates.REVISE_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
+  void openDecisionProjectsAContextualPlanDefectFromServerOwnedState() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-plan"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-plan",
+                    "run-plan",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    7L,
+                    new CreateChainPendingAction.Clarify(
+                        "The plan is missing information required to create the chain.",
+                        List.of(),
+                        PipelineGates.RECOVERY_REBUILD_PLAN,
+                        "PLAN_BLOCKER: invalid graph edge",
+                        null,
+                        "run-plan",
+                        "design-execution"),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-plan")
+            .orElseThrow();
+
+    assertEquals(
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        decision.actions());
+    assertEquals("plan-artifact-defect", decision.recovery().category());
+    assertEquals(
+        "The plan is missing information required to create the chain.",
+        decision.recovery().summary());
+    assertFalse(decision.actions().contains("design-planning"));
+    assertFalse(decision.actions().contains("design-execution"));
+  }
+
+  @Test
+  void semanticRebuildPlanSubmissionMapsToTheInternalReviseCommand() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-plan"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-plan",
+                    "run-plan",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    7L,
+                    new CreateChainPendingAction.Clarify(
+                        "The plan is missing information required to create the chain.",
+                        List.of(),
+                        PipelineGates.RECOVERY_REBUILD_PLAN,
+                        "PLAN_BLOCKER: invalid graph edge",
+                        null,
+                        "run-plan",
+                        "design-execution"),
+                    "")));
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.REBUILD_PLAN_ACTION);
+    command.setRevision(7L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-plan", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals(PipelineGates.REVISE_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
   void markerNamesTheApprovedArtifactInEnglish() {
     assertEquals(
         "Approved implementation-plan sha256:abc",

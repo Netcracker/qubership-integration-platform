@@ -355,6 +355,86 @@ describe("AiDecisionCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("should render a requirement defect with Edit requirements and no stage identifiers", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "The approved requirements need correction.",
+      actions: ["edit-requirements", "stop-with-report"],
+      recovery: {
+        category: "requirement-brief-defect",
+        title: "Requirements need correction",
+        summary: "The approved requirements need correction.",
+        preservedWork: "Your approved product facts stay available.",
+        technicalDetails: "PLAN_BLOCKER: missing quartz",
+        runId: "run-1",
+        failedStageId: "planning",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByText("Requirements need correction")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved product facts stay available."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "planning" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "requirement-analysis" }),
+    ).not.toBeInTheDocument();
+
+    const details = screen.getByText("Technical details").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText(/PLAN_BLOCKER: missing quartz/)).toBeInTheDocument();
+
+    const edit = screen.getByRole("button", { name: "Edit requirements" });
+    expect(edit.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(edit);
+
+    expect(onAnswer).toHaveBeenCalledWith("edit-requirements", "");
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should render a plan defect with Rebuild plan and no stage identifiers", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "The plan is missing information required to create the chain.",
+      actions: ["rebuild-plan", "stop-with-report"],
+      recovery: {
+        category: "plan-artifact-defect",
+        title: "The plan cannot be used",
+        summary: "The plan is missing information required to create the chain.",
+        preservedWork: "Your approved requirements stay unchanged.",
+        technicalDetails: "PLAN_BLOCKER: invalid graph edge",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByText("The plan cannot be used")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements stay unchanged."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "design-planning" }),
+    ).not.toBeInTheDocument();
+
+    const rebuild = screen.getByRole("button", { name: "Rebuild plan" });
+    expect(rebuild.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(rebuild);
+
+    expect(onAnswer).toHaveBeenCalledWith("rebuild-plan", "");
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
   it("should send deployment follow-up buttons as typed decisions", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();

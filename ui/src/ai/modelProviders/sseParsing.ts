@@ -96,15 +96,21 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
   }
 }
 
+const RECOVERY_CATEGORIES = new Set([
+  "temporary-technical-failure",
+  "regeneratable-execution-failure",
+  "requirement-brief-defect",
+  "plan-artifact-defect",
+]);
+
 function isRecoveryPayload(
   value: unknown,
 ): value is NonNullable<ChatDecision["recovery"]> {
   if (typeof value !== "object" || value === null) return false;
   const recovery = value as Record<string, unknown>;
-  const category = recovery.category;
   return (
-    (category === "temporary-technical-failure" ||
-      category === "regeneratable-execution-failure") &&
+    typeof recovery.category === "string" &&
+    RECOVERY_CATEGORIES.has(recovery.category) &&
     typeof recovery.title === "string" &&
     typeof recovery.summary === "string" &&
     typeof recovery.preservedWork === "string" &&
