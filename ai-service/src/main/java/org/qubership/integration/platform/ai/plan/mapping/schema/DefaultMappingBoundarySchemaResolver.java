@@ -145,8 +145,8 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       }
     }
     if (matching.isEmpty()) {
-      throw new IllegalStateException(
-          "No persisted mapping schema for " + ownerId + " " + resultDirection);
+      return new MappingSchemaSide(
+          SCHEMA_VERSION, ownerId, null, resultDirection, null, null, null, null, null);
     }
     if (persistDirection == MappingPort.RESPONSE) {
       LinkedHashSet<String> statuses = new LinkedHashSet<>();

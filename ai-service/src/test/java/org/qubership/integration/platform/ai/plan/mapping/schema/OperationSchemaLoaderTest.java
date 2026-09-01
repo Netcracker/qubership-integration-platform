@@ -123,6 +123,20 @@ class OperationSchemaLoaderTest {
   }
 
   @Test
+  void httpDefaultAndWildcardStatusesAreNotLiftedIntoRequest() {
+    RecordingCatalogRestClient catalog =
+        RecordingCatalogRestClient.withHttpGetDefaultAndWildcardStatuses();
+    OperationSchemaLoader localLoader =
+        new CatalogOperationSchemaLoader(catalog, artifacts, new ObjectMapper());
+
+    OperationSchemaMaps maps = localLoader.load("op-1");
+
+    assertTrue(maps.requestByContentType().isEmpty(), maps.requestByContentType().keySet().toString());
+    assertTrue(maps.responseByStatusThenContentType().containsKey("default"));
+    assertTrue(maps.responseByStatusThenContentType().containsKey("2XX"));
+  }
+
+  @Test
   void asyncMessagesWithEmptyRequestBecomeJsonRequestSchema() {
     RecordingCatalogRestClient catalog = RecordingCatalogRestClient.withAsyncMessageSchemas();
     OperationSchemaLoader localLoader =

@@ -123,6 +123,31 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
+  void prepareContinuesWhenPersistedSideIsAbsent() {
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "", "commandType", "Set to completeTask.", MappingRuleStatus.USER_DEFINED)));
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            revisionWith(intent),
+            List.of(binding()),
+            sampleContext(List.of()));
+
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertTrue(artifacts.history(COMPILATION_ID, Kind.MAPPING_SCHEMA_SIDE).isEmpty());
+  }
+
+  @Test
   void unresolvedRequiredDoesNotCallMappingGeneratorSkill() {
     persistSide("trigger-http", MappingPort.OUTPUT, orderSchema);
     persistSide("call-1", MappingPort.REQUEST, orderSchema);
