@@ -7,6 +7,7 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
 
@@ -28,5 +29,15 @@ class TransientFailuresTest {
     assertFalse(TransientFailures.isTransient(new IllegalArgumentException("invalid plan")));
     assertFalse(
         TransientFailures.isTransient(new WebApplicationException(Response.status(400).build())));
+  }
+
+  @Test
+  void classifiesCertificateHandshakeFailuresAsPermanentEnvironment() {
+    assertTrue(
+        TransientFailures.isPermanentEnvironment(
+            new SSLHandshakeException("PKIX path building failed")));
+    assertFalse(TransientFailures.isTransient(new SSLHandshakeException("PKIX path building failed")));
+    assertFalse(
+        TransientFailures.isPermanentEnvironment(new ConnectException("Connection refused")));
   }
 }

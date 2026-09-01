@@ -46,6 +46,9 @@ public final class PipelineGates {
   /** A defective implementation plan that can be rebuilt from the approved brief. */
   public static final String RECOVERY_REBUILD_PLAN = "recovery-rebuild-plan";
 
+  /** A permanent environment or policy restriction that another create attempt cannot lift. */
+  public static final String RECOVERY_ENVIRONMENT = "recovery-environment";
+
   /**
    * The run needs one missing fact from the author. The next typed answer resumes the owning
    * producer; it is not a recoverable halt card.
@@ -126,7 +129,8 @@ public final class PipelineGates {
     return RECOVERY_RETRY_TECHNICAL.equals(gateId)
         || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
         || RECOVERY_REVISE_BRIEF.equals(gateId)
-        || RECOVERY_REBUILD_PLAN.equals(gateId);
+        || RECOVERY_REBUILD_PLAN.equals(gateId)
+        || RECOVERY_ENVIRONMENT.equals(gateId);
   }
 
   private static final Pattern MARKER = Pattern.compile("__GATE:([a-z0-9-]+)__");

@@ -40,7 +40,8 @@ export interface ChatDecision {
       | "temporary-technical-failure"
       | "regeneratable-execution-failure"
       | "requirement-brief-defect"
-      | "plan-artifact-defect";
+      | "plan-artifact-defect"
+      | "permanent-environment-failure";
     title: string;
     summary: string;
     preservedWork: string;

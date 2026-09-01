@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
@@ -39,6 +40,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -860,6 +862,8 @@ class ProductPipelineStageExecutorTest {
       String gate = PipelineGates.gateOf(wait.prompt()).orElseThrow();
       if (outcomeClass == StageOutcomeClass.DOMAIN_FAILURE) {
         assertEquals(PipelineGates.STAGE_REVISE, gate, outcomeClass.name());
+      } else if (outcomeClass == StageOutcomeClass.POLICY_FAILURE) {
+        assertEquals(PipelineGates.RECOVERY_ENVIRONMENT, gate, outcomeClass.name());
       } else {
         assertEquals(PipelineGates.STAGE_RETRY, gate, outcomeClass.name());
       }
@@ -1911,6 +1915,114 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.FAILED, requireRun().run().status());
     assertTrue(artifactStore.latest(RUN_ID, Kind.FAILURE_RECORD).isPresent());
     assertEquals(1, executionCalls.get());
+  }
+
+  @Test
+  void unsupportedRegionOffersEndRunWithoutRetryOrStageChoices() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability failing =
+        capability(
+            "fail-cap",
+            context -> {
+              calls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(
+                              StageOutcomeClass.POLICY_FAILURE,
+                              "This region is not supported for chain creation.")));
+            });
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(5, 5_000L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertEquals(
+        PipelineGates.RECOVERY_ENVIRONMENT, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        "This region is not supported for chain creation.", PipelineGates.strip(wait.prompt()));
+    assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_ENVIRONMENT));
+    assertFalse(
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_ENVIRONMENT)
+            .contains(ChatEvent.RETRY_CREATION_ACTION));
+    assertFalse(wait.prompt().contains("work"), wait.prompt());
+    assertTrue(
+        PipelineGates.recoveryTechnicalDetailsOf(wait.prompt()).orElseThrow().contains(RUN_ID));
+    assertEquals(1, calls.get());
+  }
+
+  @Test
+  void sslHandshakeFailureOffersEndRunAndDoesNotEnterARetryLoop() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability failing =
+        capability(
+            "fail-cap",
+            context -> {
+              calls.incrementAndGet();
+              return Multi.createFrom()
+                  .failure(new SSLHandshakeException("PKIX path building failed"));
+            });
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(5, 5_000L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertEquals(
+        PipelineGates.RECOVERY_ENVIRONMENT, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(TransientFailures.ENVIRONMENT_SUMMARY, PipelineGates.strip(wait.prompt()));
+    assertFalse(PipelineGates.strip(wait.prompt()).contains("PKIX"), wait.prompt());
+    assertTrue(
+        PipelineGates.recoveryTechnicalDetailsOf(wait.prompt())
+            .orElseThrow()
+            .contains("PKIX path building failed"));
+    assertEquals(1, calls.get());
+
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(
+        PipelineGates.RECOVERY_ENVIRONMENT,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+    assertEquals(1, calls.get());
+  }
+
+  @Test
+  void environmentFailureEndWithReportKeepsTheFailureRecord() {
+    StageCapability failing =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.POLICY_FAILURE,
+                                "The catalog refused this environment."))));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    execute(runtime, "work");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.STOP_WITH_REPORT_ACTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.FAILED, requireRun().run().status());
+    assertTrue(artifactStore.latest(RUN_ID, Kind.FAILURE_RECORD).isPresent());
   }
 
   @Test
@@ -3018,33 +3130,31 @@ class ProductPipelineStageExecutorTest {
   @Test
   void technicalPolicyAndMissingInputStayRetryOnlyEvenWithAFakeOwner() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.owner("Would blame work.", "work");
-    for (StageOutcomeClass outcomeClass :
-        List.of(
-            StageOutcomeClass.POLICY_FAILURE, StageOutcomeClass.MISSING_MANDATORY_INPUT)) {
-      blobStore = new InMemoryArtifactBlobStore();
-      Clock clock = Clock.fixed(FIXED, ZoneOffset.UTC);
-      runStore = new ProductPipelineRunStore(blobStore, mapper, clock);
-      artifactStore =
-          new ProductPipelineArtifactStore(new CompilationArtifacts(blobStore, mapper, clock));
-      StageCapability failing =
-          capability(
-              "fail-cap",
-              context ->
-                  Multi.createFrom()
-                      .item(
-                          new CapabilitySignal.Completed(
-                              StageOutcome.of(outcomeClass, outcomeClass.name() + " closed"))));
-      ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L));
-      CreateChainTestOrchestrator runtime =
-          newRuntime(new FailureNarrative(agent), profile, failing);
-      startAndRecordInput(runtime, profile);
+    blobStore = new InMemoryArtifactBlobStore();
+    Clock clock = Clock.fixed(FIXED, ZoneOffset.UTC);
+    runStore = new ProductPipelineRunStore(blobStore, mapper, clock);
+    artifactStore =
+        new ProductPipelineArtifactStore(new CompilationArtifacts(blobStore, mapper, clock));
+    StageCapability failing =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.MISSING_MANDATORY_INPUT,
+                                "MISSING_MANDATORY_INPUT closed"))));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L));
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, failing);
+    startAndRecordInput(runtime, profile);
 
-      StageDecision.WaitForInput wait =
-          assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
-      assertEquals(
-          PipelineGates.STAGE_RETRY, PipelineGates.gateOf(wait.prompt()).orElseThrow(), outcomeClass.name());
-      assertEquals(List.of(PipelineGates.RETRY_ACTION), ChatEvent.actionsForGate(PipelineGates.STAGE_RETRY));
-    }
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+    assertEquals(PipelineGates.STAGE_RETRY, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        List.of(PipelineGates.RETRY_ACTION), ChatEvent.actionsForGate(PipelineGates.STAGE_RETRY));
   }
 
   @Test

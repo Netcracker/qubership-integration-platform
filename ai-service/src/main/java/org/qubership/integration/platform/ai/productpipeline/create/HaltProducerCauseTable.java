@@ -69,7 +69,10 @@ public final class HaltProducerCauseTable {
               RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
               RecoveryCauseCode.VALIDATION_BLOCKER);
       case STAGE_EXECUTOR ->
-          Set.of(RecoveryCauseCode.INTERNAL, RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED);
+          Set.of(
+              RecoveryCauseCode.INTERNAL,
+              RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
+              RecoveryCauseCode.POLICY_FAILURE);
     };
   }
 

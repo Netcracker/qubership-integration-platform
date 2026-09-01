@@ -468,6 +468,8 @@ public sealed interface ChatEvent {
           List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_PLAN ->
           List.of(REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.RECOVERY_ENVIRONMENT ->
+          List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
       case PipelineGates.STAGE_ESCALATED -> List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
@@ -500,6 +502,11 @@ public sealed interface ChatEvent {
         category = "plan-artifact-defect";
         title = "The plan cannot be used";
         preservedWork = "Your approved requirements stay unchanged.";
+      }
+      case PipelineGates.RECOVERY_ENVIRONMENT -> {
+        category = "permanent-environment-failure";
+        title = "Creation cannot continue here";
+        preservedWork = "Your approved requirements and plan are saved.";
       }
       default -> {
         return null;

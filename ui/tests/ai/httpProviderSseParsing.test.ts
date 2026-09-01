@@ -126,6 +126,28 @@ describe("parseCipSseBlock", () => {
     });
   });
 
+  it("parses a permanent environment failure without retry", () => {
+    const chunks = parseCipSseBlock(
+      'event: decision\ndata: {"id":"clarify:10","kind":"clarify","question":"This region is not supported for chain creation.",' +
+        '"revision":10,"actions":["stop-with-report"],"recovery":{' +
+        '"category":"permanent-environment-failure","title":"Creation cannot continue here",' +
+        '"summary":"This region is not supported for chain creation.",' +
+        '"preservedWork":"Your approved requirements and plan are saved.",' +
+        '"technicalDetails":"PKIX path building failed","runId":"run-1",' +
+        '"failedStageId":"design-execution"}}\n',
+    );
+    expect(chunks[0]?.decision?.actions).toEqual(["stop-with-report"]);
+    expect(chunks[0]?.decision?.recovery).toEqual({
+      category: "permanent-environment-failure",
+      title: "Creation cannot continue here",
+      summary: "This region is not supported for chain creation.",
+      preservedWork: "Your approved requirements and plan are saved.",
+      technicalDetails: "PKIX path building failed",
+      runId: "run-1",
+      failedStageId: "design-execution",
+    });
+  });
+
   it("drops a decision when the kind is unknown", () => {
     expect(
       parseCipSseBlock('event: decision\ndata: {"id":"x","kind":"vote"}\n'),

@@ -87,8 +87,10 @@ class PipelineGatesTest {
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_REGENERATE_EXECUTION));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_REVISE_BRIEF));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_REBUILD_PLAN));
+    assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.RECOVERY_ENVIRONMENT));
     assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_REVISE_BRIEF));
     assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_REBUILD_PLAN));
+    assertTrue(PipelineGates.isContextualRecoveryGate(PipelineGates.RECOVERY_ENVIRONMENT));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_RETRY));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_REVISE));
     assertTrue(PipelineGates.isRecoverableHaltGate(PipelineGates.STAGE_INTERNAL_FAILURE));

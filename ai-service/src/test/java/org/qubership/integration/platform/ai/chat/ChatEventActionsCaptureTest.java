@@ -75,6 +75,18 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void contextualEnvironmentFailureOffersOnlyEndRun() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "This region is not supported for chain creation.",
+                List.of(),
+                PipelineGates.RECOVERY_ENVIRONMENT));
+
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
   void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
     assertEquals(
         List.of(),

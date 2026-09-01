@@ -435,6 +435,49 @@ describe("AiDecisionCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("should render an environment failure with only End run and keep report", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "This region is not supported for chain creation.",
+      actions: ["stop-with-report"],
+      recovery: {
+        category: "permanent-environment-failure",
+        title: "Creation cannot continue here",
+        summary: "This region is not supported for chain creation.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails: "PKIX path building failed",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByText("Creation cannot continue here")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your approved requirements and plan are saved."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry creation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit requirements" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Rebuild plan" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "design-execution" }),
+    ).not.toBeInTheDocument();
+
+    const endRun = screen.getByRole("button", { name: "End run and keep report" });
+    expect(endRun.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(endRun);
+
+    expect(onAnswer).toHaveBeenCalledWith("stop-with-report", "");
+  });
+
   it("should send deployment follow-up buttons as typed decisions", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();

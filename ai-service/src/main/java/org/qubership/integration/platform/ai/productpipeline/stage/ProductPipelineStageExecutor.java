@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -511,6 +512,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return StageOutcome.of(
           StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, ToolArgumentsFailures.message(failure));
     }
+    if (TransientFailures.isPermanentEnvironment(failure)) {
+      return StageOutcome.of(
+          StageOutcomeClass.POLICY_FAILURE,
+          TransientFailures.ENVIRONMENT_SUMMARY,
+          new RecoveryCause(
+              RecoveryCauseCode.POLICY_FAILURE,
+              List.of(new PlanValidationFinding("TLS", failureMessage(failure), true)),
+              ""));
+    }
     String message = failure == null ? null : failure.getMessage();
     return StageOutcome.of(
         StageOutcomeClass.INTERNAL_FAILURE,
@@ -825,6 +835,23 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR,
         cause.requestedFact());
     putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+    if (outcomeClass == StageOutcomeClass.POLICY_FAILURE) {
+      String diagnostic = findings.isBlank() ? evidence : findings;
+      String evidenceWithRun = diagnostic + " (runId=" + doc.run().runId() + ")";
+      body =
+          message == null || message.isBlank()
+              ? TransientFailures.ENVIRONMENT_SUMMARY
+              : message;
+      return waitContextualRecovery(
+          doc,
+          stage,
+          refs,
+          PipelineGates.RECOVERY_ENVIRONMENT,
+          body,
+          evidenceWithRun,
+          null,
+          emitted);
+    }
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
     List<OwnerCandidate> closed = ownerCandidates(profile, stage.stageId());
     String artifactIdentity =
