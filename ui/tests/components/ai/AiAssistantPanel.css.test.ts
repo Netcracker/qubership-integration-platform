@@ -135,6 +135,13 @@ describe("AiAssistantPanel.css polish contracts", () => {
     );
     expect(technicalDetails).toContain("max-width: 100%");
     expect(technicalDetails).toContain("white-space: pre-wrap");
+
+    const summary = declarationsFor(
+      css,
+      ".ai-decision-card__technical-details summary",
+    );
+    expect(summary).toContain("--vscode-textLink-foreground");
+    expect(summary).toContain("text-decoration: underline");
   });
 
   it("should keep every painted color on a vscode token", () => {

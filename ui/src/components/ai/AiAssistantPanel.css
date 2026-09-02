@@ -792,6 +792,8 @@ button.ai-activity-inline__row:not(:disabled):hover {
 
 .ai-decision-card__technical-details summary {
   cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
 }
 
 .ai-decision-card__technical-details pre {
