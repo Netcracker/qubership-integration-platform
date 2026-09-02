@@ -241,13 +241,38 @@ public class RequirementAnalysisCapability implements StageCapability {
                       StageOutcomeClass.MISSING_MANDATORY_INPUT,
                       "Approved requirement draft is required for analysis")));
     }
+    approved = appendMappingProseIfNeeded(context, approved);
+    RequirementDraft prepared = approved;
 
     // Sidecar RestClient is blocking — must not run on the Vert.x event loop.
     return Uni.createFrom()
         .voidItem()
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
         .onItem()
-        .transformToMulti(ignored -> continueAfterKnowledge(context, approved));
+        .transformToMulti(ignored -> continueAfterKnowledge(context, prepared));
+  }
+
+  private RequirementDraft appendMappingProseIfNeeded(
+      StageExecutionContext context, RequirementDraft approved) {
+    String userText = context.attributeAsString("userText");
+    if (userText == null || userText.isBlank()) {
+      return approved;
+    }
+    String trimmed = userText.trim();
+    if (RequirementBriefCoverageValidator.describesFieldAdaptation(approved.planningText())) {
+      return approved;
+    }
+    if (!RequirementBriefCoverageValidator.describesFieldAdaptation(trimmed)) {
+      return approved;
+    }
+    if (approved.assembledText().contains(trimmed)) {
+      return approved;
+    }
+    RequirementDraft next = approved.withAssembledText(approved.planningText() + "\n\n" + trimmed);
+    if (draftStore != null) {
+      draftStore.put(context.conversationId(), next);
+    }
+    return next;
   }
 
   private Multi<CapabilitySignal> continueAfterKnowledge(
