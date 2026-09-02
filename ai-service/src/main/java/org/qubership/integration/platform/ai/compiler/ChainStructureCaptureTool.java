@@ -86,7 +86,7 @@ public class ChainStructureCaptureTool {
         LOG,
         "captureChainStructure",
         conversationId,
-        "preview=" + AiTraceLog.preview(previewCapture(capture), 400));
+        "preview=" + AiTraceLog.previewJson(objectMapper, capture, 400));
     if (conversationId == null || conversationId.isBlank()) {
       return finish(conversationId, startMs, "conversationId is required (no active chat session)");
     }
@@ -261,7 +261,7 @@ public class ChainStructureCaptureTool {
         LOG,
         "captureChainEditSubgraph",
         conversationId,
-        "preview=" + AiTraceLog.preview(previewCapture(subgraph), 400));
+        "preview=" + AiTraceLog.previewJson(objectMapper, subgraph, 400));
     if (conversationId == null || conversationId.isBlank()) {
       return finish(conversationId, startMs, "conversationId is required (no active chat session)");
     }
@@ -375,17 +375,6 @@ public class ChainStructureCaptureTool {
       return CaptureFailureClass.PERMANENT;
     }
     return CaptureFailureClass.CORRECTABLE;
-  }
-
-  private String previewCapture(Object capture) {
-    if (capture == null) {
-      return "null";
-    }
-    try {
-      return objectMapper.writeValueAsString(capture);
-    } catch (Exception e) {
-      return capture.toString();
-    }
   }
 
   private String finish(String conversationId, long startMs, String result) {

@@ -120,12 +120,11 @@ public class RequirementBriefTool {
   public String captureRequirementBrief(RequirementBriefCapture capture) {
     String conversationId = ChainPlanTool.resolveConversationId();
     long startMs = System.currentTimeMillis();
-    String preview = previewCapture(capture);
     ToolTraceLog.logToolInvoke(
         LOG,
         "captureRequirementBrief",
         conversationId,
-        "preview=" + AiTraceLog.preview(preview, 400));
+        "preview=" + AiTraceLog.previewJson(objectMapper, capture, 400));
 
     try {
       if (conversationId == null || conversationId.isBlank()) {
@@ -251,17 +250,6 @@ public class RequirementBriefTool {
 
   private static boolean hasText(String value) {
     return value != null && !value.isBlank();
-  }
-
-  private String previewCapture(RequirementBriefCapture capture) {
-    if (capture == null) {
-      return "null";
-    }
-    try {
-      return objectMapper.writeValueAsString(capture);
-    } catch (Exception e) {
-      return capture.toString();
-    }
   }
 
   private String finish(String conversationId, long startMs, String result) {
