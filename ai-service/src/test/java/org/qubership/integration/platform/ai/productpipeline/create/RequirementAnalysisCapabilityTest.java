@@ -326,6 +326,98 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
+  void mappingUserTextIsAppendedToStoredDraftBeforeBind() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    String conversationId = "conv-mapping-append";
+    draftStore.put(conversationId, approved);
+    String userText = "Request mapping from greetings OUTPUT to script: body = Hello world!";
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(draftStore.get(conversationId).orElseThrow(), "Greetings"),
+            null,
+            null,
+            draftStore);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, conversationId, userText);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    RequirementDraft stored = draftStore.get(conversationId).orElseThrow();
+    assertTrue(stored.planningText().contains(userText), stored.planningText());
+    assertTrue(stored.planningText().contains(approved.planningText()));
+    assertEquals(approved.decision(), stored.decision());
+    assertEquals(approved.facts(), stored.facts());
+    assertEquals(approved.flow(), stored.flow());
+  }
+
+  @Test
+  void mappingUserTextIsNotDuplicatedOnSecondExecute() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    String conversationId = "conv-mapping-append-twice";
+    draftStore.put(conversationId, approved);
+    String userText = "Request mapping from greetings OUTPUT to script: body = Hello world!";
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(draftStore.get(conversationId).orElseThrow(), "Greetings"),
+            null,
+            null,
+            draftStore);
+
+    runWithUserText(capability, approved, conversationId, userText);
+    runWithUserText(capability, approved, conversationId, userText);
+
+    String planningText = draftStore.get(conversationId).orElseThrow().planningText();
+    int first = planningText.indexOf(userText);
+    int second = planningText.indexOf(userText, first + 1);
+    assertTrue(first >= 0, planningText);
+    assertEquals(-1, second, planningText);
+  }
+
+  @Test
+  void blankUserTextDoesNotRewriteAssembledText() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    String conversationId = "conv-mapping-blank";
+    draftStore.put(conversationId, approved);
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(draftStore.get(conversationId).orElseThrow(), "Greetings"),
+            null,
+            null,
+            draftStore);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(capability, approved, conversationId, "   ");
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(
+        approved.planningText(), draftStore.get(conversationId).orElseThrow().planningText());
+  }
+
+  @Test
   void buildAnalysisUserMessageIncludesChangeRequestText() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     String message =
