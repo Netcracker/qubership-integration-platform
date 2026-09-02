@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachm
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.storage.S3Service;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
@@ -349,7 +350,7 @@ class AutoUploadedSpecImportCapabilityTest {
     when(matcher.match(any(), nullable(String.class), nullable(String.class), eq("conv-1")))
         .thenReturn(
             new CatalogBindingMatcher.MatchResult.Exact(
-                new CatalogBindingMatcher.CatalogMatch(
+                new CatalogMatch(
                     "sys",
                     "group",
                     "spec",
@@ -435,7 +436,7 @@ class AutoUploadedSpecImportCapabilityTest {
               String q = invocation.getArgument(2);
               if (q != null && q.contains("POST /stub/path")) {
                 return new CatalogBindingMatcher.MatchResult.Exact(
-                    new CatalogBindingMatcher.CatalogMatch(
+                    new CatalogMatch(
                         "sys",
                         "group",
                         "spec",
@@ -449,7 +450,7 @@ class AutoUploadedSpecImportCapabilityTest {
               }
               if (q != null && q.contains("stub-channel")) {
                 return new CatalogBindingMatcher.MatchResult.Exact(
-                    new CatalogBindingMatcher.CatalogMatch(
+                    new CatalogMatch(
                         "sys",
                         "group",
                         "spec",
