@@ -2322,16 +2322,9 @@ public final class ProductPipelineRunSupport {
     List<UserInput> stageInputs =
         allInputs.stream()
             .filter(
-                input -> {
-                  if (MappingGapPassThroughConfirmation.parse(input.text()).isPresent()) {
-                    return false;
-                  }
-                  if (input.targetStageId().equals(currentStageId)) {
-                    return true;
-                  }
-                  return "design-input".equals(currentStageId)
-                      && "requirement-analysis".equals(input.targetStageId());
-                })
+                input ->
+                    input.targetStageId().equals(currentStageId)
+                        && MappingGapPassThroughConfirmation.parse(input.text()).isEmpty())
             .toList();
     List<UserInput> requirementInputs =
         stageInputs.stream().filter(input -> !isHaltFollowUpInput(input)).toList();
