@@ -34,8 +34,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
@@ -120,6 +122,45 @@ class DesignInputCapabilityTest {
     assertTrue(ids.markdown().contains("autonumber"));
     assertEquals(CanonicalPayloadHash.sha256Hex(revision), ids.normalizedFlowHash());
     assertEquals(IdsDocument.Mode.DERIVED, ids.mode());
+  }
+
+  @Test
+  void uncoveredRockyBriefWaitsForMappingGapWithoutCapture() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context("design-input", Map.of("requirementBrief", ChainSemanticCaptureFixtures.rockyBrief())));
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertTrue(prepared.candidates().isEmpty());
+    assertEquals(PipelineGates.MAPPING_GAP, PipelineGates.gateOf(prepared.message()).orElse(""));
+    MappingGapWait.View view = MappingGapWait.parse(PipelineGates.strip(prepared.message()));
+    assertTrue(view.missingEdges().contains("task-start -> create-task"));
+    assertTrue(view.missingEdges().contains("create-task -> task-result"));
+  }
+
+  @Test
+  void matchingPassThroughConfirmationSkipsTheGate() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBrief();
+    MappingGapPassThroughConfirmation confirmation =
+        new MappingGapPassThroughConfirmation(
+            "sha-rocky",
+            MappingGapCoverage.uncovered(brief).stream()
+                .map(t -> new MappingGapPassThroughConfirmation.TransitionRef(
+                    t.sourceInteractionId(), t.targetInteractionId()))
+                .toList());
+    StageOutcome prepared =
+        outcome(
+            capturingCapability(),
+            context(
+                "design-input",
+                Map.of(
+                    "requirementBrief", brief,
+                    "mappingGapPassThrough", confirmation,
+                    "requirementBriefContentHash", "sha-rocky")));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(
+        Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
   }
 
   @Test
@@ -319,7 +360,11 @@ class DesignInputCapabilityTest {
     ChainSemanticCaptureTool captureTool = captureTool();
     return new DesignInputCapability(
         (conversationId, prompt) -> {
-          captureTool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+          ChainSemanticCapture capture =
+              prompt != null && prompt.contains("nodeId=task-start")
+                  ? ChainSemanticCaptureFixtures.rockyCapture()
+                  : ChainSemanticCaptureFixtures.linearCapture();
+          captureTool.captureChainSemanticRevision(capture);
           return Multi.createFrom().item("ignored agent text after the tool call");
         },
         new DefaultChainSemanticIdsRenderer());

@@ -35,8 +35,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductCapab
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
@@ -152,6 +154,22 @@ public class DesignInputCapability implements StageCapability {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT,
           "design-input requires an approved RequirementBrief");
+    }
+    List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
+    Object rawConfirmation = context.attributes().get("mappingGapPassThrough");
+    MappingGapPassThroughConfirmation confirmation =
+        rawConfirmation instanceof MappingGapPassThroughConfirmation value ? value : null;
+    String briefSha = context.attributeAsString("requirementBriefContentHash");
+    if (briefSha == null) {
+      briefSha = "";
+    }
+    if (MappingGapCoverage.shouldAsk(uncovered, confirmation, briefSha)) {
+      String tagged =
+          PipelineGates.tag(
+              PipelineGates.MAPPING_GAP,
+              MappingGapWait.encode(
+                  MappingGapWait.FALLBACK_QUESTION, MappingGapCoverage.readableEdges(uncovered)));
+      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, tagged);
     }
     AtomicReference<ChainSemanticRevision> captured = new AtomicReference<>();
     ToolSession.bind(context.conversationId());
