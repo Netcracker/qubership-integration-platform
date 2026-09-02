@@ -53,7 +53,7 @@ public class ConfiguredTriggerSetCaptureTool {
         LOG,
         "captureConfiguredTriggerSet",
         conversationId,
-        "preview=" + AiTraceLog.preview(previewCapture(capture), 400));
+        "preview=" + AiTraceLog.previewJson(objectMapper, capture, 400));
     try {
       if (conversationId == null || conversationId.isBlank()) {
         return finish(conversationId, startMs, "conversationId is required (no active chat session)");
@@ -89,17 +89,6 @@ public class ConfiguredTriggerSetCaptureTool {
           System.currentTimeMillis() - startMs,
           e);
       return "Error capturing configured trigger set: " + e.getMessage();
-    }
-  }
-
-  private String previewCapture(ConfiguredTriggerSet capture) {
-    if (capture == null) {
-      return "null";
-    }
-    try {
-      return objectMapper.writeValueAsString(capture);
-    } catch (Exception e) {
-      return capture.toString();
     }
   }
 

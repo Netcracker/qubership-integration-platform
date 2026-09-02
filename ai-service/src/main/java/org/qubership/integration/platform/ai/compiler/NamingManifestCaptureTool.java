@@ -53,7 +53,7 @@ public class NamingManifestCaptureTool {
         LOG,
         "captureNamingManifest",
         conversationId,
-        "preview=" + AiTraceLog.preview(previewCapture(capture), 400));
+        "preview=" + AiTraceLog.previewJson(objectMapper, capture, 400));
     try {
       if (conversationId == null || conversationId.isBlank()) {
         return finish(conversationId, startMs, "conversationId is required (no active chat session)");
@@ -92,17 +92,6 @@ public class NamingManifestCaptureTool {
       ToolTraceLog.logToolFailed(
           LOG, "captureNamingManifest", conversationId, System.currentTimeMillis() - startMs, e);
       return "Error capturing naming manifest: " + e.getMessage();
-    }
-  }
-
-  private String previewCapture(NamingManifest capture) {
-    if (capture == null) {
-      return "null";
-    }
-    try {
-      return objectMapper.writeValueAsString(capture);
-    } catch (Exception e) {
-      return capture.toString();
     }
   }
 

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.logging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 public final class AiTraceLog {
 
   public static final int DEFAULT_USER_PREVIEW_CHARS = 600;
@@ -28,5 +30,16 @@ public final class AiTraceLog {
       return text;
     }
     return text.substring(0, maxChars) + "… (" + text.length() + " chars)";
+  }
+
+  public static String previewJson(ObjectMapper objectMapper, Object value, int maxChars) {
+    if (value == null) {
+      return "null";
+    }
+    try {
+      return preview(objectMapper.writeValueAsString(value), maxChars);
+    } catch (Exception e) {
+      return preview(value.toString(), maxChars);
+    }
   }
 }

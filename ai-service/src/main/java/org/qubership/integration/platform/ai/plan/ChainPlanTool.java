@@ -82,12 +82,11 @@ public class ChainPlanTool {
 
     String conversationId = resolveConversationId();
     long startMs = System.currentTimeMillis();
-    String preview = previewCapture(graph);
     ToolTraceLog.logToolInvoke(
         LOG,
         "captureChainPlan",
         conversationId,
-        "preview=" + AiTraceLog.preview(preview, 400));
+        "preview=" + AiTraceLog.previewJson(objectMapper, graph, 400));
 
     try {
       if (conversationId == null || conversationId.isBlank()) {
@@ -186,17 +185,6 @@ public class ChainPlanTool {
         node.parentNodeId(),
         node.order(),
         List.of());
-  }
-
-  private String previewCapture(ChainPlanCapture graph) {
-    if (graph == null) {
-      return "null";
-    }
-    try {
-      return objectMapper.writeValueAsString(graph);
-    } catch (Exception e) {
-      return graph.toString();
-    }
   }
 
   static String resolveConversationId() {
