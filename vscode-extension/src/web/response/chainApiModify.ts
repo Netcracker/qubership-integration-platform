@@ -299,15 +299,22 @@ export async function transferElement(
   }
 
   const chainElements = chain.content.elements as ElementSchema[];
+  const isGroupContainerTransfer =
+    elementRequest.elements.every((elementId) => {
+      const sourceElement = findElementById(chainElements, elementId);
+      return (
+        sourceElement !== undefined &&
+        isRootOrGroupContainer(chainElements, sourceElement.parentId)
+      );
+    }) && isRootOrGroupContainer(chainElements, elementRequest.parentId);
+
   for (const elementId of elementRequest.elements) {
-    let element: ElementSchema | undefined = findElementById(
-      chainElements,
-      elementId,
-    )?.element;
-    if (!element) {
+    const foundElement = findElementById(chainElements, elementId);
+    if (!foundElement) {
       console.error(`Element Id ${elementId} not found`);
       throw new Error(`Element Id ${elementId} not found`);
     }
+    let element = foundElement.element;
 
     if (isTransferOutOfSwimlane(elementRequest, element, chain)) {
       continue;
@@ -317,22 +324,20 @@ export async function transferElement(
 
     element = findAndRemoveElementById(chainElements, elementId)!;
 
-    (chain.content.dependencies as [])?.forEach((dependency: Dependency) => {
-      // TODO change to dependency schema
-      if (dependency.from === elementId || dependency.to === elementId) {
-        if (
-          !elementRequest.elements.includes(dependency.from) ||
-          !elementRequest.elements.includes(dependency.to)
-        ) {
-          console.error(
-            `Element ${elementId} not found has outside dependencies`,
-          );
-          throw Error(
-            `Element ${elementId} not found has outside dependencies`,
-          );
+    if (!isGroupContainerTransfer) {
+      (chain.content.dependencies as [])?.forEach((dependency: Dependency) => {
+        // TODO change to dependency schema
+        if (dependency.from === elementId || dependency.to === elementId) {
+          if (
+            !elementRequest.elements.includes(dependency.from) ||
+            !elementRequest.elements.includes(dependency.to)
+          ) {
+            console.error(`Element ${elementId} has outside dependencies`);
+            throw Error(`Element ${elementId} has outside dependencies`);
+          }
         }
-      }
-    });
+      });
+    }
 
     let parentElement = undefined;
     if (elementRequest.parentId) {
@@ -366,6 +371,20 @@ export async function transferElement(
   return {
     updatedElements: updatedElements,
   };
+}
+
+function isRootOrGroupContainer(
+  elements: ElementSchema[],
+  parentId: string | null | undefined,
+): boolean {
+  if (!parentId) {
+    return true;
+  }
+
+  return (
+    (findElementById(elements, parentId)?.element.type as unknown as string) ===
+    "container"
+  );
 }
 
 function getOrCreatePropertyFilename(
