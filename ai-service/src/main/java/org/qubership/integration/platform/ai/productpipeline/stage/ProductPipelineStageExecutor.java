@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactPr
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
@@ -47,6 +48,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandida
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerDiagnosis;
 import org.qubership.integration.platform.ai.productpipeline.create.ProducerOwnedRecovery;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -1852,10 +1854,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       if (ref.kind() == Kind.REQUIREMENT_DRAFT) {
         attributes.put(
             "approvedDraft", artifactStore.payload(revision.get(), RequirementDraft.class));
-      } else if (ref.kind() == Kind.REQUIREMENT_BRIEF
-          && !attributes.containsKey("requirementBrief")) {
-        attributes.put(
-            "requirementBrief", artifactStore.payload(revision.get(), RequirementBrief.class));
+      } else if (ref.kind() == Kind.REQUIREMENT_BRIEF) {
+        if (!attributes.containsKey("requirementBrief")) {
+          attributes.put(
+              "requirementBrief", artifactStore.payload(revision.get(), RequirementBrief.class));
+        }
+        attributes.put("requirementBriefContentHash", ref.contentHash());
+      } else if (ref.kind() == Kind.USER_INPUT) {
+        UserInput input = artifactStore.payload(revision.get(), UserInput.class);
+        MappingGapPassThroughConfirmation.parse(input.text())
+            .ifPresent(confirmation -> attributes.put("mappingGapPassThrough", confirmation));
       } else if (ref.kind() == Kind.IDS_DOCUMENT && !attributes.containsKey("idsDocument")) {
         attributes.put("idsDocument", artifactStore.payload(revision.get(), IdsDocument.class));
       } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION
