@@ -545,6 +545,25 @@ public record RequirementDraft(
         catalogBindings);
   }
 
+  public RequirementDraft withAssembledText(String next) {
+    return new RequirementDraft(
+        complete,
+        next,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings);
+  }
+
   public java.util.Optional<CatalogBindingHint> catalogBinding(String interactionId) {
     String id = interactionId == null ? "" : interactionId.trim();
     if (id.isEmpty()) {

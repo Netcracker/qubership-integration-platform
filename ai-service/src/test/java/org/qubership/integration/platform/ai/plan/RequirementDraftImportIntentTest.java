@@ -12,6 +12,9 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 
 class RequirementDraftImportIntentTest {
 
@@ -136,6 +139,28 @@ class RequirementDraftImportIntentTest {
     RequirementDraft draft = store.get("conv-seed").orElseThrow();
     assertTrue(draft.importIntent());
     assertTrue(draft.assembledText().contains("S.CustParty.Care.GeoSite"));
+  }
+
+  @Test
+  void withAssembledTextReplacesPlanningTextAndKeepsDecision() {
+    RequirementDraft original =
+        new RequirementDraft(true, "Consume onTaskStart")
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "Caller", "GET /", "")),
+                    List.of()));
+    assertTrue(original.readyForPlan());
+    RequirementDraft next =
+        original.withAssembledText("Consume onTaskStart\n\nRequest mapping: Subject = name");
+
+    assertEquals(
+        "Consume onTaskStart\n\nRequest mapping: Subject = name", next.planningText());
+    assertEquals(original.decision(), next.decision());
+    assertEquals(original.flow(), next.flow());
+    assertEquals(original.facts(), next.facts());
+    assertEquals(original.catalogBindings(), next.catalogBindings());
+    assertTrue(next.readyForPlan());
   }
 
   @Test
