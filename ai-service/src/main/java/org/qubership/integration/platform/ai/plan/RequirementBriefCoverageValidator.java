@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignRequirementBriefCoverageValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -45,6 +46,10 @@ public final class RequirementBriefCoverageValidator {
     Optional<String> projectedRoleError = validateProjectedRoles(brief);
     if (projectedRoleError.isPresent()) {
       return projectedRoleError;
+    }
+    Optional<String> mappingError = validateCapturedMappings(approvedDraft, brief);
+    if (mappingError.isPresent()) {
+      return mappingError;
     }
     // Catalog import may promote a draft to READY_FOR_PLAN before gather
     // distilled explicit facts — typically when the turn only captured an APIHub candidate.
@@ -100,10 +105,6 @@ public final class RequirementBriefCoverageValidator {
     }
     if (!approvedDraft.flow().equals(brief.flow())) {
       return Optional.of("requirement brief flow does not match the approved draft");
-    }
-    Optional<String> mappingError = validateCapturedMappings(approvedDraft, brief);
-    if (mappingError.isPresent()) {
-      return mappingError;
     }
     Optional<String> serviceCallError = validateServiceCalls(brief);
     if (serviceCallError.isPresent()) {
@@ -163,16 +164,20 @@ public final class RequirementBriefCoverageValidator {
     if (!describesFieldAdaptation(approvedDraft.planningText())) {
       return Optional.empty();
     }
-    if (!brief.mappingIntents().isEmpty()) {
+    List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
+    if (uncovered.isEmpty()) {
       return Optional.empty();
     }
     return Optional.of(
         "The approved draft describes field mappings. Capture them as mappingIntents with"
             + " sourcePath and targetPath on each rule. Leave mappingIntents empty only when"
-            + " the payload is pass-through.");
+            + " the payload is pass-through. Cover every flow transition with sourceRef and"
+            + " targetRef equal to that transition: "
+            + String.join("; ", MappingGapCoverage.readableEdges(uncovered))
+            + ".");
   }
 
-  private static boolean describesFieldAdaptation(String planningText) {
+  public static boolean describesFieldAdaptation(String planningText) {
     if (planningText == null || planningText.isBlank()) {
       return false;
     }

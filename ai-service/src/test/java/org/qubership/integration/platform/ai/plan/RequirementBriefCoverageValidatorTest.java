@@ -127,41 +127,89 @@ class RequirementBriefCoverageValidatorTest {
 
   @Test
   void fieldMappingDraftRequiresCapturedIntents() {
-    RequirementFact fact =
-        serviceCallFact(
-            "call-salesforce-createTask",
-            "call-salesforce-createTask",
-            "Salesforce WFM",
-            "createTask");
     RequirementDraft approved =
-        new RequirementDraft(
-            true,
-            "Request mapping from onTaskStart to createTask: Subject = name",
-            DraftDecision.READY_FOR_PLAN,
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            false,
-            List.of(fact),
-            false);
-    RequirementBrief brief =
-        new RequirementBrief(
-            "OM to Salesforce WFM",
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            "summary",
-            "ref",
-            approved.planningText(),
-            List.of(fact));
+        rockyApprovedDraft()
+            .withAssembledText(
+                "Consume onTaskStart, create a Salesforce task, publish onTaskResult. "
+                    + "Request mapping from onTaskStart to createTask: Subject = name");
+    RequirementBrief brief = RequirementBriefProjector.project(rockyBrief(approved));
 
     Optional<String> error = validator.validate(approved, brief);
 
     assertTrue(error.isPresent());
     assertTrue(error.orElseThrow().contains("field mappings"), error.orElse(""));
+    assertTrue(error.orElseThrow().contains("task-start"), error.orElse(""));
+    assertTrue(error.orElseThrow().contains("create-task"), error.orElse(""));
+  }
+
+  @Test
+  void fieldMappingDraftWithEmptyFlowDoesNotRequireIntents() {
+    RequirementFlow emptyTransitions = new RequirementFlow(rockyFlow().interactions(), List.of());
+    RequirementDraft approved =
+        rockyApprovedDraft()
+            .withFlow(emptyTransitions)
+            .withAssembledText("Request mapping from onTaskStart to createTask");
+    RequirementBrief brief = RequirementBriefProjector.project(rockyBrief(approved));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
+  }
+
+  @Test
+  void fieldMappingDraftAcceptsCoveringIntentsForEveryTransition() {
+    RequirementDraft approved =
+        rockyApprovedDraft()
+            .withAssembledText("Consume onTaskStart. Request mapping from onTaskStart to createTask");
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            rockyBrief(approved)
+                .withMappingIntents(
+                    List.of(
+                        new MappingIntent(
+                            "onTaskStart-to-createTask",
+                            "task-start",
+                            MappingPort.OUTPUT,
+                            "create-task",
+                            MappingPort.REQUEST,
+                            List.of(new MappingIntentRule("name", "Subject", null))),
+                        new MappingIntent(
+                            "createTask-to-onTaskResult",
+                            "create-task",
+                            MappingPort.RESPONSE,
+                            "task-result",
+                            MappingPort.REQUEST,
+                            List.of(new MappingIntentRule("id", "executionId", null))))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
+  }
+
+  @Test
+  void fieldMappingDraftRejectsIntentsThatLeaveATransitionUncovered() {
+    RequirementDraft approved =
+        rockyApprovedDraft()
+            .withAssembledText("Consume onTaskStart. Request mapping from onTaskStart to createTask");
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            rockyBrief(approved)
+                .withMappingIntents(
+                    List.of(
+                        new MappingIntent(
+                            "onTaskStart-to-createTask",
+                            "task-start",
+                            MappingPort.OUTPUT,
+                            "create-task",
+                            MappingPort.REQUEST,
+                            List.of(new MappingIntentRule("name", "Subject", null))))));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("field mappings"), error.orElse(""));
+    assertTrue(error.orElseThrow().contains("create-task"), error.orElse(""));
+    assertTrue(error.orElseThrow().contains("task-result"), error.orElse(""));
   }
 
   @Test
