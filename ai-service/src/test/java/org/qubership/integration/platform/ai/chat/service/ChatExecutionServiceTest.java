@@ -625,6 +625,8 @@ class ChatExecutionServiceTest {
   @Test
   void describeActivePlanFallsBackToMaterializationResult() {
     ProductPipelineRunDocument created = createRun("run-trace-2");
+    ProductPipelineRunStore traceRunStore = mock(ProductPipelineRunStore.class);
+    when(traceRunStore.loadByConversation(CONVERSATION_ID)).thenReturn(Optional.of(created));
     artifactStore.append(
         new AppendCommand(
             created.run().runId(),
@@ -639,9 +641,10 @@ class ChatExecutionServiceTest {
 
     String description =
         ChatExecutionService.describeActivePlanForTrace(
-            CONVERSATION_ID, runStore, artifactStore);
+            CONVERSATION_ID, traceRunStore, artifactStore);
 
     assertEquals("(materialized)", description);
+    verify(traceRunStore).loadByConversation(CONVERSATION_ID);
   }
 
   private ProductPipelineRunDocument createRun(String runId) {
