@@ -112,6 +112,17 @@ class PipelineGatesTest {
   }
 
   @Test
+  void mappingGapDescribeIsAFreeTextWaitNotARecoveryHalt() {
+    assertEquals("mapping-gap-describe", PipelineGates.MAPPING_GAP_DESCRIBE);
+    assertFalse(PipelineGates.isRecoverableHaltGate(PipelineGates.MAPPING_GAP_DESCRIBE));
+    assertEquals(
+        PipelineGates.MAPPING_GAP_DESCRIBE,
+        PipelineGates.gateOf(
+                PipelineGates.tag(PipelineGates.MAPPING_GAP_DESCRIBE, "Describe the mappings."))
+            .orElseThrow());
+  }
+
+  @Test
   void contextualRecoveryKeepsTechnicalDetailsAndDelayOutOfTheReaderSummary() {
     String tagged =
         PipelineGates.tagRecoveryDetails(

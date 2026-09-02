@@ -66,7 +66,8 @@ public final class A2aInboundMessageParser {
     if (structured != null) {
       return parseStructured(structured, String.join("\n", texts));
     }
-    return new InboundCommand.ClarifyText(String.join("\n", texts));
+    String joined = String.join("\n", texts);
+    return new InboundCommand.ClarifyText(canonicalMappingGapAction(joined));
   }
 
   @SuppressWarnings("unchecked")
@@ -123,7 +124,27 @@ public final class A2aInboundMessageParser {
     if (PipelineGates.REVISE_ACTION.equalsIgnoreCase(action)) {
       return new InboundCommand.ClarifyText(PipelineGates.REVISE_ACTION);
     }
+    if ("pass_through".equalsIgnoreCase(action) || "PASS_THROUGH".equalsIgnoreCase(action)) {
+      return new InboundCommand.ClarifyText("pass_through");
+    }
+    if ("describe_mappings".equalsIgnoreCase(action)) {
+      return new InboundCommand.ClarifyText("describe_mappings");
+    }
     throw A2aProtocolErrorMapper.malformedStructuredData("Unsupported action: " + action);
+  }
+
+  static String canonicalMappingGapAction(String text) {
+    if (text == null) {
+      return "";
+    }
+    String trimmed = text.trim();
+    if ("pass_through".equalsIgnoreCase(trimmed) || "PASS_THROUGH".equalsIgnoreCase(trimmed)) {
+      return "pass_through";
+    }
+    if ("describe_mappings".equalsIgnoreCase(trimmed)) {
+      return "describe_mappings";
+    }
+    return text;
   }
 
   private static long toRevision(Object revision) throws A2AError {
