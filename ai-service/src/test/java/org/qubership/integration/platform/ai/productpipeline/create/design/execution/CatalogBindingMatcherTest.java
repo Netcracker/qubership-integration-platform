@@ -13,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,7 +43,8 @@ class CatalogBindingMatcherTest {
 
     CatalogBindingMatcher.MatchResult.Exact exact =
         assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result);
-    assertEquals("op-1", exact.match().integrationOperationId());
+    CatalogMatch match = exact.match();
+    assertEquals("op-1", match.integrationOperationId());
   }
 
   @Test

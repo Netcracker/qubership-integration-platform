@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachm
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
@@ -385,7 +386,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         rewrittenFacts.add(call);
         continue;
       }
-      CatalogBindingMatcher.CatalogMatch hit = exact.match();
+      CatalogMatch hit = exact.match();
       String boundText =
           String.format(
               "Call catalog-bound %s %s operation, %s %s",
@@ -420,7 +421,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
   }
 
   private static CatalogBindingHint catalogHint(
-      RequirementFact call, CatalogBindingMatcher.CatalogMatch hit, String operationQuery) {
+      RequirementFact call, CatalogMatch hit, String operationQuery) {
     String serviceCallId =
         call.serviceCallId() == null || call.serviceCallId().isBlank()
             ? call.sourceFactId()

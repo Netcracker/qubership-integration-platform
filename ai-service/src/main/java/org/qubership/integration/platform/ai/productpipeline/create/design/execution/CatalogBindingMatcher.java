@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
@@ -39,19 +40,6 @@ public class CatalogBindingMatcher {
 
     record None() implements MatchResult {}
   }
-
-  /** One complete reusable catalog hierarchy hit. */
-  public record CatalogMatch(
-      String systemId,
-      String specificationGroupId,
-      String specificationId,
-      String integrationOperationId,
-      String systemName,
-      String protocol,
-      String method,
-      String path,
-      String operationName,
-      String evidenceRef) {}
 
   public MatchResult match(String kind, String serviceName, String operationQuery) {
     return match(kind, serviceName, operationQuery, null, null, null);
