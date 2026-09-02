@@ -130,6 +130,15 @@ or `graphql` — a Kafka, AMQP or gRPC service call never reaches it and cannot 
 and authority at the testing service, rewrites the request target to `/api/v1/endpoint-mocks/call`, and attaches a
 `Testing-Service-Context` header.
 
+Mocking takes a test case run, not every call the chain makes. The client is built once, when the chain is deployed, so
+the interceptor and the route planner decide per exchange instead: `HttpTriggerProcessor` copies the
+`external-session-cip-id` header the testing service sends into the `TESTING_SESSION_ID` exchange property, which
+survives a chain call and a split, and both read it back off the exchange. camel-http files the exchange into the client
+context only when the endpoint carries an `HttpActivityListener`, so `TestingHttpComponentConfiguration` installs a
+no-op one, and only while `qip.testing.enabled` is on. The GraphQL producer calls its client without a context of ours
+and files no exchange there, so a GraphQL call is never mocked and reaches its endpoint even during a test case run —
+which matches the UI, where a mock can only be bound to an HTTP sender or an HTTP service call.
+
 | Property | Environment variable | Default | Meaning |
 | --- | --- | --- | --- |
 | `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false` | registers the bean, through `@ConditionalOnProperty` |
