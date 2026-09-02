@@ -73,37 +73,23 @@ export const useAccessControl = (filters: EntityFilterModel[] = []) => {
   const updateAccessControl = useCallback(
     async (searchRequest: AccessControlUpdateRequest[]) => {
       try {
-        const elementChange =
-          await api.updateHttpTriggerAccessControl(searchRequest);
-        setAccessControlData(elementChange);
-      } catch (error) {
-        notificationService.requestFailed(
-          "Failed to update Http Trigger's Access Control",
-          error,
-        );
+        await api.updateHttpTriggerAccessControl(searchRequest);
       } finally {
         setIsLoading(false);
       }
     },
-    [notificationService],
+    [],
   );
 
   const bulkDeployAccessControl = useCallback(
     async (searchRequest: AccessControlBulkDeployRequest[]) => {
       try {
-        const bulkDeployResponse =
-          await api.bulkDeployChainsAccessControl(searchRequest);
-        setAccessControlData(bulkDeployResponse);
-      } catch (error) {
-        notificationService.requestFailed(
-          "Failed to bulk deploy chains",
-          error,
-        );
+        await api.bulkDeployChainsAccessControl(searchRequest);
       } finally {
         setIsLoading(false);
       }
     },
-    [notificationService],
+    [],
   );
 
   useEffect(() => {

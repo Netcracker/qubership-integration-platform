@@ -606,11 +606,11 @@ export interface Api {
 
   updateHttpTriggerAccessControl(
     searchRequest: AccessControlUpdateRequest[],
-  ): Promise<AccessControlResponse>;
+  ): Promise<void>;
 
   bulkDeployChainsAccessControl(
     searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<AccessControlResponse>;
+  ): Promise<void>;
 
   runServiceDiscovery(): Promise<unknown>;
 

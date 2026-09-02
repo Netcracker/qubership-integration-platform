@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -30,17 +31,9 @@ import java.util.Set;
 public class UpdateRolesRequest {
     @Schema(description = "Element id")
     private String elementId;
+    @NotNull
     @Schema(description = "List of roles")
     private Set<String> roles;
     @Schema(description = "Whether chain redeploy should be initiated")
     private Boolean isRedeploy;
-    @Schema(description = "Chain id")
-    private String chainId;
-    @Schema(description = "Whether changes on graph is unsaved in the chain")
-    private Boolean unsavedChanges;
-
-    public UpdateRolesRequest(boolean unsavedChanges, String id) {
-        this.unsavedChanges = unsavedChanges;
-        this.chainId = id;
-    }
 }
