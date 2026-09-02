@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -142,5 +143,10 @@ class ChatEventActionsCaptureTest {
                 "Some data mappings are still missing before design can continue.",
                 List.of("INITIALIZATION: ENDPOINT \"GET /orders\" → SERVICE_CALL \"Create order\""),
                 PipelineGates.MAPPING_GAP)));
+  }
+
+  @Test
+  void mappingGapDescribeHasNoEnumerableActions() {
+    assertNull(ChatEvent.actionsForGate(PipelineGates.MAPPING_GAP_DESCRIBE));
   }
 }

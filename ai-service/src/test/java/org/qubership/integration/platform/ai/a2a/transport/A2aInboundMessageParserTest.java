@@ -78,6 +78,33 @@ class A2aInboundMessageParserTest {
   }
 
   @Test
+  void parsesPassThroughPlainText() throws Exception {
+    InboundCommand.ClarifyText clarify =
+        assertInstanceOf(
+            InboundCommand.ClarifyText.class,
+            A2aInboundMessageParser.parse(textMessage("PASS_THROUGH")));
+    assertEquals("pass_through", clarify.text());
+  }
+
+  @Test
+  void parsesPassThroughStructuredAction() throws Exception {
+    InboundCommand.ClarifyText clarify =
+        assertInstanceOf(
+            InboundCommand.ClarifyText.class,
+            A2aInboundMessageParser.parse(structured("pass_through")));
+    assertEquals("pass_through", clarify.text());
+  }
+
+  @Test
+  void parsesDescribeMappingsStructuredAction() throws Exception {
+    InboundCommand.ClarifyText clarify =
+        assertInstanceOf(
+            InboundCommand.ClarifyText.class,
+            A2aInboundMessageParser.parse(structured("describe_mappings")));
+    assertEquals("describe_mappings", clarify.text());
+  }
+
+  @Test
   void parsesRetryStructuredDataAsClarifyText() throws Exception {
     Message message =
         Message.builder()
@@ -137,5 +164,21 @@ class A2aInboundMessageParserTest {
     InvalidParamsError error =
         assertThrows(InvalidParamsError.class, () -> A2aInboundMessageParser.parse(message));
     assertTrue(error.getMessage().contains("artifactType"));
+  }
+
+  private static Message textMessage(String text) {
+    return Message.builder()
+        .role(Message.Role.ROLE_USER)
+        .messageId("m-text")
+        .parts(List.of(new TextPart(text)))
+        .build();
+  }
+
+  private static Message structured(String action) {
+    return Message.builder()
+        .role(Message.Role.ROLE_USER)
+        .messageId("m-structured")
+        .parts(List.of(new DataPart(Map.of("action", action))))
+        .build();
   }
 }

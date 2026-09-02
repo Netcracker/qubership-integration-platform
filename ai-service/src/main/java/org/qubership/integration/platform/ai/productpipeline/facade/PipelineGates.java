@@ -30,6 +30,9 @@ public final class PipelineGates {
   /** The design needs field mappings, or permission to pass the payload through as-is. */
   public static final String MAPPING_GAP = "mapping-gap";
 
+  /** Free-text wait after Describe mappings; not a recovery clarification. */
+  public static final String MAPPING_GAP_DESCRIBE = "mapping-gap-describe";
+
   /** The current stage halted; Retry re-enters it without treating the click as new requirements. */
   public static final String STAGE_RETRY = "stage-retry";
 
