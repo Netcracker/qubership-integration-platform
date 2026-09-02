@@ -31,10 +31,6 @@ import {
 } from "../table/ColumnsFilter";
 import { OperationInfoModal } from "./modals/OperationInfoModal";
 import { api } from "../../api/api";
-import {
-  TextColumnFilterDropdown,
-  getTextColumnFilterFn,
-} from "../table/TextColumnFilterDropdown.tsx";
 import type {
   SpecificationGroup,
   Specification,
@@ -321,10 +317,6 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       key: "name",
       width: 200,
       minWidth: 120,
-      filterDropdown: (props: FilterDropdownProps) => (
-        <TextColumnFilterDropdown {...props} />
-      ),
-      onFilter: getTextColumnFilterFn((record) => record.name),
       render: getNameColumnRender(),
     },
     {
