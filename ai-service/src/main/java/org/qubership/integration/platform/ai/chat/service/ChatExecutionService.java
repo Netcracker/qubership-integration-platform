@@ -34,13 +34,9 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
 /**
- * Shared chat pipeline: conversation → router → persist.
+ * Routes chat turns, persists conversation messages, and owns SSE framing.
  *
- * <p>Notable differences from ai-service:
- * <ul>
- *   <li>No mid-stream plan capture from markdown — plans arrive via tool calls only</li>
- *   <li>Step progress events ({@code event: step}) emitted by scenario handlers, not here</li>
- * </ul>
+ * <p>Plans arrive through tool calls, and scenario handlers emit step progress events.
  */
 @ApplicationScoped
 public class ChatExecutionService {
@@ -395,13 +391,9 @@ public class ChatExecutionService {
                 artifactStore
                     .latest(doc.run().runId(), Kind.CHAIN_PLAN_GRAPH)
                     .map(revision -> artifactStore.payload(revision, ChainPlanGraph.class))
-                    .map(ChatExecutionService::formatActivePlan))
-        .or(
-            () ->
-                runStore
-                    .loadByConversation(conversationId)
-                    .flatMap(
-                        doc ->
+                    .map(ChatExecutionService::formatActivePlan)
+                    .or(
+                        () ->
                             artifactStore
                                 .latest(doc.run().runId(), Kind.MATERIALIZATION_RESULT)
                                 .map(revision -> "(materialized)")))
