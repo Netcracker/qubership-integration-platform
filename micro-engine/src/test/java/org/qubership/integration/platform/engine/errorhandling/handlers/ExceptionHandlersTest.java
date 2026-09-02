@@ -4,6 +4,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.engine.errorhandling.ChainNotDeployedOnEngineException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.errorhandling.LoggingMaskingException;
 import org.qubership.integration.platform.engine.rest.v1.dto.ExceptionDTO;
@@ -31,6 +32,22 @@ class ExceptionHandlersTest {
 
         ExceptionDTO entity = assertExceptionDto(response.getEntity());
         assertEquals("Entity was not found", entity.getErrorMessage());
+        assertEquals(NO_STACKTRACE_AVAILABLE_MESSAGE, entity.getStacktrace());
+        assertValidTimestamp(entity.getErrorDate());
+    }
+
+    @Test
+    void shouldMapChainNotDeployedOnEngineExceptionToNotFoundResponseWithoutStacktrace() {
+        ChainNotDeployedOnEngineException exception =
+                new ChainNotDeployedOnEngineException("Chain is not deployed on this engine");
+        ChainNotDeployedOnEngineExceptionHandler handler = new ChainNotDeployedOnEngineExceptionHandler();
+
+        Response response = handler.toResponse(exception);
+
+        assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
+
+        ExceptionDTO entity = assertExceptionDto(response.getEntity());
+        assertEquals("Chain is not deployed on this engine", entity.getErrorMessage());
         assertEquals(NO_STACKTRACE_AVAILABLE_MESSAGE, entity.getStacktrace());
         assertValidTimestamp(entity.getErrorDate());
     }

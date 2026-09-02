@@ -31,12 +31,14 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHeaders;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.qubership.integration.platform.engine.errorhandling.ChainNotDeployedOnEngineException;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
+import org.qubership.integration.platform.engine.state.ChainDeploymentChecker;
 
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +55,7 @@ public class CheckpointSessionService {
     private final CheckpointRestService checkpointRestService;
     private final ObjectMapper jsonMapper;
     private final IdempotencyRecordService idempotencyRecordService;
+    private final ChainDeploymentChecker chainDeploymentChecker;
 
     @ConfigProperty(name = "qip.sessions.checkpoints.cleanup.interval")
     String idempotencyKeyTTL;
@@ -63,17 +66,24 @@ public class CheckpointSessionService {
             CheckpointRepository checkpointRepository,
             @RestClient CheckpointRestService checkpointRestService,
             @Identifier("jsonMapper") ObjectMapper jsonMapper,
-            IdempotencyRecordService idempotencyRecordService
+            IdempotencyRecordService idempotencyRecordService,
+            ChainDeploymentChecker chainDeploymentChecker
     ) {
         this.sessionInfoRepository = sessionInfoRepository;
         this.checkpointRepository = checkpointRepository;
         this.checkpointRestService = checkpointRestService;
         this.jsonMapper = jsonMapper;
         this.idempotencyRecordService = idempotencyRecordService;
+        this.chainDeploymentChecker = chainDeploymentChecker;
     }
 
     public void retryFromLastCheckpoint(String chainId, String sessionId, String body,
         Supplier<Pair<String, String>> authHeaderProvider, boolean traceMe) {
+
+        if (!chainDeploymentChecker.isChainDeployed(chainId)) {
+            throw new ChainNotDeployedOnEngineException(
+                "Chain " + chainId + " is not deployed on this engine; can't retry session with id: " + sessionId);
+        }
 
         Checkpoint lastCheckpoint = findLastCheckpoint(chainId, sessionId);
 
@@ -119,7 +129,7 @@ public class CheckpointSessionService {
                 checkpoint.getSession().getId(),
                 checkpoint.getCheckpointElementId(),
                 headers,
-                StringUtils.isNotEmpty(body) ? Optional.of(body) : Optional.empty()
+                StringUtils.isNotEmpty(body) ? body : null
         ).subscribe().with(
                 rsp -> {},
                 failure -> {

@@ -9,7 +9,6 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.jboss.resteasy.reactive.RestHeader;
 
 import java.util.Map;
-import java.util.Optional;
 
 @RegisterRestClient(configKey = "checkpoints")
 public interface CheckpointRestService {
@@ -20,6 +19,6 @@ public interface CheckpointRestService {
             @PathParam("checkpointSessionId") String checkpointSessionId,
             @PathParam("checkpointElementId") String checkpointElementId,
             @RestHeader Map<String, String> headers,
-            Optional<String> body
+            String body
     );
 }
