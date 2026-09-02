@@ -533,6 +533,45 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("stop-with-report", "");
   });
 
+  it("should keep unclassified raw error collapsed under Technical details", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question:
+        "Creation stopped without a recoverable cause. Repeating the same request will not help.",
+      actions: ["stop-with-report"],
+      recovery: {
+        category: "unclassified-failure",
+        title: "Creation cannot continue",
+        summary:
+          "Creation stopped without a recoverable cause. Repeating the same request will not help.",
+        preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails:
+          "mapping intent mismatch between live revision and approved chain semantic revision",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    const fold = screen.getByText("Technical details").closest("details");
+    expect(fold).not.toBeNull();
+    expect(fold).not.toHaveAttribute("open");
+    expect(fold).toHaveTextContent(
+      "Raw error: mapping intent mismatch between live revision and approved chain semantic revision",
+    );
+    expect(
+      screen.getByText("Creation cannot continue"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Retry creation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
   it("should omit unlabeled pipeline stage ids from recovery and clarify buttons", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();

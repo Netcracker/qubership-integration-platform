@@ -1,6 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import {
   parseCipSseBlock,
+  parseDecisionPayload,
   splitSseFrames,
 } from "../../src/ai/modelProviders/sseParsing.ts";
 
@@ -184,6 +185,16 @@ describe("parseCipSseBlock", () => {
     expect(unclassified[0]?.decision?.recovery?.category).toBe(
       "unclassified-failure",
     );
+  });
+
+  it("keeps unclassified recovery when Jackson emits null retryDelayMs", () => {
+    const payload =
+      '{"id":"clarify:29","kind":"clarify","question":"Creation stopped without a recoverable cause. Repeating the same request will not help.","revision":29,"actions":["stop-with-report"],"recovery":{"category":"unclassified-failure","title":"Creation cannot continue","summary":"Creation stopped without a recoverable cause. Repeating the same request will not help.","preservedWork":"Your approved requirements and plan are saved.","technicalDetails":"MISSING_BRIEF_FACTS: Unresolved required target field $.processId","retryDelayMs":null,"runId":"run-1","failedStageId":"design-execution"}}';
+    const decision = parseDecisionPayload(payload);
+    expect(decision?.recovery?.category).toBe("unclassified-failure");
+    expect(decision?.recovery?.technicalDetails).toContain("$.processId");
+    expect(decision?.recovery?.retryDelayMs).toBeUndefined();
+    expect(decision?.actions).toEqual(["stop-with-report"]);
   });
 
   it("drops a decision when the kind is unknown", () => {

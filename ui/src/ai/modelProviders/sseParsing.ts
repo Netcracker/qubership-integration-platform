@@ -88,7 +88,7 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
       );
     }
     if (isRecoveryPayload(parsed.recovery)) {
-      decision.recovery = parsed.recovery;
+      decision.recovery = normalizeRecovery(parsed.recovery);
     }
     return decision;
   } catch {
@@ -107,9 +107,15 @@ const RECOVERY_CATEGORIES = new Set([
   "unclassified-failure",
 ]);
 
-function isRecoveryPayload(
-  value: unknown,
-): value is NonNullable<ChatDecision["recovery"]> {
+function isOptionalNumber(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "number";
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function isRecoveryPayload(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
   const recovery = value as Record<string, unknown>;
   return (
@@ -118,13 +124,40 @@ function isRecoveryPayload(
     typeof recovery.title === "string" &&
     typeof recovery.summary === "string" &&
     typeof recovery.preservedWork === "string" &&
-    typeof recovery.technicalDetails === "string" &&
-    (recovery.retryDelayMs === undefined ||
-      typeof recovery.retryDelayMs === "number") &&
-    (recovery.runId === undefined || typeof recovery.runId === "string") &&
-    (recovery.failedStageId === undefined ||
-      typeof recovery.failedStageId === "string")
+    isOptionalString(recovery.technicalDetails) &&
+    isOptionalNumber(recovery.retryDelayMs) &&
+    isOptionalString(recovery.runId) &&
+    isOptionalString(recovery.failedStageId)
   );
+}
+
+function normalizeRecovery(
+  recovery: Record<string, unknown>,
+): NonNullable<ChatDecision["recovery"]> {
+  const retryDelayMs =
+    typeof recovery.retryDelayMs === "number"
+      ? recovery.retryDelayMs
+      : undefined;
+  const runId = typeof recovery.runId === "string" ? recovery.runId : undefined;
+  const failedStageId =
+    typeof recovery.failedStageId === "string"
+      ? recovery.failedStageId
+      : undefined;
+  return {
+    category: recovery.category as NonNullable<
+      ChatDecision["recovery"]
+    >["category"],
+    title: recovery.title as string,
+    summary: recovery.summary as string,
+    preservedWork: recovery.preservedWork as string,
+    technicalDetails:
+      typeof recovery.technicalDetails === "string"
+        ? recovery.technicalDetails
+        : "",
+    ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
+    ...(runId === undefined ? {} : { runId }),
+    ...(failedStageId === undefined ? {} : { failedStageId }),
+  };
 }
 
 /**
