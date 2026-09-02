@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -491,7 +492,7 @@ class DesignPlanProjectorTest {
   }
 
   @Test
-  void extraMappingStepWithoutIdFails() {
+  void extraMappingStepWithoutIdIsDroppedOnPassThroughRevision() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrders();
     String report =
         """
@@ -504,9 +505,34 @@ class DesignPlanProjectorTest {
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
             .trim();
-    assertThrows(
-        PlannerContractException.class,
-        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+    assertTrue(
+        projected.steps().stream()
+            .noneMatch(step -> step.owningSkillIds().contains("cip-script-generator")));
+  }
+
+  @Test
+  void mixedOwnerStepKeepsServiceCallWhenPassThroughDropsScript() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call and mapping (cip-service-call-generator + cip-script-generator)
+        3. Generate execution structure (cip-structure-generator)
+        4. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        5. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+    DesignExecutionPlan.Step mixed =
+        projected.steps().stream()
+            .filter(step -> step.owningSkillIds().contains("cip-service-call-generator"))
+            .findFirst()
+            .orElseThrow();
+    assertFalse(mixed.owningSkillIds().contains("cip-script-generator"));
   }
 
   @Test

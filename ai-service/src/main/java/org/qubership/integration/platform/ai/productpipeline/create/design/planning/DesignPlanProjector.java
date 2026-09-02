@@ -325,9 +325,6 @@ public final class DesignPlanProjector {
    */
   private static ParsedPlannerReport dropUnboundMappingSteps(
       ParsedPlannerReport parsed, ChainSemanticRevision revision) {
-    if (revision.mappingIntents().isEmpty()) {
-      return parsed;
-    }
     Set<String> knownIds = new HashSet<>();
     for (MappingIntent intent : revision.mappingIntents()) {
       knownIds.add(intent.mappingIntentId());
