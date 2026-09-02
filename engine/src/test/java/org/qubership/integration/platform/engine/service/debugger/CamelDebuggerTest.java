@@ -191,7 +191,6 @@ class CamelDebuggerTest {
         exchange.setProperty(Properties.START_TIME_MS, System.currentTimeMillis() - 5000L);
         exchange.setProperty(Properties.CHAIN_TIME_OUT_AFTER, 1000L);
         exchange.setProperty(Properties.CHAIN_TIMED_OUT, false);
-        when(runtimeProperties.calculateSessionLevel(any())).thenReturn(SessionsLoggingLevel.ERROR);
 
         Processor processor = mock(Processor.class);
         NamedNode definition = mock(NamedNode.class);

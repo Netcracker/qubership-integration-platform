@@ -266,19 +266,10 @@ public class CamelDebugger extends DefaultDebugger {
 
         initOrActivatePropagatedContext(exchange);
 
-        SessionsLoggingLevel actualSessionLevel = dbgProperties.getRuntimeProperties(exchange)
-                .calculateSessionLevel(exchange);
-        LogLoggingLevel logLoggingLevel = dbgProperties.getRuntimeProperties(exchange)
-                .getLogLoggingLevel();
-
         String nodeId = definition.getId();
         String elementId = DebuggerUtils.getNodeIdFormatted(nodeId);
 
         setLoggerContext(exchange, dbgProperties, nodeId);
-
-        boolean sessionShouldBeLogged = exchange.getProperty(
-                CamelConstants.Properties.SESSION_SHOULD_BE_LOGGED,
-                Boolean.class);
 
         if (IdentifierUtils.isValidUUID(elementId)) {
             handleElementAfterProcess(exchange, dbgProperties, nodeId, elementId, timeTaken);
@@ -599,18 +590,6 @@ public class CamelDebugger extends DefaultDebugger {
         stepIds.add(DebuggerUtils.getNodeIdFormatted(stepChainElementId));
     }
 
-    @SuppressWarnings("unchecked")
-    private boolean isStepNode(Exchange exchange, String nodeId) {
-        Set<String> stepIds = exchange.getProperty(
-                CamelConstants.Properties.SESSION_STEP_IDS, Set.class);
-        if (stepIds != null && stepIds.contains(nodeId)) {
-            return true;
-        }
-        Map<String, String> stepNodeIds = exchange.getProperty(
-                CamelConstants.Properties.SESSION_STEP_NODE_IDS, Map.class);
-        return stepNodeIds != null && stepNodeIds.containsValue(nodeId);
-    }
-
     @SuppressWarnings("checkstyle:FallThrough")
     private void stepFinished(Exchange exchange, StepEvent event,
                               CamelDebuggerProperties dbgProperties, boolean failed) {
@@ -639,7 +618,7 @@ public class CamelDebugger extends DefaultDebugger {
         handleJsonStepFinishedLogging(exchange, dbgProperties, fullStepId, stepSessionElementId);
 
         handleStepSessionCleanup(exchange, dbgProperties, sessionShouldBeLogged, failed,
-                stepSessionElementId, elementType);
+                stepSessionElementId, elementType, sessionId);
 
         popStep(steps);
 
@@ -656,7 +635,7 @@ public class CamelDebugger extends DefaultDebugger {
     @SuppressWarnings("checkstyle:FallThrough")
     private void handleStepSessionCleanup(Exchange exchange,
             CamelDebuggerProperties dbgProperties, boolean sessionShouldBeLogged,
-            boolean failed, String stepSessionElementId, ChainElementType elementType) {
+            boolean failed, String stepSessionElementId, ChainElementType elementType, String sessionId) {
         switch (dbgProperties.getRuntimeProperties(exchange).calculateSessionLevel(exchange)) {
             case INFO:
                 if (!ChainElementType.isElementForInfoSessionsLevel(elementType)) {
@@ -665,6 +644,11 @@ public class CamelDebugger extends DefaultDebugger {
             case DEBUG:
                 if (sessionShouldBeLogged && failed) {
                     DebuggerUtils.removeStepPropertyFromAllExchanges(exchange, stepSessionElementId);
+                }
+                if (sessionShouldBeLogged && stepSessionElementId != null) {
+                    sessionsService.logSessionElementAfter(exchange, null, sessionId, stepSessionElementId,
+                            MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
+                            dbgProperties.getRuntimeProperties(exchange).isMaskingEnabled());
                 }
                 break;
             default:
