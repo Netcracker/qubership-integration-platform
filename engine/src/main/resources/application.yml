@@ -240,7 +240,7 @@ camel:
       enabled: false
   constants:
     request-filter-header:
-      name: 'requestFilterHeaderAllowlist'
+      name: 'requestFilterHeaderWhitelist'
 
 qip:
   variables:
