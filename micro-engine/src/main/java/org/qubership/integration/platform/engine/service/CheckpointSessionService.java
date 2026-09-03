@@ -35,6 +35,7 @@ import org.qubership.integration.platform.engine.errorhandling.ChainNotDeployedO
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
+import org.qubership.integration.platform.engine.persistence.shared.entity.Property;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
@@ -101,6 +102,11 @@ public class CheckpointSessionService {
         String body,
         Supplier<Pair<String, String>> authHeaderProvider,
         boolean traceMe) {
+
+        if (!chainDeploymentChecker.isChainDeployed(chainId)) {
+            throw new ChainNotDeployedOnEngineException(
+                "Chain " + chainId + " is not deployed on this engine; can't retry session with id: " + sessionId);
+        }
         Checkpoint checkpoint = checkpointRepository
             .findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(sessionId, chainId, checkpointElementId);
         if (checkpoint == null) {
@@ -185,6 +191,31 @@ public class CheckpointSessionService {
     public Checkpoint findCheckpoint(String sessionId, String chainId, String checkpointElementId) {
         return checkpointRepository.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(
             sessionId, chainId, checkpointElementId);
+    }
+
+    /**
+     * Loads a checkpoint and reads its lazy payload columns before the persistence session closes.
+     * Use this when restoring an exchange. {@link #findCheckpoint} leaves those columns unloaded.
+     */
+    @Transactional
+    public Checkpoint findCheckpointForRestore(String sessionId, String chainId, String checkpointElementId) {
+        Checkpoint checkpoint = checkpointRepository.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(
+            sessionId, chainId, checkpointElementId);
+        if (checkpoint != null) {
+            initializeRestorePayload(checkpoint);
+        }
+        return checkpoint;
+    }
+
+    private void initializeRestorePayload(Checkpoint checkpoint) {
+        if (checkpoint.getBody() == null) {
+            checkpoint.getDeprecatedBody();
+        }
+        for (Property property : checkpoint.getProperties()) {
+            if (property.getValue() == null) {
+                property.getDeprecatedValue();
+            }
+        }
     }
 
     @Transactional

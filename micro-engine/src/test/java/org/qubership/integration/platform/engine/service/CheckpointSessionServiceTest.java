@@ -38,6 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.errorhandling.ChainNotDeployedOnEngineException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
+import org.qubership.integration.platform.engine.persistence.shared.entity.Property;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
@@ -173,6 +174,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldThrowEntityNotFoundWhenRetryFromCheckpointAndCheckpointMissing() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(anyString(), anyString(), anyString()))
                 .thenReturn(null);
 
@@ -185,6 +187,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldCallRetryCheckpointWhenRetryFromCheckpointAndCheckpointExists() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         Uni<Buffer> uni = mockUni();
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
@@ -216,6 +219,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldHandleRetryCheckpointSuccessCallback() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
                 org.mockito.ArgumentMatchers.anyMap(),
@@ -235,6 +239,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldHandleRetryCheckpointFailureCallback() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
                 org.mockito.ArgumentMatchers.anyMap(),
@@ -293,6 +298,53 @@ class CheckpointSessionServiceTest {
         Checkpoint result = checkpointSessionService.findCheckpoint("session", "chain", "element");
 
         assertSame(checkpoint, result);
+        verify(checkpoint, never()).getBody();
+        verify(checkpoint, never()).getDeprecatedBody();
+        verify(checkpoint, never()).getProperties();
+    }
+
+    @Test
+    void shouldReturnNullWhenFindCheckpointForRestoreAndMissing() {
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "element"))
+                .thenReturn(null);
+
+        assertNull(checkpointSessionService.findCheckpointForRestore("session", "chain", "element"));
+    }
+
+    @Test
+    void shouldInitializePayloadWhenFindCheckpointForRestore() {
+        Checkpoint checkpoint = mock(Checkpoint.class);
+        Property property = mock(Property.class);
+        when(checkpoint.getBody()).thenReturn(new byte[] {1});
+        when(checkpoint.getProperties()).thenReturn(List.of(property));
+        when(property.getValue()).thenReturn(new byte[] {2});
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "element"))
+                .thenReturn(checkpoint);
+
+        Checkpoint result = checkpointSessionService.findCheckpointForRestore("session", "chain", "element");
+
+        assertSame(checkpoint, result);
+        verify(checkpoint).getBody();
+        verify(checkpoint, never()).getDeprecatedBody();
+        verify(property).getValue();
+        verify(property, never()).getDeprecatedValue();
+    }
+
+    @Test
+    void shouldInitializeDeprecatedPayloadWhenBodyAndPropertyValueMissing() {
+        Checkpoint checkpoint = mock(Checkpoint.class);
+        Property property = mock(Property.class);
+        when(checkpoint.getBody()).thenReturn(null);
+        when(checkpoint.getProperties()).thenReturn(List.of(property));
+        when(property.getValue()).thenReturn(null);
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "element"))
+                .thenReturn(checkpoint);
+
+        Checkpoint result = checkpointSessionService.findCheckpointForRestore("session", "chain", "element");
+
+        assertSame(checkpoint, result);
+        verify(checkpoint).getDeprecatedBody();
+        verify(property).getDeprecatedValue();
     }
 
     @Test
