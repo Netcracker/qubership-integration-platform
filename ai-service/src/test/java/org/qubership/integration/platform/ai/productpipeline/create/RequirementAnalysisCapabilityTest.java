@@ -326,7 +326,7 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
-  void mappingUserTextIsAppendedToStoredDraftBeforeBind() {
+  void mappingUserTextDoesNotRewritePlanningText() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     RequirementDraftStore draftStore = new RequirementDraftStore();
     String conversationId = "conv-mapping-append";
@@ -351,15 +351,14 @@ class RequirementAnalysisCapabilityTest {
 
     assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
     RequirementDraft stored = draftStore.get(conversationId).orElseThrow();
-    assertTrue(stored.planningText().contains(userText), stored.planningText());
-    assertTrue(stored.planningText().contains(approved.planningText()));
+    assertEquals(approved.planningText(), stored.planningText());
     assertEquals(approved.decision(), stored.decision());
     assertEquals(approved.facts(), stored.facts());
     assertEquals(approved.flow(), stored.flow());
   }
 
   @Test
-  void mappingUserTextIsNotDuplicatedOnSecondExecute() {
+  void mappingUserTextIsNotCopiedIntoPlanningTextOnSecondExecute() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     RequirementDraftStore draftStore = new RequirementDraftStore();
     String conversationId = "conv-mapping-append-twice";
@@ -382,11 +381,31 @@ class RequirementAnalysisCapabilityTest {
     runWithUserText(capability, approved, conversationId, userText);
     runWithUserText(capability, approved, conversationId, userText);
 
-    String planningText = draftStore.get(conversationId).orElseThrow().planningText();
-    int first = planningText.indexOf(userText);
-    int second = planningText.indexOf(userText, first + 1);
-    assertTrue(first >= 0, planningText);
-    assertEquals(-1, second, planningText);
+    assertEquals(
+        approved.planningText(), draftStore.get(conversationId).orElseThrow().planningText());
+  }
+
+  @Test
+  void paraphrasedMappingUserTextDoesNotNeedEnglishControlPhrases() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    String userText = "Copy the greeting name onto the script body.";
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved, userText);
+    assertTrue(message.contains("Change request for this analysis turn:"));
+    assertTrue(message.contains(userText));
+    assertTrue(message.contains(approved.planningText()));
+  }
+
+  @Test
+  void laterMappingBlockIsForwardedWhenAnEarlierBlockAlreadyExists() {
+    RequirementDraft approved =
+        RequirementFactFixtures.greetingsApprovedDraft()
+            .withAssembledText(
+                RequirementFactFixtures.greetingsApprovedDraft().planningText()
+                    + "\n\nRequest mapping from greetings OUTPUT to script: body = Hello world!");
+    String laterBlock = "Also copy name onto Subject for the Salesforce task.";
+    String message = RequirementAnalysisCapability.buildAnalysisUserMessage(approved, laterBlock);
+    assertTrue(message.contains("Request mapping"), message);
+    assertTrue(message.contains(laterBlock), message);
   }
 
   @Test

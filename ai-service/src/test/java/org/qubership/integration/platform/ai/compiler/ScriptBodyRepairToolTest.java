@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -433,6 +434,114 @@ class ScriptBodyRepairToolTest {
         patch.propertyPatches().stream()
             .anyMatch(
                 propertyPatch -> "mappingCoverage".equals(propertyPatch.property().key())));
+    assertTrue(
+        patch.propertyPatches().stream()
+            .allMatch(
+                propertyPatch ->
+                    "script".equals(propertyPatch.property().key())
+                        || "mappingCoverage".equals(propertyPatch.property().key())));
+    assertEquals(
+        "map-init",
+        MappingExecutionSite.mappingIntentId(
+            graphWithMappingScript().nodes().getFirst()));
+  }
+
+  @Test
+  void mappingRepairRejectsUnexpectedCoverageWithoutMutatingTheContract() {
+    bindMappingScriptRepair();
+
+    String result =
+        tool.repairScriptBodies(
+            new ScriptBodyRepairCapture(
+                "script-map-extra",
+                List.of(
+                    new ScriptBodyEntry(
+                        "transform-map-init",
+                        "target['orderId'] = source['orderId']\n",
+                        List.of("$.orderId", "$.extra"))),
+                "Fill mapping script"));
+
+    assertTrue(result.contains("unexpected"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+    assertEquals(
+        "map-init",
+        MappingExecutionSite.mappingIntentId(
+            planStore.get(CONVERSATION_ID).orElseThrow().nodes().getFirst()));
+  }
+
+  @Test
+  void mappingRepairReplacesScriptAndCoverageWithoutMutatingSiteOwnership() {
+    bindMappingScriptRepair();
+
+    assertThrows(
+        CaptureValidationException.class,
+        () ->
+            tool.repairScriptBodies(
+                new ScriptBodyRepairCapture(
+                    "script-map-replace",
+                    List.of(
+                        new ScriptBodyEntry(
+                            "transform-map-init",
+                            "target['orderId'] = source['orderId']\n",
+                            List.of("$.orderId"))),
+                    "Replace mapping script")));
+
+    GraphPatch patch =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertTrue(patch.nodePatches().isEmpty());
+    assertTrue(patch.edgePatches().isEmpty());
+    assertTrue(
+        patch.propertyPatches().stream()
+            .allMatch(
+                propertyPatch ->
+                    "script".equals(propertyPatch.property().key())
+                        || "mappingCoverage".equals(propertyPatch.property().key())));
+    assertTrue(
+        planStore.get(CONVERSATION_ID).orElseThrow().nodes().stream()
+            .anyMatch(
+                node ->
+                    "transform-map-init".equals(node.nodeId())
+                        && "map-init".equals(MappingExecutionSite.mappingIntentId(node))));
+  }
+
+  @Test
+  void mappingRepairRejectsUnexpectedCoverageWithoutChangingTheIntent() {
+    bindMappingScriptRepair();
+
+    String result =
+        tool.repairScriptBodies(
+            new ScriptBodyRepairCapture(
+                "script-map-extra",
+                List.of(
+                    new ScriptBodyEntry(
+                        "transform-map-init",
+                        "target['orderId'] = source['orderId']\n",
+                        List.of("$.orderId", "$.extra"))),
+                "Extra coverage"));
+
+    assertTrue(result.contains("unexpected="));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+    assertEquals(
+        "map-init",
+        MappingExecutionSite.mappingIntentId(
+            planStore.get(CONVERSATION_ID).orElseThrow().nodes().getFirst()));
   }
 
   private void bindMappingScriptRepair() {

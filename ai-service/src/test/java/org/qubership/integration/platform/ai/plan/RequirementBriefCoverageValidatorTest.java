@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -126,7 +127,7 @@ class RequirementBriefCoverageValidatorTest {
   }
 
   @Test
-  void fieldMappingDraftRequiresCapturedIntents() {
+  void fieldMappingProseDoesNotRequireKeywordCoverage() {
     RequirementDraft approved =
         rockyApprovedDraft()
             .withAssembledText(
@@ -136,10 +137,12 @@ class RequirementBriefCoverageValidatorTest {
 
     Optional<String> error = validator.validate(approved, brief);
 
-    assertTrue(error.isPresent());
-    assertTrue(error.orElseThrow().contains("field mappings"), error.orElse(""));
-    assertTrue(error.orElseThrow().contains("task-start"), error.orElse(""));
-    assertTrue(error.orElseThrow().contains("create-task"), error.orElse(""));
+    assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
+    List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
+    assertEquals(2, uncovered.size());
+    assertTrue(
+        MappingGapCoverage.readableEdges(uncovered)
+            .contains("task-start -> create-task"));
   }
 
   @Test
@@ -187,7 +190,7 @@ class RequirementBriefCoverageValidatorTest {
   }
 
   @Test
-  void fieldMappingDraftRejectsIntentsThatLeaveATransitionUncovered() {
+  void partialMappingIntentsLeaveOtherTransitionsUncovered() {
     RequirementDraft approved =
         rockyApprovedDraft()
             .withAssembledText("Consume onTaskStart. Request mapping from onTaskStart to createTask");
@@ -206,10 +209,9 @@ class RequirementBriefCoverageValidatorTest {
 
     Optional<String> error = validator.validate(approved, brief);
 
-    assertTrue(error.isPresent());
-    assertTrue(error.orElseThrow().contains("field mappings"), error.orElse(""));
-    assertTrue(error.orElseThrow().contains("create-task"), error.orElse(""));
-    assertTrue(error.orElseThrow().contains("task-result"), error.orElse(""));
+    assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
+    List<String> uncovered = MappingGapCoverage.readableEdges(MappingGapCoverage.uncovered(brief));
+    assertEquals(List.of("create-task -> task-result"), uncovered);
   }
 
   @Test

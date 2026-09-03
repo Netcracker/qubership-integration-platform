@@ -40,6 +40,8 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.MappingGenerationPipeline;
 import org.qubership.integration.platform.ai.plan.ChainPlanTool;
 import org.qubership.integration.platform.ai.plan.ChainPlanRepairDraftStore;
 import org.qubership.integration.platform.ai.plan.ChainPlanRepairIssue;
@@ -54,6 +56,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -580,6 +583,10 @@ public class CompilerSkillRuntime {
           route.captureTool() == CaptureTool.REPAIR_SCRIPT_BODIES
               ? ScriptBodyRepairTool.CAPTURE_REQUIRED_MESSAGE
               : CompilerGraphPatchTool.CAPTURE_REQUIRED_MESSAGE;
+      String mappingFailure = mappingCaptureExhaustedMessage(conversationId, capabilityId, graph);
+      if (mappingFailure != null) {
+        return SkillExecutionResult.failed(mappingFailure);
+      }
       return SkillExecutionResult.failed(message);
     }
     return applyCapturedPatch(conversationId, graph, patch, capabilityId);
@@ -1039,7 +1046,11 @@ public class CompilerSkillRuntime {
         CaptureTool.REPAIR_SCRIPT_BODIES.toolName(),
         userMessage,
         true,
-        feedback -> repairMessageBuilder.scriptBodiesRepairMessage(missingNodeIds, feedback),
+        feedback ->
+            repairMessageBuilder.scriptBodiesRepairMessage(
+                missingNodeIds,
+                feedback,
+                mappingGenerationContext(conversationId, capabilityId)),
         sanitizingBeforeRepairRetry(
             memoryId, () -> feedbackStore.lastPatchFailure(conversationId, capabilityId)));
   }
@@ -1220,6 +1231,58 @@ public class CompilerSkillRuntime {
       return snapshot;
     }
     return snapshot.withMappingGenerationContext(mappingContext);
+  }
+
+  private String mappingGenerationContext(String conversationId, String capabilityId) {
+    return executionContextStore
+        .get(conversationId, capabilityId)
+        .or(executionContextStore::current)
+        .map(GraphPatchExecutionContext::mappingGenerationContext)
+        .orElse("");
+  }
+
+  private String mappingCaptureExhaustedMessage(
+      String conversationId, String capabilityId, ChainPlanGraph graph) {
+    if (!MappingGenerationPipeline.SCRIPT_GENERATOR.equals(capabilityId)
+        && !MappingGenerationPipeline.TRANSFORMATION_GENERATOR.equals(capabilityId)) {
+      return null;
+    }
+    String mappingContext = mappingGenerationContext(conversationId, capabilityId);
+    String mappingIntentId = mappingIntentIdFrom(mappingContext, graph);
+    if ((mappingContext == null || mappingContext.isBlank())
+        && (mappingIntentId == null || mappingIntentId.isBlank())) {
+      return null;
+    }
+    String findings =
+        feedbackStore
+            .lastPatchFailure(conversationId, capabilityId)
+            .map(CaptureAttemptFeedback::summary)
+            .orElse(ScriptBodyRepairTool.CAPTURE_REQUIRED_MESSAGE);
+    return CaptureRepairMessageBuilder.mappingCaptureExhaustedMessage(mappingIntentId, findings);
+  }
+
+  private static String mappingIntentIdFrom(String mappingContext, ChainPlanGraph graph) {
+    if (mappingContext != null && !mappingContext.isBlank()) {
+      for (String line : mappingContext.split("\\R")) {
+        String trimmed = line.trim();
+        if (trimmed.startsWith("mappingIntentId:")) {
+          String id = trimmed.substring("mappingIntentId:".length()).trim();
+          if (!id.isBlank()) {
+            return id;
+          }
+        }
+      }
+    }
+    if (graph == null || graph.nodes() == null) {
+      return "";
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      String intentId = MappingExecutionSite.mappingIntentId(node);
+      if (intentId != null && !intentId.isBlank()) {
+        return intentId;
+      }
+    }
+    return "";
   }
 
   private static boolean toolMatchesPhase(CaptureTool captureTool, QipKnowledgeCapabilityPhase phase) {

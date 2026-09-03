@@ -150,6 +150,24 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void exhaustedMappingCaptureRepairParksWithoutReopeningMappingIntent() {
+    ProducerOwnedRecovery.Route route =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                "design-execution",
+                StageOutcomeClass.CONTRACT_FAILURE,
+                RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER),
+                EXECUTION_CANDIDATES,
+                false,
+                1,
+                1,
+                Optional.empty()));
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
   void aCaptureContractFailureWithoutFindingsRepairsTheObservingExecutionStage() {
     ProducerOwnedRecovery.Route route =
         ProducerOwnedRecovery.route(

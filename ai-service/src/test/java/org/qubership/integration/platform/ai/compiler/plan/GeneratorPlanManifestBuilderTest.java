@@ -464,7 +464,7 @@ class GeneratorPlanManifestBuilderTest {
     return """
         Create chain named "Fortune API".
         HTTP GET trigger on internal route "/fortune".
-        Flow: script reads query param "lang" → condition/if/else routing by preferredLang == 'ru' vs else.
+        Flow: script reads query param "lang" → condition/if/else routing by preferredLang == 'fr' vs else.
         Use condition/if/else (v2), not choice/when.""";
   }
 
@@ -477,14 +477,14 @@ class GeneratorPlanManifestBuilderTest {
             new ChainPlanNode("parse-lang", "script", "Parse lang", null, null, List.of()),
             new ChainPlanNode("route", "condition", "Route by language", null, null, List.of()),
             new ChainPlanNode(
-                "if-ru",
+                "if-fr",
                 "if",
-                "Russian branch",
+                "French branch",
                 "route",
                 null,
-                List.of(new PlanProperty("condition", "${exchangeProperty.preferredLang} == 'ru'"))),
+                List.of(new PlanProperty("condition", "${exchangeProperty.preferredLang} == 'fr'"))),
             new ChainPlanNode("else-en", "else", "Default branch", "route", null, List.of()),
-            new ChainPlanNode("ru-response", "script", "RU response", "if-ru", null, List.of()),
+            new ChainPlanNode("fr-response", "script", "FR response", "if-fr", null, List.of()),
             new ChainPlanNode("en-response", "script", "EN response", "else-en", null, List.of())),
         List.of(
             new ChainPlanEdge("e1", "trigger", "parse-lang", null),
@@ -519,11 +519,11 @@ class GeneratorPlanManifestBuilderTest {
         List.of(
             new ChainPlanNode("trigger", "http-trigger", "HTTP Trigger", null, null, List.of()),
             new ChainPlanNode("parse-lang", "script", "Parse lang", null, null, List.of()),
-            new ChainPlanNode("ru-response", "script", "RU response", null, null, List.of()),
+            new ChainPlanNode("fr-response", "script", "FR response", null, null, List.of()),
             new ChainPlanNode("en-response", "script", "EN response", null, null, List.of())),
         List.of(
             new ChainPlanEdge("e1", "trigger", "parse-lang", null),
-            new ChainPlanEdge("e2", "parse-lang", "ru-response", null)));
+            new ChainPlanEdge("e2", "parse-lang", "fr-response", null)));
   }
 
   private static ChainPlanGraph incompleteRoutingGraph() {

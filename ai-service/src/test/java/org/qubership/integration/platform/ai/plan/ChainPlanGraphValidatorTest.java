@@ -352,22 +352,22 @@ class ChainPlanGraphValidatorTest {
                             new PlanProperty("condition", "${header.lang} == 'en'"),
                             new PlanProperty("priority", "0"))),
                     new ChainPlanNode(
-                        "if-ru",
+                        "if-fr",
                         "if",
-                        "Russian",
+                        "French",
                         "route",
                         null,
                         List.of(
-                            new PlanProperty("condition", "${header.lang} == 'ru'"),
+                            new PlanProperty("condition", "${header.lang} == 'fr'"),
                             new PlanProperty("priority", "1"))),
                     new ChainPlanNode("else-1", "else", "Default", "route", null, List.of()),
                     new ChainPlanNode("script-en", "script", "EN", "if-en", null, List.of()),
-                    new ChainPlanNode("script-ru", "script", "RU", "if-ru", null, List.of()),
+                    new ChainPlanNode("script-fr", "script", "FR", "if-fr", null, List.of()),
                     new ChainPlanNode("script-other", "script", "Other", "else-1", null, List.of())),
                 List.of(
                     new ChainPlanEdge("e1", "trigger", "route", null),
                     new ChainPlanEdge("e2", "if-en", "script-en", null),
-                    new ChainPlanEdge("e3", "if-ru", "script-ru", null),
+                    new ChainPlanEdge("e3", "if-fr", "script-fr", null),
                     new ChainPlanEdge("e4", "else-1", "script-other", null))));
 
     assertTrue(errors.isEmpty(), String.join("; ", errors));

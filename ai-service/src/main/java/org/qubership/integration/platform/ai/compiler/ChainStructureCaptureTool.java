@@ -388,7 +388,7 @@ public class ChainStructureCaptureTool {
         .get(
             CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId),
             RequirementBrief.class)
-        .filter(brief -> !brief.mappingIntents().isEmpty() && structure.graph() != null)
+        .filter(brief -> structure.graph() != null)
         .map(brief -> placedStructure(structure, brief))
         .orElse(structure);
   }

@@ -23,7 +23,7 @@ public final class MappingExecutionSiteValidator {
 
   public static List<ValidationIssue> validate(
       ChainPlanGraph graph, List<MappingIntent> mappingIntents) {
-    if (graph == null || mappingIntents == null || mappingIntents.isEmpty()) {
+    if (graph == null || mappingIntents == null) {
       return List.of();
     }
     List<ValidationIssue> issues = new ArrayList<>();
@@ -153,6 +153,10 @@ public final class MappingExecutionSiteValidator {
       }
     }
     return count;
+  }
+
+  public static boolean isReachable(ChainPlanGraph graph, String nodeId) {
+    return nodeId != null && reachableNodeIds(graph).contains(nodeId);
   }
 
   private static Set<String> reachableNodeIds(ChainPlanGraph graph) {

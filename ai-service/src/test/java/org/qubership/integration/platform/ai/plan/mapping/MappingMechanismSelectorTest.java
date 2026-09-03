@@ -79,4 +79,44 @@ class MappingMechanismSelectorTest {
     assertEquals("script", MappingMechanismSelector.canonicalTransformElementType(" mapper-2 "));
     assertEquals("condition", MappingMechanismSelector.canonicalTransformElementType("condition"));
   }
+
+  @Test
+  void scriptPreferenceSelectsScriptForEnglishAndNonEnglishExpressions() {
+    MappingIntent english = scriptPreference("uppercase the name");
+    MappingIntent variant = scriptPreference("mettre l'identifiant en majuscules");
+    MappingIntent languageNeutral = scriptPreference("normalize the identifier");
+
+    assertEquals(MappingMechanism.SCRIPT, MappingMechanismSelector.select(english).orElse(null));
+    assertEquals(MappingMechanism.SCRIPT, MappingMechanismSelector.select(variant).orElse(null));
+    assertEquals(
+        MappingMechanism.SCRIPT, MappingMechanismSelector.select(languageNeutral).orElse(null));
+    assertEquals(
+        MappingMechanismSelector.select(english), MappingMechanismSelector.select(variant));
+    assertEquals(
+        MappingMechanismSelector.select(english),
+        MappingMechanismSelector.select(languageNeutral));
+  }
+
+  @Test
+  void scriptCompatibilityDoesNotRequireEnglishExpressionWords() {
+    MappingIntent joinRecords =
+        scriptPreference("join records from two systems");
+
+    assertEquals(
+        MappingMechanism.SCRIPT, MappingMechanismSelector.select(joinRecords).orElse(null));
+    assertTrue(MappingMechanismSelector.clarification(joinRecords).isEmpty());
+    assertTrue(MappingMechanismSelector.scriptAcceptsExpression("normalize the identifier"));
+    assertTrue(MappingMechanismSelector.scriptAcceptsExpression("mettre l'identifiant en majuscules"));
+  }
+
+  private static MappingIntent scriptPreference(String expression) {
+    return new MappingIntent(
+        "map-init",
+        "onTaskStart",
+        MappingPort.OUTPUT,
+        "createTask",
+        MappingPort.REQUEST,
+        List.of(new MappingIntentRule("name", "Subject", expression)),
+        "SCRIPT");
+  }
 }

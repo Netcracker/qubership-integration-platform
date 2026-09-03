@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan.mapping;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -101,6 +102,21 @@ class MappingCaptureValidatorTest {
         () ->
             new MappingCaptureValidator()
                 .validateScript(identityOrderId(), "def x = 1\n", null));
+  }
+
+  @Test
+  void unexpectedScriptCoverageFailsCaptureEvenWhenGroovyCompiles() {
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new MappingCaptureValidator()
+                    .validateScript(
+                        identityOrderId(),
+                        "target['orderId'] = source['orderId']\ntarget['extra'] = 1\n",
+                        List.of("$.orderId", "$.extra")));
+    assertTrue(ex.getMessage().contains("unexpected="));
+    assertTrue(ex.getMessage().contains("$.extra"));
   }
 
   private static MappingIntent identityOrderId() {

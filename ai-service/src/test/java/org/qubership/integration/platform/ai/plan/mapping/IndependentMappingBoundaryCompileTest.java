@@ -83,9 +83,10 @@ class IndependentMappingBoundaryCompileTest {
         BriefMappingReview.afterApprovedMappingChange(brief, updated, twoBoundaryPlan());
 
     assertEquals(Set.of("map-init"), impact.changedMappingIntentIds());
+    assertTrue(impact.briefReopened());
     assertTrue(impact.invalidatedPlanStepIds().contains("step-transform-map-init"));
-    assertFalse(impact.invalidatedPlanStepIds().contains("step-transform-map-conv"));
-    assertFalse(impact.invalidatedPlanStepIds().contains("step-script"));
+    assertTrue(impact.invalidatedPlanStepIds().contains("step-transform-map-conv"));
+    assertTrue(impact.invalidatedPlanStepIds().contains("step-script"));
 
     ChainPlanGraph rebuilt = compile(compiled, updated);
     assertSame(convBefore, requireSite(rebuilt, "map-conv"));

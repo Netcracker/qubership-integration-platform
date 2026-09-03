@@ -107,7 +107,7 @@ class ScriptMappingCompileTest {
   }
 
   @Test
-  void unsupportedScriptExpressionReturnsClarificationInsteadOfMapper2() {
+  void scriptPreferenceWithNonWhitelistExpressionUsesScriptWhileMapper2IsDisabled() {
     MappingIntent intent =
         new MappingIntent(
             "map-init",
@@ -123,11 +123,13 @@ class ScriptMappingCompileTest {
                     MappingRuleStatus.USER_DEFINED)),
             "SCRIPT");
 
-    assertEquals(Optional.empty(), MappingMechanismSelector.select(intent));
-    Optional<String> clarification = MappingMechanismSelector.clarification(intent);
-    assertTrue(clarification.isPresent());
-    assertTrue(clarification.get().contains("join records from two systems"));
-    assertTrue(clarification.get().contains("SCRIPT"));
+    assertEquals(Optional.of(MappingMechanism.SCRIPT), MappingMechanismSelector.select(intent));
+    assertTrue(MappingMechanismSelector.clarification(intent).isEmpty());
+
+    ChainPlanGraph shells =
+        MappingStructurePhase.placeShells(passThroughGraph(), briefWith(List.of(intent)));
+    assertEquals(1, scriptNodes(shells).size());
+    assertEquals("map-init", MappingExecutionSite.mappingIntentId(scriptNodes(shells).getFirst()));
   }
 
   @Test
@@ -182,6 +184,69 @@ class ScriptMappingCompileTest {
     assertEquals(shells.nodes().size(), result.graph().nodes().size());
     assertEquals(shells.edges().size(), result.graph().edges().size());
     assertTrue(MappingExecutionSite.isConfigured(scriptNodes(result.graph()).getFirst()));
+  }
+
+  @Test
+  void mappingScriptUpdateReplacesTheCompleteBodyInsteadOfMergingFragments() {
+    RequirementBrief brief = approvedScriptBrief();
+    ChainPlanGraph shells = MappingStructurePhase.placeShells(passThroughGraph(), brief);
+    ChainPlanNode site = scriptNodes(shells).getFirst();
+    java.util.ArrayList<PlanProperty> properties = new java.util.ArrayList<>();
+    if (site.properties() != null) {
+      properties.addAll(site.properties());
+    }
+    properties.add(
+        new PlanProperty(
+            MappingExecutionSite.SCRIPT_PROPERTY, "target['obsolete'] = source['old']\n"));
+    ChainPlanNode configuredSite =
+        new ChainPlanNode(
+            site.nodeId(),
+            site.type(),
+            site.label(),
+            site.parentNodeId(),
+            site.order(),
+            List.copyOf(properties));
+    ChainPlanGraph configured =
+        new ChainPlanGraph(
+            shells.schemaVersion(),
+            shells.chain(),
+            shells.nodes().stream()
+                .map(node -> site.nodeId().equals(node.nodeId()) ? configuredSite : node)
+                .toList(),
+            shells.edges());
+    GraphPatch patch =
+        new GraphPatch(
+            "replace-script",
+            "cip-script-generator",
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatch(
+                    GraphPatchOperation.UPDATE,
+                    configuredSite.nodeId(),
+                    new PlanProperty(
+                        MappingExecutionSite.SCRIPT_PROPERTY,
+                        "target['personId'] = source['userId']\n"
+                            + "target['fullName'] = source['name']\n"))),
+            List.of(),
+            List.of(),
+            "Replace the complete mapping script");
+    GraphPatchOwnershipPolicy ownership =
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            java.util.Set.of("script"),
+            java.util.Set.of(),
+            Map.of("script", java.util.Set.of(MappingExecutionSite.SCRIPT_PROPERTY)));
+
+    GraphPatchApplyResult result =
+        new ValidatedGraphPatchApplier(new GraphPatchOwnershipValidator(), new GraphPatchApplier())
+            .apply(context(configured, ownership, brief), patch);
+
+    assertTrue(result.validationResult().valid(), result.validationResult().summary());
+    String body = MappingExecutionSite.scriptBody(scriptNodes(result.graph()).getFirst());
+    assertTrue(body.contains("personId"));
+    assertFalse(body.contains("obsolete"));
   }
 
   @Test

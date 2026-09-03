@@ -18,8 +18,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 public final class BriefMappingReview {
 
   public static final String REOPEN_MESSAGE =
-      "The requirement brief reopened because an approved mapping changed. Dependent plan steps"
-          + " must be rebuilt.";
+      "The requirement brief reopened because an approved mapping changed. Downstream design and"
+          + " compiler artifacts must be rebuilt.";
 
   private BriefMappingReview() {}
 
@@ -77,6 +77,11 @@ public final class BriefMappingReview {
     return brief;
   }
 
+  /**
+   * Compares an approved brief to a later mapping-intent collection. When the intents differ, the
+   * brief reopens and the previous design plan is rebuilt in full. The first version does not reuse
+   * selected steps from that plan.
+   */
   public static MappingChangeImpact afterApprovedMappingChange(
       RequirementBrief approved, RequirementBrief updated, DesignExecutionPlan plan) {
     Objects.requireNonNull(approved, "approved");
@@ -85,18 +90,16 @@ public final class BriefMappingReview {
       return new MappingChangeImpact(updated, false, List.of(), Set.of());
     }
     Set<String> changedIds = changedIntentIds(approved, updated);
-    List<String> invalidated = invalidatedPlanStepIds(plan, changedIds);
-    return new MappingChangeImpact(updated, true, invalidated, changedIds);
+    return new MappingChangeImpact(updated, true, allPlanStepIds(plan), changedIds);
   }
 
-  public static List<String> invalidatedPlanStepIds(
-      DesignExecutionPlan plan, Set<String> changedMappingIntentIds) {
-    if (plan == null || changedMappingIntentIds == null || changedMappingIntentIds.isEmpty()) {
+  private static List<String> allPlanStepIds(DesignExecutionPlan plan) {
+    if (plan == null) {
       return List.of();
     }
     List<String> stepIds = new ArrayList<>();
     for (DesignExecutionPlan.Step step : plan.steps()) {
-      if (dependsOnChangedIntent(step, changedMappingIntentIds)) {
+      if (step.stepId() != null && !step.stepId().isBlank()) {
         stepIds.add(step.stepId());
       }
     }
@@ -126,18 +129,6 @@ public final class BriefMappingReview {
       }
     }
     return null;
-  }
-
-  private static boolean dependsOnChangedIntent(
-      DesignExecutionPlan.Step step, Set<String> changedMappingIntentIds) {
-    String report = step.reportText() == null ? "" : step.reportText();
-    String stepId = step.stepId() == null ? "" : step.stepId();
-    for (String mappingIntentId : changedMappingIntentIds) {
-      if (report.contains(mappingIntentId) || stepId.contains(mappingIntentId)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   public record MappingChangeImpact(

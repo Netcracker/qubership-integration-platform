@@ -826,10 +826,10 @@ class FailureNarrativeTest {
 
     Optional<String> question =
         new FailureNarrative(agent)
-            .askClarification("run-1", "ru", "catalog service", "design-execution", "missing");
+            .askClarification("run-1", "fr", "catalog service", "design-execution", "missing");
 
     assertEquals("Which catalog service should I use?", question.orElseThrow());
-    assertEquals("ru", agent.lastClarificationLocale.get());
+    assertEquals("fr", agent.lastClarificationLocale.get());
     assertEquals("catalog service", agent.lastRequestedFact.get());
   }
 

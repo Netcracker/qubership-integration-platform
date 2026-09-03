@@ -105,8 +105,9 @@ class BranchAndMultipleEntryMappingCompileTest {
         BriefMappingReview.afterApprovedMappingChange(brief, updated, twoBranchPlan());
 
     assertEquals(Set.of("map-a"), impact.changedMappingIntentIds());
+    assertTrue(impact.briefReopened());
     assertTrue(impact.invalidatedPlanStepIds().contains("step-transform-map-a"));
-    assertFalse(impact.invalidatedPlanStepIds().contains("step-transform-map-b"));
+    assertTrue(impact.invalidatedPlanStepIds().contains("step-transform-map-b"));
 
     ChainPlanGraph rebuilt = compile(compiled, updated);
     ChainPlanNode siteBAfter = requireSite(rebuilt, "map-b");

@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -71,7 +70,7 @@ class BriefMappingReviewTest {
   }
 
   @Test
-  void changingApprovedMappingReopensBriefAndInvalidatesDependentPlanSteps() {
+  void changingApprovedMappingReopensBriefAndRebuildsEveryPlanStep() {
     RequirementBrief approved =
         briefWith(
             new MappingIntent(
@@ -92,9 +91,9 @@ class BriefMappingReviewTest {
 
     assertTrue(impact.briefReopened());
     assertEquals(Set.of("map-init"), impact.changedMappingIntentIds());
-    assertTrue(impact.invalidatedPlanStepIds().contains("step-transform-map-init"));
-    assertFalse(impact.invalidatedPlanStepIds().contains("step-script"));
-    assertFalse(impact.invalidatedPlanStepIds().contains("step-trigger"));
+    assertEquals(
+        List.of("step-trigger", "step-transform-map-init", "step-script"),
+        impact.invalidatedPlanStepIds());
   }
 
   private static RequirementBrief briefWith(MappingIntent intent) {

@@ -24,7 +24,7 @@ public final class RequirementFactFixtures {
   public static final String LANG_ROUTER_PROMPT =
       "Create chain named \"LangRouter\". HTTP GET internal \"/lang-router\" with query"
           + " parameter preferredLang. Flow: http-trigger then condition/if/else routing."
-          + " If preferredLang is ru: script returns Russian greeting text. Else branch:"
+          + " If preferredLang is fr: script returns French greeting text. Else branch:"
           + " script returns English greeting text. No service calls. No catalog binding."
           + " No API Hub import. No error handling wrapper. No RBAC. No MCP.";
 
@@ -127,7 +127,7 @@ public final class RequirementFactFixtures {
             RequirementFactPolarity.POSITIVE,
             RequirementFactKind.ROUTING,
             "condition",
-            "If preferredLang is ru: script returns Russian greeting text"));
+            "If preferredLang is fr: script returns French greeting text"));
     facts.add(
         RequirementFact.of(
             RequirementFactPolarity.POSITIVE,
