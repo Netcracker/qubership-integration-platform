@@ -54,6 +54,7 @@ import java.util.*;
 
 import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 import static java.util.Objects.isNull;
+import static java.util.Objects.requireNonNullElse;
 
 @Service
 @Slf4j
@@ -207,7 +208,7 @@ public class SessionService {
         }
 
         if (!SESSION_OPENSEARCH_FIELDS.contains(sortColumn)) {
-            throw new IllegalArgumentException("Can't sort results on this column. Valid columns are: "
+            throw new SearchException("Can't sort results on this column. Valid columns are: "
                     + StringUtils.join(SESSION_OPENSEARCH_FIELDS, ", "));
         }
 
@@ -269,7 +270,9 @@ public class SessionService {
             );
         }
 
-        for (FilterRequest filterRequest : filterAndSearch.getFilterRequestList()) {
+        // A request that names no filters carries no list at all, the same way it carries no
+        // search string, and the guard above already reads that as "no full-text search".
+        for (FilterRequest filterRequest : requireNonNullElse(filterAndSearch.getFilterRequestList(), List.<FilterRequest>of())) {
             switch (filterRequest.getFeature()) {
                 case ENGINE ->
                         getPredicate(filterRequest.getCondition(), queryBuilder, "engineAddress", filterRequest.getValue());
