@@ -21,7 +21,6 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
@@ -56,6 +55,8 @@ public class CheckpointSessionService {
     private final IdempotencyRecordService idempotencyRecordService;
     @Value("${qip.sessions.checkpoints.cleanup.interval}")
     private String idempotencyKeyTTL;
+    @Value("${qip.camel.routes.prefix}")
+    private String routesPrefix;
 
     @Autowired
     public CheckpointSessionService(SessionInfoRepository sessionInfoRepository,
@@ -105,7 +106,7 @@ public class CheckpointSessionService {
                                           boolean traceMe) {
         RequestBodySpec request = localhostWebclient
             .post()
-            .uri(CamelServletConfiguration.CAMEL_ROUTES_PREFIX + CHECKPOINT_RETRY_PATH_TEMPLATE,
+            .uri(routesPrefix + CHECKPOINT_RETRY_PATH_TEMPLATE,
                 checkpoint.getSession().getChainId(),
                 checkpoint.getSession().getId(),
                 checkpoint.getCheckpointElementId());

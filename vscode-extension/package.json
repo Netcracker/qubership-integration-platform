@@ -3,7 +3,7 @@
   "publisher": "qubership",
   "displayName": "QIP VS Code Extension",
   "description": "Qubership Integration Platform - Visual Studio Code Extension",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "main": "dist/node/index.js",
   "types": "dist/web/index.d.ts",
   "files": [
@@ -16,8 +16,7 @@
   },
   "enabledApiProposals": [
     "tunnels",
-    "customEditorDiffs",
-    "customEditorPriority"
+    "customEditorDiffs"
   ],
   "categories": [
     "Other"
@@ -116,8 +115,7 @@
         ],
         "priority": {
           "textEditor": "default",
-          "diffEditor": "default",
-          "mergeEditor": "never"
+          "diffEditor": "default"
         }
       },
       {

@@ -156,6 +156,28 @@
                     {{> mapper-2}}
                 {{/if-property}}
             {{/with-property}}
+            {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
+                <setHeader name="CamelGraphQLQuery">
+                    <simple>{{escape (property 'integrationGqlQuery')}}</simple>
+                </setHeader>
+
+                {{#if-property 'integrationGqlVariablesJSON' presented=''}}
+                    <setProperty name="internalProperty_graphQLVariablesJSON">
+                        <simple>{{escape (property 'integrationGqlVariablesJSON')}}</simple>
+                    </setProperty>
+                {{/if-property}}
+
+                <setProperty name="internalProperty_graphQLEndpointUri">
+                    <simple>graphql-custom:{{integrationAddress}}{{escape (manualQuery
+                                                                              operationName=(property 'integrationGqlOperationName')
+                                                                              queryHeader=(property 'integrationGqlQueryHeader')
+                                                                              variablesHeader=(property 'integrationGqlVariablesHeader')
+                                                                              httpClientConfigurer=(identifier prefix='#'))}}
+                    </simple>
+                </setProperty>
+
+                <process ref="graphQLSessionLoggingProcessor"/>
+            {{/if-property}}
         </step>
     {{/if-property}}
 
@@ -273,16 +295,11 @@
                 {{/if-property}}
 
                 {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
-                    <setHeader name="CamelGraphQLQuery">
-                        <simple>{{escape (property 'integrationGqlQuery')}}</simple>
-                    </setHeader>
-
                     {{#if-property 'integrationGqlVariablesJSON' presented=''}}
-                        <setProperty name="internalProperty_graphQLVariablesJSON">
-                            <simple>{{escape (property 'integrationGqlVariablesJSON')}}</simple>
-                        </setProperty>
                         <process ref="graphQLVariablesProcessor"/>
                     {{/if-property}}
+
+                    <removeHeader name="Content-Type"/>
 
                     <toD uri="graphql-custom:{{integrationAddress}}{{escape
                             (manualQuery

@@ -48,6 +48,32 @@ describe("RestApi - filterServices and searchServices", () => {
     restApi = new RestApi();
   });
 
+  it("getServices sends GET without chain usage by default", async () => {
+    mockGet.mockResolvedValue({ data: [] });
+
+    await restApi.getServices("all", false);
+
+    expect(mockGet).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems"),
+      {
+        params: { modelType: "all", withSpec: false, includeChainUsage: false },
+      },
+    );
+  });
+
+  it("getServices asks for chain usage when requested", async () => {
+    mockGet.mockResolvedValue({ data: [] });
+
+    await restApi.getServices("all", false, true);
+
+    expect(mockGet).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems"),
+      {
+        params: { modelType: "all", withSpec: false, includeChainUsage: true },
+      },
+    );
+  });
+
   it("filterServices sends POST with filter body", async () => {
     const filters: EntityFilterModel[] = [
       { column: "NAME", condition: "CONTAINS", value: "test" },
@@ -63,6 +89,19 @@ describe("RestApi - filterServices and searchServices", () => {
         { column: "NAME", condition: "CONTAINS", value: "test" },
         { column: "PROTOCOL", condition: "IN", value: "HTTP" },
       ],
+      { params: { includeChainUsage: false } },
+    );
+  });
+
+  it("filterServices asks for chain usage when requested", async () => {
+    mockPost.mockResolvedValue({ data: [] });
+
+    await restApi.filterServices([], true);
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems/filter"),
+      [],
+      { params: { includeChainUsage: true } },
     );
   });
 
@@ -74,6 +113,19 @@ describe("RestApi - filterServices and searchServices", () => {
     expect(mockPost).toHaveBeenCalledWith(
       expect.stringContaining("/systems-catalog/systems/search"),
       { searchCondition: "my query" },
+      { params: { includeChainUsage: false } },
+    );
+  });
+
+  it("searchServices asks for chain usage when requested", async () => {
+    mockPost.mockResolvedValue({ data: [] });
+
+    await restApi.searchServices("my query", true);
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringContaining("/systems-catalog/systems/search"),
+      { searchCondition: "my query" },
+      { params: { includeChainUsage: true } },
     );
   });
 

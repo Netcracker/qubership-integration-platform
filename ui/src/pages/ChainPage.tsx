@@ -63,6 +63,12 @@ const ChainPage = () => {
   const { chain, setChain, updateChain, getChain, isLoading, error } =
     useChain(chainId);
 
+  useEffect(() => {
+    if (!isVsCode && chain?.name) {
+      document.title = chain.name;
+    }
+  }, [chain?.name]);
+
   const refreshChain = useCallback(async () => {
     if (!chainId) {
       return;

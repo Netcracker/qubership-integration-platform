@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.cr;
 
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -24,9 +25,14 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildContextFactory.BuildContextWithObservations;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.ResourceKey;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -52,13 +58,17 @@ class MicroDomainResourceBuildServiceTest {
                 .options(ResourceBuildOptions.builder().build())
                 .build();
         ResourceBuildContext<List<Snapshot>> context = mock(ResourceBuildContext.class);
-        when(buildContextFactory.createResourceBuildContext(request, true)).thenReturn(context);
+        Map<ResourceKey, Optional<V1ObjectMeta>> observations = Map.of();
+        BuildContextWithObservations built = new BuildContextWithObservations(context, observations);
+        when(buildContextFactory.createResourceBuildContext(request, true)).thenReturn(built);
         when(resourceBuildService.buildResources(context)).thenReturn("resource-yaml");
 
         MicroDomainResourceBuildService service =
                 new MicroDomainResourceBuildService(resourceBuildService, buildContextFactory);
 
-        assertThat(service.buildResources(request, true)).isEqualTo("resource-yaml");
+        BuiltResources result = service.buildResources(request, true);
+        assertThat(result.yaml()).isEqualTo("resource-yaml");
+        assertThat(result.observations()).isEqualTo(observations);
         verify(buildContextFactory).createResourceBuildContext(request, true);
     }
 }

@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.runtime.catalog.model.dto.BaseResponse;
 import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 
@@ -46,6 +47,8 @@ public class SystemDTO {
     private String specification;
     @Schema(description = "Labels assigned to the service")
     private List<SystemLabelDTO> labels;
+    @Schema(description = "List of chains that is using current service")
+    private List<BaseResponse> chains;
     @Schema(description = "Timestamp of creation date")
     private Long createdWhen;
     @Schema(description = "User who created entity")

@@ -22,11 +22,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.sql.Timestamp;
 
+/**
+ * Without the base class, the catch-all below also answers Spring's own exceptions - a malformed
+ * body, an unconvertible parameter, an unmapped path - so every client-side mistake reads as a
+ * server fault in monitoring. The base class carries the handlers that map those to 4xx, and it
+ * loses to the more specific handlers declared here. The runtime catalog extends the same class.
+ */
 @ControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final String NO_STACKTRACE_AVAILABLE_MESSAGE = "No Stacktrace Available";
 
