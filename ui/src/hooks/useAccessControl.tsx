@@ -3,7 +3,6 @@ import {
   AccessControlResponse,
   AccessControlSearchRequest,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
 } from "../api/apiTypes.ts";
 import { EntityFilterModel } from "../components/table/filter/filterTypes";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -81,16 +80,13 @@ export const useAccessControl = (filters: EntityFilterModel[] = []) => {
     [],
   );
 
-  const bulkDeployAccessControl = useCallback(
-    async (searchRequest: AccessControlBulkDeployRequest[]) => {
-      try {
-        await api.bulkDeployChainsAccessControl(searchRequest);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [],
-  );
+  const bulkDeployAccessControl = useCallback(async (chainIds: string[]) => {
+    try {
+      await api.bulkDeployChainsAccessControl(chainIds);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void getAccessControl();

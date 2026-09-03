@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,11 +30,10 @@ import java.util.Set;
 @NoArgsConstructor
 @Schema(description = "Http trigger roles update request object")
 public class UpdateRolesRequest {
+    @NotBlank
     @Schema(description = "Element id")
     private String elementId;
     @NotNull
     @Schema(description = "List of roles")
     private Set<String> roles;
-    @Schema(description = "Whether chain redeploy should be initiated")
-    private Boolean isRedeploy;
 }

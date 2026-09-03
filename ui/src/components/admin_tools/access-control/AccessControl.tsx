@@ -16,7 +16,6 @@ import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import {
   AccessControlType,
   AccessControl as AccessControlData,
-  AccessControlBulkDeployRequest,
   AccessControlProperty,
 } from "../../../api/apiTypes.ts";
 import { useAccessControl } from "../../../hooks/useAccessControl.tsx";
@@ -146,13 +145,7 @@ export const AccessControl: React.FC = () => {
     }
 
     try {
-      const bulkDeployRequests: AccessControlBulkDeployRequest[] =
-        recordsToDeploy.map((record) => ({
-          chainId: record.chainId,
-          unsavedChanges: record.unsavedChanges,
-        }));
-
-      await bulkDeployAccessControl(bulkDeployRequests);
+      await bulkDeployAccessControl(recordsToDeploy.map((r) => r.chainId));
 
       const chainToDeploy = new Set(recordsToDeploy.map((r) => r.chainId));
       setDeployedChainIds(new Set(chainToDeploy));

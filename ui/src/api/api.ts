@@ -81,7 +81,6 @@ import type {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
   CustomResourceBuildRequest,
   MicroDomainDeployRequest,
   BulkMicroDomainDeployResult,
@@ -608,9 +607,7 @@ export interface Api {
     searchRequest: AccessControlUpdateRequest[],
   ): Promise<void>;
 
-  bulkDeployChainsAccessControl(
-    searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<void>;
+  bulkDeployChainsAccessControl(chainIds: string[]): Promise<void>;
 
   runServiceDiscovery(): Promise<unknown>;
 

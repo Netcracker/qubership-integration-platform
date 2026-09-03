@@ -27,7 +27,7 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
     records && records.length > 0 ? records : record ? [record] : [];
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();
-  const { updateAccessControl } = useAccessControl();
+  const { updateAccessControl, bulkDeployAccessControl } = useAccessControl();
   const [form] = Form.useForm();
   const getAllUniqueRoles = (): string[] => {
     const allRoles = new Set<string>();
@@ -115,19 +115,41 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
 
           return {
             elementId: rec.elementId,
-            isRedeploy: Boolean(formValues.redeploy),
             roles: finalRoles,
           };
         },
       );
 
       await updateAccessControl(updateRequests);
-      notificationService.info(
-        "Success",
-        isDeleteMode
-          ? "Roles deleted successfully"
-          : "Roles updated successfully",
-      );
+
+      let deployError: Error | undefined;
+      if (formValues.redeploy) {
+        const chainIds = Array.from(
+          new Set(recordsToProcess.map((rec) => rec.chainId).filter(Boolean)),
+        );
+        try {
+          await bulkDeployAccessControl(chainIds);
+        } catch (err: unknown) {
+          deployError = err instanceof Error ? err : new Error(String(err));
+        }
+      }
+
+      if (deployError) {
+        // The roles are saved either way; a chain that failed keeps its unsaved changes.
+        notificationService.requestFailed(
+          isDeleteMode
+            ? "Roles deleted, but some chains were not deployed"
+            : "Roles updated, but some chains were not deployed",
+          deployError,
+        );
+      } else {
+        notificationService.info(
+          "Success",
+          isDeleteMode
+            ? "Roles deleted successfully"
+            : "Roles updated successfully",
+        );
+      }
       onSuccess?.();
       closeContainingModal();
     } catch (err: unknown) {

@@ -5,7 +5,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRedeployRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ChainRolesService;
@@ -54,11 +53,11 @@ class ChainRolesControllerTest {
 
     @Test
     void bulkRedeployAnswersNoContent() {
-        List<ChainRedeployRequest> request = List.of(new ChainRedeployRequest());
+        List<String> chainIds = List.of("chain-a");
 
-        ResponseEntity<Void> response = controller().bulkRedeploy(request);
+        ResponseEntity<Void> response = controller().bulkRedeploy(chainIds);
 
-        verify(chainRolesService).redeploy(request);
+        verify(chainRolesService).redeploy(chainIds);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(response.getBody()).isNull();
     }

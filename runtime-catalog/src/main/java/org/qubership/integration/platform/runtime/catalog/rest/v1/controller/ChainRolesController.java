@@ -23,7 +23,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRedeployRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ChainRolesService;
@@ -70,8 +69,8 @@ public class ChainRolesController {
     @PutMapping("/redeploy")
     @Operation(description = "Make a bulk redeploy for chains specified in the request")
     @ApiResponse(responseCode = "204", description = "No Content")
-    public ResponseEntity<Void> bulkRedeploy(@RequestBody @Parameter(description = "Chain redeploy request object") List<ChainRedeployRequest> request) {
-        chainRolesService.redeploy(request);
+    public ResponseEntity<Void> bulkRedeploy(@RequestBody @Parameter(description = "Ids of the chains to redeploy") List<String> chainIds) {
+        chainRolesService.redeploy(chainIds);
         return ResponseEntity.noContent().build();
     }
 }

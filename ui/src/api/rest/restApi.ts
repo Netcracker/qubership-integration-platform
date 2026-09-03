@@ -87,7 +87,6 @@ import {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
   GeneralImportInstructions,
   ImportInstruction,
   ImportInstructionRequest,
@@ -2153,12 +2152,10 @@ export class RestApi implements Api {
     );
   };
 
-  bulkDeployChainsAccessControl = async (
-    searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<void> => {
+  bulkDeployChainsAccessControl = async (chainIds: string[]): Promise<void> => {
     await this.instance.put<void>(
       `${this.v1()}/catalog/chains/roles/redeploy`,
-      searchRequest,
+      chainIds,
     );
   };
 

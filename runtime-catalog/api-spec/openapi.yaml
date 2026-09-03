@@ -816,16 +816,6 @@ components:
           $ref: "#/components/schemas/DeploymentRuntimeProperties"
           description: "Default logging deployment properties"
       type: "object"
-    ChainRedeployRequest:
-      description: "Chain redeploy request object"
-      properties:
-        chainId:
-          description: "Chain id"
-          type: "string"
-        unsavedChanges:
-          description: "Whether changes on graph is unsaved in the chain"
-          type: "boolean"
-      type: "object"
     ChainRequest:
       description: "Chain creation request object"
       properties:
@@ -4648,10 +4638,8 @@ components:
       properties:
         elementId:
           description: "Element id"
+          minLength: 1
           type: "string"
-        isRedeploy:
-          description: "Whether chain redeploy should be initiated"
-          type: "boolean"
         roles:
           description: "List of roles"
           items:
@@ -4659,6 +4647,7 @@ components:
           type: "array"
           uniqueItems: true
       required:
+      - "elementId"
       - "roles"
       type: "object"
     UsedProperty:
@@ -4922,9 +4911,9 @@ paths:
         content:
           application/json:
             schema:
-              description: "Chain redeploy request object"
+              description: "Ids of the chains to redeploy"
               items:
-                $ref: "#/components/schemas/ChainRedeployRequest"
+                type: "string"
               type: "array"
         required: true
       responses:
@@ -5006,9 +4995,9 @@ paths:
         content:
           application/json:
             schema:
-              description: "Chain redeploy request object"
+              description: "Ids of the chains to redeploy"
               items:
-                $ref: "#/components/schemas/ChainRedeployRequest"
+                type: "string"
               type: "array"
         required: true
       responses:
