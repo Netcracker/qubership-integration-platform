@@ -35,9 +35,9 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
@@ -111,13 +111,6 @@ class CustomResourceControllerTest {
         when(microConfiguration.isEnabled()).thenReturn(enabled);
     }
 
-    private ResourceDeployRequest deployRequest(String name) {
-        return ResourceDeployRequest.builder()
-                .name(name)
-                .snapshotIds(List.of("s1"))
-                .build();
-    }
-
     private void classicDomainEnabled(boolean enabled) {
         when(domainProperties.getClassic()).thenReturn(classicConfiguration);
         when(classicConfiguration.isEnabled()).thenReturn(enabled);
@@ -127,7 +120,14 @@ class CustomResourceControllerTest {
         return EngineDomain.builder().name(name).type(type).build();
     }
 
-    private static DeployWithSnapshotCreationRequest deployRequest(String... domains) {
+    private ResourceDeployRequest deployRequest(String name) {
+        return ResourceDeployRequest.builder()
+            .name(name)
+            .snapshotIds(List.of("s1"))
+            .build();
+    }
+
+    private static DeployWithSnapshotCreationRequest bulkDeployRequest(String... domains) {
         return DeployWithSnapshotCreationRequest.builder()
                 .domains(List.of(domains))
                 .chainIds(List.of("chain-1"))
@@ -163,7 +163,7 @@ class CustomResourceControllerTest {
         microDomainEnabled(false);
         when(engineService.getDomains()).thenReturn(List.of(engineDomain("micro-domain", DomainType.MICRO)));
 
-        assertThatThrownBy(() -> controller.deployChains(deployRequest("micro-domain")))
+        assertThatThrownBy(() -> controller.deployChains(bulkDeployRequest("micro-domain")))
                 .isInstanceOf(DomainTypeDisabledException.class)
                 .hasMessageContaining(DomainType.MICRO.name());
         verifyNoInteractions(chainRepository, deploymentService, microDomainService);
@@ -174,7 +174,7 @@ class CustomResourceControllerTest {
         classicDomainEnabled(false);
         when(engineService.getDomains()).thenReturn(List.of(engineDomain("classic-domain", DomainType.CLASSIC)));
 
-        assertThatThrownBy(() -> controller.deployChains(deployRequest("classic-domain")))
+        assertThatThrownBy(() -> controller.deployChains(bulkDeployRequest("classic-domain")))
                 .isInstanceOf(DomainTypeDisabledException.class)
                 .hasMessageContaining(DomainType.CLASSIC.name());
         verifyNoInteractions(chainRepository, deploymentService, microDomainService);
@@ -187,7 +187,7 @@ class CustomResourceControllerTest {
         when(engineService.getDomains()).thenReturn(List.of(engineDomain("classic-domain", DomainType.CLASSIC)));
 
         ResponseEntity<List<BulkDeploymentResponse>> response =
-                controller.deployChains(deployRequest("classic-domain"));
+                controller.deployChains(bulkDeployRequest("classic-domain"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verifyNoInteractions(microDomainService, microDomainResourceBuildService);
