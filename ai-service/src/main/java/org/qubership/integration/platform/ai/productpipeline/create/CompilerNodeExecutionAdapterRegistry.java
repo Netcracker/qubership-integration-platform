@@ -25,12 +25,6 @@ public class CompilerNodeExecutionAdapterRegistry {
     validatePinnedAdapterCoverage(packRepository);
   }
 
-  /** Test-only constructor with explicit adapter map. */
-  public static CompilerNodeExecutionAdapterRegistry forTest(
-      Map<String, CompilerNodeExecutionAdapter> adapters) {
-    return new CompilerNodeExecutionAdapterRegistry(Map.copyOf(adapters));
-  }
-
   private CompilerNodeExecutionAdapterRegistry(Map<String, CompilerNodeExecutionAdapter> byAdapterId) {
     this.byAdapterId = Objects.requireNonNull(byAdapterId, "byAdapterId");
   }
