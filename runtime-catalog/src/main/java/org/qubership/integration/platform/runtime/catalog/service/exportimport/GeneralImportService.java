@@ -149,8 +149,9 @@ public class GeneralImportService {
 
     public String importFileAsync(MultipartFile file, ImportRequest importRequest, Set<String> technicalLabels, boolean validateByHash) {
         File unpackedDirectory = unpackDirectory(file);
-        logImportAction(file.getOriginalFilename());
-        return importDirectoryAsync(unpackedDirectory, importRequest, technicalLabels, validateByHash);
+        String importId = UUID.randomUUID().toString();
+        logImportAction(file.getOriginalFilename(), importId);
+        return importDirectoryAsync(unpackedDirectory, importRequest, technicalLabels, validateByHash, importId);
     }
 
     public String importDirectoryAsync(
@@ -159,7 +160,17 @@ public class GeneralImportService {
             Set<String> technicalLabels,
             boolean validateByHash
     ) {
-        String importId = UUID.randomUUID().toString();
+        return importDirectoryAsync(importDirectory, importRequest, technicalLabels, validateByHash, null);
+    }
+
+    public String importDirectoryAsync(
+            File importDirectory,
+            ImportRequest importRequest,
+            Set<String> technicalLabels,
+            boolean validateByHash,
+            String nullableImportId
+    ) {
+        String importId = nullableImportId != null ? nullableImportId : UUID.randomUUID().toString();
 
         importSessionService.deleteObsoleteImportSessionStatuses();
         importSessionService.setImportProgressPercentage(importId, 0);
@@ -248,9 +259,10 @@ public class GeneralImportService {
         return ExportImportUtils.extractDirectoriesFromZip(is, UUID.randomUUID().toString());
     }
 
-    private void logImportAction(String archiveName) {
+    private void logImportAction(String archiveName, String importId) {
         actionsLogService.logAction(ActionLog.builder()
                 .entityType(EntityType.CHAINS)
+                .entityId(importId)
                 .entityName(archiveName)
                 .operation(LogOperation.IMPORT)
                 .build());

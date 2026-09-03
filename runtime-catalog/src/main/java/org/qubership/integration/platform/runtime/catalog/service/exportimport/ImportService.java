@@ -264,7 +264,7 @@ public class ImportService {
             throw new RuntimeException("Exception while extract files from zip", e);
         }
 
-        logImportAction(file.getOriginalFilename());
+        logImportAction(file.getOriginalFilename(), importId);
         String requestId = RequestIdContext.get();
         File finalUnpackDirectory = unpackDirectory;
         CompletableFuture.supplyAsync(() -> {
@@ -516,7 +516,12 @@ public class ImportService {
     }
 
     private void logImportAction(String archiveName) {
+        logImportAction(archiveName, null);
+    }
+
+    private void logImportAction(String archiveName, String importId) {
         actionLogger.logAction(ActionLog.builder()
+                .entityId(importId)
                 .entityType(EntityType.CHAINS)
                 .entityName(archiveName)
                 .operation(LogOperation.IMPORT)
