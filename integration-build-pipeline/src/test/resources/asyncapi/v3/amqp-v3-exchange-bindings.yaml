@@ -1,0 +1,184 @@
+asyncapi: 3.0.0
+info:
+  title: Notification Service
+  version: 2.1.0
+  description: AMQP notification system with exchanges, dead letters, and routing
+servers:
+  production:
+    host: rabbitmq.prod.internal:5672
+    pathname: /notifications
+    protocol: amqp
+  failover:
+    host: rabbitmq-failover.prod.internal:5672
+    pathname: /notifications
+    protocol: amqp
+channels:
+  emailQueue:
+    address: notifications.email
+    description: Email notification queue with dead letter routing
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: notifications.email
+          durable: true
+          exclusive: false
+          autoDelete: false
+        exchange:
+          name: notifications.topic
+          type: topic
+          durable: true
+        userId: notification-svc
+    messages:
+      EmailNotification:
+        payload:
+          type: object
+          required:
+            - to
+            - subject
+            - templateId
+          properties:
+            to:
+              type: array
+              minItems: 1
+              maxItems: 50
+              items:
+                type: string
+                format: email
+            cc:
+              type: array
+              items:
+                type: string
+                format: email
+            subject:
+              type: string
+              minLength: 1
+              maxLength: 998
+            templateId:
+              type: string
+              pattern: "^tmpl_[a-z0-9_]+$"
+            templateVars:
+              type: object
+              additionalProperties:
+                oneOf:
+                  - type: string
+                  - type: number
+                  - type: boolean
+            attachments:
+              type: array
+              maxItems: 10
+              items:
+                type: object
+                required:
+                  - filename
+                  - contentType
+                  - url
+                properties:
+                  filename:
+                    type: string
+                    maxLength: 255
+                  contentType:
+                    type: string
+                  url:
+                    type: string
+                    format: uri
+                  sizeBytes:
+                    type: integer
+                    maximum: 26214400
+            priority:
+              type: string
+              enum:
+                - low
+                - normal
+                - high
+                - critical
+  smsQueue:
+    address: notifications.sms
+    description: SMS notification queue
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: notifications.sms
+          durable: true
+        exchange:
+          name: notifications.direct
+          type: direct
+          durable: true
+    messages:
+      SmsNotification:
+        payload:
+          type: object
+          required:
+            - phoneNumber
+            - body
+          properties:
+            phoneNumber:
+              type: string
+              pattern: "^\\+[1-9]\\d{6,14}$"
+            body:
+              type: string
+              minLength: 1
+              maxLength: 1600
+            sender:
+              type: string
+              maxLength: 11
+  deadLetterQueue:
+    address: notifications.dlq
+    description: Dead letter queue for failed notifications
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: notifications.dlq
+          durable: true
+        exchange:
+          name: notifications.dlx
+          type: fanout
+          durable: true
+    messages:
+      DeadLetter:
+        payload:
+          type: object
+          required:
+            - originalQueue
+            - failureReason
+            - originalMessage
+          properties:
+            originalQueue:
+              type: string
+            failureReason:
+              type: string
+            retryCount:
+              type: integer
+              minimum: 0
+            firstFailedAt:
+              type: string
+              format: date-time
+            lastFailedAt:
+              type: string
+              format: date-time
+            originalMessage:
+              type: object
+              additionalProperties: true
+operations:
+  sendEmail:
+    action: send
+    channel:
+      $ref: '#/channels/emailQueue'
+    summary: Send email notification
+  consumeEmail:
+    action: receive
+    channel:
+      $ref: '#/channels/emailQueue'
+    summary: Process email notifications
+  sendSms:
+    action: send
+    channel:
+      $ref: '#/channels/smsQueue'
+    summary: Send SMS notification
+  processDeadLetters:
+    action: receive
+    channel:
+      $ref: '#/channels/deadLetterQueue'
+    summary: Process failed notifications from DLQ

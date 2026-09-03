@@ -188,6 +188,11 @@ qip:
     fields-max-size: ${LOG_FIELDS_MAX_SIZE:4096}
   production-mode:
     enabled: ${PRODUCTION_MODE:false}
+  testing:
+    # Endpoint mocking. With it on, an outbound call of a test case run goes to the testing service, and one with
+    # no matching mock gets 404 instead of reaching the endpoint. A live run reaches the endpoint as usual.
+    enabled: ${TESTING_SERVICE_ENABLED:false}
+    address: ${TESTING_SERVICE_ADDRESS:http://testing-service:8080}
   restclient:
     timeout: 300000
   idempotency:
@@ -288,6 +293,7 @@ quarkus:
       "hibernate.temp.use_jdbc_metadata_defaults": false # disable connection during init
   smallrye-openapi:
     enable: true
+    store-schema-directory: api-spec
   camel:
     servlet:
       servlet-name: CamelServlet

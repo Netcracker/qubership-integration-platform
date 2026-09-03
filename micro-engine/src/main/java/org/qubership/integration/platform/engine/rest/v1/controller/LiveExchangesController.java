@@ -23,6 +23,8 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestResponse;
@@ -54,7 +56,8 @@ public class LiveExchangesController {
             @QueryParam("limit")
             @DefaultValue("10")
             @Positive
-            @Parameter(description = "Amount of exchanges to view") Integer limit
+            @Parameter(schema = @Schema(type = SchemaType.INTEGER, defaultValue = "10"))
+            Integer limit
     ) {
         List<LiveExchangeDTO> result = liveExchangesService.getTopLiveExchanges(limit);
         if (isNull(result) || result.isEmpty()) {

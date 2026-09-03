@@ -4,8 +4,6 @@ import { useModalContext } from "../../ModalContextProvider.tsx";
 import type { FieldData } from "../../types/antd.ts";
 import { GROUP_SEGMENT_REGEX } from "../../misc/group-utils.ts";
 
-const { TextArea } = Input;
-
 export type FolderEditMode = "create" | "update";
 
 export type FolderEditProps = {
@@ -120,10 +118,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
             },
           ]}
         >
-          <Input ref={nameInput} />
-        </Form.Item>
-        <Form.Item name="description" label="Description">
-          <TextArea className="fixed-textarea" />
+          <Input autoFocus={true} ref={nameInput} />
         </Form.Item>
         {mode === "create" ? (
           <Flex vertical={false} style={{ marginLeft: 150 }}>

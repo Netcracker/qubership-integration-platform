@@ -206,36 +206,34 @@ export const McpServiceList: React.FC = () => {
     {
       ...createActionsColumnBase<MCPSystem>(),
       render: (_: unknown, system) => (
-        <>
-          <ProtectedDropdown
-            menu={{
-              items: [
-                {
-                  key: "delete",
-                  label: "Delete",
-                  icon: <OverridableIcon name={"delete"} />,
-                  onClick: () => void deleteSystem(system.id),
-                  require: { service: ["delete"] },
-                },
-                {
-                  key: "export",
-                  label: "Export",
-                  icon: <OverridableIcon name={"export"} />,
-                  onClick: () => void exportSystems([system.id]),
-                  require: { service: ["export"] },
-                },
-              ],
-            }}
-            trigger={["click"]}
-            placement="bottomRight"
-          >
-            <Button
-              size="small"
-              type="text"
-              icon={<OverridableIcon name="more" />}
-            />
-          </ProtectedDropdown>
-        </>
+        <ProtectedDropdown
+          menu={{
+            items: [
+              {
+                key: "delete",
+                label: "Delete",
+                icon: <OverridableIcon name={"delete"} />,
+                onClick: () => void deleteSystem(system.id),
+                require: { service: ["delete"] },
+              },
+              {
+                key: "export",
+                label: "Export",
+                icon: <OverridableIcon name={"cloudDownload"} />,
+                onClick: () => void exportSystems([system.id]),
+                require: { service: ["export"] },
+              },
+            ],
+          }}
+          trigger={["click"]}
+          placement="bottomRight"
+        >
+          <Button
+            size="small"
+            type="text"
+            icon={<OverridableIcon name="more" />}
+          />
+        </ProtectedDropdown>
       ),
     },
   ];

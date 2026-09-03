@@ -59,6 +59,10 @@ on:
       GH_BUMP_VERSION_APP_KEY:
         required: false
         description: "Private key of the GitHub App that bypasses branch protection for the version-bump push. Falls back to GITHUB_TOKEN if unset."
+    outputs:
+      release-version:
+        description: "The version this run released. Lets a caller chain another ecosystem onto the same number."
+        value: ${{ jobs.check-version.outputs.release-version }}
 
 concurrency:
   # Key on the module, not github.workflow (the caller's name in a reusable), so
@@ -83,6 +87,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          # The branch tip, not the dispatch SHA: an earlier job in the same
+          # cascade may already have pushed a version bump this one has to read.
+          ref: ${{ github.ref }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -98,6 +105,7 @@ jobs:
   # Build, publish (idempotent), then commit the bumped package.json + lockfile
   # and tag. Recovery skips install/build/publish and only re-applies the bump.
   npm-publish:
+    name: publish ${{ needs.check-version.outputs.release-version }}
     needs: check-version
     runs-on: ubuntu-latest
     permissions:

@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
 
 import lombok.Getter;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -27,19 +27,19 @@ public class WrongChainElementTypeException extends ChainElementVerificationExce
     private final String elementType;
     private final Collection<String> expectedTypes;
 
-    public WrongChainElementTypeException(ChainElement element, Collection<String> expectedTypes) {
+    public WrongChainElementTypeException(Element element, Collection<String> expectedTypes) {
         super(element, buildMessage(element, expectedTypes));
         this.elementType = extractElementType(element);
         this.expectedTypes = expectedTypes;
     }
 
-    private static String buildMessage(ChainElement element, Collection<String> expectedTypes) {
+    private static String buildMessage(Element element, Collection<String> expectedTypes) {
         return String.format("Wrong element type. Got: %s, expected: %s.",
                 extractElementType(element), String.join(", ", expectedTypes));
     }
 
-    private static String extractElementType(ChainElement element) {
-        return Optional.ofNullable(element).map(ChainElement::getType).orElse("-");
+    private static String extractElementType(Element element) {
+        return Optional.ofNullable(element).map(Element::getType).orElse("-");
     }
 
 }

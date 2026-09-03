@@ -69,6 +69,7 @@ properties:
               type: integer
               title: Time to live
               description: Session life time (in seconds).
+              minimum: 1
               default: 21600
           required:
             - key

@@ -1,0 +1,22 @@
+{{- if .Values.global.qip.testingService.enabled }}
+apiVersion: v1
+data:
+  # Only the addresses, which carry the release name, and the schema are set
+  # here. The execution and pagination settings keep the defaults the service
+  # ships with, and retention is left out so that it stays off: without
+  # QIP_TESTING_RETENTION_AGE the service keeps every test run.
+  #
+  # PRODUCTION_MODE is the installation-wide flag, set on every service rather
+  # than on this one, and it defaults to production: the front end then hides the
+  # operations that are unsafe there. Set global.qip.production to false to show
+  # them. QIP_TESTING_PRODUCTION still overrides it for this service alone.
+  PRODUCTION_MODE: "{{ .Values.global.qip.production }}"
+  QIP_TESTING_CATALOG_ADDRESS: http://{{ .Release.Name }}-runtime-catalog:8080
+  QIP_TESTING_ENGINE_ADDRESS: http://{{ .Release.Name }}-engine:8080
+  QIP_TESTING_POSTGRES_SCHEMA: testing_service
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ .Release.Name }}-testing-service-env
+  name: {{ .Release.Name }}-testing-service-env
+{{- end }}

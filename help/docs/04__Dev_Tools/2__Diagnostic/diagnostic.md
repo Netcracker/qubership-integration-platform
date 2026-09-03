@@ -11,7 +11,7 @@
 
 ---
 ### View Diagnostic Rules
-Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnostic run's results. Table consist of next columns and elements:
+Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnostic run's results. The table consists of the following columns and elements:
 
 - **Name** - clickable validation name. When clicked, system opens pop-up with detailed explanation of the validation.
   - **ID** - unique identifier of validation.
@@ -30,11 +30,14 @@ Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnos
 - **Alerts** - counter, indicates the quantity of found errors, that must be fixed promptly or warnings, indicating that issues may affect chain processing, but not require immediate resolution.
 - **Hint** - allows to see a hint for detected issue's root cause and provide short recommendation for fix. Click to display tooltip with suggestions.
 - **Start Time** - timestamp of last validation run.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search** field - allows to find validation or validated entity by its name.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
-  - **Run Diagnostic** button - initiates validation process.
+  - Button **"Run Diagnostic"** - initiates validation process.
 
 ### View Diagnostic Results
 When diagnostic results are available and issues found, each executed validation, that has counter, may be expanded with ![right](img/right.svg) icon near its name. After its expanded, system shows chains and elements, that contain found issues and require attention.
@@ -55,6 +58,6 @@ Navigate to Admin Tools and then "Diagnostic page" tab. Select required validati
 - **Scripting found in the chain** - rule allows to find chains and chain elements which contain scripting.
 - **Sub-chain is used by single chain or not used at all** - rule allows to find chains which were not used in other chains, or they were used only once.
 - **Timeout is empty** - rule allows to find chain elements with empty timeout value.
-- **Unsupported elements found in the chain** - rule allows to find chains with elements that not supported by the system anymore.
+- **Unsupported elements found in the chain** - rule allows to find chains with elements that are no longer supported by the system.
 
 > ℹ️ **Note:** **Each validation performed on chain element data relies solely on the current design-time chain configuration.** Chain snapshots or deployments do not affect the results of these validations.

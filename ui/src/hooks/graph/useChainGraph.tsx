@@ -52,6 +52,9 @@ import {
   sortParentsBeforeChildren,
 } from "../../misc/chain-graph-utils.ts";
 import {
+  arrangeSwimlaneChildren,
+} from "../../misc/chain-graph-swimlane-utils.ts";
+import {
   ChainGraphNode,
   ChainGraphNodeData,
   OnDeleteEvent,
@@ -135,6 +138,27 @@ const getRelayoutRootIdsForContentChanges = (
 
 const buildNodeMap = (nodes: ChainGraphNode[]): ChainGraphNodeMap =>
   new Map(nodes.map((node) => [node.id, node]));
+
+const preserveCurrentNodeSelection = (
+  nextNodes: ChainGraphNode[],
+  currentNodes: ChainGraphNode[],
+): ChainGraphNode[] => {
+  const currentNodeById = buildNodeMap(currentNodes);
+
+  return nextNodes.map((nextNode) => {
+    const currentNode = currentNodeById.get(nextNode.id);
+
+    if (!currentNode && !nextNode.hidden) {
+      return nextNode;
+    }
+
+    const selected = nextNode.hidden ? false : !!currentNode?.selected;
+
+    return nextNode.selected === selected
+      ? nextNode
+      : { ...nextNode, selected };
+  });
+};
 
 const getAbsolutePosition = (
   node: ChainGraphNode,
@@ -571,7 +595,13 @@ export const useChainGraph = () => {
               )
             : arrangedNodes;
 
-        const withToggle = attachToggle(overlapResolvedNodes);
+        const arranged = arrangeSwimlaneChildren(
+          overlapResolvedNodes,
+          layoutSourceEdges,
+          direction,
+          chainContext?.chain?.defaultSwimlaneId,
+        );
+        const withToggle = attachToggle(arranged);
         const visibleNodes = reapplyNodesVisibility(withToggle);
         const withCounts = setNestedUnitCounts(visibleNodes);
         const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
@@ -580,7 +610,9 @@ export const useChainGraph = () => {
           layoutSourceEdges,
         );
 
-        setNodes(orderedVisibleNodes);
+        setNodes((currentNodes) =>
+          preserveCurrentNodeSelection(orderedVisibleNodes, currentNodes),
+        );
         setEdges(visibleEdges);
 
         structureChangedParentIdsRef.current = null;
@@ -618,6 +650,7 @@ export const useChainGraph = () => {
     reapplyNodesVisibility,
     reapplyEdgesVisibility,
     setNestedUnitCounts,
+    chainContext?.chain?.defaultSwimlaneId
   ]);
 
   useEffect(() => {
@@ -687,6 +720,7 @@ export const useChainGraph = () => {
     async (
       sourceNodes: ChainGraphNode[],
       sourceEdges: Edge[],
+      defaultSwimlaneId: string | undefined,
       parentIds?: string[],
       options?: StructureChangedOptions,
     ) => {
@@ -736,13 +770,21 @@ export const useChainGraph = () => {
         return;
       }
 
-      const withToggle = attachToggle(arrangedNodes);
+      const arranged = arrangeSwimlaneChildren(
+        arrangedNodes,
+        sourceEdges,
+        direction,
+        defaultSwimlaneId,
+      );
+      const withToggle = attachToggle(arranged);
       const visibleNodes = reapplyNodesVisibility(withToggle);
       const withCounts = setNestedUnitCounts(visibleNodes);
       const orderedNodes = sortParentsBeforeChildren(withCounts);
       const visibleEdges = reapplyEdgesVisibility(visibleNodes, sourceEdges);
 
-      setNodes(orderedNodes);
+      setNodes((currentNodes) =>
+        preserveCurrentNodeSelection(orderedNodes, currentNodes),
+      );
       setEdges(visibleEdges);
     },
     [
@@ -949,11 +991,13 @@ export const useChainGraph = () => {
           Array.from(draftNodeById.values()),
         );
 
-        const hasCreatedSubtree = createdNodes.some(
+        const hasCreatedSubtree = newNode.type === "swimlane" || createdNodes.some(
           (node) => node.id !== newNode.id,
         );
 
         const changedContainerId = targetParentId ?? newNode.parentId;
+
+        const defaultSwimlaneId = response.createdDefaultSwimlaneId ?? chainContext.chain.defaultSwimlaneId;
 
         if (changedContainerId) {
           const relayoutRootIds = getRelayoutRootIdsForContentChanges(
@@ -961,9 +1005,9 @@ export const useChainGraph = () => {
             draftNodes,
           );
 
-          await layoutAndCommit(draftNodes, currentEdges, relayoutRootIds);
+          await layoutAndCommit(draftNodes, currentEdges, defaultSwimlaneId, relayoutRootIds);
         } else if (hasCreatedSubtree) {
-          await layoutAndCommit(draftNodes, currentEdges, [newNode.id]);
+          await layoutAndCommit(draftNodes, currentEdges, defaultSwimlaneId, [newNode.id]);
         } else {
           layoutRequestIdRef.current += 1;
 
@@ -976,7 +1020,9 @@ export const useChainGraph = () => {
             currentEdges,
           );
 
-          setNodes(ordered);
+          setNodes((currentNodes) =>
+            preserveCurrentNodeSelection(ordered, currentNodes),
+          );
           setEdges(visibleEdges);
         }
 
@@ -1176,6 +1222,7 @@ export const useChainGraph = () => {
         const draftEdges = edges.filter((edge) => !deletedEdgeIds.has(edge.id));
 
         const affectedParentIds = Array.from(affectedParents);
+        const defaultSwimlaneId = chainContext.chain.defaultSwimlaneId;
 
         if (affectedParentIds.length) {
           const relayoutRootIds = getRelayoutRootIdsForContentChanges(
@@ -1183,17 +1230,25 @@ export const useChainGraph = () => {
             draftNodes,
           );
 
-          await layoutAndCommit(draftNodes, draftEdges, relayoutRootIds);
+          await layoutAndCommit(draftNodes, draftEdges, defaultSwimlaneId, relayoutRootIds);
         } else {
           layoutRequestIdRef.current += 1;
 
-          const withToggle = attachToggle(draftNodes);
+          const arranged = arrangeSwimlaneChildren(
+            draftNodes,
+            draftEdges,
+            direction,
+            defaultSwimlaneId,
+          );
+          const withToggle = attachToggle(arranged);
           const visibleNodes = reapplyNodesVisibility(withToggle);
           const withCounts = setNestedUnitCounts(visibleNodes);
           const orderedNodes = sortParentsBeforeChildren(withCounts);
           const visibleEdges = reapplyEdgesVisibility(visibleNodes, draftEdges);
 
-          setNodes(orderedNodes);
+          setNodes((currentNodes) =>
+            preserveCurrentNodeSelection(orderedNodes, currentNodes),
+          );
           setEdges(visibleEdges);
         }
 
@@ -1221,6 +1276,7 @@ export const useChainGraph = () => {
       setNodes,
       setEdges,
       onChainUpdate,
+      direction,
     ],
   );
 
@@ -1256,13 +1312,23 @@ export const useChainGraph = () => {
   };
 
   const onNodeDragStop = useCallback(
-    async (_event: React.MouseEvent, draggedNode: ChainGraphNode) => {
+    async (
+      _event: React.MouseEvent,
+      draggedNode: ChainGraphNode,
+      draggedNodes?: ChainGraphNode[],
+    ) => {
       if (!chainContext?.chain) return;
       if (isLibraryLoading) return;
 
       cancelPendingHoverVisuals();
 
-      const allBefore = applyHighlight(nodesRef.current);
+      const liveDraggedNodes = draggedNodes?.length
+        ? draggedNodes
+        : [draggedNode];
+      const draggedNodeById = buildNodeMap(liveDraggedNodes);
+      const allBefore = applyHighlight(
+        nodesRef.current.map((node) => draggedNodeById.get(node.id) ?? node),
+      );
       const nodeMap = buildNodeMap(allBefore);
 
       const originalNode = nodeMap.get(draggedNode.id);
@@ -1275,7 +1341,11 @@ export const useChainGraph = () => {
         .filter((node) => node.selected)
         .map((node) => node.id);
 
-      const selectedIds = selected.length ? selected : [originalNode.id];
+      const selectedIds = draggedNodes?.length
+        ? Array.from(new Set(draggedNodes.map((node) => node.id)))
+        : selected.length
+          ? selected
+          : [originalNode.id];
       const selectedIdSet = new Set(selectedIds);
 
       const originalParentId = originalNode.parentId;
@@ -1313,14 +1383,14 @@ export const useChainGraph = () => {
       );
 
       if (isInvalidParentTarget) {
-        setNodes(allBefore);
+        setNodes((currentNodes) => applyHighlight(currentNodes));
         return;
       }
 
       const isParentChanged = parentNodeId !== originalParentId;
 
       if (!isParentChanged) {
-        setNodes(allBefore);
+        setNodes((currentNodes) => applyHighlight(currentNodes));
         return;
       }
 
@@ -1392,6 +1462,7 @@ export const useChainGraph = () => {
       await layoutAndCommit(
         sortParentsBeforeChildren(draftNodes),
         edgesRef.current,
+        chainContext.chain.defaultSwimlaneId,
         affectedParentIds.length ? affectedParentIds : undefined,
       );
     },
@@ -1410,6 +1481,9 @@ export const useChainGraph = () => {
 
   const updateNodeData = useCallback(
     (element: Element, node: ChainGraphNode) => {
+      // Without the library element the node data falls back to the raw element
+      // type, so the type badge would show "script" instead of "Script".
+      const libraryElement = getLibraryElement(element, libraryElements);
       setNodes((prevNodes) =>
         prevNodes.map((prevNode) => {
           if (prevNode.id === node.id) {
@@ -1417,7 +1491,7 @@ export const useChainGraph = () => {
               ...prevNode,
               data: {
                 ...prevNode.data,
-                ...getDataFromElement(element),
+                ...getDataFromElement(element, libraryElement),
               },
               parentId: getEffectiveParentId(element),
             };
@@ -1429,7 +1503,7 @@ export const useChainGraph = () => {
         }),
       );
     },
-    [setNodes],
+    [libraryElements, setNodes],
   );
 
   return {

@@ -1,6 +1,8 @@
 ---
 name: Engine Release
 
+run-name: Engine Release (${{ inputs.release-type }})
+
 on:
   workflow_call:
     inputs:
@@ -43,7 +45,7 @@ on:
   workflow_dispatch:
     inputs:
       release-type:
-        description: "Release type (ignored if a version override is given)"
+        description: "patch | minor | major"
         type: choice
         options:
           - "patch"
@@ -51,11 +53,6 @@ on:
           - "major"
         required: false
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
-        required: false
-        default: ""
-        type: string
       profile:
         description: "Maven profile to use"
         type: choice
@@ -86,7 +83,10 @@ jobs:
     with:
       module: engine
       release-type: ${{ inputs.release-type }}
-      version: ${{ inputs.version }}
+      # release-all passes the wave version here; a manual dispatch has no
+      # version field, so inputs.version is unset and the module bumps its own
+      # <revision> by release-type.
+      version: ${{ inputs.version || '' }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       mvn-args: ${{ inputs.mvn-args }}

@@ -1,0 +1,118 @@
+[
+    {
+        "pattern": "^/chains$",
+        "doc": "/doc/01__Chains/chains.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "doc": "/doc/01__Chains/1__Graph/graph.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/graph",
+        "doc": "/doc/01__Chains/1__Graph/graph.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/snapshots",
+        "doc": "/doc/01__Chains/2__Snapshots/snapshots.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/deployments",
+        "doc": "/doc/01__Chains/3__Deployments/deployments.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/sessions",
+        "doc": "/doc/01__Chains/4__Sessions/sessions.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/logging-settings",
+        "doc": "/doc/01__Chains/5__Logging/logging.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/masking",
+        "doc": "/doc/01__Chains/6__Masking/masking.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/properties",
+        "doc": "/doc/01__Chains/7__Properties/properties.md"
+    },
+    {
+        "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/testing",
+        "doc": "/doc/01__Chains/8__Testing/testing.md"
+    },
+    {
+        "pattern": "/services#external",
+        "doc": "/doc/02__Services/1__External/external.md"
+    },
+    {
+        "pattern": "/services#internal",
+        "doc": "/doc/02__Services/2__Inner_Cloud/inner_cloud.md"
+    },
+    {
+        "pattern": "/services#implemented",
+        "doc": "/doc/02__Services/3__Implemented/implemented.md"
+    },
+    {
+        "pattern": "/services#context",
+        "doc": "/doc/02__Services/4__Context/context.md"
+    },
+    {
+        "pattern": "/services#mcp",
+        "doc": "/doc/02__Services/5__MCP/mcp.md"
+    },
+    {
+        "pattern": "/services$",
+        "doc": "/doc/02__Services/services.md"
+    },
+    {
+        "pattern": "/admintools/domains",
+        "doc": "/doc/03__Admin_Tools/1__Domains/domains.md"
+    },
+    {
+        "pattern": "/admintools/variables/common",
+        "doc": "/doc/03__Admin_Tools/2__Variables/variables.md"
+    },
+    {
+        "pattern": "/admintools/variables/secured",
+        "doc": "/doc/03__Admin_Tools/2__Variables/variables.md"
+    },
+    {
+        "pattern": "/admintools/audit",
+        "doc": "/doc/03__Admin_Tools/3__Audit/audit.md"
+    },
+    {
+        "pattern": "/admintools/import-instructions",
+        "doc": "/doc/03__Admin_Tools/4__Import_Instructions/import_instructions.md"
+    },
+    {
+        "pattern": "/admintools/sessions",
+        "doc": "/doc/03__Admin_Tools/5__Sessions/session_log.md"
+    },
+    {
+        "pattern": "/admintools/access-control",
+        "doc": "/doc/03__Admin_Tools/6__Access_Control/access_control.md"
+    },
+    {
+        "pattern": "/admintools/detailed-design/templates",
+        "doc": "/doc/03__Admin_Tools/7__Design_Templates/design_templates.md"
+    },
+    {
+        "pattern": "/admintools/exchanges",
+        "doc": "/doc/03__Admin_Tools/8__Live_Exchanges/live_exchanges.md"
+    },
+    {
+        "pattern": "/admintools/testing",
+        "doc": "/doc/03__Admin_Tools/9__Testing/testing.md"
+    },
+    {
+        "pattern": "/devtools/maas/kafka",
+        "doc": "/doc/04__Dev_Tools/1__MaaS/maas.md#view-kafka-tab"
+    },
+    {
+        "pattern": "/devtools/maas/rabbitmq",
+        "doc": "/doc/04__Dev_Tools/1__MaaS/maas.md#view-rabbitmq-tab"
+    },
+    {
+        "pattern": "/devtools/diagnostic/validations",
+        "doc": "/doc/04__Dev_Tools/2__Diagnostic/diagnostic.md"
+    }
+]

@@ -7,6 +7,7 @@ import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.SchedulerFactory;
 import org.quartz.impl.StdSchedulerFactory;
+import org.quartz.impl.matchers.EverythingMatcher;
 
 import java.util.Properties;
 
@@ -16,7 +17,12 @@ public class QuartzSchedulerProvider {
     @Priority(1)
     public Scheduler quartzScheduler() throws SchedulerException {
         SchedulerFactory schedulerFactory = new StdSchedulerFactory(getSchedulerProperties());
-        return schedulerFactory.getScheduler();
+        Scheduler scheduler = schedulerFactory.getScheduler();
+        // Without this, beans that require an active RequestScoped context (e.g. security
+        // identity lookups used by context propagation) fail when a chain is triggered by the scheduler
+        scheduler.getListenerManager().addJobListener(
+                new RequestContextActivatingJobListener(), EverythingMatcher.allJobs());
+        return scheduler;
     }
 
     private static Properties getSchedulerProperties() {

@@ -1,0 +1,53 @@
+# Used only by the release/* branches, whose per-module release job still runs
+# Release Drafter. Release Drafter reads its config from the default branch, so it
+# has to live here even though main cuts releases via .github/release.yml and
+# scripts/build-drop-release.sh.
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+
+categories:
+  - title: '💥 Breaking Changes'
+    labels:
+      - breaking-change
+  - title: '💡 New Features'
+    labels:
+      - feature
+      - enhancement
+  - title: '🐞 Bug Fixes'
+    labels:
+      - bug
+      - fix
+      - bugfix
+  - title: '⚙️ Technical Debt'
+    labels:
+      - refactor
+  - title: '📝 Documentation'
+    labels:
+      - documentation
+
+change-template: "- (#$NUMBER) $TITLE by @$AUTHOR"
+
+no-changes-template: 'No significant changes'
+
+template: |
+  ## 🚀 Release
+
+  ### What's Changed
+  $CHANGES
+
+  ---
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+version-resolver:
+  major:
+    labels:
+      - major
+  minor:
+    labels:
+      - minor
+  patch:
+    labels:
+      - patch
+  default: patch

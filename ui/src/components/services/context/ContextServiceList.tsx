@@ -173,7 +173,7 @@ export const ContextServiceList: React.FC = () => {
               {
                 key: "export",
                 label: "Export",
-                icon: <OverridableIcon name={"export"} />,
+                icon: <OverridableIcon name={"cloudDownload"} />,
                 onClick: () => void handleExportSelected([system]),
                 require: { service: ["export"] },
               },
@@ -212,6 +212,7 @@ export const ContextServiceList: React.FC = () => {
 
   useEffect(() => {
     void loadServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, searchString]);
 
   const handleEdit = (record: ServiceEntity) => {

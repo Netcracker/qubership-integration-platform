@@ -20,6 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.*;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementValidationException;
@@ -27,8 +30,6 @@ import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.runtime.catalog.model.ElementsWithSystemUsage;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.UsedSystem;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemUsageResponse;
-import org.qubership.integration.platform.runtime.catalog.model.library.*;
-import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -40,8 +41,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.CreateElementRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.lang.NonNull;
@@ -55,8 +55,8 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 
 @Slf4j
 @Service
@@ -74,10 +74,11 @@ public class ElementService extends ElementBaseService {
     protected final SwimlaneService swimlaneService;
     protected final ActionsLogService actionLogger;
     protected final OrderedElementService orderedElementService;
-    protected final ElementUtils elementUtils;
     protected final SystemEnvironmentsGenerator systemEnvironmentsGenerator;
     protected final SystemBaseService systemBaseService;
     protected final SystemModelBaseService systemModelBaseService;
+    protected final MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
+    protected final PropertyPlaceholderService propertyPlaceholderService;
 
     @Autowired
     public ElementService(
@@ -88,10 +89,11 @@ public class ElementService extends ElementBaseService {
             SwimlaneService swimlaneService,
             ActionsLogService actionLogger,
             OrderedElementService orderedElementService,
-            ElementUtils elementUtils,
             SystemEnvironmentsGenerator systemEnvironmentsGenerator,
             SystemBaseService systemBaseService,
-            SystemModelBaseService systemModelBaseService
+            SystemModelBaseService systemModelBaseService,
+            MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper,
+            PropertyPlaceholderService propertyPlaceholderService
     ) {
         super(elementRepository);
         this.auditingHandler = jpaAuditingHandler;
@@ -100,10 +102,11 @@ public class ElementService extends ElementBaseService {
         this.swimlaneService = swimlaneService;
         this.actionLogger = actionLogger;
         this.orderedElementService = orderedElementService;
-        this.elementUtils = elementUtils;
         this.systemEnvironmentsGenerator = systemEnvironmentsGenerator;
         this.systemBaseService = systemBaseService;
         this.systemModelBaseService = systemModelBaseService;
+        this.mandatoryPropertyVerificationHelper = mandatoryPropertyVerificationHelper;
+        this.propertyPlaceholderService = propertyPlaceholderService;
     }
 
     public List<ChainElement> findAllBySnapshotIdAndType(String snapshotId, String type) {
@@ -237,7 +240,7 @@ public class ElementService extends ElementBaseService {
     @ChainModification
     public ChainElement clone(String elementId, String parentId) {
         ChainElement copy = recursiveClone(findById(elementId));
-        elementUtils.updateResetOnCopyProperties(copy);
+        propertyPlaceholderService.updateResetOnCopyProperties(copy);
 
         if (parentId != null) {
             ContainerChainElement parent = findById(parentId, ContainerChainElement.class);
@@ -297,7 +300,7 @@ public class ElementService extends ElementBaseService {
         String swimlaneId = createElementRequest.getSwimlaneId();
         Chain chain = chainFinderService.findById(chainId);
         checkElementParentRestriction(elementType, null);
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(elementType);
+        ElementDescriptor descriptor = libraryService.getElementDescriptorOrDefault(elementType);
 
         SwimlaneChainElement swimlane = findDefaultSwimlaneWithLockingByChainId(chainId)
                 .orElse(null);
@@ -319,8 +322,10 @@ public class ElementService extends ElementBaseService {
                                 .filter(element -> StringUtils.equals(parentId, element.getId()))
                                 .findFirst())
                         .map(this::findRootParent)
-                        .map(libraryService::getElementDescriptor)
-                        .map(elementDescriptor -> ElementType.REUSE == elementDescriptor.getType())
+                        .map(ChainElement::getType)
+                        .flatMap(libraryService::lookupElementDescriptor)
+                        .map(ElementDescriptor::getType)
+                        .map(ElementType.REUSE::equals)
                         .orElse(false);
                 if (swimlane.isReuseSwimlane() && !rootParentReuse) {
                     throw new ElementCreationException("Only Reuse element can be added to Reuse Swimlane");
@@ -378,7 +383,7 @@ public class ElementService extends ElementBaseService {
                 String libraryElement = childDefinition.getKey();
                 Quantity libraryElementQuantity = childDefinition.getValue();
 
-                ElementDescriptor childTypeDefinition = libraryService.getElementDescriptor(libraryElement);
+                ElementDescriptor childTypeDefinition = libraryService.getElementDescriptorOrDefault(libraryElement);
                 if (childTypeDefinition.isDeprecated() && !descriptor.isDeprecated()) {
                     continue;
                 }
@@ -409,10 +414,8 @@ public class ElementService extends ElementBaseService {
     }
 
     protected void checkElementParentRestriction(String elementType, String parentElementType) {
-        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(elementType);
-        if (elementDescriptor == null) {
-            throw new ElementValidationException("Element of type " + elementType + " cannot be a child");
-        }
+        ElementDescriptor elementDescriptor = libraryService.lookupElementDescriptor(elementType)
+            .orElseThrow(() -> new ElementValidationException("Element of type " + elementType + " cannot be a child"));
 
         if (elementDescriptor.getParentRestriction() == null || elementDescriptor.getParentRestriction().isEmpty()) {
             return;
@@ -426,7 +429,7 @@ public class ElementService extends ElementBaseService {
     }
 
     protected void checkAddingChildParentRestriction(String childElementType, ContainerChainElement parent) {
-        ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
+        ElementDescriptor parentDescriptor = libraryService.lookupElementDescriptor(parent.getType()).orElse(null);
         if (parentDescriptor != null) {
             Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
 
@@ -454,7 +457,7 @@ public class ElementService extends ElementBaseService {
     }
 
     protected void checkIfAllowedInContainers(String elementType) {
-        Optional.ofNullable(libraryService.getElementDescriptor(elementType))
+        libraryService.lookupElementDescriptor(elementType)
                 .filter(descriptor -> !descriptor.isAllowedInContainers())
                 .ifPresent(descriptor -> {
                     throw new ElementValidationException(
@@ -473,7 +476,7 @@ public class ElementService extends ElementBaseService {
         parent = elementRepository.save(auditingHandler.markModified(parent));
 
         if (!isImportProcess) {
-            ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
+            ElementDescriptor parentDescriptor = libraryService.lookupElementDescriptor(parent.getType()).orElse(null);
             if (parentDescriptor != null) {
                 Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
                 if (MapUtils.isNotEmpty(childrenMap) && childrenMap.get(child.getType()) != null) {
@@ -500,7 +503,7 @@ public class ElementService extends ElementBaseService {
                 .collect(Collectors.toMap(
                         ElementProperty::getName,
                         prop -> PropertyValueType.STRING.equals(prop.getType())
-                                ? ElementUtils.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
+                                ? PropertyPlaceholderService.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
                                 : prop.defaultValue()
                 )));
     }
@@ -593,7 +596,7 @@ public class ElementService extends ElementBaseService {
                 chainDiff.addUpdatedElement(parentElement);
             }
             chainDiff.addRemovedElements(elements);
-            Optional.ofNullable(libraryService.getElementDescriptor(element))
+            libraryService.lookupElementDescriptor(element.getType())
                     .filter(ElementDescriptor::isReferencedByAnotherElement)
                     .ifPresent(descriptor -> deleteElementReferences(chainDiff, element));
 
@@ -792,25 +795,26 @@ public class ElementService extends ElementBaseService {
     }
 
     public boolean isElementDeprecated(ChainElement chainElement) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(chainElement))
+        return libraryService.lookupElementDescriptor(chainElement.getType())
                 .map(ElementDescriptor::isDeprecated)
                 .orElse(false);
     }
 
     public boolean isElementUnsupported(ChainElement chainElement) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(chainElement))
+        return libraryService.lookupElementDescriptor(chainElement.getType())
                 .map(ElementDescriptor::isUnsupported)
                 .orElse(false);
     }
 
     public void validateElementProperties(ChainElement element) {
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(element);
+        ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType())
+            .orElse(null);
         if (descriptor == null) {
             return;
         }
 
         for (ElementProperty property : descriptor.getProperties().getAll()) {
-            if (!elementUtils.isMandatoryPropertyPresent(property, element)) {
+            if (!mandatoryPropertyVerificationHelper.isMandatoryPropertyPresent(property, element)) {
                 throw new ElementValidationException("Value not found for " + property.getName());
             }
 

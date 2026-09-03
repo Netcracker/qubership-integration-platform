@@ -34,6 +34,7 @@ import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { DeleteDeploymentWarningModal } from "../components/modal/DeleteDeploymentWarningModal.tsx";
 
 function deploymentMatchesSearch(
   deployment: Deployment,
@@ -161,14 +162,22 @@ export const Deployments: React.FC = () => {
                 size="small"
                 icon={<OverridableIcon name="delete" />}
                 type="text"
-                onSubmit={async () => deleteDeployment(deployment)}
+                onSubmit={() =>
+                  showModal({
+                    component: (
+                      <DeleteDeploymentWarningModal
+                        onDelete={() => void deleteDeployment(deployment)}
+                      />
+                    ),
+                  })
+                }
               />
             </Tooltip>
           </Require>
         ),
       },
     ],
-    [snapshots, deleteDeployment],
+    [snapshots, deleteDeployment, showModal],
   );
 
   const { orderedColumns, columnSettingsButton } =

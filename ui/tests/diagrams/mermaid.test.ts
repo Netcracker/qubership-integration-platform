@@ -65,6 +65,43 @@ describe("exportAsMermaid", () => {
     expect(result).toContain("#62;"); // >
   });
 
+  it("should export a participant id with spaces as a single token", () => {
+    const result = exportAsMermaid(
+      makeDiagram({
+        participants: [p("Service: A B", "Service: A B")],
+        actions: [
+          {
+            type: "message",
+            fromId: "Service: A B",
+            toId: "Service: A B",
+            arrowType: "arrow-solid",
+          },
+        ],
+      }),
+    );
+    const id = "Service_58__32_A_32_B";
+    expect(result).toContain(`participant ${id} as Service#58; A B;`);
+    expect(result).toContain(`${id} ->> ${id};`);
+  });
+
+  it("should use the same identifier in declarations, messages, and activations", () => {
+    const id = "SFTP server: sftp://user@host:22/out";
+    const result = exportAsMermaid(
+      makeDiagram({
+        participants: [p(id)],
+        actions: [
+          { type: "activate", participantId: id },
+          { type: "deactivate", participantId: id },
+        ],
+      }),
+    );
+    const declared = /^participant (\S+) as /m.exec(result)?.[1];
+    expect(declared).toBeDefined();
+    expect(declared).toMatch(/^[0-9a-zA-Z_]+$/);
+    expect(result).toContain(`activate ${declared};`);
+    expect(result).toContain(`deactivate ${declared};`);
+  });
+
   it("should export a simple message action", () => {
     const actions: Action[] = [
       {
@@ -294,7 +331,7 @@ describe("exportAsMermaid", () => {
       makeDiagram({ chainParticipantId: "chain-1", actions }),
     );
     expect(result).toContain("rect rgb(250, 250, 250);");
-    expect(result).toContain("note right of chain#45;1 : My Group;");
+    expect(result).toContain("note right of chain_45_1 : My Group;");
     expect(result).toContain("end;");
   });
 

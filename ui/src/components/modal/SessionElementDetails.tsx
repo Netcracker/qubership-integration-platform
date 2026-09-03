@@ -150,6 +150,8 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
             }}
             typeRenderer={(property) => property.type}
             valueRenderer={(property) => property.value}
+            typeGetter={(property) => property?.type ?? ""}
+            valueGetter={(property) => property?.value ?? ""}
             onColumnClick={(item, column) =>
               void copyItemFieldToClipboard(
                 item,

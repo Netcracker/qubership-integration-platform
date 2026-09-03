@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Form, Input, Button, Select, Descriptions, Skeleton } from "antd";
-import {
-  IntegrationSystem,
-  IntegrationSystemType,
-} from "../../../api/apiTypes";
+import { IntegrationSystem } from "../../../api/apiTypes";
 import { api } from "../../../api/api";
 import { useAsyncRequest } from "../useAsyncRequest";
 import { SourceFlagTag } from "../ui/SourceFlagTag";
@@ -19,6 +16,7 @@ import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { ContextServiceTag } from "../ServiceLabel.tsx";
 import { useLabelsForm } from "../useLabelsForm.ts";
 import { useUnsavedChangesWithModal } from "../useUnsavedChangesWithModal.tsx";
+import { formatSnakeCased } from "../../../misc/format-utils.ts";
 
 export interface ServiceParametersTabProps {
   systemId: string;
@@ -32,7 +30,6 @@ interface ServiceFormValues {
   name: string;
   description?: string;
   labels: string[];
-  type: IntegrationSystemType;
 }
 
 export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
@@ -99,7 +96,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
       ...system,
       name: values.name,
       description: values.description,
-      type: isVsCode ? values.type : system.type,
+      type: system.type,
       labels: [
         ...technicalLabels.map((name) => ({ name, technical: true })),
         ...userLabels.map((name) => ({ name, technical: false })),
@@ -182,26 +179,12 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
               "-"
             )}
           </Descriptions.Item>
+          {isVsCode && (
+            <Descriptions.Item label="Type">
+              {formatSnakeCased(system.type)}
+            </Descriptions.Item>
+          )}
         </Descriptions>
-        {isVsCode && (
-          <Form.Item
-            label="Type"
-            name="type"
-            rules={[{ required: true, message: "Select service type" }]}
-          >
-            <Select
-              onChange={() => setHasChanges(true)}
-              options={[
-                { value: IntegrationSystemType.INTERNAL, label: "Internal" },
-                { value: IntegrationSystemType.EXTERNAL, label: "External" },
-                {
-                  value: IntegrationSystemType.IMPLEMENTED,
-                  label: "Implemented",
-                },
-              ]}
-            />
-          </Form.Item>
-        )}
         <Form.Item label="Labels" name="labels">
           <Select
             mode="tags"

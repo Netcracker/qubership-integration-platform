@@ -9,8 +9,14 @@ Chain should be deployed at least on one domain to enable processing of integrat
 
 Qubership Integration Platform is an engine domain orchestrator in inner namespace, hence for Operator's pod (Catalog or other microservice) there should be a service account automatically created in K8S. Through this account all engines are going to be managed.
 
+Engine domains are of two types:
+- **Classic** - a domain with engine pods pre-configured via the deployment descriptor.
+- **Micro** - a domain created on demand: deploying chains under a domain name that does not exist yet provisions the domain as a Camel K custom resource running only the deployed chain(s). A **`micro`** tag marks this domain type wherever a domain is shown, and micro domains can be deleted directly from the **"Domains"** tab.
+
+> ℹ️ **Note**: Availability of the **Classic** and **Micro** domain types is controlled independently via configuration of specific environment parameters (for the correct parameter names, contact your system administrator). If a domain type is disabled, no domains of that type are available for deployment.
+
 Qubership Integration Platform provides view-only window where domain's information could be seen:
-- Increasing the number of engine domains is available **only via deployment descriptor during the deployment** (not in runtime).
+- Increasing the number of **Classic** engine domains is available **only via deployment descriptor during the deployment** (not in runtime). **Micro** domains, in contrast, are created directly from the deployment dialogs — see [Deployments](../../01__Chains/3__Deployments/deployments.md).
 - **Scaling** (increase/decrease count of engines) is available for each domain independently via configuration on K8S side before installation.
 
 > **Useful links:**
@@ -25,15 +31,18 @@ Qubership Integration Platform provides view-only window where domain's informat
 ---
 
 ### View Domains
-**"Domains"** tab is intended to provide the ability for monitoring of currently working engine domains and tracking the information about which chains on which engine domains were deployed (with snapshot and deployment status). To adjust domain workload, Admin is able to redeploy particular chains or scale up/down (not from QIP UI) particular engine domain.
+**"Domains"** tab is intended to provide the ability for monitoring of currently working engine domains and tracking the information about which chains on which engine domains were deployed (with snapshot and deployment status). To adjust domain workload, Admin is able to redeploy particular chains or scale up/down (not from <ins>Web UI</ins>) particular engine domain.
 
 **Domain table** structure:
-- **Domain** - name of the engine domain.
+- **Domain** - name of the engine domain. Domains of **Micro** type display a **`micro`** tag and a ![delete](img/delete.svg) button next to the name; click the button to delete the micro domain.
 - **Version** - current build of Qubership Integration Platform.
 - **Desired engines** - count of engines under domain.
 - **Namespace** - K8S namespace.
 - ![20](img/down.svg) - expands/collapses the domain.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search domains** - search box, provides ability to find particular domain(s).
   - ![Table settings icon](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 

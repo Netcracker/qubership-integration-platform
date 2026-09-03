@@ -21,3 +21,4 @@ Click "Admin Tools" main tab on top of the screen to get access to additional se
 - [Design Templates](7__Design_Templates/design_templates.md) - allows to manage templates, utilized for chain document generation.
 - [Sessions](5__Sessions/session_log.md) - contains details about all registered sessions in the system.
 - [Access Control](6__Access_Control/access_control.md) - allows to globally manage roles for HTTP Triggers.
+- [Testing](9__Testing/testing.md) - contains test cases, endpoint mocks and test runs across all chains.

@@ -242,6 +242,11 @@ const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
       <span style={clickableStyle} onClick={() => void handleClick()}>
         {getIcon(record)}
         {record.name}
+        {isIntegrationSystem(record) && record.discovered && (
+          <span style={{ marginLeft: 8 }}>
+            <SourceFlagTag source={record.discovered} />
+          </span>
+        )}
       </span>
       {modalOpen && isSystemOperation(record) && (
         <OperationInfoModal

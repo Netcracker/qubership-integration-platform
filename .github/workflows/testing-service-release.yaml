@@ -1,0 +1,219 @@
+---
+# Release the repository's only Go module.
+#
+# Model (bump-before, like maven and npm): testing-service/VERSION holds the last
+# released version. A release bumps it per release-type (or the `version`
+# override), writes it back, commits, and tags the bump commit.
+#
+# The tag is `testing-service/vX.Y.Z`, not the repository's usual
+# `<module>-vX.Y.Z`: the go command resolves a module living in a repository
+# subdirectory only from tags carrying that subdirectory as a prefix. There is no
+# registry upload for a Go module — the tag is the release, which is why the
+# module is built and tested here before it is cut.
+#
+# commit-and-push.sh pushes the tag before the branch, so it survives a rejected
+# protected-branch push — the recovery sentinel: tag exists => a prior run tagged
+# but the bump never landed, so recover=true re-applies the bump only.
+#
+# The bump push needs a GitHub App token on the branch-protection bypass list
+# (vars.GH_BUMP_VERSION_APP_ID + secrets.GH_BUMP_VERSION_APP_KEY); without it
+# GITHUB_TOKEN can't bypass and recovery retries on the next run.
+
+name: Testing Service Release
+
+on:
+  workflow_call:
+    inputs:
+      release-type:
+        description: "patch | minor | major"
+        required: false
+        type: string
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump the current VERSION by release-type."
+        required: false
+        type: string
+        default: ""
+      build-docker:
+        description: "Build Docker image"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
+        description: "Private key of the GitHub App that bypasses branch protection for the version-bump push. Falls back to GITHUB_TOKEN if unset."
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: "Release type (ignored if a version override is given)"
+        type: choice
+        options:
+          - "patch"
+          - "minor"
+          - "major"
+        required: false
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump the current VERSION by release-type."
+        required: false
+        default: ""
+        type: string
+      build-docker:
+        description: "Build Docker image"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  # Key on the module, not github.workflow (the caller's name in a reusable), so
+  # every release path for the module serialises instead of racing.
+  group: qip-release-testing-service-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  # `go 1.22` in go.mod is a ceiling, not a floor: the downstream build compiles
+  # this module with GOTOOLCHAIN=local, so a released tag must not depend on a
+  # newer toolchain.
+  GOTOOLCHAIN: local
+
+jobs:
+  # Preflight: bump VERSION per release-type (or the override); recover if the
+  # tag already exists.
+  check-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release-version: ${{ steps.compute.outputs.release-version }}
+      release-tag: ${{ steps.compute.outputs.release-tag }}
+      recover: ${{ steps.compute.outputs.recover }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # The tag check queries the remote via ls-remote, so shallow is fine.
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Compute release version
+        id: compute
+        env:
+          ECOSYSTEM: go
+          MODULE: testing-service
+          RELEASE_TYPE: ${{ inputs.release-type }}
+          VERSION_OVERRIDE: ${{ inputs.version }}
+        run: bash scripts/compute-release-version.sh
+
+  # Verify, then write VERSION, commit, and tag. Recovery skips the checks and
+  # only re-applies the bump.
+  tag-release:
+    needs: check-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
+      # Gate the app-token step on the App key being present (secrets are not
+      # allowed in `if:`, env derived from them is).
+      APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+    steps:
+      # Mint a GitHub App token so the version-bump push can bypass branch
+      # protection. Skipped when the App key is unset; checkout then falls back
+      # to GITHUB_TOKEN.
+      - name: Prepare app token
+        id: app-token
+        if: ${{ env.APP_KEY != '' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
+          private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          # Persist credentials: the tag and the version-bump commit are pushed
+          # at the end via the App token (or GITHUB_TOKEN if the App is unset).
+          persist-credentials: true
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        if: ${{ needs.check-version.outputs.recover != 'true' }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: testing-service/go.mod
+          cache-dependency-path: testing-service/go.sum
+
+      # A Go tag is immutable once the module proxy has fetched it, so the checks
+      # that gate a pull request gate the tag as well.
+      - name: Dependency allowlist
+        if: ${{ needs.check-version.outputs.recover != 'true' }}
+        run: scripts/check-go-dependencies.sh testing-service
+
+      - name: Build
+        if: ${{ needs.check-version.outputs.recover != 'true' }}
+        working-directory: testing-service
+        run: go build ./...
+
+      - name: Test
+        if: ${{ needs.check-version.outputs.recover != 'true' }}
+        working-directory: testing-service
+        run: go test ./...
+
+      - name: Write the released version, tag, and commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+          TAG: ${{ needs.check-version.outputs.release-tag }}
+        run: |
+          set -eu
+          # VERSION holds the last released version. TAG tags this bump commit
+          # and pushes it first (see the script). Runs in recovery too —
+          # commit-and-push.sh no-ops if unchanged.
+          printf '%s\n' "$RELEASE_VERSION" > testing-service/VERSION
+          bash scripts/commit-and-push.sh \
+            "chore: testing-service $RELEASE_VERSION released [skip ci]" \
+            testing-service/VERSION
+
+  # Docker image build (workflow-hub action). Unlike the maven modules this needs
+  # no artifact — the Dockerfile builds from source — and it runs in recovery
+  # too: a recovering run tagged but never reached this job, so the released
+  # version has no image yet.
+  publish-image:
+    if: ${{ inputs.build-docker == true }}
+    needs: [check-version, tag-release]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      # The docker-action checks out later, so the tag script needs its own.
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Compute image tags
+        id: tags
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          VERSION: ${{ needs.check-version.outputs.release-version }}
+        run: bash scripts/compute-image-tags.sh
+
+      - name: "Docker Build"
+        id: docker_build
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          ref: ${{ github.ref }}
+          # qubership-integration-testing-service, matching the sibling images
+          # and the tag the Helm chart pulls.
+          custom-image-name: qubership-integration-testing-service
+          tags: ${{ steps.tags.outputs.list }}
+          component: '[{"name": "testing-service", "dockerfile": "./testing-service/Dockerfile", "build_context": "./testing-service"}]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # No GitHub Release here — cut once per drop by release-all.

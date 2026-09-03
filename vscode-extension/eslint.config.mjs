@@ -18,5 +18,12 @@ export default [{
         }],
 
         curly: "warn", eqeqeq: "warn", "no-throw-literal": "warn", semi: "warn",
+        "no-restricted-syntax": [
+          "error",
+          {
+            selector: "MemberExpression[property.name='innerHTML']",
+            message: "Using innerHTML is forbidden.",
+          }
+        ],
     },
 }];

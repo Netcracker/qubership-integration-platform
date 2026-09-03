@@ -232,7 +232,7 @@ if (body.oldPrice == body.newPrice, true, false)
 
 **Example 2: Arithmetic operation within condition**
 
-If remainder after param1 has been divided is not equal to 0, then "true", else "false".
+If the remainder after dividing param1 is not equal to 0, then "true", else "false".
 
 **Mapper structure sample:**
 
@@ -1032,7 +1032,7 @@ B = Blue
 
 ### Format date/time
 
-This transformation type is intended to convert source date to the desirable format. Next details could be specified for input output:
+This transformation type is intended to convert source date to the desired format. Next details could be specified for input output:
 - Checkbox "**Unix epoch**" - if checked, date is going to be handled by Unix format.
 - **Format** - specifies the format of date/datetime (e.g., dd-MM-yyyy). Not available for Unix format. If output format requires time, time zone and locale, but they are either missing in the request or settings, system will pick default values as "00:00:00", "UTC" and "en_US" respectively.
 - **Locale** - specifies locale (e.g., en_US). Not available for Unix format.

@@ -5,13 +5,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
-import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildService;
-import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceOptionsProvider;
-import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceService;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
+import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
@@ -43,9 +43,9 @@ import static java.util.Objects.nonNull;
         description = "Custom Resource Build and Deploy Controller"
 )
 public class CustomResourceController {
-    private final CustomResourceBuildService customResourceBuildService;
-    private final CustomResourceService customResourceService;
-    private final CustomResourceOptionsProvider customResourceOptionsProvider;
+    private final MicroDomainResourceBuildService microDomainResourceBuildService;
+    private final MicroDomainService microDomainService;
+    private final ResourceBuildOptionsProvider resourceBuildOptionsProvider;
     private final DeploymentService deploymentService;
     private final ChainRepository chainRepository;
     private final EngineService engineService;
@@ -53,17 +53,17 @@ public class CustomResourceController {
 
     @Autowired
     public CustomResourceController(
-            CustomResourceBuildService customResourceBuildService,
-            CustomResourceService customResourceService,
-            CustomResourceOptionsProvider customResourceOptionsProvider,
+            MicroDomainResourceBuildService microDomainResourceBuildService,
+            MicroDomainService microDomainService,
+            ResourceBuildOptionsProvider resourceBuildOptionsProvider,
             DeploymentService deploymentService,
             ChainRepository chainRepository,
             EngineService engineService,
             DomainProperties domainProperties
     ) {
-        this.customResourceBuildService = customResourceBuildService;
-        this.customResourceService = customResourceService;
-        this.customResourceOptionsProvider = customResourceOptionsProvider;
+        this.microDomainResourceBuildService = microDomainResourceBuildService;
+        this.microDomainService = microDomainService;
+        this.resourceBuildOptionsProvider = resourceBuildOptionsProvider;
         this.deploymentService = deploymentService;
         this.chainRepository = chainRepository;
         this.engineService = engineService;
@@ -75,7 +75,7 @@ public class CustomResourceController {
     public String buildResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for snapshots: {}", request.getSnapshotIds());
         return verifyMicroDomainEnabled(() ->
-                customResourceBuildService.buildResources(request));
+                microDomainResourceBuildService.buildResources(request, false));
     }
 
     @PostMapping("/deploy-chains")
@@ -182,13 +182,13 @@ public class CustomResourceController {
 
     private void doDeployResource(ResourceDeployRequest request) {
         ResourceBuildRequest buildRequest = ResourceBuildRequest.builder()
-                .options(customResourceOptionsProvider.getOptions(request))
+                .options(resourceBuildOptionsProvider.getOptions(request))
                 .snapshotIds(request.getSnapshotIds())
                 .build();
-        String resourceText = customResourceBuildService.buildResources(
+        String resourceText = microDomainResourceBuildService.buildResources(
                 buildRequest,
                 DeployMode.APPEND.equals(request.getMode()));
-        customResourceService.deploy(resourceText);
+        microDomainService.deploy(resourceText);
     }
 
     @DeleteMapping("/{name}")
@@ -196,7 +196,7 @@ public class CustomResourceController {
     public ResponseEntity<Void> deleteResource(@PathVariable String name) {
         log.debug("Request to delete a Camel-K custom resource with name {}", name);
         return verifyMicroDomainEnabled(() -> {
-            customResourceService.delete(name);
+            microDomainService.delete(name);
             return ResponseEntity.ok().build();
         });
     }
@@ -206,7 +206,7 @@ public class CustomResourceController {
     public ResponseEntity<Void> deleteSnapshotFromResource(@PathVariable String name, @PathVariable String snapshotId) {
         log.debug("Request to delete chain snapshot {} from a Camel-K custom resource {}", snapshotId, name);
         return verifyMicroDomainEnabled(() -> {
-            customResourceService.deleteChainSnapshot(name, snapshotId);
+            microDomainService.deleteChainSnapshot(name, snapshotId);
             return ResponseEntity.ok().build();
         });
     }

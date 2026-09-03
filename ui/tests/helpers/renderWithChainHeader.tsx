@@ -2,13 +2,14 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { render, type RenderResult } from "@testing-library/react";
 import { Modals } from "../../src/Modals.tsx";
 import { ChainHeaderActionsContextProvider } from "../../src/pages/ChainHeaderActionsContext.tsx";
+import { TestQueryClientProvider } from "./queryClientHarness.tsx";
 
 /**
  * Wraps chain tab pages so `useRegisterChainHeaderActions` runs and header
- * actions render into `data-testid="chain-header-slot"`.
+ * actions render into `data-testid="chain-header-slot"`. Holds one registration
+ * at a time behind a generation guard, as `ChainPage` does.
  */
-/** Exported for tests that need `rerender` with the same Modals + header context. */
-export function ChainHeaderTestRoot({
+export function ChainHeaderActionsTestSlot({
   children,
 }: {
   children: React.ReactNode;
@@ -29,12 +30,25 @@ export function ChainHeaderTestRoot({
     [registerHeaderActions],
   );
   return (
-    <Modals>
-      <ChainHeaderActionsContextProvider value={contextValue}>
-        {children}
-        <div data-testid="chain-header-slot">{header}</div>
-      </ChainHeaderActionsContextProvider>
-    </Modals>
+    <ChainHeaderActionsContextProvider value={contextValue}>
+      {children}
+      <div data-testid="chain-header-slot">{header}</div>
+    </ChainHeaderActionsContextProvider>
+  );
+}
+
+/** Exported for tests that need `rerender` with the same Modals + header context. */
+export function ChainHeaderTestRoot({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <TestQueryClientProvider>
+      <Modals>
+        <ChainHeaderActionsTestSlot>{children}</ChainHeaderActionsTestSlot>
+      </Modals>
+    </TestQueryClientProvider>
   );
 }
 

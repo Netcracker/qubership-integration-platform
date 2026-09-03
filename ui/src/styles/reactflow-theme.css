@@ -212,14 +212,17 @@
   background-color: #f08080 !important;
 }
 
+/* Drop target while dragging a node over a container. The greys are theme-independent
+   on purpose: node text is forced to near-black in every theme (see the rules below),
+   so a dark fill would hide the label. */
 [class~="react-flow__node"].highlight > div {
   border-color: var(--vscode-focusBorder) !important;
-  background: unset !important;
+  background: #e0e0e0 !important;
   box-shadow: none !important;
 }
 
 [class~="react-flow__node"].highlight > div > div:first-child {
-  background: unset !important;
+  background: #d6d6d6 !important;
   border-bottom: unset !important;
 }
 
@@ -238,6 +241,21 @@
     border-color var(--transition-duration) ease,
     color var(--transition-duration) ease,
     box-shadow var(--transition-duration) ease;
+}
+
+/* Node hover/drag feedback is quicker than the theme-change fade above */
+[class~="react-flow__node"] {
+  transition:
+    border-width 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease,
+    filter 120ms ease;
+}
+
+/* React Flow writes the layout height inline on the node element; without this the
+   node keeps that height and long labels overflow instead of growing the node. */
+.react-flow__node-unit {
+  height: auto !important;
 }
 
 /* Disable transitions during theme switching */
@@ -617,7 +635,7 @@
 /* MiniMap theming - only colors, standard ReactFlow style */
 .react-flow__minimap {
   background-color: var(--vscode-editor-background) !important;
-  border: 1px solid var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
 }
 
 .react-flow__minimap-mask {

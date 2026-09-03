@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.runtime.catalog.service.ElementService;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
 
 @Slf4j
 @Component
@@ -40,13 +40,13 @@ public class HttpTriggerPropertiesBuilder implements ElementPropertiesBuilder {
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         String type = element.getType();
         return HTTP_TRIGGER_ELEMENT.equals(type);
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         Map<String, String> returnProperties = new HashMap<>();
         Map<String, Object> elementProperties = element.getProperties();
         if (CHAIN_CALL_PROPERTY_OPTION.equals(elementProperties.get(HTTP_TRIGGER_FAILURE_HANDLER_ACTION))) {

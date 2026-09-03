@@ -6,10 +6,24 @@
           "type": "command",
           "command": "ai-agent-telemetry ingest --agent=codex",
           "timeout": 30,
-          "statusMessage": "Recording skill telemetry"
+          "statusMessage": "Recording agent telemetry"
         }
       ],
-      "_apm_source": "ai-agent-telemetry"
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "mcp__.*",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "ai-agent-telemetry ingest --agent=codex",
+          "timeout": 30,
+          "statusMessage": "Recording agent telemetry"
+        }
+      ],
+      "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
     }
   ]
 }

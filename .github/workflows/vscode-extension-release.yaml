@@ -5,6 +5,8 @@
 
 name: Vscode Extension Release
 
+run-name: Vscode Extension Release (${{ inputs.release-type }})
+
 on:
   workflow_call:
     inputs:
@@ -13,11 +15,6 @@ on:
         type: string
         default: "patch"
         description: "patch | minor | major"
-      version:
-        required: false
-        type: string
-        default: ""
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         required: false
         type: string
@@ -28,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       release-type:
-        description: "Release type (ignored if a version override is given)"
+        description: "patch | minor | major"
         type: choice
         options:
           - "patch"
@@ -36,11 +33,6 @@ on:
           - "major"
         required: false
         default: "patch"
-      version:
-        required: false
-        default: ""
-        type: string
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         description: "NPM distribution tag"
         required: false
@@ -58,7 +50,6 @@ jobs:
     with:
       module: vscode-extension
       release-type: ${{ inputs.release-type }}
-      version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
     secrets:
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}

@@ -1,0 +1,113 @@
+---
+paths:
+  - "vscode-extension/**"
+---
+
+### Project Overview
+
+QIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code
+extension for visually editing QIP chains and services stored as local `*.qip.yaml` files. It embeds
+`@netcracker/qip-ui` (`^1.0.0`) as a webview bundle and validates against `@netcracker/qip-schemas`. Built as
+a **web extension** (runs in the `webworker` extension host — no Node runtime, no network). Stack: TypeScript
+`^5.9.3`, VS Code Extension API (`engines.vscode: ^1.120.0`), webpack `^5.99.7`, Jest `^29.7.0`. Ships as an
+npm package to GitHub Packages (`@netcracker:registry=https://npm.pkg.github.com/`); it is NOT published to
+the VS Code Marketplace.
+
+### Build & Test Commands
+
+```bash
+# Full build (run from repo root or vscode-extension/): builds upstream deps then webpack
+npm run build               # = prepare-deps + compile-web
+
+# Upstream workspace artifacts the webpack build copies in (run automatically by build):
+npm run prepare-deps        # build @netcracker/qip-schemas + qip-ui build:lib:bundled & build:lib:types
+
+# Webpack (web extension bundle + node library bundle)
+npm run compile-web         # webpack (dev)
+npm run watch-web           # webpack --watch
+npm run package-web         # webpack --mode production (used by vscode:prepublish)
+
+# Tests
+npm test                    # = test:unit
+npm run test:unit           # jest -c jest.config.cjs (mocks `vscode` via tests/__mocks__)
+npm run test:unit:coverage  # jest --coverage  → coverage/
+npm run test:integration    # @vscode/test-web in chromium (compiles web first); mounts tests/fixtures/service-projects
+npm run test:integration:headless   # xvfb-run wrapper for CI
+
+# Lint / types
+npm run lint                # eslint --fix src
+npm run check-types         # tsc --noEmit
+
+# Manual smoke run in browser host
+npm run run-in-browser      # vscode-test-web --browserType=chromium
+```
+
+The webpack config fails fast if `ui/dist-lib/index.bundled.es.js` or `schemas/assets/` are missing — build the upstream workspaces first (`prepare-deps` does this).
+
+### Architecture
+
+Two webpack outputs (`webpack.config.js` exports an array):
+
+1. **Web extension** — entry `src/web/extension.ts` → `dist/web/extension.js` (`target: webworker`, single chunk; `vscode` external; `assert`/`process` polyfilled). Also bundles the integration test entry `src/web/test/suite/index.ts`.
+2. **Node library** — entry `src/web/index.ts` → `dist/node/index.js` (`commonjs2`), exposing the response/services/api-services modules and `QipExtensionAPI` for programmatic embedding.
+
+**Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
+
+**Custom editors & commands:** `package.json` registers seven custom text editors, one per file pattern —
+`*.chain.qip.yaml`, `*.service.qip.yaml`, `*.external-service.qip.yaml`, `*.internal-service.qip.yaml`,
+`*.implemented-service.qip.yaml`, `*.context-service.qip.yaml`, `*.mcp-service.qip.yaml` — plus a `qip-main`
+explorer tree view and commands (`qip.open`, `qip.createChain`, `qip.createService`, delete/reveal, etc.). The
+chain editor additionally supports an inline diff view (proposed `customEditorDiffs` API).
+`editorViewTypes.ts:getEditorViewTypeForUri` is the single URI → view type resolver; `qip.revealInExplorer`
+goes through it too, so a new editor type needs no second suffix chain. A slash-free `filenamePattern` matches
+within one name segment, so `*.service.qip.yaml` does not claim `x.external-service.qip.yaml` — the same
+reason `.context-service.` has always been safe.
+
+**Dual-format read, single-format write.** The extension reads both `.specification.<app>.yaml` (legacy
+`specificationSources[]` with `fileName`/`mainSource`) and `.api.<app>.yaml` (current `specifications[]` with
+`filePath`/`isRoot`, plus typed operations), and writes only `.api.<app>.yaml`. The first write of a model converts it:
+it creates the `.api.<app>.yaml` file and deletes the `.specification.<app>.yaml` sibling, so a project migrates as its
+files are edited, with no migration command. Git records the change as a rename. `parentId` stays the source of truth
+for the API-to-group link; the group's `apis[]` is derived and rewritten by scanning the service folder after any API
+write or delete.
+
+**Conversion on first write**, the same rule as `.specification.` → `.api.` above: reads accept both formats, writes emit
+the current name wherever one can be spelled, and Git records the change as a rename.
+`serviceFileWrite.ts:writeServiceInCurrentFormat` is the conversion, and it returns the URI the service landed in rather
+than the one it came from, so a caller that re-reads must use the return value. Three call sites hang off it, not one:
+`serviceApiModify`'s local `writeMainService` (every update, environment edits included), `SystemService.saveSystem`, and
+`EnvironmentService.saveSystem`. Leaving any out migrates a service or not depending on which screen edited it.
+
+What converts is usually the **carrier**, not the name: a pre-#553 document keeps its `.service.` name and trades
+`content.integrationSystemType` for the type's own `$schema` (`typed-service-content.schema.yaml` forbids the field).
+The one rename left is a per-type name going back to the plain one.
+
+Two documents are left exactly as they are:
+
+- one whose type neither `$schema` nor `content.integrationSystemType` states — nothing to stamp, and a guess would
+  hand the backend a type nobody wrote;
+### Project Structure
+
+Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions and schema URLs are configurable per app via a `.config.qip.yaml` (see `.config.qip.yaml.example`; defaults to the `qip` app).
+
+### Conventions
+
+- **Conventional Commits** required (enforced in CI on PR titles and commit messages).
+- **Apache License 2.0** — existing source files carry the NetCracker copyright header; new files do not need it.
+- `tsconfig.json`: `strict`, `module/moduleResolution: Node16`, target `ES2020`, libs `ES2020`+`WebWorker`.
+- Jest mocks the `vscode` module (`tests/__mocks__/vscode.ts`); unit tests live beside `api-services/` (`*.test.ts`) and under `tests/`. Integration tests under `src/web/test/` run in a real chromium web host and are excluded from Jest. Both suites run in CI (`vscode-extension-build.yaml`).
+- The CI `paths:` filter in `vscode-extension-build.yaml` needs no special entry for them: `schemas/**` already covers the golden trees and the naming corpus.
+- The rule against mocking the file API in a disk-state test is about **faithfulness, not layering**. Modelling an
+  unreadable file as a rejection from `parseFile` is fine — the real one logs and rethrows. Stubbing `getFileType` to
+  reject was not, because the real one catches everything and answers `UNKNOWN`.
+- Node `>=22` (root monorepo `engines`).
+
+### Platform Context
+
+This module is the offline visual editor for QIP chains and services — a standalone VS Code web extension with no backend. See `README.md` for the repository layout.
+
+Unlike the backend services, this extension performs **no backend or network communication**: it operates entirely on local `*.qip.yaml` files via `vscode.workspace.fs`. It consumes/embeds:
+
+- **`@netcracker/qip-ui`** — the React visual editor, loaded as a library bundle into the webview (`dist/web/qip-ui/`); the webview and extension host communicate only via `postMessage`.
+- **`@netcracker/qip-schemas`** — JSON Schema definitions used for validation; `assets/` copied into `dist/web/qip-schemas/`.
+Build order across workspaces matters: `schemas` build → `qip-ui` `build:lib:bundled`/`build:lib:types` → this extension's `compile-web` (the `build` script chains all three).

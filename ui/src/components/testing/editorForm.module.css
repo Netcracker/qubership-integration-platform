@@ -1,0 +1,21 @@
+/* The form chrome the chain's Logging and Properties tabs use, kept here so a
+   component does not reach into the styles of a page. */
+.pageContainer {
+  flex: 1;
+  background: var(--vscode-editor-background, #fff);
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  padding: 24px;
+  border-radius: 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.pageContainer :global(.ant-form-item-label > label) {
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.formContent {
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}

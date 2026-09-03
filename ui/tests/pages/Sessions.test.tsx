@@ -17,6 +17,7 @@ import {
   ExecutionStatus,
   SessionFilterCondition,
   SessionFilterFeature,
+  type SessionFilterRequest,
   SessionsLoggingLevel,
   type Session,
 } from "../../src/api/apiTypes";
@@ -27,8 +28,9 @@ import {
 } from "../../src/pages/Sessions.tsx";
 import { renderPageWithChainHeader } from "../helpers/renderWithChainHeader.tsx";
 import { downloadFile } from "../../src/misc/download-utils.ts";
-import { getLastTableOnChange } from "../__mocks__/LightweightTable.tsx";
 import { triggerIntersection } from "../setup/intersection-observer.ts";
+import { useSessionsFilter } from "../../src/hooks/filter/useSessionsFilter.ts";
+import type { EntityFilterModel } from "../../src/components/table/filter/filterTypes.ts";
 
 let capturedConfirmOnOk: (() => void | Promise<void>) | undefined;
 
@@ -111,22 +113,17 @@ jest.mock("../../src/components/sessions/SessionStatus.tsx", () => ({
   ),
 }));
 
-jest.mock(
-  "../../src/components/table/TimestampColumnFilterDropdown.tsx",
-  () => {
-    const actual = jest.requireActual<
-      typeof import("../../src/components/table/TimestampColumnFilterDropdown.tsx")
-    >("../../src/components/table/TimestampColumnFilterDropdown.tsx");
-    return { ...actual, TimestampColumnFilterDropdown: () => <div /> };
-  },
-);
-
-jest.mock("../../src/components/table/TextColumnFilterDropdown.tsx", () => {
+jest.mock("../../src/hooks/filter/useSessionsFilter.ts", () => {
   const actual = jest.requireActual<
-    typeof import("../../src/components/table/TextColumnFilterDropdown.tsx")
-  >("../../src/components/table/TextColumnFilterDropdown.tsx");
-  return { ...actual, TextColumnFilterDropdown: () => <div /> };
+    typeof import("../../src/hooks/filter/useSessionsFilter.ts")
+  >("../../src/hooks/filter/useSessionsFilter.ts");
+  return {
+    ...actual,
+    useSessionsFilter: jest.fn(actual.useSessionsFilter),
+  };
 });
+
+const mockUseSessionsFilter = jest.mocked(useSessionsFilter);
 
 jest.mock("../../src/permissions/ProtectedButton.tsx", () => ({
   ProtectedButton: ({
@@ -286,6 +283,11 @@ describe("Sessions", () => {
     jest.resetAllMocks();
     capturedConfirmOnOk = undefined;
     mockUseParams.mockReturnValue({ chainId: "chain-1" });
+    mockUseSessionsFilter.mockImplementation(
+      jest.requireActual<
+        typeof import("../../src/hooks/filter/useSessionsFilter.ts")
+      >("../../src/hooks/filter/useSessionsFilter.ts").useSessionsFilter,
+    );
     mockGetCheckpointSessions.mockResolvedValue([]);
     mockGetCheckpointSessionsForMicroDomain.mockResolvedValue([]);
     // Empty default terminates the 2-page initial fetch in tests that
@@ -997,184 +999,142 @@ describe("Sessions", () => {
     });
   });
 
-  // --- Table column filter changes (onChange) ---
+  // --- Filter changes (useSessionsFilter) ---
+
+  function mockSessionsFilters(filters: EntityFilterModel[]) {
+    mockUseSessionsFilter.mockReturnValue({
+      filters,
+      filterButton: <button data-testid="filter-button" />,
+    });
+  }
+
+  function expectSessionsFetchedWithFilters(
+    chainId: string | undefined,
+    filterRequestList: SessionFilterRequest[],
+  ) {
+    const offsetZeroCall = mockGetSessions.mock.calls.find(
+      (call) => (call[2] as { offset: number }).offset === 0,
+    );
+    expect(offsetZeroCall).toEqual([
+      chainId,
+      expect.objectContaining({ filterRequestList }),
+      expect.objectContaining({ offset: 0 }),
+    ]);
+  }
 
   test("executionStatus filter triggers refetch with STATUS filter", async () => {
+    mockSessionsFilters([
+      {
+        column: "STATUS",
+        condition: "IN",
+        value: ExecutionStatus.COMPLETED_NORMALLY,
+      },
+    ]);
+
     await renderWithSessions([baseSession({ id: "of-1" })]);
 
-    const onChange = getLastTableOnChange();
-    expect(onChange).toBeDefined();
-
-    act(() => {
-      onChange!(
-        {},
-        { executionStatus: [ExecutionStatus.COMPLETED_NORMALLY] },
-        {},
-        {},
-      );
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        "chain-1",
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.STATUS,
-              condition: SessionFilterCondition.IN,
-              value: ExecutionStatus.COMPLETED_NORMALLY,
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters("chain-1", [
+      {
+        feature: SessionFilterFeature.STATUS,
+        condition: SessionFilterCondition.IN,
+        value: ExecutionStatus.COMPLETED_NORMALLY,
+      },
+    ]);
   });
 
   test("started timestamp filter triggers refetch with START_TIME filter", async () => {
+    mockSessionsFilters([
+      {
+        column: "START_TIME",
+        condition: "IS_AFTER",
+        value: "1704067200000",
+      },
+    ]);
+
     await renderWithSessions([baseSession({ id: "tf-1" })]);
 
-    const filter = JSON.stringify({
-      condition: "is-after",
-      value: [1704067200000],
-    });
-
-    act(() => {
-      getLastTableOnChange()!({}, { started: [filter] }, {}, {});
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        "chain-1",
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.START_TIME,
-              condition: SessionFilterCondition.IS_AFTER,
-              value: "1704067200000",
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters("chain-1", [
+      {
+        feature: SessionFilterFeature.START_TIME,
+        condition: SessionFilterCondition.IS_AFTER,
+        value: "1704067200000",
+      },
+    ]);
   });
 
   test("finished timestamp filter triggers refetch with FINISH_TIME filter", async () => {
+    mockSessionsFilters([
+      {
+        column: "FINISH_TIME",
+        condition: "IS_BEFORE",
+        value: "1704153600000",
+      },
+    ]);
+
     await renderWithSessions([baseSession({ id: "ff-1" })]);
 
-    const filter = JSON.stringify({
-      condition: "is-before",
-      value: [1704153600000],
-    });
-
-    act(() => {
-      getLastTableOnChange()!({}, { finished: [filter] }, {}, {});
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        "chain-1",
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.FINISH_TIME,
-              condition: SessionFilterCondition.IS_BEFORE,
-              value: "1704153600000",
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters("chain-1", [
+      {
+        feature: SessionFilterFeature.FINISH_TIME,
+        condition: SessionFilterCondition.IS_BEFORE,
+        value: "1704153600000",
+      },
+    ]);
   });
 
   test("text filter on engineAddress triggers refetch with ENGINE filter", async () => {
+    mockSessionsFilters([
+      { column: "ENGINE", condition: "CONTAINS", value: "10.0" },
+    ]);
+
     await renderWithSessions([baseSession({ id: "ef-1" })]);
 
-    const filter = JSON.stringify({ condition: "contains", value: "10.0" });
-
-    act(() => {
-      getLastTableOnChange()!({}, { engineAddress: [filter] }, {}, {});
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        "chain-1",
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.ENGINE,
-              condition: SessionFilterCondition.CONTAINS,
-              value: "10.0",
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters("chain-1", [
+      {
+        feature: SessionFilterFeature.ENGINE,
+        condition: SessionFilterCondition.CONTAINS,
+        value: "10.0",
+      },
+    ]);
   });
 
   test("not-contains text filter maps to DOES_NOT_CONTAIN condition", async () => {
+    mockSessionsFilters([
+      { column: "ENGINE", condition: "DOES_NOT_CONTAIN", value: "excluded" },
+    ]);
+
     await renderWithSessions([baseSession({ id: "nc-1" })]);
 
-    const filter = JSON.stringify({
-      condition: "not-contains",
-      value: "excluded",
-    });
-
-    act(() => {
-      getLastTableOnChange()!({}, { engineAddress: [filter] }, {}, {});
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        "chain-1",
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.ENGINE,
-              condition: SessionFilterCondition.DOES_NOT_CONTAIN,
-              value: "excluded",
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters("chain-1", [
+      {
+        feature: SessionFilterFeature.ENGINE,
+        condition: SessionFilterCondition.DOES_NOT_CONTAIN,
+        value: "excluded",
+      },
+    ]);
   });
 
   test("ends-with text filter maps to ENDS_WITH condition", async () => {
+    mockSessionsFilters([
+      { column: "ENGINE", condition: "ENDS_WITH", value: ".local" },
+    ]);
+
     await renderWithSessions([baseSession({ id: "ew-1" })]);
 
-    const filter = JSON.stringify({
-      condition: "ends-with",
-      value: ".local",
-    });
-
-    act(() => {
-      getLastTableOnChange()!({}, { engineAddress: [filter] }, {}, {});
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        "chain-1",
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.ENGINE,
-              condition: SessionFilterCondition.ENDS_WITH,
-              value: ".local",
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters("chain-1", [
+      {
+        feature: SessionFilterFeature.ENGINE,
+        condition: SessionFilterCondition.ENDS_WITH,
+        value: ".local",
+      },
+    ]);
   });
 
   test("chainName text filter triggers refetch with CHAIN_NAME filter", async () => {
     mockUseParams.mockReturnValue({});
+    mockSessionsFilters([
+      { column: "CHAIN_NAME", condition: "STARTS_WITH", value: "Test" },
+    ]);
     mockGetSessions.mockResolvedValue({
       sessions: [baseSession({ id: "cn-1" })],
       offset: 1,
@@ -1183,75 +1143,46 @@ describe("Sessions", () => {
     renderSessions();
 
     await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenCalledTimes(1);
+      expect(mockGetSessions).toHaveBeenCalled();
     });
 
-    const filter = JSON.stringify({
-      condition: "starts-with",
-      value: "Test",
-    });
-
-    act(() => {
-      getLastTableOnChange()!({}, { chainName: [filter] }, {}, {});
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        undefined,
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.CHAIN_NAME,
-              condition: SessionFilterCondition.STARTS_WITH,
-              value: "Test",
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters(undefined, [
+      {
+        feature: SessionFilterFeature.CHAIN_NAME,
+        condition: SessionFilterCondition.STARTS_WITH,
+        value: "Test",
+      },
+    ]);
   });
 
   test("multiple filters combine in filterRequestList", async () => {
+    mockSessionsFilters([
+      {
+        column: "START_TIME",
+        condition: "IS_WITHIN",
+        value: "1704067200000",
+      },
+      {
+        column: "STATUS",
+        condition: "IN",
+        value: ExecutionStatus.IN_PROGRESS,
+      },
+    ]);
+
     await renderWithSessions([baseSession({ id: "mf-1" })]);
 
-    const timestampFilter = JSON.stringify({
-      condition: "is-within",
-      value: [1704067200000],
-    });
-
-    act(() => {
-      getLastTableOnChange()!(
-        {},
-        {
-          executionStatus: [ExecutionStatus.IN_PROGRESS],
-          started: [timestampFilter],
-        },
-        {},
-        {},
-      );
-    });
-
-    await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenLastCalledWith(
-        "chain-1",
-        expect.objectContaining({
-          filterRequestList: [
-            {
-              feature: SessionFilterFeature.START_TIME,
-              condition: SessionFilterCondition.IS_WITHIN,
-              value: "1704067200000",
-            },
-            {
-              feature: SessionFilterFeature.STATUS,
-              condition: SessionFilterCondition.IN,
-              value: ExecutionStatus.IN_PROGRESS,
-            },
-          ],
-        }),
-        expect.objectContaining({ offset: 0 }),
-      );
-    });
+    expectSessionsFetchedWithFilters("chain-1", [
+      {
+        feature: SessionFilterFeature.START_TIME,
+        condition: SessionFilterCondition.IS_WITHIN,
+        value: "1704067200000",
+      },
+      {
+        feature: SessionFilterFeature.STATUS,
+        condition: SessionFilterCondition.IN,
+        value: ExecutionStatus.IN_PROGRESS,
+      },
+    ]);
   });
 
   // --- Infinite scroll via IntersectionObserver sentinel ---

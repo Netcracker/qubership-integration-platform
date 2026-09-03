@@ -52,6 +52,21 @@ on:
         required: false
         default: ""
         type: string
+      tag-prefix:
+        description: "Tag prefix, when it differs from the module dir (e.g. schemas-maven for the Maven schemas line)."
+        required: false
+        default: ""
+        type: string
+      sync-property:
+        description: "Property in sync-poms to rewrite with the released version (e.g. qip-integration-build-pipeline.version)."
+        required: false
+        default: ""
+        type: string
+      sync-poms:
+        description: "Space-separated POMs whose sync-property is rewritten and committed alongside the version bump."
+        required: false
+        default: ""
+        type: string
     secrets:
       MAVEN_USER:
         required: false
@@ -86,29 +101,37 @@ jobs:
       contents: read
     outputs:
       release-version: ${{ steps.compute.outputs.release-version }}
-      next-dev: ${{ steps.compute.outputs.next-dev }}
       release-tag: ${{ steps.compute.outputs.release-tag }}
       recover: ${{ steps.compute.outputs.recover }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          # The branch tip, not the dispatch SHA: an earlier job in the same wave
+          # may already have pushed a version bump this one has to read.
+          ref: ${{ github.ref }}
           # The tag check queries the remote via ls-remote, so shallow is fine.
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Compute release and next-dev versions
+      - name: Compute the release version
         id: compute
         env:
           ECOSYSTEM: maven
           MODULE: ${{ inputs.module }}
           RELEASE_TYPE: ${{ inputs.release-type }}
           VERSION_OVERRIDE: ${{ inputs.version }}
+          TAG_PREFIX: ${{ inputs.tag-prefix }}
         run: bash scripts/compute-release-version.sh
 
   # Build, sign, publish, then bump <revision>, commit, and tag. Recovery skips
   # deploy/upload and only re-applies the bump.
   build-and-publish:
+    # run-name can't see a computed value (github/inputs/vars only), but a job
+    # name can read `needs` — so the released version shows up here. This job has
+    # no job-level if, so the name always evaluates; a job that can be skipped
+    # would render the raw expression instead.
+    name: publish ${{ needs.check-version.outputs.release-version }}
     needs: check-version
     runs-on: ubuntu-latest
     permissions:
@@ -117,7 +140,6 @@ jobs:
     env:
       MODULE: ${{ inputs.module }}
       RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
-      NEXT_DEV: ${{ needs.check-version.outputs.next-dev }}
       # Gate the app-token step on the App key being present (secrets are not
       # allowed in `if:`, env derived from them is).
       APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -136,6 +158,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
+          # Without this, checkout takes github.sha — the commit the wave was
+          # dispatched at — so a library released earlier in the same wave has
+          # moved its consumer's pin on the branch, and this job cannot see it.
+          # commit-and-push.sh already rebases onto the tip, so building from the
+          # tip is also what makes the build and the commit agree.
+          ref: ${{ github.ref }}
           fetch-depth: 0
           # Persist credentials: the tag and the version-bump commit are pushed
           # at the end via the App token (or GITHUB_TOKEN if the App is unset).
@@ -150,7 +178,20 @@ jobs:
           # Creds come from .github/maven-settings.xml (setup-java takes one
           # server-id; a Central release needs github + central). GPG key here.
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          cache: "maven"
+
+      # setup-java's built-in maven cache restores on an exact pom-hash key only.
+      # Every release rewrites the poms in a [skip ci] commit, so the tree the
+      # next run checks out was never cached and the restore always missed. A
+      # prefix fallback gives a warm start, and keying per module stops the Java
+      # jobs in a wave from racing for one entry — only the first to finish could
+      # save it, and the rest logged "Unable to reserve cache".
+      - name: Cache the Maven repository
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-${{ inputs.module }}-
 
       # Pre-install the parent pom (deploy needs it; `-pl parent -N` is broken).
       - name: Install qip-monorepo-parent locally
@@ -162,8 +203,8 @@ jobs:
 
       - name: Build and deploy module
         if: ${{ needs.check-version.outputs.recover != 'true' }}
-        working-directory: ${{ inputs.module }}
         env:
+          MODULE_NAME: ${{ inputs.module }}
           # From .github/maven-settings.xml: github resolves BOMs, central takes
           # the deploy (empty for profile=github).
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
@@ -176,12 +217,14 @@ jobs:
           SKIP_GPG: ${{ inputs.profile == 'github' && '-Dgpg.skip=true' || '' }}
         run: |
           set -eu
-          # Run from the module dir so Maven reads only this module + parent, not
-          # siblings (micro-engine's private deps this token can't read).
+          # No -am: the parent is pre-installed above, and an in-repo library
+          # dependency (integration-build-pipeline) must come from its published
+          # release, not from a reactor build this job would then deploy twice.
           # -Drevision publishes the computed version; -Dchangelist= strips -SNAPSHOT.
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -pl $MODULE_NAME \
             -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \
             -Dchangelist= \
@@ -192,15 +235,26 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
           TAG: ${{ needs.check-version.outputs.release-tag }}
+          SYNC_PROPERTY: ${{ inputs.sync-property }}
+          SYNC_POMS: ${{ inputs.sync-poms }}
         run: |
           set -eu
           POM="$MODULE/pom.xml"
           # Write the released version into <revision> (<changelist> untouched).
           # TAG tags this bump commit and pushes it first (see the script). Runs
           # in recovery too — commit-and-push.sh no-ops if unchanged.
-          sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${NEXT_DEV}</revision>#" "$POM"
-          grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to write <revision> in $POM"; exit 1; }
-          bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" "$POM"
+          sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${RELEASE_VERSION}</revision>#" "$POM"
+          grep -q "<revision>${RELEASE_VERSION}</revision>" "$POM" || { echo "::error::Failed to write <revision> in $POM"; exit 1; }
+
+          # Consumers pin this module by property; move them onto the release in
+          # the same commit, so a later job in the wave builds against it.
+          files="$POM"
+          if [ -n "$SYNC_PROPERTY" ]; then
+            # shellcheck disable=SC2086
+            files="$POM $(bash scripts/sync-consumer-pins.sh "$SYNC_PROPERTY" "$RELEASE_VERSION" $SYNC_POMS | tr '\n' ' ')"
+          fi
+          # shellcheck disable=SC2086
+          bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" $files
 
       - name: Upload build output
         if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
@@ -220,25 +274,19 @@ jobs:
     permissions:
       packages: write
     steps:
+      # The docker-action checks out later, so the tag script needs its own.
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Compute image tags
         id: tags
         env:
           REF_NAME: ${{ github.ref_name }}
           VERSION: ${{ needs.check-version.outputs.release-version }}
-        run: |
-          set -eu
-          # We own every tag here (a custom `tags:` bypasses metadata-action's
-          # auto tagging). The default branch publishes only the moving :latest;
-          # release branches publish the immutable pom version plus a moving
-          # branch tag (e.g. :0.5.7, :release-0.5), never :latest. Strip '/'
-          # (invalid in a docker tag) from the branch ref.
-          if [ "$REF_NAME" = "main" ]; then
-            tags="latest"
-          else
-            branch=$(printf '%s' "$REF_NAME" | tr '/' '-')
-            tags="${VERSION},${branch}"
-          fi
-          echo "list=${tags}" >> "$GITHUB_OUTPUT"
+        run: bash scripts/compute-image-tags.sh
 
       - name: "Docker Build"
         id: docker_build

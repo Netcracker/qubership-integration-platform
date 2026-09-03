@@ -1,0 +1,179 @@
+---
+
+name: PR Linked Issue Check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+      - labeled
+      - unlabeled
+
+# The job rewrites the PR description, so two runs must not overlap.
+concurrency:
+  group: pr-linked-issue-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  linked-issue:
+    name: Verify linked issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check that the PR closes an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.event.repository.owner.login }}
+          REPO: ${{ github.event.repository.name }}
+          PR: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id }}
+        run: |
+          set -euo pipefail
+
+          # GraphQL variables, not shell expansion
+          # shellcheck disable=SC2016
+          query_count() {
+            gh api graphql \
+              -f query='
+                query($owner: String!, $repo: String!, $pr: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pr) {
+                      closingIssuesReferences(first: 1) {
+                        totalCount
+                      }
+                    }
+                  }
+                }' \
+              -f owner="$OWNER" -f repo="$REPO" -F pr="$PR" \
+              --jq '.data.repository.pullRequest.closingIssuesReferences.totalCount'
+          }
+
+          # Retries transient API failures. A non-numeric answer (`null` from a
+          # partial response) counts as a failure, not as "closes no issue".
+          linked_count() {
+            local attempt=1 value
+            while :; do
+              if value=$(query_count 2>/dev/null) && [ -n "${value##*[!0-9]*}" ]; then
+                printf '%s' "$value"
+                return 0
+              fi
+              [ "$attempt" -ge 3 ] && return 1
+              sleep $((attempt * 3))
+              attempt=$((attempt + 1))
+            done
+          }
+
+          if ! count=$(linked_count); then
+            echo "::error::Cannot read linked issues from the GitHub API. Re-run this check."
+            exit 1
+          fi
+
+          if [ "$count" -gt 0 ]; then
+            echo "This PR closes ${count} issue(s)."
+            exit 0
+          fi
+
+          # No link yet. The team names the issue in the PR title, either as
+          # "fix: #123 ..." or as a trailing "(#123)". Such a title reads like a
+          # link but closes nothing, so turn it into a real one. Both positions
+          # are anchored: an incidental "#2" elsewhere in the title must never
+          # close issue 2. Numbers that resolve to a pull request are skipped,
+          # because squash merges leave "(#456)" in titles.
+          candidates=""
+          if [ "$IS_FORK" != "true" ]; then
+            lead=$(printf '%s' "$TITLE" | grep -oiP '^[a-z]+(\([^)]*\))?!?:\s*#\K[0-9]+' || true)
+            trail=$(printf '%s' "$TITLE" | grep -oP '\(#\K[0-9]+(?=\)\s*$)' || true)
+            candidates=$(printf '%s\n%s\n' "$lead" "$trail" | grep -E '^[0-9]+$' | sort -un || true)
+          fi
+
+          body=""
+          issues=""
+          already_referenced=false
+          if [ -n "$candidates" ]; then
+            body=$(gh api "repos/$OWNER/$REPO/pulls/$PR" --jq '.body // ""') || body=""
+            for number in $candidates; do
+              [ "$number" = "$PR" ] && continue
+              if printf '%s' "$body" \
+                | grep -qiE "(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#${number}([^0-9]|$)"; then
+                already_referenced=true
+                continue
+              fi
+              # shellcheck disable=SC2016
+              kind=$(gh api graphql \
+                -f query='
+                  query($owner: String!, $repo: String!, $number: Int!) {
+                    repository(owner: $owner, name: $repo) {
+                      issueOrPullRequest(number: $number) {
+                        __typename
+                      }
+                    }
+                  }' \
+                -f owner="$OWNER" -f repo="$REPO" -F number="$number" \
+                --jq '.data.repository.issueOrPullRequest.__typename' 2>/dev/null || true)
+              if [ "$kind" = "Issue" ]; then
+                issues="$issues $number"
+              fi
+            done
+          fi
+
+          patch_failed=false
+          if [ -n "$issues" ]; then
+            keywords=$(for number in $issues; do echo "Closes #$number"; done)
+            if [ -n "$body" ]; then
+              new_body=$(printf '%s\n\n%s' "$body" "$keywords")
+            else
+              new_body="$keywords"
+            fi
+
+            if gh api -X PATCH "repos/$OWNER/$REPO/pulls/$PR" -f body="$new_body" >/dev/null; then
+              echo "Linked the issue(s) named in the PR title:$issues"
+              # GitHub derives the link from the keyword just written, so a
+              # lagging read can still report zero. Trust the accepted write.
+              if count=$(linked_count) && [ "$count" -gt 0 ]; then
+                echo "This PR closes ${count} issue(s)."
+              else
+                echo "::warning::The description now closes${issues}, but the link is not visible yet."
+              fi
+              exit 0
+            fi
+            patch_failed=true
+          fi
+
+          # A concurrent run may have added the keyword between the first query
+          # and now, so confirm before reporting the PR as unlinked.
+          if [ "$already_referenced" = true ] && count=$(linked_count) && [ "$count" -gt 0 ]; then
+            echo "This PR closes ${count} issue(s)."
+            exit 0
+          fi
+
+          if [ "$patch_failed" = true ]; then
+            hint="The workflow could not update the description. Add the keyword yourself."
+          elif [ "$IS_FORK" = "true" ]; then
+            hint="This PR comes from a fork, where the workflow cannot update the description."
+          else
+            hint="Name the issue in the title as \`fix: #123 ...\` or \`... (#123)\` and this check links it for you."
+          fi
+
+          {
+            echo "### No linked issue"
+            echo ""
+            echo "This pull request closes no issue, so nothing records why it exists."
+            echo ""
+            echo "$hint"
+            echo ""
+            echo "You can also add \`Closes #123\` to the description, or link an issue"
+            echo "from the **Development** section on the pull request page. Linking from"
+            echo "that section raises no event, so re-run this check afterwards."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::This pull request closes no issue. Add 'Closes #123' to the description, name the issue in the title as '#123', or link an issue from the Development section and re-run this check."
+          exit 1

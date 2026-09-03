@@ -8,9 +8,11 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.MetaInfoExternalEntity;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalContentEntity;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalEntity;
+import org.qubership.integration.platform.io.model.exportimport.MetaInfoExternalEntity;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalContentEntity;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalEntity;
+import org.qubership.integration.platform.io.readers.chain.ChainModelMapper;
+import org.qubership.integration.platform.io.readers.chain.ChainReader;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalMapperEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -48,6 +50,10 @@ class ChainImportServiceTest {
     private FolderService folderService;
     @Mock
     private ChainExternalEntityMapper chainExternalEntityMapper;
+    @Mock
+    private ChainModelMapper chainModelMapper;
+    @Mock
+    private ChainReader chainReader;
     @Mock
     private ChainService chainService;
     @Mock

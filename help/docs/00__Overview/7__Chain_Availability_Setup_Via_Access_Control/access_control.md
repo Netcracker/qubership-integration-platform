@@ -10,12 +10,12 @@ Please refer to the diagram below, that visually represents the flow:
 
 **Diagram details**
 
-| #   | Description                                                                  |
-| --- | ---------------------------------------------------------------------------- |
-| 1   | User or system calls specific endpoint, exposed by the QIP chain.            |
-| 2   | Engine identifies the user from the token in request.                        |
-| 3   | Engine verifies access, utilizing cached data.                               |
-| 4   | If access granted, Qubership Integration Platform allows to trigger a chain. |
+| # | Description                                                                  |
+|---|------------------------------------------------------------------------------|
+| 1 | User or system calls specific endpoint, exposed by the QIP chain.            |
+| 2 | Engine identifies the user from the token in request.                        |
+| 3 | Engine verifies access, utilizing cached data.                               |
+| 4 | If access granted, Qubership Integration Platform allows to trigger a chain. |
 
 User will get **403 Forbidden** error if it has no access to the called endpoint.
 
@@ -24,10 +24,10 @@ User will get **403 Forbidden** error if it has no access to the called endpoint
 All sequentially added roles for each particular endpoint shall be specified manually. Please view configuration example below:
 
 | Policy Name                | Permission:<br>Resource     | Permission:<br>Resource Type | Permission:<br>Operation | Permission:<br>Condition | Role #1 | Role #2 |
-| -------------------------- | --------------------------- | ---------------------------- | ------------------------ | ------------------------ | ------- | ------- |
+|----------------------------|-----------------------------|------------------------------|--------------------------|--------------------------|---------|---------|
 | Trigger Chain via Endpoint | /qip-routes/chain/checkData | QIP-CHAIN                    | ALL                      | -                        | Allow   | Allow   |
 | Trigger Chain via Endpoint | /chain/checkData            | QIP-CHAIN                    | RETRIEVE                 | -                        | Deny    | Allow   |
-| Trigger Chain via Endpoint | /order/{orderId}/submit    |  Order    | SUBMIT  | -                    | Allow  | Deny    |
+| Trigger Chain via Endpoint | /order/{orderId}/submit     | Order                        | SUBMIT                   | -                        | Allow   | Deny    |
 
 Where **Resource, Resource Type, Operation** are values, configured on [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) within a chain.
 
