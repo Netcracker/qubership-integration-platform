@@ -646,6 +646,10 @@ paths:
       - Endpoint Mocks
   /api/v1/mode:
     get:
+      description: |-
+        Reports whether this is a live installation. The flag is a hint for the front end,
+        which hides the operations that are unsafe on one. The service enforces nothing:
+        every endpoint answers the same in either mode.
       operationId: getModeV1
       produces:
       - application/json
