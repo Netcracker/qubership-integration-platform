@@ -88,6 +88,7 @@ spec:
                   CONSUL_ADMIN_TOKEN: 'configmap:{{ .Release.Name }}-env/CONSUL_ADMIN_TOKEN',
                   OPENSEARCH_HOST: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_HOST',
                   OPENSEARCH_PORT: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_PORT',
+                  OPENSEARCH_PREFIX: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_PREFIX',
                   POSTGRES_URL: 'configmap:{{ .Release.Name }}-engine-env/POSTGRES_URL',
                   POSTGRES_USER: 'secret:{{ .Release.Name }}-postgres-auth/username',
                   POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password',
