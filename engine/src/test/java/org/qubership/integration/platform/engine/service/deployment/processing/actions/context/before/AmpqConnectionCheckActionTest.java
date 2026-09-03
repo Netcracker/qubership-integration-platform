@@ -1,20 +1,28 @@
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.before;
 
+
+import com.rabbitmq.client.Channel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.ElementOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.VariablesService;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class AmpqConnectionCheckActionTest {
@@ -120,6 +128,52 @@ class AmpqConnectionCheckActionTest {
     @DisplayName("A list that names nothing yields nothing to check")
     void emptyQueueListYieldsNothing() {
         assertThat(AmpqConnectionCheckAction.queueNames(null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("A producer is checked against the exchange it will publish to")
+    void producerIsCheckedAgainstItsExchange() throws IOException {
+        Channel channel = mock(Channel.class);
+
+        AmpqConnectionCheckAction.assertTopologyExists(channel, true, "orders-exchange", null);
+        verify(channel).exchangeDeclarePassive("orders-exchange");
+        verifyNoMoreInteractions(channel);
+    }
+
+    @Test
+    @DisplayName("A consumer is checked against every queue it will read from")
+    void consumerIsCheckedAgainstEveryQueue() throws IOException {
+        Channel channel = mock(Channel.class);
+
+        AmpqConnectionCheckAction.assertTopologyExists(channel, false, "orders-exchange", "one,two");
+        verify(channel).queueDeclarePassive("one");
+        verify(channel).queueDeclarePassive("two");
+        verify(channel, never()).exchangeDeclarePassive(anyString());
+    }
+
+    @Test
+    @DisplayName("A missing exchange is a retriable failure that names it")
+    void missingExchangeIsReported() throws IOException {
+        Channel channel = mock(Channel.class);
+        when(channel.exchangeDeclarePassive("no-such")).thenThrow(new IOException("404"));
+
+        assertThatThrownBy(() -> AmpqConnectionCheckAction.assertTopologyExists(channel, true, "no-such", null))
+                .isInstanceOf(DeploymentRetriableException.class)
+                .hasMessage("AMQP exchange no-such not found, check configuration");
+    }
+
+    @Test
+    @DisplayName("A missing queue is named in quotes, so a stray space is visible")
+    void missingQueueIsReportedWithItsExactName() throws IOException {
+        Channel channel = mock(Channel.class);
+        when(channel.queueDeclarePassive(" two")).thenThrow(new IOException("404"));
+
+        assertThatThrownBy(() -> AmpqConnectionCheckAction.assertTopologyExists(channel, false, "ex", "one, two"))
+                .isInstanceOf(DeploymentRetriableException.class)
+                .hasMessage("AMQP queue ' two' not found, check configuration");
+
+        // The queue before it was reached, so the check stops at the first one that is missing.
+        verify(channel).queueDeclarePassive("one");
     }
 
     private static ElementProperties element(String type, String connectionSourceType) {

@@ -36,6 +36,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 
@@ -117,44 +120,9 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                     "AMQP addresses has invalid format, check configuration");
             }
 
-            ConnectionFactory factory = new ConnectionFactory();
-
-            factory.setUri((StringUtils.isNotBlank(ssl) && ssl.equals("true") ? "amqps://" : "amqp://") + addresses);
-
-            if (StringUtils.isNotBlank(username)) {
-                factory.setUsername(username);
-            }
-
-            if (StringUtils.isNotBlank(password)) {
-                factory.setPassword(password);
-            }
-
-            if (StringUtils.isNotBlank(vhost)) {
-                factory.setVirtualHost(vhost);
-            }
-
-            try (Connection connection = factory.newConnection()) {
-                Channel channel = connection.createChannel();
-
-                if (isProducerElement) {
-                    try {
-                        channel.exchangeDeclarePassive(exchange);
-                    } catch (IOException e) {
-                        throw new DeploymentRetriableException(
-                            "AMQP exchange " + exchange + " not found, check configuration");
-                    }
-                } else {
-                    for (String queue : queueNames(queues)) {
-                        try {
-                            channel.queueDeclarePassive(queue);
-                        } catch (IOException e) {
-                            // Quoted because the name is reproduced exactly as the consumer will
-                            // ask for it, and a stray space around a comma is otherwise invisible.
-                            throw new DeploymentRetriableException(
-                                "AMQP queue '" + queue + "' not found, check configuration");
-                        }
-                    }
-                }
+            try (Connection connection = connectionFactory(addresses, username, password, vhost, ssl)
+                    .newConnection()) {
+                assertTopologyExists(connection.createChannel(), isProducerElement, exchange, queues);
             } catch (IOException e) {
                 throw new DeploymentRetriableException(
                     "Connection configuration is invalid or broker is unavailable", e);
@@ -172,6 +140,60 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                 elementProperties.getElementId(),
                 e
             );
+        }
+    }
+
+    private ConnectionFactory connectionFactory(
+        String addresses,
+        String username,
+        String password,
+        String vhost,
+        String ssl
+    ) throws URISyntaxException, NoSuchAlgorithmException, KeyManagementException {
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setUri((StringUtils.isNotBlank(ssl) && ssl.equals("true") ? "amqps://" : "amqp://") + addresses);
+
+        if (StringUtils.isNotBlank(username)) {
+            factory.setUsername(username);
+        }
+        if (StringUtils.isNotBlank(password)) {
+            factory.setPassword(password);
+        }
+        if (StringUtils.isNotBlank(vhost)) {
+            factory.setVirtualHost(vhost);
+        }
+        return factory;
+    }
+
+    /**
+     * Asks the broker for what the route will use, without creating anything: a producer publishes to
+     * the exchange, a consumer reads from each of its queues.
+     */
+    static void assertTopologyExists(
+        Channel channel,
+        boolean isProducerElement,
+        String exchange,
+        String queues
+    ) {
+        if (isProducerElement) {
+            try {
+                channel.exchangeDeclarePassive(exchange);
+            } catch (IOException e) {
+                throw new DeploymentRetriableException(
+                    "AMQP exchange " + exchange + " not found, check configuration");
+            }
+            return;
+        }
+
+        for (String queue : queueNames(queues)) {
+            try {
+                channel.queueDeclarePassive(queue);
+            } catch (IOException e) {
+                // Quoted because the name is reproduced exactly as the consumer will ask for it,
+                // and a stray space around a comma is otherwise invisible.
+                throw new DeploymentRetriableException(
+                    "AMQP queue '" + queue + "' not found, check configuration");
+            }
         }
     }
 
