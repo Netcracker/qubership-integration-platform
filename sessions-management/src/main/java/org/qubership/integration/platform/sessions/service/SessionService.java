@@ -61,8 +61,7 @@ public class SessionService {
     private static final String[] EXCLUDE_FIELD_IN_SESSIONS = {
             "bodyBefore", "bodyAfter",
             "headersBefore", "headersAfter",
-            "exchangePropertiesBefore", "exchangePropertiesAfter",
-            "propertiesAfter", "propertiesBefore",
+            "propertiesBefore", "propertiesAfter",
             "contextBefore", "contextAfter",
     };
     private static final String AGGREGATION_COLUMN = "sessionId";
