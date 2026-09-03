@@ -47,8 +47,6 @@ public class A2aTaskSnapshotPersister {
   private final ObjectMapper objectMapper;
   private final java.util.concurrent.atomic.AtomicInteger loadDurableCalls =
       new java.util.concurrent.atomic.AtomicInteger();
-  private final java.util.concurrent.atomic.AtomicReference<Runnable> beforeLoadDurableHook =
-      new java.util.concurrent.atomic.AtomicReference<>();
 
   @Inject
   public A2aTaskSnapshotPersister(
@@ -68,11 +66,6 @@ public class A2aTaskSnapshotPersister {
   /** Test seam: reset the durable-read counter. */
   public void resetLoadDurableCallCountForTest() {
     loadDurableCalls.set(0);
-  }
-
-  /** Test seam: runs once immediately before the next {@link #loadDurable(String)}. */
-  void setBeforeLoadDurableHookForTest(Runnable hook) {
-    beforeLoadDurableHook.set(hook);
   }
 
   public PersistResult persistAndBuildSdkTask(
@@ -163,10 +156,6 @@ public class A2aTaskSnapshotPersister {
   /** Loads the durable Task snapshot together with its JDBC revision. */
   public Optional<DurableSnapshot> loadDurable(String taskId) {
     loadDurableCalls.incrementAndGet();
-    Runnable hook = beforeLoadDurableHook.getAndSet(null);
-    if (hook != null) {
-      hook.run();
-    }
     return taskRepository
         .findByTaskId(taskId)
         .map(

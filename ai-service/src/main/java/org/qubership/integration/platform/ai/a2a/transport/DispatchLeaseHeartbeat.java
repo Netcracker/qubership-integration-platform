@@ -38,8 +38,6 @@ public class DispatchLeaseHeartbeat {
   private final ScheduledExecutorService scheduler;
   private final ExecutorService renewWorkers;
   private final ConcurrentHashMap<UUID, Registration> active = new ConcurrentHashMap<>();
-  private final AtomicBoolean tickOverrideArmed = new AtomicBoolean();
-  private volatile Runnable tickOverride;
 
   @Inject
   public DispatchLeaseHeartbeat(AppConfig appConfig) {
@@ -139,12 +137,6 @@ public class DispatchLeaseHeartbeat {
     }
   }
 
-  /** Test seam: replace the next scheduled tick with a synchronous callback. */
-  void setTickOverrideForTest(Runnable override) {
-    tickOverride = override;
-    tickOverrideArmed.set(override != null);
-  }
-
   int activeCountForTest() {
     return active.size();
   }
@@ -194,11 +186,6 @@ public class DispatchLeaseHeartbeat {
 
     private void scheduleRenew() {
       if (stopped.get()) {
-        return;
-      }
-      Runnable override = tickOverride;
-      if (tickOverrideArmed.get() && override != null) {
-        override.run();
         return;
       }
       if (!renewInFlight.compareAndSet(false, true)) {
