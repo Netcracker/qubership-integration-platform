@@ -81,6 +81,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
 import org.qubership.integration.platform.ai.plan.MappingTurnApplication;
 import org.qubership.integration.platform.ai.plan.MappingTurnProcessor;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult;
+import org.qubership.integration.platform.ai.plan.MappingTurnTelemetry;
 import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
@@ -194,6 +195,7 @@ public final class ProductPipelineRunSupport {
   private final RecoveryAttemptLedger recoveryLedger;
   private final RecoveryOutcomeTelemetry recoveryTelemetry;
   private final MappingTurnAdapter mappingTurnAdapter;
+  private final MappingTurnTelemetry mappingTurnTelemetry;
 
   /** Fluent builder for the optional collaborators; required ones are constructor args. */
   public static Builder builder(
@@ -219,6 +221,7 @@ public final class ProductPipelineRunSupport {
     private RecoveryAttemptLedger recoveryLedger;
     private RecoveryOutcomeTelemetry recoveryTelemetry;
     private MappingTurnAdapter mappingTurnAdapter;
+    private MappingTurnTelemetry mappingTurnTelemetry;
 
     private Builder(
         ProductPipelineRunStore runStore,
@@ -281,6 +284,11 @@ public final class ProductPipelineRunSupport {
       return this;
     }
 
+    public Builder mappingTurnTelemetry(MappingTurnTelemetry mappingTurnTelemetry) {
+      this.mappingTurnTelemetry = mappingTurnTelemetry;
+      return this;
+    }
+
     public ProductPipelineRunSupport build() {
       return new ProductPipelineRunSupport(
           runStore,
@@ -296,7 +304,8 @@ public final class ProductPipelineRunSupport {
           repeatedFailureThreshold,
           recoveryLedger,
           recoveryTelemetry,
-          mappingTurnAdapter);
+          mappingTurnAdapter,
+          mappingTurnTelemetry);
     }
   }
 
@@ -314,7 +323,8 @@ public final class ProductPipelineRunSupport {
       int repeatedFailureThreshold,
       RecoveryAttemptLedger recoveryLedger,
       RecoveryOutcomeTelemetry recoveryTelemetry,
-      MappingTurnAdapter mappingTurnAdapter) {
+      MappingTurnAdapter mappingTurnAdapter,
+      MappingTurnTelemetry mappingTurnTelemetry) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -332,6 +342,7 @@ public final class ProductPipelineRunSupport {
     this.recoveryTelemetry =
         recoveryTelemetry == null ? new RecoveryOutcomeTelemetry() : recoveryTelemetry;
     this.mappingTurnAdapter = mappingTurnAdapter;
+    this.mappingTurnTelemetry = mappingTurnTelemetry;
     this.stageExecutor =
         new ProductPipelineStageExecutor(
             runStore,
@@ -571,7 +582,13 @@ public final class ProductPipelineRunSupport {
                     doc, command, () -> answerApprovalQuestionOrRefine(doc, command));
               }
               if (isMappingGapWait(doc)) {
-                return recordMappingGapInput(doc, command);
+                String canonical = canonicalMappingGapAction(command.text());
+                if ("pass_through".equals(canonical)
+                    || "describe_mappings".equals(canonical)
+                    || canonical.isBlank()) {
+                  return recordMappingGapInput(doc, command);
+                }
+                return interpretMappingGapDescribeTurn(doc, command);
               }
               return interpretApprovedMappingTurnOrFallback(
                   doc, command, () -> acceptTypedInput(doc, command));
@@ -732,9 +749,143 @@ public final class ProductPipelineRunSupport {
   }
 
   /**
-   * Mapping-gap card: persist pass-through confirmation, ask for mapping prose, or reopen analysis
-   * without debiting the causal-reopen budget.
+   * Describe-prose on the mapping-gap card is a mapping turn against the current brief. Canonical
+   * {@code pass_through} and {@code describe_mappings} stay in {@link #recordMappingGapInput}.
    */
+  private Multi<PipelineSignal> interpretMappingGapDescribeTurn(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    if (mappingTurnAdapter == null) {
+      return recordMappingGapInput(doc, command);
+    }
+    return Multi.createFrom()
+        .deferred(() -> applyMappingGapDescribeTurn(doc, command))
+        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+  }
+
+  private Multi<PipelineSignal> applyMappingGapDescribeTurn(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    RequirementBrief brief = approvedRequirementBrief(command.runId());
+    if (brief == null) {
+      return recordMappingGapInput(doc, command);
+    }
+    MappingTurnApplication application =
+        MappingTurnProcessor.processGap(
+            brief, command.text(), mappingTurnAdapter, mappingTurnTelemetry);
+    if (application.applied()) {
+      persistMappingGapBrief(doc, command, application.brief());
+      if (MappingGapCoverage.uncovered(application.brief()).isEmpty()) {
+        commitStatus(
+            doc,
+            RunStatus.RUNNING,
+            StageStatus.RUNNING,
+            doc.run().stages(),
+            "accepted input",
+            null,
+            command.commandId(),
+            command.commandPayloadHash());
+        return Multi.createFrom().empty();
+      }
+      return stayOnMappingGap(doc, command, application.brief(), "");
+    }
+    MappingTurnResult result = application.result();
+    if (result instanceof MappingTurnResult.Query
+        || result instanceof MappingTurnResult.Clarification
+        || result instanceof MappingTurnResult.ConfirmationRequired) {
+      return stayAfterMappingTurn(doc, mappingStayMessage(application));
+    }
+    return stayOnMappingGap(doc, command, brief, mappingGapStayReason(application));
+  }
+
+  private Multi<PipelineSignal> stayOnMappingGap(
+      ProductPipelineRunDocument doc,
+      AcceptInputCommand command,
+      RequirementBrief brief,
+      String reason) {
+    String tagged =
+        PipelineGates.tag(
+            PipelineGates.MAPPING_GAP,
+            MappingGapWait.encode(
+                null, MappingGapCoverage.readableEdges(MappingGapCoverage.uncovered(brief))));
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        doc.run().stages(),
+        tagged,
+        null,
+        command.commandId(),
+        command.commandPayloadHash());
+    Multi<PipelineSignal> wait =
+        Multi.createFrom()
+            .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), tagged));
+    if (reason == null || reason.isBlank()) {
+      return wait;
+    }
+    return Multi.createFrom()
+        .item((PipelineSignal) new PipelineSignal.Message(reason))
+        .onCompletion()
+        .switchTo(() -> wait);
+  }
+
+  private static String mappingGapStayReason(MappingTurnApplication application) {
+    String fromResult = mappingStayMessage(application);
+    if (fromResult != null && !fromResult.isBlank()) {
+      return fromResult;
+    }
+    if (application.result() instanceof MappingTurnResult.Changes(var operations)) {
+      List<String> omitted = new ArrayList<>();
+      for (MappingTurnResult.Operation operation : operations) {
+        if (operation instanceof MappingTurnResult.AddIntent add && add.rules().isEmpty()) {
+          return add.sourceRef()
+              + " -> "
+              + add.targetRef()
+              + " still needs a mapping rule or a skip.";
+        }
+        if (operation instanceof MappingTurnResult.AddIntent add
+            && application.brief().mappingIntents().stream()
+                .noneMatch(
+                    intent ->
+                        add.sourceRef().equals(intent.sourceRef())
+                            && add.targetRef().equals(intent.targetRef()))) {
+          omitted.add(add.sourceRef() + " -> " + add.targetRef());
+        }
+      }
+      if (!omitted.isEmpty()) {
+        return "No mapping change was applied. Omitted hops: "
+            + String.join(", ", omitted)
+            + ". Map or skip an approved flow transition.";
+      }
+    }
+    return "No mapping change was applied. Describe a hop with at least one rule, or pass through"
+        + " the remainder.";
+  }
+
+  /** Appends the updated brief so design-input and the compiler see mapping intents. */
+  private void persistMappingGapBrief(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, RequirementBrief updated) {
+    Optional<Revision> stored = artifactStore.latest(command.runId(), Kind.REQUIREMENT_BRIEF);
+    Revision revision =
+        artifactStore.append(
+            new AppendCommand(
+                command.runId(),
+                Kind.REQUIREMENT_BRIEF,
+                stored.map(Revision::schemaVersion).orElse("1"),
+                "product-pipeline-runtime",
+                "1",
+                updated,
+                List.of(),
+                null,
+                provenance(
+                    command.runId(),
+                    doc.run().currentStageId(),
+                    currentStage(doc).capabilityId())));
+    Map<String, Object> attributes =
+        attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+    attributes.put("requirementBrief", updated);
+    attributes.put("requirementBriefContentHash", revision.contentHash());
+  }
+
+  /** Handles typed pass-through, the describe action, and blank input on the mapping-gap card. */
   private Multi<PipelineSignal> recordMappingGapInput(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
     String canonical = canonicalMappingGapAction(command.text());
@@ -779,28 +930,7 @@ public final class ProductPipelineRunSupport {
                     () ->
                         new IllegalStateException(
                             "mapping-gap pass-through requires a committed RequirementBrief"));
-    String briefSha = storedBrief.map(Revision::contentHash).orElse("");
-    MappingGapPassThroughConfirmation confirmation =
-        new MappingGapPassThroughConfirmation(
-            briefSha,
-            MappingGapCoverage.uncovered(brief).stream()
-                .map(
-                    transition ->
-                        new MappingGapPassThroughConfirmation.TransitionRef(
-                            transition.sourceInteractionId(), transition.targetInteractionId()))
-                .toList());
-    artifactStore.append(
-        new AppendCommand(
-            command.runId(),
-            Kind.USER_INPUT,
-            "1",
-            "product-pipeline-runtime",
-            "1",
-            new UserInput(
-                userInputId(command), "design-input", confirmation.toJson(), clock.instant()),
-            List.of(),
-            null,
-            provenance(command.runId(), "design-input", currentStage(doc).capabilityId())));
+    persistMappingGapBrief(doc, command, MappingGapCoverage.skipUncovered(brief));
     commitStatus(
         doc,
         RunStatus.RUNNING,
@@ -832,7 +962,7 @@ public final class ProductPipelineRunSupport {
 
   /**
    * Same canonical tokens as A2A {@code pass_through} / {@code describe_mappings}. Other text is
-   * left unchanged so mapping prose reaches requirement-analysis as typed.
+   * left unchanged so mapping prose reaches MappingTurnProcessor as typed.
    */
   private static String canonicalMappingGapAction(String text) {
     if (text == null) {
@@ -2470,6 +2600,17 @@ public final class ProductPipelineRunSupport {
     manifestsByRun.put(runId, manifest);
     Map<String, Object> attributes =
         attributesByRun.computeIfAbsent(runId, ignored -> new ConcurrentHashMap<>());
+    artifactStore
+        .latest(runId, Kind.REQUIREMENT_BRIEF)
+        .ifPresent(
+            revision -> {
+              if (!attributes.containsKey("requirementBrief")) {
+                attributes.put(
+                    "requirementBrief",
+                    artifactStore.payload(revision, RequirementBrief.class));
+                attributes.put("requirementBriefContentHash", revision.contentHash());
+              }
+            });
     List<UserInput> allInputs =
         artifactStore.history(runId, Kind.USER_INPUT).stream()
             .map(revision -> artifactStore.payload(revision, UserInput.class))

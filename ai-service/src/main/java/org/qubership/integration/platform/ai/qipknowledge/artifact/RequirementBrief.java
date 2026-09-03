@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 /** Distilled requirements for a chain planning workflow. */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -22,7 +23,8 @@ public record RequirementBrief(
     List<RequirementFact> requirements,
     List<MappingIntent> mappingIntents,
     RequirementFlow flow,
-    List<CatalogBindingHint> catalogBindings) {
+    List<CatalogBindingHint> catalogBindings,
+    List<Transition> skippedTransitions) {
 
   public RequirementBrief {
     inputs = inputs == null ? List.of() : List.copyOf(inputs);
@@ -36,6 +38,7 @@ public record RequirementBrief(
     mappingIntents = mappingIntents == null ? List.of() : List.copyOf(mappingIntents);
     flow = flow == null ? RequirementFlow.EMPTY : flow;
     catalogBindings = catalogBindings == null ? List.of() : List.copyOf(catalogBindings);
+    skippedTransitions = skippedTransitions == null ? List.of() : List.copyOf(skippedTransitions);
     goal = goal == null ? "" : goal;
     summary = summary == null ? "" : summary;
     approvedDraftReference =
@@ -43,6 +46,42 @@ public record RequirementBrief(
             ? null
             : approvedDraftReference.trim();
     approvedDraftText = approvedDraftText == null ? "" : approvedDraftText;
+  }
+
+  /** Previous full constructor before skip records were pinned on the brief. */
+  public RequirementBrief(
+      String goal,
+      List<String> inputs,
+      List<String> constraints,
+      List<String> assumptions,
+      List<QipKnowledgeCitation> citations,
+      String summary,
+      String approvedDraftReference,
+      String approvedDraftText,
+      List<RequirementFact> facts,
+      List<RequirementEntryPoint> entryPoints,
+      List<RequirementServiceCall> serviceCalls,
+      List<RequirementFact> requirements,
+      List<MappingIntent> mappingIntents,
+      RequirementFlow flow,
+      List<CatalogBindingHint> catalogBindings) {
+    this(
+        goal,
+        inputs,
+        constraints,
+        assumptions,
+        citations,
+        summary,
+        approvedDraftReference,
+        approvedDraftText,
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        List.of());
   }
 
   /** Previous full constructor before flow and catalog bindings were pinned on the brief. */
@@ -143,7 +182,14 @@ public record RequirementBrief(
 
   public RequirementBrief withFacts(List<RequirementFact> facts) {
     return copy(
-        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions);
   }
 
   public RequirementBrief withApprovedDraftText(String approvedDraftText) {
@@ -162,27 +208,68 @@ public record RequirementBrief(
         requirements,
         mappingIntents,
         flow,
-        catalogBindings);
+        catalogBindings,
+        skippedTransitions);
   }
 
   public RequirementBrief withServiceCalls(List<RequirementServiceCall> serviceCalls) {
     return copy(
-        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions);
   }
 
   public RequirementBrief withMappingIntents(List<MappingIntent> mappingIntents) {
     return copy(
-        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions);
   }
 
   public RequirementBrief withFlow(RequirementFlow flow) {
     return copy(
-        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions);
   }
 
   public RequirementBrief withCatalogBindings(List<CatalogBindingHint> catalogBindings) {
     return copy(
-        facts, entryPoints, serviceCalls, requirements, mappingIntents, flow, catalogBindings);
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions);
+  }
+
+  public RequirementBrief withSkippedTransitions(List<Transition> skippedTransitions) {
+    return copy(
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions);
   }
 
   private RequirementBrief copy(
@@ -192,7 +279,8 @@ public record RequirementBrief(
       List<RequirementFact> requirements,
       List<MappingIntent> mappingIntents,
       RequirementFlow flow,
-      List<CatalogBindingHint> catalogBindings) {
+      List<CatalogBindingHint> catalogBindings,
+      List<Transition> skippedTransitions) {
     return new RequirementBrief(
         goal,
         inputs,
@@ -208,6 +296,7 @@ public record RequirementBrief(
         requirements,
         mappingIntents,
         flow,
-        catalogBindings);
+        catalogBindings,
+        skippedTransitions);
   }
 }

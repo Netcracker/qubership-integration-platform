@@ -27,10 +27,13 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagE
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerExecutionSeed;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -120,10 +123,32 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     if (storedBrief == null || storedBrief.mappingIntents().isEmpty()) {
       return;
     }
-    if (!storedBrief.mappingIntents().equals(revision.mappingIntents())) {
+    if (!projectLiveMappingIntents(storedBrief.mappingIntents(), revision)
+        .equals(revision.mappingIntents())) {
       throw new IllegalStateException(
           "Live mapping-intent collection differs from the approved semantic revision");
     }
+  }
+
+  private static List<MappingIntent> projectLiveMappingIntents(
+      List<MappingIntent> liveIntents, ChainSemanticRevision revision) {
+    LinkedHashMap<String, SemanticExecutionEdge> siteByIntent = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      String mappingId = edge.mappingId();
+      if (mappingId == null || mappingId.isBlank()) {
+        continue;
+      }
+      siteByIntent.putIfAbsent(mappingId, edge);
+    }
+    List<MappingIntent> projected = new ArrayList<>(liveIntents.size());
+    for (MappingIntent intent : liveIntents) {
+      SemanticExecutionEdge site = siteByIntent.get(intent.mappingIntentId());
+      projected.add(
+          site == null
+              ? intent
+              : ChainSemanticCaptureAdapter.projectOntoCarryingEdge(intent, site));
+    }
+    return projected;
   }
 
   private RequirementBrief loadStoredBrief(String runId) {

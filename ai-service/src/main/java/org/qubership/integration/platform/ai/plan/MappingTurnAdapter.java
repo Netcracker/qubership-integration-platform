@@ -10,4 +10,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 public interface MappingTurnAdapter {
 
   MappingTurnResult interpret(RequirementBrief brief, String authorMessage);
+
+  /** Mapping-gap mode omits invalid additions so valid sibling hops can still be applied. */
+  default MappingTurnResult interpretGap(RequirementBrief brief, String authorMessage) {
+    return interpret(brief, authorMessage);
+  }
 }

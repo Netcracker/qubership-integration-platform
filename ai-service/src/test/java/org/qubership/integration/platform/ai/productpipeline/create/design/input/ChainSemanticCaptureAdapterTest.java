@@ -422,7 +422,12 @@ class ChainSemanticCaptureAdapterTest {
         failure(
             ChainSemanticCaptureFixtures.linearCapture(),
             ChainSemanticCaptureFixtures.briefWithMapping());
-    assertTrue(message.contains("is not placed on any edge"), message);
+    assertEquals(
+        "The approved brief already has mappingIntentId='"
+            + ChainSemanticCaptureFixtures.MAPPING_INTENT_ID
+            + "'. None of the captured edges listed that id. Set mappingIntentId on the edge that"
+            + " carries this mapping, not on the brief.",
+        message);
   }
 
   @Test

@@ -548,10 +548,10 @@ public class ChainSemanticCaptureAdapter {
       SemanticExecutionEdge site = siteByIntent.get(intent.mappingIntentId());
       if (site == null) {
         throw new IllegalArgumentException(
-            "Mapping '"
+            "The approved brief already has mappingIntentId='"
                 + intent.mappingIntentId()
-                + "' from the approved brief is not placed on any edge. Set mappingIntentId on the"
-                + " edge that carries it.");
+                + "'. None of the captured edges listed that id. Set mappingIntentId on the edge"
+                + " that carries this mapping, not on the brief.");
       }
       requireTransformSite(intent.mappingIntentId(), site, nodesById);
       if (!BriefMappingValidator.isMappingEndpoint(
@@ -564,17 +564,25 @@ public class ChainSemanticCaptureAdapter {
                 + site.targetNodeId()
                 + "' has more than one incoming edge. Mapping needs a single-incoming site.");
       }
-      projected.add(
-          new MappingIntent(
-              intent.mappingIntentId(),
-              site.edgeId(),
-              intent.sourcePort(),
-              site.edgeId(),
-              intent.targetPort(),
-              intent.rules(),
-              intent.implementationPreference()));
+      projected.add(projectOntoCarryingEdge(intent, site));
     }
     return List.copyOf(projected);
+  }
+
+  /**
+   * Rewrites both mapping refs to {@code site.edgeId()}. Capture keeps interaction ids on the live
+   * brief and stores this projected form on the revision.
+   */
+  public static MappingIntent projectOntoCarryingEdge(
+      MappingIntent intent, SemanticExecutionEdge site) {
+    return new MappingIntent(
+        intent.mappingIntentId(),
+        site.edgeId(),
+        intent.sourcePort(),
+        site.edgeId(),
+        intent.targetPort(),
+        intent.rules(),
+        intent.implementationPreference());
   }
 
   private static void requireTransformSite(

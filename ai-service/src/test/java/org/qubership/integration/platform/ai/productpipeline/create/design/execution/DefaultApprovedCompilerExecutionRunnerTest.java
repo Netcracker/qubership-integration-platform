@@ -211,31 +211,20 @@ class DefaultApprovedCompilerExecutionRunnerTest {
   @Test
   void executeRejectsALiveMappingIntentCollectionThatDiffersFromTheRevision() {
     storeBrief(
-        new RequirementBrief(
-                "Orders",
-                List.of(),
-                List.of(),
-                List.of(),
-                List.of(),
-                "Map OM output",
-                "ref",
-                "draft",
-                List.of(),
-                List.of())
-            .withMappingIntents(
-                List.of(
-                    new MappingIntent(
-                        "map-live",
-                        "trigger-http",
-                        MappingPort.OUTPUT,
-                        "call-1",
-                        MappingPort.REQUEST,
-                        List.of(
-                            new MappingIntentRule(
-                                "$.orderId",
-                                "$.orderId",
-                                null,
-                                MappingRuleStatus.USER_DEFINED))))));
+        ordersBriefWith(
+            List.of(
+                new MappingIntent(
+                    "map-live",
+                    "trigger-http",
+                    MappingPort.OUTPUT,
+                    "call-1",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.orderId",
+                            "$.orderId",
+                            null,
+                            MappingRuleStatus.USER_DEFINED))))));
 
     IllegalStateException thrown =
         assertThrows(
@@ -244,6 +233,93 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                 runner.execute(
                     samplePlan(),
                     sampleRevision(),
+                    List.of(sampleBinding()),
+                    sampleManifest(),
+                    "attempt-1",
+                    (skillId, status) -> {}));
+
+    assertTrue(
+        thrown.getMessage().contains("Live mapping-intent collection differs from the approved"));
+  }
+
+  @Test
+  void executeAcceptsLiveMappingIntentsWhenRevisionRefsAreProjectedEdgeIds() {
+    MappingIntent liveIntent =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("id", "customerId", null)));
+    storeBrief(ordersBriefWith(List.of(liveIntent)));
+    persistRun();
+
+    runner.execute(
+        samplePlan(),
+        SemanticFixtures.linearOrdersWithMapping(),
+        List.of(sampleBinding()),
+        sampleManifest(),
+        "attempt-1",
+        (skillId, status) -> {});
+
+    RequirementBrief stored =
+        artifactStore.payload(
+            artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow(),
+            RequirementBrief.class);
+    assertEquals("trigger-http", stored.mappingIntents().getFirst().sourceRef());
+    assertEquals("node-call", stored.mappingIntents().getFirst().targetRef());
+  }
+
+  @Test
+  void executeRejectsLiveMappingIntentsWhenTheMappingIntentIdSetDiffers() {
+    storeBrief(
+        ordersBriefWith(
+            List.of(
+                new MappingIntent(
+                    "map-other",
+                    "trigger-http",
+                    MappingPort.OUTPUT,
+                    "node-call",
+                    MappingPort.REQUEST,
+                    List.of(new MappingIntentRule("id", "customerId", null))))));
+
+    IllegalStateException thrown =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                runner.execute(
+                    samplePlan(),
+                    SemanticFixtures.linearOrdersWithMapping(),
+                    List.of(sampleBinding()),
+                    sampleManifest(),
+                    "attempt-1",
+                    (skillId, status) -> {}));
+
+    assertTrue(
+        thrown.getMessage().contains("Live mapping-intent collection differs from the approved"));
+  }
+
+  @Test
+  void executeRejectsLiveMappingIntentsWhenRulesDifferFromTheRevision() {
+    storeBrief(
+        ordersBriefWith(
+            List.of(
+                new MappingIntent(
+                    "map-init",
+                    "trigger-http",
+                    MappingPort.OUTPUT,
+                    "node-call",
+                    MappingPort.REQUEST,
+                    List.of(new MappingIntentRule("id", "orderId", null))))));
+
+    IllegalStateException thrown =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                runner.execute(
+                    samplePlan(),
+                    SemanticFixtures.linearOrdersWithMapping(),
                     List.of(sampleBinding()),
                     sampleManifest(),
                     "attempt-1",
@@ -309,6 +385,21 @@ class DefaultApprovedCompilerExecutionRunnerTest {
         ApprovalPolicy.CATALOG_FIRST_V1_HASH);
   }
 
+  private static RequirementBrief ordersBriefWith(List<MappingIntent> mappingIntents) {
+    return new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map OM output",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(mappingIntents);
+  }
+
   private void storeBrief(RequirementBrief brief) {
     artifactStore.append(
         new AppendCommand(
@@ -329,6 +420,41 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                 "requirement-analysis",
                 "1",
                 "closure")));
+  }
+
+  private void persistRun() {
+    RunManifest manifest = sampleManifest();
+    Reference manifestRef =
+        artifactStore
+            .append(
+                new AppendCommand(
+                    RUN_ID,
+                    Kind.RUN_MANIFEST,
+                    "1",
+                    "test",
+                    "1",
+                    manifest,
+                    List.of(),
+                    null,
+                    new ArtifactProvenance(
+                        RUN_ID,
+                        "design-execution",
+                        "create-chain",
+                        "2",
+                        "profile-sha",
+                        "design-execution",
+                        "1",
+                        "closure")))
+            .reference();
+    runStore.create(
+        new RunSnapshot(
+            RUN_ID,
+            CONVERSATION_ID,
+            1L,
+            RunStatus.RUNNING,
+            "design-execution",
+            List.of(),
+            manifestRef));
   }
 
   private static ChainSemanticRevision sampleRevision() {

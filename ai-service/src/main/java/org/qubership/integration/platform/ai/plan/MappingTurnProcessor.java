@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnResult.DeleteIntent
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.DeleteRule;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.Query;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.UpdateRule;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation.TransitionRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
@@ -20,6 +21,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
  * Conversation seam for one mapping turn: current requirement brief plus one author message.
@@ -52,6 +54,91 @@ public final class MappingTurnProcessor {
           recorded, application, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs));
     }
     return application;
+  }
+
+  /**
+   * Mapping-gap describe turn: persist each valid ADD_INTENT, omit empty-rule, unapproved, and
+   * undescribed hops, and record coverage remainder telemetry. Hash confirmation is not coverage.
+   */
+  public static MappingTurnApplication processGap(
+      RequirementBrief brief,
+      String authorMessage,
+      MappingTurnAdapter adapter,
+      MappingTurnTelemetry telemetry) {
+    Objects.requireNonNull(brief, "brief");
+    Objects.requireNonNull(adapter, "adapter");
+    long startNs = System.nanoTime();
+    String message = authorMessage == null ? "" : authorMessage;
+    MappingTurnResult result = adapter.interpretGap(brief, message);
+    MappingTurnApplication application = applyGapInterpreted(brief, result);
+    MappingTurnResult recorded =
+        application.result() != null ? application.result() : MappingTurnResult.changes();
+    if (telemetry != null) {
+      int remainder = MappingGapCoverage.uncovered(application.brief()).size();
+      telemetry.record(
+          recorded,
+          application,
+          TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs),
+          appliedHopCount(brief, application.brief()),
+          omittedHopCount(recorded, application.brief()),
+          remainder,
+          remainder == 0 ? "LEAVE" : "STAY");
+    }
+    return application;
+  }
+
+  private static MappingTurnApplication applyGapInterpreted(
+      RequirementBrief brief, MappingTurnResult result) {
+    if (result instanceof Query(var selector)) {
+      return new MappingTurnApplication(
+          brief, false, MappingQueryLookup.answer(brief, selector), result);
+    }
+    if (result instanceof Clarification || result instanceof ConfirmationRequired) {
+      return MappingTurnApplication.rejected(brief, result);
+    }
+    if (!(result instanceof MappingTurnResult.Changes(var operations)) || operations.isEmpty()) {
+      return MappingTurnApplication.rejected(brief, result);
+    }
+    List<MappingTurnResult.Operation> keep = gapOperations(operations);
+    if (keep.isEmpty()) {
+      return MappingTurnApplication.rejected(brief, result);
+    }
+    MappingTurnApplication application =
+        MappingTurnApplicator.applyValid(brief, new MappingTurnResult.Changes(keep));
+    return new MappingTurnApplication(
+        application.brief(), application.applied(), application.answer(), result);
+  }
+
+  /** Omits empty-rule hops; the interpreter already dropped hops the author never described. */
+  private static List<MappingTurnResult.Operation> gapOperations(
+      List<MappingTurnResult.Operation> operations) {
+    List<MappingTurnResult.Operation> keep = new ArrayList<>();
+    for (MappingTurnResult.Operation operation : operations) {
+      if (operation instanceof AddIntent add && add.rules().isEmpty()) {
+        continue;
+      }
+      keep.add(operation);
+    }
+    return keep;
+  }
+
+  private static int appliedHopCount(RequirementBrief before, RequirementBrief after) {
+    return Math.max(0, after.mappingIntents().size() - before.mappingIntents().size());
+  }
+
+  private static int omittedHopCount(
+      MappingTurnResult result, RequirementBrief after) {
+    if (!(result instanceof MappingTurnResult.Changes(var operations))) {
+      return 0;
+    }
+    int omitted = 0;
+    for (MappingTurnResult.Operation operation : operations) {
+      if (operation instanceof AddIntent add
+          && intentAt(after, add.sourceRef(), add.targetRef()) == null) {
+        omitted++;
+      }
+    }
+    return omitted;
   }
 
   /** Formats a mapping-intent id and target path for clarification candidates. */

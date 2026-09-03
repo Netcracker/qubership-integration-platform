@@ -41,6 +41,9 @@ new transition in `addIntents`. Put additional rules for an intent that already 
 renames the writer. Put rule removals in `deleteRules`. Put whole-intent removals in
 `deleteIntents` using that intent's `sourceRef` and `targetRef`.
 
+Emit `addIntents` only for transitions whose mapping the current author message describes. Leave
+every unmentioned flow transition out of the result.
+
 `sourceRef` and `targetRef` must be approved interaction ids from the flow listing. A unique
 operation name may stand in for that id. Do not emit a replacement list of intents that already
 exist; emit only new work against the current state.
