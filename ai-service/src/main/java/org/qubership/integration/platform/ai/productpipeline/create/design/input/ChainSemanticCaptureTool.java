@@ -126,7 +126,7 @@ public class ChainSemanticCaptureTool {
     ChainSemanticRevision revision;
     try {
       revision = adapter.adapt(capture, binding.runId(), brief, contract);
-      validator.validate(revision, contract);
+      validator.validate(revision, contract, brief);
     } catch (IllegalArgumentException ex) {
       return ex.getMessage();
     }

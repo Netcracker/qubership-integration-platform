@@ -462,6 +462,19 @@ class DesignPlanningCapabilityTest {
         DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleRevision(), "2024.4");
 
     assertTrue(input.contains("No mapping intents. Do not plan mapping scripts."), input);
+    assertFalse(input.contains("behavior-owned"), input);
+  }
+
+  @Test
+  void plannerInputKeepsBehaviorOwnedScriptWorkWhenMappingIntentsAreEmpty() {
+    String input =
+        DesignPlanningCapability.buildPlannerInput(
+            sampleIds(), SemanticFixtures.linearOrdersWithCompleteTask(), "2024.4");
+
+    assertTrue(input.contains("No mapping intents. Do not plan mapping scripts."), input);
+    assertTrue(input.contains("cip-script-generator"), input);
+    assertTrue(input.contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), input);
+    assertFalse(input.contains("Do not plan mapping scripts.\n\nNodes:"), input);
   }
 
   @Test

@@ -962,9 +962,10 @@ class CanonicalSemanticCreateChainIT {
         1. Analyze requirements and name chain Two entry shared downstream (cip-requirement-analyzer + cip-naming-generator)
         2. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
         3. Generate Kafka Trigger element with interface Kafka (cip-trigger-generator)
-        4. Generate execution structure and element ordering (cip-structure-generator)
-        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        6. Validate the assembled chain (cip-chain-validator)
+        4. Generate Script element for shared downstream (cip-script-generator)
+        5. Generate execution structure and element ordering (cip-structure-generator)
+        6. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        7. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();
@@ -974,9 +975,10 @@ class CanonicalSemanticCreateChainIT {
     return """
         1. Analyze requirements and name chain Condition reconverge (cip-requirement-analyzer + cip-naming-generator)
         2. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
-        3. Generate execution structure and element ordering (cip-structure-generator)
-        4. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
-        5. Validate the assembled chain (cip-chain-validator)
+        3. Generate Script element for condition branches (cip-script-generator)
+        4. Generate execution structure and element ordering (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();

@@ -120,6 +120,39 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void purePassThroughCompilesToDirectEdgeWithoutScriptOrMapper() {
+    ChainPlanGraph graph =
+        compiler.compile(
+            SemanticFixtures.linearOrders(), CONTRACT, List.of(ordersCallBinding()));
+
+    assertEquals(
+        Set.of("trigger-http", "node-call"),
+        graph.nodes().stream().map(ChainPlanNode::nodeId).collect(Collectors.toSet()));
+    assertTrue(
+        graph.nodes().stream()
+            .noneMatch(n -> "script".equals(n.type()) || "mapper-2".equals(n.type())));
+    assertEquals(1, graph.edges().size());
+    assertEquals("trigger-http", graph.edges().getFirst().fromNodeId());
+    assertEquals("node-call", graph.edges().getFirst().toNodeId());
+  }
+
+  @Test
+  void completeTaskKeepsBehaviorOwnedScriptWithoutMappingIntentId() {
+    ChainPlanGraph graph =
+        compiler.compile(
+            SemanticFixtures.linearOrdersWithCompleteTask(),
+            CONTRACT,
+            List.of(ordersCallBinding()));
+
+    ChainPlanNode script = node(graph, SemanticFixtures.COMPLETE_TASK_NODE_ID);
+    assertEquals("script", script.type());
+    assertNull(property(script, MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY));
+    assertTrue(
+        graph.nodes().stream().noneMatch(n -> "mapper-2".equals(n.type())),
+        "completeTask must not invent a mapper-2 node");
+  }
+
+  @Test
   void compilesOneBranchAsyncSplitWithRegionScope() {
     ChainPlanGraph graph =
         compiler.compile(asyncSplitOneBranchRevision(), CONTRACT, List.of(binding("call-notify")));
@@ -266,6 +299,25 @@ class DefaultChainSemanticGraphCompilerTest {
     return null;
   }
 
+  private static ResolvedServiceCallBinding ordersCallBinding() {
+    return new ResolvedServiceCallBinding(
+        "node-call",
+        "call-1",
+        "INTEGRATION",
+        "sys-1",
+        "sg-1",
+        "spec-1",
+        "op-call-1",
+        "http",
+        "GET",
+        "/orders/{id}",
+        "getOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+        "2024.4",
+        "evidence-call-1",
+        "");
+  }
+
   private static ResolvedServiceCallBinding binding(String serviceCallId) {
     return new ResolvedServiceCallBinding(
         serviceCallId,
@@ -317,7 +369,8 @@ class DefaultChainSemanticGraphCompilerTest {
         List.of(
             new SemanticNode.Trigger(
                 "trigger-async", "async-api-trigger", new SemanticProvenance(List.of("fact-consume"))),
-            new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of()))),
+            new SemanticNode.Operation(
+                "op-shared", "script", new SemanticProvenance(List.of("fact-script")))),
         List.of(),
         List.of(sequence("edge-async-in", "trigger-async", "op-shared", null)),
         List.of(),
@@ -404,7 +457,8 @@ class DefaultChainSemanticGraphCompilerTest {
                 "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
             new SemanticNode.Trigger(
                 "trigger-kafka", "kafka-trigger-2", new SemanticProvenance(List.of())),
-            new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of()))),
+            new SemanticNode.Operation(
+                "op-shared", "script", new SemanticProvenance(List.of("fact-shared")))),
         List.of(),
         List.of(
             sequence("edge-http-in", "trigger-http", "op-shared", null),

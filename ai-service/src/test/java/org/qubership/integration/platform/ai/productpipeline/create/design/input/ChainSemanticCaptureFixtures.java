@@ -67,7 +67,13 @@ final class ChainSemanticCaptureFixtures {
                 "",
                 "",
                 "",
-                "call-1")),
+                "call-1"),
+            new RequirementFact(
+                "fact-script",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Prepare the request payload")),
         List.of(
             new RequirementEntryPoint(
                 "http-in", "trigger-1", "http-trigger", "", "POST", "/orders", "createOrder")),
@@ -190,7 +196,7 @@ final class ChainSemanticCaptureFixtures {
                 "Create order",
                 null)),
         List.of(new CapturedTrigger("trigger-http", List.of("trigger-1"))),
-        List.of(new CapturedOperation("op-shared", "script", List.of())),
+        List.of(new CapturedOperation("op-shared", "script", List.of("fact-script"))),
         List.of(),
         List.of(),
         List.of(),
@@ -226,7 +232,7 @@ final class ChainSemanticCaptureFixtures {
 
   static ChainSemanticCapture rockyCapture() {
     return rockyCapture(
-        List.of(new CapturedOperation("mapper-1", "script", List.of())),
+        List.of(new CapturedOperation("mapper-1", "script", List.of("fact-script"))),
         List.of(
             new CapturedEdge("task-start", "create-task", null, null, null, null, null, null),
             new CapturedEdge("create-task", "mapper-1", null, null, null, null, null, null),
@@ -259,7 +265,13 @@ final class ChainSemanticCaptureFixtures {
             "Consume onTaskStart, create a Salesforce task, publish onTaskResult",
             "ref",
             "draft",
-            List.of(),
+            List.of(
+                new RequirementFact(
+                    "fact-script",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.BEHAVIOR,
+                    "",
+                    "Respond with commandType=completeTask")),
             List.of())
         .withFlow(rockyFlow())
         .withCatalogBindings(

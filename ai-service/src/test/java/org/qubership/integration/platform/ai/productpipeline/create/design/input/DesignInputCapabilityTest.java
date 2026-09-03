@@ -186,6 +186,8 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("External interaction anchors are server-owned"), prompt);
     assertTrue(prompt.contains("nodeId=http-in"), prompt);
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
+    assertTrue(prompt.contains("commandType=completeTask"), prompt);
+    assertTrue(prompt.contains("Do not mint a mapping id"), prompt);
   }
 
   @Test

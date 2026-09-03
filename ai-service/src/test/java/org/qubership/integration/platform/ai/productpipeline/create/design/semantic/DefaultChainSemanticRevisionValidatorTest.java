@@ -15,9 +15,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 class DefaultChainSemanticRevisionValidatorTest {
 
@@ -140,6 +144,68 @@ class DefaultChainSemanticRevisionValidatorTest {
             IllegalArgumentException.class,
             () -> validator.validate(revisionWithOrphanMapping(), CONTRACT));
     assertTrue(error.getMessage().contains("orphan mapping intent: map-orphan"), error.getMessage());
+  }
+
+  @Test
+  void rejectsOrphanScript() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(revisionWithOrphanScript(), CONTRACT));
+    assertTrue(error.getMessage().contains("orphan script: orphan-script"), error.getMessage());
+  }
+
+  @Test
+  void mappingOwnedScriptStaysOneToOneWithMappingIntent() {
+    assertDoesNotThrow(() -> validator.validate(linearRevision(), CONTRACT));
+  }
+
+  @Test
+  void rejectsScriptBoundToTwoMappingIntents() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(revisionWithScriptBoundToTwoIntents(), CONTRACT));
+    assertTrue(error.getMessage().contains("op-shared"), error.getMessage());
+    assertTrue(error.getMessage().contains("mapping"), error.getMessage());
+  }
+
+  @Test
+  void acceptsBehaviorOwnedScriptWithPositiveBehaviorProvenance() {
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                SemanticFixtures.COMPLETE_TASK_FACT_ID,
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Respond with commandType=completeTask"));
+    assertDoesNotThrow(
+        () -> validator.validate(SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
+  }
+
+  @Test
+  void rejectsScriptWhoseProvenanceIsNotPositiveBehavior() {
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                SemanticFixtures.COMPLETE_TASK_FACT_ID,
+                RequirementFactPolarity.NEGATIVE,
+                RequirementFactKind.CONSTRAINT,
+                "",
+                "Do not invent a mapping intent"));
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                validator.validate(
+                    SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
+    assertTrue(error.getMessage().contains("orphan script:"), error.getMessage());
+  }
+
+  @Test
+  void acceptsErrorHandlingScriptInApprovedRegion() {
+    assertDoesNotThrow(() -> validator.validate(errorScopeRevision("catch-all"), CONTRACT));
   }
 
   @Test
@@ -296,6 +362,55 @@ class DefaultChainSemanticRevisionValidatorTest {
         edges,
         linear.containment(),
         linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithOrphanScript() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode orphan =
+        new SemanticNode.Operation("orphan-script", "script", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "orphan-script")),
+        List.of(trigger, orphan, call),
+        List.of(),
+        List.of(
+            sequence("edge-entry", "trigger-http", "orphan-script", null, null),
+            sequence("edge-call", "orphan-script", "node-call", null, null)),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision revisionWithScriptBoundToTwoIntents() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "op-shared", null, "map-a"),
+            sequence("edge-call", "op-shared", "node-call", null, "map-b"));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        linear.nodes(),
+        linear.regions(),
+        edges,
+        linear.containment(),
+        List.of(mapping("map-a", "edge-entry"), mapping("map-b", "edge-call")));
+  }
+
+  private static RequirementBrief briefWithFact(RequirementFact fact) {
+    return new RequirementBrief(
+        "Orders",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "summary",
+        null,
+        "",
+        List.of(fact),
+        List.of());
   }
 
   private static ChainSemanticRevision revisionWithOrphanMapping() {

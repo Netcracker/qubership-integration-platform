@@ -86,6 +86,9 @@ public final class SemanticFixtures {
         List.of());
   }
 
+  public static final String COMPLETE_TASK_NODE_ID = "script-complete-task";
+  public static final String COMPLETE_TASK_FACT_ID = "fact-complete-task";
+
   /** Linear HTTP trigger plus one service call, with no mapping intents. */
   public static ChainSemanticRevision linearOrders() {
     return linear(
@@ -96,6 +99,59 @@ public final class SemanticFixtures {
         "call-1",
         "createOrder",
         "Orders API",
+        List.of(),
+        List.of());
+  }
+
+  /**
+   * Skipped mapping hop with an approved constant-response script. {@code mappingIntents} stay
+   * empty; the script is behavior-owned through positive BEHAVIOR provenance.
+   */
+  public static ChainSemanticRevision linearOrdersWithCompleteTask() {
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        "revision-orders-complete-task",
+        "Orders",
+        CONTRACT.contractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "entry-1",
+                "trigger-http",
+                COMPLETE_TASK_NODE_ID,
+                0,
+                new SemanticProvenance(List.of()),
+                new SemanticEntryPoint.Presentation("Orders API", null))),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                COMPLETE_TASK_NODE_ID,
+                "script",
+                new SemanticProvenance(List.of(COMPLETE_TASK_FACT_ID))),
+            new SemanticNode.ServiceCall(
+                "node-call",
+                "call-1",
+                "createOrder",
+                new SemanticProvenance(List.of("fact-call")))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-1",
+                "trigger-http",
+                COMPLETE_TASK_NODE_ID,
+                null,
+                new SemanticRoute.Sequence(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-2",
+                COMPLETE_TASK_NODE_ID,
+                "node-call",
+                null,
+                new SemanticRoute.Sequence(),
+                null)),
+        List.of(),
+        List.of(),
+        List.of(),
         List.of(),
         List.of());
   }
@@ -217,7 +273,7 @@ public final class SemanticFixtures {
             new SemanticNode.Trigger(
                 "trigger-kafka", "kafka-trigger-2", new SemanticProvenance(List.of())),
             new SemanticNode.Operation(
-                "op-shared", "script", new SemanticProvenance(List.of()))),
+                "op-shared", "script", new SemanticProvenance(List.of("fact-shared")))),
         List.of(),
         List.of(
             new SemanticExecutionEdge(
