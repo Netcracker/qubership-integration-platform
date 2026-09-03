@@ -64,23 +64,6 @@ public record ChainPatchWriteResult(
         List.of());
   }
 
-  public ChainPatchWriteResult(
-      List<String> changedElementIds,
-      List<String> failedElementIds,
-      String error,
-      MaterializationMap materializationMap,
-      List<String> removedElementIds,
-      RollbackOutcome rollback) {
-    this(
-        changedElementIds,
-        failedElementIds,
-        error,
-        materializationMap,
-        removedElementIds,
-        rollback,
-        List.of());
-  }
-
   public ChainPatchWriteResult {
     changedElementIds = changedElementIds == null ? List.of() : List.copyOf(changedElementIds);
     failedElementIds = failedElementIds == null ? List.of() : List.copyOf(failedElementIds);
