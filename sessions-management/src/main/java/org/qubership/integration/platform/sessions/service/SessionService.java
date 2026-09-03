@@ -62,8 +62,7 @@ public class SessionService {
     private static final String[] EXCLUDE_FIELD_IN_SESSIONS = {
             "bodyBefore", "bodyAfter",
             "headersBefore", "headersAfter",
-            "exchangePropertiesBefore", "exchangePropertiesAfter",
-            "propertiesAfter", "propertiesBefore",
+            "propertiesBefore", "propertiesAfter",
             "contextBefore", "contextAfter",
     };
     private static final String AGGREGATION_COLUMN = "sessionId";
@@ -261,8 +260,8 @@ public class SessionService {
                                                     "bodyBefore",
                                                     "headersAfter",
                                                     "headersBefore",
-                                                    "exchangePropertiesAfter",
-                                                    "exchangePropertiesBefore",
+                                                    "propertiesAfter",
+                                                    "propertiesBefore",
                                                     "contextAfter",
                                                     "contextBefore")
                                     .build().toQuery())
@@ -304,10 +303,10 @@ public class SessionService {
         switch (condition) {
             case IN -> queryBuilder.must(new TermsQuery.Builder().field(fieldName).terms(new TermsQueryField.Builder().value(Arrays.stream(value.split(",")).map(FieldValue::of).toList()).build()).build().toQuery());
             case NOT_IN -> queryBuilder.mustNot(new TermsQuery.Builder().field(fieldName).terms(new TermsQueryField.Builder().value(Arrays.stream(value.split(",")).map(FieldValue::of).toList()).build()).build().toQuery());
-            case CONTAINS -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").build().toQuery());
-            case DOES_NOT_CONTAIN -> queryBuilder.mustNot(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").build().toQuery());
-            case STARTS_WITH -> queryBuilder.must(new MatchPhrasePrefixQuery.Builder().field(fieldName).query(value).build().toQuery());
-            case ENDS_WITH -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value).build().toQuery());
+            case CONTAINS -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").caseInsensitive(true).build().toQuery());
+            case DOES_NOT_CONTAIN -> queryBuilder.mustNot(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").caseInsensitive(true).build().toQuery());
+            case STARTS_WITH -> queryBuilder.must(new PrefixQuery.Builder().field(fieldName).value(value).caseInsensitive(true).build().toQuery());
+            case ENDS_WITH -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value).caseInsensitive(true).build().toQuery());
             case IS_AFTER -> {
                 Date date = new Date(Long.parseLong(value));
                 queryBuilder.must(new RangeQuery.Builder().field(fieldName).gte(JsonData.of(date)).build().toQuery());
