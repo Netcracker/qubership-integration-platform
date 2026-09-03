@@ -11,8 +11,8 @@ data:
   # operations that are unsafe there. Set global.qip.production to false to show
   # them. QIP_TESTING_PRODUCTION still overrides it for this service alone.
   PRODUCTION_MODE: "{{ .Values.global.qip.production }}"
-  QIP_TESTING_CATALOG_ADDRESS: http://{{ .Release.Name }}-runtime-catalog:8080
-  QIP_TESTING_ENGINE_ADDRESS: http://{{ .Release.Name }}-engine:8080
+  QIP_TESTING_CATALOG_ADDRESS: http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080
+  QIP_TESTING_ENGINE_ADDRESS: http://{{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}:8080
   QIP_TESTING_POSTGRES_SCHEMA: testing_service
 kind: ConfigMap
 metadata:

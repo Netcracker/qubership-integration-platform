@@ -7,12 +7,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -43,6 +45,9 @@ import static java.util.Objects.nonNull;
         description = "Custom Resource Build and Deploy Controller"
 )
 public class CustomResourceController {
+    /** Attempts any single write sequence gets before a lost concurrency race is surfaced. */
+    private static final int MAX_CONFLICT_ATTEMPTS = 3;
+
     private final MicroDomainResourceBuildService microDomainResourceBuildService;
     private final MicroDomainService microDomainService;
     private final ResourceBuildOptionsProvider resourceBuildOptionsProvider;
@@ -75,7 +80,7 @@ public class CustomResourceController {
     public String buildResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for snapshots: {}", request.getSnapshotIds());
         return verifyMicroDomainEnabled(() ->
-                microDomainResourceBuildService.buildResources(request, false));
+                microDomainResourceBuildService.buildResources(request, false).yaml());
     }
 
     @PostMapping("/deploy-chains")
@@ -189,15 +194,39 @@ public class CustomResourceController {
         });
     }
 
+    /**
+     * Builds the resources for {@code request} and writes them, rebuilding from scratch and retrying
+     * up to {@link #MAX_CONFLICT_ATTEMPTS} times when a write loses an optimistic-concurrency race.
+     *
+     * <p>The build request is constructed inside the loop, not hoisted out of it. The build mutates
+     * the options it is handed -- {@code MicroDomainResourceBuildContextFactory} unions the live
+     * Integration's mounts into {@code options.mount} in place -- so a request shared across
+     * attempts would carry the previous attempt's merge into the next one. The mount set could then
+     * only grow, and a mount the conflicting writer had removed would come back, re-mounting a
+     * ConfigMap that no longer exists. {@code ResourceBuildOptionsProvider.getOptions} is property
+     * binding plus customizers, so rebuilding it per attempt is cheap.
+     */
     private void doDeployResource(ResourceDeployRequest request) {
-        ResourceBuildRequest buildRequest = ResourceBuildRequest.builder()
-                .options(resourceBuildOptionsProvider.getOptions(request))
-                .snapshotIds(request.getSnapshotIds())
-                .build();
-        String resourceText = microDomainResourceBuildService.buildResources(
-                buildRequest,
-                DeployMode.APPEND.equals(request.getMode()));
-        microDomainService.deploy(resourceText);
+        for (int attempt = 1; ; attempt++) {
+            ResourceBuildRequest buildRequest = ResourceBuildRequest.builder()
+                    .options(resourceBuildOptionsProvider.getOptions(request))
+                    .snapshotIds(request.getSnapshotIds())
+                    .build();
+            BuiltResources built = microDomainResourceBuildService.buildResources(
+                    buildRequest,
+                    DeployMode.APPEND.equals(request.getMode()));
+            try {
+                microDomainService.deploy(built);
+                return;
+            } catch (KubeApiConflictException conflict) {
+                if (attempt == MAX_CONFLICT_ATTEMPTS) {
+                    throw conflict;
+                }
+                log.warn("Deploy of micro-domain '{}' lost a concurrency race on attempt {}/{}; "
+                                + "rebuilding against current cluster state and retrying",
+                        request.getName(), attempt, MAX_CONFLICT_ATTEMPTS);
+            }
+        }
     }
 
     @DeleteMapping("/{name}")
@@ -215,9 +244,43 @@ public class CustomResourceController {
     public ResponseEntity<Void> deleteSnapshotFromResource(@PathVariable String name, @PathVariable String snapshotId) {
         log.debug("Request to delete chain snapshot {} from a Camel-K custom resource {}", snapshotId, name);
         return verifyMicroDomainEnabled(() -> {
-            microDomainService.deleteChainSnapshot(name, snapshotId);
+            doDeleteChainSnapshot(name, snapshotId);
             return ResponseEntity.ok().build();
         });
+    }
+
+    /**
+     * Removes {@code snapshotId} from the micro-domain, retrying up to
+     * {@link #MAX_CONFLICT_ATTEMPTS} times when a write loses an optimistic-concurrency race.
+     *
+     * <p>{@code deleteChainSnapshot} rewrites the Integration, the integrations-configuration
+     * ConfigMap and the shared HTTPRoute tiers, each carrying the {@code resourceVersion} it read
+     * on entry, so a deploy to the same domain running alongside it can take any of those writes.
+     * Re-reading is the whole recovery: the method reloads everything through
+     * {@code getMainIntegrationResources}, so another attempt recomputes against current state
+     * rather than replaying a decision made against stale reads. Unlike the deploy path there is
+     * no built document to rebuild, so the call itself is the retry unit.
+     *
+     * <p>An attempt is safe over the steps an earlier one already completed. A source ConfigMap the
+     * earlier attempt deleted leaves {@code cfgName} empty on the next pass, which keeps every
+     * mount and skips the delete, so its mount removal stands rather than being undone or repeated.
+     * The configuration entry it removed is simply absent from the reloaded sources, and the
+     * subtraction that would have removed it becomes a no-op.
+     */
+    private void doDeleteChainSnapshot(String name, String snapshotId) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                microDomainService.deleteChainSnapshot(name, snapshotId);
+                return;
+            } catch (KubeApiConflictException conflict) {
+                if (attempt == MAX_CONFLICT_ATTEMPTS) {
+                    throw conflict;
+                }
+                log.warn("Removal of snapshot '{}' from micro-domain '{}' lost a concurrency race on "
+                                + "attempt {}/{}; re-reading current cluster state and retrying",
+                        snapshotId, name, attempt, MAX_CONFLICT_ATTEMPTS);
+            }
+        }
     }
 
     private <T> T verifyMicroDomainEnabled(Supplier<T> supplier) {

@@ -3,22 +3,22 @@ kind: Deployment
 metadata:
   labels:
     qip_engine_app: "true"
-    name: {{ .Release.Name }}-engine
-    app: {{ .Release.Name }}-engine
-  name: {{ .Release.Name }}-engine
+    name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
+    app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
+  name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-engine
+      app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
         qip_engine_app: "true"
-        name: {{ .Release.Name }}-engine
-        app: {{ .Release.Name }}-engine
+        name: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
+        app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
     spec:
       serviceAccountName: {{ .Release.Name }}-service-account
       containers:
@@ -122,6 +122,21 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: MICROSERVICE_NAME
               value: {{ .Release.Name }}-engine
+            - name: CONTROL_PLANE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: CONTROL_PLANE_ENABLED
+                  name: {{ .Release.Name }}-env
+            - name: SERVICE_MESH_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  key: SERVICE_MESH_TYPE
+                  name: {{ .Release.Name }}-env
+            - name: DEPLOYMENT_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  key: BLUE_GREEN_VERSION
+                  name: {{ .Release.Name }}-env
           image: ghcr.io/netcracker/qubership-integration-engine:latest
           imagePullPolicy: IfNotPresent
           livenessProbe:
