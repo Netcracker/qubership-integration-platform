@@ -11,4 +11,4 @@ spec:
       settings:
         configMapKeyRef:
           key: settings.xml
-          name: maven-settings
+          name: {{ .Release.Name }}-maven-settings
