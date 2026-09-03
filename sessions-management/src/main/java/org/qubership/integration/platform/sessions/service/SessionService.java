@@ -54,6 +54,7 @@ import java.util.*;
 
 import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 import static java.util.Objects.isNull;
+import static java.util.Objects.requireNonNullElse;
 
 @Service
 @Slf4j
@@ -61,8 +62,7 @@ public class SessionService {
     private static final String[] EXCLUDE_FIELD_IN_SESSIONS = {
             "bodyBefore", "bodyAfter",
             "headersBefore", "headersAfter",
-            "exchangePropertiesBefore", "exchangePropertiesAfter",
-            "propertiesAfter", "propertiesBefore",
+            "propertiesBefore", "propertiesAfter",
             "contextBefore", "contextAfter",
     };
     private static final String AGGREGATION_COLUMN = "sessionId";
@@ -207,7 +207,7 @@ public class SessionService {
         }
 
         if (!SESSION_OPENSEARCH_FIELDS.contains(sortColumn)) {
-            throw new IllegalArgumentException("Can't sort results on this column. Valid columns are: "
+            throw new SearchException("Can't sort results on this column. Valid columns are: "
                     + StringUtils.join(SESSION_OPENSEARCH_FIELDS, ", "));
         }
 
@@ -260,8 +260,8 @@ public class SessionService {
                                                     "bodyBefore",
                                                     "headersAfter",
                                                     "headersBefore",
-                                                    "exchangePropertiesAfter",
-                                                    "exchangePropertiesBefore",
+                                                    "propertiesAfter",
+                                                    "propertiesBefore",
                                                     "contextAfter",
                                                     "contextBefore")
                                     .build().toQuery())
@@ -269,7 +269,9 @@ public class SessionService {
             );
         }
 
-        for (FilterRequest filterRequest : filterAndSearch.getFilterRequestList()) {
+        // A request that names no filters carries no list at all, the same way it carries no
+        // search string, and the guard above already reads that as "no full-text search".
+        for (FilterRequest filterRequest : requireNonNullElse(filterAndSearch.getFilterRequestList(), List.<FilterRequest>of())) {
             switch (filterRequest.getFeature()) {
                 case ENGINE ->
                         getPredicate(filterRequest.getCondition(), queryBuilder, "engineAddress", filterRequest.getValue());
@@ -301,10 +303,10 @@ public class SessionService {
         switch (condition) {
             case IN -> queryBuilder.must(new TermsQuery.Builder().field(fieldName).terms(new TermsQueryField.Builder().value(Arrays.stream(value.split(",")).map(FieldValue::of).toList()).build()).build().toQuery());
             case NOT_IN -> queryBuilder.mustNot(new TermsQuery.Builder().field(fieldName).terms(new TermsQueryField.Builder().value(Arrays.stream(value.split(",")).map(FieldValue::of).toList()).build()).build().toQuery());
-            case CONTAINS -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").build().toQuery());
-            case DOES_NOT_CONTAIN -> queryBuilder.mustNot(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").build().toQuery());
-            case STARTS_WITH -> queryBuilder.must(new MatchPhrasePrefixQuery.Builder().field(fieldName).query(value).build().toQuery());
-            case ENDS_WITH -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value).build().toQuery());
+            case CONTAINS -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").caseInsensitive(true).build().toQuery());
+            case DOES_NOT_CONTAIN -> queryBuilder.mustNot(new WildcardQuery.Builder().field(fieldName).value("*" + value + "*").caseInsensitive(true).build().toQuery());
+            case STARTS_WITH -> queryBuilder.must(new PrefixQuery.Builder().field(fieldName).value(value).caseInsensitive(true).build().toQuery());
+            case ENDS_WITH -> queryBuilder.must(new WildcardQuery.Builder().field(fieldName).value("*" + value).caseInsensitive(true).build().toQuery());
             case IS_AFTER -> {
                 Date date = new Date(Long.parseLong(value));
                 queryBuilder.must(new RangeQuery.Builder().field(fieldName).gte(JsonData.of(date)).build().toQuery());

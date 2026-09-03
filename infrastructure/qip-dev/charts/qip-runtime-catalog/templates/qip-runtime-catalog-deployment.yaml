@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-runtime-catalog
+  name: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-runtime-catalog
+      app: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
   strategy: {}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-runtime-catalog
+        app: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
     spec:
       serviceAccountName: {{ .Release.Name }}-service-account
       containers:
@@ -88,6 +88,7 @@ spec:
                   CONSUL_ADMIN_TOKEN: 'configmap:{{ .Release.Name }}-env/CONSUL_ADMIN_TOKEN',
                   OPENSEARCH_HOST: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_HOST',
                   OPENSEARCH_PORT: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_PORT',
+                  OPENSEARCH_PREFIX: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_PREFIX',
                   POSTGRES_URL: 'configmap:{{ .Release.Name }}-engine-env/POSTGRES_URL',
                   POSTGRES_USER: 'secret:{{ .Release.Name }}-postgres-auth/username',
                   POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password',
@@ -118,6 +119,16 @@ spec:
               value: {{ .Release.Name }}-engine
             - name: MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY
               value: 1048Mi
+            - name: DEPLOYMENT_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  key: BLUE_GREEN_VERSION
+                  name: {{ .Release.Name }}-env
+            - name: SERVICE_MESH_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  key: SERVICE_MESH_TYPE
+                  name: {{ .Release.Name }}-env
           image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
           imagePullPolicy: IfNotPresent
           livenessProbe:

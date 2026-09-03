@@ -58,6 +58,8 @@ public class CheckpointSessionService {
     private final ChainDeploymentChecker chainDeploymentChecker;
     @Value("${qip.sessions.checkpoints.cleanup.interval}")
     private String idempotencyKeyTTL;
+    @Value("${qip.camel.routes.prefix}")
+    private String routesPrefix;
 
     @Autowired
     public CheckpointSessionService(SessionInfoRepository sessionInfoRepository,
@@ -114,7 +116,7 @@ public class CheckpointSessionService {
                                           boolean traceMe) {
         RequestBodySpec request = localhostWebclient
             .post()
-            .uri(CamelServletConfiguration.CAMEL_ROUTES_PREFIX + CHECKPOINT_RETRY_PATH_TEMPLATE,
+            .uri(routesPrefix + CHECKPOINT_RETRY_PATH_TEMPLATE,
                 checkpoint.getSession().getChainId(),
                 checkpoint.getSession().getId(),
                 checkpoint.getCheckpointElementId());

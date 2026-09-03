@@ -23,6 +23,7 @@ import org.qubership.integration.platform.engine.camel.components.servlet.Custom
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 import org.qubership.integration.platform.engine.camel.context.propagation.ContextPropsProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.embedded.tomcat.TomcatConnectorCustomizer;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -35,8 +36,10 @@ import static org.apache.tomcat.util.buf.EncodedSolidusHandling.PASS_THROUGH;
 public class CamelServletConfiguration {
 
     public static final String CAMEL_SERVLET_NAME = "CamelServlet";
-    public static final String CAMEL_ROUTES_PREFIX = "/routes";
-    private static final String CAMEL_SERVLET_MAPPING = CAMEL_ROUTES_PREFIX + "/*";
+    public static final String CAMEL_ROUTES_LEGACY_PREFIX = "/routes";
+
+    @Value("${qip.camel.routes.prefix}")
+    private String routePrefix;
 
     /**
      * Alternative - camel autoconfig
@@ -49,7 +52,10 @@ public class CamelServletConfiguration {
         }
         var mapping = new ServletRegistrationBean<>();
         mapping.setName(CAMEL_SERVLET_NAME);
-        mapping.addUrlMappings(CAMEL_SERVLET_MAPPING);
+        mapping.addUrlMappings(
+            getUrlMapping(CAMEL_ROUTES_LEGACY_PREFIX),
+            getUrlMapping(routePrefix)
+        );
         mapping.setServlet(new CustomCamelHttpTransportServlet());
 
         return mapping;
@@ -67,5 +73,9 @@ public class CamelServletConfiguration {
                 component.setHeaderFilterStrategy(
                     new ServletCustomFilterStrategy(contextPropsProvider));
             });
+    }
+
+    private static String getUrlMapping(String prefix) {
+        return prefix + "/*";
     }
 }
