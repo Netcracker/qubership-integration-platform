@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -392,6 +393,13 @@ public class DesignPlanningCapability implements StageCapability {
 
     if (revision.mappingIntents().isEmpty()) {
       text.append("\nNo mapping intents. Do not plan mapping scripts.\n");
+      List<String> behaviorOwned =
+          DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
+      if (!behaviorOwned.isEmpty()) {
+        text.append("Plan one cip-script-generator step for these behavior-owned script nodes: ")
+            .append(String.join(", ", behaviorOwned))
+            .append(". Do not invent mappingIntentId.\n");
+      }
     } else {
       text.append(
           "\nMapping intents. Each mapping-generator numbered line must include the literal token "

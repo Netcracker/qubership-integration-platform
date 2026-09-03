@@ -304,7 +304,10 @@ public class DesignInputCapability implements StageCapability {
          value after each matching `=` sign. Copy mappingIntentId the same way when Mapping\
          intents include a mappingIntentId= token; otherwise omit it on every edge. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
-         sourceFactId as mappingIntentId. External interaction anchors are server-owned.\
+         sourceFactId as mappingIntentId. A skipped mapping hop stays a direct edge unless an\
+         approved positive BEHAVIOR fact or an ErrorScope requires a script. A constant response\
+         such as commandType=completeTask is a behavior-owned script, not a MappingIntent.\
+         External interaction anchors are server-owned.\
          Reference these node ids from edges, but do not list them under operations. Preserve\
          every approved business transition. You may insert internal processing nodes between\
          its source and target, but you may not reverse, omit, or add an external interaction\

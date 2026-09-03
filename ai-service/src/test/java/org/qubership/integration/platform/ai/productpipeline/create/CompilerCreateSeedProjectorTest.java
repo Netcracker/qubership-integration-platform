@@ -69,6 +69,27 @@ class CompilerCreateSeedProjectorTest {
   }
 
   @Test
+  void completeTaskSkeletonKeepsBehaviorOwnedScriptRole() {
+    ChainPlanGraph graph =
+        graph(
+            new ChainPlanNode("http-in", "http-trigger", "In", null, null, List.of()),
+            new ChainPlanNode(
+                SemanticFixtures.COMPLETE_TASK_NODE_ID,
+                "script",
+                "Complete task",
+                null,
+                null,
+                List.of()),
+            new ChainPlanNode("call-1", "service-call", "Create order", null, null, List.of()));
+
+    ElementSkeleton skeleton = CompilerCreateSeedProjector.skeleton(graph, "GP-01");
+
+    assertEquals("script", role(skeleton, SemanticFixtures.COMPLETE_TASK_NODE_ID).elementType());
+    assertTrue(
+        skeleton.elementRoles().stream().noneMatch(r -> "mapper-2".equals(r.elementType())));
+  }
+
+  @Test
   void createSeedPreSatisfiesPatternAndTriggerSkills() {
     ChainPlanGraph graph =
         graph(new ChainPlanNode("http-in", "http-trigger", "In", null, null, List.of()));
