@@ -1304,11 +1304,12 @@ export class RestApi implements Api {
   getServices = async (
     modelType: string,
     withSpec: boolean,
+    includeChainUsage = false,
   ): Promise<IntegrationSystem[]> => {
     const response = await this.instance.get<IntegrationSystem[]>(
       `${this.v1()}/systems-catalog/systems`,
       {
-        params: { modelType, withSpec },
+        params: { modelType, withSpec, includeChainUsage },
       },
     );
     return response.data;
@@ -1316,6 +1317,7 @@ export class RestApi implements Api {
 
   filterServices = async (
     filters: EntityFilterModel[],
+    includeChainUsage = false,
   ): Promise<IntegrationSystem[]> => {
     const body = filters.map((f) => ({
       column: f.column,
@@ -1325,16 +1327,19 @@ export class RestApi implements Api {
     const response = await this.instance.post<IntegrationSystem[]>(
       `${this.v1()}/systems-catalog/systems/filter`,
       body,
+      { params: { includeChainUsage } },
     );
     return response.data;
   };
 
   searchServices = async (
     searchCondition: string,
+    includeChainUsage = false,
   ): Promise<IntegrationSystem[]> => {
     const response = await this.instance.post<IntegrationSystem[]>(
       `${this.v1()}/systems-catalog/systems/search`,
       { searchCondition },
+      { params: { includeChainUsage } },
     );
     return response.data;
   };
