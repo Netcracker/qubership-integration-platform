@@ -18,6 +18,7 @@ package org.qubership.integration.platform.engine.service.debugger.util;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePropertyKey;
+import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
@@ -86,6 +87,23 @@ public class DebuggerUtils {
 
     public static String getNodeIdForExecutionMap(String nodeId, String splitId) {
         return splitId == null ? nodeId : (nodeId + splitId);
+    }
+
+    public static ExecutionStatus computeExecutionStatus(Exchange exchange, Exception externalException,
+            String camelElementName) {
+        Exception exception = exchange.getException() != null ? exchange.getException() : externalException;
+        if (ChainElementType.isExceptionHandleElement(ChainElementType.fromString(camelElementName))
+                && exception == null
+                && Boolean.TRUE.equals(exchange.getProperty(Properties.ELEMENT_WARNING, Boolean.class))) {
+            return ExecutionStatus.COMPLETED_WITH_WARNINGS;
+        }
+        if (exception != null) {
+            return ExecutionStatus.COMPLETED_WITH_ERRORS;
+        }
+        if (Boolean.TRUE.equals(exchange.getProperty(Properties.ELEMENT_FAILED, Boolean.class))) {
+            return ExecutionStatus.COMPLETED_WITH_ERRORS;
+        }
+        return ExecutionStatus.COMPLETED_NORMALLY;
     }
 
     public static Throwable getExceptionFromExchange(Exchange exchange) {

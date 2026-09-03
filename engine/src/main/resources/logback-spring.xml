@@ -72,9 +72,13 @@
          <appender-ref ref="STDOUT"/>
      </logger>
 
-     <logger name="org.qubership.integration.platform.engine.service.debugger.logging.JsonChainLogger" level="INFO" additivity="false">
-         <appender-ref ref="STDOUT_JSON"/>
-     </logger>
+      <logger name="org.qubership.integration.platform.engine.service.debugger.logging.JsonChainLogger" level="INFO" additivity="false">
+          <appender-ref ref="STDOUT_JSON"/>
+      </logger>
+
+      <logger name="org.qubership.integration.platform.engine.service.debugger.sessions.JsonSessionStepLogger" level="INFO" additivity="false">
+          <appender-ref ref="STDOUT_JSON"/>
+      </logger>
 
      <logger name="io.atlasmap.core.AtlasPath" level="ERROR">
          <appender-ref ref="${appenderName}"/>
