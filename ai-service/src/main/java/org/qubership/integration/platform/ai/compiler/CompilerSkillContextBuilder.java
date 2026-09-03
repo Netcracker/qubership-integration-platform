@@ -256,7 +256,9 @@ public class CompilerSkillContextBuilder {
     section.append(
         "Encode only the approved rules above. Extra correspondences fail parity validation. "
             + "Copy source and target from the frozen envelope unchanged; they must be copied "
-            + "unchanged in capture.");
+            + "unchanged in capture. Replace the complete script body and mappingCoverage; do not "
+            + "patch fragments into a previous script. Successful Groovy compilation is not "
+            + "semantic equivalence.");
 
     return section.toString();
   }

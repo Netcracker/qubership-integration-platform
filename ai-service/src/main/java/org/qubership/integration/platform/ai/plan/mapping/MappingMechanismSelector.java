@@ -124,8 +124,8 @@ public final class MappingMechanismSelector {
               + blocking.targetPath()
               + " uses expression '"
               + blocking.expression()
-              + "', which SCRIPT generation does not support. Keep the brief open and describe"
-              + " uppercase, lowercase, or trim behavior, or remove the preference.");
+              + "', which SCRIPT generation does not support. Keep the brief open and choose a"
+              + " supported expression, or remove the preference.");
     }
     return Optional.of(
         "Implementation preference '"
@@ -171,6 +171,10 @@ public final class MappingMechanismSelector {
     return isScriptPreference(implementationPreference);
   }
 
+  /**
+   * Mapper-2-era SCRIPT whitelist. Do not use this for SCRIPT selection while mapper-2 is off;
+   * {@link #scriptAcceptsExpression} is the compiler gate.
+   */
   public static boolean isSupportedScriptExpression(String expression) {
     if (expression == null || expression.isBlank()) {
       return true;
@@ -184,8 +188,8 @@ public final class MappingMechanismSelector {
   }
 
   /**
-   * Script generation can write the mapping expression. Mapper-2 still only accepts uppercase,
-   * lowercase, and trim.
+   * Whether SCRIPT generation can encode the expression. While mapper-2 is off, any non-blank
+   * expression is accepted so selection does not depend on English words.
    */
   public static boolean scriptAcceptsExpression(String expression) {
     if (expression == null || expression.isBlank()) {
@@ -233,7 +237,7 @@ public final class MappingMechanismSelector {
         return false;
       }
       if (rule.expression() != null) {
-        if (!isSupportedScriptExpression(rule.expression())) {
+        if (!scriptAcceptsExpression(rule.expression())) {
           return false;
         }
         continue;
@@ -263,10 +267,10 @@ public final class MappingMechanismSelector {
       if (preference == MappingMechanism.MAPPER_2) {
         return rule;
       }
-      if (preference == MappingMechanism.SCRIPT && !isSupportedScriptExpression(rule.expression())) {
+      if (preference == MappingMechanism.SCRIPT && !scriptAcceptsExpression(rule.expression())) {
         return rule;
       }
-      if (preference == null && !isSupportedScriptExpression(rule.expression())) {
+      if (preference == null && !scriptAcceptsExpression(rule.expression())) {
         return rule;
       }
       if (preference == null) {

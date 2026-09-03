@@ -998,7 +998,7 @@ class CompilerGraphPatchToolTest {
                     GraphPatchOperation.ADD,
                     "script-1",
                     "script",
-                    JsonNodeFactory.instance.textNode("exchange.setProperty('lang', 'ru');"))),
+                    JsonNodeFactory.instance.textNode("exchange.setProperty('lang', 'fr');"))),
             List.of(),
             List.of(),
             "Filled script body");
@@ -1025,7 +1025,7 @@ class CompilerGraphPatchToolTest {
                     "Script",
                     null,
                     null,
-                    List.of(new PlanProperty("script", "exchange.setProperty('lang', 'ru');")))),
+                    List.of(new PlanProperty("script", "exchange.setProperty('lang', 'fr');")))),
             List.of()));
 
     GraphPatchCapture patch =

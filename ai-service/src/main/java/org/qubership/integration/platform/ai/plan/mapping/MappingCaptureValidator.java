@@ -9,7 +9,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 
 /**
  * Runs freeze, parity, mapper-2 contract, and Groovy compile on generator captures. Does not rewrite
- * JSON; representation errors stay on the capture repair loop.
+ * JSON; representation errors stay on the capture repair loop. Successful Groovy compilation is
+ * not semantic equivalence; SCRIPT coverage must still equal the approved target-path set.
  */
 public final class MappingCaptureValidator {
 

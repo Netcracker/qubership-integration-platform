@@ -83,12 +83,21 @@ public final class MappingParityValidator {
         missing.add(approvedPath);
       }
     }
-    if (!missing.isEmpty()) {
+    List<String> unexpected = new ArrayList<>();
+    for (String implementedPath : implemented) {
+      if (!coversAnyApproved(implementedPath, approved)) {
+        unexpected.add(implementedPath);
+      }
+    }
+    if (!missing.isEmpty() || !unexpected.isEmpty()) {
       Collections.sort(missing);
+      Collections.sort(unexpected);
       Collections.sort(implemented);
       throw parity(
           "script coverage does not match approved target paths. missing="
               + missing
+              + " unexpected="
+              + unexpected
               + " implemented="
               + implemented);
     }
@@ -97,6 +106,15 @@ public final class MappingParityValidator {
   private static boolean coveredBy(String approvedPath, List<String> implemented) {
     for (String implementedPath : implemented) {
       if (MappingContract.pathTouches(approvedPath, implementedPath)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean coversAnyApproved(String implementedPath, List<String> approved) {
+    for (String approvedPath : approved) {
+      if (MappingContract.pathTouches(implementedPath, approvedPath)) {
         return true;
       }
     }

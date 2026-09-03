@@ -53,6 +53,7 @@ import org.qubership.integration.platform.ai.plan.ChainPlanTool;
 import org.qubership.integration.platform.ai.plan.RequirementBriefTool;
 import org.qubership.integration.platform.ai.plan.SelectedPatternTool;
 import org.qubership.integration.platform.ai.plan.ValidationResultTool;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -528,6 +529,43 @@ class CompilerSkillRuntimeTest {
   }
 
   @Test
+  void exhaustedMappingScriptRepairFailsWithMappingIntentIdAndFindings() {
+    ChainPlanGraph graph = graphWithMappingScriptSite();
+    chainPlanStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(
+        CONVERSATION_ID,
+        SCRIPT_GENERATOR_ID,
+        new GraphPatchExecutionContext(
+                "map-run",
+                SCRIPT_GENERATOR_ID,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                graph,
+                GraphPatchOwnershipPolicy.denyAll(),
+                "attempt-1")
+            .withMappingGenerationContext("mappingIntentId: map-init\n"));
+    feedbackStore.recordPatchValidationFailure(
+        CONVERSATION_ID,
+        SCRIPT_GENERATOR_ID,
+        "script coverage does not match approved target paths. unexpected=[$.extra]");
+
+    SkillWorkspace workspace = workspaceWithGraph(graph);
+    SkillRunContext context = runContext(SCRIPT_GENERATOR_ID, 7);
+
+    SkillExecutionResult result =
+        runtime.resolveResultAfterStream(context, workspace, SCRIPT_GENERATOR_ID);
+
+    assertEquals(SkillRunStatus.FAILED, result.status());
+    assertTrue(result.message().contains("map-init"));
+    assertTrue(result.message().contains("repair budget was exhausted"));
+    assertTrue(result.message().contains("unexpected=[$.extra]"));
+  }
+
+  @Test
   void scriptGeneratorRetriesAfterInvalidRepairPatchDuringStreaming() {
     ChainPlanGraph graph = graphWithMissingScriptBody();
     chainPlanStore.put(CONVERSATION_ID, graph);
@@ -878,6 +916,24 @@ class CompilerSkillRuntimeTest {
             new ChainPlanNode("http-trigger-1", "http-trigger", "HTTP Trigger", null, 1, List.of()),
             new ChainPlanNode("script-1", "script", "Response Script", null, 2, List.of())),
         List.of(new ChainPlanEdge("edge-1", "http-trigger-1", "script-1", null)));
+  }
+
+  private static ChainPlanGraph graphWithMappingScriptSite() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Orders", "Orders"),
+        List.of(
+            new ChainPlanNode("http-trigger-1", "http-trigger", "HTTP Trigger", null, 1, List.of()),
+            new ChainPlanNode(
+                "transform-map-init",
+                "script",
+                "Map",
+                null,
+                2,
+                List.of(
+                    new PlanProperty(MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, "map-init"),
+                    new PlanProperty(MappingExecutionSite.SCRIPT_PROPERTY, "")))),
+        List.of(new ChainPlanEdge("edge-1", "http-trigger-1", "transform-map-init", null)));
   }
 
   private static ChainPlanGraph greetingsGraph() {

@@ -100,12 +100,28 @@ public class CaptureRepairMessageBuilder {
 
   public String scriptBodiesRepairMessage(
       List<String> missingNodeIds, CaptureAttemptFeedback feedback) {
+    return scriptBodiesRepairMessage(missingNodeIds, feedback, "");
+  }
+
+  public String scriptBodiesRepairMessage(
+      List<String> missingNodeIds,
+      CaptureAttemptFeedback feedback,
+      String mappingGenerationContext) {
     StringBuilder message = new StringBuilder();
     message.append("Repair missing script bodies by calling repairScriptBodies.\n");
     message.append("Submit only scripts for these targetNodeIds: ")
         .append(String.join(", ", missingNodeIds))
         .append(".\n");
     message.append("Include all listed ids in one call. Do not call captureGraphPatch.\n");
+    if (mappingGenerationContext != null && !mappingGenerationContext.isBlank()) {
+      message.append(
+          "Retry the same mapping generator step. Use the original mapping intent and frozen"
+              + " envelope below. Replace the complete script body and mappingCoverage. Do not"
+              + " change mappingIntents, the semantic revision, the design plan, schema hashes,"
+              + " or execution-site ownership. Successful Groovy compilation is not semantic"
+              + " equivalence.\n");
+      message.append(mappingGenerationContext.trim()).append('\n');
+    }
     if (feedback != null
         && feedback.kind() == CaptureFailureKind.TOOL_ARGUMENTS) {
       message.append(toolArgumentsMessage("repairScriptBodies")).append('\n');
@@ -115,7 +131,20 @@ public class CaptureRepairMessageBuilder {
         && !feedback.summary().isBlank()) {
       message.append("Previous attempt: ").append(feedback.summary().trim()).append('\n');
     }
-    return truncate(message.toString());
+    return mappingGenerationContext != null && !mappingGenerationContext.isBlank()
+        ? message.toString()
+        : truncate(message.toString());
+  }
+
+  public static String mappingCaptureExhaustedMessage(
+      String mappingIntentId, String findings) {
+    String intent =
+        mappingIntentId == null || mappingIntentId.isBlank() ? "unknown" : mappingIntentId.trim();
+    String detail = findings == null || findings.isBlank() ? "validation failed" : findings.trim();
+    return "Mapping capture failed for mapping intent '"
+        + intent
+        + "' after the repair budget was exhausted. "
+        + detail;
   }
 
   public String validationResultMessage(String validationError) {

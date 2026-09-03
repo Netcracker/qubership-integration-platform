@@ -149,7 +149,7 @@ class CreateRunSelectionServiceTest {
             (java.util.function.Function<String, String>)
                 prompt -> {
               classifications.incrementAndGet();
-              return prompt.contains("Create") ? "en" : "ru";
+              return prompt.contains("Create") ? "en" : "fr";
             });
     CreateRunSelectionService service =
         service(catalogWithCreateChain(), pinResolver, knowledge, "2026.1", localeResolver);

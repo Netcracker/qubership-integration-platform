@@ -56,6 +56,15 @@ class MappingExecutionSiteValidatorTest {
     assertTrue(hasIssue(mergeSite, "transform-map-init", "cip-structure-generator"));
   }
 
+  @Test
+  void emptyApprovedCollectionFlagsALeftoverTaggedSite() {
+    List<ValidationIssue> leftover =
+        MappingExecutionSiteValidator.validate(unconfiguredScriptShellGraph(), List.of());
+    assertTrue(hasIssue(leftover, "transform-map-init", "cip-structure-generator"));
+    assertTrue(
+        leftover.stream().anyMatch(issue -> issue.message().contains("not in the approved brief")));
+  }
+
   private static boolean hasIssue(
       List<ValidationIssue> issues, String needle, String ownerCapabilityId) {
     return issues.stream()

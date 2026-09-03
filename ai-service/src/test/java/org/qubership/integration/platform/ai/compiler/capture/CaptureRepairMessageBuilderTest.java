@@ -213,4 +213,37 @@ class CaptureRepairMessageBuilderTest {
     assertTrue(message.contains("repairScriptBodies"));
     assertTrue(message.contains("JsonOutput.toJson"));
   }
+
+  @Test
+  void mappingRetryIncludesOriginalIntentEnvelopeAndDoesNotMutateTheContract() {
+    String mappingContext =
+        "mappingIntentId: map-init\n"
+            + "Frozen envelope (source and target only):\n"
+            + "{\"source\":{},\"target\":{}}\n";
+    String message =
+        builder.scriptBodiesRepairMessage(
+            List.of("transform-map-init"),
+            new CaptureAttemptFeedback(
+                CaptureFailureKind.VALIDATION,
+                "script coverage does not match approved target paths. unexpected=[$.extra]"),
+            mappingContext);
+
+    assertTrue(message.contains("mappingIntentId: map-init"));
+    assertTrue(message.contains("Frozen envelope"));
+    assertTrue(message.contains("Replace the complete script body and mappingCoverage"));
+    assertTrue(message.contains("Do not change mappingIntents"));
+    assertTrue(message.contains("unexpected=[$.extra]"));
+    assertFalse(message.endsWith("..."));
+  }
+
+  @Test
+  void exhaustedMappingCaptureNamesTheIntentAndFindings() {
+    String message =
+        CaptureRepairMessageBuilder.mappingCaptureExhaustedMessage(
+            "map-init", "script coverage does not match approved target paths. unexpected=[$.extra]");
+
+    assertTrue(message.contains("map-init"));
+    assertTrue(message.contains("repair budget was exhausted"));
+    assertTrue(message.contains("unexpected=[$.extra]"));
+  }
 }

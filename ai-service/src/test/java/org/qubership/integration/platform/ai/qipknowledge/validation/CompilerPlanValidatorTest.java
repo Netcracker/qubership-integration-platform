@@ -228,7 +228,7 @@ class CompilerPlanValidatorTest {
                             List.of(
                                 new PlanProperty("contextPath", "/fortune"),
                                 new PlanProperty("httpMethodRestrict", "GET"))),
-                        new ChainPlanNode("n2", "if", "If RU", null, null, List.of())),
+                        new ChainPlanNode("n2", "if", "If FR", null, null, List.of())),
                     List.of())));
 
     assertFalse(result.valid());

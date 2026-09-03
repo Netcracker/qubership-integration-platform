@@ -362,7 +362,7 @@ class GeneratorReadinessEvaluatorTest {
             new ChainSection("route", "Route"),
             List.of(
                 new ChainPlanNode("route", "condition", "Route", null, null, List.of()),
-                new ChainPlanNode("if-ru", "if", "If RU", "route", null, List.of())),
+                new ChainPlanNode("if-fr", "if", "If FR", "route", null, List.of())),
             List.of());
 
     var result = evaluator.evaluate(List.of("incomplete_routing_nodes"), graph, NO_INTENTS);
@@ -564,14 +564,14 @@ class GeneratorReadinessEvaluatorTest {
             new ChainPlanNode("parse-lang", "script", "Parse lang", null, null, List.of()),
             new ChainPlanNode("route", "condition", "Route by language", null, null, List.of()),
             new ChainPlanNode(
-                "if-ru",
+                "if-fr",
                 "if",
-                "Russian branch",
+                "French branch",
                 "route",
                 null,
-                List.of(new PlanProperty("condition", "${exchangeProperty.preferredLang} == 'ru'"))),
+                List.of(new PlanProperty("condition", "${exchangeProperty.preferredLang} == 'fr'"))),
             new ChainPlanNode("else-en", "else", "Default branch", "route", null, List.of()),
-            new ChainPlanNode("ru-response", "script", "RU response", "if-ru", null, List.of()),
+            new ChainPlanNode("fr-response", "script", "FR response", "if-fr", null, List.of()),
             new ChainPlanNode("en-response", "script", "EN response", "else-en", null, List.of())),
         List.of());
   }
@@ -763,7 +763,7 @@ class GeneratorReadinessEvaluatorTest {
             new ChainSection("route", "Route"),
             List.of(
                 new ChainPlanNode("route", "condition", "Route", null, null, List.of()),
-                new ChainPlanNode("if-ru", "if", "If RU", "route", null, List.of())),
+                new ChainPlanNode("if-fr", "if", "If FR", "route", null, List.of())),
             List.of());
 
     List<String> unmet =

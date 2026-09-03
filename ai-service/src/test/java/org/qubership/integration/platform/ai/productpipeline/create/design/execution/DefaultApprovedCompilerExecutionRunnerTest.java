@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -56,6 +57,11 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPol
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
@@ -185,6 +191,68 @@ class DefaultApprovedCompilerExecutionRunnerTest {
     assertTrue(request.effectiveSeed().presentArtifactTypes().contains("CONFIGURED_TRIGGER_SET"));
   }
 
+  @Test
+  void executeRejectsADesignPlanPinnedToADifferentSemanticRevision() {
+    IllegalStateException thrown =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                runner.execute(
+                    planForRevision("revision-other"),
+                    sampleRevision(),
+                    List.of(sampleBinding()),
+                    sampleManifest(),
+                    "attempt-1",
+                    (skillId, status) -> {}));
+
+    assertTrue(thrown.getMessage().contains("does not match the approved semantic revision"));
+  }
+
+  @Test
+  void executeRejectsALiveMappingIntentCollectionThatDiffersFromTheRevision() {
+    storeBrief(
+        new RequirementBrief(
+                "Orders",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "Map OM output",
+                "ref",
+                "draft",
+                List.of(),
+                List.of())
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-live",
+                        "trigger-http",
+                        MappingPort.OUTPUT,
+                        "call-1",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.orderId",
+                                "$.orderId",
+                                null,
+                                MappingRuleStatus.USER_DEFINED))))));
+
+    IllegalStateException thrown =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                runner.execute(
+                    samplePlan(),
+                    sampleRevision(),
+                    List.of(sampleBinding()),
+                    sampleManifest(),
+                    "attempt-1",
+                    (skillId, status) -> {}));
+
+    assertTrue(
+        thrown.getMessage().contains("Live mapping-intent collection differs from the approved"));
+  }
+
   private static CompilerDagExecutionResult successfulEngineResult() {
     ChainPlanGraph graph =
         new ChainPlanGraph(
@@ -208,11 +276,15 @@ class DefaultApprovedCompilerExecutionRunnerTest {
   }
 
   private static DesignExecutionPlan samplePlan() {
+    return planForRevision("revision-orders");
+  }
+
+  private static DesignExecutionPlan planForRevision(String semanticRevisionId) {
     return new DesignExecutionPlan(
         "1",
-        "revision-orders",
+        semanticRevisionId,
         "cip-design-planner",
-        "chain-semantic-revision/revision-orders",
+        "chain-semantic-revision/" + semanticRevisionId,
         "design-input-hash",
         "2024.4",
         ApprovalPolicy.CATALOG_FIRST_V1,
@@ -235,6 +307,28 @@ class DefaultApprovedCompilerExecutionRunnerTest {
         Map.of("cip-trigger-generator", "addon-hash-trigger"),
         "catalog-hash",
         ApprovalPolicy.CATALOG_FIRST_V1_HASH);
+  }
+
+  private void storeBrief(RequirementBrief brief) {
+    artifactStore.append(
+        new AppendCommand(
+            RUN_ID,
+            Kind.REQUIREMENT_BRIEF,
+            "1",
+            "requirement-analysis",
+            "1",
+            brief,
+            List.of(),
+            null,
+            new ArtifactProvenance(
+                RUN_ID,
+                "requirement-analysis",
+                "create-chain",
+                "2",
+                "profile-sha",
+                "requirement-analysis",
+                "1",
+                "closure")));
   }
 
   private static ChainSemanticRevision sampleRevision() {

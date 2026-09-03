@@ -212,12 +212,12 @@ class PlanPresentationFactsServiceTest {
             new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of()),
             new ChainPlanNode("route", "condition", "Route", null, null, List.of()),
             new ChainPlanNode(
-                "if-ru",
+                "if-fr",
                 "if",
-                "Russian",
+                "French",
                 "route",
                 null,
-                List.of(new PlanProperty("condition", "preferredLang == 'ru'"))),
+                List.of(new PlanProperty("condition", "preferredLang == 'fr'"))),
             new ChainPlanNode("else-en", "else", "Default English", "route", null, List.of())),
         List.of());
   }

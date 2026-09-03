@@ -291,6 +291,11 @@ class MappingGenerationPipelineTest {
             sampleContext(List.of()));
 
     assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertTrue(prepared.mappingGenerationContext().contains("Replace the complete script body"));
+    assertTrue(
+        prepared
+            .mappingGenerationContext()
+            .contains("Successful Groovy compilation is not semantic equivalence"));
   }
 
   @Test

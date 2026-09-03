@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
@@ -73,8 +74,13 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
+import org.qubership.integration.platform.ai.plan.BriefMappingReview;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
+import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
+import org.qubership.integration.platform.ai.plan.MappingTurnApplication;
+import org.qubership.integration.platform.ai.plan.MappingTurnProcessor;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
@@ -135,7 +141,8 @@ public final class ProductPipelineRunSupport {
           Kind.GRAPH_ASSEMBLY_RESULT,
           Kind.COMPILER_VALIDATION_BUNDLE,
           Kind.DESIGN_EXECUTION_PLAN,
-          Kind.ORDERED_GRAPH_PATCHES);
+          Kind.ORDERED_GRAPH_PATCHES,
+          Kind.MAPPING_ENVELOPE);
 
   /** Typed {@code RecoveryCauseCode} name stored with the halt. */
   public static final String STAGE_ERROR_CAUSE_CODE_ATTR = "stageErrorCauseCode";
@@ -186,6 +193,7 @@ public final class ProductPipelineRunSupport {
 
   private final RecoveryAttemptLedger recoveryLedger;
   private final RecoveryOutcomeTelemetry recoveryTelemetry;
+  private final MappingTurnAdapter mappingTurnAdapter;
 
   /** Fluent builder for the optional collaborators; required ones are constructor args. */
   public static Builder builder(
@@ -210,6 +218,7 @@ public final class ProductPipelineRunSupport {
     private int repeatedFailureThreshold = 2;
     private RecoveryAttemptLedger recoveryLedger;
     private RecoveryOutcomeTelemetry recoveryTelemetry;
+    private MappingTurnAdapter mappingTurnAdapter;
 
     private Builder(
         ProductPipelineRunStore runStore,
@@ -267,6 +276,11 @@ public final class ProductPipelineRunSupport {
       return this;
     }
 
+    public Builder mappingTurnAdapter(MappingTurnAdapter mappingTurnAdapter) {
+      this.mappingTurnAdapter = mappingTurnAdapter;
+      return this;
+    }
+
     public ProductPipelineRunSupport build() {
       return new ProductPipelineRunSupport(
           runStore,
@@ -281,7 +295,8 @@ public final class ProductPipelineRunSupport {
           cacheIdleTimeout,
           repeatedFailureThreshold,
           recoveryLedger,
-          recoveryTelemetry);
+          recoveryTelemetry,
+          mappingTurnAdapter);
     }
   }
 
@@ -298,7 +313,8 @@ public final class ProductPipelineRunSupport {
       Duration cacheIdleTimeout,
       int repeatedFailureThreshold,
       RecoveryAttemptLedger recoveryLedger,
-      RecoveryOutcomeTelemetry recoveryTelemetry) {
+      RecoveryOutcomeTelemetry recoveryTelemetry,
+      MappingTurnAdapter mappingTurnAdapter) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -315,6 +331,7 @@ public final class ProductPipelineRunSupport {
     this.recoveryLedger = recoveryLedger == null ? new RecoveryAttemptLedger() : recoveryLedger;
     this.recoveryTelemetry =
         recoveryTelemetry == null ? new RecoveryOutcomeTelemetry() : recoveryTelemetry;
+    this.mappingTurnAdapter = mappingTurnAdapter;
     this.stageExecutor =
         new ProductPipelineStageExecutor(
             runStore,
@@ -550,13 +567,162 @@ public final class ProductPipelineRunSupport {
                 return recordOwnerChoice(doc, command);
               }
               if (isTypedAtApprovalCard(doc, command.text())) {
-                return answerApprovalQuestionOrRefine(doc, command);
+                return interpretApprovedMappingTurnOrFallback(
+                    doc, command, () -> answerApprovalQuestionOrRefine(doc, command));
               }
               if (isMappingGapWait(doc)) {
                 return recordMappingGapInput(doc, command);
               }
-              return acceptTypedInput(doc, command);
+              return interpretApprovedMappingTurnOrFallback(
+                  doc, command, () -> acceptTypedInput(doc, command));
             });
+  }
+
+  /**
+   * After the requirement brief is approved, a mapping turn either reopens analysis or leaves the
+   * wait unchanged. Queries, clarifications, confirmations, and stale results do not reopen the
+   * brief and do not invalidate a plan. Ordinary typed input that is not a mapping outcome still
+   * follows the refine path.
+   */
+  private Multi<PipelineSignal> interpretApprovedMappingTurnOrFallback(
+      ProductPipelineRunDocument doc,
+      AcceptInputCommand command,
+      Supplier<Multi<PipelineSignal>> fallback) {
+    if (mappingTurnAdapter == null || !isAfterRequirementAnalysis(doc)) {
+      return fallback.get();
+    }
+    return Multi.createFrom()
+        .deferred(() -> tryApprovedMappingTurn(doc, command).orElseGet(fallback))
+        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+  }
+
+  private Optional<Multi<PipelineSignal>> tryApprovedMappingTurn(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    if (mappingTurnAdapter == null || !isAfterRequirementAnalysis(doc)) {
+      return Optional.empty();
+    }
+    RequirementBrief brief = approvedRequirementBrief(command.runId());
+    if (brief == null) {
+      return Optional.empty();
+    }
+    MappingTurnApplication application =
+        MappingTurnProcessor.process(brief, command.text(), mappingTurnAdapter);
+    if (application.applied()) {
+      BriefMappingReview.MappingChangeImpact impact =
+          BriefMappingReview.afterApprovedMappingChange(brief, application.brief(), null);
+      if (impact.briefReopened()) {
+        return Optional.of(reopenAfterApprovedMappingChange(doc, command, application.brief()));
+      }
+      return Optional.of(stayAfterMappingTurn(doc, ""));
+    }
+    MappingTurnResult result = application.result();
+    if (result instanceof MappingTurnResult.Query
+        || result instanceof MappingTurnResult.Clarification
+        || result instanceof MappingTurnResult.ConfirmationRequired) {
+      return Optional.of(stayAfterMappingTurn(doc, mappingStayMessage(application)));
+    }
+    return Optional.empty();
+  }
+
+  private boolean isAfterRequirementAnalysis(ProductPipelineRunDocument doc) {
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    if (profile == null) {
+      return false;
+    }
+    return stageIdsAfter(profile, "requirement-analysis").contains(doc.run().currentStageId());
+  }
+
+  private RequirementBrief approvedRequirementBrief(String runId) {
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    if (attributes != null && attributes.get("requirementBrief") instanceof RequirementBrief brief) {
+      return brief;
+    }
+    return artifactStore
+        .latest(runId, Kind.REQUIREMENT_BRIEF)
+        .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+        .orElse(null);
+  }
+
+  private Multi<PipelineSignal> reopenAfterApprovedMappingChange(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, RequirementBrief updated) {
+    artifactStore.append(
+        new AppendCommand(
+            command.runId(),
+            Kind.USER_INPUT,
+            "1",
+            "product-pipeline-runtime",
+            "1",
+            new UserInput(
+                userInputId(command), "requirement-analysis", command.text(), clock.instant()),
+            List.of(),
+            null,
+            provenance(command.runId(), "requirement-analysis", "requirement-analysis")));
+    Map<String, Object> attributes =
+        attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+    attributes.put("userText", command.text());
+    attributes.put("requirementBrief", updated);
+    artifactStore
+        .latest(command.runId(), Kind.REQUIREMENT_BRIEF)
+        .map(Revision::contentHash)
+        .filter(hash -> hash != null && !hash.isBlank())
+        .ifPresent(hash -> attributes.put(SUPERSEDED_BRIEF_CONTENT_HASH_ATTR, hash));
+    List<String> supersededArtifactHashes = collectSupersededDerivedArtifactHashes(command.runId());
+    if (!supersededArtifactHashes.isEmpty()) {
+      attributes.put(SUPERSEDED_ARTIFACT_HASHES_ATTR, supersededArtifactHashes);
+    }
+    return resetDownstreamAndMoveTo(
+        doc, "requirement-analysis", BriefMappingReview.REOPEN_MESSAGE, command);
+  }
+
+  private Multi<PipelineSignal> stayAfterMappingTurn(
+      ProductPipelineRunDocument doc, String message) {
+    Multi<PipelineSignal> wait =
+        doc.run().status() == RunStatus.WAITING_FOR_APPROVAL
+            ? reemitApprovalCard(doc)
+            : reemitHaltCard(doc);
+    if (message == null || message.isBlank()) {
+      return wait;
+    }
+    return Multi.createFrom()
+        .item((PipelineSignal) new PipelineSignal.Message(message))
+        .onCompletion()
+        .switchTo(() -> wait);
+  }
+
+  private static String mappingStayMessage(MappingTurnApplication application) {
+    if (application.answer() != null && !application.answer().rendered().isBlank()) {
+      return application.answer().rendered();
+    }
+    return switch (application.result()) {
+      case MappingTurnResult.Clarification clarification -> mappingClarificationMessage(clarification);
+      case MappingTurnResult.ConfirmationRequired confirmation ->
+          mappingConfirmationMessage(confirmation);
+      case null, default -> "";
+    };
+  }
+
+  private static String mappingClarificationMessage(MappingTurnResult.Clarification clarification) {
+    if ("STALE_REVISION".equals(clarification.reason())) {
+      return "This mapping change is stale. Send it again against the latest requirement brief.";
+    }
+    StringBuilder sb = new StringBuilder("Cannot apply the mapping change (");
+    sb.append(clarification.reason()).append(").");
+    if (!clarification.candidates().isEmpty()) {
+      sb.append(" Candidates: ").append(String.join(", ", clarification.candidates())).append('.');
+    }
+    return sb.toString();
+  }
+
+  private static String mappingConfirmationMessage(
+      MappingTurnResult.ConfirmationRequired confirmation) {
+    if (confirmation.kind() == MappingTurnResult.ConfirmationRequired.Kind.DELETE_LAST_RULE) {
+      return "Confirm pass-through before deleting the last rule of mapping intent '"
+          + confirmation.mappingIntentId()
+          + "'.";
+    }
+    return "Confirm pass-through before deleting mapping intent '"
+        + confirmation.mappingIntentId()
+        + "'.";
   }
 
   private static boolean isMappingGapWait(ProductPipelineRunDocument doc) {

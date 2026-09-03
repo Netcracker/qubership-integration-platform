@@ -176,6 +176,28 @@ class MappingParityValidatorTest {
         () -> MappingParityValidator.requireScriptCoverage(identityOrderId(), null));
   }
 
+  @Test
+  void unexpectedScriptCoverageFailsClosed() {
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                MappingParityValidator.requireScriptCoverage(
+                    identityOrderId(), List.of("$.orderId", "$.extra")));
+    assertTrue(ex.getMessage().contains("unexpected="));
+    assertTrue(ex.getMessage().contains("$.extra"));
+  }
+
+  @Test
+  void missingApprovedScriptCoverageFailsClosed() {
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> MappingParityValidator.requireScriptCoverage(identityOrderId(), List.of()));
+    assertTrue(ex.getMessage().contains("missing="));
+    assertTrue(ex.getMessage().contains("$.orderId"));
+  }
+
   private static MappingIntent identityOrderId() {
     return new MappingIntent(
         "map-init",

@@ -73,6 +73,12 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     Objects.requireNonNull(approvedPlan, "approvedPlan");
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(runManifest, "runManifest");
+    if (!Objects.equals(approvedPlan.semanticRevisionId(), revision.revisionId())) {
+      throw new IllegalStateException(
+          "Approved design plan does not match the approved semantic revision");
+    }
+    RequirementBrief storedBrief = loadStoredBrief(runManifest.runId());
+    rejectLiveMappingIntentMismatch(storedBrief, revision);
     BiConsumer<String, String> progress =
         skillProgress == null ? (skillId, status) -> {} : skillProgress;
     CompilerRunPin pin = requirePin(runManifest);
@@ -89,7 +95,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     ChainPlanGraph graph = graphCompiler.compile(revision, contract, resolvedBindings);
     RequirementBrief brief =
         DesignExecutionBriefFactory.build(
-            loadStoredBrief(runManifest.runId()),
+            storedBrief,
             revision,
             repairEvidence,
             priorGraph);
@@ -107,6 +113,17 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             List.of(),
             seed);
     return engine.execute(request, attemptId, progress).await().indefinitely();
+  }
+
+  private static void rejectLiveMappingIntentMismatch(
+      RequirementBrief storedBrief, ChainSemanticRevision revision) {
+    if (storedBrief == null || storedBrief.mappingIntents().isEmpty()) {
+      return;
+    }
+    if (!storedBrief.mappingIntents().equals(revision.mappingIntents())) {
+      throw new IllegalStateException(
+          "Live mapping-intent collection differs from the approved semantic revision");
+    }
   }
 
   private RequirementBrief loadStoredBrief(String runId) {

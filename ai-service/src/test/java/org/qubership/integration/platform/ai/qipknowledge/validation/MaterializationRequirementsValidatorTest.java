@@ -56,7 +56,7 @@ class MaterializationRequirementsValidatorTest {
               - condition
               - foo
             examples:
-              condition: "${exchangeProperty.lang} == 'ru'"
+              condition: "${exchangeProperty.lang} == 'fr'"
               foo: "overlay-only"
         """);
 
@@ -94,7 +94,7 @@ class MaterializationRequirementsValidatorTest {
                     "If",
                     null,
                     null,
-                    List.of(new PlanProperty("condition", "${lang} == 'ru'")))),
+                    List.of(new PlanProperty("condition", "${lang} == 'fr'")))),
             List.of());
 
     assertTrue(validator.validate(graph).isEmpty());
@@ -129,7 +129,7 @@ class MaterializationRequirementsValidatorTest {
                     "If",
                     null,
                     null,
-                    List.of(new PlanProperty("condition", "${lang} == 'ru'")))),
+                    List.of(new PlanProperty("condition", "${lang} == 'fr'")))),
             List.of());
 
     var issues = validator.validate(graph);

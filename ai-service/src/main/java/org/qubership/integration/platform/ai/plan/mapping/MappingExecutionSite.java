@@ -13,6 +13,8 @@ public final class MappingExecutionSite {
   public static final String MAPPING_INTENT_ID_PROPERTY = "mappingIntentId";
   public static final String SEMANTIC_EDGE_ID_PROPERTY = "semanticEdgeId";
   public static final String MAPPING_ID_PROPERTY = "mappingId";
+  public static final String MAPPING_SOURCE_PORT_PROPERTY = "mappingSourcePort";
+  public static final String MAPPING_TARGET_PORT_PROPERTY = "mappingTargetPort";
   public static final String MAPPING_DESCRIPTION_PROPERTY = "mappingDescription";
   public static final String SCRIPT_PROPERTY = "script";
   public static final String MAPPING_COVERAGE_PROPERTY = "mappingCoverage";
@@ -23,6 +25,8 @@ public final class MappingExecutionSite {
     return MAPPING_INTENT_ID_PROPERTY.equals(key)
         || SEMANTIC_EDGE_ID_PROPERTY.equals(key)
         || MAPPING_ID_PROPERTY.equals(key)
+        || MAPPING_SOURCE_PORT_PROPERTY.equals(key)
+        || MAPPING_TARGET_PORT_PROPERTY.equals(key)
         || MAPPING_COVERAGE_PROPERTY.equals(key);
   }
 
@@ -54,6 +58,14 @@ public final class MappingExecutionSite {
     return propertyValue(node, MAPPING_ID_PROPERTY);
   }
 
+  public static String mappingSourcePort(ChainPlanNode node) {
+    return propertyValue(node, MAPPING_SOURCE_PORT_PROPERTY);
+  }
+
+  public static String mappingTargetPort(ChainPlanNode node) {
+    return propertyValue(node, MAPPING_TARGET_PORT_PROPERTY);
+  }
+
   public static String mappingDescription(ChainPlanNode node) {
     return propertyValue(node, MAPPING_DESCRIPTION_PROPERTY);
   }
@@ -77,6 +89,43 @@ public final class MappingExecutionSite {
 
   public static ChainPlanNode withMappingIntentId(ChainPlanNode node, String mappingIntentId) {
     return withProperty(node, MAPPING_INTENT_ID_PROPERTY, mappingIntentId);
+  }
+
+  public static ChainPlanNode withBoundary(
+      ChainPlanNode node, String mappingIntentId, String sourcePort, String targetPort) {
+    return withProperty(
+        withProperty(
+            withMappingIntentId(node, mappingIntentId),
+            MAPPING_SOURCE_PORT_PROPERTY,
+            sourcePort),
+        MAPPING_TARGET_PORT_PROPERTY,
+        targetPort);
+  }
+
+  /** Drops generated script, coverage, and mapper description so generation starts from the approved rules. */
+  public static ChainPlanNode withoutGeneratedArtifact(ChainPlanNode node) {
+    if (node == null || node.properties() == null) {
+      return node;
+    }
+    List<PlanProperty> properties = new ArrayList<>();
+    for (PlanProperty property : node.properties()) {
+      if (SCRIPT_PROPERTY.equals(property.key())
+          || MAPPING_COVERAGE_PROPERTY.equals(property.key())
+          || MAPPING_DESCRIPTION_PROPERTY.equals(property.key())) {
+        continue;
+      }
+      properties.add(property);
+    }
+    if (properties.size() == node.properties().size()) {
+      return node;
+    }
+    return new ChainPlanNode(
+        node.nodeId(),
+        node.type(),
+        node.label(),
+        node.parentNodeId(),
+        node.order(),
+        List.copyOf(properties));
   }
 
   static ChainPlanNode withProperty(ChainPlanNode node, String key, String value) {

@@ -17,8 +17,8 @@ class ImplementationPlanRendererTest {
         baseFacts(
             "LangRouter",
             List.of("GET", "/lang-router", "internal", "preferredLang"),
-            List.of("preferredLang == 'ru'", "else: English greeting"),
-            List.of("Russian greeting text", "English greeting text"),
+            List.of("preferredLang == 'fr'", "else: English greeting"),
+            List.of("French greeting text", "English greeting text"),
             List.of(),
             RequirementFactFixtures.langRouterApprovedDraft().facts().stream()
                 .filter(f -> f.polarity() == RequirementFactPolarity.NEGATIVE)
@@ -33,7 +33,7 @@ class ImplementationPlanRendererTest {
     assertTrue(plan.planText().contains("/lang-router"));
     assertTrue(plan.planText().contains("GET"));
     assertTrue(plan.planText().contains("preferredLang"));
-    assertTrue(plan.planText().contains("preferredLang == 'ru'"));
+    assertTrue(plan.planText().contains("preferredLang == 'fr'"));
     assertTrue(plan.planText().contains("English greeting"));
     assertTrue(plan.planText().contains("No service calls"));
     assertTrue(plan.planText().contains("No MCP"));
@@ -74,8 +74,8 @@ class ImplementationPlanRendererTest {
         baseFacts(
             "LangRouter",
             List.of("/lang-router"),
-            List.of("preferredLang == 'ru'"),
-            List.of("Russian greeting text"),
+            List.of("preferredLang == 'fr'"),
+            List.of("French greeting text"),
             List.of(),
             List.of("No MCP"));
     ImplementationPlan structured =

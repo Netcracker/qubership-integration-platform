@@ -26,6 +26,11 @@ import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitize
 import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
+import org.qubership.integration.platform.ai.plan.MappingTurnApplication;
+import org.qubership.integration.platform.ai.plan.MappingTurnInterpreter;
+import org.qubership.integration.platform.ai.plan.MappingTurnProcessor;
+import org.qubership.integration.platform.ai.plan.MappingTurnTelemetry;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
@@ -80,6 +85,8 @@ public class RequirementAnalysisCapability implements StageCapability {
   private final RequirementDraftStore draftStore;
   private final CaptureRepairRunner captureRepairRunner;
   private final ChatMemorySanitizer chatMemorySanitizer;
+  private final MappingTurnAdapter mappingTurnAdapter;
+  private final MappingTurnTelemetry mappingTurnTelemetry;
 
   @Inject
   public RequirementAnalysisCapability(
@@ -91,7 +98,9 @@ public class RequirementAnalysisCapability implements StageCapability {
       EvidenceEmitter evidenceEmitter,
       RequirementDraftStore draftStore,
       CaptureRepairRunner captureRepairRunner,
-      ChatMemorySanitizer chatMemorySanitizer) {
+      ChatMemorySanitizer chatMemorySanitizer,
+      MappingTurnInterpreter mappingTurnInterpreter,
+      MappingTurnTelemetry mappingTurnTelemetry) {
     this(
         knowledgeClient,
         knowledgeContextProvider,
@@ -104,7 +113,9 @@ public class RequirementAnalysisCapability implements StageCapability {
         evidenceEmitter,
         draftStore,
         captureRepairRunner,
-        chatMemorySanitizer);
+        chatMemorySanitizer,
+        mappingTurnInterpreter,
+        mappingTurnTelemetry);
   }
 
   /** Test helper: knowledge-only construction without analyzer agent. */
@@ -114,6 +125,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         knowledgeClient,
         knowledgeContextProvider,
         new RequirementBriefCoverageValidator(),
+        null,
+        null,
         null,
         null,
         null,
@@ -138,6 +151,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         null,
         null,
         briefProducer,
+        null,
+        null,
         null,
         null,
         null,
@@ -167,6 +182,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         evidenceEmitter,
         null,
         null,
+        null,
+        null,
         null);
   }
 
@@ -193,6 +210,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         evidenceEmitter,
         draftStore,
         null,
+        null,
+        null,
         null);
   }
 
@@ -209,6 +228,38 @@ public class RequirementAnalysisCapability implements StageCapability {
       RequirementDraftStore draftStore,
       CaptureRepairRunner captureRepairRunner,
       ChatMemorySanitizer chatMemorySanitizer) {
+    this(
+        knowledgeClient,
+        knowledgeContextProvider,
+        coverageValidator,
+        captureSession,
+        feedbackStore,
+        discoveryAgent,
+        briefProducer,
+        analysisRunner,
+        evidenceEmitter,
+        draftStore,
+        captureRepairRunner,
+        chatMemorySanitizer,
+        null,
+        null);
+  }
+
+  RequirementAnalysisCapability(
+      KnowledgeClient knowledgeClient,
+      KnowledgeContextProvider knowledgeContextProvider,
+      RequirementBriefCoverageValidator coverageValidator,
+      CaptureSession captureSession,
+      CaptureAttemptFeedbackStore feedbackStore,
+      DiscoveryAgent discoveryAgent,
+      Function<StageExecutionContext, RequirementBrief> briefProducer,
+      BiFunction<String, String, Multi<ChatEvent>> analysisRunner,
+      EvidenceEmitter evidenceEmitter,
+      RequirementDraftStore draftStore,
+      CaptureRepairRunner captureRepairRunner,
+      ChatMemorySanitizer chatMemorySanitizer,
+      MappingTurnAdapter mappingTurnAdapter,
+      MappingTurnTelemetry mappingTurnTelemetry) {
     this.knowledgeClient = Objects.requireNonNull(knowledgeClient, "knowledgeClient");
     this.knowledgeContextProvider =
         Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
@@ -222,6 +273,8 @@ public class RequirementAnalysisCapability implements StageCapability {
     this.draftStore = draftStore;
     this.captureRepairRunner = captureRepairRunner;
     this.chatMemorySanitizer = chatMemorySanitizer;
+    this.mappingTurnAdapter = mappingTurnAdapter;
+    this.mappingTurnTelemetry = mappingTurnTelemetry;
   }
 
   @Override
@@ -241,7 +294,6 @@ public class RequirementAnalysisCapability implements StageCapability {
                       StageOutcomeClass.MISSING_MANDATORY_INPUT,
                       "Approved requirement draft is required for analysis")));
     }
-    approved = appendMappingProseIfNeeded(context, approved);
     RequirementDraft prepared = approved;
 
     // Sidecar RestClient is blocking — must not run on the Vert.x event loop.
@@ -252,27 +304,27 @@ public class RequirementAnalysisCapability implements StageCapability {
         .transformToMulti(ignored -> continueAfterKnowledge(context, prepared));
   }
 
-  private RequirementDraft appendMappingProseIfNeeded(
-      StageExecutionContext context, RequirementDraft approved) {
+  /**
+   * Interprets {@code userText} as typed mapping changes against the latest mapping intents. The
+   * model does not replace the requirement brief.
+   */
+  private RequirementBrief applyMappingTurn(StageExecutionContext context, RequirementBrief brief) {
+    if (mappingTurnAdapter == null) {
+      return brief;
+    }
     String userText = context.attributeAsString("userText");
     if (userText == null || userText.isBlank()) {
-      return approved;
+      return brief;
     }
-    String trimmed = userText.trim();
-    if (RequirementBriefCoverageValidator.describesFieldAdaptation(approved.planningText())) {
-      return approved;
+    RequirementBrief starting = brief;
+    RequirementBrief prior = priorBrief(context);
+    if (prior != null && !prior.mappingIntents().isEmpty()) {
+      starting = brief.withMappingIntents(prior.mappingIntents());
     }
-    if (!RequirementBriefCoverageValidator.describesFieldAdaptation(trimmed)) {
-      return approved;
-    }
-    if (approved.assembledText().contains(trimmed)) {
-      return approved;
-    }
-    RequirementDraft next = approved.withAssembledText(approved.planningText() + "\n\n" + trimmed);
-    if (draftStore != null) {
-      draftStore.put(context.conversationId(), next);
-    }
-    return next;
+    MappingTurnApplication application =
+        MappingTurnProcessor.process(
+            starting, userText.trim(), mappingTurnAdapter, mappingTurnTelemetry);
+    return application.applied() ? application.brief() : starting;
   }
 
   private Multi<CapabilitySignal> continueAfterKnowledge(
@@ -443,6 +495,7 @@ public class RequirementAnalysisCapability implements StageCapability {
               StageOutcomeClass.CONTRACT_FAILURE,
               "Requirement analysis did not capture a requirement brief"));
     }
+    brief = applyMappingTurn(context, brief);
     var unresolvedMapping = BriefMappingValidator.unresolvedRequiredMessage(brief);
     if (unresolvedMapping.isPresent()) {
       return new CapabilitySignal.Completed(
