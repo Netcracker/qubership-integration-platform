@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -39,6 +40,7 @@ import static java.util.Objects.isNull;
 public class SystemBaseService {
 
     private static final String SYSTEM_WITH_ID_NOT_FOUND = "Can't find system with id: ";
+    private static final String SYSTEM_TYPE_NOT_SPECIFIED = "Service type is not specified. Expected one of: ";
 
     private static final Map<IntegrationSystemType, Collection<OperationProtocol>> ALLOWED_PROTOCOL_MAP = Map.of(
             IntegrationSystemType.EXTERNAL, Arrays.stream(OperationProtocol.values())
@@ -92,6 +94,10 @@ public class SystemBaseService {
 
     @Transactional
     public IntegrationSystem create(IntegrationSystem system, boolean isImport) {
+        if (isNull(system.getIntegrationSystemType())) {
+            throw new BadRequestException(SYSTEM_TYPE_NOT_SPECIFIED
+                    + Arrays.toString(IntegrationSystemType.values()));
+        }
         IntegrationSystem savedSystem = systemRepository.save(system);
         logSystemAction(savedSystem, isImport ? LogOperation.CREATE_OR_UPDATE : LogOperation.CREATE);
         return savedSystem;

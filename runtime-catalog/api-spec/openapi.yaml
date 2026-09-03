@@ -1584,6 +1584,13 @@ components:
           type: "boolean"
         maskingEnabled:
           type: "boolean"
+        sessionLogDetails:
+          default: "OFF"
+          enum:
+          - "SENDERS"
+          - "FULL"
+          - "OFF"
+          type: "string"
         sessionsLoggingLevel:
           enum:
           - "OFF"
@@ -4354,6 +4361,11 @@ components:
         activeEnvironmentId:
           description: "Id of currently activated environment"
           type: "string"
+        chains:
+          description: "List of chains that is using current service"
+          items:
+            $ref: "#/components/schemas/BaseResponse"
+          type: "array"
         createdBy:
           $ref: "#/components/schemas/UserDTO"
           description: "User who created entity"
@@ -9575,6 +9587,13 @@ paths:
         schema:
           default: false
           type: "boolean"
+      - description: "Whether response will include chains using the service"
+        in: "query"
+        name: "includeChainUsage"
+        required: false
+        schema:
+          default: false
+          type: "boolean"
       responses:
         "200":
           content:
@@ -9661,6 +9680,14 @@ paths:
     post:
       description: "Filter services request"
       operationId: "filterSystems"
+      parameters:
+      - description: "Whether response will include chains using the service"
+        in: "query"
+        name: "includeChainUsage"
+        required: false
+        schema:
+          default: false
+          type: "boolean"
       requestBody:
         content:
           application/json:
@@ -9685,6 +9712,14 @@ paths:
     post:
       description: "Search services request"
       operationId: "searchSystems"
+      parameters:
+      - description: "Whether response will include chains using the service"
+        in: "query"
+        name: "includeChainUsage"
+        required: false
+        schema:
+          default: false
+          type: "boolean"
       requestBody:
         content:
           application/json:

@@ -75,17 +75,17 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       let servicesArray: IntegrationSystem[];
       if (hasSearch && hasFilters) {
         const [searched, filtered] = await Promise.all([
-          api.searchServices(searchString.trim()),
-          api.filterServices(filters),
+          api.searchServices(searchString.trim(), true),
+          api.filterServices(filters, true),
         ]);
         const filteredIds = new Set(filtered.map((s) => s.id));
         servicesArray = searched.filter((s) => filteredIds.has(s.id));
       } else if (hasFilters) {
-        servicesArray = await api.filterServices(filters);
+        servicesArray = await api.filterServices(filters, true);
       } else if (hasSearch) {
-        servicesArray = await api.searchServices(searchString.trim());
+        servicesArray = await api.searchServices(searchString.trim(), true);
       } else {
-        const all = await api.getServices("", false);
+        const all = await api.getServices("", false, true);
         servicesArray = Array.isArray(all) ? all : [];
       }
 

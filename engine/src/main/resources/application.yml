@@ -248,6 +248,8 @@ qip:
       enabled: ${DEFAULT_SECRET_ENABLED:false}
   standalone: true
   camel:
+    routes:
+      prefix: /${app.prefix}-routes
     stream-caching:
       enabled: true # enable exchange payload spooling
       buffer:
@@ -266,8 +268,22 @@ qip:
     thread-pool:
       core-size: 3
       max-size: 3
+  gateway:
+    egress:
+      name: egress-gateway
+    public:
+      name: public-gateway
+    private:
+      name: private-gateway
+    internal:
+      name: internal-gateway-service
+  istio:
+    enabled: ${QIP_ISTIO_ENABLED:true}
+    host-resources:
+      enabled: ${QIP_ISTIO_HOST_RESOURCES_ENABLED:true}
   control-plane:
-    enabled: false
+    enabled: ${CONTROL_PLANE_ENABLED:false}
+    mesh-type: ${SERVICE_MESH_TYPE:Core}
   context-service:
     cleanup:
       cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
@@ -354,7 +370,7 @@ qip:
     expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
   chains:
     external-routes:
-      base-path: /qip-routes
+      base-path: ${qip.camel.routes.prefix}
 
 kubernetes:
   devmode: ${KUBE_DEV_MODE:false}

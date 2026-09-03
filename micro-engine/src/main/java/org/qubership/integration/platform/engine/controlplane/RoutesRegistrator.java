@@ -44,6 +44,14 @@ public class RoutesRegistrator {
         this.engineInfo = engineInfo;
     }
 
+    /**
+     * The route table registered here is hand-mirrored in {@code integration-build-pipeline}'s
+     * {@code EngineRoutesResourceBuilder}, which generates the equivalent Istio HTTPRoute
+     * CR for micro-domain deployments (this class only registers with Cloud-Core Mesh
+     * control-plane, so it has no effect there). That mirror is NOT derived from this
+     * method at build or run time — if the routes registered here change, update
+     * {@code EngineRoutesResourceBuilder}'s route table by hand too.
+     */
     @PostConstruct
     public void registerRoutes() {
         LOG.info("registering routes in control-plane for domain={}", engineInfo.getDomain());

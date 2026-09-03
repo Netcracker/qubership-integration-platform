@@ -1,4 +1,26 @@
 <route>
+    <setHeader name="CamelGraphQLQuery">
+        <simple>
+{
+  hero {
+    name
+  }
+}
+        </simple>
+    </setHeader>
+    <setProperty name="internalProperty_graphQLVariablesJSON">
+        <simple>
+{
+    "hero": {
+        "name": "string"
+    }
+}
+        </simple>
+    </setProperty>
+    <setProperty name="internalProperty_graphQLEndpointUri">
+        <simple>graphql-custom:http://egress-gateway:8080%%{route-dedf8fa3-06e4-41e1-9e60-0fe5e8aedf3f}/test/graphQL?operationName=test_operation&amp;queryHeader=CamelGraphQLQuery&amp;variablesHeader=CamelGraphQLVariables&amp;httpClientConfigurer=#faf6e313-96c9-4880-81a4-2831de1380b1</simple>
+    </setProperty>
+    <process ref="graphQLSessionLoggingProcessor"/>
     <step id="faf6e313-96c9-4880-81a4-2831de1380b1">
 
         <setProperty name="correlationIdPosition">
@@ -10,28 +32,12 @@
 
         <process ref="correlationIdPropagationProcessor"/>
 
-        <setHeader name="CamelGraphQLQuery">
-            <simple>
-{
-  hero {
-    name
-  }
-}
-            </simple>
-        </setHeader>
-        <setProperty name="internalProperty_graphQLVariablesJSON">
-            <simple>
-{
-    "hero": {
-        "name": "string"
-    }
-}
-            </simple>
-        </setProperty>
         <process ref="graphQLVariablesProcessor"/>
 
         <doTry>
             <process ref="contextPropagationProcessor"/>
+
+            <removeHeader name="Content-Type"/>
 
             <toD uri="graphql-custom:http://egress-gateway:8080%%{route-dedf8fa3-06e4-41e1-9e60-0fe5e8aedf3f}/test/graphQL?operationName=test_operation&amp;queryHeader=CamelGraphQLQuery&amp;variablesHeader=CamelGraphQLVariables&amp;httpClientConfigurer=#faf6e313-96c9-4880-81a4-2831de1380b1"/>
 

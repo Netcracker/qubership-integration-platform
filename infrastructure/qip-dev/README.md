@@ -1,5 +1,50 @@
 # Qubership Integration Platform - Helm charts for local development
 
+## Istio
+
+`global.qip.controlPlane.meshType: Istio` (the default in `values.yaml`) makes the platform generate
+Gateway API and Istio resources. Install Istio and the Gateway API CRDs, and label the target
+namespace for sidecar injection, before you install the chart:
+
+```sh
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+istioctl install --set profile=demo \
+  --set values.pilot.env.PILOT_ENABLE_ALPHA_GATEWAY_API=true
+kubectl create namespace qip
+kubectl label namespace qip istio-injection=enabled
+```
+
+Sidecars are injected when a pod is created, so a namespace labeled after `helm install` leaves the
+running pods without one. Run `kubectl rollout restart deployment -n qip` to recreate them if you get
+the order wrong.
+
+Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` only honors when
+`PILOT_ENABLE_ALPHA_GATEWAY_API` is set. Without it the egress `HTTPRoute` is accepted but never
+programmed, and outgoing calls fail with no route.
+
+`QIP_ISTIO_HOST_RESOURCES_ENABLED` (default `true`) controls whether `runtime-catalog` and
+`engine` generate the `ServiceEntry` and `DestinationRule` those routes depend on. Turn it off
+only when something else supplies them. The `HTTPRoute` still names its target with
+`kind: Hostname`, which Istio resolves through a `ServiceEntry`, so without one every egress call
+fails while the route itself still looks healthy. HTTPS targets need the `DestinationRule` too,
+because it originates TLS and nothing else in the generated configuration does.
+
+The chart's gateways listen on these ports:
+
+| Gateway | Service name | Port |
+| --- | --- | --- |
+| `public-gateway` | `public-gateway` | 80 |
+| `private-gateway` | `private-gateway` | 80 |
+| `internal-gateway` | `internal-gateway-service` | 8080 |
+| `egress-gateway` | `egress-gateway` | 8080 |
+
+`internal-gateway`'s Service name must stay in step with `qip.gateway.internal.name`, and
+`egress-gateway`'s port with the port in `qip.gateway.egress.url` — both in `runtime-catalog`'s
+`application.yml`. Change one side and change the other, or override the egress URL with
+`QIP_EGRESS_GATEWAY_URL`. `EndpointHelperSource` reads that URL at build time and bakes it into the
+generated Camel source in the snapshot ConfigMap, so setting it saves a rebuild but takes effect
+only once you redeploy every chain.
+
 ## Installation
 
 ```sh
