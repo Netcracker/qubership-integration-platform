@@ -156,14 +156,7 @@ public class DesignInputCapability implements StageCapability {
           "design-input requires an approved RequirementBrief");
     }
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
-    Object rawConfirmation = context.attributes().get("mappingGapPassThrough");
-    MappingGapPassThroughConfirmation confirmation =
-        rawConfirmation instanceof MappingGapPassThroughConfirmation value ? value : null;
-    String briefSha = context.attributeAsString("requirementBriefContentHash");
-    if (briefSha == null) {
-      briefSha = "";
-    }
-    if (MappingGapCoverage.shouldAsk(uncovered, confirmation, briefSha)) {
+    if (MappingGapCoverage.shouldAsk(uncovered)) {
       String tagged =
           PipelineGates.tag(
               PipelineGates.MAPPING_GAP,
@@ -308,8 +301,8 @@ public class DesignInputCapability implements StageCapability {
         """
 
         Call captureChainSemanticRevision once. Copy sourceFactIds from the brief, taking the\
-         value after each matching `=` sign. Copy mappingIntentId the same way only when the\
-         brief has a mappingIntentId= line; otherwise omit it on every edge. Field-mapping\
+         value after each matching `=` sign. Copy mappingIntentId the same way when Mapping\
+         intents include a mappingIntentId= token; otherwise omit it on every edge. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
          sourceFactId as mappingIntentId. External interaction anchors are server-owned.\
          Reference these node ids from edges, but do not list them under operations. Preserve\

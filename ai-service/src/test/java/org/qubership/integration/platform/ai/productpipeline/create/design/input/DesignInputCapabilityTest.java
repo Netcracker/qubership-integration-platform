@@ -140,7 +140,20 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void matchingPassThroughConfirmationSkipsTheGate() {
+  void skipRecordsCloseTheGateWithoutCapture() {
+    RequirementBrief brief =
+        MappingGapCoverage.skipUncovered(ChainSemanticCaptureFixtures.rockyBrief());
+    StageOutcome prepared =
+        outcome(
+            capturingCapability(),
+            context("design-input", Map.of("requirementBrief", brief)));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(
+        Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
+  }
+
+  @Test
+  void passThroughConfirmationDoesNotCloseTheGate() {
     RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBrief();
     MappingGapPassThroughConfirmation confirmation =
         new MappingGapPassThroughConfirmation(
@@ -158,9 +171,8 @@ class DesignInputCapabilityTest {
                     "requirementBrief", brief,
                     "mappingGapPassThrough", confirmation,
                     "requirementBriefContentHash", "sha-rocky")));
-    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
-    assertEquals(
-        Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertEquals(PipelineGates.MAPPING_GAP, PipelineGates.gateOf(prepared.message()).orElse(""));
   }
 
   @Test
@@ -169,10 +181,21 @@ class DesignInputCapabilityTest {
         DesignInputCapability.authoringPrompt(
             ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
     assertTrue(prompt.contains("sourceFactIds"), prompt);
+    assertTrue(prompt.contains("when Mapping intents include a mappingIntentId="), prompt);
     assertTrue(prompt.contains("omit it on every edge"), prompt);
     assertTrue(prompt.contains("External interaction anchors are server-owned"), prompt);
     assertTrue(prompt.contains("nodeId=http-in"), prompt);
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
+  }
+
+  @Test
+  void authoringPromptIncludesMappingIntentIdTokenFromTheBrief() {
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.briefWithMapping(), CONTRACT);
+    assertTrue(
+        prompt.contains("mappingIntentId=" + ChainSemanticCaptureFixtures.MAPPING_INTENT_ID),
+        prompt);
   }
 
   @Test

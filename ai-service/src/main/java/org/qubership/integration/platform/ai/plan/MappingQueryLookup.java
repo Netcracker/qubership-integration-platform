@@ -57,7 +57,10 @@ public final class MappingQueryLookup {
       return render(language, false, List.of(), List.of());
     }
     List<TransitionFact> transitions = new ArrayList<>();
-    for (Transition transition : MappingGapCoverage.uncovered(brief)) {
+    for (Transition transition : brief.flow().transitions()) {
+      if (MappingGapCoverage.state(brief, transition) != MappingGapCoverage.State.SKIPPED) {
+        continue;
+      }
       if (!matchesTransition(transition, query)) {
         continue;
       }
@@ -143,7 +146,8 @@ public final class MappingQueryLookup {
     }
     for (Transition transition : brief.flow().transitions()) {
       if (query.sourceRef().equals(transition.sourceInteractionId())
-          && query.targetRef().equals(transition.targetInteractionId())) {
+          && query.targetRef().equals(transition.targetInteractionId())
+          && MappingGapCoverage.state(brief, transition) == MappingGapCoverage.State.SKIPPED) {
         return true;
       }
     }

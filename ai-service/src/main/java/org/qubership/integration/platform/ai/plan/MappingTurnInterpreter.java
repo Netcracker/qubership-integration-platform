@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import org.jboss.logging.Logger;
@@ -45,6 +46,16 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
 
   @Override
   public MappingTurnResult interpret(RequirementBrief brief, String authorMessage) {
+    return interpret(brief, authorMessage, false);
+  }
+
+  @Override
+  public MappingTurnResult interpretGap(RequirementBrief brief, String authorMessage) {
+    return interpret(brief, authorMessage, true);
+  }
+
+  private MappingTurnResult interpret(
+      RequirementBrief brief, String authorMessage, boolean omitMissingAdditions) {
     Objects.requireNonNull(brief, "brief");
     if (authorMessage == null || authorMessage.isBlank()) {
       return MappingTurnResult.changes();
@@ -57,21 +68,43 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
       LOG.warnf(e, "Mapping turn capture could not be parsed; treating as no change");
       return MappingTurnResult.changes();
     }
-    return fromCapture(capture, brief);
+    return fromCapture(capture, brief, authorMessage.trim(), omitMissingAdditions);
   }
 
   MappingTurnResult fromCapture(MappingTurnCapture capture, RequirementBrief brief) {
-    RequirementFlow flow = brief == null ? null : brief.flow();
-    List<MappingIntent> intents = brief == null ? List.of() : brief.mappingIntents();
-    return fromCapture(capture, flow, intents);
+    return fromCapture(capture, brief, null);
   }
 
-  MappingTurnResult fromCapture(MappingTurnCapture capture, RequirementFlow flow) {
-    return fromCapture(capture, flow, List.of());
+  MappingTurnResult fromCapture(
+      MappingTurnCapture capture, RequirementBrief brief, String authorMessage) {
+    return fromCapture(capture, brief, authorMessage, false);
   }
 
   private MappingTurnResult fromCapture(
-      MappingTurnCapture capture, RequirementFlow flow, List<MappingIntent> intents) {
+      MappingTurnCapture capture,
+      RequirementBrief brief,
+      String authorMessage,
+      boolean omitMissingAdditions) {
+    RequirementFlow flow = brief == null ? null : brief.flow();
+    List<MappingIntent> intents = brief == null ? List.of() : brief.mappingIntents();
+    return fromCapture(capture, flow, intents, authorMessage, omitMissingAdditions);
+  }
+
+  MappingTurnResult fromCapture(MappingTurnCapture capture, RequirementFlow flow) {
+    return fromCapture(capture, flow, List.of(), null, false);
+  }
+
+  MappingTurnResult fromCapture(
+      MappingTurnCapture capture, RequirementFlow flow, String authorMessage) {
+    return fromCapture(capture, flow, List.of(), authorMessage, false);
+  }
+
+  private MappingTurnResult fromCapture(
+      MappingTurnCapture capture,
+      RequirementFlow flow,
+      List<MappingIntent> intents,
+      String authorMessage,
+      boolean omitMissingAdditions) {
     if (capture == null || capture.outcome() == Kind.NONE) {
       return MappingTurnResult.changes();
     }
@@ -88,7 +121,13 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
     List<MappingTurnResult.Operation> operations = new ArrayList<>();
     List<String> ambiguous = new ArrayList<>();
     Optional<Clarification> clarification =
-        addIntentOperations(capture, flow, operations, ambiguous);
+        addIntentOperations(
+            capture,
+            flow,
+            operations,
+            ambiguous,
+            authorMessage,
+            omitMissingAdditions);
     if (clarification.isPresent()) {
       return clarification.get();
     }
@@ -180,7 +219,10 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
       MappingTurnCapture capture,
       RequirementFlow flow,
       List<MappingTurnResult.Operation> operations,
-      List<String> ambiguous) {
+      List<String> ambiguous,
+      String authorMessage,
+      boolean omitMissingAdditions) {
+    List<AddIntent> resolved = new ArrayList<>();
     for (IntentChange change : capture.addIntents()) {
       ResolvedRef source = resolveRef(flow, change.sourceRef());
       ResolvedRef target = resolveRef(flow, change.targetRef());
@@ -190,15 +232,105 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
         continue;
       }
       if (source.id().isBlank() || target.id().isBlank()) {
+        if (omitMissingAdditions) {
+          resolved.add(
+              new AddIntent(
+                  source.id().isBlank() ? change.sourceRef() : source.id(),
+                  target.id().isBlank() ? change.targetRef() : target.id(),
+                  change.rules(),
+                  change.implementationPreference()));
+          continue;
+        }
         return Optional.of(
             new Clarification(
                 "MISSING_TRANSITION", List.of(change.sourceRef(), change.targetRef())));
       }
-      operations.add(
+      resolved.add(
           new AddIntent(
               source.id(), target.id(), change.rules(), change.implementationPreference()));
     }
+    operations.addAll(describedHops(resolved, flow, authorMessage));
     return Optional.empty();
+  }
+
+  /**
+   * Keeps an AddIntent only when the author message carries evidence for that hop: an interaction
+   * id, an operation name, or a rule path that no other approved hop shares. This prevents the
+   * model from filling an unmentioned remainder hop.
+   */
+  private static List<AddIntent> describedHops(
+      List<AddIntent> resolved, RequirementFlow flow, String authorMessage) {
+    if (authorMessage == null || authorMessage.isBlank()) {
+      return resolved;
+    }
+    String message = authorMessage.toLowerCase(Locale.ROOT);
+    List<AddIntent> described = new ArrayList<>();
+    for (AddIntent add : resolved) {
+      for (String token : distinctiveTokens(add, resolved, flow)) {
+        if (message.contains(token)) {
+          described.add(add);
+          break;
+        }
+      }
+    }
+    return described;
+  }
+
+  /** Lowercased tokens of {@code add} that no captured or approved sibling hop also carries. */
+  private static List<String> distinctiveTokens(
+      AddIntent add, List<AddIntent> siblings, RequirementFlow flow) {
+    List<String> shared = new ArrayList<>();
+    for (AddIntent sibling : siblings) {
+      if (sibling != add) {
+        shared.addAll(hopTokens(sibling, flow));
+      }
+    }
+    if (flow != null) {
+      for (var transition : flow.transitions()) {
+        if (!add.sourceRef().equals(transition.sourceInteractionId())
+            || !add.targetRef().equals(transition.targetInteractionId())) {
+          shared.addAll(
+              hopTokens(
+                  new AddIntent(
+                      transition.sourceInteractionId(),
+                      transition.targetInteractionId(),
+                      List.of()),
+                  flow));
+        }
+      }
+    }
+    List<String> distinctive = new ArrayList<>();
+    for (String token : hopTokens(add, flow)) {
+      if (!shared.contains(token)) {
+        distinctive.add(token);
+      }
+    }
+    return distinctive;
+  }
+
+  /**
+   * Lowercased identity and rule tokens of one hop. Tokens shorter than three characters are
+   * dropped: {@code id} matches too much prose to be evidence of anything.
+   */
+  private static List<String> hopTokens(AddIntent add, RequirementFlow flow) {
+    List<String> raw = new ArrayList<>();
+    raw.add(add.sourceRef());
+    raw.add(add.targetRef());
+    if (flow != null) {
+      flow.interaction(add.sourceRef()).map(Interaction::operation).ifPresent(raw::add);
+      flow.interaction(add.targetRef()).map(Interaction::operation).ifPresent(raw::add);
+    }
+    for (MappingIntentRule rule : add.rules()) {
+      raw.add(rule.sourcePath());
+      raw.add(rule.targetPath());
+    }
+    List<String> tokens = new ArrayList<>();
+    for (String token : raw) {
+      if (token != null && token.trim().length() >= 3) {
+        tokens.add(token.trim().toLowerCase(Locale.ROOT));
+      }
+    }
+    return tokens;
   }
 
   private static Optional<Clarification> addRuleOperations(

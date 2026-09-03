@@ -36,6 +36,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.plan.MappingTurnInterpreter;
+import org.qubership.integration.platform.ai.plan.MappingTurnTelemetry;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.AutoUploadedSpecImportCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
@@ -175,7 +176,8 @@ public class ProductPipelineRuntimeProducers {
       S3Service s3Service,
       AppConfig appConfig,
       RecoveryOutcomeTelemetry recoveryTelemetry,
-      MappingTurnInterpreter mappingTurnInterpreter) {
+      MappingTurnInterpreter mappingTurnInterpreter,
+      MappingTurnTelemetry mappingTurnTelemetry) {
     AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
         appConfig.create().failureNarrative();
     return new ProductPipelineRunSupport(
@@ -200,7 +202,8 @@ public class ProductPipelineRuntimeProducers {
                     appConfig.create().maxCausalReopens(),
                     appConfig.create().recoveryAttemptCeiling())),
             recoveryTelemetry,
-            mappingTurnInterpreter);
+            mappingTurnInterpreter,
+            mappingTurnTelemetry);
   }
 
   @Produces

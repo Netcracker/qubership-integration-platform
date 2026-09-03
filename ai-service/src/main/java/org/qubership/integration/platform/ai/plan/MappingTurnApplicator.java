@@ -64,6 +64,31 @@ public final class MappingTurnApplicator {
     }
   }
 
+  /**
+   * Applies each operation on its own. An invalid hop is omitted; valid siblings persist. Used on
+   * the mapping-gap card, where whole-list rollback is the wrong product rule.
+   */
+  public static MappingTurnApplication applyValid(RequirementBrief brief, MappingTurnResult result) {
+    Objects.requireNonNull(brief, "brief");
+    Objects.requireNonNull(result, "result");
+    if (!(result instanceof MappingTurnResult.Changes(var operations)) || operations.isEmpty()) {
+      return MappingTurnApplication.rejected(brief, result);
+    }
+    RequirementBrief current = brief;
+    boolean any = false;
+    for (MappingTurnResult.Operation operation : operations) {
+      MappingTurnApplication one =
+          apply(current, new MappingTurnResult.Changes(List.of(operation)));
+      if (one.applied()) {
+        current = one.brief();
+        any = true;
+      }
+    }
+    return any
+        ? new MappingTurnApplication(current, true, null, result)
+        : MappingTurnApplication.rejected(brief, result);
+  }
+
   private static void applyOne(
       List<MappingIntent> working, RequirementFlow flow, MappingTurnResult.Operation operation) {
     switch (operation) {

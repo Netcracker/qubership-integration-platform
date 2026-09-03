@@ -316,7 +316,9 @@ class MappingTurnProcessorTest {
 
   @Test
   void queryDoesNotReopenTheBriefOrInvalidateAPlan() {
-    RequirementBrief brief = process(rockyBrief(), REQUEST_ONLY, fixtureAdapter()).brief();
+    RequirementBrief brief =
+        MappingGapCoverage.skipUncovered(
+            process(rockyBrief(), REQUEST_ONLY, fixtureAdapter()).brief());
     DesignExecutionPlan plan = planDependingOn("map-task-start-to-create-task");
     MappingTurnAdapter adapter =
         (current, message) ->

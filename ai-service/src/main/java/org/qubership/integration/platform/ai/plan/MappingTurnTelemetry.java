@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnResult.DeleteIntent
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.DeleteRule;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.Query;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.UpdateRule;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 
 /**
  * Privacy-safe mapping-turn telemetry. Records outcome type, operation kinds, counts, clarification
@@ -38,13 +39,40 @@ public class MappingTurnTelemetry {
       int affectedRuleCount,
       String clarificationReason,
       String validationResult,
-      long latencyMs) {
+      long latencyMs,
+      int appliedHopCount,
+      int omittedHopCount,
+      int uncoveredRemainderSize,
+      String stayOrLeave) {
 
     public Event {
       outcomeType = outcomeType == null ? "NONE" : outcomeType;
       operationKinds = operationKinds == null ? List.of() : List.copyOf(operationKinds);
       clarificationReason = clarificationReason == null ? "" : clarificationReason;
       validationResult = validationResult == null ? "NOT_APPLIED" : validationResult;
+      stayOrLeave = stayOrLeave == null ? "" : stayOrLeave;
+    }
+
+    public Event(
+        String outcomeType,
+        List<String> operationKinds,
+        int affectedIntentCount,
+        int affectedRuleCount,
+        String clarificationReason,
+        String validationResult,
+        long latencyMs) {
+      this(
+          outcomeType,
+          operationKinds,
+          affectedIntentCount,
+          affectedRuleCount,
+          clarificationReason,
+          validationResult,
+          latencyMs,
+          0,
+          0,
+          0,
+          "");
     }
   }
 
@@ -72,7 +100,26 @@ public class MappingTurnTelemetry {
 
   public void record(
       MappingTurnResult result, MappingTurnApplication application, long latencyMs) {
-    Event event = toEvent(result, application, latencyMs);
+    record(result, application, latencyMs, 0, 0, remainderSize(application), "");
+  }
+
+  public void record(
+      MappingTurnResult result,
+      MappingTurnApplication application,
+      long latencyMs,
+      int appliedHopCount,
+      int omittedHopCount,
+      int uncoveredRemainderSize,
+      String stayOrLeave) {
+    Event event =
+        toEvent(
+            result,
+            application,
+            latencyMs,
+            appliedHopCount,
+            omittedHopCount,
+            uncoveredRemainderSize,
+            stayOrLeave);
     if (events != null) {
       events.add(event);
     }
@@ -82,12 +129,16 @@ public class MappingTurnTelemetry {
         .register(meterRegistry)
         .increment();
     LOG.infof(
-        "mapping turn outcome=%s operations=%s intents=%d rules=%d clarification=%s validation=%s"
-            + " latencyMs=%d",
+        "mapping turn outcome=%s operations=%s intents=%d rules=%d appliedHops=%d omittedHops=%d"
+            + " remainder=%d stayOrLeave=%s clarification=%s validation=%s latencyMs=%d",
         event.outcomeType(),
         event.operationKinds(),
         event.affectedIntentCount(),
         event.affectedRuleCount(),
+        event.appliedHopCount(),
+        event.omittedHopCount(),
+        event.uncoveredRemainderSize(),
+        event.stayOrLeave(),
         event.clarificationReason(),
         event.validationResult(),
         event.latencyMs());
@@ -95,6 +146,17 @@ public class MappingTurnTelemetry {
 
   static Event toEvent(
       MappingTurnResult result, MappingTurnApplication application, long latencyMs) {
+    return toEvent(result, application, latencyMs, 0, 0, remainderSize(application), "");
+  }
+
+  static Event toEvent(
+      MappingTurnResult result,
+      MappingTurnApplication application,
+      long latencyMs,
+      int appliedHopCount,
+      int omittedHopCount,
+      int uncoveredRemainderSize,
+      String stayOrLeave) {
     String outcomeType = outcomeType(result);
     List<String> kinds = operationKinds(result);
     return new Event(
@@ -104,7 +166,18 @@ public class MappingTurnTelemetry {
         affectedRuleCount(result),
         clarificationReason(result),
         validationResult(result, application),
-        Math.max(0L, latencyMs));
+        Math.max(0L, latencyMs),
+        Math.max(0, appliedHopCount),
+        Math.max(0, omittedHopCount),
+        Math.max(0, uncoveredRemainderSize),
+        stayOrLeave);
+  }
+
+  private static int remainderSize(MappingTurnApplication application) {
+    if (application == null || application.brief() == null) {
+      return 0;
+    }
+    return MappingGapCoverage.uncovered(application.brief()).size();
   }
 
   private static String outcomeType(MappingTurnResult result) {

@@ -336,7 +336,7 @@ class MappingTurnApplicatorTest {
   }
 
   @Test
-  void passThroughStaysTheAbsenceOfAnIntent() {
+  void emptyChangesLeaveTransitionsUncovered() {
     RequirementBrief brief = rockyBrief();
     MappingTurnApplication application =
         MappingTurnApplicator.apply(brief, MappingTurnResult.changes());

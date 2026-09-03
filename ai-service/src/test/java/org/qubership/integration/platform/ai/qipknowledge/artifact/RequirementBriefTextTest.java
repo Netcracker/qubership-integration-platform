@@ -203,7 +203,8 @@ class RequirementBriefTextTest {
     String formatted = RequirementBriefText.format(brief);
 
     assertTrue(
-        formatted.contains("map-init step-trigger/OUTPUT -> step-call/REQUEST"), formatted);
+        formatted.contains("mappingIntentId=map-init step-trigger/OUTPUT -> step-call/REQUEST"),
+        formatted);
     assertTrue(
         formatted.contains(
             "$.request.id -> $.headers.X-Request-Id | expression: string(value)"),
@@ -266,7 +267,9 @@ class RequirementBriefTextTest {
 
     String formatted = RequirementBriefText.format(brief);
 
-    assertTrue(formatted.contains("map-init trigger-1/OUTPUT -> call-1/REQUEST"), formatted);
+    assertTrue(
+        formatted.contains("mappingIntentId=map-init trigger-1/OUTPUT -> call-1/REQUEST"),
+        formatted);
     assertTrue(formatted.contains("AUTO $.orderId -> $.orderId"), formatted);
     assertTrue(formatted.contains("PROPOSED $.userId -> $.personId"), formatted);
     assertTrue(formatted.contains("USER_DEFINED $.name -> $.fullName"), formatted);

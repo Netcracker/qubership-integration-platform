@@ -12,6 +12,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnResult.AddIntent;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.AddRule;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.DeleteRule;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.UpdateRule;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation.TransitionRef;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
@@ -362,6 +363,7 @@ final class MappingTurnEvalCorpus {
   private static List<ConversationCase> goldQueryCases() {
     RequirementBrief mapped = mappedRocky();
     RequirementBrief request = requestOnly();
+    RequirementBrief passThrough = MappingGapCoverage.skipUncovered(request);
     RequirementBrief unresolved = unresolvedStatus();
     DesignExecutionPlan plan = planDependingOn("map-task-start-to-create-task");
     return List.of(
@@ -426,7 +428,7 @@ final class MappingTurnEvalCorpus {
         query(
             "query-en-pass-through",
             Language.ENGLISH,
-            request,
+            passThrough,
             "Which transitions are pass-through?",
             new QuerySelector(null, null, null, null, null, false, "PASS_THROUGH"),
             new MappingQuerySelector(

@@ -132,7 +132,7 @@ public final class RequirementBriefText {
     body.append("Mapping intents:");
     for (var intent : intents) {
       body.append('\n')
-          .append("- ")
+          .append("- mappingIntentId=")
           .append(intent.mappingIntentId())
           .append(' ')
           .append(intent.sourceRef())

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.MappingQueryAnswer.RuleFact;
 import org.qubership.integration.platform.ai.plan.MappingQueryAnswer.TransitionFact;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.AddIntent;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -137,10 +138,10 @@ class MappingQueryLookupTest {
   }
 
   @Test
-  void lookupPassThroughCoverageListsTransitionsWithoutIntents() {
+  void lookupPassThroughCoverageListsExplicitlySkippedTransitions() {
     MappingQueryAnswer answer =
         MappingQueryLookup.answer(
-            requestOnlyRockyBrief(),
+            requestMappedAndResponseSkippedBrief(),
             new MappingQuerySelector(
                 null,
                 null,
@@ -162,10 +163,10 @@ class MappingQueryLookupTest {
   }
 
   @Test
-  void lookupOfAnUnmappedBoundaryStatesPassThrough() {
+  void lookupOfASkippedBoundaryStatesPassThrough() {
     MappingQueryAnswer answer =
         MappingQueryLookup.answer(
-            requestOnlyRockyBrief(),
+            requestMappedAndResponseSkippedBrief(),
             new MappingQuerySelector(
                 null,
                 "create-task",
@@ -180,6 +181,24 @@ class MappingQueryLookupTest {
     assertEquals(1, answer.transitions().size());
     assertTrue(answer.transitions().getFirst().passThrough());
     assertTrue(answer.rendered().toLowerCase().contains("pass-through"));
+  }
+
+  @Test
+  void lookupDoesNotReportAnUncoveredBoundaryAsPassThrough() {
+    MappingQueryAnswer answer =
+        MappingQueryLookup.answer(
+            requestOnlyRockyBrief(),
+            new MappingQuerySelector(
+                null,
+                "create-task",
+                "task-result",
+                null,
+                null,
+                false,
+                MappingQuerySelector.Coverage.PASS_THROUGH));
+
+    assertFalse(answer.matchFound());
+    assertTrue(answer.transitions().isEmpty());
   }
 
   @Test
@@ -243,6 +262,10 @@ class MappingQueryLookupTest {
                     "create-task",
                     List.of(new MappingIntentRule("name", "Subject", null)))))
         .brief();
+  }
+
+  private static RequirementBrief requestMappedAndResponseSkippedBrief() {
+    return MappingGapCoverage.skipUncovered(requestOnlyRockyBrief());
   }
 
   private static RequirementBrief briefWithUnresolvedStatus() {

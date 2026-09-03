@@ -74,6 +74,124 @@ class MappingTurnInterpreterTest {
   }
 
   @Test
+  void addIntentForUndescribedRemainderHopIsOmitted() {
+    MappingTurnCapture capture =
+        new MappingTurnCapture(
+            Kind.CHANGES,
+            List.of(
+                new IntentChange(
+                    "task-start",
+                    "create-task",
+                    List.of(new MappingIntentRule("name", "Subject", null)),
+                    null),
+                new IntentChange(
+                    "create-task",
+                    "task-result",
+                    List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")),
+                    null)),
+            List.of(),
+            "",
+            List.of());
+
+    MappingTurnResult result =
+        interpreter(unusedCapture())
+            .fromCapture(
+                capture,
+                rockyFlow(),
+                "Map task-start -> create-task: copy name to Subject.");
+
+    MappingTurnResult.Changes changes = assertInstanceOf(MappingTurnResult.Changes.class, result);
+    assertEquals(1, changes.operations().size());
+    AddIntent request = assertInstanceOf(AddIntent.class, changes.operations().getFirst());
+    assertEquals("task-start", request.sourceRef());
+    assertEquals("create-task", request.targetRef());
+  }
+
+  @Test
+  void loneAddIntentForAnotherHopIsOmitted() {
+    MappingTurnCapture capture =
+        new MappingTurnCapture(
+            Kind.CHANGES,
+            List.of(
+                new IntentChange(
+                    "create-task",
+                    "task-result",
+                    List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")),
+                    null)),
+            List.of(),
+            "",
+            List.of());
+
+    MappingTurnResult result =
+        interpreter(unusedCapture())
+            .fromCapture(
+                capture,
+                rockyFlow(),
+                "Map task-start -> create-task: copy name to Subject.");
+
+    MappingTurnResult.Changes changes = assertInstanceOf(MappingTurnResult.Changes.class, result);
+    assertTrue(changes.operations().isEmpty());
+  }
+
+  @Test
+  void gapModeOmitsAMissingInteractionWithoutRollingBackAValidSibling() {
+    MappingTurnCapture capture =
+        new MappingTurnCapture(
+            Kind.CHANGES,
+            List.of(
+                new IntentChange(
+                    "task-start",
+                    "create-task",
+                    List.of(new MappingIntentRule("name", "Subject", null)),
+                    null),
+                new IntentChange(
+                    "missing-step",
+                    "task-result",
+                    List.of(new MappingIntentRule("id", "executionId", null)),
+                    null)),
+            List.of(),
+            "",
+            List.of());
+
+    MappingTurnResult result =
+        interpreter(capture)
+            .interpretGap(
+                rockyBrief(), "Map task-start -> create-task: copy name to Subject.");
+
+    MappingTurnResult.Changes changes = assertInstanceOf(MappingTurnResult.Changes.class, result);
+    assertEquals(1, changes.operations().size());
+    AddIntent valid = assertInstanceOf(AddIntent.class, changes.operations().getFirst());
+    assertEquals("task-start", valid.sourceRef());
+    assertEquals("create-task", valid.targetRef());
+  }
+
+  @Test
+  void gapModeKeepsADescribedMissingInteractionForValidationFeedback() {
+    MappingTurnCapture capture =
+        new MappingTurnCapture(
+            Kind.CHANGES,
+            List.of(
+                new IntentChange(
+                    "missing-step",
+                    "task-result",
+                    List.of(new MappingIntentRule("id", "executionId", null)),
+                    null)),
+            List.of(),
+            "",
+            List.of());
+
+    MappingTurnResult result =
+        interpreter(capture)
+            .interpretGap(
+                rockyBrief(), "Map missing-step -> task-result: copy id to executionId.");
+
+    MappingTurnResult.Changes changes = assertInstanceOf(MappingTurnResult.Changes.class, result);
+    AddIntent invalid = assertInstanceOf(AddIntent.class, changes.operations().getFirst());
+    assertEquals("missing-step", invalid.sourceRef());
+    assertEquals("task-result", invalid.targetRef());
+  }
+
+  @Test
   void addRuleUsesExistingIntentId() {
     MappingTurnCapture capture =
         new MappingTurnCapture(

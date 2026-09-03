@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,6 +21,16 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.MappingQuerySelector;
+import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
+import org.qubership.integration.platform.ai.plan.MappingTurnCapture;
+import org.qubership.integration.platform.ai.plan.MappingTurnCapture.IntentChange;
+import org.qubership.integration.platform.ai.plan.MappingTurnInterpreter;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult.AddIntent;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult.Clarification;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult.Query;
+import org.qubership.integration.platform.ai.plan.MappingTurnTelemetry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -35,7 +45,9 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DefaultChainSemanticIdsRenderer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
@@ -47,22 +59,29 @@ import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPol
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
-import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
-import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 /**
- * Mapping-gap resume: pass-through confirmation, describe-mappings wait, and analysis reopen
- * without debiting the causal-reopen budget.
+ * Mapping-gap resume: pass-through confirmation, describe wait, and describe-prose through
+ * MappingTurnProcessor against the current brief.
  */
 class MappingGapResumeTest {
 
   private static final Instant FIXED = Instant.parse("2026-09-02T12:00:00Z");
   private static final String RUN_ID = "run-mapping-gap-resume";
   private static final String CONV_ID = "conv-mapping-gap-resume";
-  private static final String DESCRIBE_PROSE = "Map task-start payload into create-task as-is.";
+  private static final String DESCRIBE_PROSE =
+      "Map task-start into create-task: name to Subject. Then map create-task into task-result:"
+          + " commandType is completeTask.";
+  private static final String REQUEST_ONLY =
+      "On the create-task request, copy name to Subject.";
+  private static final String FIRST_HOP_ONLY =
+      "Map task-start -> create-task: copy name to Subject.";
 
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
@@ -70,6 +89,8 @@ class MappingGapResumeTest {
   private CreateChainTestOrchestrator runtime;
   private ProductPipelineProfile profile;
   private Clock clock;
+  private MappingTurnAdapter mappingAdapter;
+  private MappingTurnTelemetry mappingTelemetry;
 
   @BeforeEach
   void setUp() {
@@ -80,31 +101,25 @@ class MappingGapResumeTest {
     runStore = new ProductPipelineRunStore(blobStore, mapper, clock);
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     profile = threeStageProfile();
-    support =
-        ProductPipelineRunSupport.builder(
-                runStore,
-                artifactStore,
-                new StageCapabilityRegistry(
-                    List.of(analysisCapability(), designInputCapability(), planningCapability())),
-                clock)
-            .build();
+    mappingAdapter = coveringAdapter();
+    mappingTelemetry = new MappingTurnTelemetry();
+    support = newSupport();
     runtime = new CreateChainTestOrchestrator(support, runStore);
   }
 
   @Test
-  void passThroughStoresConfirmationAndResumesDesignInputWithoutDebitingReopenBudget() {
+  void passThroughSkipsUncoveredHopsAndLeavesWithoutMappingRows() {
     waitAtMappingGap();
     SemanticRecoveryState.RemainingAttempts before = remaining();
 
     type("pass_through");
 
-    UserInput latest = latestUserInputTargeting("design-input");
-    MappingGapPassThroughConfirmation confirmation =
-        MappingGapPassThroughConfirmation.parse(latest.text()).orElseThrow();
-    assertEquals(committedBriefHash(), confirmation.briefSha());
+    RequirementBrief brief = storedBrief();
+    assertTrue(brief.mappingIntents().isEmpty());
+    assertEquals(2, brief.skippedTransitions().size());
+    assertTrue(MappingGapCoverage.uncovered(brief).isEmpty());
     assertEquals(RunStatus.RUNNING, run().run().status());
     assertEquals("design-input", run().run().currentStageId());
-    assertNotEquals("pass_through", support.runAttributes(RUN_ID).get("userText"));
     assertEquals(before, remaining());
   }
 
@@ -135,31 +150,243 @@ class MappingGapResumeTest {
   }
 
   @Test
-  void mappingProseMovesToRequirementAnalysisWithoutDebitingReopenBudget() {
+  void mappingProseWritesIntentsAndDoesNotReopenAnalysis() {
     waitAtMappingGap();
     SemanticRecoveryState.RemainingAttempts before = remaining();
 
     type(DESCRIBE_PROSE);
 
-    assertAnalysisReopenedForProse(before);
+    assertDescribeAppliedWithoutRecapture(before);
   }
 
   @Test
-  void mappingProseAfterDescribeMappingsMovesToRequirementAnalysis() {
+  void mappingProseAfterDescribeMappingsWritesIntentsWithoutRecapture() {
     waitAtMappingGap();
     type("describe_mappings");
     SemanticRecoveryState.RemainingAttempts before = remaining();
 
     type(DESCRIBE_PROSE);
 
-    assertAnalysisReopenedForProse(before);
+    assertDescribeAppliedWithoutRecapture(before);
   }
 
   @Test
-  void wrongBriefShaPassThroughStillAsksOnDesignInputExecute() {
+  void requestOnlyDescribeKeepsTheGapUntilTheSecondTransitionIsCovered() {
     waitAtMappingGap();
-    String realHash = committedBriefHash();
+    mappingAdapter = requestOnlyAdapter();
+
+    type(REQUEST_ONLY);
+
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    RequirementBrief afterFirst = storedBrief();
+    assertEquals(1, afterFirst.mappingIntents().size());
+    assertEquals(1, MappingGapCoverage.uncovered(afterFirst).size());
+    assertEquals(
+        PipelineGates.MAPPING_GAP, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
+    MappingGapWait.View remainder = MappingGapWait.parse(PipelineGates.strip(latestWaitingPrompt()));
+    assertEquals(List.of("create-task -> task-result"), remainder.missingEdges());
+
+    mappingAdapter = coveringAdapter();
+    type(DESCRIBE_PROSE);
+
+    assertTrue(MappingGapCoverage.uncovered(storedBrief()).isEmpty());
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, run().run().status());
+  }
+
+  @Test
+  void mappingGapQueryStaysOnCardWithVisibleReply() {
+    waitAtMappingGap();
+    mappingAdapter = queryAdapter();
+
+    List<PipelineSignal> signals = type("Which transitions are pass-through?");
+
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals(
+        PipelineGates.MAPPING_GAP, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
+    assertTrue(
+        signals.stream()
+            .filter(PipelineSignal.Message.class::isInstance)
+            .map(PipelineSignal.Message.class::cast)
+            .anyMatch(message -> message.text() != null && !message.text().isBlank()));
+    assertTrue(storedBrief().mappingIntents().isEmpty());
+  }
+
+  @Test
+  void mappingGapClarificationStaysOnCardWithVisibleReply() {
+    waitAtMappingGap();
+    mappingAdapter =
+        (brief, message) ->
+            new Clarification("AMBIGUOUS_TRANSITION", List.of("create-task", "task-result"));
+
+    List<PipelineSignal> signals = type("Which hop writes Subject?");
+
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals(
+        PipelineGates.MAPPING_GAP, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
+    assertTrue(
+        signals.stream()
+            .filter(PipelineSignal.Message.class::isInstance)
+            .map(PipelineSignal.Message.class::cast)
+            .anyMatch(message -> message.text() != null && message.text().contains("AMBIGUOUS_TRANSITION")));
+    assertTrue(storedBrief().mappingIntents().isEmpty());
+  }
+
+  @Test
+  void inventedSecondHopStaysUncovered() {
+    waitAtMappingGap();
+    mappingAdapter = inventingInterpreterAdapter();
+
+    type(FIRST_HOP_ONLY);
+
+    RequirementBrief brief = storedBrief();
+    assertEquals(1, brief.mappingIntents().size());
+    assertEquals("task-start", brief.mappingIntents().getFirst().sourceRef());
+    assertEquals("create-task", brief.mappingIntents().getFirst().targetRef());
+    assertEquals(1, MappingGapCoverage.uncovered(brief).size());
+    assertEquals("create-task", MappingGapCoverage.uncovered(brief).getFirst().sourceInteractionId());
+    assertEquals("task-result", MappingGapCoverage.uncovered(brief).getFirst().targetInteractionId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    MappingGapWait.View remainder = MappingGapWait.parse(PipelineGates.strip(latestWaitingPrompt()));
+    assertEquals(List.of("create-task -> task-result"), remainder.missingEdges());
+  }
+
+  @Test
+  void rejectedHopNamesItsInteractionIds() {
+    waitAtMappingGap();
+    mappingAdapter =
+        (brief, message) ->
+            MappingTurnResult.changes(
+                new AddIntent(
+                    "task-start",
+                    "task-result",
+                    List.of(new MappingIntentRule("name", "Subject", null))));
+
+    List<PipelineSignal> signals = type("Map task-start straight to task-result.");
+
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals(2, MappingGapCoverage.uncovered(storedBrief()).size());
+    assertTrue(
+        signals.stream()
+            .filter(PipelineSignal.Message.class::isInstance)
+            .map(PipelineSignal.Message.class::cast)
+            .anyMatch(message -> message.text().contains("task-start -> task-result")));
+  }
+
+  @Test
+  void skipRemainingAfterFirstHopLeavesMappedHopAndSkipsTheRest() {
+    waitAtMappingGap();
+    mappingAdapter = requestOnlyAdapter();
+    type(REQUEST_ONLY);
+
     type("pass_through");
+
+    RequirementBrief brief = storedBrief();
+    assertEquals(1, brief.mappingIntents().size());
+    assertEquals(1, brief.skippedTransitions().size());
+    assertEquals("create-task", brief.skippedTransitions().getFirst().sourceInteractionId());
+    assertEquals("task-result", brief.skippedTransitions().getFirst().targetInteractionId());
+    assertTrue(MappingGapCoverage.uncovered(brief).isEmpty());
+    assertEquals(RunStatus.RUNNING, run().run().status());
+  }
+
+  @Test
+  void emptyRuleSiblingKeepsTheValidHop() {
+    waitAtMappingGap();
+    mappingAdapter =
+        (brief, message) ->
+            MappingTurnResult.changes(
+                new AddIntent(
+                    "task-start",
+                    "create-task",
+                    List.of(new MappingIntentRule("name", "Subject", null))),
+                new AddIntent("create-task", "task-result", List.of()));
+
+    type(DESCRIBE_PROSE);
+
+    RequirementBrief brief = storedBrief();
+    assertEquals(1, brief.mappingIntents().size());
+    assertEquals("task-start", brief.mappingIntents().getFirst().sourceRef());
+    assertFalse(brief.mappingIntents().getFirst().mappingIntentId().isBlank());
+    assertEquals(1, MappingGapCoverage.uncovered(brief).size());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    MappingGapWait.View remainder = MappingGapWait.parse(PipelineGates.strip(latestWaitingPrompt()));
+    assertEquals(List.of("create-task -> task-result"), remainder.missingEdges());
+    MappingTurnTelemetry.Event event = mappingTelemetry.events().getLast();
+    assertEquals(1, event.appliedHopCount());
+    assertEquals(1, event.omittedHopCount());
+    assertEquals(1, event.uncoveredRemainderSize());
+    assertEquals("STAY", event.stayOrLeave());
+  }
+
+  @Test
+  void rejectedEmptyRulesStayWithVisibleReasonAndOriginalRemainder() {
+    waitAtMappingGap();
+    mappingAdapter =
+        (brief, message) ->
+            MappingTurnResult.changes(new AddIntent("task-start", "create-task", List.of()));
+
+    List<PipelineSignal> signals = type(FIRST_HOP_ONLY);
+
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals(2, MappingGapCoverage.uncovered(storedBrief()).size());
+    MappingGapWait.View remainder = MappingGapWait.parse(PipelineGates.strip(latestWaitingPrompt()));
+    assertTrue(remainder.missingEdges().contains("task-start -> create-task"));
+    assertTrue(remainder.missingEdges().contains("create-task -> task-result"));
+    assertTrue(
+        signals.stream()
+            .filter(PipelineSignal.Message.class::isInstance)
+            .map(PipelineSignal.Message.class::cast)
+            .anyMatch(
+                message ->
+                    message.text() != null
+                        && !message.text().isBlank()
+                        && message.text().contains("still needs a mapping rule or a skip")));
+  }
+
+  @Test
+  void emptyChangesStayWithVisibleReason() {
+    waitAtMappingGap();
+    mappingAdapter = (brief, message) -> MappingTurnResult.changes();
+
+    List<PipelineSignal> signals = type("??");
+
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals(2, MappingGapCoverage.uncovered(storedBrief()).size());
+    assertTrue(
+        signals.stream()
+            .filter(PipelineSignal.Message.class::isInstance)
+            .map(PipelineSignal.Message.class::cast)
+            .anyMatch(message -> message.text() != null && !message.text().isBlank()));
+  }
+
+  @Test
+  void mappingGapTurnRecordsCoverageTelemetryWithoutRawProse() {
+    waitAtMappingGap();
+
+    type(DESCRIBE_PROSE);
+
+    assertFalse(mappingTelemetry.events().isEmpty());
+    MappingTurnTelemetry.Event event = mappingTelemetry.events().getLast();
+    assertEquals("CHANGES", event.outcomeType());
+    assertEquals(List.of("ADD_INTENT"), event.operationKinds());
+    assertEquals("LEAVE", event.stayOrLeave());
+    assertEquals(0, event.uncoveredRemainderSize());
+    assertEquals(2, event.appliedHopCount());
+    assertEquals(0, event.omittedHopCount());
+    assertEquals("APPLIED", event.validationResult());
+    assertTrue(event.latencyMs() >= 0);
+    assertFalse(event.toString().contains(DESCRIBE_PROSE));
+    assertFalse(event.toString().contains("completeTask"));
+    assertFalse(event.toString().contains("Subject"));
+  }
+
+  @Test
+  void hashConfirmationWithoutSkipRecordsDoesNotCloseTheCard() {
+    waitAtMappingGap();
     artifactStore.append(
         new AppendCommand(
             RUN_ID,
@@ -167,7 +394,18 @@ class MappingGapResumeTest {
             "1",
             "product-pipeline-runtime",
             "1",
-            new UserInput("wrong-sha-pass-through", "design-input", wrongConfirmationJson(), FIXED),
+            new UserInput(
+                "hash-confirmation",
+                "design-input",
+                new MappingGapPassThroughConfirmation(
+                        committedBriefHash(),
+                        List.of(
+                            new MappingGapPassThroughConfirmation.TransitionRef(
+                                "task-start", "create-task"),
+                            new MappingGapPassThroughConfirmation.TransitionRef(
+                                "create-task", "task-result")))
+                    .toJson(),
+                FIXED),
             List.of(),
             null,
             provenance()));
@@ -176,14 +414,11 @@ class MappingGapResumeTest {
 
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
     assertEquals(PipelineGates.MAPPING_GAP, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
-    Object hydrated = support.runAttributes(RUN_ID).get("mappingGapPassThrough");
-    assertInstanceOf(MappingGapPassThroughConfirmation.class, hydrated);
-    assertEquals("wrong-sha", ((MappingGapPassThroughConfirmation) hydrated).briefSha());
-    assertEquals(realHash, support.runAttributes(RUN_ID).get("requirementBriefContentHash"));
+    assertEquals(2, MappingGapCoverage.uncovered(storedBrief()).size());
   }
 
   @Test
-  void restoreAfterPassThroughHydratesMappingGapPassThroughForDesignInput() {
+  void restoreAfterPassThroughKeepsSkipRecordsWithoutHashSideChannel() {
     waitAtMappingGap();
     type("pass_through");
 
@@ -195,14 +430,15 @@ class MappingGapResumeTest {
         .await()
         .indefinitely();
 
-    Object hydrated = restored.runAttributes(RUN_ID).get("mappingGapPassThrough");
-    assertInstanceOf(MappingGapPassThroughConfirmation.class, hydrated);
-    assertEquals(committedBriefHash(), ((MappingGapPassThroughConfirmation) hydrated).briefSha());
-    assertNotEquals("pass_through", restored.runAttributes(RUN_ID).get("userText"));
+    RequirementBrief hydrated =
+        (RequirementBrief) restored.runAttributes(RUN_ID).get("requirementBrief");
+    assertEquals(2, hydrated.skippedTransitions().size());
+    assertTrue(hydrated.mappingIntents().isEmpty());
+    assertTrue(MappingGapCoverage.uncovered(hydrated).isEmpty());
   }
 
   @Test
-  void restoreAfterDescribeProseHydratesUserTextForRequirementAnalysis() {
+  void restoreAfterDescribeProseHydratesBriefMappingIntents() {
     waitAtMappingGap();
     type(DESCRIBE_PROSE);
 
@@ -214,25 +450,47 @@ class MappingGapResumeTest {
         .await()
         .indefinitely();
 
-    assertEquals("requirement-analysis", run().run().currentStageId());
-    assertEquals(DESCRIBE_PROSE, restored.runAttributes(RUN_ID).get("userText"));
+    assertEquals("design-input", run().run().currentStageId());
+    RequirementBrief hydrated = (RequirementBrief) restored.runAttributes(RUN_ID).get("requirementBrief");
+    assertEquals(2, hydrated.mappingIntents().size());
+    assertTrue(MappingGapCoverage.uncovered(hydrated).isEmpty());
+    assertNotEquals(DESCRIBE_PROSE, restored.runAttributes(RUN_ID).get("userText"));
   }
 
-  private void assertAnalysisReopenedForProse(SemanticRecoveryState.RemainingAttempts before) {
-    UserInput latest = latestUserInputTargeting("requirement-analysis");
-    assertEquals(DESCRIBE_PROSE, latest.text());
-    assertEquals("requirement-analysis", run().run().currentStageId());
+  private void assertDescribeAppliedWithoutRecapture(
+      SemanticRecoveryState.RemainingAttempts before) {
+    assertEquals("design-input", run().run().currentStageId());
     assertEquals(RunStatus.RUNNING, run().run().status());
-    for (StageSnapshot snapshot : run().run().stages()) {
-      if ("requirement-analysis".equals(snapshot.stageId())) {
-        assertEquals(StageStatus.RUNNING, snapshot.status());
-      } else {
-        assertEquals(StageStatus.PENDING, snapshot.status(), snapshot.stageId());
-        assertTrue(snapshot.outputRefs().isEmpty(), snapshot.stageId());
-      }
-    }
-    assertEquals(DESCRIBE_PROSE, support.runAttributes(RUN_ID).get("userText"));
+    RequirementBrief brief = storedBrief();
+    assertEquals(2, brief.mappingIntents().size());
+    assertTrue(MappingGapCoverage.uncovered(brief).isEmpty());
+    assertTrue(
+        brief.mappingIntents().stream()
+            .anyMatch(
+                intent ->
+                    "task-start".equals(intent.sourceRef())
+                        && "create-task".equals(intent.targetRef())));
+    assertTrue(
+        brief.mappingIntents().stream()
+            .anyMatch(
+                intent ->
+                    "create-task".equals(intent.sourceRef())
+                        && "task-result".equals(intent.targetRef())));
+    UserInput latestAnalysis = latestUserInputTargeting("requirement-analysis");
+    assertNotEquals(DESCRIBE_PROSE, latestAnalysis.text());
+    assertNotEquals(DESCRIBE_PROSE, support.runAttributes(RUN_ID).get("userText"));
     assertEquals(before, remaining());
+  }
+
+  private RequirementBrief storedBrief() {
+    Object fromAttributes = support.runAttributes(RUN_ID).get("requirementBrief");
+    if (fromAttributes instanceof RequirementBrief brief) {
+      return brief;
+    }
+    return artifactStore
+        .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+        .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+        .orElseThrow();
   }
 
   private void waitAtMappingGap() {
@@ -307,20 +565,19 @@ class MappingGapResumeTest {
   }
 
   private ProductPipelineRunSupport restoreSupport() {
+    return newSupport();
+  }
+
+  private ProductPipelineRunSupport newSupport() {
     return ProductPipelineRunSupport.builder(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
                 List.of(analysisCapability(), designInputCapability(), planningCapability())),
             clock)
+        .mappingTurnAdapter((brief, message) -> mappingAdapter.interpret(brief, message))
+        .mappingTurnTelemetry(mappingTelemetry)
         .build();
-  }
-
-  private String wrongConfirmationJson() {
-    return new MappingGapPassThroughConfirmation(
-            "wrong-sha",
-            List.of(new MappingGapPassThroughConfirmation.TransitionRef("source-a", "target-b")))
-        .toJson();
   }
 
   private ArtifactProvenance provenance() {
@@ -356,18 +613,82 @@ class MappingGapResumeTest {
 
   private static RequirementBrief uncoveredBrief() {
     return new RequirementBrief(
-            "Map source-a onto target-b",
+            "OM to Salesforce WFM",
             List.of(),
             List.of(),
             List.of(),
             List.of(),
-            "Uncovered flow transition",
+            "Uncovered flow transitions",
             "ref",
             "draft",
             List.of())
         .withFlow(
             new RequirementFlow(
-                List.of(), List.of(new Transition("source-a", "target-b"))));
+                List.of(
+                    new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+                    new Interaction(
+                        "create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+                    new Interaction(
+                        "task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                List.of(
+                    new Transition("task-start", "create-task"),
+                    new Transition("create-task", "task-result"))));
+  }
+
+  private static MappingTurnAdapter coveringAdapter() {
+    return (brief, message) ->
+        MappingTurnResult.changes(
+            new AddIntent(
+                "task-start",
+                "create-task",
+                List.of(new MappingIntentRule("name", "Subject", null))),
+            new AddIntent(
+                "create-task",
+                "task-result",
+                List.of(new MappingIntentRule("", "commandType", "Set to completeTask."))));
+  }
+
+  private static MappingTurnAdapter requestOnlyAdapter() {
+    return (brief, message) ->
+        MappingTurnResult.changes(
+            new AddIntent(
+                "task-start",
+                "create-task",
+                List.of(new MappingIntentRule("name", "Subject", null))));
+  }
+
+  private static MappingTurnAdapter inventingInterpreterAdapter() {
+    MappingTurnCapture capture =
+        new MappingTurnCapture(
+            MappingTurnCapture.Kind.CHANGES,
+            List.of(
+                new IntentChange(
+                    "task-start",
+                    "create-task",
+                    List.of(new MappingIntentRule("name", "Subject", null)),
+                    null),
+                new IntentChange(
+                    "create-task",
+                    "task-result",
+                    List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")),
+                    null)),
+            List.of(),
+            "",
+            List.of());
+    return new MappingTurnInterpreter((flow, intents, message) -> capture);
+  }
+
+  private static MappingTurnAdapter queryAdapter() {
+    return (brief, message) ->
+        new Query(
+            new MappingQuerySelector(
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                MappingQuerySelector.Coverage.PASS_THROUGH));
   }
 
   private static ProductPipelineProfile threeStageProfile() {
