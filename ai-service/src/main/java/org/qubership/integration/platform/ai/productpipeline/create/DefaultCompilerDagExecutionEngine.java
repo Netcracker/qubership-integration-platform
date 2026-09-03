@@ -158,6 +158,27 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         skillRegistry,
         javaAdapterRegistry,
         packRepository,
+        graphAssemblyService,
+        compilerValidationPipeline,
+        artifactStore,
+        null);
+  }
+
+  @SuppressWarnings("java:S107")
+  DefaultCompilerDagExecutionEngine(
+      InMemorySkillWorkspaceStore workspaceStore,
+      SkillExecutorRegistry skillRegistry,
+      CompilerNodeExecutionAdapterRegistry javaAdapterRegistry,
+      QipKnowledgePackRepository packRepository,
+      GraphAssemblyService graphAssemblyService,
+      CompilerValidationPipeline compilerValidationPipeline,
+      ProductPipelineArtifactStore artifactStore,
+      MappingGenerationPipeline mappingGenerationPipeline) {
+    this(
+        workspaceStore,
+        skillRegistry,
+        javaAdapterRegistry,
+        packRepository,
         new GraphPatchExecutionContextStore(),
         new GraphPatchArtifactFactory(new CanonicalGraphDigest(new ObjectMapper())),
         new ValidatedGraphPatchApplier(
@@ -170,7 +191,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         new ChainPlanGraphValidator(
             DeterministicElementSchemaService.createForUnitTests(new ObjectMapper())),
         new ClasspathCompilerContractRepository(),
-        null);
+        mappingGenerationPipeline);
   }
 
   @SuppressWarnings("java:S107")
@@ -750,6 +771,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       throw new IllegalStateException("contract failure: " + applied.validationResult().summary());
     }
     GraphPatchArtifact patchArtifact = graphPatchArtifactFactory.create(context, patch, applied.graph());
+    rejectBlankRequiredScriptBodies(workspace, node, applied.graph());
     Reference durableRef = persistGraphPatch(request.runId(), pinned.manifest(), patchArtifact);
     if (patchArtifact.applicability() == PatchApplicability.APPLICABLE) {
       patchLedger.addApplicable(
@@ -778,6 +800,22 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               new SkillArtifactPayload.ChainPlanGraphPayload(applied.graph())));
     }
     return List.copyOf(enriched);
+  }
+
+  private void rejectBlankRequiredScriptBodies(
+      SkillWorkspace workspace, ResolvedCompilerNode node, ChainPlanGraph graph) {
+    if (mappingGenerationPipeline == null
+        || node == null
+        || !MappingGenerationPipeline.SCRIPT_GENERATOR.equals(node.skillId())) {
+      return;
+    }
+    List<String> blank =
+        mappingGenerationPipeline.requiredBlankScriptNodeIds(
+            node.skillId(), semanticRevision(workspace), graph);
+    if (!blank.isEmpty()) {
+      throw new IllegalStateException(
+          "contract failure: " + MappingGenerationPipeline.missingScriptBodiesMessage(blank));
+    }
   }
 
   private Reference persistGraphPatch(

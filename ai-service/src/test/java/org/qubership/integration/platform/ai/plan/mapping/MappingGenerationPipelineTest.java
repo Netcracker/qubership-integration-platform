@@ -35,6 +35,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument;
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.AttributeReference;
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.MappingAction;
@@ -325,6 +328,45 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
+  void emptyIntentsWithCompleteTaskRendersBehaviorContext() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    assertTrue(revision.mappingIntents().isEmpty());
+    GraphPatchExecutionContext context =
+        completeTaskContext(completeTaskGraph(), completeTaskBrief());
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(COMPILATION_ID, SCRIPT_SKILL, revision, List.of(), context);
+
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    String rendered = prepared.mappingGenerationContext();
+    assertFalse(rendered.isBlank(), "empty mapping intents must not skip behavior script context");
+    assertTrue(rendered.contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), rendered);
+    assertTrue(rendered.contains("commandType=completeTask"), rendered);
+    assertTrue(rendered.contains("script"), rendered);
+    assertFalse(rendered.contains("mappingIntentId:"), rendered);
+    assertTrue(
+        prepared.context().editTargetNodeIds().contains(SemanticFixtures.COMPLETE_TASK_NODE_ID),
+        prepared.context().editTargetNodeIds().toString());
+    assertTrue(revision.mappingIntents().isEmpty());
+    assertTrue(prepared.envelopeRefs().isEmpty());
+  }
+
+  @Test
+  void emptyIntentsWithoutBehaviorScriptsKeepEmptyContext() {
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            SemanticFixtures.linearOrders(),
+            List.of(),
+            sampleContext(List.of()));
+
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertTrue(prepared.mappingGenerationContext().isBlank());
+    assertTrue(prepared.envelopeRefs().isEmpty());
+  }
+
+  @Test
   void productionDoesNotShipMappingCodegenPhases() throws Exception {
     Path root = Path.of("src/main/java");
     if (!Files.isDirectory(root)) {
@@ -500,6 +542,51 @@ class MappingGenerationPipelineTest {
 
   private static Reference pinnedSourceRef() {
     return new Reference(Kind.REQUIREMENT_BRIEF, "brief-1", "hash-brief");
+  }
+
+  private static GraphPatchExecutionContext completeTaskContext(
+      ChainPlanGraph graph, RequirementBrief brief) {
+    return new GraphPatchExecutionContext(
+        "run-1",
+        SCRIPT_SKILL,
+        "req-1",
+        "graph-1",
+        "compiler-1",
+        "24.4",
+        brief,
+        List.of(),
+        graph,
+        GraphPatchOwnershipPolicy.denyAll(),
+        "");
+  }
+
+  private static ChainPlanGraph completeTaskGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("id", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-http", "http-trigger", "Trigger", null, 1, List.of()),
+            new ChainPlanNode(
+                SemanticFixtures.COMPLETE_TASK_NODE_ID,
+                "script",
+                "completeTask",
+                null,
+                2,
+                List.of()),
+            new ChainPlanNode("node-call", "service-call", "Call", null, 3, List.of())),
+        List.of());
+  }
+
+  private static RequirementBrief completeTaskBrief() {
+    return new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withFacts(
+            List.of(
+                new RequirementFact(
+                    SemanticFixtures.COMPLETE_TASK_FACT_ID,
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.BEHAVIOR,
+                    "",
+                    "Respond with commandType=completeTask")));
   }
 
   private static GraphPatchExecutionContext sampleContext(List<Reference> consumed) {

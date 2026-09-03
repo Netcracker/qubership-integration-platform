@@ -5,10 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
 import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
@@ -27,6 +30,8 @@ import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelect
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
@@ -261,6 +266,100 @@ public class CompilerSkillContextBuilder {
             + "semantic equivalence.");
 
     return section.toString();
+  }
+
+  /**
+   * Prompt overlay for behavior-owned script shells that have no {@code MappingIntent}. Empty
+   * mapping intents still require this section when those shells need a body.
+   */
+  public String renderBehaviorScriptGenerationContext(
+      RequirementBrief brief,
+      List<String> nodeIds,
+      ChainPlanGraph graph,
+      ChainSemanticRevision revision) {
+    List<String> ids = nodeIds == null ? List.of() : nodeIds;
+    StringBuilder section = new StringBuilder();
+    section.append("Behavior-owned script generation:\n\n");
+    section.append("Required script node ids:\n");
+    if (ids.isEmpty()) {
+      section.append("- none\n");
+    } else {
+      for (String nodeId : ids) {
+        section.append("- ").append(nodeId).append('\n');
+      }
+    }
+    section.append('\n');
+    section.append("Element roles:\n");
+    appendBehaviorRoles(section, ids, graph);
+    section.append('\n');
+    section.append("Approved behavior facts:\n");
+    appendBehaviorFacts(section, brief, ids, revision);
+    section.append('\n');
+    section.append(
+        "Fill the existing script property on those nodes. Do not add nodes or edges. "
+            + "Do not invent a MappingIntent.");
+    return section.toString();
+  }
+
+  private static void appendBehaviorRoles(
+      StringBuilder section, List<String> nodeIds, ChainPlanGraph graph) {
+    if (graph == null || graph.nodes() == null) {
+      section.append("- none\n");
+      return;
+    }
+    boolean any = false;
+    for (String nodeId : nodeIds) {
+      for (ChainPlanNode node : graph.nodes()) {
+        if (node == null || !nodeId.equals(node.nodeId())) {
+          continue;
+        }
+        any = true;
+        section
+            .append("- roleId=")
+            .append(node.nodeId())
+            .append(" elementType=")
+            .append(node.type() == null ? "" : node.type())
+            .append('\n');
+      }
+    }
+    if (!any) {
+      section.append("- none\n");
+    }
+  }
+
+  private static void appendBehaviorFacts(
+      StringBuilder section,
+      RequirementBrief brief,
+      List<String> nodeIds,
+      ChainSemanticRevision revision) {
+    Set<String> wanted = new LinkedHashSet<>();
+    if (revision != null) {
+      Set<String> idSet = new HashSet<>(nodeIds);
+      for (var node : revision.nodes()) {
+        if (!idSet.contains(node.nodeId())) {
+          continue;
+        }
+        wanted.addAll(node.provenance().sourceFactIds());
+      }
+    }
+    boolean any = false;
+    if (brief != null) {
+      for (RequirementFact fact : brief.facts()) {
+        if (fact == null || !wanted.contains(fact.sourceFactId())) {
+          continue;
+        }
+        any = true;
+        section
+            .append("- ")
+            .append(fact.sourceFactId())
+            .append(": ")
+            .append(fact.text())
+            .append('\n');
+      }
+    }
+    if (!any) {
+      section.append("- none\n");
+    }
   }
 
   private static void appendExchangePropertyGuidance(
