@@ -37,8 +37,8 @@ class RegisteredComponentInstantiationTest {
             String className = classNameOf(descriptor);
             Class<?> componentClass = loadClass(className);
 
-            assertThatCode(componentClass::getConstructor)
-                    .as("%s is registered as '%s' and must have a public no-argument constructor",
+            assertThatCode(() -> componentClass.getConstructor().newInstance())
+                    .as("%s is registered as '%s' and must be creatable without a CamelContext",
                             className, descriptor.getFileName())
                     .doesNotThrowAnyException();
         }
