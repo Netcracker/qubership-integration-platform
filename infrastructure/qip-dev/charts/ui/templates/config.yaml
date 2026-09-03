@@ -49,8 +49,19 @@ data:
 
       error_page 502 503 504 @error;
 
+      # Cluster DNS. Only the locations whose upstream is built from a variable use
+      # it - a literally named upstream is resolved once, when nginx reads this file.
+      resolver {{ .Values.global.qip.ui.resolver }} valid=5s;
+      resolver_timeout 5s;
+
+      # Through a variable on purpose. nginx resolves a literally named upstream while
+      # reading the config and refuses to start when the name is missing, and this one
+      # is a developer's own machine: on kind and minikube host.docker.internal does
+      # not exist, and a dead proxy takes every API route down with it. Resolved per
+      # request, a missing name is a 502 here and nothing anywhere else.
       location / {
-        proxy_pass  http://host.docker.internal:4200;
+        set $qip_dev_server {{ .Values.global.qip.ui.devServer.host }};
+        proxy_pass  http://$qip_dev_server:{{ .Values.global.qip.ui.devServer.port }};
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -151,10 +162,6 @@ data:
       }
 
       location ~ ^/api/(v\d+)/.*/engine/(?P<engine_domain>[^/]+)/(sessions|chains|live-exchanges) {
-        # Kubernetes CoreDNS internal service IP
-        resolver 10.96.0.10 valid=5s;
-        resolver_timeout 5s;
-
         rewrite ^/api/(v\d+)/.*/engine/[^/]+/(.*)$  /$1/engine/$2 break;
         proxy_pass  http://qip-engine-${engine_domain}-v1.{{ .Release.Namespace }}.svc.cluster.local:8080;
         proxy_redirect     off;
@@ -209,7 +216,8 @@ data:
       # Documentation assets (images, etc.) must be proxied to Vite in dev,
       # since they live in public/doc/ and are not in the nginx container.
       location ^~ /doc/ {
-        proxy_pass  http://host.docker.internal:4200;
+        set $qip_dev_server {{ .Values.global.qip.ui.devServer.host }};
+        proxy_pass  http://$qip_dev_server:{{ .Values.global.qip.ui.devServer.port }};
         proxy_redirect     off;
         proxy_set_header   Host $host;
       }
