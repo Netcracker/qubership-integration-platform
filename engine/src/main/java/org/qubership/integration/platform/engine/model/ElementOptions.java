@@ -29,6 +29,7 @@ public class ElementOptions {
     // amqp
     public static final String EXCHANGE = "exchange";
     public static final String QUEUES = "queues";
+    public static final String AUTO_DECLARE = "autoDeclare";
     public static final String ADDRESSES = "addresses";
     public static final String USERNAME = "username";
     public static final String PASSWORD = "password";

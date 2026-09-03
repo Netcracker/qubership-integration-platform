@@ -43,6 +43,7 @@ public final class CamelOptions {
     // amqp
     public static final String EXCHANGE = "exchange";
     public static final String QUEUES = "queues";
+    public static final String AUTO_DECLARE = "autoDeclare";
     public static final String VHOST = "vhost";
     public static final String ADDRESSES = "addresses";
     public static final String USERNAME = "username";

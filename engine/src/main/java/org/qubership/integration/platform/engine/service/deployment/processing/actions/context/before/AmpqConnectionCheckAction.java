@@ -26,8 +26,6 @@ import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriab
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.ElementOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
-import org.qubership.integration.platform.engine.model.constants.ConnectionSourceType;
-import org.qubership.integration.platform.engine.model.constants.EnvironmentSourceType;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.VariablesService;
@@ -38,7 +36,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Objects.isNull;
 
 @Slf4j
 @Component
@@ -63,12 +64,13 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
         Map<String, String> props = properties.getProperties();
         ChainElementType chainElementType = ChainElementType
                 .fromString(props.get(ChainProperties.ELEMENT_TYPE));
-        String connectionSourceType = props.get(ElementOptions.CONNECTION_SOURCE_TYPE_PROP);
         String operationProtocolType = getProp(props, ChainProperties.OPERATION_PROTOCOL_TYPE_PROP);
 
+        // Every AMQP element, whatever its connection came from. A manual connection is the
+        // default the element ships with, and it used to be the one nothing checked: the queue or
+        // exchange was missing, the deployment reported DEPLOYED, and only the engine log said
+        // otherwise. The Kafka check has never made this distinction.
         return ChainElementType.isAmqpAsyncElement(chainElementType)
-            && (equalsIgnoreCase(ConnectionSourceType.MAAS, connectionSourceType)
-                    || equalsIgnoreCase(EnvironmentSourceType.MAAS_BY_CLASSIFIER, connectionSourceType))
             && (!(
                 (equalsIgnoreCase(ChainElementType.ASYNCAPI_TRIGGER, chainElementType.name())
                         || equalsIgnoreCase(ChainElementType.SERVICE_CALL, chainElementType.name()))
@@ -98,7 +100,15 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
             String vhost = getProp(props, ElementOptions.VHOST);
             String ssl = getProp(props, ElementOptions.SSL);
 
-            if (StringUtils.isBlank(exchange) || StringUtils.isBlank(addresses)) {
+            // An element that declares its own topology creates whatever is missing when the route
+            // starts, so requiring it to exist beforehand would block a chain that works. Only the
+            // v1 trigger does that unconditionally; rabbitmq-trigger-2 does it on request.
+            if (!isProducerElement && declaresItsOwnTopology(chainElementType, props)) {
+                return;
+            }
+
+            if (StringUtils.isBlank(exchange) || StringUtils.isBlank(addresses)
+                    || (!isProducerElement && StringUtils.isBlank(queues))) {
                 throw new IllegalArgumentException(
                     "AMQP mandatory parameters are missing, check configuration");
             }
@@ -126,16 +136,24 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
             try (Connection connection = factory.newConnection()) {
                 Channel channel = connection.createChannel();
 
-                try {
-                    if (isProducerElement) {
+                if (isProducerElement) {
+                    try {
                         channel.exchangeDeclarePassive(exchange);
-                    } else {
-                        channel.queueDeclarePassive(queues);
+                    } catch (IOException e) {
+                        throw new DeploymentRetriableException(
+                            "AMQP exchange " + exchange + " not found, check configuration");
                     }
-                } catch (IOException e) {
-                    throw new DeploymentRetriableException(
-                        "AMQP " + (isProducerElement ? ("exchange " + exchange) : ("queue(s) " + queues))
-                                + " not found, check configuration");
+                } else {
+                    for (String queue : queueNames(queues)) {
+                        try {
+                            channel.queueDeclarePassive(queue);
+                        } catch (IOException e) {
+                            // Quoted because the name is reproduced exactly as the consumer will
+                            // ask for it, and a stray space around a comma is otherwise invisible.
+                            throw new DeploymentRetriableException(
+                                "AMQP queue '" + queue + "' not found, check configuration");
+                        }
+                    }
                 }
             } catch (IOException e) {
                 throw new DeploymentRetriableException(
@@ -155,6 +173,36 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                 e
             );
         }
+    }
+
+    /**
+     * Whether the consumer declares the exchange, the queue and their binding when the route starts,
+     * in which case the broker is not expected to carry them yet.
+     *
+     * <p>The deprecated {@code rabbitmq} trigger leaves Camel's {@code autoDeclare} at its default,
+     * which is on for a consumer. {@code rabbitmq-trigger-2} pins it off and offers it as a
+     * property. Every other AMQP element pins it off or is a producer, and a producer never
+     * declares - Camel's {@code autoDeclareProducer} defaults to off and no template turns it on.
+     */
+    static boolean declaresItsOwnTopology(ChainElementType chainElementType, Map<String, String> props) {
+        return switch (chainElementType) {
+            case RABBITMQ_TRIGGER -> true;
+            case RABBITMQ_TRIGGER_2 -> Boolean.parseBoolean(props.get(ElementOptions.AUTO_DECLARE));
+            default -> false;
+        };
+    }
+
+    /**
+     * The element takes its queues as a comma-separated list, while a passive declare names one
+     * queue, so the list has to be walked rather than handed over whole.
+     *
+     * <p>Split the way Camel splits it, with no trimming: the consumer calls
+     * {@code getQueues().split(",")} and consumes from the pieces verbatim, so a name written
+     * after a space really is a name with a leading space. Trimming here would let the check pass
+     * a configuration the consumer then fails on, which is the fault this check exists to catch.
+     */
+    static List<String> queueNames(String queues) {
+        return isNull(queues) ? List.of() : List.of(queues.split(","));
     }
 
     private static <E extends Enum<E>> boolean equalsIgnoreCase(E e, String s) {
