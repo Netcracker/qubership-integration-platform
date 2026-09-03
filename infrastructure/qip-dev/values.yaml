@@ -2,10 +2,17 @@ postgres:
   username: postgres
   password: postgres
 
+gateways:
+  enabled: true
+
 global:
+  blueGreenVersion: v1
   postgres:
     database: postgres
   qip:
+    controlPlane:
+      enabled: true
+      meshType: Istio
     # Whether this is a live installation. Every service reads it, and it stays
     # true unless an installation says otherwise: the flag hides what is unsafe
     # on a live installation rather than enabling anything, so the safe answer

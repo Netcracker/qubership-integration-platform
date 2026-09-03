@@ -2,18 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: {{ .Release.Name }}-sessions-management
-  name: {{ .Release.Name }}-sessions-management
+    app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
+  name: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-sessions-management
+      app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
   strategy: {}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-sessions-management
+        app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
     spec:
       containers:
         - args:

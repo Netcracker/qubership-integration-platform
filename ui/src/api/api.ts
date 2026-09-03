@@ -350,11 +350,18 @@ export interface Api {
   getServices(
     modelType: string,
     withSpec: boolean,
+    includeChainUsage?: boolean,
   ): Promise<IntegrationSystem[]>;
 
-  filterServices(filters: EntityFilterModel[]): Promise<IntegrationSystem[]>;
+  filterServices(
+    filters: EntityFilterModel[],
+    includeChainUsage?: boolean,
+  ): Promise<IntegrationSystem[]>;
 
-  searchServices(searchCondition: string): Promise<IntegrationSystem[]>;
+  searchServices(
+    searchCondition: string,
+    includeChainUsage?: boolean,
+  ): Promise<IntegrationSystem[]>;
 
   createService(system: SystemRequest): Promise<IntegrationSystem>;
 

@@ -149,6 +149,22 @@ public class PayloadExtractor {
         return headers;
     }
 
+    public Map<String, String> extractHeadersForLogging(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
+        return extractHeaders(exchange, maskedFields, maskingEnabled);
+    }
+
+    public String extractBodyForLogging(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
+        return extractBody(exchange, maskedFields, maskingEnabled);
+    }
+
+    public Map<String, SessionElementProperty> extractExchangePropertiesForLogging(Exchange exchange, Set<String> maskedFields, boolean maskingEnabled) {
+        return extractExchangeProperties(exchange, maskedFields, maskingEnabled);
+    }
+
+    public Map<String, String> extractContextForLogging(Set<String> maskedFields, boolean maskingEnabled) {
+        return extractContext(maskedFields, maskingEnabled);
+    }
+
     public String convertToJson(Map<String, ?> mapData) {
         if (mapData == null) {
             return null;
