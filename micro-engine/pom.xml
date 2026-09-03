@@ -34,7 +34,7 @@
 
 
     <properties>
-        <revision>1.2.1</revision>
+        <revision>1.2.3</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
@@ -72,7 +72,7 @@
         <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
         <reflections.version>0.10.2</reflections.version>
         <hypersistence-utils-hibernate.version>3.14.1</hypersistence-utils-hibernate.version>
-        <groovy.xml.version>5.0.2</groovy.xml.version>
+        <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
@@ -158,6 +158,14 @@
                 <groupId>io.quarkiverse.mcp</groupId>
                 <artifactId>quarkus-mcp-server-bom</artifactId>
                 <version>${quarkus-mcp-server.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-bom</artifactId>
+                <version>${groovy-apache-bom.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -296,16 +304,6 @@
                 <groupId>org.apache.camel</groupId>
                 <artifactId>camel-google-pubsub</artifactId>
                 <version>${camel.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.groovy</groupId>
-                <artifactId>groovy-xml</artifactId>
-                <version>${groovy.xml.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.groovy</groupId>
-                <artifactId>groovy-json</artifactId>
-                <version>${groovy.xml.version}</version>
             </dependency>
 
             <dependency>
@@ -626,13 +624,35 @@
             <groupId>org.apache.camel</groupId>
             <artifactId>camel-bean</artifactId>
         </dependency>
+
+        <!-- Groovy -->
         <dependency>
             <groupId>org.apache.groovy</groupId>
-            <artifactId>groovy-xml</artifactId>
+            <artifactId>groovy</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-datetime</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-json</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-jsr223</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-nio</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-sql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-xml</artifactId>
         </dependency>
 
         <dependency>

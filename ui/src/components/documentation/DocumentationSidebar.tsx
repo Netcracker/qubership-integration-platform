@@ -199,7 +199,12 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
         blockNode
         expandAction={false}
         showLine={true}
-        switcherIcon={<RightOutlined />}
+        switcherIcon={({ expanded }) => (
+          <RightOutlined
+            className={styles.switcherIcon}
+            rotate={expanded ? 90 : 0}
+          />
+        )}
       />
     </div>
   );

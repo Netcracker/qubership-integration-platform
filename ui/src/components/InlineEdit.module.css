@@ -5,10 +5,13 @@
    much and widening it to match spans the cell exactly: the value lines up
    with its column header, and the border hovering draws traces the cell rather
    than sticking out past the table. Hovering trades 1px of padding for the
-   border, so the text does not move. */
+   border, so the text does not move.
+
+   The 4px block padding is what holds the row at 32px around a 24px label
+   chip; raising it grows every row of every table. */
 .inlineEditValueWrap {
   box-sizing: border-box;
-  padding: 5px 8px;
+  padding: 4px 8px;
   margin-inline: -8px;
   cursor: pointer;
   min-height: 32px;
@@ -21,8 +24,8 @@
 }
 
 .inlineEditValueWrap:hover {
-  padding: 4px 7px;
-  border: 1px solid #d9d9d9;
+  padding: 3px 7px;
+  border: 1px solid var(--ant-color-border, #d9d9d9);
   border-radius: 2px;
 }
 
@@ -50,10 +53,10 @@
    controls an inline editor holds are padded to the cell instead. */
 .inlineEditEditorWrap :global(.ant-input),
 .inlineEditEditorWrap :global(.ant-input-number-input),
-.inlineEditEditorWrap :global(.ant-select-selector),
+.inlineEditEditorWrap :global(.ant-select),
 .inlineEditFormWrap :global(.ant-input),
 .inlineEditFormWrap :global(.ant-input-number-input),
-.inlineEditFormWrap :global(.ant-select-selector) {
+.inlineEditFormWrap :global(.ant-select) {
   padding-inline: 7px;
 }
 

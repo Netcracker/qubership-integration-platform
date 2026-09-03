@@ -68,6 +68,12 @@ jest.mock("../../../src/components/sessions/SessionStatus.tsx", () => ({
   ),
 }));
 
+/** Sort getters the properties tab hands to the table, held for the assertions. */
+const mockPropertiesGetters: {
+  typeGetter?: (property?: { type?: string; value?: string }) => string;
+  valueGetter?: (property?: { type?: string; value?: string }) => string;
+} = {};
+
 jest.mock(
   "../../../src/components/sessions/SessionElementKVChanges.tsx",
   () => ({
@@ -81,6 +87,8 @@ jest.mock(
       ) => number;
       typeRenderer?: (property: { type?: string; value?: string }) => unknown;
       valueRenderer?: (property: { type?: string; value?: string }) => unknown;
+      typeGetter?: (property?: { type?: string; value?: string }) => string;
+      valueGetter?: (property?: { type?: string; value?: string }) => string;
       onColumnClick?: (
         item: {
           name: string;
@@ -101,6 +109,8 @@ jest.mock(
       const afterVal = props.after?.[name];
 
       if (props.addTypeColumns) {
+        mockPropertiesGetters.typeGetter = props.typeGetter;
+        mockPropertiesGetters.valueGetter = props.valueGetter;
         const b = beforeVal as { type: string; value: string } | undefined;
         const a = afterVal as { type: string; value: string } | undefined;
         const item = { name, before: b, after: a };
@@ -605,6 +615,32 @@ describe("SessionElementDetails", () => {
     await waitFor(() => {
       expect(mockCopyToClipboard).toHaveBeenCalledWith("before-val");
     });
+  });
+
+  test("Exchange properties passes type and value getters for sorting", () => {
+    const el = baseElement({
+      elementId: "e1",
+      elementName: "A",
+      propertiesBefore: {
+        propA: { type: "number", value: "before-val" },
+      },
+      propertiesAfter: {
+        propA: { type: "string", value: "after-val" },
+      },
+    });
+    render(
+      <SessionElementDetails session={baseSession([el])} elementId="e1" />,
+    );
+
+    const { typeGetter, valueGetter } = mockPropertiesGetters;
+    expect(typeGetter?.({ type: "number", value: "before-val" })).toBe(
+      "number",
+    );
+    expect(valueGetter?.({ type: "number", value: "before-val" })).toBe(
+      "before-val",
+    );
+    expect(typeGetter?.(undefined)).toBe("");
+    expect(valueGetter?.(undefined)).toBe("");
   });
 
   test("Headers tab copies key name when clicking name cell", async () => {

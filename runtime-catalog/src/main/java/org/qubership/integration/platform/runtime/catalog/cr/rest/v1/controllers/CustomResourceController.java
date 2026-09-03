@@ -89,6 +89,26 @@ public class CustomResourceController {
     public ResponseEntity<List<BulkDeploymentResponse>> deployChains(
             @Valid @RequestBody DeployWithSnapshotCreationRequest request
     ) {
+        Map<String, DomainType> domainTypeMap = engineService.getDomains().stream()
+                .collect(Collectors.toMap(
+                        EngineDomain::getName,
+                        EngineDomain::getType
+                ));
+        Map<DomainType, List<String>> domainByType = request.getDomains()
+                .stream()
+                .collect(Collectors.groupingBy(
+                        name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
+
+        Collection<String> classicDomainNames = domainByType.getOrDefault(DomainType.CLASSIC, Collections.emptyList());
+        if (!domainProperties.getClassic().isEnabled() && !classicDomainNames.isEmpty()) {
+            throw new DomainTypeDisabledException(DomainType.CLASSIC);
+        }
+
+        Collection<String> microDomainNames = domainByType.getOrDefault(DomainType.MICRO, Collections.emptyList());
+        if (!domainProperties.getMicro().isEnabled() && !microDomainNames.isEmpty()) {
+            throw new DomainTypeDisabledException(DomainType.MICRO);
+        }
+
         List<BulkDeploymentResponse> result = new ArrayList<>();
         Collection<Chain> chains = chainRepository.findAllById(request.getChainIds()).stream()
                 .filter(chain -> {
@@ -119,24 +139,13 @@ public class CustomResourceController {
                         .build()))
                 .values();
 
-        Map<String, DomainType> domainTypeMap = engineService.getDomains().stream()
-                .collect(Collectors.toMap(
-                        EngineDomain::getName,
-                        EngineDomain::getType
-                ));
-        Map<DomainType, List<String>> domainByType = request.getDomains()
-                .stream()
-                .collect(Collectors.groupingBy(
-                        name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
-
         snapshots.stream()
                 .map(snapshot -> deploymentService.deploySnapshot(
-                    snapshot,
-                    domainByType.getOrDefault(DomainType.CLASSIC, Collections.emptyList())))
+                    snapshot, classicDomainNames))
                 .flatMap(Collection::stream)
                 .forEach(result::add);
 
-        domainByType.getOrDefault(DomainType.MICRO, Collections.emptyList()).stream()
+        microDomainNames.stream()
                 .map(name -> {
                     try {
                         doDeployResource(ResourceDeployRequest.builder()

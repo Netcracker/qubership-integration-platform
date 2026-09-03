@@ -30,12 +30,16 @@ import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResource
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
+import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.EngineService;
 import org.springframework.http.HttpStatus;
@@ -54,6 +58,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -62,7 +67,8 @@ import static org.mockito.Mockito.when;
  * {@link DomainTypeDisabledException}; the deploy endpoint wires the options provider, the build
  * service, and the deploy call together. A deploy that loses an optimistic-concurrency race
  * rebuilds against current cluster state and retries up to a fixed budget before the conflict
- * propagates.
+ * propagates. Bulk deployment checks both domain types up front, so a
+ * request naming a disabled type is rejected before a snapshot or a deployment is created.
  */
 @ExtendWith(MockitoExtension.class)
 class CustomResourceControllerTest {
@@ -83,6 +89,8 @@ class CustomResourceControllerTest {
     private DomainProperties domainProperties;
     @Mock
     private DomainProperties.DeployMethodConfiguration microConfiguration;
+    @Mock
+    private DomainProperties.DeployMethodConfiguration classicConfiguration;
 
     private CustomResourceController controller;
 
@@ -110,6 +118,22 @@ class CustomResourceControllerTest {
                 .build();
     }
 
+    private void classicDomainEnabled(boolean enabled) {
+        when(domainProperties.getClassic()).thenReturn(classicConfiguration);
+        when(classicConfiguration.isEnabled()).thenReturn(enabled);
+    }
+
+    private static EngineDomain engineDomain(String name, DomainType type) {
+        return EngineDomain.builder().name(name).type(type).build();
+    }
+
+    private static DeployWithSnapshotCreationRequest deployRequest(String... domains) {
+        return DeployWithSnapshotCreationRequest.builder()
+                .domains(List.of(domains))
+                .chainIds(List.of("chain-1"))
+                .build();
+    }
+
     @Test
     void buildResourceReturnsTheBuiltResourceWhenMicroDomainEnabled() {
         microDomainEnabled(true);
@@ -131,6 +155,42 @@ class CustomResourceControllerTest {
                 .build();
         assertThatThrownBy(() -> controller.buildResource(request))
                 .isInstanceOf(DomainTypeDisabledException.class);
+    }
+
+    @Test
+    void deployChainsIsRejectedWhenMicroDomainDisabled() {
+        classicDomainEnabled(true);
+        microDomainEnabled(false);
+        when(engineService.getDomains()).thenReturn(List.of(engineDomain("micro-domain", DomainType.MICRO)));
+
+        assertThatThrownBy(() -> controller.deployChains(deployRequest("micro-domain")))
+                .isInstanceOf(DomainTypeDisabledException.class)
+                .hasMessageContaining(DomainType.MICRO.name());
+        verifyNoInteractions(chainRepository, deploymentService, microDomainService);
+    }
+
+    @Test
+    void deployChainsIsRejectedWhenClassicDomainDisabled() {
+        classicDomainEnabled(false);
+        when(engineService.getDomains()).thenReturn(List.of(engineDomain("classic-domain", DomainType.CLASSIC)));
+
+        assertThatThrownBy(() -> controller.deployChains(deployRequest("classic-domain")))
+                .isInstanceOf(DomainTypeDisabledException.class)
+                .hasMessageContaining(DomainType.CLASSIC.name());
+        verifyNoInteractions(chainRepository, deploymentService, microDomainService);
+    }
+
+    @Test
+    void deployChainsProceedsWhenNoDomainOfTheDisabledTypeIsRequested() {
+        classicDomainEnabled(true);
+        microDomainEnabled(false);
+        when(engineService.getDomains()).thenReturn(List.of(engineDomain("classic-domain", DomainType.CLASSIC)));
+
+        ResponseEntity<List<BulkDeploymentResponse>> response =
+                controller.deployChains(deployRequest("classic-domain"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verifyNoInteractions(microDomainService, microDomainResourceBuildService);
     }
 
     @Test

@@ -11,6 +11,7 @@ import { TablePageLayout } from "../../components/TablePageLayout.tsx";
 import { nameLinkStyle } from "../../components/table/nameLinkStyle.ts";
 import { tableEmpty } from "../../components/table/tableEmpty.tsx";
 import { tableScroll } from "../../components/table/tableScroll.ts";
+import { rowClickProps } from "../../components/table/rowClick.ts";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
@@ -362,9 +363,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
           scroll={tableScroll(scrollX, items.length)}
           components={components}
           onChange={handleTableChange}
-          onRow={(endpointMock) => ({
-            onClick: () => setDetailsMock(endpointMock),
-          })}
+          onRow={rowClickProps(setDetailsMock)}
         />
       </div>
     </TablePageLayout>
