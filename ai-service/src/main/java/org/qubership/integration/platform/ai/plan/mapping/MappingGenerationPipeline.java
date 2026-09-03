@@ -5,13 +5,16 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
+import org.qubership.integration.platform.ai.compiler.ScriptBodyPromptRedaction;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -24,7 +27,9 @@ import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappi
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingBoundarySchemas;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
@@ -74,8 +79,18 @@ public class MappingGenerationPipeline {
       return Result.ready(context, List.of(), "");
     }
     List<MappingIntent> intents = orderedIntents(intentsFor(skillId, revision), context);
+    String behaviorContext = "";
+    List<String> requiredBlanks = requiredBlankScriptNodeIds(skillId, revision, graphOf(context));
+    if (SCRIPT_GENERATOR.equals(skillId) && !requiredBlanks.isEmpty()) {
+      behaviorContext =
+          contextBuilder.renderBehaviorScriptGenerationContext(
+              context == null ? null : context.requirementBrief(),
+              requiredBlanks,
+              graphOf(context),
+              revision);
+    }
     if (intents.isEmpty()) {
-      return Result.ready(context, List.of(), "");
+      return readyWithScriptContext(context, behaviorContext, requiredBlanks);
     }
     DefaultMappingBoundarySchemaResolver resolver =
         new DefaultMappingBoundarySchemaResolver(artifacts, compilationId, objectMapper);
@@ -138,12 +153,111 @@ public class MappingGenerationPipeline {
               sourceContracts));
     }
     String mappingContext = rendered.toString();
+    if (!behaviorContext.isBlank()) {
+      if (!mappingContext.isBlank()) {
+        mappingContext = mappingContext + "\n\n" + behaviorContext;
+      } else {
+        mappingContext = behaviorContext;
+      }
+    }
     GraphPatchExecutionContext updated = context;
     if (context != null) {
       updated =
-          context.withConsumedArtifacts(consumed).withMappingGenerationContext(mappingContext);
+          bindScriptTargets(
+              context.withConsumedArtifacts(consumed).withMappingGenerationContext(mappingContext),
+              requiredBlanks);
     }
     return Result.ready(updated, envelopeRefs, mappingContext);
+  }
+
+  /**
+   * Blank script shells this skill must fill: mapping-owned sites for its intents, plus ticket-01
+   * behavior-owned scripts. Empty mapping intents do not skip the behavior-owned set.
+   */
+  public List<String> requiredBlankScriptNodeIds(
+      String skillId, ChainSemanticRevision revision, ChainPlanGraph graph) {
+    if (!SCRIPT_GENERATOR.equals(skillId) || graph == null || graph.nodes() == null) {
+      return List.of();
+    }
+    Set<String> blanks = new LinkedHashSet<>();
+    Set<String> mappingIntentIds = new LinkedHashSet<>();
+    if (revision != null) {
+      for (MappingIntent intent : intentsFor(skillId, revision)) {
+        mappingIntentIds.add(intent.mappingIntentId());
+      }
+      for (String nodeId :
+          DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision)) {
+        if (isBlankScriptNode(graph, nodeId)) {
+          blanks.add(nodeId);
+        }
+      }
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node == null || !"script".equals(node.type())) {
+        continue;
+      }
+      String intentId = MappingExecutionSite.mappingIntentId(node);
+      if (intentId != null
+          && mappingIntentIds.contains(intentId)
+          && isBlankScriptNode(graph, node.nodeId())) {
+        blanks.add(node.nodeId());
+      }
+    }
+    return List.copyOf(blanks);
+  }
+
+  public static String missingScriptBodiesMessage(List<String> nodeIds) {
+    return "Script generator completed without script bodies for nodes: "
+        + String.join(", ", nodeIds);
+  }
+
+  private static Result readyWithScriptContext(
+      GraphPatchExecutionContext context, String behaviorContext, List<String> requiredBlanks) {
+    if (behaviorContext == null || behaviorContext.isBlank()) {
+      return Result.ready(context, List.of(), "");
+    }
+    GraphPatchExecutionContext updated = context;
+    if (context != null) {
+      updated =
+          bindScriptTargets(context.withMappingGenerationContext(behaviorContext), requiredBlanks);
+    }
+    return Result.ready(updated, List.of(), behaviorContext);
+  }
+
+  private static GraphPatchExecutionContext bindScriptTargets(
+      GraphPatchExecutionContext context, List<String> requiredBlanks) {
+    if (context == null
+        || requiredBlanks == null
+        || requiredBlanks.isEmpty()
+        || !context.editTargetNodeIds().isEmpty()) {
+      return context;
+    }
+    return context.withEditTargetNodeIds(requiredBlanks);
+  }
+
+  private static ChainPlanGraph graphOf(GraphPatchExecutionContext context) {
+    return context == null ? null : context.inputGraph();
+  }
+
+  private static boolean isBlankScriptNode(ChainPlanGraph graph, String nodeId) {
+    if (graph == null || graph.nodes() == null || nodeId == null || nodeId.isBlank()) {
+      return false;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node == null || !nodeId.equals(node.nodeId()) || !"script".equals(node.type())) {
+        continue;
+      }
+      if (node.properties() == null) {
+        return true;
+      }
+      for (PlanProperty property : node.properties()) {
+        if (property != null && "script".equals(property.key())) {
+          return !ScriptBodyPromptRedaction.isPresentScriptBody(property.value());
+        }
+      }
+      return true;
+    }
+    return false;
   }
 
   private static List<MappingIntent> intentsFor(String skillId, ChainSemanticRevision revision) {

@@ -12,6 +12,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,20 +22,34 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillRuntimeEligibility;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.mapping.MappingGenerationPipeline;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -40,9 +57,12 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClient;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
@@ -52,6 +72,10 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPatte
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
+import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -912,6 +936,53 @@ class CompilerDagExecutionEngineTest {
         result.degradationFindings().get(1).message());
   }
 
+  @Test
+  void emptyMappingIntentsFillCompleteTaskScriptBodyWithoutInventingIntent() {
+    String conversationId = "conv-complete-task-fill";
+    ResolvedCompilerDag dag = dagWithScriptGenerator();
+    when(skillRegistry.require("cip-script-generator"))
+        .thenReturn(new FillingCompleteTaskScriptExecutor());
+    stubAssemblyAndValidator(dag);
+    DefaultCompilerDagExecutionEngine mapped = engineWithMappingPipeline();
+
+    CompilerDagExecutionResult result = executeCompleteTaskDag(mapped, conversationId, dag);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    ChainPlanNode script =
+        result.graph().nodes().stream()
+            .filter(node -> SemanticFixtures.COMPLETE_TASK_NODE_ID.equals(node.nodeId()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("script", script.type());
+    assertTrue(
+        script.properties().stream()
+            .anyMatch(
+                property ->
+                    "script".equals(property.key())
+                        && property.value() != null
+                        && !property.value().isBlank()));
+    assertTrue(SemanticFixtures.linearOrdersWithCompleteTask().mappingIntents().isEmpty());
+    assertEquals(1, result.patchLedger().orderedReferences().size());
+  }
+
+  @Test
+  void emptyPatchFailsWhenCompleteTaskScriptBodyStaysBlank() {
+    String conversationId = "conv-complete-task-empty-patch";
+    ResolvedCompilerDag dag = dagWithScriptGenerator();
+    when(skillRegistry.require("cip-script-generator"))
+        .thenReturn(new EmptyPatchScriptExecutor());
+    stubAssemblyAndValidator(dag);
+    DefaultCompilerDagExecutionEngine mapped = engineWithMappingPipeline();
+
+    IllegalStateException thrown =
+        assertThrows(
+            IllegalStateException.class,
+            () -> executeCompleteTaskDag(mapped, conversationId, dag));
+    assertTrue(
+        thrown.getMessage().contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), thrown.getMessage());
+    assertTrue(thrown.getMessage().contains("without script bodies"), thrown.getMessage());
+  }
+
   private CompilerDagExecutionResult executeDag(String conversationId, ResolvedCompilerDag dag) {
     return engine
         .execute(
@@ -997,6 +1068,280 @@ class CompilerDagExecutionEngineTest {
                 "structural-validation")),
         List.of(),
         "dag-naming");
+  }
+
+  private CompilerDagExecutionResult executeCompleteTaskDag(
+      DefaultCompilerDagExecutionEngine mapped,
+      String conversationId,
+      ResolvedCompilerDag dag) {
+    RequirementBrief completeTaskBrief = completeTaskBrief();
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    ChainPlanGraph graph = completeTaskGraph();
+    CompilerExecutionSeed seed =
+        CompilerExecutionSeed.forCreate(
+            conversationId, completeTaskBrief, revision, graph, List.of());
+    return mapped
+        .execute(
+            new CompilerDagExecutionRequest(
+                "run-1",
+                conversationId,
+                manifestFor(dag),
+                completeTaskBrief,
+                revision,
+                dag,
+                List.of(),
+                List.of(),
+                seed),
+            (skillId, status) -> {})
+        .await()
+        .indefinitely();
+  }
+
+  private DefaultCompilerDagExecutionEngine engineWithMappingPipeline() {
+    CanonicalGraphDigest digest = new CanonicalGraphDigest(new ObjectMapper());
+    GraphAssemblyService graphAssemblyService = new GraphAssemblyService(digest);
+    CompilerSecurityValidator securityValidator = mock(CompilerSecurityValidator.class);
+    when(securityValidator.validate(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(new ValidationResult(true, List.of(), "ok"));
+    CompilerQualityValidator qualityValidator = mock(CompilerQualityValidator.class);
+    when(qualityValidator.validate(
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(new ValidationResult(true, List.of(), "ok"));
+    CompilerValidationPipeline validationPipeline =
+        new CompilerValidationPipeline(
+            graph -> new ValidationResult(true, List.of(), "ok"),
+            graph -> new ValidationResult(true, List.of(), "ok"),
+            graph -> new ValidationResult(true, List.of(), "ok"),
+            securityValidator,
+            qualityValidator);
+    ObjectMapper mapper =
+        new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    CompilationArtifacts artifacts =
+        new CompilationArtifacts(
+            new InMemoryArtifactBlobStore(),
+            mapper,
+            Clock.systemUTC());
+    MappingGenerationPipeline pipeline =
+        new MappingGenerationPipeline(artifacts, mapper, mappingContextBuilder(mapper));
+    return new DefaultCompilerDagExecutionEngine(
+        workspaceStore,
+        skillRegistry,
+        javaAdapterRegistry,
+        packRepository,
+        graphAssemblyService,
+        validationPipeline,
+        new ProductPipelineArtifactStore(artifacts),
+        pipeline);
+  }
+
+  private static CompilerSkillContextBuilder mappingContextBuilder(ObjectMapper mapper) {
+    QipKnowledgePackRepository repository = mock(QipKnowledgePackRepository.class);
+    CompilerSkillAddonRepository addonRepository = mock(CompilerSkillAddonRepository.class);
+    when(addonRepository.loadForSkill(org.mockito.ArgumentMatchers.anyString()))
+        .thenReturn(CompilerSkillAddonContext.empty());
+    when(repository.loadCompilerGeneratorSpecIndex())
+        .thenReturn(new CompilerGeneratorSpecIndex(List.of()));
+    when(repository.loadCompilerSkillCatalog()).thenReturn(new CompilerSkillCatalog(List.of()));
+    return new CompilerSkillContextBuilder(
+        mapper,
+        repository,
+        addonRepository,
+        mock(CompilerSkillRuntimeEligibility.class),
+        mock(KnowledgeClient.class),
+        mock(KnowledgeContextProvider.class));
+  }
+
+  private static ResolvedCompilerDag dagWithScriptGenerator() {
+    GraphPatchOwnershipPolicy scriptOwnership =
+        new GraphPatchOwnershipPolicy(
+            false, false, Set.of(), Set.of(), Map.of("script", Set.of("script")));
+    return new ResolvedCompilerDag(
+        List.of(
+            new ResolvedCompilerNode(
+                "cip-script-generator",
+                "Implementation",
+                null,
+                List.of(SkillArtifactType.CHAIN_PLAN_GRAPH.name()),
+                List.of(SkillArtifactType.GRAPH_PATCH.name()),
+                List.of(),
+                "captureGraphPatch",
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                0,
+                0,
+                true,
+                CompilerNodeExecutionMode.LLM_SKILL,
+                null,
+                scriptOwnership),
+            new ResolvedCompilerNode(
+                "cip-chain-assembler",
+                "Assembly",
+                null,
+                List.of(SkillArtifactType.CHAIN_PLAN_GRAPH.name()),
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of("cip-script-generator"),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                1,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "graph-assembly"),
+            new ResolvedCompilerNode(
+                "cip-structural-validator",
+                "Validation",
+                null,
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(SkillArtifactType.PRE_BUILD_VALIDATION.name()),
+                List.of("cip-chain-assembler"),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                2,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "structural-validation")),
+        List.of(),
+        "dag-script");
+  }
+
+  private static ChainPlanGraph completeTaskGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("id", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-http", "http-trigger", "Trigger", null, 1, List.of()),
+            new ChainPlanNode(
+                SemanticFixtures.COMPLETE_TASK_NODE_ID,
+                "script",
+                "completeTask",
+                null,
+                2,
+                List.of()),
+            new ChainPlanNode("node-call", "service-call", "Call", null, 3, List.of())),
+        List.of(
+            new ChainPlanEdge(
+                "edge-1", "trigger-http", SemanticFixtures.COMPLETE_TASK_NODE_ID, null),
+            new ChainPlanEdge(
+                "edge-2", SemanticFixtures.COMPLETE_TASK_NODE_ID, "node-call", null)));
+  }
+
+  private static RequirementBrief completeTaskBrief() {
+    return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withFacts(
+            List.of(
+                new RequirementFact(
+                    SemanticFixtures.COMPLETE_TASK_FACT_ID,
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.BEHAVIOR,
+                    "",
+                    "Respond with commandType=completeTask")));
+  }
+
+  private static final class FillingCompleteTaskScriptExecutor implements SkillExecutor {
+    @Override
+    public String skillId() {
+      return "cip-script-generator";
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.CHAIN_PLAN_GRAPH);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.GRAPH_PATCH);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      GraphPatch patch =
+          new GraphPatch(
+              "fill-complete-task",
+              "cip-script-generator",
+              List.of(),
+              List.of(),
+              List.of(
+                  new PropertyPatch(
+                      GraphPatchOperation.ADD,
+                      SemanticFixtures.COMPLETE_TASK_NODE_ID,
+                      new PlanProperty(
+                          "script",
+                          "exchange.in.body = 'completeTask'\nreturn exchange.in.body"))),
+              List.of(),
+              List.of(),
+              "Fill completeTask body");
+      return Uni.createFrom()
+          .item(
+              SkillExecutionResult.completed(
+                  List.of(
+                      SkillArtifact.of(
+                          SkillArtifactType.GRAPH_PATCH,
+                          "cip-script-generator",
+                          new SkillArtifactPayload.GraphPatchPayload(patch))),
+                  "filled"));
+    }
+  }
+
+  private static final class EmptyPatchScriptExecutor implements SkillExecutor {
+    @Override
+    public String skillId() {
+      return "cip-script-generator";
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.CHAIN_PLAN_GRAPH);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.GRAPH_PATCH);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      GraphPatch patch =
+          new GraphPatch(
+              "empty",
+              "cip-script-generator",
+              List.of(),
+              List.of(),
+              List.of(),
+              List.of(),
+              List.of(),
+              "No script changes");
+      return Uni.createFrom()
+          .item(
+              SkillExecutionResult.completed(
+                  List.of(
+                      SkillArtifact.of(
+                          SkillArtifactType.GRAPH_PATCH,
+                          "cip-script-generator",
+                          new SkillArtifactPayload.GraphPatchPayload(patch))),
+                  "empty"));
+    }
   }
 
   private static final class FailingNamingExecutor implements SkillExecutor {

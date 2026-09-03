@@ -86,6 +86,23 @@ public record GraphPatchExecutionContext(
         null);
   }
 
+  public GraphPatchExecutionContext withEditTargetNodeIds(List<String> targetNodeIds) {
+    return new GraphPatchExecutionContext(
+        runId,
+        skillId,
+        requirementDigest,
+        inputGraphDigest,
+        compilerPackageDigest,
+        languageVersion,
+        requirementBrief,
+        consumedArtifacts,
+        inputGraph,
+        ownership,
+        attemptId,
+        targetNodeIds,
+        mappingGenerationContext);
+  }
+
   public GraphPatchExecutionContext withConsumedArtifacts(
       List<CompilationArtifacts.Reference> consumed) {
     return new GraphPatchExecutionContext(
