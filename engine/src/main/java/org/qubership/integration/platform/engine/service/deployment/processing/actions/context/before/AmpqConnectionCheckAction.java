@@ -143,7 +143,7 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
         }
     }
 
-    private ConnectionFactory connectionFactory(
+    static ConnectionFactory connectionFactory(
         String addresses,
         String username,
         String password,

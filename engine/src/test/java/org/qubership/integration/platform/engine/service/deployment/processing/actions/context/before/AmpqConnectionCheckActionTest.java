@@ -2,6 +2,7 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 
 
 import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.ConnectionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -174,6 +176,83 @@ class AmpqConnectionCheckActionTest {
 
         // The queue before it was reached, so the check stops at the first one that is missing.
         verify(channel).queueDeclarePassive("one");
+    }
+
+    @Test
+    @DisplayName("The connection is built from the element's own fields")
+    void connectionIsBuiltFromTheElementsFields() throws Exception {
+        ConnectionFactory plain = AmpqConnectionCheckAction.connectionFactory(
+                "broker:5672", "user", "secret", "/tenant", null);
+
+        assertThat(plain.getHost()).isEqualTo("broker");
+        assertThat(plain.getPort()).isEqualTo(5672);
+        assertThat(plain.getUsername()).isEqualTo("user");
+        assertThat(plain.getPassword()).isEqualTo("secret");
+        assertThat(plain.getVirtualHost()).isEqualTo("/tenant");
+
+        // Blank credentials leave the driver's own defaults alone rather than overwriting them.
+        ConnectionFactory defaults = AmpqConnectionCheckAction.connectionFactory(
+                "broker:5672", "", "", "", "false");
+        assertThat(defaults.getUsername()).isEqualTo("guest");
+        assertThat(defaults.getVirtualHost()).isEqualTo("/");
+    }
+
+    @Test
+    @DisplayName("An element that declares its own topology is left alone entirely")
+    void declaringElementIsNotEvenConnectedTo() {
+        ElementProperties properties = element("rabbitmq-trigger-2", "manual");
+        properties.getProperties().put(ElementOptions.AUTO_DECLARE, "true");
+        // Unreachable on purpose: reaching the broker at all would fail this test.
+        properties.getProperties().put(ElementOptions.ADDRESSES, "127.0.0.1:1");
+        properties.getProperties().put(ElementOptions.EXCHANGE, "ex");
+        properties.getProperties().put(ElementOptions.QUEUES, "q");
+
+        assertThatCode(() -> action.apply(null, properties, null)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("A configuration missing what the check needs is rejected before any connection")
+    void missingMandatoryParametersAreRejected() {
+        ElementProperties noAddresses = element("rabbitmq-trigger-2", "manual");
+        noAddresses.getProperties().put(ElementOptions.EXCHANGE, "ex");
+        noAddresses.getProperties().put(ElementOptions.QUEUES, "q");
+
+        assertThatThrownBy(() -> action.apply(null, noAddresses, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("AMQP mandatory parameters are missing, check configuration");
+
+        ElementProperties noQueues = element("rabbitmq-trigger-2", "manual");
+        noQueues.getProperties().put(ElementOptions.ADDRESSES, "127.0.0.1:1");
+        noQueues.getProperties().put(ElementOptions.EXCHANGE, "ex");
+
+        assertThatThrownBy(() -> action.apply(null, noQueues, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("An address that is not an address is rejected before any connection")
+    void malformedAddressesAreRejected() {
+        ElementProperties properties = element("rabbitmq-trigger-2", "manual");
+        properties.getProperties().put(ElementOptions.ADDRESSES, "http://broker:5672/path");
+        properties.getProperties().put(ElementOptions.EXCHANGE, "ex");
+        properties.getProperties().put(ElementOptions.QUEUES, "q");
+
+        assertThatThrownBy(() -> action.apply(null, properties, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("AMQP addresses has invalid format, check configuration");
+    }
+
+    @Test
+    @DisplayName("A broker that cannot be reached is a retriable failure")
+    void unreachableBrokerIsRetriable() {
+        ElementProperties properties = element("rabbitmq-trigger-2", "manual");
+        properties.getProperties().put(ElementOptions.ADDRESSES, "127.0.0.1:1");
+        properties.getProperties().put(ElementOptions.EXCHANGE, "ex");
+        properties.getProperties().put(ElementOptions.QUEUES, "q");
+
+        assertThatThrownBy(() -> action.apply(null, properties, null))
+                .isInstanceOf(DeploymentRetriableException.class)
+                .hasMessage("Connection configuration is invalid or broker is unavailable");
     }
 
     private static ElementProperties element(String type, String connectionSourceType) {
