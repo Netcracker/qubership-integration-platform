@@ -24,7 +24,7 @@
 
   <properties>
     <revision>1.2.3</revision>
-    <changelist>-m2m-kuber-SNAPSHOT</changelist>
+    <changelist>-1-m2m-kuber-SNAPSHOT</changelist>
 
     <!-- Released version of the in-repo library. Kept equal to integration-build-pipeline's <revision> so a
          reactor build resolves it from source; scripts/check-version-invariants.sh enforces that. -->

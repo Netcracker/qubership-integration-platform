@@ -23,7 +23,7 @@
 
   <properties>
     <revision>1.2.3</revision>
-    <changelist>-m2m-kuber-SNAPSHOT</changelist>
+    <changelist>-1-m2m-kuber-SNAPSHOT</changelist>
 
     <!-- BOMs -->
     <!-- 3rd party dependencies -->

@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>1.2.3</revision>
-    <changelist>-m2m-kuber-SNAPSHOT</changelist>
+    <changelist>-1-m2m-kuber-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
