@@ -35,11 +35,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.engine.errorhandling.ChainNotDeployedOnEngineException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
+import org.qubership.integration.platform.engine.persistence.shared.entity.Property;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.persistence.shared.repository.SessionInfoRepository;
+import org.qubership.integration.platform.engine.state.ChainDeploymentChecker;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.util.List;
@@ -68,15 +71,31 @@ class CheckpointSessionServiceTest {
     ObjectMapper mapper;
     @Mock
     IdempotencyRecordService idempotencyRecordService;
+    @Mock
+    ChainDeploymentChecker chainDeploymentChecker;
 
     @BeforeEach
     void setUp() {
-        checkpointSessionService = new CheckpointSessionService(sessionRepo, checkpointRepo, rest, mapper, idempotencyRecordService);
+        checkpointSessionService = new CheckpointSessionService(
+                sessionRepo, checkpointRepo, rest, mapper, idempotencyRecordService, chainDeploymentChecker);
         checkpointSessionService.idempotencyKeyTTL = "PT1H";
     }
 
     @Test
+    void shouldThrowChainNotDeployedWhenRetryFromLastCheckpointAndChainNotDeployed() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(false);
+
+        assertThrows(ChainNotDeployedOnEngineException.class, () ->
+                checkpointSessionService.retryFromLastCheckpoint("chain", "session", "{\"x\":1}", () -> null, true)
+        );
+
+        verifyNoInteractions(checkpointRepo);
+        verifyNoInteractions(rest);
+    }
+
+    @Test
     void shouldThrowEntityNotFoundWhenRetryFromLastCheckpointAndNoCheckpoint() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         when(checkpointRepo.findAllBySessionChainIdAndSessionId(anyString(), anyString(), any(Page.class), any(Sort.class)))
                 .thenReturn(List.of());
 
@@ -89,6 +108,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldCallRetryCheckpointWhenRetryFromLastCheckpointAndCheckpointExists() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         Uni<Buffer> uni = mockUni();
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
@@ -107,8 +127,7 @@ class CheckpointSessionServiceTest {
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         ArgumentCaptor<Map<String, String>> headersCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        ArgumentCaptor<Optional<String>> bodyCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Optional.class);
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
 
         verify(rest).retryCheckpoint(eq("chain"), eq("session"), eq("el-1"), headersCaptor.capture(), bodyCaptor.capture());
 
@@ -117,13 +136,14 @@ class CheckpointSessionServiceTest {
         assertEquals("true", hdrs.get(Headers.TRACE_ME));
         assertEquals(MediaType.APPLICATION_JSON, hdrs.get(HttpHeaders.CONTENT_TYPE));
 
-        assertEquals(Optional.of("{\"k\":\"v\"}"), bodyCaptor.getValue());
+        assertEquals("{\"k\":\"v\"}", bodyCaptor.getValue());
 
         verify(uni).subscribe();
     }
 
     @Test
-    void shouldSendEmptyOptionalBodyWhenBodyBlank() {
+    void shouldSendNullBodyWhenBodyBlank() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         Uni<Buffer> uni = mockUni();
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
@@ -140,21 +160,21 @@ class CheckpointSessionServiceTest {
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         ArgumentCaptor<Map<String, String>> headersCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        ArgumentCaptor<Optional<String>> bodyCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Optional.class);
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
 
         verify(rest).retryCheckpoint(eq("chain"), eq("session"), eq("el-1"), headersCaptor.capture(), bodyCaptor.capture());
 
         Map<String, String> hdrs = headersCaptor.getValue();
         assertEquals("false", hdrs.get(Headers.TRACE_ME));
         assertEquals(MediaType.APPLICATION_JSON, hdrs.get(HttpHeaders.CONTENT_TYPE));
-        assertEquals(Optional.empty(), bodyCaptor.getValue());
+        assertNull(bodyCaptor.getValue());
 
         verify(uni).subscribe();
     }
 
     @Test
     void shouldThrowEntityNotFoundWhenRetryFromCheckpointAndCheckpointMissing() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId(anyString(), anyString(), anyString()))
                 .thenReturn(null);
 
@@ -167,6 +187,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldCallRetryCheckpointWhenRetryFromCheckpointAndCheckpointExists() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         Uni<Buffer> uni = mockUni();
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
@@ -183,8 +204,7 @@ class CheckpointSessionServiceTest {
 
         @SuppressWarnings({"rawtypes", "unchecked"})
         ArgumentCaptor<Map<String, String>> headersCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Map.class);
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        ArgumentCaptor<Optional<String>> bodyCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(Optional.class);
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
 
         verify(rest).retryCheckpoint(eq("chain"), eq("session"), eq("el-1"), headersCaptor.capture(), bodyCaptor.capture());
 
@@ -192,13 +212,14 @@ class CheckpointSessionServiceTest {
         assertEquals("Y", hdrs.get("X"));
         assertEquals("true", hdrs.get(Headers.TRACE_ME));
         assertEquals(MediaType.APPLICATION_JSON, hdrs.get(HttpHeaders.CONTENT_TYPE));
-        assertEquals(Optional.of("{\"a\":1}"), bodyCaptor.getValue());
+        assertEquals("{\"a\":1}", bodyCaptor.getValue());
 
         verify(uni).subscribe();
     }
 
     @Test
     void shouldHandleRetryCheckpointSuccessCallback() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
                 org.mockito.ArgumentMatchers.anyMap(),
@@ -218,6 +239,7 @@ class CheckpointSessionServiceTest {
 
     @Test
     void shouldHandleRetryCheckpointFailureCallback() {
+        when(chainDeploymentChecker.isChainDeployed("chain")).thenReturn(true);
         when(rest.retryCheckpoint(
                 anyString(), anyString(), anyString(),
                 org.mockito.ArgumentMatchers.anyMap(),
@@ -276,6 +298,53 @@ class CheckpointSessionServiceTest {
         Checkpoint result = checkpointSessionService.findCheckpoint("session", "chain", "element");
 
         assertSame(checkpoint, result);
+        verify(checkpoint, never()).getBody();
+        verify(checkpoint, never()).getDeprecatedBody();
+        verify(checkpoint, never()).getProperties();
+    }
+
+    @Test
+    void shouldReturnNullWhenFindCheckpointForRestoreAndMissing() {
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "element"))
+                .thenReturn(null);
+
+        assertNull(checkpointSessionService.findCheckpointForRestore("session", "chain", "element"));
+    }
+
+    @Test
+    void shouldInitializePayloadWhenFindCheckpointForRestore() {
+        Checkpoint checkpoint = mock(Checkpoint.class);
+        Property property = mock(Property.class);
+        when(checkpoint.getBody()).thenReturn(new byte[] {1});
+        when(checkpoint.getProperties()).thenReturn(List.of(property));
+        when(property.getValue()).thenReturn(new byte[] {2});
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "element"))
+                .thenReturn(checkpoint);
+
+        Checkpoint result = checkpointSessionService.findCheckpointForRestore("session", "chain", "element");
+
+        assertSame(checkpoint, result);
+        verify(checkpoint).getBody();
+        verify(checkpoint, never()).getDeprecatedBody();
+        verify(property).getValue();
+        verify(property, never()).getDeprecatedValue();
+    }
+
+    @Test
+    void shouldInitializeDeprecatedPayloadWhenBodyAndPropertyValueMissing() {
+        Checkpoint checkpoint = mock(Checkpoint.class);
+        Property property = mock(Property.class);
+        when(checkpoint.getBody()).thenReturn(null);
+        when(checkpoint.getProperties()).thenReturn(List.of(property));
+        when(property.getValue()).thenReturn(null);
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "element"))
+                .thenReturn(checkpoint);
+
+        Checkpoint result = checkpointSessionService.findCheckpointForRestore("session", "chain", "element");
+
+        assertSame(checkpoint, result);
+        verify(checkpoint).getDeprecatedBody();
+        verify(property).getDeprecatedValue();
     }
 
     @Test
