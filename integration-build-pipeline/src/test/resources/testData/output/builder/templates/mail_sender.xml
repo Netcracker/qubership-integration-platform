@@ -3,7 +3,7 @@
         <doTry>
             <process ref="contextPropagationProcessor"/>
 
-            <toD uri="http://localhost:8080?from=from@test.mail&amp;to=to@test.mail&amp;replyTo=reply-to@test.mail&amp;cc=copy-to@test.mail&amp;bcc=copy-to@test.mail&amp;subject=Test mail&amp;username=user&amp;password=user&amp;connectionTimeout=30000&amp;contentType=text/plain&amp;useInlineAttachments=false&amp;ignoreUnsupportedCharset=true"/>
+            <toD uri="http://localhost:8080?from=from@example.com&amp;to=to@example.com&amp;replyTo=reply-to@example.com&amp;cc=copy-to@example.com&amp;bcc=copy-to@example.com&amp;subject=Test mail&amp;username=user&amp;password=user&amp;connectionTimeout=30000&amp;contentType=text/plain&amp;useInlineAttachments=false&amp;ignoreUnsupportedCharset=true"/>
 
             <doCatch>
                 <exception>jakarta.mail.MessagingException</exception>
