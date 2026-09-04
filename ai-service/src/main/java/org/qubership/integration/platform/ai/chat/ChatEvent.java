@@ -26,6 +26,24 @@ public sealed interface ChatEvent {
   /** Imports the selected API Hub specification into the runtime catalog. */
   String IMPORT_ACTION = "import-specification";
 
+  String IMPORT_INTERNAL_ACTION = "import-specification-internal";
+
+  String IMPORT_EXTERNAL_ACTION = "import-specification-external";
+
+  List<String> IMPORT_ACTIONS = List.of(IMPORT_INTERNAL_ACTION, IMPORT_EXTERNAL_ACTION);
+
+  String IMPORT_EXTERNAL_MARKER = "Import the API Hub specification as an external service";
+
+  static boolean isImportAction(String action) {
+    return IMPORT_ACTION.equals(action)
+        || IMPORT_INTERNAL_ACTION.equals(action)
+        || IMPORT_EXTERNAL_ACTION.equals(action);
+  }
+
+  static String systemTypeForImportAction(String action) {
+    return IMPORT_EXTERNAL_ACTION.equals(action) ? "EXTERNAL" : "INTERNAL";
+  }
+
   /** Writes a proposed change into a chain the user already has: irreversible, so never a model's. */
   String APPLY_CHAIN_PATCH_ACTION = "apply-chain-patch";
 
@@ -314,7 +332,7 @@ public sealed interface ChatEvent {
         0L,
         null,
         List.of(),
-        List.of(IMPORT_ACTION));
+        IMPORT_ACTIONS);
   }
 
   /**
@@ -457,7 +475,7 @@ public sealed interface ChatEvent {
       return null;
     }
     return switch (gateId) {
-      case PipelineGates.IMPORT_SPECIFICATION -> List.of(IMPORT_ACTION);
+      case PipelineGates.IMPORT_SPECIFICATION -> IMPORT_ACTIONS;
       case PipelineGates.IDS_PATH_CHOICE -> IDS_PATH_CHOICE_ACTIONS;
       case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
       case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);
