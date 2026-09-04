@@ -33,7 +33,7 @@ properties:
       idempotent:
         type: boolean
         title: Do not download files with same filekey
-        default: false
+        default: true
       idempotentKey:
         type: string
         title: Filekey string
