@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -147,6 +148,30 @@ class MappingGapResumeTest {
     assertEquals(
         PipelineGates.MAPPING_GAP_DESCRIBE, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
     assertEquals("design-input", run().run().currentStageId());
+  }
+
+  @Test
+  void describeProseWithoutAdapterDoesNotRecapture() {
+    support =
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(analysisCapability(), designInputCapability(), planningCapability())),
+                clock)
+            .build();
+    runtime = new CreateChainTestOrchestrator(support, runStore);
+    waitAtMappingGap();
+
+    IllegalStateException thrown =
+        assertThrows(
+            IllegalStateException.class,
+            () -> type(DESCRIBE_PROSE));
+
+    assertTrue(thrown.getMessage().contains("mapping-turn adapter"), thrown.getMessage());
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertNotEquals(DESCRIBE_PROSE, latestUserInputTargeting("requirement-analysis").text());
   }
 
   @Test
