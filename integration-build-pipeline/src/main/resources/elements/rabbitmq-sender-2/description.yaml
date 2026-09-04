@@ -23,7 +23,7 @@ container: false
 designParameters:
   externalParticipantId: 'RabbitMQ ##{addresses}'
   externalParticipantName: 'RabbitMQ ##{addresses}'
-  requestLineTitle: 'Put message to exchange: ##{exchange}, queues: ##{queues}'
+  requestLineTitle: 'Put message to exchange: ##{exchange}'
   directionToChain: false
   hasResponse: false
 properties:
