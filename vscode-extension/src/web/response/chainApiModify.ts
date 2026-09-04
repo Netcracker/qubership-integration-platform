@@ -300,7 +300,7 @@ export async function updateElement(
     const newElementForCollect = { ...element, properties: elementRequest.properties as ElementSchema["properties"] } as ElementSchema;
     collectFilenamesFromElementTree([newElementForCollect], newFilenames);
   }
-  (element as ElementSchema).properties = elementRequest.properties as ElementSchema["properties"];
+  (element as any).properties = elementRequest.properties;
 
   element.parentElementId = elementRequest.parentElementId;
   if (isChangeParent) {

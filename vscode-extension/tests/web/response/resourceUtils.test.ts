@@ -163,10 +163,9 @@ describe("deleteElementsPropertyFiles", () => {
   });
 
   test("ignores blocks without filename", async () => {
-    const elements: ElementSchema[] = [serviceCall({ before: { type: "script" }, after: [{ type: "mapper" }] }) as unknown as ElementSchema];
-    // need to construct properly
-    (elements[0].properties as Record<string, unknown>)["before"] = { type: "script" };
-    (elements[0].properties as Record<string, unknown>)["after"] = [{ type: "mapper" }];
+    const elements: any[] = [serviceCall({ before: { type: "script" }, after: [{ type: "mapper" }] })];
+    // service-call blocks without propertiesFilename are ignored even though type matches script/mapper
+    // the implementation guards filename before calling removeFile (handles any[] shape)
     await deleteElementsPropertyFiles(fileUri, elements);
     expect(mockedRemoveFile).not.toHaveBeenCalled();
   });
@@ -202,6 +201,60 @@ describe("deleteElementsPropertyFiles", () => {
     expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/b.groovy");
     expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/a.json");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(3);
+  });
+
+  test("ignores top-level separate file when filename missing or empty", async () => {
+    const elements: any[] = [
+      { id: "e1", type: "http-trigger", properties: { propertiesToExportInSeparateFile: "body" } },
+      { id: "e2", type: "http-trigger", properties: { propertiesToExportInSeparateFile: "body", propertiesFilename: "" } },
+      { id: "e3", type: "http-trigger", properties: { propertiesToExportInSeparateFile: "", propertiesFilename: "body.txt" } },
+    ];
+    await deleteElementsPropertyFiles(fileUri, elements);
+    expect(mockedRemoveFile).not.toHaveBeenCalled();
+  });
+
+  test("handles elements with null or undefined properties without throwing", async () => {
+    const elements: any[] = [
+      { id: "1", type: "service-call", properties: null },
+      { id: "2", type: "service-call" },
+      { id: "3", type: "http-trigger", properties: null },
+      { id: "4", type: "service-call", properties: { before: null, after: null } },
+    ];
+    await expect(deleteElementsPropertyFiles(fileUri, elements)).resolves.not.toThrow();
+    expect(mockedRemoveFile).not.toHaveBeenCalled();
+  });
+
+  test("ignores service-call blocks with empty string filename", async () => {
+    const elements: any[] = [
+      serviceCall({
+        before: { type: "script", propertiesFilename: "" },
+        after: [{ type: "mapper", propertiesFilename: "" }, { type: "script", propertiesFilename: "" }],
+      }),
+    ];
+    await deleteElementsPropertyFiles(fileUri, elements);
+    expect(mockedRemoveFile).not.toHaveBeenCalled();
+  });
+
+  test("ignores blocks with unsupported type", async () => {
+    const elements: any[] = [
+      serviceCall({
+        before: { type: "unknown", propertiesFilename: "x.groovy" },
+        after: [{ type: "http", propertiesFilename: "y.json" }, { propertiesFilename: "z.json" }],
+      }),
+    ];
+    await deleteElementsPropertyFiles(fileUri, elements);
+    expect(mockedRemoveFile).not.toHaveBeenCalled();
+  });
+
+  test("handles after as non-array and before as non-object gracefully", async () => {
+    const elements: any[] = [
+      { id: "1", type: "service-call", properties: { before: "not-an-object", after: "not-an-array" } },
+      { id: "2", type: "service-call", properties: { before: { type: "script", propertiesFilename: "ok.groovy" }, after: { type: "mapper", propertiesFilename: "bad.json" } } },
+    ];
+    await deleteElementsPropertyFiles(fileUri, elements);
+    // only the valid before block should trigger
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/ok.groovy");
+    expect(mockedRemoveFile).toHaveBeenCalledTimes(1);
   });
 });
 
