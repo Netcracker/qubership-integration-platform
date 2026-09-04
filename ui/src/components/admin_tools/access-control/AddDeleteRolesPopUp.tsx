@@ -17,6 +17,34 @@ export type AddDeleteRolesPopUpProps = {
   mode?: "add" | "delete";
 };
 
+/** The roles each element ends up with: the selected ones removed, or merged in. */
+export const buildUpdateRequests = (
+  records: AccessControlData[],
+  selectedRoles: string[],
+  isDeleteMode: boolean,
+): AccessControlUpdateRequest[] =>
+  records.map((rec) => {
+    if (!rec.elementId) {
+      throw new Error("Element ID is required");
+    }
+
+    const props = rec.properties as unknown as
+      | AccessControlProperty
+      | undefined;
+    const existingRoles = Array.isArray(props?.roles) ? props.roles : [];
+
+    return {
+      elementId: rec.elementId,
+      roles: isDeleteMode
+        ? existingRoles.filter((role: string) => !selectedRoles.includes(role))
+        : Array.from(new Set([...existingRoles, ...selectedRoles])),
+    };
+  });
+
+/** One entry per chain, however many of its elements were edited. */
+export const chainIdsOf = (records: AccessControlData[]): string[] =>
+  Array.from(new Set(records.map((rec) => rec.chainId).filter(Boolean)));
+
 export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
   record,
   records,
@@ -71,6 +99,18 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getInitialRoles depends on recordsToProcess
   }, [recordsToProcess, form, isDeleteMode]);
 
+  /** Reports the failure instead of throwing: the roles are saved either way. */
+  const deployChains = async (
+    records: AccessControlData[],
+  ): Promise<Error | undefined> => {
+    try {
+      await bulkDeployAccessControl(chainIdsOf(records));
+      return undefined;
+    } catch (err: unknown) {
+      return err instanceof Error ? err : new Error(String(err));
+    }
+  };
+
   const handleSubmit = async () => {
     if (recordsToProcess.length === 0) {
       notificationService.info("Error", "Element ID is required");
@@ -92,47 +132,14 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
         roles?: string[];
         redeploy?: boolean;
       };
-      const updateRequests: AccessControlUpdateRequest[] = recordsToProcess.map(
-        (rec) => {
-          if (!rec.elementId) {
-            throw new Error("Element ID is required");
-          }
 
-          const props = rec.properties as unknown as
-            | AccessControlProperty
-            | undefined;
-          const existingRoles = Array.isArray(props?.roles) ? props?.roles : [];
-          let finalRoles: string[];
-
-          if (isDeleteMode) {
-            finalRoles = existingRoles.filter(
-              (role: string) => !selectedRoles.includes(role),
-            );
-          } else {
-            const mergedRoles = [...existingRoles, ...selectedRoles];
-            finalRoles = Array.from(new Set(mergedRoles));
-          }
-
-          return {
-            elementId: rec.elementId,
-            roles: finalRoles,
-          };
-        },
+      await updateAccessControl(
+        buildUpdateRequests(recordsToProcess, selectedRoles, isDeleteMode),
       );
 
-      await updateAccessControl(updateRequests);
-
-      let deployError: Error | undefined;
-      if (formValues.redeploy) {
-        const chainIds = Array.from(
-          new Set(recordsToProcess.map((rec) => rec.chainId).filter(Boolean)),
-        );
-        try {
-          await bulkDeployAccessControl(chainIds);
-        } catch (err: unknown) {
-          deployError = err instanceof Error ? err : new Error(String(err));
-        }
-      }
+      const deployError = formValues.redeploy
+        ? await deployChains(recordsToProcess)
+        : undefined;
 
       if (deployError) {
         // The roles are saved either way; a chain that failed keeps its unsaved changes.
