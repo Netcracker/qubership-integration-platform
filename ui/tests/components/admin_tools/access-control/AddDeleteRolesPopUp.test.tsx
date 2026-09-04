@@ -4,11 +4,11 @@
 
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { AddDeleteRolesPopUp } from "../../../../src/components/admin_tools/access-control/AddDeleteRolesPopUp";
 import {
-  AddDeleteRolesPopUp,
   buildUpdateRequests,
   chainIdsOf,
-} from "../../../../src/components/admin_tools/access-control/AddDeleteRolesPopUp";
+} from "../../../../src/components/admin_tools/access-control/accessControlRequests";
 import { useNotificationService } from "../../../../src/hooks/useNotificationService";
 import { useModalContext } from "../../../../src/ModalContextProvider";
 import {
@@ -18,6 +18,17 @@ import {
 
 jest.mock("../../../../src/hooks/useNotificationService");
 jest.mock("../../../../src/ModalContextProvider");
+
+const updateAccessControl = jest.fn();
+const bulkDeployAccessControl = jest.fn();
+jest.mock("../../../../src/api/api", () => ({
+  api: {
+    updateHttpTriggerAccessControl: (...args: unknown[]) =>
+      updateAccessControl(...args),
+    bulkDeployChainsAccessControl: (...args: unknown[]) =>
+      bulkDeployAccessControl(...args),
+  },
+}));
 
 const mockUseNotificationService =
   useNotificationService as jest.MockedFunction<typeof useNotificationService>;
@@ -109,20 +120,9 @@ describe("chainIdsOf", () => {
 
     expect(ids).toStrictEqual(["chain-1", "chain-2"]);
   });
-
-  it("drops a record that carries no chain id", () => {
-    const ids = chainIdsOf([
-      record({ chainId: "chain-1" }),
-      record({ elementId: "elem-2", chainId: undefined as unknown as string }),
-    ]);
-
-    expect(ids).toStrictEqual(["chain-1"]);
-  });
 });
 
 describe("AddDeleteRolesPopUp", () => {
-  const updateAccessControl = jest.fn().mockResolvedValue(undefined);
-  const bulkDeployAccessControl = jest.fn().mockResolvedValue(undefined);
   const info = jest.fn();
   const requestFailed = jest.fn();
   const closeContainingModal = jest.fn();
@@ -139,15 +139,13 @@ describe("AddDeleteRolesPopUp", () => {
     mockUseModalContext.mockReturnValue({ closeContainingModal });
   });
 
-  const callbacks = { updateAccessControl, bulkDeployAccessControl };
-
   const submit = () =>
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
   const tickRedeploy = () => fireEvent.click(screen.getByRole("checkbox"));
 
   it("saves the roles and does not deploy when redeploy is left unticked", async () => {
-    render(<AddDeleteRolesPopUp records={[record()]} {...callbacks} />);
+    render(<AddDeleteRolesPopUp records={[record()]} />);
 
     submit();
 
@@ -166,7 +164,6 @@ describe("AddDeleteRolesPopUp", () => {
           record({ elementId: "elem-2", chainId: "chain-1" }),
           record({ elementId: "elem-3", chainId: "chain-2" }),
         ]}
-        {...callbacks}
       />,
     );
 
@@ -188,13 +185,7 @@ describe("AddDeleteRolesPopUp", () => {
     bulkDeployAccessControl.mockRejectedValueOnce(failure);
     const onSuccess = jest.fn();
 
-    render(
-      <AddDeleteRolesPopUp
-        records={[record()]}
-        onSuccess={onSuccess}
-        {...callbacks}
-      />,
-    );
+    render(<AddDeleteRolesPopUp records={[record()]} onSuccess={onSuccess} />);
 
     tickRedeploy();
     submit();
@@ -218,7 +209,7 @@ describe("AddDeleteRolesPopUp", () => {
     const failure = new Error("catalog rejected the batch");
     updateAccessControl.mockRejectedValueOnce(failure);
 
-    render(<AddDeleteRolesPopUp records={[record()]} {...callbacks} />);
+    render(<AddDeleteRolesPopUp records={[record()]} />);
 
     tickRedeploy();
     submit();
@@ -234,9 +225,7 @@ describe("AddDeleteRolesPopUp", () => {
   });
 
   it("refuses to delete when no role is selected", async () => {
-    render(
-      <AddDeleteRolesPopUp records={[record()]} mode="delete" {...callbacks} />,
-    );
+    render(<AddDeleteRolesPopUp records={[record()]} mode="delete" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 

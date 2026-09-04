@@ -5,63 +5,23 @@ import { useModalContext } from "../../../ModalContextProvider.tsx";
 import {
   AccessControl as AccessControlData,
   AccessControlProperty,
-  AccessControlUpdateRequest,
 } from "../../../api/apiTypes.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
+import { api } from "../../../api/api.ts";
+import { buildUpdateRequests, chainIdsOf } from "./accessControlRequests.ts";
 
 export type AddDeleteRolesPopUpProps = {
-  record?: AccessControlData;
   records?: AccessControlData[];
   onSuccess?: () => void;
   mode?: "add" | "delete";
-  /**
-   * The two calls come from the table's own useAccessControl. Calling the hook here would give
-   * the dialog a second instance of it, which fetches a page of rows nothing renders.
-   */
-  updateAccessControl: (
-    requests: AccessControlUpdateRequest[],
-  ) => Promise<void>;
-  bulkDeployAccessControl: (chainIds: string[]) => Promise<void>;
 };
 
-/** The roles each element ends up with: the selected ones removed, or merged in. */
-export const buildUpdateRequests = (
-  records: AccessControlData[],
-  selectedRoles: string[],
-  isDeleteMode: boolean,
-): AccessControlUpdateRequest[] =>
-  records.map((rec) => {
-    if (!rec.elementId) {
-      throw new Error("Element ID is required");
-    }
-
-    const props = rec.properties as unknown as
-      | AccessControlProperty
-      | undefined;
-    const existingRoles = Array.isArray(props?.roles) ? props.roles : [];
-
-    return {
-      elementId: rec.elementId,
-      roles: isDeleteMode
-        ? existingRoles.filter((role: string) => !selectedRoles.includes(role))
-        : Array.from(new Set([...existingRoles, ...selectedRoles])),
-    };
-  });
-
-/** One entry per chain, however many of its elements were edited. */
-export const chainIdsOf = (records: AccessControlData[]): string[] =>
-  Array.from(new Set(records.map((rec) => rec.chainId).filter(Boolean)));
-
 export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
-  record,
   records,
   onSuccess,
   mode = "add",
-  updateAccessControl,
-  bulkDeployAccessControl,
 }) => {
-  const recordsToProcess =
-    records && records.length > 0 ? records : record ? [record] : [];
+  const recordsToProcess = records ?? [];
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();
   const [form] = Form.useForm();
@@ -107,18 +67,6 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getInitialRoles depends on recordsToProcess
   }, [recordsToProcess, form, isDeleteMode]);
 
-  /** Reports the failure instead of throwing: the roles are saved either way. */
-  const deployChains = async (
-    records: AccessControlData[],
-  ): Promise<Error | undefined> => {
-    try {
-      await bulkDeployAccessControl(chainIdsOf(records));
-      return undefined;
-    } catch (err: unknown) {
-      return err instanceof Error ? err : new Error(String(err));
-    }
-  };
-
   const handleSubmit = async () => {
     if (recordsToProcess.length === 0) {
       notificationService.info("Error", "Element ID is required");
@@ -141,28 +89,27 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
         redeploy?: boolean;
       };
 
-      await updateAccessControl(
+      await api.updateHttpTriggerAccessControl(
         buildUpdateRequests(recordsToProcess, selectedRoles, isDeleteMode),
       );
 
-      const deployError = formValues.redeploy
-        ? await deployChains(recordsToProcess)
-        : undefined;
-
-      if (deployError) {
-        // The roles are saved either way; a chain that failed keeps its unsaved changes.
-        notificationService.requestFailed(
-          isDeleteMode
-            ? "Roles deleted, but some chains were not deployed"
-            : "Roles updated, but some chains were not deployed",
-          deployError,
-        );
-      } else {
+      try {
+        if (formValues.redeploy) {
+          await api.bulkDeployChainsAccessControl(chainIdsOf(recordsToProcess));
+        }
         notificationService.info(
           "Success",
           isDeleteMode
             ? "Roles deleted successfully"
             : "Roles updated successfully",
+        );
+      } catch (err: unknown) {
+        // The roles are saved either way; a chain that failed keeps its unsaved changes.
+        notificationService.requestFailed(
+          isDeleteMode
+            ? "Roles deleted, but some chains were not deployed"
+            : "Roles updated, but some chains were not deployed",
+          err,
         );
       }
       onSuccess?.();

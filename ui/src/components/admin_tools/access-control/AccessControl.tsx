@@ -22,6 +22,8 @@ import { useAccessControl } from "../../../hooks/useAccessControl.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
 import { AbacAttributesPopUp } from "./AbacAttributesPopUp.tsx";
 import { AddDeleteRolesPopUp } from "./AddDeleteRolesPopUp.tsx";
+import { chainIdsOf } from "./accessControlRequests.ts";
+import { api } from "../../../api/api.ts";
 import { useNavigate } from "react-router";
 import {
   DeploymentsCumulativeState,
@@ -83,8 +85,6 @@ export const AccessControl: React.FC = () => {
     accessControlData,
     setAccessControlData,
     getAccessControl,
-    updateAccessControl,
-    bulkDeployAccessControl,
     loadMore,
     allDataLoaded,
   } = useAccessControl(filters);
@@ -146,10 +146,10 @@ export const AccessControl: React.FC = () => {
     }
 
     try {
-      await bulkDeployAccessControl(recordsToDeploy.map((r) => r.chainId));
+      const chainIds = chainIdsOf(recordsToDeploy);
+      await api.bulkDeployChainsAccessControl(chainIds);
 
-      const chainToDeploy = new Set(recordsToDeploy.map((r) => r.chainId));
-      setDeployedChainIds(new Set(chainToDeploy));
+      setDeployedChainIds(new Set(chainIds));
 
       if (accessControlData?.roles) {
         const deployedChainIds = new Set(
@@ -484,8 +484,6 @@ export const AccessControl: React.FC = () => {
                       <AddDeleteRolesPopUp
                         records={validRecords}
                         onSuccess={() => void getAccessControl()}
-                        updateAccessControl={updateAccessControl}
-                        bulkDeployAccessControl={bulkDeployAccessControl}
                       />
                     ),
                   });
@@ -536,8 +534,6 @@ export const AccessControl: React.FC = () => {
                         records={validRecords}
                         mode="delete"
                         onSuccess={() => void getAccessControl()}
-                        updateAccessControl={updateAccessControl}
-                        bulkDeployAccessControl={bulkDeployAccessControl}
                       />
                     ),
                   });
