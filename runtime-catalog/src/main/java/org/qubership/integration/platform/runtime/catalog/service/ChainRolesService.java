@@ -110,22 +110,15 @@ public class ChainRolesService {
         return new ChainRolesResponse(offset + chainRolesResponse.size(), chainRolesResponse);
     }
 
-    /**
-     * Applies roles to every element of the batch, or to none of them: an element that cannot take
-     * the update is rejected before the first write.
-     */
+    /** Applies the roles to every element of the batch, or to none of them. */
     @Transactional
     public void updateRoles(List<UpdateRolesRequest> request) {
-        List<ChainElement> elements = resolveElements(request);
-        for (int i = 0; i < elements.size(); i++) {
-            applyRoles(elements.get(i), request.get(i).getRoles());
-        }
+        resolveUpdates(request).forEach(update -> applyRoles(update.element(), update.roles()));
     }
 
     /**
-     * Resolves every chain id before deploying anything, so an id that names no chain deploys
-     * nothing. Past that point the batch runs to the end: a chain that fails to deploy does not
-     * stop the rest, keeps its roles as unsaved changes, and is named in the error.
+     * An id that names no chain deploys nothing. Past that point the batch runs to the end: a chain
+     * that fails keeps its roles as unsaved changes and is named in the error.
      */
     public void redeploy(List<String> chainIds) {
         List<Chain> chains = chainIds.stream()
@@ -133,29 +126,32 @@ public class ChainRolesService {
                 .map(chainFinderService::findById)
                 .toList();
 
-        Map<String, RuntimeException> failures = new LinkedHashMap<>();
+        List<RuntimeException> failures = new ArrayList<>();
         for (Chain chain : chains) {
             try {
                 redeployChain(chain);
             } catch (RuntimeException exception) {
                 // Only the message survives into the aggregate error, so keep the trace here.
                 log.error("Unable to redeploy chain {}", chain.getId(), exception);
-                failures.put(chain.getId(), exception);
+                failures.add(exception);
             }
         }
         reportRedeployFailures(failures, chains.size());
     }
 
-    private List<ChainElement> resolveElements(List<UpdateRolesRequest> request) {
-        List<ChainElement> elements = new ArrayList<>(request.size());
+    private record RoleUpdate(ChainElement element, Set<String> roles) {
+    }
+
+    private List<RoleUpdate> resolveUpdates(List<UpdateRolesRequest> request) {
+        List<RoleUpdate> updates = new ArrayList<>(request.size());
         for (UpdateRolesRequest updateRequest : request) {
             ChainElement element = elementService.findById(updateRequest.getElementId());
             if (ACCESS_CONTROL_TYPE_ABAC.equals(element.getPropertyAsString(ACCESS_CONTROL_TYPE))) {
                 throw new AbacRoleChangeException(element.getId());
             }
-            elements.add(element);
+            updates.add(new RoleUpdate(element, updateRequest.getRoles()));
         }
-        return elements;
+        return updates;
     }
 
     private void applyRoles(ChainElement element, Set<String> roles) {
@@ -218,23 +214,20 @@ public class ChainRolesService {
         }
     }
 
-    private void reportRedeployFailures(Map<String, RuntimeException> failures, int chainCount) {
+    private void reportRedeployFailures(List<RuntimeException> failures, int chainCount) {
         if (failures.isEmpty()) {
             return;
         }
         // A single failure keeps its own type, so the handler can still point at the broken element.
         if (failures.size() == 1) {
-            throw failures.values().iterator().next();
+            throw failures.get(0);
         }
-        String details = failures.entrySet().stream()
-                .map(failure -> failure.getKey() + ": " + failure.getValue().getMessage())
+        // Every message already names its chain, so the count and the messages tell the whole story.
+        String details = failures.stream()
+                .map(Throwable::getMessage)
                 .collect(Collectors.joining("; "));
-        String scope = failures.size() == chainCount
-                ? "Unable to redeploy any of the " + chainCount + " chains."
-                : "Unable to redeploy " + failures.size() + " of " + chainCount
-                        + " chains; the rest were redeployed.";
-        throw new DeploymentProcessingException(scope
-                + " Chains that still carry unsaved changes: " + details);
+        throw new DeploymentProcessingException("Unable to redeploy " + failures.size() + " of "
+                + chainCount + " chains. Chains that still carry unsaved changes: " + details);
     }
 
 

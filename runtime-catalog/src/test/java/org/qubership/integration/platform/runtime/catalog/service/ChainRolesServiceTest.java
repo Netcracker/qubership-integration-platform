@@ -233,7 +233,7 @@ class ChainRolesServiceTest {
     }
 
     @Test
-    @DisplayName("A batch that fails whole says so, rather than claiming a rest that was redeployed")
+    @DisplayName("A batch in which every chain fails counts them all and deploys nothing")
     void redeployReportsThatNothingWasDeployedWhenEveryChainFails() {
         when(chainFinderService.findById(CHAIN_ID)).thenReturn(chain(CHAIN_ID));
         when(chainFinderService.findById(OTHER_CHAIN_ID)).thenReturn(chain(OTHER_CHAIN_ID));
@@ -244,8 +244,7 @@ class ChainRolesServiceTest {
 
         assertThatThrownBy(() -> chainRolesService.redeploy(batch))
                 .isInstanceOf(DeploymentProcessingException.class)
-                .hasMessageContaining("any of the 2 chains")
-                .hasMessageNotContaining("the rest were redeployed")
+                .hasMessageContaining("2 of 2 chains")
                 .hasMessageContaining(CHAIN_ID)
                 .hasMessageContaining(OTHER_CHAIN_ID);
 
@@ -272,7 +271,7 @@ class ChainRolesServiceTest {
 
         assertThatThrownBy(() -> chainRolesService.redeploy(batch))
                 .isInstanceOf(DeploymentProcessingException.class)
-                .hasMessageContaining("2 of 3 chains; the rest were redeployed")
+                .hasMessageContaining("2 of 3 chains")
                 .hasMessageContaining(CHAIN_ID)
                 .hasMessageContaining(OTHER_CHAIN_ID);
 
