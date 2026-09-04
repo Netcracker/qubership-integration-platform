@@ -57,29 +57,12 @@ properties:
       mandatory: true
     - name: routingKey
       title: Routing Key
+      description: >
+         The routing key that binds the queue to the exchange. The chain does not create the
+         binding; declare it through MaaS or on the broker.
       type: string
       query: true
   advanced:
-    - name: autoDeclare
-      title: Declare Topology
-      description: >
-         <p>
-            Whether the chain declares the exchange, the queue and the binding between them when it
-            starts, along with the dead letter entities below.
-         </p>
-         <p>
-            Leave it off where the broker topology is managed elsewhere - through MaaS, or by hand -
-            and the chain will only consume from what already exists. Turn it on to own the topology
-            from here: the exchange type, the routing key and the four dead letter fields are applied
-            when the entities are declared, and have no effect otherwise.
-         </p>
-         <p>
-            A queue that already exists with different properties is not modified: the broker rejects
-            the declaration and the chain fails to deploy, naming the property that differs.
-         </p>
-      type: boolean
-      default: false
-      query: false
     - name: acknowledgeMode
       title: Acknowledge Mode
       description: >
@@ -102,6 +85,9 @@ properties:
       default: AUTO
     - name: exchangeType
       title: Exchange Type
+      description: >
+         The type the exchange is declared with. The chain does not create the exchange; declare
+         it through MaaS or on the broker.
       allowCustomValue: false
       type: string
       allowedValues:
@@ -114,10 +100,16 @@ properties:
       default: direct
     - name: deadLetterExchange
       title: Dead Letter Exchange
+      description: >
+         The exchange rejected messages are routed to. Dead lettering is an argument of the queue,
+         set when the queue is declared, so declare the queue with it through MaaS or on the broker.
       type: string
       query: true
     - name: deadLetterExchangeType
       title: Dead Letter Exchange Type
+      description: >
+         The type the dead letter exchange is declared with. The chain does not create the
+         exchange; declare it through MaaS or on the broker.
       allowCustomValue: false
       type: string
       allowedValues:
@@ -130,10 +122,16 @@ properties:
       default: direct
     - name: deadLetterQueue
       title: Dead Letter Queue
+      description: >
+         The queue rejected messages are routed to. The chain does not create it; declare it
+         through MaaS or on the broker.
       type: string
       query: true
     - name: deadLetterRoutingKey
       title: Dead Letter Routing Key
+      description: >
+         The routing key that binds the dead letter queue to the dead letter exchange. The chain
+         does not create the binding; declare it through MaaS or on the broker.
       type: string
       query: true
   hidden:

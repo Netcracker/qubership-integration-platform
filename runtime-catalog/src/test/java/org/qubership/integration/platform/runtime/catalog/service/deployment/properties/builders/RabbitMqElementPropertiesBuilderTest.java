@@ -96,23 +96,6 @@ class RabbitMqElementPropertiesBuilderTest {
         verify(maasPropertiesUtils).enrichWithMaasEnvProperties(eq(element), any());
     }
 
-    @Test
-    void buildCarriesTheDeclareTopologyFlagThroughToTheEngine() {
-        // The engine reads it to decide whether to insist the queue already exists: an element that
-        // declares its own topology creates whatever is missing when the route starts.
-        Element element = elementOfType(CamelNames.RABBITMQ_TRIGGER_2_COMPONENT);
-        when(element.getOriginalId()).thenReturn(Optional.of("orig-2"));
-        Map<String, Object> elementProperties = new HashMap<>();
-        elementProperties.put(CamelOptions.ADDRESSES, "host:5672");
-        elementProperties.put(CamelOptions.QUEUES, "orders");
-        elementProperties.put(CamelOptions.AUTO_DECLARE, "true");
-        when(element.getProperties()).thenReturn(elementProperties);
-
-        RabbitMqElementPropertiesBuilder builder = new RabbitMqElementPropertiesBuilder(maasPropertiesUtils);
-
-        assertThat(builder.build(element)).containsEntry(CamelOptions.AUTO_DECLARE, "true");
-    }
-
     private Element elementOfType(String type) {
         Element element = mock(Element.class);
         when(element.getType()).thenReturn(type);

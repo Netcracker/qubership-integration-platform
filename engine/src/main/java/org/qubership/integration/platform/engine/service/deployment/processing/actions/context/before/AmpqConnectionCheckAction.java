@@ -20,6 +20,7 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.component.springrabbit.SpringRabbitMQHelper;
 import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -103,14 +104,16 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
             String vhost = getProp(props, ElementOptions.VHOST);
             String ssl = getProp(props, ElementOptions.SSL);
 
-            // An element that declares its own topology creates whatever is missing when the route
-            // starts, so requiring it to exist beforehand would block a chain that works. Only the
-            // v1 trigger does that unconditionally; rabbitmq-trigger-2 does it on request.
-            if (!isProducerElement && declaresItsOwnTopology(chainElementType, props)) {
+            // The deprecated v1 trigger creates its queue when the route starts, so requiring the
+            // queue to exist beforehand would block a chain that works today.
+            if (!isProducerElement && declaresItsOwnTopology(chainElementType)) {
                 return;
             }
 
-            if (StringUtils.isBlank(exchange) || StringUtils.isBlank(addresses)
+            // What the check itself needs. The exchange is not on the list: a consumer that
+            // declares nothing never touches it, and a producer that names none publishes through
+            // the default exchange.
+            if (StringUtils.isBlank(addresses)
                     || (!isProducerElement && StringUtils.isBlank(queues))) {
                 throw new IllegalArgumentException(
                     "AMQP mandatory parameters are missing, check configuration");
@@ -176,6 +179,11 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
         String queues
     ) {
         if (isProducerElement) {
+            // The broker pre-declares the default exchange and refuses to declare it again, even
+            // passively. Camel sends through it whenever the name is empty or "default".
+            if (SpringRabbitMQHelper.isDefaultExchange(exchange)) {
+                return;
+            }
             try {
                 channel.exchangeDeclarePassive(exchange);
             } catch (IOException e) {
@@ -198,20 +206,16 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
     }
 
     /**
-     * Whether the consumer declares the exchange, the queue and their binding when the route starts,
-     * in which case the broker is not expected to carry them yet.
+     * Whether the consumer declares the queue when the route starts, in which case the broker is
+     * not expected to carry it yet.
      *
-     * <p>The deprecated {@code rabbitmq} trigger leaves Camel's {@code autoDeclare} at its default,
-     * which is on for a consumer. {@code rabbitmq-trigger-2} pins it off and offers it as a
-     * property. Every other AMQP element pins it off or is a producer, and a producer never
-     * declares - Camel's {@code autoDeclareProducer} defaults to off and no template turns it on.
+     * <p>Only the deprecated {@code rabbitmq} trigger does: it leaves Camel's {@code autoDeclare}
+     * at its default, which is on for a consumer. Every other AMQP element pins it off or is a
+     * producer, and a producer never declares - Camel's {@code autoDeclareProducer} defaults to off
+     * and no template turns it on.
      */
-    static boolean declaresItsOwnTopology(ChainElementType chainElementType, Map<String, String> props) {
-        return switch (chainElementType) {
-            case RABBITMQ_TRIGGER -> true;
-            case RABBITMQ_TRIGGER_2 -> Boolean.parseBoolean(props.get(ElementOptions.AUTO_DECLARE));
-            default -> false;
-        };
+    static boolean declaresItsOwnTopology(ChainElementType chainElementType) {
+        return chainElementType == ChainElementType.RABBITMQ_TRIGGER;
     }
 
     /**

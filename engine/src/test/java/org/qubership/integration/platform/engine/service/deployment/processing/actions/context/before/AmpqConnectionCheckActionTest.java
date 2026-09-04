@@ -82,32 +82,23 @@ class AmpqConnectionCheckActionTest {
     }
 
     @Test
-    @DisplayName("An element that declares its own topology is not asked to have one already")
-    void declaringElementsAreNotAskedForExistingTopology() {
-        // The deprecated v1 trigger leaves Camel's autoDeclare at its default, which is on for a
-        // consumer: it creates the queue itself, so demanding one beforehand would block a chain
-        // that works.
+    @DisplayName("Only the deprecated v1 trigger declares its own queue")
+    void onlyTheDeprecatedTriggerDeclaresItsOwnQueue() {
+        // It leaves Camel's autoDeclare at its default, which is on for a consumer: it creates the
+        // queue itself, so demanding one beforehand would block a chain that works today.
         assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_TRIGGER, Map.of())).isTrue();
+                ChainElementType.RABBITMQ_TRIGGER)).isTrue();
 
+        // rabbitmq-trigger-2 pins autoDeclare off, and a producer never declares - Camel's
+        // autoDeclareProducer is off by default and no template turns it on.
         assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_TRIGGER_2, Map.of(ElementOptions.AUTO_DECLARE, "true"))).isTrue();
+                ChainElementType.RABBITMQ_TRIGGER_2)).isFalse();
         assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_TRIGGER_2, Map.of(ElementOptions.AUTO_DECLARE, "false"))).isFalse();
+                ChainElementType.ASYNCAPI_TRIGGER)).isFalse();
         assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_TRIGGER_2, Map.of())).isFalse();
-    }
-
-    @Test
-    @DisplayName("A producer never declares, whatever it is")
-    void producersNeverDeclare() {
-        // Camel's autoDeclareProducer is off by default and no template turns it on.
+                ChainElementType.RABBITMQ_SENDER)).isFalse();
         assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_SENDER, Map.of(ElementOptions.AUTO_DECLARE, "true"))).isFalse();
-        assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_SENDER_2, Map.of())).isFalse();
-        assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.ASYNCAPI_TRIGGER, Map.of())).isFalse();
+                ChainElementType.RABBITMQ_SENDER_2)).isFalse();
     }
 
     @Test
@@ -140,6 +131,20 @@ class AmpqConnectionCheckActionTest {
         AmpqConnectionCheckAction.assertTopologyExists(channel, true, "orders-exchange", null);
         verify(channel).exchangeDeclarePassive("orders-exchange");
         verifyNoMoreInteractions(channel);
+    }
+
+    @Test
+    @DisplayName("A producer publishing through the default exchange has nothing to check")
+    void defaultExchangeIsNotCheckedAgainstTheBroker() throws IOException {
+        // The broker pre-declares it and refuses to declare it again, even passively. Camel sends
+        // through it whenever the name is empty or "default", so the element ships with "default".
+        Channel channel = mock(Channel.class);
+
+        AmpqConnectionCheckAction.assertTopologyExists(channel, true, "default", null);
+        AmpqConnectionCheckAction.assertTopologyExists(channel, true, "", null);
+        AmpqConnectionCheckAction.assertTopologyExists(channel, true, null, null);
+
+        verify(channel, never()).exchangeDeclarePassive(anyString());
     }
 
     @Test
@@ -198,10 +203,9 @@ class AmpqConnectionCheckActionTest {
     }
 
     @Test
-    @DisplayName("An element that declares its own topology is left alone entirely")
-    void declaringElementIsNotEvenConnectedTo() {
-        ElementProperties properties = element("rabbitmq-trigger-2", "manual");
-        properties.getProperties().put(ElementOptions.AUTO_DECLARE, "true");
+    @DisplayName("The deprecated v1 trigger is left alone entirely")
+    void deprecatedTriggerIsNotEvenConnectedTo() {
+        ElementProperties properties = element("rabbitmq", "manual");
         // Unreachable on purpose: reaching the broker at all would fail this test.
         properties.getProperties().put(ElementOptions.ADDRESSES, "127.0.0.1:1");
         properties.getProperties().put(ElementOptions.EXCHANGE, "ex");

@@ -199,11 +199,6 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/rabbitmq_trigger_2.xml"
                 ),
                 Arguments.of(
-                        "RabbitMQ Trigger 2 element declaring its own topology",
-                        "/testData/input/builder/templates/rabbitmq_trigger_2_declare.yml",
-                        "/testData/output/builder/templates/rabbitmq_trigger_2_declare.xml"
-                ),
-                Arguments.of(
                         "RabbitMQ Sender 2 element",
                         "/testData/input/builder/templates/rabbitmq_sender_2.yml",
                         "/testData/output/builder/templates/rabbitmq_sender_2.xml"

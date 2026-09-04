@@ -24,15 +24,6 @@ properties:
         title: Queue(s) Name
         description: >
           The queue(s) to use for consuming messages (separated by comma).
-      autoDeclare:
-        type: boolean
-        default: false
-        title: Declare Topology
-        description: >
-          Whether the chain declares the exchange, the queue and the binding between them when it
-          starts, along with the dead letter entities. The exchange type, the routing key and the
-          four dead letter properties are applied when the entities are declared, and have no effect
-          otherwise.
       acknowledgeMode:
         $ref: "#/definitions/AcknowledgeMode"
       exchangeType:
