@@ -80,6 +80,42 @@ public record RequirementDraft(
         null);
   }
 
+  /** Compatibility constructor for drafts captured before preferredSystemType. */
+  public RequirementDraft(
+      boolean complete,
+      String assembledText,
+      DraftDecision decision,
+      List<String> openQuestions,
+      String sourceSkillId,
+      String sourceSkillVersion,
+      String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate,
+      boolean awaitingPlanContinuation,
+      List<RequirementFact> facts,
+      boolean importIntent,
+      String apiHubCandidateInteractionId,
+      Boolean idsRequested,
+      RequirementFlow flow,
+      List<CatalogBindingHint> catalogBindings) {
+    this(
+        complete,
+        assembledText,
+        decision,
+        openQuestions,
+        sourceSkillId,
+        sourceSkillVersion,
+        sourceSkillHash,
+        apiHubCandidate,
+        awaitingPlanContinuation,
+        facts,
+        importIntent,
+        apiHubCandidateInteractionId,
+        idsRequested,
+        flow,
+        catalogBindings,
+        null);
+  }
+
   /** Compatibility constructor for drafts captured before business-first flow ownership. */
   public RequirementDraft(
       boolean complete,
