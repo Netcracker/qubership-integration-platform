@@ -20,6 +20,8 @@ import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSi
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
@@ -87,12 +89,23 @@ public class ChatExecutionService {
 
   /** True when the request answers a card with a command the facade runs rather than a scenario. */
   private static boolean runsAsCommand(ChatRequest request) {
-    return request.getDecision() != null && !runsAsScenario(request.getDecision().getAction());
+    return request.getDecision() != null && !runsAsScenario(request);
   }
 
   /** Cards owned by a scenario rather than by the CREATE facade, answered by that scenario. */
-  private static boolean runsAsScenario(String action) {
-    return ChatEvent.IMPORT_ACTION.equals(action)
+  private static boolean runsAsScenario(ChatRequest request) {
+    ChatDecisionCommand decision = request.getDecision();
+    if (decision == null) {
+      return false;
+    }
+    if (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(decision.getArtifactType())) {
+      return false;
+    }
+    return runsAsScenarioAction(decision.getAction());
+  }
+
+  private static boolean runsAsScenarioAction(String action) {
+    return ChatEvent.isImportAction(action)
         || ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action)
         || ChatEvent.REDEPLOY_ACTION.equals(action)
         || ChatEvent.CANCEL_REDEPLOY_ACTION.equals(action)
@@ -109,7 +122,7 @@ public class ChatExecutionService {
   /** The click names the scenario, so the router does not guess it from transcript wording. */
   private static void applyScenarioHint(ChatRequest request) {
     String action = request.getDecision().getAction();
-    if (ChatEvent.IMPORT_ACTION.equals(action)) {
+    if (ChatEvent.isImportAction(action)) {
       request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
       return;
     }
@@ -169,6 +182,7 @@ public class ChatExecutionService {
       request.setResolvedEffectiveUserText(
           ChatDecisionService.transcriptMarker(request.getDecision(), domain));
       applyScenarioHint(request);
+      decisionService.rememberImportChoice(conversationId, request.getDecision());
     } else {
       request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
       if (pendingRedeployStore
