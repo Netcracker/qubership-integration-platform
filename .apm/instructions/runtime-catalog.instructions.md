@@ -61,6 +61,14 @@ mvn checkstyle:check
 - **Checkstyle** enforced at compile time (rules from `qubership-integration-checkstyle` artifact)
 - Tests use `@ExtendWith(SpringExtension.class)` with `@ContextConfiguration` (lightweight, no full app context); test resources include both `src/test/resources` and `src/main/resources`
 
+### The Protobuf toolchain
+
+gRPC specification import shells out to `protoc` and `protoc-gen-grpc-java`. Both are resolved from
+Maven Central by `maven-dependency-plugin` into `target/protobuf-toolchain/` and copied into the
+image, so their versions follow `<protobuf-java.version>` and `<grpc.version>` in the pom — the
+libraries the generated code is compiled and executed against. Bump those properties and the
+toolchain follows; do not pin the binaries anywhere else.
+
 ### Local stack quirks
 
 One behavior of the local Docker stack looks like a defect in this service but is not:
