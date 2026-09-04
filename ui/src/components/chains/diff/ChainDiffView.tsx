@@ -1,5 +1,5 @@
 import { Col, Flex, FlexProps, Row, Spin } from "antd";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ChainDiffViewControls,
   DiffViewType,
@@ -7,7 +7,10 @@ import {
 import { ChainDiffTableView } from "./ChainDiffTableView.tsx";
 import { ChainDiffGraphView } from "./ChainDiffGraphView.tsx";
 import { ElementSchemasProvider } from "./ElementSchemasProvider.tsx";
-import { ChainDiffTextView } from "./ChainDiffTextView.tsx";
+import {
+  ChainDiffTextView,
+  ChainDiffTextViewHandle,
+} from "./ChainDiffTextView.tsx";
 import { ComparedItemSelector } from "./ComparedItemSelector.tsx";
 import { ComparableItem, useChainDiff } from "./useChainDiff.tsx";
 import styles from "./ChainDiffView.module.css";
@@ -39,6 +42,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
   } = useChainDiff(i1, i2);
 
   const [viewType, setViewType] = useState<DiffViewType>("graph");
+  const textViewRef = useRef<ChainDiffTextViewHandle>(null);
 
   return isLoading ? (
     <Spin className={styles.loader} size={"large"}></Spin>
@@ -70,6 +74,16 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
         selectedChangeId={selectedChangeId}
         onSelectChange={setSelectedChangeId}
         onViewTypeChange={(viewType) => setViewType(viewType)}
+        onPreviousChange={
+          viewType === "text"
+            ? () => textViewRef.current?.goToDiff("previous")
+            : undefined
+        }
+        onNextChange={
+          viewType === "text"
+            ? () => textViewRef.current?.goToDiff("next")
+            : undefined
+        }
       />
       <ElementSchemasProvider>
         {viewType === "graph" ? (
@@ -90,6 +104,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
           />
         ) : (
           <ChainDiffTextView
+            ref={textViewRef}
             chain1={chain1}
             chain2={chain2}
             changes={changes ?? []}
