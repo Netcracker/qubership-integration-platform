@@ -69,6 +69,13 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
                 getPropertyAsString(element, CamelOptions.CONNECTION_SOURCE_TYPE_PROP),
                 getPropertyAsString(element, CamelOptions.VHOST)
         );
+        // The engine needs to know whether the element declares its own topology: a chain that does
+        // creates whatever is missing when the route starts, so the predeploy check must not demand
+        // that it already exist.
+        elementProperties.put(
+                CamelOptions.AUTO_DECLARE,
+                getPropertyAsString(element, CamelOptions.AUTO_DECLARE));
+
         enrichWithAdditionalProperties(element, elementProperties);
         return elementProperties;
     }

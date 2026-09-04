@@ -26,6 +26,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.cha
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
+import org.qubership.integration.platform.runtime.catalog.util.ElementPropertyDefaults;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
@@ -59,6 +60,10 @@ public class ChainElementsExternalEntityMapper {
      * by id regardless of iteration order. Element property files are already substituted into the
      * model, so no file lookup happens here; {@code createdWhen} is re-stamped because the model does
      * not carry it.
+     *
+     * <p>A document may leave out any property that has a library default, so the defaults are filled
+     * in here, exactly as creating the element would. Without that, the same chain compiles to a
+     * different route depending on whether it was built through the API or imported from a document.
      */
     public List<ChainElement> toInternalEntity(@NonNull Collection<Element> modelElements) {
         Map<String, ChainElement> resultElements = new LinkedHashMap<>();
@@ -117,11 +122,18 @@ public class ChainElementsExternalEntityMapper {
         element.setDescription(modelElement.getDescription());
         element.setOriginalId(modelElement.getOriginalId().orElse(null));
         element.setEnvironment(toEnvironmentEntity(modelElement.getEnvironment().orElse(null)));
-        element.setProperties(modelElement.getProperties());
+        element.setProperties(propertiesWithDefaults(modelElement, descriptor));
         element.setCreatedWhen(new Timestamp(System.currentTimeMillis()));
 
         resultElements.put(element.getId(), element);
         return element;
+    }
+
+    private Map<String, Object> propertiesWithDefaults(Element modelElement, ElementDescriptor descriptor) {
+        Map<String, Object> properties = ElementPropertyDefaults.of(
+                descriptor.getProperties(), modelElement.getId(), modelElement.getChain().getId());
+        properties.putAll(modelElement.getProperties());
+        return properties;
     }
 
     private ElementDescriptor resolveDescriptor(String type) {

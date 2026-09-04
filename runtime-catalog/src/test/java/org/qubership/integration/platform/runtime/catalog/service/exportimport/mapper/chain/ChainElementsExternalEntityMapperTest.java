@@ -20,18 +20,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.chain.impl.ChainImpl;
 import org.qubership.integration.platform.chain.impl.ElementImpl;
 import org.qubership.integration.platform.chain.impl.ServiceEnvironmentImpl;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementProperty;
 import org.qubership.integration.platform.library.model.ElementType;
+import org.qubership.integration.platform.library.model.PropertyValueType;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementsExternalMapperEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,9 +57,12 @@ class ChainElementsExternalEntityMapperTest {
 
     private LibraryElementsService libraryService;
     private ChainElementsExternalEntityMapper mapper;
+    private ChainImpl chain;
 
     @BeforeEach
     void setUp() {
+        chain = new ChainImpl();
+        chain.setId("chain-1");
         libraryService = mock(LibraryElementsService.class);
         // A real substitutor is a no-op for elements whose properties do not opt into separate files,
         // so the mapper output stays the honest oracle here.
@@ -65,10 +72,28 @@ class ChainElementsExternalEntityMapperTest {
     }
 
     private void stubDescriptor(String type, ElementType elementType, boolean container) {
+        stubDescriptor(type, elementType, container, List.of());
+    }
+
+    private void stubDescriptor(
+            String type,
+            ElementType elementType,
+            boolean container,
+            List<ElementProperty> properties
+    ) {
         ElementDescriptor descriptor = new ElementDescriptor();
         descriptor.setType(elementType);
         descriptor.setContainer(container);
+        descriptor.getProperties().setHidden(new ArrayList<>(properties));
         lenient().when(libraryService.lookupElementDescriptor(type)).thenReturn(Optional.of(descriptor));
+    }
+
+    private static ElementProperty property(String name, String defaultValue, PropertyValueType type) {
+        ElementProperty property = new ElementProperty();
+        property.setName(name);
+        property.setDefaultValue(defaultValue);
+        property.setType(type);
+        return property;
     }
 
     // ---- toInternalEntity: the library model tree -> JPA element tree ----
@@ -78,6 +103,7 @@ class ChainElementsExternalEntityMapperTest {
     void mapsScalarFieldsOfLeafElement() {
         stubDescriptor("http-sender", ElementType.MODULE, false);
         ElementImpl model = new ElementImpl();
+        model.setChain(chain);
         model.setId("el-1");
         model.setType("http-sender");
         model.setName("Sender");
@@ -105,6 +131,7 @@ class ChainElementsExternalEntityMapperTest {
     void mapsMissingOriginalIdToNull() {
         stubDescriptor("http-sender", ElementType.MODULE, false);
         ElementImpl model = new ElementImpl();
+        model.setChain(chain);
         model.setId("el-1");
         model.setType("http-sender");
 
@@ -120,9 +147,11 @@ class ChainElementsExternalEntityMapperTest {
         stubDescriptor("http-sender", ElementType.MODULE, false);
 
         ElementImpl child = new ElementImpl();
+        child.setChain(chain);
         child.setId("child-1");
         child.setType("http-sender");
         ElementImpl container = new ElementImpl();
+        container.setChain(chain);
         container.setId("container-1");
         container.setType("container");
         container.setContainer(true);
@@ -149,9 +178,11 @@ class ChainElementsExternalEntityMapperTest {
         stubDescriptor("http-sender", ElementType.MODULE, false);
 
         ElementImpl swimlaneModel = new ElementImpl();
+        swimlaneModel.setChain(chain);
         swimlaneModel.setId("lane-1");
         swimlaneModel.setType("swimlane");
         ElementImpl member = new ElementImpl();
+        member.setChain(chain);
         member.setId("member-1");
         member.setType("http-sender");
         member.setSwimlane(swimlaneModel);
@@ -182,6 +213,7 @@ class ChainElementsExternalEntityMapperTest {
         env.setModifiedWhen(222L);
 
         ElementImpl model = new ElementImpl();
+        model.setChain(chain);
         model.setId("el-1");
         model.setType("service-call");
         model.setServiceEnvironment(env);
@@ -208,6 +240,7 @@ class ChainElementsExternalEntityMapperTest {
     void fallsBackToContainerDescriptorForUnknownContainer() {
         when(libraryService.lookupElementDescriptor("container")).thenReturn(Optional.empty());
         ElementImpl model = new ElementImpl();
+        model.setChain(chain);
         model.setId("container-1");
         model.setType("container");
         model.setContainer(true);
@@ -217,11 +250,79 @@ class ChainElementsExternalEntityMapperTest {
         assertInstanceOf(ContainerChainElement.class, element);
     }
 
+    @DisplayName("Fills in a library default the document leaves out")
+    @Test
+    void fillsInLibraryDefaultTheDocumentOmits() {
+        stubDescriptor("http-trigger", ElementType.MODULE, false,
+                List.of(property("httpBinding", "handlingHttpBinding", PropertyValueType.STRING)));
+        ElementImpl model = new ElementImpl();
+        model.setChain(chain);
+        model.setId("el-1");
+        model.setType("http-trigger");
+        model.setProperties(new HashMap<>(Map.of("contextPath", "orders")));
+
+        ChainElement element = mapper.toInternalEntity(List.of(model)).get(0);
+
+        assertEquals("handlingHttpBinding", element.getProperty("httpBinding"));
+        assertEquals("orders", element.getProperty("contextPath"));
+    }
+
+    @DisplayName("Keeps the document value when it sets a property that also has a default")
+    @Test
+    void keepsDocumentValueOverLibraryDefault() {
+        stubDescriptor("http-trigger", ElementType.MODULE, false,
+                List.of(property("httpBinding", "handlingHttpBinding", PropertyValueType.STRING)));
+        ElementImpl model = new ElementImpl();
+        model.setChain(chain);
+        model.setId("el-1");
+        model.setType("http-trigger");
+        model.setProperties(new HashMap<>(Map.of("httpBinding", "customBinding")));
+
+        ChainElement element = mapper.toInternalEntity(List.of(model)).get(0);
+
+        assertEquals("customBinding", element.getProperty("httpBinding"));
+    }
+
+    @DisplayName("Converts a filled-in default to the type the library declares")
+    @Test
+    void convertsFilledInDefaultToItsDeclaredType() {
+        stubDescriptor("http-trigger", ElementType.MODULE, false,
+                List.of(property("externalRoute", "true", PropertyValueType.BOOLEAN),
+                        property("connectTimeout", "120000", PropertyValueType.NUMBER)));
+        ElementImpl model = new ElementImpl();
+        model.setChain(chain);
+        model.setId("el-1");
+        model.setType("http-trigger");
+
+        ChainElement element = mapper.toInternalEntity(List.of(model)).get(0);
+
+        assertEquals(Boolean.TRUE, element.getProperty("externalRoute"));
+        assertEquals(120000L, element.getProperty("connectTimeout"));
+    }
+
+    @DisplayName("Resolves element and chain placeholders in a filled-in default")
+    @Test
+    void resolvesPlaceholdersInFilledInDefault() {
+        stubDescriptor("checkpoint", ElementType.MODULE, false,
+                List.of(property("contextPath",
+                        "/chains/%%{chain-id-placeholder}/checkpoint-elements/%%{created-element-id-placeholder}/retry",
+                        PropertyValueType.STRING)));
+        ElementImpl model = new ElementImpl();
+        model.setChain(chain);
+        model.setId("el-1");
+        model.setType("checkpoint");
+
+        ChainElement element = mapper.toInternalEntity(List.of(model)).get(0);
+
+        assertEquals("/chains/chain-1/checkpoint-elements/el-1/retry", element.getProperty("contextPath"));
+    }
+
     @DisplayName("Rejects an element whose type is neither known nor the container fallback")
     @Test
     void rejectsUnknownElementType() {
         when(libraryService.lookupElementDescriptor("mystery")).thenReturn(Optional.empty());
         ElementImpl model = new ElementImpl();
+        model.setChain(chain);
         model.setId("el-1");
         model.setType("mystery");
 

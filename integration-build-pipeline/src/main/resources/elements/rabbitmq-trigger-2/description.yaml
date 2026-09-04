@@ -60,6 +60,26 @@ properties:
       type: string
       query: true
   advanced:
+    - name: autoDeclare
+      title: Declare Topology
+      description: >
+         <p>
+            Whether the chain declares the exchange, the queue and the binding between them when it
+            starts, along with the dead letter entities below.
+         </p>
+         <p>
+            Leave it off where the broker topology is managed elsewhere - through MaaS, or by hand -
+            and the chain will only consume from what already exists. Turn it on to own the topology
+            from here: the exchange type, the routing key and the four dead letter fields are applied
+            when the entities are declared, and have no effect otherwise.
+         </p>
+         <p>
+            A queue that already exists with different properties is not modified: the broker rejects
+            the declaration and the chain fails to deploy, naming the property that differs.
+         </p>
+      type: boolean
+      default: false
+      query: false
     - name: acknowledgeMode
       title: Acknowledge Mode
       description: >

@@ -42,6 +42,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.Cr
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
+import org.qubership.integration.platform.runtime.catalog.util.ElementPropertyDefaults;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.lang.NonNull;
@@ -498,14 +499,7 @@ public class ElementService extends ElementBaseService {
     }
 
     protected Map<String, Object> createPropertiesMap(ElementProperties properties, String elementId, String chainId) {
-        return new HashMap<>(properties.getAll().stream()
-                .filter(prop -> StringUtils.isNotBlank(prop.getDefaultValue()))
-                .collect(Collectors.toMap(
-                        ElementProperty::getName,
-                        prop -> PropertyValueType.STRING.equals(prop.getType())
-                                ? PropertyPlaceholderService.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
-                                : prop.defaultValue()
-                )));
+        return ElementPropertyDefaults.of(properties, elementId, chainId);
     }
 
     @ChainModification
