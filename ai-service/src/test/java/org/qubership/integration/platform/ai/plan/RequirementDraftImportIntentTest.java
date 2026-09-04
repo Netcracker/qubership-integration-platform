@@ -164,6 +164,54 @@ class RequirementDraftImportIntentTest {
   }
 
   @Test
+  void preferredSystemTypeMissingFromLegacyJsonIsInternal() throws Exception {
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    String legacy =
+        """
+        {
+          "complete": false,
+          "assembledText": "legacy draft",
+          "decision": "NEEDS_INPUT",
+          "openQuestions": [],
+          "facts": [],
+          "importIntent": true
+        }
+        """;
+    RequirementDraft draft = mapper.readValue(legacy, RequirementDraft.class);
+    assertNull(draft.preferredSystemType());
+    assertEquals("INTERNAL", draft.resolvedPreferredSystemType());
+  }
+
+  @Test
+  void withPreferredSystemTypeStoresExternalAndSurvivesRoundTrip() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.put(
+        "conv-type",
+        new RequirementDraft(false, "import GeoSite").withPreferredSystemType("external"));
+    RequirementDraft recovered = store.get("conv-type").orElseThrow();
+    assertEquals("EXTERNAL", recovered.preferredSystemType());
+    assertEquals("EXTERNAL", recovered.resolvedPreferredSystemType());
+  }
+
+  @Test
+  void corruptPreferredSystemTypeResolvesToInternal() {
+    RequirementDraft draft =
+        new RequirementDraft(false, "vision").withPreferredSystemType("IMPLEMENTED");
+    assertNull(draft.preferredSystemType());
+    assertEquals("INTERNAL", draft.resolvedPreferredSystemType());
+  }
+
+  @Test
+  void clearApiHubCandidateKeepsPreferredSystemType() {
+    RequirementDraft cleared =
+        new RequirementDraft(false, "GeoSite proxy")
+            .withPreferredSystemType("EXTERNAL")
+            .withApiHubCandidate(sampleCandidate())
+            .clearApiHubCandidate();
+    assertEquals("EXTERNAL", cleared.preferredSystemType());
+  }
+
+  @Test
   void ensureImportIntentDoesNotOverwriteExistingVision() {
     RequirementDraftStore store = new RequirementDraftStore();
     store.put("conv-keep", new RequirementDraft(false, "existing vision").withImportIntent(false));

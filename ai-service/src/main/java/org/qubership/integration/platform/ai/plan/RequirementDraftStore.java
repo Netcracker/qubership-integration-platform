@@ -321,7 +321,8 @@ public class RequirementDraftStore {
               next.apiHubCandidateInteractionId(),
               next.idsRequested(),
               next.flow(),
-              next.catalogBindings());
+              next.catalogBindings(),
+              next.preferredSystemType());
     }
     if (next != current) {
       put(conversationId, next);
