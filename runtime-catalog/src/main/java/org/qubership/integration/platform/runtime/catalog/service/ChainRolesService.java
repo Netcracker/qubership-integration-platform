@@ -116,15 +116,16 @@ public class ChainRolesService {
      */
     @Transactional
     public void updateRoles(List<UpdateRolesRequest> request) {
-        List<ChainElement> elements = resolveHttpTriggers(request);
+        List<ChainElement> elements = resolveElements(request);
         for (int i = 0; i < elements.size(); i++) {
             applyRoles(elements.get(i), request.get(i).getRoles());
         }
     }
 
     /**
-     * Redeploys every chain of the batch, or none of them if an id names no chain. A chain that
-     * fails to deploy does not stop the rest: its roles stay saved as unsaved changes.
+     * Resolves every chain id before deploying anything, so an id that names no chain deploys
+     * nothing. Past that point the batch runs to the end: a chain that fails to deploy does not
+     * stop the rest, keeps its roles as unsaved changes, and is named in the error.
      */
     public void redeploy(List<String> chainIds) {
         List<Chain> chains = chainIds.stream()
@@ -143,7 +144,7 @@ public class ChainRolesService {
         reportRedeployFailures(failures, chains.size());
     }
 
-    private List<ChainElement> resolveHttpTriggers(List<UpdateRolesRequest> request) {
+    private List<ChainElement> resolveElements(List<UpdateRolesRequest> request) {
         List<ChainElement> elements = new ArrayList<>(request.size());
         for (UpdateRolesRequest updateRequest : request) {
             ChainElement element = elementService.findById(updateRequest.getElementId());
