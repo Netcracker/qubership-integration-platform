@@ -1200,12 +1200,19 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   static String unclassifiedRecoverySummary(String details) {
-    if (details != null) {
-      String upper = details.toUpperCase(Locale.ROOT);
-      String lower = details.toLowerCase(Locale.ROOT);
-      if (upper.contains("GRAPH_PATCH_ARTIFACT") && lower.contains("missing producer")) {
-        return MISSING_GRAPH_PATCH_SUMMARY;
-      }
+    if (details == null || details.isBlank()) {
+      return UNCLASSIFIED_RECOVERY_SUMMARY;
+    }
+    String upper = details.toUpperCase(Locale.ROOT);
+    String lower = details.toLowerCase(Locale.ROOT);
+    if (upper.contains("GRAPH_PATCH_ARTIFACT") && lower.contains("missing producer")) {
+      return MISSING_GRAPH_PATCH_SUMMARY;
+    }
+    if (lower.contains("skill did not complete")
+        && (lower.contains("did not capture a graph patch")
+            || lower.contains("did not capture a script body repair patch")
+            || upper.contains("GRAPH_PATCH"))) {
+      return MISSING_GRAPH_PATCH_SUMMARY;
     }
     return UNCLASSIFIED_RECOVERY_SUMMARY;
   }

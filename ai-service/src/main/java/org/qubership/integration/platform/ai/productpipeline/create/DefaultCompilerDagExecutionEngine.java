@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
@@ -212,7 +214,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         new ProductPipelineArtifactStore(
             new org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts(
                 new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore(),
-                new ObjectMapper(),
+                new ObjectMapper().registerModule(new JavaTimeModule()),
                 java.time.Clock.systemUTC())));
   }
 
@@ -320,24 +322,28 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             executed.add(node.skillId());
             skillProgress.accept(node.skillId(), "completed");
           } catch (RuntimeException ex) {
-            if (isSkippablePlanningSkillFailure(node, ex)) {
-              LOG.warnf(
-                  ex,
-                  "Planning skill failed conversationId=%s skillId=%s mode=%s — continuing",
-                  request.conversationId(),
-                  node.skillId(),
-                  node.executionMode());
-              skillProgress.accept(node.skillId(), "error");
-              degradations.add(PlanningDegradations.generatorSkipped(node.skillId()));
-              List<SkillArtifact> fallback =
-                  fallbackOutputsAfterSkillFailure(workspaceId, node, degradations);
-              fallback = requireChainStructureFallback(workspaceId, node, fallback, ex);
-              state = applyCompletion(state, node, fallback);
-              executed.add(node.skillId());
-            } else {
+            if (!isSkippablePlanningSkillFailure(node, ex)) {
               skillProgress.accept(node.skillId(), "error");
               throw ex;
             }
+            int beforeFallback = degradations.size();
+            List<SkillArtifact> fallback =
+                fallbackOutputsAfterSkillFailure(workspaceId, node, degradations);
+            fallback = requireChainStructureFallback(workspaceId, node, fallback, ex);
+            if (!fallbackCoversDeclaredOutputs(node, fallback)) {
+              skillProgress.accept(node.skillId(), "error");
+              throw ex;
+            }
+            LOG.warnf(
+                ex,
+                "Planning skill failed conversationId=%s skillId=%s mode=%s — continuing",
+                request.conversationId(),
+                node.skillId(),
+                node.executionMode());
+            skillProgress.accept(node.skillId(), "error");
+            degradations.add(beforeFallback, PlanningDegradations.generatorSkipped(node.skillId()));
+            state = applyCompletion(state, node, fallback);
+            executed.add(node.skillId());
           } finally {
             previousParent.ifPresentOrElse(
                 ToolInvocationSink::setParentSkillId, ToolInvocationSink::clearParentSkillId);
@@ -369,9 +375,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   }
 
   /**
-   * LLM generators fail open on {@code status=FAILED} even when marked mandatory, so one bad
-   * capture does not tear the planning SSE stream. Java adapters / validators stay fail-closed.
-   * Legacy optional non-LLM nodes still skip any "skill did not complete" contract failure.
+   * LLM {@code status=FAILED} may fail open only when fallback still covers the node's declared
+   * outputs. Java adapters and validators stay fail-closed.
    */
   private static boolean isSkippablePlanningSkillFailure(
       ResolvedCompilerNode node, RuntimeException ex) {
@@ -383,6 +388,49 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       return message.contains("status=FAILED");
     }
     return !node.mandatory();
+  }
+
+  static boolean isGraphPatchCapture(ResolvedCompilerNode node) {
+    return node != null
+        && ("captureGraphPatch".equals(node.captureTool())
+            || "repairScriptBodies".equals(node.captureTool()));
+  }
+
+  static boolean fallbackCoversDeclaredOutputs(
+      ResolvedCompilerNode node, List<SkillArtifact> fallback) {
+    Set<SkillArtifactType> present = new HashSet<>();
+    if (fallback != null) {
+      for (SkillArtifact artifact : fallback) {
+        if (artifact != null && artifact.type() != null) {
+          present.add(artifact.type());
+        }
+      }
+    }
+    if (node.produces() != null) {
+      for (String produced : node.produces()) {
+        String normalized = CompilerDerivedPlanningScheduler.normalizeArtifactType(produced);
+        if (normalized.isBlank()) {
+          continue;
+        }
+        SkillArtifactType type;
+        try {
+          type = SkillArtifactType.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+          continue;
+        }
+        if (type == SkillArtifactType.GRAPH_PATCH
+            && (present.contains(SkillArtifactType.GRAPH_PATCH)
+                || present.contains(SkillArtifactType.GRAPH_PATCH_ARTIFACT))) {
+          continue;
+        }
+        if (!present.contains(type)) {
+          return false;
+        }
+      }
+    }
+    return !isGraphPatchCapture(node)
+        || present.contains(SkillArtifactType.GRAPH_PATCH)
+        || present.contains(SkillArtifactType.GRAPH_PATCH_ARTIFACT);
   }
 
   private static boolean isGeneratorNode(ResolvedCompilerNode node) {
@@ -548,15 +596,24 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       SkillExecutionResult result;
       try {
         result = invokeSkill(executor, context, workspace).await().indefinitely();
+        if (result.status() == SkillRunStatus.FAILED) {
+          LOG.warnf(
+              "Retrying LLM skill conversationId=%s skillId=%s detail=%s",
+              request.conversationId(), node.skillId(), result.message());
+          result = invokeSkill(executor, context, workspace).await().indefinitely();
+        }
       } finally {
         executionContextStore.clear(request.conversationId(), node.skillId());
       }
       if (result.status() != SkillRunStatus.COMPLETED && result.status() != SkillRunStatus.SKIPPED) {
+        String detail =
+            result.message() == null || result.message().isBlank() ? "" : ": " + result.message();
         throw new IllegalStateException(
             "contract failure: skill did not complete "
                 + node.skillId()
                 + " status="
-                + result.status());
+                + result.status()
+                + detail);
       }
       return result.outputs() == null ? List.of() : List.copyOf(result.outputs());
     }
