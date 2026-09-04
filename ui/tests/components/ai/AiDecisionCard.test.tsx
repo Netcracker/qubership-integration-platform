@@ -84,7 +84,7 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("approve", "Looks good to me");
   });
 
-  it("should render the import action as a primary button and send it on click", () => {
+  it("should send import-specification-external from the import card", () => {
     const onAnswer = jest.fn();
     render(
       <AiDecisionCard
@@ -95,19 +95,32 @@ describe("AiDecisionCard", () => {
           artifactType: undefined,
           artifactHash: undefined,
           revision: 0,
-          actions: ["import-specification"],
+          actions: [
+            "import-specification-internal",
+            "import-specification-external",
+          ],
         })}
         onAnswer={onAnswer}
       />,
     );
 
-    const importButton = screen.getByRole("button", {
-      name: "Import specification",
-    });
-    expect(importButton.className).toMatch(/ant-btn-primary/);
-    fireEvent.click(importButton);
+    const external = screen.getByRole("button", { name: "Import as external" });
+    expect(external.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(external);
+    expect(onAnswer).toHaveBeenCalledWith("import-specification-external", "");
+  });
 
-    expect(onAnswer).toHaveBeenCalledTimes(1);
+  it("should still label the legacy import-specification action", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          actions: ["import-specification"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Import specification" }));
     expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
   });
 
@@ -719,7 +732,10 @@ describe("AiDecisionCard", () => {
       reason:
         "Import the API Hub specification into the runtime catalog before planning?",
       missingEvidence: [],
-      actions: ["import-specification"],
+      actions: [
+        "import-specification-internal",
+        "import-specification-external",
+      ],
     });
     render(
       <AiDecisionCard
@@ -730,11 +746,11 @@ describe("AiDecisionCard", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Import specification" }),
+      screen.getByRole("button", { name: "Import as internal" }),
     );
 
     expect(onSubmitClarification).not.toHaveBeenCalled();
-    expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
+    expect(onAnswer).toHaveBeenCalledWith("import-specification-internal", "");
   });
 
   it("should render Pass through and Describe mappings for a mapping-gap clarify gate", () => {
