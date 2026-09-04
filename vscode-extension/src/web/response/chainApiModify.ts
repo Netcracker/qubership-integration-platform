@@ -350,7 +350,23 @@ export async function transferElement(
         elementRequest.elements,
       );
     }
+    validateNotTransferIntoItself(
+      chainElements,
+      targetElement,
+      elementRequest.elements,
+    );
   }
+
+  // A move that stays among group containers and the canvas leaves every
+  // dependency drawable, so the runtime catalog skips the dependency check for
+  // it and runs the check only when an element group is on either end.
+  const isGroupContainerTransfer =
+    elementRequest.elements.every((elementId) =>
+      isRootOrGroupContainer(
+        chainElements,
+        findElementById(chainElements, elementId)?.parentId,
+      ),
+    ) && isRootOrGroupContainer(chainElements, elementRequest.parentId);
 
   for (const elementId of elementRequest.elements) {
     let element: ElementSchema | undefined = findElementByIdOrError(
@@ -366,11 +382,13 @@ export async function transferElement(
 
     element = findAndRemoveElementById(chainElements, elementId)!;
 
-    validateNoOutsideDependencies(
-      chain.content.dependencies as Dependency[], // TODO change to dependency schema
-      elementId,
-      elementRequest.elements,
-    );
+    if (!isGroupContainerTransfer) {
+      validateNoOutsideDependencies(
+        chain.content.dependencies as Dependency[], // TODO change to dependency schema
+        elementId,
+        elementRequest.elements,
+      );
+    }
 
     let parentElement = undefined;
     if (elementRequest.parentId) {
@@ -423,6 +441,25 @@ function validateNoOutsideDependencies(
       }
     }
   });
+}
+
+/**
+ * Tells whether the given parent is the canvas or a group container, the two
+ * places between which the runtime catalog moves elements without checking
+ * their dependencies.
+ */
+function isRootOrGroupContainer(
+  elements: ElementSchema[],
+  parentId: string | null | undefined,
+): boolean {
+  if (!parentId) {
+    return true;
+  }
+
+  return (
+    (findElementById(elements, parentId)?.element.type as unknown as string) ===
+    CONTAINER_TYPE_NAME
+  );
 }
 
 function validateNotTransferIntoItself(

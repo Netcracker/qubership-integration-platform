@@ -3,6 +3,7 @@ import type {
   Element as ElementSchema,
   DataType,
 } from "@netcracker/qip-schemas";
+import type { LibraryElement } from "@netcracker/qip-ui";
 import {
   getElement,
   getLibraryElementByType,
@@ -23,6 +24,20 @@ jest.mock("../../../src/web/response/file", () => ({
   },
 }));
 
+// Trimmed-down library.json entries: only the flags the transfer path reads.
+const library: Record<string, Partial<LibraryElement>> = {
+  log: {},
+  trigger: { outputEnabled: true },
+  // An element group: a container that takes only its own child types, the way
+  // split does in library.json.
+  split: {
+    container: true,
+    allowedChildren: {
+      "split-element": "one-or-many",
+    } as LibraryElement["allowedChildren"],
+  },
+};
+
 describe("transferElement dependency validation", () => {
   const fileUri = { path: "/workspace/test" } as Uri;
   const chainId = "chain-id";
@@ -32,7 +47,28 @@ describe("transferElement dependency validation", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
-    (getLibraryElementByType as jest.Mock).mockResolvedValue(undefined);
+    (getLibraryElementByType as jest.Mock).mockImplementation(
+      async (type: string) => {
+        if (!(type in library)) {
+          throw Error(`Library element not found: ${type}`);
+        }
+        return {
+          name: type,
+          title: type,
+          type,
+          container: false,
+          ordered: false,
+          allowedInContainers: true,
+          inputEnabled: true,
+          outputEnabled: false,
+          inputQuantity: "any",
+          parentRestriction: [],
+          allowedChildren: {},
+          properties: {},
+          ...library[type],
+        } as unknown as LibraryElement;
+      },
+    );
     (getElement as jest.Mock).mockImplementation(
       async (_fileUri, _chainId, elementId) => ({ id: elementId }),
     );
@@ -125,7 +161,9 @@ describe("transferElement dependency validation", () => {
         elements: [movedElementId],
         swimlaneId: null,
       }),
-    ).rejects.toThrow("outside dependencies");
+    ).rejects.toThrow(
+      "Element moved-element has dependencies outside the transferred elements",
+    );
 
     expect(fileApi.writeMainChain).not.toHaveBeenCalled();
   });
@@ -140,7 +178,9 @@ describe("transferElement dependency validation", () => {
         elements: [movedElementId],
         swimlaneId: null,
       }),
-    ).rejects.toThrow("outside dependencies");
+    ).rejects.toThrow(
+      "Element moved-element has dependencies outside the transferred elements",
+    );
 
     expect(fileApi.writeMainChain).not.toHaveBeenCalled();
   });
@@ -176,7 +216,9 @@ describe("transferElement dependency validation", () => {
         elements: [movedFromGroupContainer.id, movedFromElementGroup.id],
         swimlaneId: null,
       }),
-    ).rejects.toThrow("outside dependencies");
+    ).rejects.toThrow(
+      "Element moved-element has dependencies outside the transferred elements",
+    );
 
     expect(fileApi.writeMainChain).not.toHaveBeenCalled();
   });
