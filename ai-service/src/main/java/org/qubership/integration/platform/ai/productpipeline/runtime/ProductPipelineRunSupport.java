@@ -751,11 +751,14 @@ public final class ProductPipelineRunSupport {
   /**
    * Describe-prose on the mapping-gap card is a mapping turn against the current brief. Canonical
    * {@code pass_through} and {@code describe_mappings} stay in {@link #recordMappingGapInput}.
+   * Missing adapter or brief fails closed; it does not reopen requirement-analysis.
    */
   private Multi<PipelineSignal> interpretMappingGapDescribeTurn(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
     if (mappingTurnAdapter == null) {
-      return recordMappingGapInput(doc, command);
+      return Multi.createFrom()
+          .failure(
+              new IllegalStateException("mapping-gap describe requires a mapping-turn adapter"));
     }
     return Multi.createFrom()
         .deferred(() -> applyMappingGapDescribeTurn(doc, command))
@@ -766,7 +769,10 @@ public final class ProductPipelineRunSupport {
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
     RequirementBrief brief = approvedRequirementBrief(command.runId());
     if (brief == null) {
-      return recordMappingGapInput(doc, command);
+      return Multi.createFrom()
+          .failure(
+              new IllegalStateException(
+                  "mapping-gap describe requires a committed RequirementBrief"));
     }
     MappingTurnApplication application =
         MappingTurnProcessor.processGap(
@@ -898,22 +904,10 @@ public final class ProductPipelineRunSupport {
     if (canonical.isBlank()) {
       return reemitHaltCard(doc);
     }
-    artifactStore.append(
-        new AppendCommand(
-            command.runId(),
-            Kind.USER_INPUT,
-            "1",
-            "product-pipeline-runtime",
-            "1",
-            new UserInput(
-                userInputId(command), "requirement-analysis", command.text(), clock.instant()),
-            List.of(),
-            null,
-            provenance(command.runId(), "requirement-analysis", "requirement-analysis")));
-    attributesByRun
-        .computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>())
-        .put("userText", command.text());
-    return resetDownstreamAndMoveTo(doc, "requirement-analysis", "mapping-gap describe", command);
+    return Multi.createFrom()
+        .failure(
+            new IllegalStateException(
+                "mapping-gap input must be pass_through, describe_mappings, or blank"));
   }
 
   private Multi<PipelineSignal> acceptMappingGapPassThrough(

@@ -1946,8 +1946,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             .ifPresent(confirmation -> attributes.put("mappingGapPassThrough", confirmation));
       } else if (ref.kind() == Kind.IDS_DOCUMENT && !attributes.containsKey("idsDocument")) {
         attributes.put("idsDocument", artifactStore.payload(revision.get(), IdsDocument.class));
-      } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION
-          && !attributes.containsKey("chainSemanticRevision")) {
+      } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
         attributes.put(
             "chainSemanticRevision",
             artifactStore.payload(revision.get(), ChainSemanticRevision.class));

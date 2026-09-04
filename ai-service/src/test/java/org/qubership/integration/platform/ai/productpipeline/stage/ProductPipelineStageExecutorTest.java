@@ -2700,6 +2700,75 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void recapturedSemanticRevisionReplacesTheStaleAttributeOnDesignExecution() {
+    AtomicInteger inputCalls = new AtomicInteger();
+    AtomicInteger executionCalls = new AtomicInteger();
+    List<String> seenRevisionIds = new ArrayList<>();
+    ProductPipelineProfile profile = analysisThenDesignInputThenExecutionProfile();
+    StageCapability designInput =
+        capability(
+            "design-input-cap",
+            context -> {
+              int call = inputCalls.incrementAndGet();
+              ChainSemanticRevision payload =
+                  call == 1 ? twoEntryRevision() : SemanticFixtures.linearOrders();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          new StageOutcome(
+                              StageOutcomeClass.SUCCEEDED,
+                              List.of(
+                                  new ArtifactCandidate(
+                                      Kind.CHAIN_SEMANTIC_REVISION, payload, List.of())),
+                              "revision ready",
+                              null)));
+            });
+    StageCapability execution =
+        capability(
+            "execution-cap",
+            context -> {
+              executionCalls.incrementAndGet();
+              Object attribute = context.attributes().get("chainSemanticRevision");
+              seenRevisionIds.add(
+                  attribute instanceof ChainSemanticRevision revision
+                      ? revision.revisionId()
+                      : null);
+              if (executionCalls.get() == 1) {
+                return Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.DOMAIN_FAILURE,
+                                "execution validation failed",
+                                RecoveryCause.missingBriefFacts(List.of("missing quartz")))));
+              }
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(StageOutcomeClass.SUCCEEDED, "done")));
+            });
+    CreateChainTestOrchestrator runtime =
+        newRuntime(profile, analysisCandidate(), designInput, execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
+    assertEquals("requirement-analysis", reopen.producerStageId());
+    applyLifecycle(runtime, failed);
+
+    approveStage(runtime, "requirement-analysis");
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+    applyLifecycle(runtime, execute(runtime, "design-execution"));
+
+    assertEquals(List.of("revision-1", "revision-orders"), seenRevisionIds);
+    assertEquals(2, inputCalls.get());
+    assertEquals(2, executionCalls.get());
+  }
+
+  @Test
   void missingApprovedBriefFactsReopenRequirementAnalysisWithTheFollowUp() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design input needs more information.", "design-input");
@@ -4231,6 +4300,43 @@ class ProductPipelineStageExecutorTest {
                 new RetryPolicy(0, 1L))),
         new TerminalPolicy("design-execution", "PLAN_APPROVED"),
         List.of("planning-cap", "execution-cap"));
+  }
+
+  private static ProductPipelineProfile analysisThenDesignInputThenExecutionProfile() {
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef flow = new ArtifactTypeRef("chain-semantic-revision", 1);
+    return new ProductPipelineProfile(
+        1,
+        "analysis-then-design-input-then-execution",
+        "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "requirement-analysis",
+                "analysis-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-input",
+                "design-input-cap",
+                List.of(brief),
+                List.of(flow),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-execution",
+                "execution-cap",
+                List.of(flow),
+                List.of(),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-execution", "PLAN_APPROVED"),
+        List.of("analysis-cap", "design-input-cap", "execution-cap"));
   }
 
   private static ProductPipelineProfile analysisThenDesignInputProfile() {
