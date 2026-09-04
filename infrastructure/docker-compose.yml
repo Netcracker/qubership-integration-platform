@@ -14,8 +14,8 @@ services:
       [
         "/opt/java/openjdk/bin/java",
         "-Xmx642m",
-        "-XX:MetaspaceSize=192m",
-        "-XX:MaxMetaspaceSize=192m",
+        "-XX:MetaspaceSize=320m",
+        "-XX:MaxMetaspaceSize=320m",
         "-XX:MaxDirectMemorySize=64m",
         "-XX:+ExitOnOutOfMemoryError",
         "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
@@ -59,7 +59,7 @@ services:
       [
         "/opt/java/openjdk/bin/java",
         "-Xmx832m",
-        "-XX:MetaspaceSize=512m",
+        "-XX:MetaspaceSize=224m",
         "-XX:MaxMetaspaceSize=224m",
         "-XX:MaxDirectMemorySize=224m",
         "-XX:+ExitOnOutOfMemoryError",

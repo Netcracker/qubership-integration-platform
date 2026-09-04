@@ -20,6 +20,18 @@ global:
     production: true
     ui:
       port: 30080
+      # The chart installs a proxy, not the UI: `location /` and `/doc/` go back to
+      # a dev server on your own machine. host.docker.internal is the name Docker
+      # Desktop provides; minikube offers host.minikube.internal, and on kind you
+      # need the host's own address. A name the cluster cannot resolve is not fatal
+      # any more - those two routes answer 502 and every API route keeps working.
+      devServer:
+        host: host.docker.internal
+        port: 4200
+      # Cluster DNS, for the routes whose upstream is built from a variable rather
+      # than named literally. 10.96.0.10 is the kubeadm default, which Docker
+      # Desktop, kind and minikube all use; k3s and k3d put CoreDNS at 10.43.0.10.
+      resolver: 10.96.0.10
     variables:
       defaultSecret:
         enabled: false
