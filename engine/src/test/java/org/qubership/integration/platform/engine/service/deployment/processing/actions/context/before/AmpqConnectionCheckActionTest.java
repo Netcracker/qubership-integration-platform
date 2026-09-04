@@ -7,7 +7,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
-import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.ElementOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
@@ -18,7 +17,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -79,26 +77,6 @@ class AmpqConnectionCheckActionTest {
     void otherElementsAreLeftAlone() {
         assertThat(action.applicableTo(element("kafka-trigger-2", "manual"))).isFalse();
         assertThat(action.applicableTo(element("http-trigger", "manual"))).isFalse();
-    }
-
-    @Test
-    @DisplayName("Only the deprecated v1 trigger declares its own queue")
-    void onlyTheDeprecatedTriggerDeclaresItsOwnQueue() {
-        // It leaves Camel's autoDeclare at its default, which is on for a consumer: it creates the
-        // queue itself, so demanding one beforehand would block a chain that works today.
-        assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_TRIGGER)).isTrue();
-
-        // rabbitmq-trigger-2 pins autoDeclare off, and a producer never declares - Camel's
-        // autoDeclareProducer is off by default and no template turns it on.
-        assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_TRIGGER_2)).isFalse();
-        assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.ASYNCAPI_TRIGGER)).isFalse();
-        assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_SENDER)).isFalse();
-        assertThat(AmpqConnectionCheckAction.declaresItsOwnTopology(
-                ChainElementType.RABBITMQ_SENDER_2)).isFalse();
     }
 
     @Test
@@ -203,15 +181,19 @@ class AmpqConnectionCheckActionTest {
     }
 
     @Test
-    @DisplayName("The deprecated v1 trigger is left alone entirely")
-    void deprecatedTriggerIsNotEvenConnectedTo() {
+    @DisplayName("The deprecated v1 trigger is checked like every other element")
+    void deprecatedTriggerIsCheckedToo() {
+        // It declares its own queue when the route starts, and it still has to name one that the
+        // broker carries: a deprecated element gets no exemption.
         ElementProperties properties = element("rabbitmq", "manual");
-        // Unreachable on purpose: reaching the broker at all would fail this test.
         properties.getProperties().put(ElementOptions.ADDRESSES, "127.0.0.1:1");
         properties.getProperties().put(ElementOptions.EXCHANGE, "ex");
         properties.getProperties().put(ElementOptions.QUEUES, "q");
 
-        assertThatCode(() -> action.apply(null, properties, null)).doesNotThrowAnyException();
+        assertThat(action.applicableTo(properties)).isTrue();
+        assertThatThrownBy(() -> action.apply(null, properties, null))
+                .isInstanceOf(DeploymentRetriableException.class)
+                .hasMessage("Connection configuration is invalid or broker is unavailable");
     }
 
     @Test

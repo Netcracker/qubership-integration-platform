@@ -104,12 +104,6 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
             String vhost = getProp(props, ElementOptions.VHOST);
             String ssl = getProp(props, ElementOptions.SSL);
 
-            // The deprecated v1 trigger creates its queue when the route starts, so requiring the
-            // queue to exist beforehand would block a chain that works today.
-            if (!isProducerElement && declaresItsOwnTopology(chainElementType)) {
-                return;
-            }
-
             // What the check itself needs. The exchange is not on the list: a consumer that
             // declares nothing never touches it, and a producer that names none publishes through
             // the default exchange.
@@ -203,19 +197,6 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                     "AMQP queue '" + queue + "' not found, check configuration");
             }
         }
-    }
-
-    /**
-     * Whether the consumer declares the queue when the route starts, in which case the broker is
-     * not expected to carry it yet.
-     *
-     * <p>Only the deprecated {@code rabbitmq} trigger does: it leaves Camel's {@code autoDeclare}
-     * at its default, which is on for a consumer. Every other AMQP element pins it off or is a
-     * producer, and a producer never declares - Camel's {@code autoDeclareProducer} defaults to off
-     * and no template turns it on.
-     */
-    static boolean declaresItsOwnTopology(ChainElementType chainElementType) {
-        return chainElementType == ChainElementType.RABBITMQ_TRIGGER;
     }
 
     /**
