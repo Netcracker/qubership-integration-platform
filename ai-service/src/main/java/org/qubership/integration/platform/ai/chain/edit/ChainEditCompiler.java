@@ -20,6 +20,8 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
@@ -74,6 +76,7 @@ public class ChainEditCompiler {
   private final ProductPipelineProfileCatalog profileCatalog;
   private final KnowledgeContextProvider knowledgeContextProvider;
   private final CatalogMutationGateway catalogMutationGateway;
+  private final RequirementDraftStore requirementDraftStore;
   private final CaptureSession captureSession;
   private final DeterministicElementSchemaService schemaService;
   private final CompilerValidationPipeline validationPipeline;
@@ -88,6 +91,7 @@ public class ChainEditCompiler {
       ProductPipelineProfileCatalog profileCatalog,
       KnowledgeContextProvider knowledgeContextProvider,
       CatalogMutationGateway catalogMutationGateway,
+      RequirementDraftStore requirementDraftStore,
       CaptureSession captureSession,
       DeterministicElementSchemaService schemaService,
       CompilerValidationPipeline validationPipeline) {
@@ -99,6 +103,7 @@ public class ChainEditCompiler {
     this.knowledgeContextProvider =
         Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
     this.catalogMutationGateway = catalogMutationGateway;
+    this.requirementDraftStore = requirementDraftStore;
     this.captureSession = Objects.requireNonNull(captureSession, "captureSession");
     this.schemaService = Objects.requireNonNull(schemaService, "schemaService");
     this.validationPipeline = Objects.requireNonNull(validationPipeline, "validationPipeline");
@@ -140,9 +145,16 @@ public class ChainEditCompiler {
     }
     ApiHubSpecificationImportResult imported;
     try {
+      String systemType =
+          requirementDraftStore == null
+              ? ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE
+              : requirementDraftStore
+                  .get(request.conversationId())
+                  .map(RequirementDraft::resolvedPreferredSystemType)
+                  .orElse(ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE);
       imported =
           catalogMutationGateway
-              .importApiHubSpecification(request.conversationId(), refs)
+              .importApiHubSpecification(request.conversationId(), refs, systemType)
               .await()
               .indefinitely();
     } catch (RuntimeException e) {

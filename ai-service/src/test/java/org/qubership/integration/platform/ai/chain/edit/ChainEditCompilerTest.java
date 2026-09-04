@@ -159,6 +159,7 @@ class ChainEditCompilerTest {
             profileCatalog,
             knowledge,
             catalogMutationGateway,
+            null,
             new CaptureSession(),
             DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()),
             realValidationPipeline());
@@ -1954,7 +1955,7 @@ class ChainEditCompilerTest {
 
   @Test
   void anApprovedImportResumesTheSameEditWithAnApiHubBinding() {
-    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+    when(catalogMutationGateway.importApiHubSpecification(any(), any(), any()))
         .thenReturn(
             Uni.createFrom()
                 .item(
@@ -1985,7 +1986,7 @@ class ChainEditCompilerTest {
 
   @Test
   void anApprovedImportKeepsTheImportedOccurrenceOwner() {
-    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+    when(catalogMutationGateway.importApiHubSpecification(any(), any(), any()))
         .thenReturn(
             Uni.createFrom()
                 .item(
@@ -2037,7 +2038,7 @@ class ChainEditCompilerTest {
 
   @Test
   void anImportThatNamesNoOperationChangesNothing() {
-    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+    when(catalogMutationGateway.importApiHubSpecification(any(), any(), any()))
         .thenReturn(
             Uni.createFrom()
                 .item(
