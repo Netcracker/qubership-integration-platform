@@ -57,45 +57,41 @@ export function collectFilenamesFromElementTree(
 
 export async function deleteElementsPropertyFiles(
   fileUri: Uri,
-  removedElements: ElementSchema[],
-): Promise<void> {
-  async function handleServiceCallProperty(beforeAfterBlock: Record<string, unknown>): Promise<void> {
-    const type = beforeAfterBlock["type"];
-    const filename = beforeAfterBlock["propertiesFilename"];
+  removedElements: any[],
+) {
+  async function handleServiceCallProperty(beforeAfterBlock: any) {
+    const filename = beforeAfterBlock?.propertiesFilename;
     if (typeof filename !== "string" || !filename) {
       return;
     }
-    if (type === "script") {
-      (beforeAfterBlock as Record<string, unknown>)["script"] = await fileApi.removeFile(fileUri, toResourcePath(filename));
-    } else if (typeof type === "string" && type.startsWith("mapper")) {
+    if (beforeAfterBlock.type === "script") {
+      beforeAfterBlock["script"] = await fileApi.removeFile(
+        fileUri,
+        toResourcePath(filename),
+      );
+    } else if (beforeAfterBlock.type?.startsWith("mapper")) {
       await fileApi.removeFile(fileUri, toResourcePath(filename));
     }
   }
 
   for (const element of removedElements) {
-    const props = element.properties as unknown;
-    if (isRecord(props) && typeof props["propertiesToExportInSeparateFile"] === "string" && props["propertiesToExportInSeparateFile"] && typeof props["propertiesFilename"] === "string" && props["propertiesFilename"]) {
-      await fileApi.removeFile(fileUri, toResourcePath(props["propertiesFilename"] as string));
+    if (element.properties?.propertiesToExportInSeparateFile && typeof element.properties?.propertiesFilename === "string" && element.properties.propertiesFilename) {
+      await fileApi.removeFile(fileUri, toResourcePath(element.properties.propertiesFilename));
     }
 
-    if ((element.type as unknown as string) === "service-call" && isRecord(props)) {
-      const after = props["after"];
-      if (Array.isArray(after)) {
-        for (const afterBlock of after) {
-          if (isRecord(afterBlock)) {
-            await handleServiceCallProperty(afterBlock);
-          }
+    if (element.type === "service-call") {
+      if (Array.isArray(element.properties?.after)) {
+        for (const afterBlock of element.properties.after) {
+          await handleServiceCallProperty(afterBlock);
         }
       }
-      const before = props["before"];
-      if (isRecord(before)) {
-        await handleServiceCallProperty(before);
+      if (element.properties?.before) {
+        await handleServiceCallProperty(element.properties.before);
       }
     }
 
-    const children = element.children as ElementSchema[] | undefined;
-    if (children?.length) {
-      await deleteElementsPropertyFiles(fileUri, children);
+    if (element.children?.length) {
+      await deleteElementsPropertyFiles(fileUri, element.children);
     }
   }
 }
