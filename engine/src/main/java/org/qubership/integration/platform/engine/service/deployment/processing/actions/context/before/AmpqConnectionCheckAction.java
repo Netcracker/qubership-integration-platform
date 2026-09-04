@@ -20,14 +20,13 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.component.springrabbit.SpringRabbitMQHelper;
 import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.ElementOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
-import org.qubership.integration.platform.engine.model.constants.ConnectionSourceType;
-import org.qubership.integration.platform.engine.model.constants.EnvironmentSourceType;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 import org.qubership.integration.platform.engine.service.VariablesService;
@@ -38,7 +37,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Objects.isNull;
 
 @Slf4j
 @Component
@@ -63,12 +68,13 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
         Map<String, String> props = properties.getProperties();
         ChainElementType chainElementType = ChainElementType
                 .fromString(props.get(ChainProperties.ELEMENT_TYPE));
-        String connectionSourceType = props.get(ElementOptions.CONNECTION_SOURCE_TYPE_PROP);
         String operationProtocolType = getProp(props, ChainProperties.OPERATION_PROTOCOL_TYPE_PROP);
 
+        // Every AMQP element, whatever its connection came from. A manual connection is the
+        // default the element ships with, and it used to be the one nothing checked: the queue or
+        // exchange was missing, the deployment reported DEPLOYED, and only the engine log said
+        // otherwise. The Kafka check has never made this distinction.
         return ChainElementType.isAmqpAsyncElement(chainElementType)
-            && (equalsIgnoreCase(ConnectionSourceType.MAAS, connectionSourceType)
-                    || equalsIgnoreCase(EnvironmentSourceType.MAAS_BY_CLASSIFIER, connectionSourceType))
             && (!(
                 (equalsIgnoreCase(ChainElementType.ASYNCAPI_TRIGGER, chainElementType.name())
                         || equalsIgnoreCase(ChainElementType.SERVICE_CALL, chainElementType.name()))
@@ -98,7 +104,11 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
             String vhost = getProp(props, ElementOptions.VHOST);
             String ssl = getProp(props, ElementOptions.SSL);
 
-            if (StringUtils.isBlank(exchange) || StringUtils.isBlank(addresses)) {
+            // What the check itself needs. The exchange is not on the list: a consumer that
+            // declares nothing never touches it, and a producer that names none publishes through
+            // the default exchange.
+            if (StringUtils.isBlank(addresses)
+                    || (!isProducerElement && StringUtils.isBlank(queues))) {
                 throw new IllegalArgumentException(
                     "AMQP mandatory parameters are missing, check configuration");
             }
@@ -107,36 +117,9 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                     "AMQP addresses has invalid format, check configuration");
             }
 
-            ConnectionFactory factory = new ConnectionFactory();
-
-            factory.setUri((StringUtils.isNotBlank(ssl) && ssl.equals("true") ? "amqps://" : "amqp://") + addresses);
-
-            if (StringUtils.isNotBlank(username)) {
-                factory.setUsername(username);
-            }
-
-            if (StringUtils.isNotBlank(password)) {
-                factory.setPassword(password);
-            }
-
-            if (StringUtils.isNotBlank(vhost)) {
-                factory.setVirtualHost(vhost);
-            }
-
-            try (Connection connection = factory.newConnection()) {
-                Channel channel = connection.createChannel();
-
-                try {
-                    if (isProducerElement) {
-                        channel.exchangeDeclarePassive(exchange);
-                    } else {
-                        channel.queueDeclarePassive(queues);
-                    }
-                } catch (IOException e) {
-                    throw new DeploymentRetriableException(
-                        "AMQP " + (isProducerElement ? ("exchange " + exchange) : ("queue(s) " + queues))
-                                + " not found, check configuration");
-                }
+            try (Connection connection = connectionFactory(addresses, username, password, vhost, ssl)
+                    .newConnection()) {
+                assertTopologyExists(connection.createChannel(), isProducerElement, exchange, queues);
             } catch (IOException e) {
                 throw new DeploymentRetriableException(
                     "Connection configuration is invalid or broker is unavailable", e);
@@ -155,6 +138,78 @@ public class AmpqConnectionCheckAction extends ElementProcessingAction {
                 e
             );
         }
+    }
+
+    static ConnectionFactory connectionFactory(
+        String addresses,
+        String username,
+        String password,
+        String vhost,
+        String ssl
+    ) throws URISyntaxException, NoSuchAlgorithmException, KeyManagementException {
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setUri((StringUtils.isNotBlank(ssl) && ssl.equals("true") ? "amqps://" : "amqp://") + addresses);
+
+        if (StringUtils.isNotBlank(username)) {
+            factory.setUsername(username);
+        }
+        if (StringUtils.isNotBlank(password)) {
+            factory.setPassword(password);
+        }
+        if (StringUtils.isNotBlank(vhost)) {
+            factory.setVirtualHost(vhost);
+        }
+        return factory;
+    }
+
+    /**
+     * Asks the broker for what the route will use, without creating anything: a producer publishes to
+     * the exchange, a consumer reads from each of its queues.
+     */
+    static void assertTopologyExists(
+        Channel channel,
+        boolean isProducerElement,
+        String exchange,
+        String queues
+    ) {
+        if (isProducerElement) {
+            // The broker pre-declares the default exchange and refuses to declare it again, even
+            // passively. Camel sends through it whenever the name is empty or "default".
+            if (SpringRabbitMQHelper.isDefaultExchange(exchange)) {
+                return;
+            }
+            try {
+                channel.exchangeDeclarePassive(exchange);
+            } catch (IOException e) {
+                throw new DeploymentRetriableException(
+                    "AMQP exchange " + exchange + " not found, check configuration");
+            }
+            return;
+        }
+
+        for (String queue : queueNames(queues)) {
+            try {
+                channel.queueDeclarePassive(queue);
+            } catch (IOException e) {
+                // Quoted because the name is reproduced exactly as the consumer will ask for it,
+                // and a stray space around a comma is otherwise invisible.
+                throw new DeploymentRetriableException(
+                    "AMQP queue '" + queue + "' not found, check configuration");
+            }
+        }
+    }
+
+    /**
+     * The element takes its queues as a comma-separated list, while a passive declare names one
+     * queue, so the list has to be walked rather than handed over whole.
+     *
+     * <p>Split the way Camel splits it, with no trimming: the consumer calls
+     * {@code getQueues().split(",")} and consumes from the pieces verbatim, so a name written
+     * after a space really is a name with a leading space. Trimming here would let the check pass
+     * a configuration the consumer then fails on, which is the fault this check exists to catch.
+     */
+    static List<String> queueNames(String queues) {
+        return isNull(queues) ? List.of() : List.of(queues.split(","));
     }
 
     private static <E extends Enum<E>> boolean equalsIgnoreCase(E e, String s) {
