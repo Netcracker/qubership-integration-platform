@@ -125,6 +125,73 @@ export function visibleMissingEvidence(decision: ChatDecision): string[] {
   return items.filter((item) => item.trim() !== cardText);
 }
 
+const RECOVERY_ACTION_IDS = new Set([
+  "retry-creation",
+  "edit-requirements",
+  "rebuild-plan",
+  "stop-with-report",
+]);
+
+function defaultRecoveryActions(
+  category: NonNullable<ChatDecision["recovery"]>["category"],
+): string[] {
+  switch (category) {
+    case "temporary-technical-failure":
+    case "regeneratable-execution-failure":
+      return ["retry-creation", "stop-with-report"];
+    case "requirement-brief-defect":
+      return ["edit-requirements", "stop-with-report"];
+    case "plan-artifact-defect":
+      return ["rebuild-plan", "stop-with-report"];
+    default:
+      return ["stop-with-report"];
+  }
+}
+
+/** Labeled halt actions, or the category default when the wire list is empty. */
+export function recoveryCardActions(decision: ChatDecision): string[] {
+  if (!decision.recovery) {
+    return [];
+  }
+  const labeled = (decision.actions ?? []).filter((action) =>
+    RECOVERY_ACTION_IDS.has(action),
+  );
+  if (labeled.length > 0) {
+    return labeled;
+  }
+  return defaultRecoveryActions(decision.recovery.category);
+}
+
+export function hasUnansweredDecision(messages: ChatMessage[]): boolean {
+  return messages.some(
+    (message) =>
+      message.decision !== undefined &&
+      message.decision.answeredAction === undefined,
+  );
+}
+
+export function isActionableDecision(decision: ChatDecision): boolean {
+  return decision.answeredAction === undefined;
+}
+
+/** Opening seed for a closed run: first user text, not a later clarify packet. */
+export function openingUserAssignment(messages: ChatMessage[]): string {
+  const first = messages.find(
+    (message) => message.role === "user" && Boolean(message.content.trim()),
+  );
+  return first?.content.trim() ?? "";
+}
+
+/** Empty clarify with no question is a halt, not a dead Submit. */
+export function isBlankClarifyHalt(decision: ChatDecision): boolean {
+  return (
+    decision.kind === "clarify" &&
+    decision.recovery === undefined &&
+    (decision.actions?.length ?? 0) === 0 &&
+    !decisionCardText(decision)
+  );
+}
+
 /**
  * Assistant prose to show above a decision card. Empty when the prose only
  * repeats the card question, so the transcript does not print it twice.

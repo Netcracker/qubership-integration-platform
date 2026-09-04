@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -140,6 +141,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       "The same problem came back. Repeating the same request will not help.";
   static final String UNCLASSIFIED_RECOVERY_SUMMARY =
       "Creation stopped without a recoverable cause. Repeating the same request will not help.";
+  static final String MISSING_GRAPH_PATCH_SUMMARY =
+      "The approved plan did not produce a chain patch. Repeating the same request will not help.";
   private static final String PROGRESS_HALTED = "halted";
   private static final String PROGRESS_NONE = "none";
 
@@ -1044,7 +1047,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             stage,
             refs,
             PipelineGates.RECOVERY_UNCLASSIFIED,
-            UNCLASSIFIED_RECOVERY_SUMMARY,
+            unclassifiedRecoverySummary(
+                findings.isBlank() ? evidence : findings),
             terminalRecoveryDetails(
                 findings.isBlank() ? evidence : findings,
                 evidence,
@@ -1168,6 +1172,44 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         body);
   }
 
+  private static RecoveryDecision captureReviseBriefDecision(
+      RecoveryEvidence evidence, String summary) {
+    Reference fault =
+        evidence.rejectedArtifactRefs().isEmpty()
+            ? null
+            : evidence.rejectedArtifactRefs().getFirst();
+    return new RecoveryDecision(
+        RecoveryCauseClass.BRIEF_DEFECT,
+        fault,
+        List.of(evidence.failureId()),
+        RecoveryAction.REVISE_BRIEF,
+        List.of(),
+        "",
+        contractShapeOperatorSummary(summary));
+  }
+
+  static String contractShapeOperatorSummary(String findings) {
+    String body = findings == null ? "" : findings.strip();
+    String guidance =
+        "Edit the requirements if this node or path is wrong. Retrying the same capture will not"
+            + " change this classification.";
+    if (body.isBlank()) {
+      return "The captured topology was rejected. " + guidance;
+    }
+    return body + " " + guidance;
+  }
+
+  static String unclassifiedRecoverySummary(String details) {
+    if (details != null) {
+      String upper = details.toUpperCase(Locale.ROOT);
+      String lower = details.toLowerCase(Locale.ROOT);
+      if (upper.contains("GRAPH_PATCH_ARTIFACT") && lower.contains("missing producer")) {
+        return MISSING_GRAPH_PATCH_SUMMARY;
+      }
+    }
+    return UNCLASSIFIED_RECOVERY_SUMMARY;
+  }
+
   private StageExecutionResult recoverValidationFailure(
       ProductPipelineRunDocument doc,
       ProfileStage stage,
@@ -1222,7 +1264,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RecoveryEvidence recoveryEvidence = acceptedRecovery.evidence();
     RecoveryDecision accepted = acceptedRecovery.decision();
     if (accepted == null) {
-      if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
+      if ("design-input".equals(stage.stageId())
+          && cause != null
+          && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE) {
+        accepted =
+            captureReviseBriefDecision(
+                recoveryEvidence, findings.isBlank() ? evidenceText : findings);
+      } else if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
         accepted =
             captureRegenerateDecision(
                 recoveryEvidence, findings.isBlank() ? evidenceText : findings);
@@ -1240,8 +1288,30 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (accepted.action() == RecoveryAction.ASK_USER
         && usesStructuredContractRecovery(stage, StageOutcomeClass.CONTRACT_FAILURE, cause)) {
+      if ("design-input".equals(stage.stageId())
+          && cause != null
+          && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE) {
+        accepted =
+            captureReviseBriefDecision(
+                recoveryEvidence,
+                accepted.userSummary() == null || accepted.userSummary().isBlank()
+                    ? (findings.isBlank() ? evidenceText : findings)
+                    : accepted.userSummary());
+      } else {
+        accepted =
+            captureRegenerateDecision(
+                recoveryEvidence,
+                accepted.userSummary() == null || accepted.userSummary().isBlank()
+                    ? (findings.isBlank() ? evidenceText : findings)
+                    : accepted.userSummary());
+      }
+    }
+    if ("design-input".equals(stage.stageId())
+        && cause != null
+        && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
+        && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
       accepted =
-          captureRegenerateDecision(
+          captureReviseBriefDecision(
               recoveryEvidence,
               accepted.userSummary() == null || accepted.userSummary().isBlank()
                   ? (findings.isBlank() ? evidenceText : findings)
@@ -1250,7 +1320,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
     boolean identicalRejection = false;
     List<Reference> priorAttemptRefs = List.of();
-    if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
+    if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
+        || accepted.action() == RecoveryAction.REVISE_BRIEF) {
       String briefIdentity = briefRevisionIdentity(recoveryEvidence);
       RecoveryAttemptKey key =
           recoveryLedger.key(stage.stageId(), cause, briefIdentity, doc.transitions());
@@ -1404,7 +1475,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           stage,
           refs,
           PipelineGates.RECOVERY_UNCLASSIFIED,
-          UNCLASSIFIED_RECOVERY_SUMMARY,
+          unclassifiedRecoverySummary(
+              findings.isBlank() ? evidenceText : findings),
           terminalRecoveryDetails(
               findings.isBlank() ? evidenceText : findings,
               evidenceText,
@@ -1747,7 +1819,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       }
       String previousGate =
           PipelineGates.gateOf(transitions.get(index - 1).reason()).orElse("");
-      if (PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(previousGate)
+      if ((PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(previousGate)
+              || PipelineGates.RECOVERY_REVISE_BRIEF.equals(previousGate))
           && reason.startsWith(PRODUCER_REPAIR_REASON_PREFIX)) {
         return true;
       }
