@@ -522,16 +522,11 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       await waitFor(() => {
-        // Should only deploy the first record (has chainId AND unsavedChanges)
-        expect(mockBulkDeploy).toHaveBeenCalledWith(
-          expect.arrayContaining([
-            expect.objectContaining({
-              chainId: "chain-1",
-              unsavedChanges: true,
-            }),
-          ]),
-        );
+        expect(mockBulkDeploy).toHaveBeenCalledTimes(1);
       });
+      // The endpoint takes chain ids, and only the first record has one. toStrictEqual, because
+      // toHaveBeenCalledWith would accept ["chain-1", undefined] and that is the case under test.
+      expect(mockBulkDeploy.mock.calls[0][0]).toStrictEqual(["chain-1"]);
     });
   });
 
