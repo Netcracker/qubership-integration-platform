@@ -18,6 +18,7 @@
   padding: 16px;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -760,6 +761,8 @@ button.ai-activity-inline__row:not(:disabled):hover {
   border: 1px solid var(--vscode-border, #d9d9d9);
   border-radius: 8px;
   background: var(--vscode-editorWidget-background, rgb(0 0 0 / 2%));
+  max-width: 100%;
+  min-width: 0;
 }
 
 .ai-decision-card__question {
@@ -784,6 +787,21 @@ button.ai-activity-inline__row:not(:disabled):hover {
   flex-wrap: wrap;
   margin-top: 8px;
   max-width: 100%;
+  width: 100%;
+}
+
+.ai-decision-card__actions .ant-btn {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+}
+
+.ai-decision-card__same-task {
+  margin-top: 12px;
+}
+
+.ai-decision-card__clarify-hint {
+  margin-bottom: 8px;
 }
 
 .ai-decision-card__technical-details {

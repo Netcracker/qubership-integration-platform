@@ -2754,7 +2754,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void missingRecoveryDecisionOnCaptureContractShapeOffersRetryCreation() {
+  void missingRecoveryDecisionOnCaptureContractShapeOffersEditRequirements() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -2789,11 +2789,26 @@ class ProductPipelineStageExecutorTest {
 
     assertEquals(1, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+        PipelineGates.RECOVERY_REVISE_BRIEF,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertTrue(ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow())
-        .contains(ChatEvent.RETRY_CREATION_ACTION));
+    assertTrue(
+        ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow())
+            .contains(ChatEvent.EDIT_REQUIREMENTS_ACTION));
+    assertTrue(
+        PipelineGates.strip(wait.prompt())
+            .contains("Edit the requirements if this node or path is wrong"));
     assertFalse(PipelineGates.strip(wait.prompt()).contains("design-input"));
+  }
+
+  @Test
+  void unclassifiedRecoverySummaryNamesMissingGraphPatch() {
+    assertEquals(
+        ProductPipelineStageExecutor.MISSING_GRAPH_PATCH_SUMMARY,
+        ProductPipelineStageExecutor.unclassifiedRecoverySummary(
+            "contract failure: missing producer for mandatory artifact GRAPH_PATCH_ARTIFACT"));
+    assertEquals(
+        ProductPipelineStageExecutor.UNCLASSIFIED_RECOVERY_SUMMARY,
+        ProductPipelineStageExecutor.unclassifiedRecoverySummary("Cannot deserialize"));
   }
 
   @Test
@@ -2834,7 +2849,7 @@ class ProductPipelineStageExecutorTest {
 
     assertEquals(1, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+        PipelineGates.RECOVERY_REVISE_BRIEF,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertFalse(PipelineGates.strip(wait.prompt()).contains("requirement-analysis"));

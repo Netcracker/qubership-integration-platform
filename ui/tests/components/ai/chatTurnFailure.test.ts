@@ -57,7 +57,9 @@ describe("appendTurnFailure", () => {
 
   it("keeps partial assistant content and appends the error below it", () => {
     const request: ChatMessage[] = [{ role: "user", content: "hi" }];
-    expect(appendTurnFailure(request, "rate limited", "Partial answer")).toEqual([
+    expect(
+      appendTurnFailure(request, "rate limited", "Partial answer"),
+    ).toEqual([
       { role: "user", content: "hi" },
       { role: "assistant", content: "Partial answer" },
       buildTurnFailureMessage("rate limited"),
@@ -73,6 +75,31 @@ describe("appendTurnFailure", () => {
       { role: "user", content: "hi" },
       buildTurnFailureMessage("failed"),
     ]);
+  });
+
+  it("appends a validity note when a decision card is still open", () => {
+    const messages: ChatMessage[] = [
+      { role: "user", content: "hi" },
+      {
+        role: "assistant",
+        content: "",
+        decision: {
+          id: "clarify:1",
+          kind: "clarify",
+          question: "Approve?",
+          actions: ["approve"],
+        },
+      },
+    ];
+    const next = appendTurnFailure(
+      messages,
+      "network error",
+      undefined,
+      "valid",
+    );
+    expect(next[next.length - 1]?.content).toContain(
+      "The decision card above is still valid.",
+    );
   });
 });
 

@@ -6,9 +6,13 @@ import {
   appendDecision,
   decisionCardText,
   findDecision,
+  hasUnansweredDecision,
+  isBlankClarifyHalt,
   isDecisionMessage,
   markDecisionAnswered,
+  openingUserAssignment,
   reconcileDecisionMessages,
+  recoveryCardActions,
   removeDecision,
   visibleDecisionNarrative,
   visibleMissingEvidence,
@@ -346,5 +350,66 @@ describe("decision entry round trip through the session store", () => {
 
     const decisionMessage = reloaded?.messages.find(isDecisionMessage);
     expect(decisionMessage?.decision).toEqual(decision);
+  });
+});
+
+describe("recoveryCardActions", () => {
+  it("should default regeneratable halts to Retry creation and End run", () => {
+    expect(
+      recoveryCardActions(
+        buildDecision({
+          kind: "clarify",
+          question: "needs regeneration",
+          actions: [],
+          recovery: {
+            category: "regeneratable-execution-failure",
+            title: "Creation output needs regeneration",
+            summary: "The capture was rejected.",
+            preservedWork: "Saved.",
+            technicalDetails: "",
+          },
+        }),
+      ),
+    ).toEqual(["retry-creation", "stop-with-report"]);
+  });
+});
+
+describe("openingUserAssignment", () => {
+  it("should return the first user message", () => {
+    expect(
+      openingUserAssignment([
+        { role: "user", content: "Create OM to Salesforce WFM" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "no" },
+      ]),
+    ).toBe("Create OM to Salesforce WFM");
+  });
+});
+
+describe("hasUnansweredDecision", () => {
+  it("should be true when a card is still open", () => {
+    expect(
+      hasUnansweredDecision([
+        {
+          role: "assistant",
+          content: "",
+          decision: buildDecision(),
+        },
+      ]),
+    ).toBe(true);
+  });
+});
+
+describe("isBlankClarifyHalt", () => {
+  it("should detect an empty free-text clarify", () => {
+    expect(
+      isBlankClarifyHalt(
+        buildDecision({
+          kind: "clarify",
+          question: "   ",
+          actions: [],
+        }),
+      ),
+    ).toBe(true);
   });
 });

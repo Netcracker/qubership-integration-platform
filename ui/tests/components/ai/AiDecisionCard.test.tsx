@@ -561,9 +561,7 @@ describe("AiDecisionCard", () => {
     expect(fold).toHaveTextContent(
       "Raw error: mapping intent mismatch between live revision and approved chain semantic revision",
     );
-    expect(
-      screen.getByText("Creation cannot continue"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Creation cannot continue")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Retry creation" }),
     ).not.toBeInTheDocument();
@@ -848,5 +846,105 @@ describe("AiDecisionCard", () => {
     expect(
       screen.queryByRole("button", { name: "Submit" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("should fill Retry creation and End run when a regeneratable halt has no labeled actions", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation output needs regeneration",
+          actions: [],
+          recovery: {
+            category: "regeneratable-execution-failure",
+            title: "Creation output needs regeneration",
+            summary: "The capture was rejected.",
+            preservedWork: "Your approved requirements and plan are saved.",
+            technicalDetails: "CONTRACT_SHAPE",
+          },
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Retry creation" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should treat a blank clarify as End run instead of a dead Submit", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "",
+          actions: [],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should hint that yes or no enables Submit on a free-text clarify", () => {
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Should I write an IDS? Answer yes or no.",
+          actions: [],
+        })}
+        onAnswer={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Enter yes or no to enable Submit."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
+  });
+
+  it("should offer a same-task creation after End run", () => {
+    const onStartSameTask = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation cannot continue",
+          actions: ["stop-with-report"],
+          answeredAction: "stop-with-report",
+          recovery: {
+            category: "unclassified-failure",
+            title: "Creation cannot continue",
+            summary: "The approved plan did not produce a chain patch.",
+            preservedWork: "Your approved requirements and plan are saved.",
+            technicalDetails: "GRAPH_PATCH_ARTIFACT",
+          },
+        })}
+        onAnswer={jest.fn()}
+        onStartSameTask={onStartSameTask}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Start new creation with the same task",
+      }),
+    );
+    expect(onStartSameTask).toHaveBeenCalled();
   });
 });

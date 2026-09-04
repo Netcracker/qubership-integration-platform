@@ -56,7 +56,10 @@ import {
 } from "./chatMessageUtils.ts";
 import {
   appendDecision,
+  hasUnansweredDecision,
+  isActionableDecision,
   markDecisionAnswered,
+  openingUserAssignment,
   reconcileDecisionMessages,
   removeDecision,
   visibleDecisionNarrative,
@@ -523,6 +526,7 @@ export const AiAssistant: React.FC = () => {
             currentMessages,
             chunk.errorMessage,
             accumulatedContent,
+            hasUnansweredDecision(currentMessages) ? "valid" : "stale",
           );
           currentMessages = attachActivityToLastAssistant(
             currentMessages,
@@ -675,7 +679,12 @@ export const AiAssistant: React.FC = () => {
         setProviderError(errorMsg);
         sessionStore.updateSessionMessages(
           sessionId,
-          appendTurnFailure(messages, errorMsg),
+          appendTurnFailure(
+            messages,
+            errorMsg,
+            undefined,
+            hasUnansweredDecision(messages) ? "valid" : "stale",
+          ),
         );
         refreshSessions();
         sendInProgressRef.current = false;
@@ -781,7 +790,12 @@ export const AiAssistant: React.FC = () => {
         }
         sessionStore.updateSessionMessages(
           sessionId,
-          appendTurnFailure(sessionMessages, message),
+          appendTurnFailure(
+            sessionMessages,
+            message,
+            undefined,
+            hasUnansweredDecision(sessionMessages) ? "valid" : "stale",
+          ),
         );
         refreshSessions();
       } finally {
@@ -829,6 +843,27 @@ export const AiAssistant: React.FC = () => {
     setCurrentSessionId(newSession.id);
     refreshSessions();
   };
+
+  const handleStartSameTask = useCallback(() => {
+    if (!currentSessionId || isLoading || isStreaming) return;
+    const session = sessionStore.getSession(currentSessionId);
+    if (!session) return;
+    const assignment = openingUserAssignment(session.messages);
+    if (!assignment) return;
+    const newSession = sessionStore.createSession();
+    setCurrentSessionId(newSession.id);
+    refreshSessions();
+    const userMessage: ChatMessage = { role: "user", content: assignment };
+    sessionStore.updateSessionMessages(newSession.id, [userMessage]);
+    void sendToProvider(newSession.id, [userMessage]);
+  }, [
+    currentSessionId,
+    isLoading,
+    isStreaming,
+    sessionStore,
+    refreshSessions,
+    sendToProvider,
+  ]);
 
   const handleSessionChange = (sessionId: string) => {
     sessionStore.setLastActiveSessionId(sessionId);
@@ -1504,10 +1539,14 @@ export const AiAssistant: React.FC = () => {
                       message.role === "assistant" &&
                       !isErrorBubble &&
                       Boolean(narrativeContent.trim());
+                    const hideChromeRecovery =
+                      message.decision !== undefined &&
+                      isActionableDecision(message.decision);
                     const showRegenerate =
                       message.role === "assistant" &&
                       index === lastAssistantVisibleIndex &&
-                      turnIdle;
+                      turnIdle &&
+                      !hideChromeRecovery;
 
                     return (
                       <div
@@ -1553,6 +1592,24 @@ export const AiAssistant: React.FC = () => {
                                   {message.detail}
                                 </Typography.Paragraph>
                               ) : null}
+                              {message.content.includes(
+                                "Reload this conversation",
+                              ) ? (
+                                <Button
+                                  size="small"
+                                  className="ai-message__reload"
+                                  onClick={() =>
+                                    void reconcileOpenDecision(
+                                      sessionStore.getSession(
+                                        currentSessionId ?? "",
+                                      )?.conversationId,
+                                      currentSessionId,
+                                    )
+                                  }
+                                >
+                                  Reload this conversation
+                                </Button>
+                              ) : null}
                             </div>
                           )}
                           {!isErrorBubble && narrativeContent.trim() && (
@@ -1564,6 +1621,7 @@ export const AiAssistant: React.FC = () => {
                             <AiDecisionCard
                               decision={message.decision}
                               busy={isLoading || isStreaming}
+                              onStartSameTask={handleStartSameTask}
                               onAnswer={(action, comment) =>
                                 void handleDecisionAnswer(
                                   message.decision!,
