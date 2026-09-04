@@ -471,7 +471,9 @@ class ChainPatchScenarioTest {
 
     ChatEvent.Decision card = decision(run(request("point the order call at the status operation")));
 
-    assertEquals(List.of(ChatEvent.IMPORT_ACTION), card.actions());
+    assertEquals(
+        List.of(ChatEvent.IMPORT_INTERNAL_ACTION, ChatEvent.IMPORT_EXTERNAL_ACTION),
+        card.actions());
     verify(editCompiler, never()).resumeAfterImport(any(), any(), any(), any());
     verify(writer, never()).write(any(), any());
   }

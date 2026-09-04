@@ -505,7 +505,9 @@ class ChatDecisionServiceTest {
         new ChatDecisionService(facade, questionStore(), drafts).openDecision("conv-1").orElseThrow();
 
     assertEquals("import:pkg.geosite", decision.id());
-    assertEquals(List.of(ChatEvent.IMPORT_ACTION), decision.actions());
+    assertEquals(
+        List.of(ChatEvent.IMPORT_INTERNAL_ACTION, ChatEvent.IMPORT_EXTERNAL_ACTION),
+        decision.actions());
     assertTrue(decision.question().contains("GeoSite"), decision.question());
   }
 
@@ -774,7 +776,9 @@ class ChatDecisionServiceTest {
             .orElseThrow();
 
     assertEquals("clarify", decision.kind());
-    assertEquals(List.of(ChatEvent.IMPORT_ACTION), decision.actions());
+    assertEquals(
+        List.of(ChatEvent.IMPORT_INTERNAL_ACTION, ChatEvent.IMPORT_EXTERNAL_ACTION),
+        decision.actions());
   }
 
   @Test
