@@ -710,7 +710,10 @@ describe("TestCases selection lifetime", () => {
     fireEvent.change(screen.getByTestId("search-input"), {
       target: { value: "second" },
     });
-    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+    await waitFor(() => {
+      expect(rowCheckedState()).toEqual([false, false]);
+      expect(screen.getByTestId("test-cases-delete")).toBeDisabled();
+    });
 
     // Rows the search has hidden are rows a delete must not reach.
     fireEvent.click(screen.getByTestId("test-cases-delete"));
