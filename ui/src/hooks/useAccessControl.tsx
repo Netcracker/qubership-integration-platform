@@ -10,7 +10,13 @@ import { useNotificationService } from "./useNotificationService.tsx";
 
 const PAGE_SIZE = 30;
 
-export const useAccessControl = (filters: EntityFilterModel[] = []) => {
+/**
+ * One array for every caller that names no filters. A fresh [] would be a new reference on each
+ * render, and the fetch callback depends on it, so the hook would reload without end.
+ */
+const NO_FILTERS: EntityFilterModel[] = [];
+
+export const useAccessControl = (filters: EntityFilterModel[] = NO_FILTERS) => {
   const [isLoading, setIsLoading] = useState(false);
   const [accessControlData, setAccessControlData] =
     useState<AccessControlResponse>();

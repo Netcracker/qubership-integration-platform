@@ -66,6 +66,17 @@ describe("useAccessControl", () => {
     ]);
   });
 
+  it("loads once when the caller names no filters", async () => {
+    // A defaulted [] used to be a fresh reference on each render, and the fetch callback depends
+    // on it: opening the roles dialog, which names no filters, reloaded without end.
+    const { unmount } = renderHook(() => useAccessControl());
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(loadHttpTriggerAccessControl).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
   it("lets a failed deploy reach the caller, which decides what to say", async () => {
     const result = await ready();
     const failure = new Error("engine unreachable");
