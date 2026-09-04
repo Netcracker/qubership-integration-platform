@@ -1632,7 +1632,8 @@ class RequirementDraftToolTest {
             null,
             null,
             flow,
-            List.of(v2)));
+            List.of(v2),
+            null));
 
     assertTrue(
         tool.captureRequirementDraft(
