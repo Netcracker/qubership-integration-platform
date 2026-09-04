@@ -75,23 +75,17 @@ export const useAccessControl = (filters: EntityFilterModel[] = NO_FILTERS) => {
     }
   }, [allDataLoaded, isLoading, fetchAccessControl]);
 
+  // Neither of these raises isLoading: it belongs to the table's own fetch, and clearing it here
+  // would let an in-flight loadMore run a second time on the same offset.
   const updateAccessControl = useCallback(
     async (searchRequest: AccessControlUpdateRequest[]) => {
-      try {
-        await api.updateHttpTriggerAccessControl(searchRequest);
-      } finally {
-        setIsLoading(false);
-      }
+      await api.updateHttpTriggerAccessControl(searchRequest);
     },
     [],
   );
 
   const bulkDeployAccessControl = useCallback(async (chainIds: string[]) => {
-    try {
-      await api.bulkDeployChainsAccessControl(chainIds);
-    } finally {
-      setIsLoading(false);
-    }
+    await api.bulkDeployChainsAccessControl(chainIds);
   }, []);
 
   useEffect(() => {

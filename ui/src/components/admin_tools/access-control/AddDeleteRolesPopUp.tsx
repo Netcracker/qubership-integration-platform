@@ -8,13 +8,20 @@ import {
   AccessControlUpdateRequest,
 } from "../../../api/apiTypes.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
-import { useAccessControl } from "../../../hooks/useAccessControl.tsx";
 
 export type AddDeleteRolesPopUpProps = {
   record?: AccessControlData;
   records?: AccessControlData[];
   onSuccess?: () => void;
   mode?: "add" | "delete";
+  /**
+   * The two calls come from the table's own useAccessControl. Calling the hook here would give
+   * the dialog a second instance of it, which fetches a page of rows nothing renders.
+   */
+  updateAccessControl: (
+    requests: AccessControlUpdateRequest[],
+  ) => Promise<void>;
+  bulkDeployAccessControl: (chainIds: string[]) => Promise<void>;
 };
 
 /** The roles each element ends up with: the selected ones removed, or merged in. */
@@ -50,12 +57,13 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
   records,
   onSuccess,
   mode = "add",
+  updateAccessControl,
+  bulkDeployAccessControl,
 }) => {
   const recordsToProcess =
     records && records.length > 0 ? records : record ? [record] : [];
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();
-  const { updateAccessControl, bulkDeployAccessControl } = useAccessControl();
   const [form] = Form.useForm();
   const getAllUniqueRoles = (): string[] => {
     const allRoles = new Set<string>();
