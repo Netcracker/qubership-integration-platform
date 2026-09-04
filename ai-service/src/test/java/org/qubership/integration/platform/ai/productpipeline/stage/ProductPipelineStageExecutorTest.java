@@ -2807,6 +2807,12 @@ class ProductPipelineStageExecutorTest {
         ProductPipelineStageExecutor.unclassifiedRecoverySummary(
             "contract failure: missing producer for mandatory artifact GRAPH_PATCH_ARTIFACT"));
     assertEquals(
+        ProductPipelineStageExecutor.MISSING_GRAPH_PATCH_SUMMARY,
+        ProductPipelineStageExecutor.unclassifiedRecoverySummary(
+            "contract failure: skill did not complete cip-script-generator status=FAILED: "
+                + "Compiler skill did not capture a graph patch. The agent must call"
+                + " captureGraphPatch with a valid GraphPatch before finishing."));
+    assertEquals(
         ProductPipelineStageExecutor.UNCLASSIFIED_RECOVERY_SUMMARY,
         ProductPipelineStageExecutor.unclassifiedRecoverySummary("Cannot deserialize"));
   }
