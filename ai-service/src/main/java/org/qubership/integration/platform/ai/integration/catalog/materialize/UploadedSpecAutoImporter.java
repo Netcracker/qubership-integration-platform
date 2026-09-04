@@ -53,7 +53,11 @@ public class UploadedSpecAutoImporter {
     String specName = UploadedSpecTitleExtractor.resolveSpecName(content, attachment.filename());
 
     CatalogRestClient.SystemDto system = findOrCreateSystem(specName, systemType);
-    ensureDefaultEnvironment(system.id(), systemType);
+    String catalogSystemType =
+        system.type() == null || system.type().isBlank()
+            ? SYSTEM_TYPE_INTERNAL
+            : system.type();
+    ensureDefaultEnvironment(system.id(), catalogSystemType);
 
     Optional<CatalogRestClient.SpecificationGroupDto> existingGroup =
         findExistingSpecificationGroup(system.id(), specName);
