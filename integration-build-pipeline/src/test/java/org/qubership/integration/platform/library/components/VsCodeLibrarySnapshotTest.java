@@ -62,7 +62,7 @@ class VsCodeLibrarySnapshotTest {
         if (!platform.equals(snapshot)) {
             Files.createDirectories(REGENERATED.getParent());
             Files.writeString(REGENERATED, jsonMapper.writer(prettyPrinter())
-                    .writeValueAsString(canonical(jsonMapper.valueToTree(loadLibrary()))));
+                    .writeValueAsString(canonical(jsonMapper.valueToTree(loadLibrary()))) + "\n");
         }
 
         Set<String> missing = new TreeSet<>(platform.keySet());
