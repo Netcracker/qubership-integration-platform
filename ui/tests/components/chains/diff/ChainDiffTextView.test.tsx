@@ -2,16 +2,21 @@
  * @jest-environment jsdom
  */
 
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { Chain, Dependency, Element } from "../../../../src/api/apiTypes";
+import type { editor } from "monaco-editor";
+import { createRef } from "react";
 
 jest.mock("../../../../src/hooks/useMonacoTheme", () => ({
   useMonacoTheme: jest.fn(() => "vs"),
+  applyVSCodeThemeToMonaco: jest.fn(),
 }));
 
 jest.mock("../../../../src/components/chains/diff/compare/compare", () => ({
-  ...jest.requireActual("../../../../src/components/chains/diff/compare/compare"),
+  ...jest.requireActual(
+    "../../../../src/components/chains/diff/compare/compare",
+  ),
   buildElementMap: jest.fn(() => new Map()),
 }));
 
@@ -23,6 +28,10 @@ type DiffEditorProps = {
   theme?: string;
   className?: string;
   options?: Record<string, unknown>;
+  onMount?: (
+    editorInstance: editor.IStandaloneDiffEditor,
+    monaco: typeof import("monaco-editor"),
+  ) => void;
 };
 
 let capturedDiffEditorProps: DiffEditorProps | null = null;
@@ -41,6 +50,7 @@ jest.mock("@monaco-editor/react", () => {
 import { useMonacoTheme } from "../../../../src/hooks/useMonacoTheme";
 import { buildElementMap } from "../../../../src/components/chains/diff/compare/compare";
 import {
+  ChainDiffTextViewHandle,
   ChainDiffTextView,
   dumpYaml,
 } from "../../../../src/components/chains/diff/ChainDiffTextView";
@@ -132,7 +142,11 @@ describe("dumpYaml", () => {
   });
 
   it("should replace the from field value with 'name (type)' when the referenced element exists", () => {
-    const element = makeElement({ id: "e1", name: "HTTP Trigger", type: "http-trigger" });
+    const element = makeElement({
+      id: "e1",
+      name: "HTTP Trigger",
+      type: "http-trigger",
+    });
     const chain = makeChain({
       elements: [element],
       dependencies: [makeDependency("conn-1", "e1", "e2")],
@@ -144,7 +158,11 @@ describe("dumpYaml", () => {
   });
 
   it("should replace the to field value with 'name (type)' when the referenced element exists", () => {
-    const element = makeElement({ id: "e2", name: "Service Call", type: "service-call" });
+    const element = makeElement({
+      id: "e2",
+      name: "Service Call",
+      type: "service-call",
+    });
     const chain = makeChain({
       elements: [element],
       dependencies: [makeDependency("conn-1", "e1", "e2")],
@@ -167,8 +185,16 @@ describe("dumpYaml", () => {
   });
 
   it("should sort the elements array using the elementMap ordering", () => {
-    const elemZ = makeElement({ id: "elem-z", name: "ZZZ-element", type: "script" });
-    const elemA = makeElement({ id: "elem-a", name: "AAA-element", type: "script" });
+    const elemZ = makeElement({
+      id: "elem-z",
+      name: "ZZZ-element",
+      type: "script",
+    });
+    const elemA = makeElement({
+      id: "elem-a",
+      name: "AAA-element",
+      type: "script",
+    });
     const chain = makeChain({ elements: [elemZ, elemA] });
     // elem-z maps to "aaa" (sorts first), elem-a maps to "zzz" (sorts second)
     const elementMap = new Map([
@@ -178,18 +204,30 @@ describe("dumpYaml", () => {
 
     const result = dumpYaml(chain, elementMap);
 
-    expect(result.indexOf("ZZZ-element")).toBeLessThan(result.indexOf("AAA-element"));
+    expect(result.indexOf("ZZZ-element")).toBeLessThan(
+      result.indexOf("AAA-element"),
+    );
   });
 
   it("should fall back to element id for sorting when element is not in the elementMap", () => {
-    const elemZ = makeElement({ id: "elem-z", name: "ZZZ-element", type: "script" });
-    const elemA = makeElement({ id: "elem-a", name: "AAA-element", type: "script" });
+    const elemZ = makeElement({
+      id: "elem-z",
+      name: "ZZZ-element",
+      type: "script",
+    });
+    const elemA = makeElement({
+      id: "elem-a",
+      name: "AAA-element",
+      type: "script",
+    });
     const chain = makeChain({ elements: [elemZ, elemA] });
 
     const result = dumpYaml(chain, new Map());
 
     // "elem-a" < "elem-z" alphabetically → AAA-element appears first
-    expect(result.indexOf("AAA-element")).toBeLessThan(result.indexOf("ZZZ-element"));
+    expect(result.indexOf("AAA-element")).toBeLessThan(
+      result.indexOf("ZZZ-element"),
+    );
   });
 
   it("should produce YAML with keys sorted alphabetically", () => {
@@ -202,8 +240,12 @@ describe("dumpYaml", () => {
     const result = dumpYaml(chain, new Map());
 
     // businessDescription < description < name (alphabetical order)
-    expect(result.indexOf("businessDescription:")).toBeLessThan(result.indexOf("description:"));
-    expect(result.indexOf("description:")).toBeLessThan(result.indexOf("name:"));
+    expect(result.indexOf("businessDescription:")).toBeLessThan(
+      result.indexOf("description:"),
+    );
+    expect(result.indexOf("description:")).toBeLessThan(
+      result.indexOf("name:"),
+    );
   });
 });
 
@@ -224,7 +266,13 @@ describe("ChainDiffTextView", () => {
   it("should render DiffEditor with non-empty original and empty modified when only chain1 is provided", () => {
     const chain1 = makeChain({ id: "c1", name: "Chain 1" });
 
-    render(<ChainDiffTextView chain1={chain1} changes={[]} onSelectChange={jest.fn()} />);
+    render(
+      <ChainDiffTextView
+        chain1={chain1}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
+    );
 
     expect(capturedDiffEditorProps!.original).toBe(dumpYaml(chain1, new Map()));
     expect(capturedDiffEditorProps!.modified).toBe("");
@@ -233,7 +281,13 @@ describe("ChainDiffTextView", () => {
   it("should render DiffEditor with empty original and non-empty modified when only chain2 is provided", () => {
     const chain2 = makeChain({ id: "c2", name: "Chain 2" });
 
-    render(<ChainDiffTextView chain2={chain2} changes={[]} onSelectChange={jest.fn()} />);
+    render(
+      <ChainDiffTextView
+        chain2={chain2}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
+    );
 
     expect(capturedDiffEditorProps!.original).toBe("");
     expect(capturedDiffEditorProps!.modified).toBe(dumpYaml(chain2, new Map()));
@@ -244,7 +298,12 @@ describe("ChainDiffTextView", () => {
     const chain2 = makeChain({ id: "c2", name: "Chain 2" });
 
     render(
-      <ChainDiffTextView chain1={chain1} chain2={chain2} changes={[]} onSelectChange={jest.fn()} />,
+      <ChainDiffTextView
+        chain1={chain1}
+        chain2={chain2}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
     );
 
     expect(capturedDiffEditorProps!.original).not.toBe("");
@@ -272,30 +331,80 @@ describe("ChainDiffTextView", () => {
     expect(capturedDiffEditorProps!.modifiedLanguage).toBe("yaml");
   });
 
+  it("should navigate to Monaco diff hunks through its imperative handle", () => {
+    const ref = createRef<ChainDiffTextViewHandle>();
+    const goToDiff = jest.fn();
+    render(
+      <ChainDiffTextView ref={ref} changes={[]} onSelectChange={jest.fn()} />,
+    );
+
+    act(() => {
+      capturedDiffEditorProps!.onMount!(
+        { goToDiff } as unknown as editor.IStandaloneDiffEditor,
+        {} as typeof import("monaco-editor"),
+      );
+    });
+    ref.current!.goToDiff("next");
+    ref.current!.goToDiff("previous");
+
+    expect(goToDiff).toHaveBeenNthCalledWith(1, "next");
+    expect(goToDiff).toHaveBeenNthCalledWith(2, "previous");
+  });
+
   it("should use the result of buildElementMap as the element map for chain2 YAML when both chains are provided", () => {
-    const elemZ = makeElement({ id: "elem-z", name: "ZZZ-element", type: "script" });
-    const elemA = makeElement({ id: "elem-a", name: "AAA-element", type: "script" });
+    const elemZ = makeElement({
+      id: "elem-z",
+      name: "ZZZ-element",
+      type: "script",
+    });
+    const elemA = makeElement({
+      id: "elem-a",
+      name: "AAA-element",
+      type: "script",
+    });
     const chain1 = makeChain({ id: "c1" });
     const chain2 = makeChain({ id: "c2", elements: [elemZ, elemA] });
     // elem-z maps to "aaa" (sorts first), elem-a maps to "zzz" (sorts second)
-    mockBuildElementMap.mockReturnValue(new Map([["elem-z", "aaa"], ["elem-a", "zzz"]]));
+    mockBuildElementMap.mockReturnValue(
+      new Map([
+        ["elem-z", "aaa"],
+        ["elem-a", "zzz"],
+      ]),
+    );
 
     render(
-      <ChainDiffTextView chain1={chain1} chain2={chain2} changes={[]} onSelectChange={jest.fn()} />,
+      <ChainDiffTextView
+        chain1={chain1}
+        chain2={chain2}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
     );
 
     const modified = capturedDiffEditorProps!.modified!;
-    expect(modified.indexOf("ZZZ-element")).toBeLessThan(modified.indexOf("AAA-element"));
+    expect(modified.indexOf("ZZZ-element")).toBeLessThan(
+      modified.indexOf("AAA-element"),
+    );
   });
 
   it("should update original when chain1 prop changes", () => {
     const chain1a = makeChain({ id: "c1", name: "Chain One" });
     const chain1b = makeChain({ id: "c1", name: "Chain One Updated" });
     const { rerender } = render(
-      <ChainDiffTextView chain1={chain1a} changes={[]} onSelectChange={jest.fn()} />,
+      <ChainDiffTextView
+        chain1={chain1a}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
     );
 
-    rerender(<ChainDiffTextView chain1={chain1b} changes={[]} onSelectChange={jest.fn()} />);
+    rerender(
+      <ChainDiffTextView
+        chain1={chain1b}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
+    );
 
     expect(capturedDiffEditorProps!.original).toContain("Chain One Updated");
   });
@@ -304,10 +413,20 @@ describe("ChainDiffTextView", () => {
     const chain2a = makeChain({ id: "c2", name: "Chain Two" });
     const chain2b = makeChain({ id: "c2", name: "Chain Two Updated" });
     const { rerender } = render(
-      <ChainDiffTextView chain2={chain2a} changes={[]} onSelectChange={jest.fn()} />,
+      <ChainDiffTextView
+        chain2={chain2a}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
     );
 
-    rerender(<ChainDiffTextView chain2={chain2b} changes={[]} onSelectChange={jest.fn()} />);
+    rerender(
+      <ChainDiffTextView
+        chain2={chain2b}
+        changes={[]}
+        onSelectChange={jest.fn()}
+      />,
+    );
 
     expect(capturedDiffEditorProps!.modified).toContain("Chain Two Updated");
   });
