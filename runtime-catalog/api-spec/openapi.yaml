@@ -4648,24 +4648,19 @@ components:
     UpdateRolesRequest:
       description: "Http trigger roles update request object"
       properties:
-        chainId:
-          description: "Chain id"
-          type: "string"
         elementId:
           description: "Element id"
+          minLength: 1
           type: "string"
-        isRedeploy:
-          description: "Whether chain redeploy should be initiated"
-          type: "boolean"
         roles:
           description: "List of roles"
           items:
             type: "string"
           type: "array"
           uniqueItems: true
-        unsavedChanges:
-          description: "Whether changes on graph is unsaved in the chain"
-          type: "boolean"
+      required:
+      - "elementId"
+      - "roles"
       type: "object"
     UsedProperty:
       description: "Exchange property"
@@ -4916,12 +4911,8 @@ paths:
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/access-control/redeploy:
@@ -4932,18 +4923,14 @@ paths:
         content:
           application/json:
             schema:
-              description: "Http trigger roles update request object"
+              description: "Ids of the chains to redeploy"
               items:
-                $ref: "#/components/schemas/UpdateRolesRequest"
+                type: "string"
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/deployments/bulk:
@@ -5008,12 +4995,8 @@ paths:
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/roles/redeploy:
@@ -5024,18 +5007,14 @@ paths:
         content:
           application/json:
             schema:
-              description: "Http trigger roles update request object"
+              description: "Ids of the chains to redeploy"
               items:
-                $ref: "#/components/schemas/UpdateRolesRequest"
+                type: "string"
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/{chainId}/deployments:

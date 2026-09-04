@@ -194,7 +194,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(getExceptionDTO(exception));
     }
 
-    @ExceptionHandler(value = BadRequestException.class)
+    @ExceptionHandler(value = {BadRequestException.class, AbacRoleChangeException.class})
     public ResponseEntity<ExceptionDTO> handleBadRequestException(CatalogRuntimeException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception));
     }

@@ -2,8 +2,6 @@ import { api } from "../api/api.ts";
 import {
   AccessControlResponse,
   AccessControlSearchRequest,
-  AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
 } from "../api/apiTypes.ts";
 import { EntityFilterModel } from "../components/table/filter/filterTypes";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,7 +9,8 @@ import { useNotificationService } from "./useNotificationService.tsx";
 
 const PAGE_SIZE = 30;
 
-export const useAccessControl = (filters: EntityFilterModel[] = []) => {
+// filters is a dependency of the fetch callback, so the caller has to hold it steady across renders.
+export const useAccessControl = (filters: EntityFilterModel[]) => {
   const [isLoading, setIsLoading] = useState(false);
   const [accessControlData, setAccessControlData] =
     useState<AccessControlResponse>();
@@ -70,42 +69,6 @@ export const useAccessControl = (filters: EntityFilterModel[] = []) => {
     }
   }, [allDataLoaded, isLoading, fetchAccessControl]);
 
-  const updateAccessControl = useCallback(
-    async (searchRequest: AccessControlUpdateRequest[]) => {
-      try {
-        const elementChange =
-          await api.updateHttpTriggerAccessControl(searchRequest);
-        setAccessControlData(elementChange);
-      } catch (error) {
-        notificationService.requestFailed(
-          "Failed to update Http Trigger's Access Control",
-          error,
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [notificationService],
-  );
-
-  const bulkDeployAccessControl = useCallback(
-    async (searchRequest: AccessControlBulkDeployRequest[]) => {
-      try {
-        const bulkDeployResponse =
-          await api.bulkDeployChainsAccessControl(searchRequest);
-        setAccessControlData(bulkDeployResponse);
-      } catch (error) {
-        notificationService.requestFailed(
-          "Failed to bulk deploy chains",
-          error,
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [notificationService],
-  );
-
   useEffect(() => {
     void getAccessControl();
   }, [getAccessControl]);
@@ -115,8 +78,6 @@ export const useAccessControl = (filters: EntityFilterModel[] = []) => {
     accessControlData,
     setAccessControlData,
     getAccessControl,
-    updateAccessControl,
-    bulkDeployAccessControl,
     loadMore,
     allDataLoaded,
   };

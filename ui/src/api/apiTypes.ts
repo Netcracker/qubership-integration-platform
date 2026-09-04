@@ -1261,18 +1261,12 @@ export type AccessControlSearchRequest = {
 
 export type AccessControlUpdateRequest = {
   elementId: string;
-  isRedeploy: boolean;
   roles: string[];
 };
 
 export type AccessControlResponse = {
   offset: number;
   roles: AccessControl[];
-};
-
-export type AccessControlBulkDeployRequest = {
-  chainId: string;
-  unsavedChanges: boolean;
 };
 
 export type AccessControl = {

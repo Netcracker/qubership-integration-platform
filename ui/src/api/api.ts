@@ -81,7 +81,6 @@ import type {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
   CustomResourceBuildRequest,
   MicroDomainDeployRequest,
   BulkMicroDomainDeployResult,
@@ -613,11 +612,9 @@ export interface Api {
 
   updateHttpTriggerAccessControl(
     searchRequest: AccessControlUpdateRequest[],
-  ): Promise<AccessControlResponse>;
+  ): Promise<void>;
 
-  bulkDeployChainsAccessControl(
-    searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<AccessControlResponse>;
+  bulkDeployChainsAccessControl(chainIds: string[]): Promise<void>;
 
   runServiceDiscovery(): Promise<unknown>;
 
