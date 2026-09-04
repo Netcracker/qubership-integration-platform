@@ -57,10 +57,10 @@ elements:
     properties:
       connectionTimeout: 30000
       contentType: "text/plain"
-      from: "user@test.com"
+      from: "user@example.com"
       ignoreUnsupportedCharset: false
       to:
-        - "client@test.com"
+        - "client@example.com"
       url: "http://mail.test"
       useInlineAttachments: false
   - id: "26bdaa07-32d8-4b5e-a7fb-04fff135bdd9"

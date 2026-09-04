@@ -85,11 +85,11 @@ public class QueryParamsHelperTest {
                         "mail-sender",
                         """
                            {
-                              "from": "payment-service@test.com",
-                              "to": [ "admin@test.com", "client@test.com", "hd@test.com" ]
+                              "from": "payment-service@example.com",
+                              "to": [ "admin@example.com", "client@example.com", "hd@example.com" ]
                            }
                         """,
-                        "?from=payment-service@test.com&to=admin@test.com,client@test.com,hd@test.com"
+                        "?from=payment-service@example.com&to=admin@example.com,client@example.com,hd@example.com"
                 )
         );
     }
