@@ -297,6 +297,8 @@ public class CompilerGraphPatchTool {
         return finish(
             conversationId, startMs, wrapValidationMessage(conversationId, capabilityId, message));
       }
+      graphPatch =
+          withHopBodyMappingCoverage(conversationId, capabilityId, graphPatch, graphForGate);
 
       CaptureKey key =
           CaptureKey.capability(CaptureSlot.GRAPH_PATCH, conversationId, capabilityId);
@@ -695,7 +697,9 @@ public class CompilerGraphPatchTool {
       throw new IllegalArgumentException(MAPPING_CAPTURE_PREFIX + " script body is required");
     }
     MappingEnvelope envelope = requireEnvelope(conversationId, context, intentId);
-    mappingCaptureValidator.validateScript(intent, script, parseMappingCoverage(node), envelope);
+    List<String> coverage =
+        mappingCaptureValidator.hopBodyCoverage(parseMappingCoverage(node), envelope);
+    mappingCaptureValidator.validateScript(intent, script, coverage, envelope);
   }
 
   private MappingIntent requireIntent(GraphPatchExecutionContext context, String mappingIntentId) {
@@ -755,7 +759,10 @@ public class CompilerGraphPatchTool {
   }
 
   private List<String> parseMappingCoverage(ChainPlanNode node) {
-    String raw = MappingExecutionSite.mappingCoverage(node);
+    return parseMappingCoverageJson(MappingExecutionSite.mappingCoverage(node));
+  }
+
+  private List<String> parseMappingCoverageJson(String raw) {
     if (raw == null || raw.isBlank()) {
       return null;
     }
@@ -777,6 +784,122 @@ public class CompilerGraphPatchTool {
     } catch (IllegalArgumentException e) {
       throw e;
     } catch (Exception e) {
+      throw new IllegalArgumentException(
+          MAPPING_CAPTURE_PREFIX + " mappingCoverage must be a JSON array of strings", e);
+    }
+  }
+
+  private GraphPatch withHopBodyMappingCoverage(
+      String conversationId,
+      String capabilityId,
+      GraphPatch graphPatch,
+      ChainPlanGraph graphForGate) {
+    if (!SCRIPT_GENERATOR.equals(capabilityId)
+        || graphPatch == null
+        || !touchesKey(graphPatch, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY)) {
+      return graphPatch;
+    }
+    GraphPatchExecutionContext context =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .orElse(null);
+    return new GraphPatch(
+        graphPatch.patchId(),
+        graphPatch.ownerCapabilityId(),
+        withHopBodyCoverageNodes(graphPatch.nodePatches(), conversationId, context),
+        graphPatch.edgePatches(),
+        withHopBodyCoverageProperties(
+            graphPatch.propertyPatches(), conversationId, context, graphForGate),
+        graphPatch.chainPatches(),
+        graphPatch.usedKnowledgeRefs(),
+        graphPatch.rationale());
+  }
+
+  private List<PropertyPatch> withHopBodyCoverageProperties(
+      List<PropertyPatch> patches,
+      String conversationId,
+      GraphPatchExecutionContext context,
+      ChainPlanGraph graphForGate) {
+    if (patches == null || patches.isEmpty()) {
+      return patches;
+    }
+    List<PropertyPatch> rewritten = new ArrayList<>(patches.size());
+    for (PropertyPatch patch : patches) {
+      if (patch == null
+          || patch.property() == null
+          || !MappingExecutionSite.MAPPING_COVERAGE_PROPERTY.equals(patch.property().key())) {
+        rewritten.add(patch);
+        continue;
+      }
+      ChainPlanNode node = findNode(graphForGate, patch.targetNodeId());
+      rewritten.add(
+          new PropertyPatch(
+              patch.operation(),
+              patch.targetNodeId(),
+              hopBodyCoverageProperty(patch.property(), conversationId, context, node)));
+    }
+    return rewritten;
+  }
+
+  private List<NodePatch> withHopBodyCoverageNodes(
+      List<NodePatch> patches, String conversationId, GraphPatchExecutionContext context) {
+    if (patches == null || patches.isEmpty()) {
+      return patches;
+    }
+    List<NodePatch> rewritten = new ArrayList<>(patches.size());
+    for (NodePatch patch : patches) {
+      if (patch == null || patch.node() == null || patch.node().properties() == null) {
+        rewritten.add(patch);
+        continue;
+      }
+      ChainPlanNode node = patch.node();
+      List<PlanProperty> properties = new ArrayList<>();
+      boolean changed = false;
+      for (PlanProperty property : node.properties()) {
+        if (property == null
+            || !MappingExecutionSite.MAPPING_COVERAGE_PROPERTY.equals(property.key())) {
+          properties.add(property);
+          continue;
+        }
+        properties.add(hopBodyCoverageProperty(property, conversationId, context, node));
+        changed = true;
+      }
+      if (!changed) {
+        rewritten.add(patch);
+        continue;
+      }
+      rewritten.add(
+          new NodePatch(
+              patch.operation(),
+              new ChainPlanNode(
+                  node.nodeId(),
+                  node.type(),
+                  node.label(),
+                  node.parentNodeId(),
+                  node.order(),
+                  List.copyOf(properties)),
+              patch.targetNodeId()));
+    }
+    return rewritten;
+  }
+
+  private PlanProperty hopBodyCoverageProperty(
+      PlanProperty property,
+      String conversationId,
+      GraphPatchExecutionContext context,
+      ChainPlanNode node) {
+    String intentId = MappingExecutionSite.mappingIntentId(node);
+    MappingEnvelope envelope =
+        intentId == null || intentId.isBlank()
+            ? null
+            : requireEnvelope(conversationId, context, intentId);
+    List<String> stripped =
+        mappingCaptureValidator.hopBodyCoverage(
+            parseMappingCoverageJson(property.value()), envelope);
+    try {
+      return new PlanProperty(property.key(), objectMapper.writeValueAsString(stripped));
+    } catch (JsonProcessingException e) {
       throw new IllegalArgumentException(
           MAPPING_CAPTURE_PREFIX + " mappingCoverage must be a JSON array of strings", e);
     }

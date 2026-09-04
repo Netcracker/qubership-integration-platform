@@ -1,11 +1,15 @@
 package org.qubership.integration.platform.ai.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Clock;
 import java.util.List;
 import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.AfterEach;
@@ -13,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
@@ -21,6 +27,9 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -42,10 +51,14 @@ class ScriptBodyRepairToolTest {
   private static final String CONVERSATION_ID = "script-repair-conv";
   private static final String CAPABILITY_ID = "custom-script-generator";
 
+  private static final ObjectMapper MAPPER =
+      new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+
   private CaptureSession captureSession;
   private ChainPlanStore planStore;
   private CaptureAttemptFeedbackStore feedbackStore;
   private GraphPatchExecutionContextStore executionContextStore;
+  private CompilationArtifacts compilationArtifacts;
   private ScriptBodyRepairTool tool;
 
   @BeforeEach
@@ -54,6 +67,8 @@ class ScriptBodyRepairToolTest {
     planStore = new ChainPlanStore();
     feedbackStore = new CaptureAttemptFeedbackStore();
     executionContextStore = new GraphPatchExecutionContextStore();
+    compilationArtifacts =
+        new CompilationArtifacts(new InMemoryArtifactBlobStore(), MAPPER, Clock.systemUTC());
     CaptureRouter captureRouter = mock(CaptureRouter.class);
     when(captureRouter.routeFor(CAPABILITY_ID))
         .thenReturn(new CaptureRoute(CAPABILITY_ID, CaptureTool.REPAIR_SCRIPT_BODIES));
@@ -66,7 +81,7 @@ class ScriptBodyRepairToolTest {
             new GraphPatchApplier(),
             feedbackStore,
             executionContextStore,
-            mock(org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.class));
+            compilationArtifacts);
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, CAPABILITY_ID);
   }
@@ -544,6 +559,87 @@ class ScriptBodyRepairToolTest {
             planStore.get(CONVERSATION_ID).orElseThrow().nodes().getFirst()));
   }
 
+  @Test
+  void requestHopRepairStripsResponseKeepPathsFromStoredCoverage() throws Exception {
+    bindRequestHopMappingRepair();
+
+    CaptureValidationException terminal =
+        assertThrows(
+            CaptureValidationException.class,
+            () ->
+                tool.repairScriptBodies(
+                    new ScriptBodyRepairCapture(
+                        "script-request-hop",
+                        List.of(
+                            new ScriptBodyEntry(
+                                "transform-create-task",
+                                requestHopScript(),
+                                List.of(
+                                    "Subject",
+                                    "Description",
+                                    "$.response.executionId",
+                                    "$.response.orderId"))),
+                        "Fill request hop mapping")));
+
+    assertTrue(terminal.getMessage().contains("Script body repair patch captured"));
+    GraphPatch patch =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    String coverageJson =
+        patch.propertyPatches().stream()
+            .filter(
+                propertyPatch ->
+                    MappingExecutionSite.MAPPING_COVERAGE_PROPERTY.equals(
+                        propertyPatch.property().key()))
+            .findFirst()
+            .orElseThrow()
+            .property()
+            .value();
+    assertTrue(coverageJson.contains("Subject"));
+    assertTrue(coverageJson.contains("Description"));
+    assertFalse(coverageJson.contains("$.response"));
+    String script =
+        patch.propertyPatches().stream()
+            .filter(propertyPatch -> "script".equals(propertyPatch.property().key()))
+            .findFirst()
+            .orElseThrow()
+            .property()
+            .value();
+    assertTrue(script.contains("response.executionId"));
+    assertTrue(script.contains("response.orderId"));
+  }
+
+  @Test
+  void requestHopRepairStillReportsMissingHopBodyField() throws Exception {
+    bindRequestHopMappingRepair();
+
+    String result =
+        tool.repairScriptBodies(
+            new ScriptBodyRepairCapture(
+                "script-request-hop-missing",
+                List.of(
+                    new ScriptBodyEntry(
+                        "transform-create-task",
+                        requestHopScript(),
+                        List.of("Description", "$.response.executionId", "$.response.orderId"))),
+                "Fill request hop mapping"));
+
+    assertTrue(result.contains("missing="));
+    assertTrue(result.contains("Subject"));
+    assertFalse(result.contains("$.response"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
   private void bindMappingScriptRepair() {
     ChainPlanGraph graph = graphWithMappingScript();
     planStore.put(CONVERSATION_ID, graph);
@@ -588,6 +684,152 @@ class ScriptBodyRepairToolTest {
                         new MappingIntentRule(
                             "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED)),
                     "SCRIPT")));
+  }
+
+  private void bindRequestHopMappingRepair() throws Exception {
+    ChainPlanGraph graph = graphWithRequestHopScript();
+    MappingEnvelope envelope =
+        requestHopEnvelope().withMappingIntentId("request-onTaskStart-to-createTask");
+    CompilationArtifacts.Revision revision =
+        compilationArtifacts.append(
+            new CompilationArtifacts.AppendCommand(
+                CONVERSATION_ID,
+                CompilationArtifacts.Kind.MAPPING_ENVELOPE,
+                "1",
+                "test",
+                "1",
+                envelope,
+                List.of(),
+                null));
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(
+        CONVERSATION_ID,
+        CAPABILITY_ID,
+        new GraphPatchExecutionContext(
+            "map-run",
+            CAPABILITY_ID,
+            null,
+            null,
+            null,
+            null,
+            requestHopBrief(),
+            List.of(revision.reference()),
+            graph,
+            GraphPatchOwnershipPolicy.denyAll(),
+            "attempt-1"));
+  }
+
+  private static RequirementBrief requestHopBrief() {
+    return new RequirementBrief(
+            "Tasks",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map onTaskStart to createTask",
+            "ref",
+            "draft",
+            List.of(),
+            List.of())
+        .withMappingIntents(List.of(requestHopIntent()));
+  }
+
+  private static MappingIntent requestHopIntent() {
+    return new MappingIntent(
+        "request-onTaskStart-to-createTask",
+        "onTaskStart",
+        MappingPort.OUTPUT,
+        "createTask",
+        MappingPort.REQUEST,
+        List.of(
+            new MappingIntentRule("name", "Subject", null, MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(
+                "taskId", "Description.taskId", null, MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(
+                "executionId",
+                "responseContext.executionId",
+                "Keep for the response.",
+                MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(
+                "orderId",
+                "responseContext.orderId",
+                "Keep for the response.",
+                MappingRuleStatus.USER_DEFINED)),
+        "SCRIPT");
+  }
+
+  private static MappingEnvelope requestHopEnvelope() throws Exception {
+    JsonNode onTaskStart =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "taskId": { "type": "string" },
+                "executionId": { "type": "string" },
+                "orderId": { "type": "string" }
+              }
+            }
+            """);
+    JsonNode createTask =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "Subject": { "type": "string" },
+                "Description": { "type": "string" },
+                "Priority": { "type": "string" },
+                "Status": { "type": "string" },
+                "ActivityDate": { "type": "string" }
+              }
+            }
+            """);
+    return new JsonSchemaMessageSchemaFactory(MAPPER)
+        .fromSides(
+            mappingSide("onTaskStart", MappingPort.OUTPUT, onTaskStart),
+            mappingSide("createTask", MappingPort.REQUEST, createTask));
+  }
+
+  private static MappingSchemaSide mappingSide(
+      String serviceCallId, MappingPort direction, JsonNode schema) {
+    return new MappingSchemaSide(
+        "1",
+        serviceCallId,
+        "op-1",
+        direction,
+        "application/json",
+        null,
+        "sha-test",
+        "test-provenance",
+        schema);
+  }
+
+  private static String requestHopScript() {
+    return """
+        target['Subject'] = source['name']
+        target['Description'] = source['taskId']
+        response.executionId = source['executionId']
+        response.orderId = source['orderId']
+        """;
+  }
+
+  private static ChainPlanGraph graphWithRequestHopScript() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Tasks", "Tasks"),
+        List.of(
+            new ChainPlanNode(
+                "transform-create-task",
+                "script",
+                "Map",
+                null,
+                1,
+                List.of(
+                    new PlanProperty("mappingIntentId", "request-onTaskStart-to-createTask"),
+                    new PlanProperty("script", "")))),
+        List.of());
   }
 
   private static ChainPlanGraph graphWithMappingScript() {
