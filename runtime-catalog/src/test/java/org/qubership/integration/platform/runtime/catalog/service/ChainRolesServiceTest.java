@@ -38,6 +38,7 @@ class ChainRolesServiceTest {
     private static final String OTHER_ELEMENT_ID = "element-b";
     private static final String CHAIN_ID = "chain-a";
     private static final String OTHER_CHAIN_ID = "chain-b";
+    private static final String THIRD_CHAIN_ID = "chain-c";
     private static final String ACCESS_CONTROL_TYPE = "accessControlType";
     private static final String ROLES = "roles";
 
@@ -232,8 +233,8 @@ class ChainRolesServiceTest {
     }
 
     @Test
-    @DisplayName("Several failed chains are reported in one error naming each of them")
-    void redeployReportsEveryFailedChain() {
+    @DisplayName("A batch that fails whole says so, rather than claiming a rest that was redeployed")
+    void redeployReportsThatNothingWasDeployedWhenEveryChainFails() {
         when(chainFinderService.findById(CHAIN_ID)).thenReturn(chain(CHAIN_ID));
         when(chainFinderService.findById(OTHER_CHAIN_ID)).thenReturn(chain(OTHER_CHAIN_ID));
         when(snapshotService.build(CHAIN_ID)).thenThrow(new IllegalStateException("no snapshot"));
@@ -243,10 +244,39 @@ class ChainRolesServiceTest {
 
         assertThatThrownBy(() -> chainRolesService.redeploy(batch))
                 .isInstanceOf(DeploymentProcessingException.class)
+                .hasMessageContaining("any of the 2 chains")
+                .hasMessageNotContaining("the rest were redeployed")
                 .hasMessageContaining(CHAIN_ID)
                 .hasMessageContaining(OTHER_CHAIN_ID);
 
         verifyNoInteractions(deploymentService, chainService);
+    }
+
+    @Test
+    @DisplayName("A partly failed batch counts the failures and names each of them")
+    void redeployReportsEveryFailedChainOfAPartlyDeployedBatch() {
+        Chain healthy = chain(THIRD_CHAIN_ID);
+        Snapshot snapshot = new Snapshot();
+        DeploymentRequest deploymentRequest = new DeploymentRequest();
+        List<Deployment> deploymentEntities = List.of(new Deployment());
+        when(chainFinderService.findById(CHAIN_ID)).thenReturn(chain(CHAIN_ID));
+        when(chainFinderService.findById(OTHER_CHAIN_ID)).thenReturn(chain(OTHER_CHAIN_ID));
+        when(chainFinderService.findById(THIRD_CHAIN_ID)).thenReturn(healthy);
+        when(snapshotService.build(CHAIN_ID)).thenThrow(new IllegalStateException("no snapshot"));
+        when(snapshotService.build(OTHER_CHAIN_ID)).thenThrow(new IllegalStateException("no snapshot"));
+        when(snapshotService.build(THIRD_CHAIN_ID)).thenReturn(snapshot);
+        when(chainRolesMapper.prepareDeploymentRequest(snapshot)).thenReturn(deploymentRequest);
+        when(deploymentMapper.asEntities(List.of(deploymentRequest))).thenReturn(deploymentEntities);
+
+        List<String> batch = List.of(CHAIN_ID, OTHER_CHAIN_ID, THIRD_CHAIN_ID);
+
+        assertThatThrownBy(() -> chainRolesService.redeploy(batch))
+                .isInstanceOf(DeploymentProcessingException.class)
+                .hasMessageContaining("2 of 3 chains; the rest were redeployed")
+                .hasMessageContaining(CHAIN_ID)
+                .hasMessageContaining(OTHER_CHAIN_ID);
+
+        verify(deploymentService).createAll(deploymentEntities, THIRD_CHAIN_ID, snapshot);
     }
 
     private Chain chain(String chainId) {

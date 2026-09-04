@@ -138,6 +138,8 @@ public class ChainRolesService {
             try {
                 redeployChain(chain);
             } catch (RuntimeException exception) {
+                // Only the message survives into the aggregate error, so keep the trace here.
+                log.error("Unable to redeploy chain {}", chain.getId(), exception);
                 failures.put(chain.getId(), exception);
             }
         }
@@ -227,8 +229,12 @@ public class ChainRolesService {
         String details = failures.entrySet().stream()
                 .map(failure -> failure.getKey() + ": " + failure.getValue().getMessage())
                 .collect(Collectors.joining("; "));
-        throw new DeploymentProcessingException("Unable to redeploy " + failures.size() + " of " + chainCount
-                + " chains, the rest were redeployed. Chains that still carry unsaved changes: " + details);
+        String scope = failures.size() == chainCount
+                ? "Unable to redeploy any of the " + chainCount + " chains."
+                : "Unable to redeploy " + failures.size() + " of " + chainCount
+                        + " chains; the rest were redeployed.";
+        throw new DeploymentProcessingException(scope
+                + " Chains that still carry unsaved changes: " + details);
     }
 
 
