@@ -528,6 +528,52 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       // toHaveBeenCalledWith would accept ["chain-1", undefined] and that is the case under test.
       expect(mockBulkDeploy.mock.calls[0][0]).toStrictEqual(["chain-1"]);
     });
+
+    it("refetches the table when the deploy fails, because part of it may have run", async () => {
+      // A chain that fails no longer aborts the batch, so the rows the server did deploy have
+      // cleared their unsaved changes and the table on screen no longer matches.
+      const mockBulkDeploy = jest
+        .fn()
+        .mockRejectedValue(new Error("engine unreachable"));
+      const mockGetAccessControl = jest.fn().mockResolvedValue(undefined);
+      const roles = [
+        createMockAccessControlData({
+          chainId: "chain-1",
+          elementId: "elem-1",
+          unsavedChanges: true,
+          deploymentStatus: ["DEPLOYED"],
+        }),
+      ];
+
+      mockUseAccessControl.mockReturnValue({
+        ...mockUseAccessControl(),
+        accessControlData: { offset: 0, roles },
+        bulkDeployAccessControl: mockBulkDeploy,
+        getAccessControl: mockGetAccessControl,
+      });
+
+      render(<AccessControl />);
+
+      await waitFor(() => {
+        const table = getDataTable();
+        const selectAll = table.querySelector('input[type="checkbox"]')!;
+        fireEvent.click(selectAll);
+      });
+
+      await waitFor(() => {
+        const redeployBtn = screen.getByTestId("Redeploy");
+        expect(redeployBtn).toBeEnabled();
+        fireEvent.click(redeployBtn);
+      });
+
+      await waitFor(() => {
+        expect(mockBulkDeploy).toHaveBeenCalledTimes(1);
+      });
+      // The hook is mocked, so its own mount fetch does not run: this call is the catch.
+      await waitFor(() => {
+        expect(mockGetAccessControl).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   describe("Row Key Consistency", () => {

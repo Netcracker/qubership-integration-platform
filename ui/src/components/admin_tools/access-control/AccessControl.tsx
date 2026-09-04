@@ -83,6 +83,7 @@ export const AccessControl: React.FC = () => {
     accessControlData,
     setAccessControlData,
     getAccessControl,
+    updateAccessControl,
     bulkDeployAccessControl,
     loadMore,
     allDataLoaded,
@@ -170,6 +171,8 @@ export const AccessControl: React.FC = () => {
         "Failed to deploy chains",
         err instanceof Error ? err : new Error(String(err)),
       );
+      // A chain that fails no longer stops the rest, so some of the batch may have deployed.
+      await getAccessControl();
     }
   };
 
@@ -481,6 +484,8 @@ export const AccessControl: React.FC = () => {
                       <AddDeleteRolesPopUp
                         records={validRecords}
                         onSuccess={() => void getAccessControl()}
+                        updateAccessControl={updateAccessControl}
+                        bulkDeployAccessControl={bulkDeployAccessControl}
                       />
                     ),
                   });
@@ -531,6 +536,8 @@ export const AccessControl: React.FC = () => {
                         records={validRecords}
                         mode="delete"
                         onSuccess={() => void getAccessControl()}
+                        updateAccessControl={updateAccessControl}
+                        bulkDeployAccessControl={bulkDeployAccessControl}
                       />
                     ),
                   });
