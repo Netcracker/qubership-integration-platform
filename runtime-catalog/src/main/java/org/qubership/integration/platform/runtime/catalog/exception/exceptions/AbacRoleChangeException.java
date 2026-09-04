@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
 
-public class AbacRoleChangeException extends RuntimeException {
+public class AbacRoleChangeException extends BadRequestException {
 
     private static final String ABAC_ERROR_MESSAGE = "Can't apply roles to ABAC endpoint with id: ";
 

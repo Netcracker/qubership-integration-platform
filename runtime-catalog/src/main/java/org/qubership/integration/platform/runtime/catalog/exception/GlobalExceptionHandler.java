@@ -94,11 +94,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(getExceptionDTO(exception));
     }
 
-    @ExceptionHandler(AbacRoleChangeException.class)
-    public ResponseEntity<ExceptionDTO> handleAbacRoleChangeException(AbacRoleChangeException exception) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception));
-    }
-
     @ExceptionHandler(SnapshotCreationException.class)
     public ResponseEntity<ExceptionDTO> handleSnapshotCreationException(SnapshotCreationException exception) {
         Map<String, Object> details = StringUtils.isBlank(exception.getElementId())
