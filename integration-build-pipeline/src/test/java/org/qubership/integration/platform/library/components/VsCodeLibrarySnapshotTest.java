@@ -37,9 +37,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * defaults when it creates an element. A stale snapshot means the extension writes documents the
  * platform no longer recognises, so the two are compared here rather than by hand.
  *
- * <p>The comparison ignores key order and formatting; only the element set and each descriptor's
- * content matter. When it fails, the freshly built library is written to {@code target/} so it can
- * replace the committed snapshot.
+ * <p>Field order and formatting do not matter, and neither does the order the elements come out of
+ * the library's own maps. The order of properties, tabs and allowed values inside a descriptor does,
+ * because that is what the editor renders. When the check fails, the freshly built library is
+ * written to {@code target/} so it can replace the committed snapshot.
  */
 class VsCodeLibrarySnapshotTest {
 
