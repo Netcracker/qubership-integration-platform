@@ -430,7 +430,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:e2069b789dcbaa0d33f2467dea408ec2c69fec73e590d39048132442cfae52c8
+  content_hash: sha256:c673b16f3520fe782c8babb07e60712d5355255a1550fb304614e3f290cdec57
 - kind: project-relative
   target: claude
   value: .claude/rules/schemas.md
@@ -907,7 +907,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:94662107f8cdd74fb122a33aa88511ca491a1b34cf00c352b93b06d5cbcd0d8a
+  content_hash: sha256:e8f91ebde5bef54fb22ff1f0876e1d07df56f4d0913f5c3b7d46031ba3eee14b
 - kind: project-relative
   target: cursor
   value: .cursor/rules/schemas.mdc
