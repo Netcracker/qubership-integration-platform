@@ -121,12 +121,13 @@ public class SpecificationImportService {
         if (sessionStatus.isBusiness()) {
             throw new SpecificationImportException(sessionStatus.getErrorMessage());
         }
+        // A failed or warned status is left in place so a second poll still reports the cause
+        // instead of "not found". deleteObsoleteImportSessionStatuses() prunes it after 15 minutes,
+        // and the business branch above has always behaved this way.
         if (!StringUtils.isBlank(sessionStatus.getErrorMessage())) {
-            deleteImportSessionStatus(importId);
             throw new SpecificationImportException(sessionStatus.getErrorMessage(), sessionStatus.getStackTrace());
         }
         if (!StringUtils.isBlank(sessionStatus.getWarningMessage())) {
-            deleteImportSessionStatus(importId);
             throw new SpecificationImportWarningException(sessionStatus.getWarningMessage(), sessionStatus.getStackTrace());
         }
         if (sessionStatus.isImportIsDone()) {
@@ -141,6 +142,10 @@ public class SpecificationImportService {
     }
 
     public String importSpecification(String specificationGroupId, MultipartFile[] files) {
+        return importSpecification(specificationGroupId, files, false);
+    }
+
+    public String importSpecification(String specificationGroupId, MultipartFile[] files, boolean removeGroupOnFailure) {
         deleteObsoleteImportSessionStatuses();
         IntegrationSystem system = specificationGroupRepository.getReferenceById(specificationGroupId).getSystem();
 
@@ -183,6 +188,9 @@ public class SpecificationImportService {
                 onImportSpecificationTaskComplete(importId, e, message.toString());
                 if (e != null) {
                     specificationSourceRepository.deleteAll(specificationSources);
+                    if (removeGroupOnFailure) {
+                        removeSpecificationGroup(specificationGroupId);
+                    }
                 }
             });
         } catch (Exception e) {
@@ -224,8 +232,28 @@ public class SpecificationImportService {
             systemModelService.patchModelWithCompiledLibrary(model);
             return systemModelService.save(model);
         } catch (Exception exception) {
-            systemModelService.delete(model);
+            // The caller reports this exception to the user, so anything the rollback throws would
+            // take its place.
+            try {
+                systemModelService.delete(model);
+            } catch (Exception deleteException) {
+                log.error("Failed to remove specification {} after a failed import", model.getId(), deleteException);
+                exception.addSuppressed(deleteException);
+            }
             throw exception;
+        }
+    }
+
+    /**
+     * Removes a specification group the failed import created itself, so a failure leaves the
+     * service as it found it.
+     */
+    private void removeSpecificationGroup(String specificationGroupId) {
+        try {
+            specificationGroupRepository.deleteById(specificationGroupId);
+        } catch (Exception exception) {
+            log.warn("Failed to remove specification group {} after a failed import",
+                    specificationGroupId, exception);
         }
     }
 
@@ -287,6 +315,7 @@ public class SpecificationImportService {
         String stackTrace = null;
         boolean business = false;
         if (nonNull(exception)) {
+            Throwable thrownException = exception;
             if (nonNull(exception.getCause())) {
                 exception = exception.getCause();
             }
@@ -303,6 +332,11 @@ public class SpecificationImportService {
                 stackTrace = Optional.ofNullable(catalogRuntimeException.getOriginalException())
                         .map(ExceptionUtils::getStackTrace)
                         .orElse(null);
+            }
+            if (business) {
+                log.warn("Specification import {} rejected: {}", importId, errorMessage);
+            } else {
+                log.error("Specification import {} failed: {}", importId, errorMessage, thrownException);
             }
         }
         saveImportSessionStatus(importId, true, errorMessage, additionalMessage, stackTrace, business);

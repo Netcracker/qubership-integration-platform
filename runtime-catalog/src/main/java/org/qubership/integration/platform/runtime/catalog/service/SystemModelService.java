@@ -41,6 +41,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource.DISCOVERED;
 
 @Slf4j
@@ -129,8 +130,12 @@ public class SystemModelService extends SystemModelBaseService {
             }
 
             SystemModel specification = specificationOptional.get();
+            SpecificationGroup specificationGroup = specification.getSpecificationGroup();
+            if (nonNull(specificationGroup)) {
+                specificationGroup.removeSystemModel(specification);
+            }
             systemModelRepository.delete(specification);
-            logModelAction(specification, specification.getSpecificationGroup(), LogOperation.DELETE);
+            logModelAction(specification, specificationGroup, LogOperation.DELETE);
         }
 
         return specificationOptional;
