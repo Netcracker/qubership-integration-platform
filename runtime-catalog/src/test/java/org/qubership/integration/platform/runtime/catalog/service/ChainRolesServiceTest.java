@@ -71,7 +71,9 @@ class ChainRolesServiceTest {
         when(elementService.findById(ELEMENT_ID))
                 .thenThrow(new EntityNotFoundException("Can't find chain element with id: " + ELEMENT_ID));
 
-        assertThatThrownBy(() -> chainRolesService.updateRoles(List.of(updateRequest(ELEMENT_ID, "reader"))))
+        List<UpdateRolesRequest> batch = List.of(updateRequest(ELEMENT_ID, "reader"));
+
+        assertThatThrownBy(() -> chainRolesService.updateRoles(batch))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining(ELEMENT_ID);
 
@@ -86,9 +88,11 @@ class ChainRolesServiceTest {
         when(elementService.findById(OTHER_ELEMENT_ID))
                 .thenThrow(new EntityNotFoundException("Can't find chain element with id: " + OTHER_ELEMENT_ID));
 
-        assertThatThrownBy(() -> chainRolesService.updateRoles(List.of(
+        List<UpdateRolesRequest> batch = List.of(
                 updateRequest(ELEMENT_ID, "reader"),
-                updateRequest(OTHER_ELEMENT_ID, "reader"))))
+                updateRequest(OTHER_ELEMENT_ID, "reader"));
+
+        assertThatThrownBy(() -> chainRolesService.updateRoles(batch))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining(OTHER_ELEMENT_ID);
 
@@ -132,7 +136,9 @@ class ChainRolesServiceTest {
         element.getProperties().put(ACCESS_CONTROL_TYPE, ChainRolesService.ACCESS_CONTROL_TYPE_ABAC);
         when(elementService.findById(ELEMENT_ID)).thenReturn(element);
 
-        assertThatThrownBy(() -> chainRolesService.updateRoles(List.of(updateRequest(ELEMENT_ID, "reader"))))
+        List<UpdateRolesRequest> batch = List.of(updateRequest(ELEMENT_ID, "reader"));
+
+        assertThatThrownBy(() -> chainRolesService.updateRoles(batch))
                 .isInstanceOf(AbacRoleChangeException.class)
                 .hasMessageContaining(ELEMENT_ID);
 
@@ -148,9 +154,11 @@ class ChainRolesServiceTest {
         when(elementService.findById(ELEMENT_ID)).thenReturn(element);
         when(elementService.findById(OTHER_ELEMENT_ID)).thenReturn(abacElement);
 
-        assertThatThrownBy(() -> chainRolesService.updateRoles(List.of(
+        List<UpdateRolesRequest> batch = List.of(
                 updateRequest(ELEMENT_ID, "reader"),
-                updateRequest(OTHER_ELEMENT_ID, "reader"))))
+                updateRequest(OTHER_ELEMENT_ID, "reader"));
+
+        assertThatThrownBy(() -> chainRolesService.updateRoles(batch))
                 .isInstanceOf(AbacRoleChangeException.class)
                 .hasMessageContaining(OTHER_ELEMENT_ID);
 
@@ -188,7 +196,9 @@ class ChainRolesServiceTest {
         when(chainFinderService.findById(OTHER_CHAIN_ID))
                 .thenThrow(new EntityNotFoundException("Can't find chain with id: " + OTHER_CHAIN_ID));
 
-        assertThatThrownBy(() -> chainRolesService.redeploy(List.of(CHAIN_ID, OTHER_CHAIN_ID)))
+        List<String> batch = List.of(CHAIN_ID, OTHER_CHAIN_ID);
+
+        assertThatThrownBy(() -> chainRolesService.redeploy(batch))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining(OTHER_CHAIN_ID);
 
@@ -210,7 +220,9 @@ class ChainRolesServiceTest {
         when(chainRolesMapper.prepareDeploymentRequest(snapshot)).thenReturn(deploymentRequest);
         when(deploymentMapper.asEntities(List.of(deploymentRequest))).thenReturn(deploymentEntities);
 
-        assertThatThrownBy(() -> chainRolesService.redeploy(List.of(CHAIN_ID, OTHER_CHAIN_ID)))
+        List<String> batch = List.of(CHAIN_ID, OTHER_CHAIN_ID);
+
+        assertThatThrownBy(() -> chainRolesService.redeploy(batch))
                 .isInstanceOf(SnapshotCreationException.class)
                 .hasMessageContaining(CHAIN_ID);
 
@@ -227,7 +239,9 @@ class ChainRolesServiceTest {
         when(snapshotService.build(CHAIN_ID)).thenThrow(new IllegalStateException("no snapshot"));
         when(snapshotService.build(OTHER_CHAIN_ID)).thenThrow(new IllegalStateException("no snapshot"));
 
-        assertThatThrownBy(() -> chainRolesService.redeploy(List.of(CHAIN_ID, OTHER_CHAIN_ID)))
+        List<String> batch = List.of(CHAIN_ID, OTHER_CHAIN_ID);
+
+        assertThatThrownBy(() -> chainRolesService.redeploy(batch))
                 .isInstanceOf(DeploymentProcessingException.class)
                 .hasMessageContaining(CHAIN_ID)
                 .hasMessageContaining(OTHER_CHAIN_ID);
