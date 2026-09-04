@@ -608,6 +608,61 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <!-- The Protobuf toolchain the image needs for gRPC specification import. Resolving it
+               here rather than downloading it in the Dockerfile keeps the compiler's version tied
+               to the libraries the generated code is compiled and executed against: protoc must
+               match protobuf-java, and the plugin must match grpc. Both binaries are published to
+               Maven Central for exactly this purpose. -->
+          <execution>
+            <id>copy-protobuf-toolchain</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/protobuf-toolchain/bin</outputDirectory>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>com.google.protobuf</groupId>
+                  <artifactId>protoc</artifactId>
+                  <version>${protobuf-java.version}</version>
+                  <classifier>linux-x86_64</classifier>
+                  <type>exe</type>
+                  <destFileName>protoc</destFileName>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>io.grpc</groupId>
+                  <artifactId>protoc-gen-grpc-java</artifactId>
+                  <version>${grpc.version}</version>
+                  <classifier>linux-x86_64</classifier>
+                  <type>exe</type>
+                  <destFileName>protoc-gen-grpc-java</destFileName>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+          <!-- protoc resolves an import of google/protobuf/*.proto from files on disk, and the
+               well-known types ship inside protobuf-java rather than beside the compiler. -->
+          <execution>
+            <id>unpack-well-known-types</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>unpack</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/protobuf-toolchain/include</outputDirectory>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>com.google.protobuf</groupId>
+                  <artifactId>protobuf-java</artifactId>
+                  <version>${protobuf-java.version}</version>
+                  <includes>google/protobuf/*.proto</includes>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
