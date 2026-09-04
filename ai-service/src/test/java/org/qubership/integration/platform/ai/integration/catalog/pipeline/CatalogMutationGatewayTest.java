@@ -68,13 +68,14 @@ class CatalogMutationGatewayTest {
     ApiHubSpecificationImportResult expected =
         new ApiHubSpecificationImportResult(
             "sys-1", "spec-1", "group-1", "imp-1", "Service Catalog", java.util.Optional.empty());
-    when(apiHubSpecificationImportService.importFromRefs("conv-1", refs)).thenReturn(expected);
+    when(apiHubSpecificationImportService.importFromRefs("conv-1", refs, "INTERNAL"))
+        .thenReturn(expected);
 
     ApiHubSpecificationImportResult result =
         gateway.importApiHubSpecification("conv-1", refs).await().indefinitely();
 
     assertEquals(expected, result);
-    verify(apiHubSpecificationImportService).importFromRefs("conv-1", refs);
+    verify(apiHubSpecificationImportService).importFromRefs("conv-1", refs, "INTERNAL");
   }
 
   private static ChainPlanGraph validGraph() {
