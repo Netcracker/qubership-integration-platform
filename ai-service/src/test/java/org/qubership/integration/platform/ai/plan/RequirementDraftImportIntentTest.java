@@ -212,6 +212,27 @@ class RequirementDraftImportIntentTest {
   }
 
   @Test
+  void rememberPreferredSystemTypeSeedsStubDraft() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.rememberPreferredSystemType("conv-empty", "EXTERNAL");
+    RequirementDraft draft = store.get("conv-empty").orElseThrow();
+    assertEquals("EXTERNAL", draft.preferredSystemType());
+  }
+
+  @Test
+  void recordImportFailureKeepsPreferredSystemType() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.put(
+        "conv-fail",
+        new RequirementDraft(false, "GeoSite")
+            .withImportIntent(true)
+            .withPreferredSystemType("EXTERNAL")
+            .withApiHubCandidate(sampleCandidate()));
+    store.recordImportFailure("conv-fail");
+    assertEquals("EXTERNAL", store.get("conv-fail").orElseThrow().preferredSystemType());
+  }
+
+  @Test
   void ensureImportIntentDoesNotOverwriteExistingVision() {
     RequirementDraftStore store = new RequirementDraftStore();
     store.put("conv-keep", new RequirementDraft(false, "existing vision").withImportIntent(false));

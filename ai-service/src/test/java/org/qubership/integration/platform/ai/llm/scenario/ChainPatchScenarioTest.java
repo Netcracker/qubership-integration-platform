@@ -487,7 +487,23 @@ class ChainPatchScenarioTest {
             any(), eq(escalation.intent()), eq(escalation.refs()), any()))
         .thenReturn(new ChainEditOutcome.ResolutionFailure("resumed"));
 
-    List<ChatEvent> events = run(approveImport());
+    List<ChatEvent> events = run(approveImport(ChatEvent.IMPORT_ACTION));
+
+    verify(editCompiler)
+        .resumeAfterImport(any(), eq(escalation.intent()), eq(escalation.refs()), any());
+    assertTrue(text(events).contains("resumed"), text(events));
+  }
+
+  @Test
+  void approvingExternalImportResumesTheSameEdit() {
+    ChainEditOutcome.Escalation escalation = escalation();
+    when(editCompiler.compile(any(), any())).thenReturn(escalation);
+    run(request("point the order call at the status operation"));
+    when(editCompiler.resumeAfterImport(
+            any(), eq(escalation.intent()), eq(escalation.refs()), any()))
+        .thenReturn(new ChainEditOutcome.ResolutionFailure("resumed"));
+
+    List<ChatEvent> events = run(approveImport(ChatEvent.IMPORT_EXTERNAL_ACTION));
 
     verify(editCompiler)
         .resumeAfterImport(any(), eq(escalation.intent()), eq(escalation.refs()), any());
@@ -502,7 +518,7 @@ class ChainPatchScenarioTest {
     when(editCompiler.compile(any(), any()))
         .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.UNRESOLVED));
     run(request("actually, never mind"));
-    List<ChatEvent> events = run(approveImport());
+    List<ChatEvent> events = run(approveImport(ChatEvent.IMPORT_ACTION));
 
     verify(editCompiler, never()).resumeAfterImport(any(), any(), any(), any());
     assertTrue(text(events).toLowerCase().contains("no change waiting"), text(events));
@@ -578,10 +594,10 @@ class ChainPatchScenarioTest {
     return request;
   }
 
-  private static ChatRequest approveImport() {
+  private static ChatRequest approveImport(String action) {
     ChatRequest request = request("Import it");
     ChatDecisionCommand command = new ChatDecisionCommand();
-    command.setAction(ChatEvent.IMPORT_ACTION);
+    command.setAction(action);
     request.setDecision(command);
     return request;
   }

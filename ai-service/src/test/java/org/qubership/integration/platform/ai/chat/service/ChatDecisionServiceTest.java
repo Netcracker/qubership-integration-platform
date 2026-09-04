@@ -520,6 +520,25 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void markerNamesExternalImportWithoutGuessingAtWording() {
+    assertEquals(
+        ChatEvent.IMPORT_EXTERNAL_MARKER,
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.IMPORT_EXTERNAL_ACTION, null, null, null)));
+  }
+
+  @Test
+  void rememberImportChoiceWritesExternalOnTheDraft() {
+    RequirementDraftStore drafts = new RequirementDraftStore();
+    drafts.put("conv-1", new RequirementDraft(false, "GeoSite").withImportIntent(true));
+    ChatDecisionService service =
+        new ChatDecisionService(mock(CreateChainApplicationFacade.class), questionStore(), drafts);
+    ChatDecisionCommand command = command(ChatEvent.IMPORT_EXTERNAL_ACTION, null, null, null);
+    service.rememberImportChoice("conv-1", command);
+    assertEquals("EXTERNAL", drafts.get("conv-1").orElseThrow().preferredSystemType());
+  }
+
+  @Test
   void markerNamesRedeployWithoutGuessingAtWording() {
     assertEquals(
         "Redeploy the chain on domain default",
