@@ -74,6 +74,15 @@ class SystemModelBaseServiceTest {
     }
 
     @Test
+    @DisplayName("delete ignores a null specification")
+    void deleteIgnoresANullSpecification() {
+        systemModelService.delete(null);
+
+        verify(systemModelRepository, never()).findById(any());
+        verify(systemModelRepository, never()).delete(any(SystemModel.class));
+    }
+
+    @Test
     @DisplayName("delete does nothing when the specification is already gone")
     void deleteDoesNothingWhenTheSpecificationIsAlreadyGone() {
         SystemModel detachedModel = new SystemModel();
