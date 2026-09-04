@@ -523,7 +523,8 @@ public class RequirementDraftTool {
               owningInteractionId,
               idsRequested(capture, previous),
               capturedFlow,
-              catalogBindings);
+              catalogBindings,
+              previous != null ? previous.preferredSystemType() : null);
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
       if (resolutions != null) {

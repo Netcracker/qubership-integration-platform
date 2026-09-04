@@ -182,7 +182,8 @@ public class SelectApiHubCandidateTool {
                 false,
                 List.of(),
                 true,
-                owningInteractionId);
+                owningInteractionId,
+                null);
       }
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
