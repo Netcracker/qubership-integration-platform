@@ -1,5 +1,4 @@
 import {
-  addEdge,
   applyEdgeChanges,
   applyNodeChanges,
   Connection as ReactFlowConnection,
@@ -21,6 +20,7 @@ import React, {
 } from "react";
 import { api } from "../../api/api.ts";
 import {
+  ActionDifference,
   Connection,
   CreateElementRequest,
   Element,
@@ -33,8 +33,10 @@ import { useLibraryContext } from "../../components/LibraryContext.tsx";
 import {
   applyHighlight,
   buildGraphNodes,
+  clearHighlightOnNode,
   collectChildren,
   collectSubgraphByParents,
+  compareByZIndexAndArea,
   depthOf,
   edgesForSubgraph,
   expandWithParent,
@@ -43,17 +45,13 @@ import {
   getDataFromElement,
   getEffectiveParentId,
   getFakeNode,
-  getIntersectionParent,
   getLeastCommonParent,
   getLibraryElement,
   getNodeFromElement,
-  getPossibleGraphIntersection,
   mergeWithPinnedPositions,
   sortParentsBeforeChildren,
 } from "../../misc/chain-graph-utils.ts";
-import {
-  arrangeSwimlaneChildren,
-} from "../../misc/chain-graph-swimlane-utils.ts";
+import { arrangeSwimlaneChildren } from "../../misc/chain-graph-swimlane-utils.ts";
 import {
   ChainGraphNode,
   ChainGraphNodeData,
@@ -390,7 +388,8 @@ const resolveSiblingOverlapsAfterResize = (
 
 export const useChainGraph = () => {
   const chainContext = useContext(ChainContext);
-  const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
+  const { screenToFlowPosition, getIntersectingNodes } =
+    useReactFlow<Node<ChainGraphNodeData>>();
   const { libraryElements, isLibraryLoading } = useLibraryContext();
 
   const [nodes, setNodes] = useNodesState<Node<ChainGraphNodeData>>([]);
@@ -650,7 +649,7 @@ export const useChainGraph = () => {
     reapplyNodesVisibility,
     reapplyEdgesVisibility,
     setNestedUnitCounts,
-    chainContext?.chain?.defaultSwimlaneId
+    chainContext?.chain?.defaultSwimlaneId,
   ]);
 
   useEffect(() => {
@@ -799,6 +798,172 @@ export const useChainGraph = () => {
     ],
   );
 
+  const processChanges = useCallback(
+    async (
+      changes: ActionDifference,
+      nodeMapFn: (node: ChainGraphNode) => ChainGraphNode = (node) => node,
+    ) => {
+      // An empty diff leaves the graph as it is, so neither the rebuild nor the
+      // chain refetch has anything to do.
+      const isEmptyDiff = ![
+        changes.createdElements,
+        changes.updatedElements,
+        changes.removedElements,
+        changes.createdDependencies,
+        changes.removedDependencies,
+      ].some((items) => items?.length);
+      if (isEmptyDiff) {
+        return;
+      }
+
+      const affectedElementIds = new Set<string>();
+      const childrenIds = new Set<string>();
+      traverseElementsDepthFirst(
+        [
+          changes.updatedElements,
+          changes.createdElements,
+          changes.removedElements,
+        ].flatMap((elements) => elements ?? []),
+        (element, path) => {
+          affectedElementIds.add(element.id);
+          if (path.length > 0) {
+            childrenIds.add(element.id);
+          }
+        },
+      );
+      const nodes = [
+        ...nodesRef.current.filter((node) => !affectedElementIds.has(node.id)),
+        ...buildGraphNodes(
+          [changes.updatedElements, changes.createdElements]
+            .flatMap((elements) => elements ?? [])
+            .filter((element) => !childrenIds.has(element.id)),
+          libraryElements,
+          direction,
+        ),
+      ]
+        .map((node) => nodeMapFn(node))
+        .map((node) => clearHighlightOnNode(node));
+      const edges = [
+        ...edgesRef.current.filter(
+          (edge) =>
+            !(changes.removedDependencies ?? []).some(
+              (connection) => connection.id === edge.id,
+            ),
+        ),
+        ...(changes.createdDependencies ?? []).map((connection) => ({
+          id: connection.id,
+          source: connection.from,
+          target: connection.to,
+        })),
+      ];
+
+      const before = buildNodeMap(nodesRef.current);
+      const after = buildNodeMap(nodes);
+      const defaultSwimlaneId =
+        changes.createdDefaultSwimlaneId ??
+        chainContext?.chain?.defaultSwimlaneId;
+
+      if (onChainUpdate) {
+        void onChainUpdate();
+      }
+
+      // A drop: the container that received the element grows, so its parent
+      // is re-laid out. A plain node dropped at the root needs no layout.
+      const createdRoot = changes.createdElements?.[0];
+      const createdRootNode = createdRoot && after.get(createdRoot.id);
+      if (createdRoot && createdRootNode) {
+        const containerId = createdRootNode.parentId;
+        const hasSubtree =
+          createdRootNode.type === "swimlane" || !!createdRoot.children?.length;
+
+        if (containerId || hasSubtree) {
+          await layoutAndCommit(
+            sortParentsBeforeChildren(nodes),
+            edges,
+            defaultSwimlaneId,
+            containerId
+              ? getRelayoutRootIdsForContentChanges([containerId], nodes)
+              : [createdRootNode.id],
+          );
+          return;
+        }
+
+        layoutRequestIdRef.current += 1;
+        const visibleNodes = reapplyNodesVisibility(attachToggle(nodes));
+        const orderedNodes = sortParentsBeforeChildren(
+          setNestedUnitCounts(visibleNodes),
+        );
+        setNodes((currentNodes) =>
+          preserveCurrentNodeSelection(orderedNodes, currentNodes),
+        );
+        setEdges(reapplyEdgesVisibility(visibleNodes, edges));
+        return;
+      }
+
+      // A transfer: the old parent, the new parent, and their least common
+      // parent are re-laid out.
+      const affectedParents = new Set<string>();
+      traverseElementsDepthFirst(changes.updatedElements, (element) => {
+        const previousParentId = before.get(element.id)?.parentId;
+        const nextParentId = after.get(element.id)?.parentId;
+        if (!before.has(element.id) || previousParentId === nextParentId) {
+          return;
+        }
+        for (const id of computeAffectedParents(
+          previousParentId,
+          nextParentId,
+          nodesRef.current,
+        )) {
+          affectedParents.add(id);
+        }
+      });
+
+      if (affectedParents.size) {
+        await layoutAndCommit(
+          sortParentsBeforeChildren(nodes),
+          edges,
+          defaultSwimlaneId,
+          Array.from(affectedParents),
+        );
+        return;
+      }
+
+      // A connection: commit, and let the next auto-arrange re-lay out the
+      // parents of both endpoints.
+      const endpointParents = Array.from(
+        new Set(
+          (changes.createdDependencies ?? [])
+            .flatMap((connection) => [
+              after.get(connection.from)?.parentId,
+              after.get(connection.to)?.parentId,
+            ])
+            .filter((id): id is string => !!id),
+        ),
+      );
+
+      setNodes(nodes);
+      setEdges(edges);
+
+      if (endpointParents.length) {
+        structureChanged(endpointParents);
+      }
+    },
+    [
+      attachToggle,
+      chainContext?.chain?.defaultSwimlaneId,
+      direction,
+      layoutAndCommit,
+      libraryElements,
+      onChainUpdate,
+      reapplyEdgesVisibility,
+      reapplyNodesVisibility,
+      setEdges,
+      setNestedUnitCounts,
+      setNodes,
+      structureChanged,
+    ],
+  );
+
   const onConnect = useCallback(
     async (connection: ReactFlowConnection) => {
       if (!chainContext?.chain) return;
@@ -808,41 +973,12 @@ export const useChainGraph = () => {
           { from: connection.source, to: connection.target },
           chainContext.chain.id,
         );
-
-        const createdId = response.createdDependencies?.[0]?.id;
-        if (!createdId) return;
-
-        const edge: Edge = { ...connection, id: createdId };
-        setEdges((eds) => addEdge(edge, eds));
-
-        const sourceParent = nodes.find(
-          (node) => node.id === connection.source,
-        )?.parentId;
-        const targetParent = nodes.find(
-          (node) => node.id === connection.target,
-        )?.parentId;
-
-        const parents = Array.from(
-          new Set([sourceParent, targetParent].filter(Boolean) as string[]),
-        );
-
-        if (parents.length) structureChanged(parents);
-
-        if (onChainUpdate) {
-          void onChainUpdate();
-        }
+        await processChanges(response);
       } catch (error) {
         notificationService.requestFailed("Failed to create connection", error);
       }
     },
-    [
-      nodes,
-      notificationService,
-      setEdges,
-      structureChanged,
-      onChainUpdate,
-      chainContext?.chain,
-    ],
+    [chainContext?.chain, processChanges, notificationService],
   );
 
   const onDragOver = useCallback(
@@ -874,161 +1010,46 @@ export const useChainGraph = () => {
       const name = event.dataTransfer.getData("application/reactflow");
       if (!name) return;
 
-      const currentNodes = nodesRef.current;
-      const currentEdges = edgesRef.current;
-
       const dropPosition = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
 
       const fakeNode = getFakeNode(dropPosition);
+      const intersectingNodes = getIntersectingNodes(fakeNode);
+      const targetNode = intersectingNodes.sort(compareByZIndexAndArea)[0];
 
-      const intersecting = getIntersectingNodes(fakeNode).filter(
-        (node) => node.type === "container" || node.type === "swimlane",
-      );
-
-      const parentNode = intersecting.sort((a, b) => {
-        const areaA = (a.width ?? 0) * (a.height ?? 0);
-        const areaB = (b.width ?? 0) * (b.height ?? 0);
-        return areaA - areaB;
-      })[0];
-
-      const targetParentId = parentNode?.id;
-
-      let createElementRequest: CreateElementRequest = { type: name };
-
-      if (parentNode) {
-        createElementRequest = {
-          ...createElementRequest,
-          ...(parentNode.type === "swimlane"
-            ? { swimlaneId: parentNode.id }
-            : { parentElementId: parentNode.id }),
-        };
-      }
+      const request: CreateElementRequest = {
+        type: name,
+        ...(targetNode?.type === "swimlane"
+          ? { swimlaneId: targetNode.id }
+          : { parentElementId: targetNode?.id }),
+      };
 
       try {
         const response = await api.createElement(
-          createElementRequest,
+          request,
           chainContext.chain.id,
         );
 
-        const createdElement = response.createdElements?.[0];
-        if (!createdElement) return;
+        const nodeMap = buildNodeMap(nodesRef.current);
 
-        const nodeMap = buildNodeMap(currentNodes);
-
-        const rootCreatedNodePosition = (() => {
-          if (!targetParentId) {
+        const position = (() => {
+          if (!targetNode) {
             return dropPosition;
           }
-
-          const parentAbs = getParentAbsolutePosition(targetParentId, nodeMap);
-
+          const parentAbs = getParentAbsolutePosition(targetNode.id, nodeMap);
           return {
             x: dropPosition.x - parentAbs.x,
             y: dropPosition.y - parentAbs.y,
           };
         })();
 
-        const createdElements: Element[] = [];
-
-        traverseElementsDepthFirst([createdElement], (element) => {
-          createdElements.push(element);
-        });
-
-        const createdNodes: ChainGraphNode[] = createdElements
-          .map((element) => {
-            const node = getNodeFromElement(
-              element,
-              getLibraryElement(element, libraryElements),
-              direction,
-              element.id === createdElement.id
-                ? rootCreatedNodePosition
-                : undefined,
-            );
-
-            if (!node) return undefined;
-
-            if (element.id === createdElement.id && targetParentId) {
-              return {
-                ...node,
-                parentId: targetParentId,
-                position: rootCreatedNodePosition,
-              };
-            }
-
-            return node;
-          })
-          .filter((node): node is ChainGraphNode => !!node);
-
-        const newNode = createdNodes.find(
-          (node) => node.id === createdElement.id,
+        await processChanges(response, (node) =>
+          node.id === response.createdElements?.[0]?.id
+            ? { ...node, position }
+            : node,
         );
-
-        if (!newNode) return;
-
-        const updatedNodes = buildGraphNodes(
-          response.updatedElements ?? [],
-          libraryElements,
-        );
-
-        const draftNodeById = new Map<string, ChainGraphNode>();
-
-        for (const node of currentNodes) {
-          draftNodeById.set(node.id, node);
-        }
-
-        for (const node of updatedNodes) {
-          draftNodeById.set(node.id, node);
-        }
-
-        for (const node of createdNodes) {
-          draftNodeById.set(node.id, node);
-        }
-
-        const draftNodes = sortParentsBeforeChildren(
-          Array.from(draftNodeById.values()),
-        );
-
-        const hasCreatedSubtree = newNode.type === "swimlane" || createdNodes.some(
-          (node) => node.id !== newNode.id,
-        );
-
-        const changedContainerId = targetParentId ?? newNode.parentId;
-
-        const defaultSwimlaneId = response.createdDefaultSwimlaneId ?? chainContext.chain.defaultSwimlaneId;
-
-        if (changedContainerId) {
-          const relayoutRootIds = getRelayoutRootIdsForContentChanges(
-            [changedContainerId],
-            draftNodes,
-          );
-
-          await layoutAndCommit(draftNodes, currentEdges, defaultSwimlaneId, relayoutRootIds);
-        } else if (hasCreatedSubtree) {
-          await layoutAndCommit(draftNodes, currentEdges, defaultSwimlaneId, [newNode.id]);
-        } else {
-          layoutRequestIdRef.current += 1;
-
-          const withToggle = attachToggle(draftNodes);
-          const visibleNodes = reapplyNodesVisibility(withToggle);
-          const withCount = setNestedUnitCounts(visibleNodes);
-          const ordered = sortParentsBeforeChildren(withCount);
-          const visibleEdges = reapplyEdgesVisibility(
-            visibleNodes,
-            currentEdges,
-          );
-
-          setNodes((currentNodes) =>
-            preserveCurrentNodeSelection(ordered, currentNodes),
-          );
-          setEdges(visibleEdges);
-        }
-
-        if (onChainUpdate) {
-          void onChainUpdate();
-        }
 
         clearDragVisuals();
       } catch (error) {
@@ -1040,22 +1061,13 @@ export const useChainGraph = () => {
       }
     },
     [
+      cancelPendingHoverVisuals,
       chainContext?.chain,
       screenToFlowPosition,
       getIntersectingNodes,
-      libraryElements,
-      direction,
-      layoutAndCommit,
-      attachToggle,
-      reapplyNodesVisibility,
-      reapplyEdgesVisibility,
-      setNestedUnitCounts,
-      setNodes,
-      setEdges,
-      notificationService,
+      processChanges,
       clearDragVisuals,
-      cancelPendingHoverVisuals,
-      onChainUpdate,
+      notificationService,
     ],
   );
 
@@ -1230,7 +1242,12 @@ export const useChainGraph = () => {
             draftNodes,
           );
 
-          await layoutAndCommit(draftNodes, draftEdges, defaultSwimlaneId, relayoutRootIds);
+          await layoutAndCommit(
+            draftNodes,
+            draftEdges,
+            defaultSwimlaneId,
+            relayoutRootIds,
+          );
         } else {
           layoutRequestIdRef.current += 1;
 
@@ -1356,57 +1373,34 @@ export const useChainGraph = () => {
         ...draggedChildren.map((node) => node.id),
       ]);
 
-      let newParentNode: Node | undefined = undefined;
+      const targetNode: ChainGraphNode | undefined = getIntersectingNodes(
+        draggedNode,
+      )
+        .filter((node) => !draggedSubtreeIds.has(node.id))
+        .filter((node) => !draggedChildren?.includes(node))
+        .sort(compareByZIndexAndArea)[0];
 
-      const possibleGraphIntersect: Node | undefined =
-        getPossibleGraphIntersection(
-          getIntersectingNodes(draggedNode).filter(
-            (node) => !draggedSubtreeIds.has(node.id),
-          ),
-          draggedChildren,
-        ) ?? undefined;
-
-      if (possibleGraphIntersect !== undefined) {
-        newParentNode = getIntersectionParent(
-          draggedNode,
-          possibleGraphIntersect,
-          libraryElements ?? [],
-        );
-      }
-
-      const parentNodeId = newParentNode?.id ?? undefined;
+      const targetNodeId = targetNode?.id;
 
       const isInvalidParentTarget = isNodeInsideForbiddenSubtree(
-        parentNodeId,
+        targetNodeId,
         selectedIdSet,
         nodeMap,
       );
-
-      if (isInvalidParentTarget) {
+      const targetIsParent = targetNodeId === originalParentId;
+      if (targetIsParent || isInvalidParentTarget) {
         setNodes((currentNodes) => applyHighlight(currentNodes));
         return;
       }
 
-      const isParentChanged = parentNodeId !== originalParentId;
-
-      if (!isParentChanged) {
-        setNodes((currentNodes) => applyHighlight(currentNodes));
-        return;
-      }
-
-      let finalParentId = originalParentId;
+      const isTargetASwimlane = targetNode?.type === "swimlane";
 
       try {
         const request: TransferElementRequest = {
-          parentId:
-            newParentNode?.type === "container"
-              ? (newParentNode?.id ?? null)
-              : null,
-          swimlaneId:
-            newParentNode?.type === "swimlane"
-              ? (newParentNode?.id ?? null)
-              : null,
           elements: selectedIds,
+          ...(isTargetASwimlane
+            ? { swimlaneId: targetNodeId, parentId: null }
+            : { swimlaneId: null, parentId: targetNodeId }),
         };
 
         const response = await api.transferElement(
@@ -1419,63 +1413,40 @@ export const useChainGraph = () => {
           draggedNode.id,
         );
 
-        finalParentId = getEffectiveParentId(updatedElement);
+        const finalParentId = getEffectiveParentId(updatedElement);
+        const parentAbs = getParentAbsolutePosition(finalParentId, nodeMap);
 
-        if (onChainUpdate) {
-          void onChainUpdate();
-        }
+        await processChanges(response, (node) => {
+          if (!selectedIdSet.has(node.id)) {
+            return node;
+          }
+
+          const nowAbs = getAbsolutePosition(node, nodeMap);
+
+          return {
+            ...node,
+            position: {
+              x: nowAbs.x - parentAbs.x,
+              y: nowAbs.y - parentAbs.y,
+            },
+          };
+        });
       } catch (error) {
         notificationService.errorWithDetails(
           "Drag element failed",
           getErrorMessage(error, "Failed to drag element"),
           error,
         );
-
-        finalParentId = originalParentId;
       }
-
-      const parentAbs = getParentAbsolutePosition(finalParentId, nodeMap);
-
-      const draftNodes = allBefore.map((node) => {
-        if (!selectedIdSet.has(node.id)) {
-          return node;
-        }
-
-        const nowAbs = getAbsolutePosition(node, nodeMap);
-
-        return {
-          ...node,
-          parentId: finalParentId ?? undefined,
-          position: {
-            x: nowAbs.x - parentAbs.x,
-            y: nowAbs.y - parentAbs.y,
-          },
-        };
-      });
-
-      const affectedParentIds = computeAffectedParents(
-        originalParentId,
-        finalParentId,
-        allBefore,
-      );
-
-      await layoutAndCommit(
-        sortParentsBeforeChildren(draftNodes),
-        edgesRef.current,
-        chainContext.chain.defaultSwimlaneId,
-        affectedParentIds.length ? affectedParentIds : undefined,
-      );
     },
     [
       chainContext?.chain,
       isLibraryLoading,
-      getIntersectingNodes,
-      libraryElements,
-      notificationService,
-      setNodes,
-      layoutAndCommit,
       cancelPendingHoverVisuals,
-      onChainUpdate,
+      getIntersectingNodes,
+      setNodes,
+      processChanges,
+      notificationService,
     ],
   );
 
