@@ -1,20 +1,14 @@
 /**
  * @jest-environment jsdom
  */
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 
 const loadHttpTriggerAccessControl = jest.fn();
-const updateHttpTriggerAccessControl = jest.fn();
-const bulkDeployChainsAccessControl = jest.fn();
 
 jest.mock("../../src/api/api", () => ({
   api: {
     loadHttpTriggerAccessControl: (...args: unknown[]) =>
       loadHttpTriggerAccessControl(...args),
-    updateHttpTriggerAccessControl: (...args: unknown[]) =>
-      updateHttpTriggerAccessControl(...args),
-    bulkDeployChainsAccessControl: (...args: unknown[]) =>
-      bulkDeployChainsAccessControl(...args),
   },
 }));
 
@@ -31,59 +25,17 @@ describe("useAccessControl", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     loadHttpTriggerAccessControl.mockResolvedValue({ offset: 0, roles: [] });
-    updateHttpTriggerAccessControl.mockResolvedValue(undefined);
-    bulkDeployChainsAccessControl.mockResolvedValue(undefined);
   });
 
-  // A stable array: the default [] is a fresh reference on every render, and the hook refetches
-  // on every change of it.
-  const noFilters: EntityFilterModel[] = [];
-
-  const ready = async () => {
-    const { result } = renderHook(() => useAccessControl(noFilters));
-    await waitFor(() => {
-      expect(loadHttpTriggerAccessControl).toHaveBeenCalled();
-    });
-    return result;
-  };
-
-  it("passes the role batch straight through to the api", async () => {
-    const result = await ready();
-    const batch = [{ elementId: "elem-1", roles: ["reader"] }];
-
-    await act(() => result.current.updateAccessControl(batch));
-
-    expect(updateHttpTriggerAccessControl).toHaveBeenCalledWith(batch);
-  });
-
-  it("passes the chain ids straight through to the api", async () => {
-    const result = await ready();
-
-    await act(() => result.current.bulkDeployAccessControl(["chain-1"]));
-
-    expect(bulkDeployChainsAccessControl.mock.calls[0][0]).toStrictEqual([
-      "chain-1",
-    ]);
-  });
-
-  it("loads once when the caller names no filters", async () => {
-    // A defaulted [] used to be a fresh reference on each render, and the fetch callback depends
-    // on it: opening the roles dialog, which names no filters, reloaded without end.
-    const { unmount } = renderHook(() => useAccessControl());
+  it("loads once for a filter array the caller holds steady", async () => {
+    // The fetch callback depends on filters, so a caller that rebuilds the array on every render
+    // makes the hook reload without end.
+    const filters: EntityFilterModel[] = [];
+    const { unmount } = renderHook(() => useAccessControl(filters));
 
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     expect(loadHttpTriggerAccessControl).toHaveBeenCalledTimes(1);
     unmount();
-  });
-
-  it("lets a failed deploy reach the caller, which decides what to say", async () => {
-    const result = await ready();
-    const failure = new Error("engine unreachable");
-    bulkDeployChainsAccessControl.mockRejectedValueOnce(failure);
-
-    await expect(
-      act(() => result.current.bulkDeployAccessControl(["chain-1"])),
-    ).rejects.toThrow("engine unreachable");
   });
 });

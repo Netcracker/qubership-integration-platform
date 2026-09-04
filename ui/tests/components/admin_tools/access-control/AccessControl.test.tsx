@@ -16,6 +16,14 @@ import { ProtectedButtonProps } from "../../../../src/permissions/ProtectedButto
 
 // Mock dependencies
 jest.mock("../../../../src/hooks/useAccessControl");
+
+const mockBulkDeployChainsAccessControl = jest.fn();
+jest.mock("../../../../src/api/api", () => ({
+  api: {
+    bulkDeployChainsAccessControl: (...args: unknown[]) =>
+      mockBulkDeployChainsAccessControl(...args),
+  },
+}));
 jest.mock("../../../../src/hooks/useNotificationService");
 jest.mock("../../../../src/Modals");
 jest.mock("../../../../src/hooks/useResizeHeigth", () => ({
@@ -122,19 +130,20 @@ const createMockAccessControlData = (
 });
 
 describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
+  const hookResult = () => ({
+    isLoading: false,
+    accessControlData: { offset: 0, roles: [] as AccessControlData[] },
+    setAccessControlData: jest.fn(),
+    getAccessControl: jest.fn().mockResolvedValue(undefined),
+    loadMore: jest.fn().mockResolvedValue(undefined),
+    allDataLoaded: true,
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
+    mockBulkDeployChainsAccessControl.mockResolvedValue(undefined);
 
-    mockUseAccessControl.mockReturnValue({
-      isLoading: false,
-      accessControlData: { offset: 0, roles: [] },
-      setAccessControlData: jest.fn(),
-      getAccessControl: jest.fn().mockResolvedValue(undefined),
-      bulkDeployAccessControl: jest.fn().mockResolvedValue(undefined),
-      loadMore: jest.fn().mockResolvedValue(undefined),
-      allDataLoaded: true,
-      updateAccessControl: jest.fn(),
-    });
+    mockUseAccessControl.mockReturnValue(hookResult());
 
     mockUseNotificationService.mockReturnValue({
       info: jest.fn(),
@@ -166,7 +175,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
   describe("Button Disabled States", () => {
     it('disables "Select Unsaved Chains" button when no roles have unsaved changes', async () => {
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: {
           offset: 0,
           roles: [
@@ -190,7 +199,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
 
     it('enables "Select Unsaved Chains" button when at least one role has unsaved changes', async () => {
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: {
           offset: 0,
           roles: [
@@ -237,7 +246,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
       });
 
@@ -284,7 +293,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
       });
 
@@ -328,7 +337,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
       });
 
@@ -354,7 +363,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles: [recordWithChanges] },
       });
 
@@ -382,7 +391,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles: [recordWithoutChanges] },
       });
 
@@ -420,7 +429,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
       });
 
@@ -459,7 +468,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
       });
 
@@ -484,7 +493,6 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
 
   describe("Bulk Deploy with Unsaved Changes Filter", () => {
     it("only deploys records that have both chainId AND unsaved changes", async () => {
-      const mockBulkDeploy = jest.fn().mockResolvedValue(undefined);
       const roles = [
         createMockAccessControlData({
           chainId: "chain-1",
@@ -501,9 +509,8 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
-        bulkDeployAccessControl: mockBulkDeploy,
       });
 
       render(<AccessControl />);
@@ -522,19 +529,21 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       await waitFor(() => {
-        expect(mockBulkDeploy).toHaveBeenCalledTimes(1);
+        expect(mockBulkDeployChainsAccessControl).toHaveBeenCalledTimes(1);
       });
       // The endpoint takes chain ids, and only the first record has one. toStrictEqual, because
       // toHaveBeenCalledWith would accept ["chain-1", undefined] and that is the case under test.
-      expect(mockBulkDeploy.mock.calls[0][0]).toStrictEqual(["chain-1"]);
+      expect(mockBulkDeployChainsAccessControl.mock.calls[0][0]).toStrictEqual([
+        "chain-1",
+      ]);
     });
 
     it("refetches the table when the deploy fails, because part of it may have run", async () => {
       // A chain that fails no longer aborts the batch, so the rows the server did deploy have
       // cleared their unsaved changes and the table on screen no longer matches.
-      const mockBulkDeploy = jest
-        .fn()
-        .mockRejectedValue(new Error("engine unreachable"));
+      mockBulkDeployChainsAccessControl.mockRejectedValue(
+        new Error("engine unreachable"),
+      );
       const mockGetAccessControl = jest.fn().mockResolvedValue(undefined);
       const roles = [
         createMockAccessControlData({
@@ -546,9 +555,8 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
-        bulkDeployAccessControl: mockBulkDeploy,
         getAccessControl: mockGetAccessControl,
       });
 
@@ -567,7 +575,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       });
 
       await waitFor(() => {
-        expect(mockBulkDeploy).toHaveBeenCalledTimes(1);
+        expect(mockBulkDeployChainsAccessControl).toHaveBeenCalledTimes(1);
       });
       // The hook is mocked, so its own mount fetch does not run: this call is the catch.
       await waitFor(() => {
@@ -588,7 +596,7 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
       ];
 
       mockUseAccessControl.mockReturnValue({
-        ...mockUseAccessControl(),
+        ...hookResult(),
         accessControlData: { offset: 0, roles },
       });
 

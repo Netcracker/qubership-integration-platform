@@ -2,7 +2,6 @@ import { api } from "../api/api.ts";
 import {
   AccessControlResponse,
   AccessControlSearchRequest,
-  AccessControlUpdateRequest,
 } from "../api/apiTypes.ts";
 import { EntityFilterModel } from "../components/table/filter/filterTypes";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,13 +9,8 @@ import { useNotificationService } from "./useNotificationService.tsx";
 
 const PAGE_SIZE = 30;
 
-/**
- * One array for every caller that names no filters. A fresh [] would be a new reference on each
- * render, and the fetch callback depends on it, so the hook would reload without end.
- */
-const NO_FILTERS: EntityFilterModel[] = [];
-
-export const useAccessControl = (filters: EntityFilterModel[] = NO_FILTERS) => {
+// filters is a dependency of the fetch callback, so the caller has to hold it steady across renders.
+export const useAccessControl = (filters: EntityFilterModel[]) => {
   const [isLoading, setIsLoading] = useState(false);
   const [accessControlData, setAccessControlData] =
     useState<AccessControlResponse>();
@@ -75,19 +69,6 @@ export const useAccessControl = (filters: EntityFilterModel[] = NO_FILTERS) => {
     }
   }, [allDataLoaded, isLoading, fetchAccessControl]);
 
-  // Neither of these raises isLoading: it belongs to the table's own fetch, and clearing it here
-  // would let an in-flight loadMore run a second time on the same offset.
-  const updateAccessControl = useCallback(
-    async (searchRequest: AccessControlUpdateRequest[]) => {
-      await api.updateHttpTriggerAccessControl(searchRequest);
-    },
-    [],
-  );
-
-  const bulkDeployAccessControl = useCallback(async (chainIds: string[]) => {
-    await api.bulkDeployChainsAccessControl(chainIds);
-  }, []);
-
   useEffect(() => {
     void getAccessControl();
   }, [getAccessControl]);
@@ -97,8 +78,6 @@ export const useAccessControl = (filters: EntityFilterModel[] = NO_FILTERS) => {
     accessControlData,
     setAccessControlData,
     getAccessControl,
-    updateAccessControl,
-    bulkDeployAccessControl,
     loadMore,
     allDataLoaded,
   };
