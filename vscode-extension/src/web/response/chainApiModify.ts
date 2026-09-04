@@ -49,6 +49,11 @@ import {
   transferToSwimlaneValidations,
 } from "./swimlaneUtils";
 import { OrderedElementService } from "../api-services/OrderedElementService";
+import {
+  cleanupOrphanPropertyFiles,
+  collectFilenamesFromElementTree,
+  deleteElementsPropertyFiles,
+} from "./resourceUtils";
 
 export async function updateChain(
   fileUri: Uri,
@@ -258,6 +263,9 @@ export async function updateElement(
     throw Error("ElementId not found");
   }
 
+  const oldFilenames = new Set<string>();
+  collectFilenamesFromElementTree([element], oldFilenames);
+
   const isChangeParent =
     elementWithParentId?.parentId !== elementRequest.parentElementId;
 
@@ -287,7 +295,12 @@ export async function updateElement(
     { element, parentElementId: elementWithParentId?.parentId },
     elementRequest,
   );
-  (element as any).properties = elementRequest.properties;
+  const newFilenames = new Set<string>();
+  {
+    const newElementForCollect = { ...element, properties: elementRequest.properties as ElementSchema["properties"] } as ElementSchema;
+    collectFilenamesFromElementTree([newElementForCollect], newFilenames);
+  }
+  (element as ElementSchema).properties = elementRequest.properties as ElementSchema["properties"];
 
   element.parentElementId = elementRequest.parentElementId;
   if (isChangeParent) {
@@ -305,6 +318,8 @@ export async function updateElement(
 
   await writeElementProperties(fileUri, element);
   await fileApi.writeMainChain(fileUri, chain);
+
+  await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, chain.content.elements as ElementSchema[]);
 
   const updatedElement = await getElement(fileUri, chainId, elementId);
   if (diff?.updatedElements?.length) {
@@ -900,43 +915,6 @@ export function findAndRemoveElementById(
   }
 
   return undefined;
-}
-
-async function deleteElementsPropertyFiles(
-  fileUri: Uri,
-  removedElements: any[],
-) {
-  async function handleServiceCallProperty(beforeAfterBlock: any) {
-    if (beforeAfterBlock.type === "script") {
-      beforeAfterBlock["script"] = await fileApi.removeFile(
-        fileUri,
-        beforeAfterBlock.propertiesFilename,
-      );
-    } else if (beforeAfterBlock.type?.startsWith("mapper")) {
-      await fileApi.removeFile(fileUri, beforeAfterBlock.propertiesFilename);
-    }
-  }
-
-  for (const element of removedElements) {
-    if (element.properties?.propertiesToExportInSeparateFile) {
-      await fileApi.removeFile(fileUri, element.properties.propertiesFilename);
-    }
-
-    if (element.type === "service-call") {
-      if (Array.isArray(element.properties.after)) {
-        for (const afterBlock of element.properties.after) {
-          await handleServiceCallProperty(afterBlock);
-        }
-      }
-      if (element.properties.before) {
-        await handleServiceCallProperty(element.properties.before);
-      }
-    }
-
-    if (element.children?.length) {
-      await deleteElementsPropertyFiles(fileUri, element.children);
-    }
-  }
 }
 
 export async function deleteElements(
