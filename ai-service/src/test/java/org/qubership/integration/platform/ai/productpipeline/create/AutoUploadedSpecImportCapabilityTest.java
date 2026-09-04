@@ -62,7 +62,7 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(
         CompilationArtifacts.Kind.REQUIREMENT_DRAFT,
         completed.outcome().candidates().get(0).kind());
-    verify(gateway, never()).importUploadedSpec(any(), any());
+    verify(gateway, never()).importUploadedSpec(any(), any(), any());
   }
 
   @Test
@@ -83,7 +83,7 @@ class AutoUploadedSpecImportCapabilityTest {
 
     assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
     assertEquals(0, completed.outcome().candidates().size());
-    verify(gateway, never()).importUploadedSpec(any(), any());
+    verify(gateway, never()).importUploadedSpec(any(), any(), any());
   }
 
   @Test
@@ -99,7 +99,8 @@ class AutoUploadedSpecImportCapabilityTest {
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml", "uploads/notifications-async.yaml"));
-    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class)))
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
@@ -112,11 +113,52 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(1, completed.outcome().candidates().size());
     verify(gateway)
         .importUploadedSpec(
-            eq("conv-1"), eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")));
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL"));
     verify(gateway)
         .importUploadedSpec(
             eq("conv-1"),
-            eq(new UploadedSpecAttachment("uploads/notifications-async.yaml", "notifications-async.yaml")));
+            eq(new UploadedSpecAttachment("uploads/notifications-async.yaml", "notifications-async.yaml")),
+            eq("INTERNAL"));
+  }
+
+  @Test
+  void importsWithPreferredExternalSystemType() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-1", draft().withPreferredSystemType("EXTERNAL"));
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway,
+            conversationService,
+            artifactStore,
+            handler,
+            mock(CatalogBindingMatcher.class),
+            draftStore);
+    RequirementDraft draft = draft().withPreferredSystemType("EXTERNAL");
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/orders-api.yaml"));
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("EXTERNAL")))
+        .thenReturn(
+            Uni.createFrom()
+                .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    CapabilitySignal.Completed completed = run(capability, draft, List.of(approvalRef));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("EXTERNAL"));
   }
 
   @Test
@@ -132,7 +174,8 @@ class AutoUploadedSpecImportCapabilityTest {
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml", "uploads/notifications-async.yaml"));
-    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class)))
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
         .thenReturn(Uni.createFrom().failure(new RuntimeException("import failed")));
     CompilationArtifacts.Reference approvalRef = approvalRef();
     stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
@@ -143,11 +186,14 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(0, completed.outcome().candidates().size());
     verify(gateway)
         .importUploadedSpec(
-            eq("conv-1"), eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")));
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL"));
     verify(gateway)
         .importUploadedSpec(
             eq("conv-1"),
-            eq(new UploadedSpecAttachment("uploads/notifications-async.yaml", "notifications-async.yaml")));
+            eq(new UploadedSpecAttachment("uploads/notifications-async.yaml", "notifications-async.yaml")),
+            eq("INTERNAL"));
   }
 
   @Test
@@ -162,7 +208,8 @@ class AutoUploadedSpecImportCapabilityTest {
             gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1")).thenReturn(List.of());
-    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class)))
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
@@ -179,7 +226,9 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(1, completed.outcome().candidates().size());
     verify(gateway)
         .importUploadedSpec(
-            eq("conv-1"), eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")));
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL"));
   }
 
   @Test
@@ -198,7 +247,8 @@ class AutoUploadedSpecImportCapabilityTest {
             List.of(
                 "sessions/conv/a.json\n"
                     + "- http://localhost:8080/api/v1/storage/objects?key=sessions/conv/b.json"));
-    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class)))
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
@@ -210,10 +260,12 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
     verify(gateway)
         .importUploadedSpec(
-            eq("conv-1"), eq(new UploadedSpecAttachment("sessions/conv/a.json", "a.json")));
+            eq("conv-1"), eq(new UploadedSpecAttachment("sessions/conv/a.json", "a.json")), eq("INTERNAL"));
     verify(gateway)
         .importUploadedSpec(
-            eq("conv-1"), eq(new UploadedSpecAttachment("sessions/conv/b.json", "b.json")));
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("sessions/conv/b.json", "b.json")),
+            eq("INTERNAL"));
   }
 
   @Test
@@ -236,7 +288,7 @@ class AutoUploadedSpecImportCapabilityTest {
 
     assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
     assertEquals(0, completed.outcome().candidates().size());
-    verify(gateway, never()).importUploadedSpec(any(), any());
+    verify(gateway, never()).importUploadedSpec(any(), any(), any());
   }
 
   @Test
@@ -262,7 +314,7 @@ class AutoUploadedSpecImportCapabilityTest {
 
     assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
     assertEquals(0, completed.outcome().candidates().size());
-    verify(gateway, never()).importUploadedSpec(any(), any());
+    verify(gateway, never()).importUploadedSpec(any(), any(), any());
   }
 
   @Test
@@ -286,7 +338,7 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
     assertEquals(1, completed.outcome().candidates().size());
     assertEquals(draft, completed.outcome().candidates().get(0).payload());
-    verify(gateway, never()).importUploadedSpec(any(), any());
+    verify(gateway, never()).importUploadedSpec(any(), any(), any());
   }
 
   @Test
@@ -304,7 +356,8 @@ class AutoUploadedSpecImportCapabilityTest {
     stubRequirementDraft(artifactStore, draftRef, draft);
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml"));
-    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class)))
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
@@ -317,7 +370,9 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(1, completed.outcome().candidates().size());
     verify(gateway)
         .importUploadedSpec(
-            eq("conv-1"), eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")));
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL"));
   }
 
   @Test
@@ -343,7 +398,8 @@ class AutoUploadedSpecImportCapabilityTest {
     stubRequirementDraft(artifactStore, draftRef, draft);
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/stub-openapi.yaml"));
-    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class)))
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
@@ -426,7 +482,8 @@ class AutoUploadedSpecImportCapabilityTest {
     stubRequirementDraft(artifactStore, draftRef, draft);
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/stub-openapi.yaml", "uploads/stub-asyncapi.yaml"));
-    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class)))
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));

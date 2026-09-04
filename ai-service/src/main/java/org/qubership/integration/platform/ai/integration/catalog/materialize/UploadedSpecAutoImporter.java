@@ -44,11 +44,16 @@ public class UploadedSpecAutoImporter {
 
   public UploadedSpecImportOutcome importSpec(
       String conversationId, UploadedSpecAttachment attachment) {
+    return importSpec(conversationId, attachment, SYSTEM_TYPE_INTERNAL);
+  }
+
+  public UploadedSpecImportOutcome importSpec(
+      String conversationId, UploadedSpecAttachment attachment, String systemType) {
     byte[] content = s3Service.readObjectBytes(attachment.s3Key());
     String specName = UploadedSpecTitleExtractor.resolveSpecName(content, attachment.filename());
 
-    CatalogRestClient.SystemDto system = findOrCreateSystem(specName);
-    ensureDefaultEnvironment(system.id());
+    CatalogRestClient.SystemDto system = findOrCreateSystem(specName, systemType);
+    ensureDefaultEnvironment(system.id(), systemType);
 
     Optional<CatalogRestClient.SpecificationGroupDto> existingGroup =
         findExistingSpecificationGroup(system.id(), specName);
@@ -92,7 +97,7 @@ public class UploadedSpecAutoImporter {
         attachment.s3Key(), system.id(), specificationGroupId, specificationId, reused);
   }
 
-  private CatalogRestClient.SystemDto findOrCreateSystem(String baseName) {
+  private CatalogRestClient.SystemDto findOrCreateSystem(String baseName, String systemType) {
     List<CatalogRestClient.SystemDto> systems =
         catalogRestClient.searchSystems(new CatalogSystemSearchRequest(baseName));
     if (systems != null) {
@@ -102,11 +107,17 @@ public class UploadedSpecAutoImporter {
         }
       }
     }
-    return catalogRestClient.createSystem(
-        new CatalogCreateSystemRequest(baseName, SYSTEM_TYPE_INTERNAL));
+    String resolvedType =
+        systemType == null || systemType.isBlank() ? SYSTEM_TYPE_INTERNAL : systemType.trim();
+    return catalogRestClient.createSystem(new CatalogCreateSystemRequest(baseName, resolvedType));
   }
 
-  private void ensureDefaultEnvironment(String systemId) {
+  private void ensureDefaultEnvironment(String systemId, String systemType) {
+    String normalizedType =
+        systemType == null ? "" : systemType.trim().toUpperCase(java.util.Locale.ROOT);
+    if (!SYSTEM_TYPE_INTERNAL.equals(normalizedType)) {
+      return;
+    }
     List<CatalogRestClient.EnvironmentDto> environments =
         catalogRestClient.getEnvironments(systemId);
     if (environments == null || environments.isEmpty()) {

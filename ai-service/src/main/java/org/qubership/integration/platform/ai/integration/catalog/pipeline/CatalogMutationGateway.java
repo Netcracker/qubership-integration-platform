@@ -68,7 +68,13 @@ public class CatalogMutationGateway {
 
   public Uni<UploadedSpecImportOutcome> importUploadedSpec(
       String conversationId, UploadedSpecAttachment attachment) {
-    return onWorker(() -> uploadedSpecAutoImporter.importSpec(conversationId, attachment));
+    return importUploadedSpec(conversationId, attachment, "INTERNAL");
+  }
+
+  public Uni<UploadedSpecImportOutcome> importUploadedSpec(
+      String conversationId, UploadedSpecAttachment attachment, String systemType) {
+    return onWorker(
+        () -> uploadedSpecAutoImporter.importSpec(conversationId, attachment, systemType));
   }
 
   private static <T> Uni<T> onWorker(Supplier<T> work) {

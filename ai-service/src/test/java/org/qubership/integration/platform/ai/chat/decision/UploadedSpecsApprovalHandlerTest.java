@@ -70,7 +70,12 @@ class UploadedSpecsApprovalHandlerTest {
     assertNotNull(decision.artifactHash());
     assertTrue(decision.question().contains("Orders API"));
     assertTrue(decision.question().contains("Notifications Async API"));
-    assertEquals(List.of("approve", "clarify"), decision.actions());
+    assertEquals(
+        List.of(
+            ChatEvent.IMPORT_INTERNAL_ACTION,
+            ChatEvent.IMPORT_EXTERNAL_ACTION,
+            "clarify"),
+        decision.actions());
   }
 
   @Test

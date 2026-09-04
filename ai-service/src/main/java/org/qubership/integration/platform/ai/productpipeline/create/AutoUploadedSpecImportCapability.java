@@ -178,6 +178,11 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
   private Multi<CapabilitySignal> importAttachments(
       StageExecutionContext context, List<UploadedSpecAttachment> attachments) {
     String conversationId = context.conversationId();
+    String systemType =
+        draftStore
+            .get(conversationId)
+            .map(RequirementDraft::resolvedPreferredSystemType)
+            .orElse("INTERNAL");
     Uni<CapabilitySignal.Completed> importWork =
         Multi.createFrom()
             .iterable(attachments)
@@ -185,7 +190,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             .transformToUniAndMerge(
                 attachment ->
                     catalogMutationGateway
-                        .importUploadedSpec(conversationId, attachment)
+                        .importUploadedSpec(conversationId, attachment, systemType)
                         .onFailure()
                         .recoverWithItem(
                             error -> {

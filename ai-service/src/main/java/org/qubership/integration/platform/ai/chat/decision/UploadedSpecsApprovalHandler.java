@@ -70,7 +70,10 @@ public class UploadedSpecsApprovalHandler {
         0L,
         null,
         List.of(),
-        List.of("approve", "clarify"));
+        List.of(
+            ChatEvent.IMPORT_INTERNAL_ACTION,
+            ChatEvent.IMPORT_EXTERNAL_ACTION,
+            "clarify"));
   }
 
   /** Converts an approved decision into the record the auto-import stage reads. */

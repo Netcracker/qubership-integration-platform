@@ -531,9 +531,10 @@ public class ChatDecisionService {
           conversationId);
       return Multi.createFrom().empty();
     }
-    if (!ChatEvent.APPROVE_ACTION.equals(action)) {
+    if (!ChatEvent.isImportAction(action) && !ChatEvent.APPROVE_ACTION.equals(action)) {
       return Multi.createFrom().empty();
     }
+    rememberImportChoice(conversationId, command);
     ChatEvent.Decision decision =
         new ChatEvent.Decision(
             UploadedSpecsApprovalHandler.ARTIFACT_TYPE + ":" + command.getArtifactHash(),
