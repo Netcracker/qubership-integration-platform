@@ -10,7 +10,7 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets } from "./response";
+import { CHAIN_DIFF_PATH, deleteChain, getApiResponse, listChainExportTargets } from "./response";
 import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
@@ -976,7 +976,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         );
         if (result === "Delete") {
           try {
-            await vscode.workspace.fs.delete(item.fileUri);
+            await deleteChain(item.fileUri);
             qipProvider.refresh();
             vscode.window.showInformationMessage(
               `Chain "${item.label}" deleted successfully`,
