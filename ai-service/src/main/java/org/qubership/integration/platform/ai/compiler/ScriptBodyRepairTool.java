@@ -161,6 +161,7 @@ public class ScriptBodyRepairTool {
     }
 
     Map<String, ScriptBodyEntry> byNodeId = scriptsByNodeId(capture.scripts());
+    stripHopBodyCoverage(conversationId, capabilityId, base, byNodeId);
     String mappingError = validateMappingCaptures(conversationId, capabilityId, base, byNodeId);
     if (mappingError != null) {
       return recordFailure(conversationId, capabilityId, mappingError);
@@ -321,6 +322,31 @@ public class ScriptBodyRepairTool {
       }
     }
     return null;
+  }
+
+  private void stripHopBodyCoverage(
+      String conversationId,
+      String capabilityId,
+      ChainPlanGraph graph,
+      Map<String, ScriptBodyEntry> byNodeId) {
+    GraphPatchExecutionContext context =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .orElse(null);
+    for (ScriptBodyEntry entry : List.copyOf(byNodeId.values())) {
+      ChainPlanNode node = findNode(graph, entry.targetNodeId());
+      String intentId = MappingExecutionSite.mappingIntentId(node);
+      if (intentId == null || intentId.isBlank()) {
+        continue;
+      }
+      MappingEnvelope envelope = findEnvelope(conversationId, context, intentId);
+      List<String> coverage =
+          mappingCaptureValidator.hopBodyCoverage(entry.mappingCoverage(), envelope);
+      byNodeId.put(
+          entry.targetNodeId(),
+          new ScriptBodyEntry(entry.targetNodeId(), entry.script(), coverage));
+    }
   }
 
   private static MappingIntent requireIntent(

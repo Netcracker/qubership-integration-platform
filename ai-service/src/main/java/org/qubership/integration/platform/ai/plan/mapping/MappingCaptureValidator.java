@@ -1,8 +1,12 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.Attribute;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.ObjectSchema;
+import org.qubership.integration.platform.ai.plan.mapping.atlas.MappingDescriptionDocument.ObjectType;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -35,6 +39,17 @@ public final class MappingCaptureValidator {
     validateScript(intent, script, mappingCoverage, contractFromEnvelope(envelope));
   }
 
+  /**
+   * Keep coverage paths that touch the hop target body. Preserve-for-later context such as
+   * {@code $.response.*} is dropped from the list; Groovy may still assign those paths.
+   */
+  public List<String> hopBodyCoverage(List<String> mappingCoverage, MappingEnvelope envelope) {
+    if (mappingCoverage == null) {
+      return null;
+    }
+    return contractFromEnvelope(envelope).hopBodyFieldsCoveredBy(mappingCoverage);
+  }
+
   public void validateScript(
       MappingIntent intent,
       String script,
@@ -50,6 +65,25 @@ public final class MappingCaptureValidator {
     if (envelope == null) {
       return MappingContract.unknown();
     }
-    return MappingContract.fromHopPaths(envelope.idToPath().values());
+    return MappingContract.fromHopPaths(targetBodyPaths(envelope));
+  }
+
+  private static List<String> targetBodyPaths(MappingEnvelope envelope) {
+    if (envelope.target() == null
+        || !(envelope.target().body() instanceof ObjectType objectType)) {
+      return List.of();
+    }
+    ObjectSchema schema = objectType.schema();
+    if (schema == null) {
+      return List.of();
+    }
+    List<String> paths = new ArrayList<>();
+    for (Attribute attribute : schema.attributes()) {
+      String path = envelope.idToPath().get(attribute.id());
+      if (path != null && !path.isBlank()) {
+        paths.add(path);
+      }
+    }
+    return paths;
   }
 }

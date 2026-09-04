@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -117,6 +119,174 @@ class MappingCaptureValidatorTest {
                         List.of("$.orderId", "$.extra")));
     assertTrue(ex.getMessage().contains("unexpected="));
     assertTrue(ex.getMessage().contains("$.extra"));
+  }
+
+  @Test
+  void responseHopScriptCoveragePassesWhenTargetBodyHasNoProperties() throws Exception {
+    JsonNode salesforceSource =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } }
+            }
+            """);
+    JsonNode oneOfTarget =
+        MAPPER.readTree(
+            """
+            {
+              "oneOf": [
+                { "type": "object" },
+                { "type": "string" }
+              ]
+            }
+            """);
+    MappingEnvelope responseEnvelope =
+        new JsonSchemaMessageSchemaFactory(MAPPER)
+            .fromSides(
+                side("createTask", MappingPort.RESPONSE, salesforceSource),
+                side("onTaskResult", MappingPort.REQUEST, oneOfTarget));
+    MappingIntent intent =
+        new MappingIntent(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "", "$.commandType", "Set to completeTask.", MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "id", "$.executionId", null, MappingRuleStatus.USER_DEFINED),
+                new MappingIntentRule(
+                    "orderId", "$.orderId", "Echo preserved context.", MappingRuleStatus.USER_DEFINED)));
+    assertDoesNotThrow(
+        () ->
+            new MappingCaptureValidator()
+                .validateScript(
+                    intent,
+                    """
+                    target['commandType'] = 'completeTask'
+                    target['executionId'] = source['id']
+                    target['orderId'] = orderId
+                    """,
+                    List.of("$.commandType", "$.executionId", "$.orderId"),
+                    responseEnvelope));
+  }
+
+  @Test
+  void requestHopEnvelopeScriptCoverageDoesNotRequirePreserveForLaterContext()
+      throws Exception {
+    MappingEnvelope requestEnvelope = requestHopEnvelope();
+    assertDoesNotThrow(
+        () ->
+            new MappingCaptureValidator()
+                .validateScript(
+                    requestHopIntent(),
+                    requestHopScript(),
+                    List.of("Subject", "Description"),
+                    requestEnvelope));
+  }
+
+  @Test
+  void requestHopCoverageKeepsHopBodyPathsAndDropsResponseKeepPaths() throws Exception {
+    MappingEnvelope requestEnvelope = requestHopEnvelope();
+    MappingCaptureValidator validator = new MappingCaptureValidator();
+    List<String> implemented =
+        List.of(
+            "Subject",
+            "Description",
+            "$.response.executionId",
+            "$.response.orderId");
+    List<String> hopBody = validator.hopBodyCoverage(implemented, requestEnvelope);
+    assertEquals(List.of("$.Subject", "$.Description"), hopBody);
+    assertDoesNotThrow(
+        () -> validator.validateScript(requestHopIntent(), requestHopScript(), hopBody, requestEnvelope));
+  }
+
+  @Test
+  void requestHopCoverageStillFailsWhenHopBodyFieldIsMissing() throws Exception {
+    MappingEnvelope requestEnvelope = requestHopEnvelope();
+    MappingCaptureValidator validator = new MappingCaptureValidator();
+    List<String> hopBody =
+        validator.hopBodyCoverage(
+            List.of("Description", "$.response.executionId", "$.response.orderId"),
+            requestEnvelope);
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                validator.validateScript(
+                    requestHopIntent(), requestHopScript(), hopBody, requestEnvelope));
+    assertTrue(ex.getMessage().contains("missing="));
+    assertTrue(ex.getMessage().contains("Subject"));
+    assertFalse(ex.getMessage().contains("$.response"));
+  }
+
+  private static MappingEnvelope requestHopEnvelope() throws Exception {
+    JsonNode onTaskStart =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "taskId": { "type": "string" },
+                "executionId": { "type": "string" },
+                "orderId": { "type": "string" }
+              }
+            }
+            """);
+    JsonNode createTask =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "Subject": { "type": "string" },
+                "Description": { "type": "string" },
+                "Priority": { "type": "string" },
+                "Status": { "type": "string" },
+                "ActivityDate": { "type": "string" }
+              }
+            }
+            """);
+    return new JsonSchemaMessageSchemaFactory(MAPPER)
+        .fromSides(
+            side("onTaskStart", MappingPort.OUTPUT, onTaskStart),
+            side("createTask", MappingPort.REQUEST, createTask));
+  }
+
+  private static MappingIntent requestHopIntent() {
+    return new MappingIntent(
+        "request-onTaskStart-to-createTask",
+        "onTaskStart",
+        MappingPort.OUTPUT,
+        "createTask",
+        MappingPort.REQUEST,
+        List.of(
+            new MappingIntentRule("name", "Subject", null, MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(
+                "taskId", "Description.taskId", null, MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(
+                "executionId",
+                "responseContext.executionId",
+                "Keep for the response.",
+                MappingRuleStatus.USER_DEFINED),
+            new MappingIntentRule(
+                "orderId",
+                "responseContext.orderId",
+                "Keep for the response.",
+                MappingRuleStatus.USER_DEFINED)));
+  }
+
+  private static String requestHopScript() {
+    return """
+        target['Subject'] = source['name']
+        target['Description'] = source['taskId']
+        response.executionId = source['executionId']
+        response.orderId = source['orderId']
+        """;
   }
 
   private static MappingIntent identityOrderId() {
