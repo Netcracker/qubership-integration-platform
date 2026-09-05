@@ -271,14 +271,18 @@ class CipDesignExecutorJavaAdapterTest {
   }
 
   @Test
-  void mappingIntentMismatchDoesNotInvokeRunner() {
-    ExecutionResult result =
-        adapter.executeAfterApproval(
-            baseInputs().withRevision(SemanticFixtures.linearOrdersWithMapping(), revisionRef));
+  void mappingListDifferenceDoesNotHaltExecution() {
+    ChainSemanticRevision live = SemanticFixtures.linearOrdersWithMapping();
+    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(live), anyList(), any()))
+        .thenReturn(List.of(new BindingResolutionResult.Resolved(bindings.getFirst())));
+    when(runner.execute(eq(approvedPlan), eq(live), eq(bindings), eq(manifest), any()))
+        .thenReturn(successfulEngineResult(List.of("cip-trigger-generator")));
 
-    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
-    assertTrue(result.message().toLowerCase().contains("mapping"));
-    verifyNoInteractions(runner);
+    ExecutionResult result =
+        adapter.executeAfterApproval(baseInputs().withRevision(live, revisionRef));
+
+    assertNotEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
+    verify(runner).execute(eq(approvedPlan), eq(live), eq(bindings), eq(manifest), any());
   }
 
   @Test

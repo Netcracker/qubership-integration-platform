@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 class ChainSemanticRevisionTest {
 
@@ -32,6 +33,19 @@ class ChainSemanticRevisionTest {
     ((ObjectNode) tree.get("nodes").get(0)).put("unknownField", "x");
     assertThrows(
         JsonMappingException.class, () -> mapper.treeToValue(tree, ChainSemanticRevision.class));
+  }
+
+  @Test
+  void mappingBodiesReadsTheBriefAndIgnoresRevisionList() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithMapping();
+    RequirementBrief brief =
+        new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary");
+
+    assertEquals(List.of(), revision.mappingBodies(null));
+    assertEquals(List.of(), revision.mappingBodies(brief));
+    assertEquals(
+        brief.withMappingIntents(revision.mappingIntents()).mappingIntents(),
+        revision.mappingBodies(brief.withMappingIntents(revision.mappingIntents())));
   }
 
   @Test

@@ -47,6 +47,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationResult;
@@ -422,9 +424,6 @@ public class CipDesignExecutorJavaAdapter {
     if (storedRevision.isEmpty()) {
       return "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution";
     }
-    if (!Objects.equals(storedRevision.get().mappingIntents(), inputs.revision().mappingIntents())) {
-      return "mapping intent mismatch between live revision and approved chain semantic revision";
-    }
     return null;
   }
 
@@ -484,9 +483,7 @@ public class CipDesignExecutorJavaAdapter {
 
     ValidationResult freshPlanValidation =
         planValidator.validate(
-            new PlanGraphValidationInput(
-                graph,
-                inputs.revision() == null ? List.of() : inputs.revision().mappingIntents()));
+            new PlanGraphValidationInput(graph, briefMappingIntents(inputs.runId())));
     PlanValidationResult planValidation =
         mergeCompilerBundleFindings(
             CompilerPlanningRunner.buildValidationResult(freshPlanValidation, List.of()),
@@ -772,6 +769,14 @@ public class CipDesignExecutorJavaAdapter {
     return artifactStore
         .get(runId, ref)
         .map(revision -> artifactStore.payload(revision, type));
+  }
+
+  private List<MappingIntent> briefMappingIntents(String runId) {
+    return artifactStore
+        .latest(runId, Kind.REQUIREMENT_BRIEF)
+        .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+        .map(RequirementBrief::mappingIntents)
+        .orElse(List.of());
   }
 
   private static ArtifactProvenance provenance(ExecutionInputs inputs) {

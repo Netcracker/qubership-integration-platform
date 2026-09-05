@@ -449,7 +449,11 @@ class DesignPlanningCapabilityTest {
   void plannerInputRequiresLiteralMappingIntentIdToken() {
     String input =
         DesignPlanningCapability.buildPlannerInput(
-            sampleIds(), SemanticFixtures.linearOrdersWithMapping(), "2024.4");
+            sampleIds(),
+            SemanticFixtures.linearOrdersWithMapping(),
+            "2024.4",
+            sampleBrief()
+                .withMappingIntents(SemanticFixtures.linearOrdersWithMapping().mappingIntents()));
 
     assertTrue(input.contains("mappingIntentId=<id>"), input);
     assertTrue(input.contains("mappingIntentId=map-init"), input);
