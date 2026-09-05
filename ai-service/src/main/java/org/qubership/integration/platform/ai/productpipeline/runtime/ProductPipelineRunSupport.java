@@ -82,6 +82,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnApplication;
 import org.qubership.integration.platform.ai.plan.MappingTurnProcessor;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.MappingTurnTelemetry;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
@@ -673,12 +674,12 @@ public final class ProductPipelineRunSupport {
     Map<String, Object> attributes =
         attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
     attributes.put("userText", command.text());
-    attributes.put("requirementBrief", updated);
     artifactStore
         .latest(command.runId(), Kind.REQUIREMENT_BRIEF)
         .map(Revision::contentHash)
         .filter(hash -> hash != null && !hash.isBlank())
         .ifPresent(hash -> attributes.put(SUPERSEDED_BRIEF_CONTENT_HASH_ATTR, hash));
+    persistCanonicalRequirementBrief(doc, command, updated);
     List<String> supersededArtifactHashes = collectSupersededDerivedArtifactHashes(command.runId());
     if (!supersededArtifactHashes.isEmpty()) {
       attributes.put(SUPERSEDED_ARTIFACT_HASHES_ATTR, supersededArtifactHashes);
@@ -865,6 +866,16 @@ public final class ProductPipelineRunSupport {
   /** Appends the updated brief so design-input and the compiler see mapping intents. */
   private void persistMappingGapBrief(
       ProductPipelineRunDocument doc, AcceptInputCommand command, RequirementBrief updated) {
+    persistCanonicalRequirementBrief(doc, command, updated);
+  }
+
+  /**
+   * Canonicalize mapping intents, then append. Mapping-gap and an applied mapping turn write
+   * through this method.
+   */
+  private Revision persistCanonicalRequirementBrief(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, RequirementBrief updated) {
+    RequirementBrief canonical = RequirementBriefProjector.canonicalizeMappingIntents(updated);
     Optional<Revision> stored = artifactStore.latest(command.runId(), Kind.REQUIREMENT_BRIEF);
     Revision revision =
         artifactStore.append(
@@ -874,7 +885,7 @@ public final class ProductPipelineRunSupport {
                 stored.map(Revision::schemaVersion).orElse("1"),
                 "product-pipeline-runtime",
                 "1",
-                updated,
+                canonical,
                 List.of(),
                 null,
                 provenance(
@@ -883,8 +894,9 @@ public final class ProductPipelineRunSupport {
                     currentStage(doc).capabilityId())));
     Map<String, Object> attributes =
         attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
-    attributes.put("requirementBrief", updated);
+    attributes.put("requirementBrief", canonical);
     attributes.put("requirementBriefContentHash", revision.contentHash());
+    return revision;
   }
 
   /** Handles typed pass-through, the describe action, and blank input on the mapping-gap card. */

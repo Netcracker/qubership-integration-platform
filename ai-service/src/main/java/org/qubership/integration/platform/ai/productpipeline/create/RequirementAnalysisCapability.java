@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnInterpreter;
 import org.qubership.integration.platform.ai.plan.MappingTurnProcessor;
 import org.qubership.integration.platform.ai.plan.MappingTurnTelemetry;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
@@ -496,6 +497,7 @@ public class RequirementAnalysisCapability implements StageCapability {
               "Requirement analysis did not capture a requirement brief"));
     }
     brief = applyMappingTurn(context, brief);
+    brief = RequirementBriefProjector.canonicalizeMappingIntents(brief);
     var unresolvedMapping = BriefMappingValidator.unresolvedRequiredMessage(brief);
     if (unresolvedMapping.isPresent()) {
       return new CapabilitySignal.Completed(

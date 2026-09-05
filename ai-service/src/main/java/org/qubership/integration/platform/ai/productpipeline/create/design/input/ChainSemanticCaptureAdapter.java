@@ -19,7 +19,6 @@ import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
-import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
@@ -512,7 +511,7 @@ public class ChainSemanticCaptureAdapter {
   private static List<MappingIntent> mappingIntents(
       RequirementBrief brief, List<SemanticExecutionEdge> edges, List<SemanticNode> nodes) {
     Map<String, MappingIntent> approved = new LinkedHashMap<>();
-    for (MappingIntent intent : RequirementBriefProjector.collapseMappingIntents(brief)) {
+    for (MappingIntent intent : brief.mappingIntents()) {
       if (intent != null && !intent.mappingIntentId().isBlank()) {
         approved.put(intent.mappingIntentId(), intent);
       }

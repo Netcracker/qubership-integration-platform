@@ -15,6 +15,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedOperation;
@@ -169,12 +170,20 @@ class ChainSemanticCaptureAdapterTest {
             "edge-495d48ab0cc3cf30",
             MappingPort.REQUEST,
             List.of(new MappingIntentRule("processInstanceId", "orderId", "alias")));
-    RequirementBrief brief =
+    RequirementBrief raw =
         ChainSemanticCaptureFixtures.briefWithMapping()
             .withMappingIntents(List.of(approved, placeholder));
 
+    String missingSite =
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> adapt(ChainSemanticCaptureFixtures.mappedCapture(), raw))
+            .getMessage();
+    assertTrue(missingSite.contains("process-instance-to-process-id"), missingSite);
+
+    RequirementBrief canonical = RequirementBriefProjector.canonicalizeMappingIntents(raw);
     ChainSemanticRevision revision =
-        adapt(ChainSemanticCaptureFixtures.mappedCapture(), brief);
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(), canonical);
 
     assertEquals(1, revision.mappingIntents().size());
     assertEquals(

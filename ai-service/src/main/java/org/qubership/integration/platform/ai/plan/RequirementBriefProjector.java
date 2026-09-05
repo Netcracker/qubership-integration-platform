@@ -52,6 +52,15 @@ public final class RequirementBriefProjector {
         brief.catalogBindings());
   }
 
+  /**
+   * Mapping intents stored at brief commit. Drops identity pass-through, merges the same hop, and
+   * assigns ports from the approved flow. Capture and execute must not collapse again.
+   */
+  public static RequirementBrief canonicalizeMappingIntents(RequirementBrief brief) {
+    Objects.requireNonNull(brief, "brief");
+    return brief.withMappingIntents(mappingIntentsFor(brief));
+  }
+
   private static List<MappingIntent> mappingIntentsFor(RequirementBrief brief) {
     return assignPorts(collapseMappingIntents(brief), brief.flow());
   }

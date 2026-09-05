@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.AddIntent;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.Clarification;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.Query;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.MappingTurnTelemetry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
@@ -60,7 +61,10 @@ import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPol
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -182,6 +186,34 @@ class MappingGapResumeTest {
     type(DESCRIBE_PROSE);
 
     assertDescribeAppliedWithoutRecapture(before);
+  }
+
+  @Test
+  void analysisCommitDropsIdentityOnlyAutoAndKeepsHopsUncovered() {
+    support =
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(
+                        identityAutoAnalysisCapability(),
+                        designInputCapability(),
+                        planningCapability())),
+                clock)
+            .mappingTurnAdapter((brief, message) -> mappingAdapter.interpret(brief, message))
+            .mappingTurnTelemetry(mappingTelemetry)
+            .build();
+    runtime = new CreateChainTestOrchestrator(support, runStore);
+
+    waitAtMappingGap();
+
+    RequirementBrief stored =
+        artifactStore
+            .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+            .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+            .orElseThrow();
+    assertTrue(stored.mappingIntents().isEmpty(), stored.mappingIntents().toString());
+    assertEquals(2, MappingGapCoverage.uncovered(stored).size());
   }
 
   @Test
@@ -501,6 +533,34 @@ class MappingGapResumeTest {
                 intent ->
                     "create-task".equals(intent.sourceRef())
                         && "task-result".equals(intent.targetRef())));
+    RequirementBrief fromStore =
+        artifactStore
+            .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+            .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+            .orElseThrow();
+    assertEquals(
+        RequirementBriefProjector.canonicalizeMappingIntents(fromStore).mappingIntents(),
+        fromStore.mappingIntents());
+    MappingIntent inbound =
+        fromStore.mappingIntents().stream()
+            .filter(
+                intent ->
+                    "task-start".equals(intent.sourceRef())
+                        && "create-task".equals(intent.targetRef()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(MappingPort.OUTPUT, inbound.sourcePort());
+    assertEquals(MappingPort.REQUEST, inbound.targetPort());
+    MappingIntent outbound =
+        fromStore.mappingIntents().stream()
+            .filter(
+                intent ->
+                    "create-task".equals(intent.sourceRef())
+                        && "task-result".equals(intent.targetRef()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(MappingPort.RESPONSE, outbound.sourcePort());
+    assertEquals(MappingPort.REQUEST, outbound.targetPort());
     UserInput latestAnalysis = latestUserInputTargeting("requirement-analysis");
     assertNotEquals(DESCRIBE_PROSE, latestAnalysis.text());
     assertNotEquals(DESCRIBE_PROSE, support.runAttributes(RUN_ID).get("userText"));
@@ -621,6 +681,17 @@ class MappingGapResumeTest {
             null));
   }
 
+  private static StageCapability identityAutoAnalysisCapability() {
+    return new ScriptedCapability(
+        "requirement-analysis",
+        new StageOutcome(
+            StageOutcomeClass.CANDIDATE,
+            List.of(
+                new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, identityAutoBrief(), List.of())),
+            "brief ready",
+            null));
+  }
+
   private static StageCapability designInputCapability() {
     return new DesignInputCapability(
         (conversationId, prompt) -> {
@@ -658,6 +729,21 @@ class MappingGapResumeTest {
                 List.of(
                     new Transition("task-start", "create-task"),
                     new Transition("create-task", "task-result"))));
+  }
+
+  private static RequirementBrief identityAutoBrief() {
+    return uncoveredBrief()
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    "map-pass-through",
+                    "task-start",
+                    MappingPort.OUTPUT,
+                    "create-task",
+                    MappingPort.REQUEST,
+                    List.of(
+                        new MappingIntentRule(
+                            "$.id", "$.id", null, MappingRuleStatus.AUTO)))));
   }
 
   private static MappingTurnAdapter coveringAdapter() {
