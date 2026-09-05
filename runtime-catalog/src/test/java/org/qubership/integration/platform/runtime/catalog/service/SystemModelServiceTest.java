@@ -8,7 +8,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelLabelsRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 
@@ -20,10 +19,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * {@link SpecificationGroup} cascades {@code ALL} to its models, so a model deleted while still in
- * its group's collection is re-persisted by the flush-time cascade.
- */
 @ExtendWith(MockitoExtension.class)
 class SystemModelServiceTest {
 
@@ -31,8 +26,6 @@ class SystemModelServiceTest {
 
     @Mock
     private SystemModelRepository systemModelRepository;
-    @Mock
-    private SystemModelLabelsRepository systemModelLabelsRepository;
     @Mock
     private ElementHelperService elementHelperService;
     @Mock

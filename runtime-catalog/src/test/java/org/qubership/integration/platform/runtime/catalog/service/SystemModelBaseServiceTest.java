@@ -8,7 +8,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelLabelsRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 
 import java.util.Optional;
@@ -19,11 +18,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * {@link SpecificationGroup} cascades {@code ALL} to its models, so deleting a model that is still
- * in its group's collection is un-scheduled by the flush-time cascade and the row survives. These
- * tests pin the unlink that prevents it.
- */
 @ExtendWith(MockitoExtension.class)
 class SystemModelBaseServiceTest {
 
@@ -31,8 +25,6 @@ class SystemModelBaseServiceTest {
 
     @Mock
     private SystemModelRepository systemModelRepository;
-    @Mock
-    private SystemModelLabelsRepository systemModelLabelsRepository;
     @Mock
     private ActionsLogService actionLogger;
 
@@ -71,15 +63,6 @@ class SystemModelBaseServiceTest {
         systemModelService.delete(persistedModel);
 
         verify(systemModelRepository).delete(persistedModel);
-    }
-
-    @Test
-    @DisplayName("delete ignores a null specification")
-    void deleteIgnoresANullSpecification() {
-        systemModelService.delete(null);
-
-        verify(systemModelRepository, never()).findById(any());
-        verify(systemModelRepository, never()).delete(any(SystemModel.class));
     }
 
     @Test

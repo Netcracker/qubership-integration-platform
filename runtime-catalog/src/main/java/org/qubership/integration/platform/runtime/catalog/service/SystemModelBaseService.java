@@ -127,28 +127,21 @@ public class SystemModelBaseService {
         return model;
     }
 
-    /**
-     * Deletes a specification, unlinking it from its group first.
-     *
-     * <p>{@link SpecificationGroup} cascades {@code ALL} to its models, so a model still held by a
-     * managed group is re-persisted by the flush-time cascade and its deletion is un-scheduled —
-     * the row survives and only an {@code UPDATE} reaches the database. The model is reloaded
-     * rather than unlinked in place because callers hand in a detached instance whose collection
-     * is not initialized.
-     */
+    // Callers hand in a detached model, so reload it before unlinking.
     @Transactional
     public void delete(SystemModel model) {
-        if (isNull(model)) {
-            return;
+        systemModelRepository.findById(model.getId()).ifPresent(this::unlinkAndDelete);
+    }
+
+    // SpecificationGroup cascades ALL: a model left in its collection is re-persisted at flush,
+    // which cancels the delete.
+    protected void unlinkAndDelete(SystemModel model) {
+        SpecificationGroup specificationGroup = model.getSpecificationGroup();
+        if (nonNull(specificationGroup)) {
+            specificationGroup.removeSystemModel(model);
         }
-        systemModelRepository.findById(model.getId()).ifPresent(persistedModel -> {
-            SpecificationGroup specificationGroup = persistedModel.getSpecificationGroup();
-            if (nonNull(specificationGroup)) {
-                specificationGroup.removeSystemModel(persistedModel);
-            }
-            systemModelRepository.delete(persistedModel);
-            logModelAction(persistedModel, specificationGroup, LogOperation.DELETE);
-        });
+        systemModelRepository.delete(model);
+        logModelAction(model, specificationGroup, LogOperation.DELETE);
     }
 
     @Transactional

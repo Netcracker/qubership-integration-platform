@@ -39,6 +39,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ConfigParameterService;
+import org.qubership.integration.platform.runtime.catalog.service.SpecificationGroupService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.OperationParserService;
@@ -78,6 +79,7 @@ public class SpecificationImportService {
     private final ObjectMapper objectMapper;
     private final SystemBaseService systemBaseService;
     private final SystemModelBaseService systemModelService;
+    private final SpecificationGroupService specificationGroupService;
     private final WsdlRootFileParser wsdlRootFileParser;
 
     @Autowired
@@ -89,6 +91,7 @@ public class SpecificationImportService {
                                       @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                                       SystemBaseService systemBaseService,
                                       SystemModelBaseService systemModelService,
+                                      SpecificationGroupService specificationGroupService,
                                       WsdlRootFileParser wsdlRootFileParser
     ) {
         this.operationParserService = operationParserService;
@@ -99,6 +102,7 @@ public class SpecificationImportService {
         this.objectMapper = objectMapper;
         this.systemBaseService = systemBaseService;
         this.systemModelService = systemModelService;
+        this.specificationGroupService = specificationGroupService;
         this.wsdlRootFileParser = wsdlRootFileParser;
     }
 
@@ -121,9 +125,8 @@ public class SpecificationImportService {
         if (sessionStatus.isBusiness()) {
             throw new SpecificationImportException(sessionStatus.getErrorMessage());
         }
-        // A failed or warned status is left in place so a second poll still reports the cause
-        // instead of "not found". deleteObsoleteImportSessionStatuses() prunes it after 15 minutes,
-        // and the business branch above has always behaved this way.
+        // Keep a failed status so a repeat poll still reports the cause.
+        // deleteObsoleteImportSessionStatuses() drops it later.
         if (!StringUtils.isBlank(sessionStatus.getErrorMessage())) {
             throw new SpecificationImportException(sessionStatus.getErrorMessage(), sessionStatus.getStackTrace());
         }
@@ -232,8 +235,7 @@ public class SpecificationImportService {
             systemModelService.patchModelWithCompiledLibrary(model);
             return systemModelService.save(model);
         } catch (Exception exception) {
-            // The caller reports this exception to the user, so anything the rollback throws would
-            // take its place.
+            // The caller reports this exception, so anything the rollback throws must not replace it.
             try {
                 systemModelService.delete(model);
             } catch (Exception deleteException) {
@@ -244,13 +246,9 @@ public class SpecificationImportService {
         }
     }
 
-    /**
-     * Removes a specification group the failed import created itself, so a failure leaves the
-     * service as it found it.
-     */
     private void removeSpecificationGroup(String specificationGroupId) {
         try {
-            specificationGroupRepository.deleteById(specificationGroupId);
+            specificationGroupService.delete(specificationGroupId);
         } catch (Exception exception) {
             log.warn("Failed to remove specification group {} after a failed import",
                     specificationGroupId, exception);
@@ -315,20 +313,17 @@ public class SpecificationImportService {
         String stackTrace = null;
         boolean business = false;
         if (nonNull(exception)) {
-            Throwable thrownException = exception;
-            if (nonNull(exception.getCause())) {
-                exception = exception.getCause();
-            }
-            errorMessage = exception.getMessage();
-            if (exception instanceof CatalogRuntimeException catalogRuntimeException
+            Throwable cause = nonNull(exception.getCause()) ? exception.getCause() : exception;
+            errorMessage = cause.getMessage();
+            if (cause instanceof CatalogRuntimeException catalogRuntimeException
                     && catalogRuntimeException.getOriginalException() != null) {
                 errorMessage += ". " + catalogRuntimeException.getOriginalException().getMessage();
             }
             if (StringUtils.isNotBlank(additionalMessage)) {
                 errorMessage += " " + additionalMessage;
             }
-            business = exception instanceof SpecificationSimilarVersionException;
-            if (exception instanceof CatalogRuntimeException catalogRuntimeException) {
+            business = cause instanceof SpecificationSimilarVersionException;
+            if (cause instanceof CatalogRuntimeException catalogRuntimeException) {
                 stackTrace = Optional.ofNullable(catalogRuntimeException.getOriginalException())
                         .map(ExceptionUtils::getStackTrace)
                         .orElse(null);
@@ -336,7 +331,7 @@ public class SpecificationImportService {
             if (business) {
                 log.warn("Specification import {} rejected: {}", importId, errorMessage);
             } else {
-                log.error("Specification import {} failed: {}", importId, errorMessage, thrownException);
+                log.error("Specification import {} failed: {}", importId, errorMessage, exception);
             }
         }
         saveImportSessionStatus(importId, true, errorMessage, additionalMessage, stackTrace, business);

@@ -41,7 +41,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
-import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource.DISCOVERED;
 
 @Slf4j
@@ -129,13 +128,7 @@ public class SystemModelService extends SystemModelBaseService {
                 throw new IllegalArgumentException("Specification used by one or more chains");
             }
 
-            SystemModel specification = specificationOptional.get();
-            SpecificationGroup specificationGroup = specification.getSpecificationGroup();
-            if (nonNull(specificationGroup)) {
-                specificationGroup.removeSystemModel(specification);
-            }
-            systemModelRepository.delete(specification);
-            logModelAction(specification, specificationGroup, LogOperation.DELETE);
+            unlinkAndDelete(specificationOptional.get());
         }
 
         return specificationOptional;
@@ -187,10 +180,7 @@ public class SystemModelService extends SystemModelBaseService {
             throw new SpecificationDeleteException("Specification used by one or more chains");
         }
 
-        SpecificationGroup specificationGroup = model.getSpecificationGroup();
-        specificationGroup.removeSystemModel(model);
-        systemModelRepository.delete(model);
-        logModelAction(model, specificationGroup, LogOperation.DELETE);
+        unlinkAndDelete(model);
     }
 
     private void enrichSystemModelWithChains(SystemModel model) {
