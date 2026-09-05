@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
@@ -2340,13 +2341,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                   artifactEnvelopeSchema(kind, candidate.typeRef()),
                   stage.capabilityId() == null ? "bypass" : stage.capabilityId(),
                   "1",
-                  candidate.candidate().payload(),
+                  committedPayload(kind, candidate.candidate().payload()),
                   candidate.candidate().inputs(),
                   null,
                   provenance(runId, stage.stageId(), stage.capabilityId())));
       refs.add(revision.reference());
     }
     return List.copyOf(refs);
+  }
+
+  private static Object committedPayload(Kind kind, Object payload) {
+    if (kind == Kind.REQUIREMENT_BRIEF && payload instanceof RequirementBrief brief) {
+      return RequirementBriefProjector.canonicalizeMappingIntents(brief);
+    }
+    return payload;
   }
 
   private List<Reference> committedInputs(ProductPipelineRunDocument doc) {

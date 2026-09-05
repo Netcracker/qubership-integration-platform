@@ -30,6 +30,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -269,6 +270,66 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             RequirementBrief.class);
     assertEquals("trigger-http", stored.mappingIntents().getFirst().sourceRef());
     assertEquals("node-call", stored.mappingIntents().getFirst().targetRef());
+  }
+
+  @Test
+  void executeAcceptsAPlaceholderFoldedCanonicalBrief() {
+    MappingIntent approved =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("id", "customerId", null)));
+    MappingIntent placeholder =
+        new MappingIntent(
+            "process-instance-to-process-id",
+            "edge-495d48ab0cc3cf30",
+            MappingPort.OUTPUT,
+            "edge-495d48ab0cc3cf30",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("processInstanceId", "customerId", "alias")));
+    RequirementBrief canonical =
+        RequirementBriefProjector.canonicalizeMappingIntents(
+            ordersBriefWith(List.of(approved, placeholder)));
+    storeBrief(canonical);
+    persistRun();
+    ChainSemanticRevision base = SemanticFixtures.linearOrdersWithMapping();
+    MappingIntent projected =
+        new MappingIntent(
+            "map-init",
+            "edge-1",
+            MappingPort.OUTPUT,
+            "edge-1",
+            MappingPort.REQUEST,
+            canonical.mappingIntents().getFirst().rules());
+    ChainSemanticRevision revision =
+        new ChainSemanticRevision(
+            base.schemaVersion(),
+            base.revisionId(),
+            base.chainIdentity(),
+            base.compilerContractVersion(),
+            base.entryPoints(),
+            base.nodes(),
+            base.regions(),
+            base.executionEdges(),
+            base.containment(),
+            List.of(projected),
+            base.constraints(),
+            base.assumptions(),
+            base.citations());
+
+    runner.execute(
+        samplePlan(),
+        revision,
+        List.of(sampleBinding()),
+        sampleManifest(),
+        "attempt-1",
+        (skillId, status) -> {});
+
+    assertEquals(1, canonical.mappingIntents().size());
+    assertEquals(2, canonical.mappingIntents().getFirst().rules().size());
   }
 
   @Test

@@ -128,6 +128,65 @@ class RequirementBriefProjectorTest {
   }
 
   @Test
+  void canonicalizeMappingIntentsDropsIdentityPassThroughWithoutRebuildingRoles() {
+    MappingIntent fiveRules =
+        new MappingIntent(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.orderId", "$.orderId", null, MappingRuleStatus.AUTO),
+                new MappingIntentRule("$.userId", "$.personId", null, MappingRuleStatus.PROPOSED)));
+    MappingIntent identityOnly =
+        new MappingIntent(
+            "map-resp",
+            "call-1",
+            MappingPort.RESPONSE,
+            "trigger-1",
+            MappingPort.OUTPUT,
+            List.of(new MappingIntentRule("$.id", "$.id", null, MappingRuleStatus.AUTO)));
+    RequirementBrief raw = briefWithIntents(List.of(fiveRules, identityOnly));
+
+    RequirementBrief canonical = RequirementBriefProjector.canonicalizeMappingIntents(raw);
+
+    assertEquals(raw.entryPoints(), canonical.entryPoints());
+    assertEquals(raw.serviceCalls(), canonical.serviceCalls());
+    assertEquals(1, canonical.mappingIntents().size());
+    assertEquals("map-init", canonical.mappingIntents().getFirst().mappingIntentId());
+    assertEquals(
+        RequirementBriefProjector.project(raw).mappingIntents(), canonical.mappingIntents());
+  }
+
+  @Test
+  void canonicalizeMappingIntentsFoldsAPlaceholderIntoTheCarryingHop() {
+    MappingIntent approved =
+        new MappingIntent(
+            "map-body",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "fact-call",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("id", "orderId", null)));
+    MappingIntent placeholder =
+        new MappingIntent(
+            "process-instance-to-process-id",
+            "edge-495d48ab0cc3cf30",
+            MappingPort.OUTPUT,
+            "edge-495d48ab0cc3cf30",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("processInstanceId", "orderId", "alias")));
+    RequirementBrief raw = briefWithIntents(List.of(approved, placeholder));
+
+    RequirementBrief canonical = RequirementBriefProjector.canonicalizeMappingIntents(raw);
+
+    assertEquals(1, canonical.mappingIntents().size());
+    assertEquals("map-body", canonical.mappingIntents().getFirst().mappingIntentId());
+    assertEquals(2, canonical.mappingIntents().getFirst().rules().size());
+  }
+
+  @Test
   void mergesRulesThatShareOneSourceToTargetBoundary() {
     MappingIntent request =
         new MappingIntent(

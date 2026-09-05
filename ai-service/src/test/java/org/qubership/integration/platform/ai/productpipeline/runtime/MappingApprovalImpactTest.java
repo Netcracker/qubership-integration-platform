@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -142,6 +143,13 @@ class MappingApprovalImpactTest {
     assertTrue(hashes.contains(validationHash));
     RequirementBrief updated = (RequirementBrief) attributes.get("requirementBrief");
     assertEquals("$.title", updated.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    RequirementBrief stored =
+        artifactStore
+            .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+            .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+            .orElseThrow();
+    assertEquals("$.title", stored.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertNotEquals(briefHash, committedHash(Kind.REQUIREMENT_BRIEF));
     assertEquals(CHANGE_MESSAGE, attributes.get("userText"));
     assertEquals(before, remaining());
   }
