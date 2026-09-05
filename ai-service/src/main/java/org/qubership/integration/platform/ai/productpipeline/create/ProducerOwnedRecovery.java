@@ -86,6 +86,16 @@ public final class ProducerOwnedRecovery {
         || cause.causeCode() == RecoveryCauseCode.INTERNAL) {
       return new Route(Action.PARK, failed);
     }
+    if (request.outcomeClass() == StageOutcomeClass.MISSING_MANDATORY_INPUT
+        && !request.catalogWritten()) {
+      String upstream =
+          OwnerCandidateSet.draftProducerStageId(request.candidates(), failed)
+              .or(() -> OwnerCandidateSet.briefProducerStageId(request.candidates(), failed))
+              .orElse("");
+      if (!upstream.isBlank() && !upstream.equals(failed)) {
+        return new Route(Action.REOPEN_UPSTREAM, upstream);
+      }
+    }
     if (cause.causeCode() == RecoveryCauseCode.CATALOG_RESOLUTION) {
       return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
     }

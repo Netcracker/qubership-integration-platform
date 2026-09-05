@@ -73,6 +73,8 @@ const COMMAND_ACTIONS = new Set([
   "import-specification",
   "import-specification-internal",
   "import-specification-external",
+  "retry",
+  "revise",
   "retry-creation",
   "edit-requirements",
   "rebuild-plan",

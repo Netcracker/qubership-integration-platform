@@ -12,6 +12,9 @@ public class CapabilityClassifier {
     if (id.equals("cip-requirement-analyzer") || id.equals("cip-design-parser")) {
       return QipKnowledgeCapabilityPhase.DISCOVERY;
     }
+    if (id.equals("cip-chain-edit-planner") || id.equals("cip-design-planner")) {
+      return QipKnowledgeCapabilityPhase.DECISION;
+    }
     if (id.equals("cip-pattern-selector")) {
       return QipKnowledgeCapabilityPhase.DISCOVERY;
     }

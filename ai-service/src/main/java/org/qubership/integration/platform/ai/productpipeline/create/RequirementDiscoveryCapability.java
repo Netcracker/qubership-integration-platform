@@ -19,6 +19,9 @@ import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsProm
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -184,11 +187,13 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     // Pending APIHub import hands off to import-stage (ADR 0001) even when the draft
     // is still NEEDS_INPUT with the pinned import-confirm open question. Approved uploaded
-    // specs use the same handoff: catalog lookup cannot see them until uploaded-spec-import
-    // runs, so waiting here would ask the reader to import a spec they already approved.
+    // specs use the same handoff only while no catalog-backed call is waiting to be bound;
+    // otherwise stay here and ask which operation to use.
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
     boolean pendingUploadedSpecHandoff =
-        hasAllowedUploadedSpecs(conversationId) && !draft.facts().isEmpty();
+        hasAllowedUploadedSpecs(conversationId)
+            && !draft.facts().isEmpty()
+            && !hasUnboundServiceCall(draft);
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       // Blank on purpose: the gather agent already streamed the clarifying question. Emitting an
       // internal draft-state sentence glued it to that text and leaked READY_FOR_PLAN into chat.
@@ -314,6 +319,34 @@ public class RequirementDiscoveryCapability implements StageCapability {
               CompilationArtifacts.Kind.CATALOG_BINDING_HINT, hint, List.of()));
     }
     return hints;
+  }
+
+  private static boolean hasUnboundServiceCall(RequirementDraft draft) {
+    if (draft == null) {
+      return false;
+    }
+    if (draft.facts().stream()
+        .filter(fact -> fact.kind() == RequirementFactKind.SERVICE_CALL)
+        .anyMatch(fact -> !serviceCallIsBound(draft, fact))) {
+      return true;
+    }
+    if (draft.flow().interactions().isEmpty()) {
+      return false;
+    }
+    return RequirementFlowValidator.validateBindings(
+            draft.flow(), draft.facts(), draft.catalogBindings())
+        .isPresent();
+  }
+
+  private static boolean serviceCallIsBound(RequirementDraft draft, RequirementFact fact) {
+    String factId = fact.sourceFactId();
+    String callId = fact.serviceCallId();
+    return draft.catalogBindings().stream()
+        .anyMatch(
+            hint ->
+                factId.equals(hint.sourceFactId())
+                    || factId.equals(hint.interactionId())
+                    || (!callId.isEmpty() && callId.equals(hint.interactionId())));
   }
 
   /**

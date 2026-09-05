@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
@@ -37,6 +38,26 @@ class OwnerCandidateSetTest {
   void firstLayerIsOnlyTheFailedStageWhenInputsHaveNoProducer() {
     List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(threeStageProfile(), "discovery");
     assertEquals(List.of("discovery"), OwnerCandidateSet.stageIds(first));
+  }
+
+  @Test
+  void previousGenerativeStageIsTheImmediateEarlierAuthoringStage() {
+    assertEquals(
+        Optional.of("analysis"),
+        OwnerCandidateSet.previousGenerativeStageId(threeStageProfile(), "planning"));
+    assertEquals(
+        Optional.of("discovery"),
+        OwnerCandidateSet.previousGenerativeStageId(threeStageProfile(), "analysis"));
+    assertEquals(
+        Optional.empty(),
+        OwnerCandidateSet.previousGenerativeStageId(threeStageProfile(), "discovery"));
+  }
+
+  @Test
+  void previousGenerativeStageSkipsImportAndMaterialization() {
+    assertEquals(
+        Optional.of("discovery"),
+        OwnerCandidateSet.previousGenerativeStageId(discoveryImportAnalysisProfile(), "analysis"));
   }
 
   @Test
@@ -401,5 +422,51 @@ class OwnerCandidateSetTest {
                 new RetryPolicy(0, 1L))),
         new TerminalPolicy("planning", "PLAN_APPROVED"),
         List.of("discovery-cap", "analysis-cap", "planning-cap"));
+  }
+
+  private static ProductPipelineProfile discoveryImportAnalysisProfile() {
+    ArtifactTypeRef draft = new ArtifactTypeRef("requirement-draft", 1);
+    ArtifactTypeRef spec = new ArtifactTypeRef("imported-specification", 1);
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    return new ProductPipelineProfile(
+        1,
+        "import-skip",
+        "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "discovery",
+                "discovery-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(draft),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "import-stage",
+                "import-cap",
+                List.of(draft),
+                List.of(spec),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "uploaded-spec-import",
+                "uploaded-cap",
+                List.of(draft),
+                List.of(spec),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "analysis",
+                "analysis-cap",
+                List.of(draft),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("analysis", "PLAN_APPROVED"),
+        List.of("discovery-cap", "import-cap", "uploaded-cap", "analysis-cap"));
   }
 }

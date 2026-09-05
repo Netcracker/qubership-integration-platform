@@ -860,5 +860,81 @@
         "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
       ]
     }
+  },
+  "product-patch-async-gp02": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "compare-and-patch",
+    "terminalState": "CHAIN_PATCHED",
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiPatchAsyncGp02",
+    "prompts": [
+      "Add error handling for the Salesforce create-task call. Keep the success payload script on the happy path. Move the existing task-result reporter into finally-2. Catch must prepare the failed task-result payload, not an HTTP error response."
+    ],
+    "seed": {
+      "description": "Async task start, Salesforce call, success payload script, OM task-result reporter",
+      "elements": [
+        {
+          "type": "async-api-trigger",
+          "name": "Task start"
+        },
+        {
+          "type": "service-call",
+          "name": "Salesforce create task"
+        },
+        {
+          "type": "script",
+          "name": "Prepare success payload",
+          "properties": {
+            "script": "return exchange.in.body;"
+          }
+        },
+        {
+          "type": "service-call",
+          "name": "Task result"
+        }
+      ],
+      "edges": [
+        { "fromIndex": 0, "toIndex": 1 },
+        { "fromIndex": 1, "toIndex": 2 },
+        { "fromIndex": 2, "toIndex": 3 }
+      ]
+    },
+    "catalog": {
+      "requiredTypes": [
+        "async-api-trigger",
+        "try-catch-finally-2",
+        "try-2",
+        "catch-2",
+        "finally-2",
+        "service-call",
+        "script"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "try-catch-finally-2",
+          "mustHaveChildTypes": ["try-2", "catch-2", "finally-2"]
+        },
+        {
+          "containerType": "try-2",
+          "childType": "service-call",
+          "minChildren": 1
+        },
+        {
+          "containerType": "catch-2",
+          "childType": "script",
+          "minChildren": 1
+        },
+        {
+          "containerType": "finally-2",
+          "childType": "service-call",
+          "minChildren": 1
+        }
+      ],
+      "warnings": [
+        "GP-02 edit: approval diff must include the wrapper, a catch script, and the reporter moved into finally-2.",
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    }
   }
 }

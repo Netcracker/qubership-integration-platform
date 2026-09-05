@@ -56,12 +56,14 @@ import {
 } from "./chatMessageUtils.ts";
 import {
   appendDecision,
+  composerDraftText,
   hasUnansweredDecision,
   isActionableDecision,
   markDecisionAnswered,
   openingUserAssignment,
   reconcileDecisionMessages,
   removeDecision,
+  unansweredDecision,
   visibleDecisionNarrative,
 } from "./chatDecisionUtils.ts";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
@@ -705,16 +707,18 @@ export const AiAssistant: React.FC = () => {
 
         // Merge attachment URLs and object keys from previous sends
         const prevUrls = currentSessionData?.lastAttachmentUrls ?? [];
-        const incoming = attachmentUrls ?? [];
-        const mergedAttachmentUrls =
-          prevUrls.length || incoming.length
+        const prevKeys = currentSessionData?.lastAttachmentObjectKeys ?? [];
+        const incoming = decision ? [] : (attachmentUrls ?? []);
+        const mergedAttachmentUrls = decision
+          ? undefined
+          : prevUrls.length || incoming.length
             ? [...new Set([...prevUrls, ...incoming])]
             : undefined;
 
-        const prevKeys = currentSessionData?.lastAttachmentObjectKeys ?? [];
-        const incomingKeys = attachmentObjectKeys ?? [];
-        const mergedAttachmentObjectKeys =
-          prevKeys.length || incomingKeys.length
+        const incomingKeys = decision ? [] : (attachmentObjectKeys ?? []);
+        const mergedAttachmentObjectKeys = decision
+          ? undefined
+          : prevKeys.length || incomingKeys.length
             ? [...new Set([...prevKeys, ...incomingKeys])]
             : undefined;
 
@@ -1008,9 +1012,10 @@ export const AiAssistant: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const handleSend = useCallback(async () => {
-    const rawValue =
-      inputValue || inputRef.current?.resizableTextArea?.textArea?.value || "";
-    const messageText = rawValue.trim();
+    const messageText = composerDraftText(
+      inputValue,
+      inputRef.current?.resizableTextArea?.textArea?.value,
+    );
     if (
       (!messageText && attachedFiles.length === 0) ||
       isLoading ||
@@ -1025,6 +1030,13 @@ export const AiAssistant: React.FC = () => {
 
     const session = sessionStore.getSession(sessionId);
     if (!session) return;
+
+    const openDecision = unansweredDecision(session.messages);
+    if (openDecision && messageText && attachedFiles.length === 0) {
+      setInputValue("");
+      await handleClarificationSubmit(openDecision, messageText);
+      return;
+    }
 
     let attachmentUrls: string[] | undefined;
     let attachmentObjectKeys: string[] | undefined;
@@ -1097,6 +1109,7 @@ export const AiAssistant: React.FC = () => {
     isLoading,
     isStreaming,
     attachedFiles,
+    handleClarificationSubmit,
     refreshSessions,
     sendToProvider,
     sessionStore,
@@ -1821,6 +1834,7 @@ export const AiAssistant: React.FC = () => {
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              onInput={(e) => setInputValue(e.currentTarget.value)}
               placeholder={`Ask ${assistantName} about this chain...`}
               autoSize={{ minRows: 1, maxRows: 8 }}
               onKeyDown={(e) => {

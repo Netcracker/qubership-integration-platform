@@ -33,7 +33,7 @@ public final class PipelineGates {
   /** Free-text wait after Describe mappings; not a recovery clarification. */
   public static final String MAPPING_GAP_DESCRIBE = "mapping-gap-describe";
 
-  /** The current stage halted; Retry re-enters it without treating the click as new requirements. */
+  /** The current stage halted; Retry rewinds to the previous generative stage. */
   public static final String STAGE_RETRY = "stage-retry";
 
   /** A temporary dependency failure for which another create attempt can change the outcome. */
@@ -121,7 +121,40 @@ public final class PipelineGates {
    * halt-card action.
    */
   public static boolean isHaltCardAction(String action) {
-    return RETRY_ACTION.equals(action) || REVISE_ACTION.equals(action);
+    return !haltCardAction(action).isEmpty();
+  }
+
+  /**
+   * Retry or Revise when {@code text} is that wire action, including a Retry click that still
+   * carries leftover inlined attachments after {@code ---}. Anything else is empty.
+   */
+  public static String haltCardAction(String text) {
+    if (text == null) {
+      return "";
+    }
+    String head = attachmentSeparatedHead(text.trim());
+    if (RETRY_ACTION.equals(head) || REVISE_ACTION.equals(head)) {
+      return head;
+    }
+    return "";
+  }
+
+  /** Text before a leftover inlined-attachment `---` divider; the whole string when none. */
+  private static String attachmentSeparatedHead(String text) {
+    if (text.isEmpty()) {
+      return "";
+    }
+    StringBuilder head = new StringBuilder();
+    for (String line : text.split("\n", -1)) {
+      if ("---".equals(line.trim())) {
+        break;
+      }
+      if (head.length() > 0) {
+        head.append('\n');
+      }
+      head.append(line);
+    }
+    return head.toString().trim();
   }
 
   /**

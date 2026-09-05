@@ -49,7 +49,7 @@ class S3ArtifactBlobStoreTest {
   @Test
   void createUsesIfNoneMatchStar() {
     when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
-        .thenReturn(PutObjectResponse.builder().eTag("\"etag-1\"").build());
+        .thenReturn((PutObjectResponse) PutObjectResponse.builder().eTag("\"etag-1\"").build());
 
     store.putIfVersion("runs/run-1.json", "body".getBytes(StandardCharsets.UTF_8), null);
 
@@ -61,13 +61,14 @@ class S3ArtifactBlobStoreTest {
   @Test
   void updateUsesEtagFromPreviousGetAsIfMatch() {
     byte[] content = "{\"runRevision\":1}".getBytes(StandardCharsets.UTF_8);
-    GetObjectResponse response = GetObjectResponse.builder().eTag("\"etag-42\"").build();
+    GetObjectResponse response =
+        (GetObjectResponse) GetObjectResponse.builder().eTag("\"etag-42\"").build();
     ResponseInputStream<GetObjectResponse> stream =
         new ResponseInputStream<>(
             response, AbortableInputStream.create(new java.io.ByteArrayInputStream(content)));
     when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(stream);
     when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
-        .thenReturn(PutObjectResponse.builder().eTag("\"etag-43\"").build());
+        .thenReturn((PutObjectResponse) PutObjectResponse.builder().eTag("\"etag-43\"").build());
 
     Optional<VersionedBlob> loaded = store.getVersioned("runs/run-1.json");
     assertTrue(loaded.isPresent());
@@ -84,7 +85,9 @@ class S3ArtifactBlobStoreTest {
   @Test
   void mapsHttp412ToStaleBlobVersionException() {
     when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
-        .thenThrow(S3Exception.builder().statusCode(412).message("Precondition Failed").build());
+        .thenThrow(
+            (S3Exception)
+                S3Exception.builder().statusCode(412).message("Precondition Failed").build());
 
     assertThrows(
         StaleBlobVersionException.class,

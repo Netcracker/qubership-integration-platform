@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -180,6 +181,15 @@ public class RequirementDraftTool {
       CatalogOperationLookup catalogOperationLookup) {
     return new RequirementDraftTool(
         store, null, null, null, resolutions, null, catalogOperationLookup);
+  }
+
+  static RequirementDraftTool withLookup(
+      RequirementDraftStore store,
+      ConversationApiResolutions resolutions,
+      ConversationService conversationService,
+      CatalogOperationLookup catalogOperationLookup) {
+    return new RequirementDraftTool(
+        store, null, null, null, resolutions, conversationService, catalogOperationLookup);
   }
 
   static RequirementDraftTool withConversationService(
@@ -1074,6 +1084,22 @@ public class RequirementDraftTool {
                     && fact.kind() == RequirementFactKind.SERVICE_CALL);
   }
 
+  private String lastUserMessage(String conversationId) {
+    if (conversationService == null || conversationId == null || conversationId.isBlank()) {
+      return null;
+    }
+    List<ConversationMessage> messages = conversationService.getMessages(conversationId);
+    for (int i = messages.size() - 1; i >= 0; i--) {
+      ConversationMessage message = messages.get(i);
+      if (message != null
+          && message.role() == ConversationMessage.Role.USER
+          && CatalogStrings.blankToNull(message.content()) != null) {
+        return message.content();
+      }
+    }
+    return null;
+  }
+
   private boolean hasAllowedUploadedSpecs(String conversationId) {
     if (conversationService == null || conversationId == null || conversationId.isBlank()) {
       return false;
@@ -1122,11 +1148,16 @@ public class RequirementDraftTool {
         || flow.interactions().isEmpty()) {
       return;
     }
-    List<String> named =
-        flow.interactions().stream()
-            .map(RequirementFlow.Interaction::operation)
-            .filter(operation -> !operation.isBlank())
-            .toList();
+    List<String> named = new ArrayList<>();
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      if (!interaction.operation().isBlank()) {
+        named.add(interaction.operation());
+      }
+    }
+    String lastUser = lastUserMessage(conversationId);
+    if (lastUser != null) {
+      named.add(lastUser);
+    }
     for (RequirementFlow.Interaction interaction : flow.interactions()) {
       if (resolutions
           .forInteraction(conversationId, interaction.interactionId())

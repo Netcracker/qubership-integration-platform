@@ -35,6 +35,48 @@ class RecoveryExecutorTest {
           new RetryPolicy(0, 0));
 
   @Test
+  void regenerateOnRequirementDraftReopensDiscovery() {
+    RecoveryEvidence evidence =
+        new RecoveryEvidence(
+            1,
+            "failure-1",
+            "MISSING_MANDATORY_INPUT",
+            "requirement-analysis",
+            null,
+            new Reference(Kind.REQUIREMENT_DRAFT, "draft-1", "draft-hash"),
+            List.of(new Reference(Kind.REQUIREMENT_DRAFT, "draft-1", "draft-hash")),
+            List.of(),
+            null,
+            List.of());
+    RecoveryDecision decision =
+        new RecoveryDecision(
+            RecoveryCauseClass.UNCLASSIFIED,
+            new Reference(Kind.REQUIREMENT_DRAFT, "draft-1", "draft-hash"),
+            List.of(evidence.failureId()),
+            RecoveryAction.REGENERATE_ARTIFACT,
+            List.of(),
+            "",
+            "Need an approved requirement draft.");
+    ProfileStage analysis =
+        new ProfileStage(
+            "requirement-analysis",
+            "requirement-analysis",
+            List.of(),
+            List.of(),
+            null,
+            null,
+            new RetryPolicy(0, 0));
+
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(
+            StageDecision.ReopenProducer.class,
+            RecoveryExecutor.execute(decision, evidence, null, analysis, false, false));
+
+    assertEquals("requirement-analysis", reopen.stageId());
+    assertEquals("requirement-discovery", reopen.producerStageId());
+  }
+
+  @Test
   void reviseBriefReopensRequirementAnalysis() {
     StageDecision decision =
         RecoveryExecutor.execute(
@@ -85,7 +127,7 @@ class RecoveryExecutorTest {
   }
 
   @Test
-  void derivationDefectRegenerateRetriesCurrentStageWithoutReopeningBrief() {
+  void derivationDefectRegenerateRewindsToPlanningInsteadOfRetryingGeneratedGraph() {
     RecoveryEvidence evidence = derivationEvidence(GRAPH_REF);
     RecoveryDecision decision =
         new RecoveryDecision(
@@ -97,12 +139,14 @@ class RecoveryExecutorTest {
             "",
             "Regenerate the graph without changing the brief.");
 
-    StageDecision.Retry retry =
+    StageDecision.ReopenProducer reopen =
         assertInstanceOf(
-            StageDecision.Retry.class,
+            StageDecision.ReopenProducer.class,
             RecoveryExecutor.execute(decision, evidence, null, FAILED_STAGE, false, false));
 
-    assertEquals("design-execution", retry.stageId());
+    assertEquals("design-execution", reopen.stageId());
+    assertEquals("design-planning", reopen.producerStageId());
+    assertNotEquals("requirement-analysis", reopen.producerStageId());
     assertEquals(BRIEF_REF, evidence.approvedBriefRef());
   }
 

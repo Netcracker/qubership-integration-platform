@@ -126,6 +126,16 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void uploadedImportMarkersDoNotConfirmApiHubImport() {
+    assertFalse(ChatEvent.UPLOADED_IMPORT_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertFalse(ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertTrue(ChatEvent.IMPORT_EXTERNAL_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertTrue(ChatEvent.isSyntheticDecisionTurn(ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER));
+    assertTrue(ChatEvent.isSyntheticDecisionTurn(ChatEvent.IMPORT_MARKER));
+    assertFalse(ChatEvent.isSyntheticDecisionTurn("Create a CIP chain OM to Salesforce WFM ext01"));
+  }
+
+  @Test
   void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
     assertEquals(
         List.of(),

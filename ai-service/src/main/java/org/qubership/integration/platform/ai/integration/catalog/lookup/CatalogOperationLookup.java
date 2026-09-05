@@ -51,13 +51,25 @@ public class CatalogOperationLookup {
         || leader.score() - scored.get(1).score() >= CatalogRanker.DECIDING_GAP) {
       return new CatalogLookupResult.Exact(leader.match());
     }
-    List<String> tied = new ArrayList<>();
+    List<Scored> tied = new ArrayList<>();
     for (Scored candidate : scored) {
       if (leader.score() - candidate.score() < CatalogRanker.DECIDING_GAP) {
-        tied.add(candidate.match().integrationOperationId());
+        tied.add(candidate);
       }
     }
-    return new CatalogLookupResult.Ambiguous(List.copyOf(tied));
+    Scored chosen = namedTiedOperation(query, tied);
+    if (chosen != null) {
+      return new CatalogLookupResult.Exact(chosen.match());
+    }
+    Scored titleMatch = specNamedLikeSystem(tied);
+    if (titleMatch != null) {
+      return new CatalogLookupResult.Exact(titleMatch.match());
+    }
+    List<String> tiedIds = new ArrayList<>(tied.size());
+    for (Scored candidate : tied) {
+      tiedIds.add(candidate.match().integrationOperationId());
+    }
+    return new CatalogLookupResult.Ambiguous(List.copyOf(tiedIds));
   }
 
   private List<Scored> score(
@@ -98,7 +110,7 @@ public class CatalogOperationLookup {
           if (score < CatalogRanker.THRESHOLD) {
             continue;
           }
-          scored.add(new Scored(score, match));
+          scored.add(new Scored(score, match, spec.name()));
         }
       }
     }
@@ -113,5 +125,62 @@ public class CatalogOperationLookup {
     return List.copyOf(ids);
   }
 
-  private record Scored(int score, CatalogMatch match) {}
+  /**
+   * The author already named one of the tied catalog operation ids. Bind that match the same way
+   * an Exact lookup would.
+   */
+  private static Scored namedTiedOperation(CatalogQuery query, List<Scored> tied) {
+    Scored match = null;
+    for (Scored candidate : tied) {
+      String operationId =
+          CatalogStrings.blankToNull(candidate.match().integrationOperationId());
+      if (operationId == null || !queryNamesOperationId(query, operationId)) {
+        continue;
+      }
+      if (match != null) {
+        return null;
+      }
+      match = candidate;
+    }
+    return match;
+  }
+
+  private static boolean queryNamesOperationId(CatalogQuery query, String operationId) {
+    if (containsOperationId(query.specificationHint(), operationId)
+        || containsOperationId(query.operationHint(), operationId)) {
+      return true;
+    }
+    for (String named : query.namedInRequest()) {
+      if (containsOperationId(named, operationId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean containsOperationId(String text, String operationId) {
+    return text != null && text.contains(operationId);
+  }
+
+  /**
+   * When two equally scored operations sit on specs of the same system, keep the spec whose name
+   * matches the catalog system. A leftover filename-derived spec is not a second createTask.
+   */
+  private static Scored specNamedLikeSystem(List<Scored> tied) {
+    Scored match = null;
+    for (Scored candidate : tied) {
+      String specName = CatalogStrings.blankToNull(candidate.specName());
+      String systemName = CatalogStrings.blankToNull(candidate.match().systemName());
+      if (specName == null || systemName == null || !specName.equalsIgnoreCase(systemName)) {
+        continue;
+      }
+      if (match != null) {
+        return null;
+      }
+      match = candidate;
+    }
+    return match;
+  }
+
+  private record Scored(int score, CatalogMatch match, String specName) {}
 }

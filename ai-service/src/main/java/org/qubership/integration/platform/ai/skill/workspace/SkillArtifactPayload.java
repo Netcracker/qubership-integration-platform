@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.skill.workspace;
 
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlan;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.plan.CompilerStatus;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
@@ -46,6 +47,7 @@ public sealed interface SkillArtifactPayload
         SkillArtifactPayload.MaterializationMapPayload,
         SkillArtifactPayload.ReconcileResultPayload,
         SkillArtifactPayload.ChainEditIntentPayload,
+        SkillArtifactPayload.ChainEditStructuralPlanPayload,
         SkillArtifactPayload.ServiceCallBindingsPayload,
         SkillArtifactPayload.CatalogChainSnapshotPayload,
         SkillArtifactPayload.ChainSemanticRevisionPayload {
@@ -93,6 +95,9 @@ public sealed interface SkillArtifactPayload
   record ReconcileResultPayload(ReconcileResult result) implements SkillArtifactPayload {}
 
   record ChainEditIntentPayload(ChainEditIntent intent) implements SkillArtifactPayload {}
+
+  record ChainEditStructuralPlanPayload(ChainEditStructuralPlan plan)
+      implements SkillArtifactPayload {}
 
   record ServiceCallBindingsPayload(List<ResolvedServiceCallBinding> bindings)
       implements SkillArtifactPayload {

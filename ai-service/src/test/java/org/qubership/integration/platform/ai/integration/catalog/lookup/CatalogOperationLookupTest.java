@@ -109,6 +109,132 @@ class CatalogOperationLookupTest {
   }
 
   @Test
+  @DisplayName("tied createTask ops prefer the spec named like the catalog system")
+  void tiedCreateTaskPrefersSpecNamedLikeTheSystem() {
+    CatalogRestClient.SpecificationDto titleSpec =
+        new CatalogRestClient.SpecificationDto(
+            "spec-sf-title", "Salesforce WFM", "sg-sf-title", "sys-sf");
+    CatalogRestClient.SpecificationDto filenameSpec =
+        new CatalogRestClient.SpecificationDto(
+            "spec-sf-file", "Salesforce WFM Specification", "sg-sf-file", "sys-sf");
+    CatalogRestClient.OperationDto titleCreate =
+        new CatalogRestClient.OperationDto(
+            "op-create-title", "createTask", "POST", "/sobjects/Task", "spec-sf-title");
+    CatalogRestClient.OperationDto fileCreate =
+        new CatalogRestClient.OperationDto(
+            "op-create-file", "createTask", "POST", "/sobjects/Task", "spec-sf-file");
+    CatalogSystemFinder finder = mock(CatalogSystemFinder.class);
+    CatalogSystemReadTool readTool = mock(CatalogSystemReadTool.class);
+    CatalogQuery query =
+        new CatalogQuery("Salesforce WFM", null, "http", null, null, "createTask", null);
+    when(finder.narrow(query))
+        .thenReturn(new CatalogSystemFinder.Narrowed.Systems(List.of(SALESFORCE)));
+    when(readTool.getApiSpecifications("sys-sf")).thenReturn(List.of(filenameSpec, titleSpec));
+    when(readTool.listCatalogOperations(eq("spec-sf-file"), eq("sys-sf"), isNull()))
+        .thenReturn(List.of(fileCreate));
+    when(readTool.listCatalogOperations(eq("spec-sf-title"), eq("sys-sf"), isNull()))
+        .thenReturn(List.of(titleCreate));
+
+    CatalogLookupResult result = new CatalogOperationLookup(finder, readTool).resolve(query);
+
+    CatalogLookupResult.Exact exact = assertInstanceOf(CatalogLookupResult.Exact.class, result);
+    assertEquals("op-create-title", exact.match().integrationOperationId());
+    assertEquals("spec-sf-title", exact.match().specificationId());
+  }
+
+  @Test
+  @DisplayName("a named tied createTask id binds Exact when spec names carry a version suffix")
+  void namedTiedCreateTaskIdBindsExact() {
+    CatalogRestClient.SpecificationDto titleSpec =
+        new CatalogRestClient.SpecificationDto(
+            "spec-sf-title", "Salesforce WFM-1.0.0", "sg-sf-title", "sys-sf");
+    CatalogRestClient.SpecificationDto filenameSpec =
+        new CatalogRestClient.SpecificationDto(
+            "spec-sf-file", "Salesforce WFM Specification-1.0.0", "sg-sf-file", "sys-sf");
+    String titleOpId =
+        "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM-1.0.0-createTask";
+    String fileOpId =
+        "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM Specification-1.0.0-createTask";
+    CatalogRestClient.OperationDto titleCreate =
+        new CatalogRestClient.OperationDto(
+            titleOpId, "createTask", "POST", "/sobjects/Task", "spec-sf-title");
+    CatalogRestClient.OperationDto fileCreate =
+        new CatalogRestClient.OperationDto(
+            fileOpId, "createTask", "POST", "/sobjects/Task", "spec-sf-file");
+    CatalogSystemFinder finder = mock(CatalogSystemFinder.class);
+    CatalogSystemReadTool readTool = mock(CatalogSystemReadTool.class);
+    CatalogQuery query =
+        new CatalogQuery(
+            "Salesforce WFM",
+            null,
+            "http",
+            null,
+            null,
+            "createTask",
+            null,
+            List.of(titleOpId));
+    when(finder.narrow(query))
+        .thenReturn(new CatalogSystemFinder.Narrowed.Systems(List.of(SALESFORCE)));
+    when(readTool.getApiSpecifications("sys-sf")).thenReturn(List.of(filenameSpec, titleSpec));
+    when(readTool.listCatalogOperations(eq("spec-sf-file"), eq("sys-sf"), isNull()))
+        .thenReturn(List.of(fileCreate));
+    when(readTool.listCatalogOperations(eq("spec-sf-title"), eq("sys-sf"), isNull()))
+        .thenReturn(List.of(titleCreate));
+
+    CatalogLookupResult result = new CatalogOperationLookup(finder, readTool).resolve(query);
+
+    CatalogLookupResult.Exact exact = assertInstanceOf(CatalogLookupResult.Exact.class, result);
+    assertEquals(titleOpId, exact.match().integrationOperationId());
+    assertEquals("spec-sf-title", exact.match().specificationId());
+  }
+
+  @Test
+  @DisplayName("naming both tied createTask ids leaves the lookup Ambiguous")
+  void namingBothTiedCreateTaskIdsStaysAmbiguous() {
+    CatalogRestClient.SpecificationDto titleSpec =
+        new CatalogRestClient.SpecificationDto(
+            "spec-sf-title", "Salesforce WFM-1.0.0", "sg-sf-title", "sys-sf");
+    CatalogRestClient.SpecificationDto filenameSpec =
+        new CatalogRestClient.SpecificationDto(
+            "spec-sf-file", "Salesforce WFM Specification-1.0.0", "sg-sf-file", "sys-sf");
+    String titleOpId =
+        "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM-1.0.0-createTask";
+    String fileOpId =
+        "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM Specification-1.0.0-createTask";
+    CatalogRestClient.OperationDto titleCreate =
+        new CatalogRestClient.OperationDto(
+            titleOpId, "createTask", "POST", "/sobjects/Task", "spec-sf-title");
+    CatalogRestClient.OperationDto fileCreate =
+        new CatalogRestClient.OperationDto(
+            fileOpId, "createTask", "POST", "/sobjects/Task", "spec-sf-file");
+    CatalogSystemFinder finder = mock(CatalogSystemFinder.class);
+    CatalogSystemReadTool readTool = mock(CatalogSystemReadTool.class);
+    CatalogQuery query =
+        new CatalogQuery(
+            "Salesforce WFM",
+            null,
+            "http",
+            null,
+            null,
+            "createTask",
+            null,
+            List.of(titleOpId + " or " + fileOpId));
+    when(finder.narrow(query))
+        .thenReturn(new CatalogSystemFinder.Narrowed.Systems(List.of(SALESFORCE)));
+    when(readTool.getApiSpecifications("sys-sf")).thenReturn(List.of(filenameSpec, titleSpec));
+    when(readTool.listCatalogOperations(eq("spec-sf-file"), eq("sys-sf"), isNull()))
+        .thenReturn(List.of(fileCreate));
+    when(readTool.listCatalogOperations(eq("spec-sf-title"), eq("sys-sf"), isNull()))
+        .thenReturn(List.of(titleCreate));
+
+    CatalogLookupResult result = new CatalogOperationLookup(finder, readTool).resolve(query);
+
+    CatalogLookupResult.Ambiguous ambiguous =
+        assertInstanceOf(CatalogLookupResult.Ambiguous.class, result);
+    assertEquals(List.of(fileOpId, titleOpId), ambiguous.candidateIds());
+  }
+
+  @Test
   @DisplayName("a payload command name does not bind a partner op the same request already named")
   void unmatchedPayloadNameDoesNotBindNamedPartnerOperation() {
     CatalogSystemFinder finder = mock(CatalogSystemFinder.class);
