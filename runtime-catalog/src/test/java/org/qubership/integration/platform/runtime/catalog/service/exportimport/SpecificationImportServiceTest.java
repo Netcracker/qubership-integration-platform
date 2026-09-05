@@ -12,6 +12,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemModelLibraryGenerationException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
@@ -69,13 +70,16 @@ class SpecificationImportServiceTest {
     @Mock
     private SpecificationGroupService specificationGroupService;
 
+    private final TransactionHandler transactionHandler = new TransactionHandler();
+
     private SpecificationImportService importService;
 
     @BeforeEach
     void setUp() {
         importService = new SpecificationImportService(operationParserService, specificationGroupRepository,
                 specificationSourceRepository, configParameterService, protocolExtractionService,
-                new ObjectMapper(), systemBaseService, systemModelService, specificationGroupService, null);
+                new ObjectMapper(), systemBaseService, systemModelService, specificationGroupService,
+                transactionHandler, null);
     }
 
     private MultipartFile[] specificationFiles() {

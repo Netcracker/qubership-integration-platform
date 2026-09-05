@@ -32,6 +32,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportWarningException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -80,6 +81,7 @@ public class SpecificationImportService {
     private final SystemBaseService systemBaseService;
     private final SystemModelBaseService systemModelService;
     private final SpecificationGroupService specificationGroupService;
+    private final TransactionHandler transactionHandler;
     private final WsdlRootFileParser wsdlRootFileParser;
 
     @Autowired
@@ -92,6 +94,7 @@ public class SpecificationImportService {
                                       SystemBaseService systemBaseService,
                                       SystemModelBaseService systemModelService,
                                       SpecificationGroupService specificationGroupService,
+                                      TransactionHandler transactionHandler,
                                       WsdlRootFileParser wsdlRootFileParser
     ) {
         this.operationParserService = operationParserService;
@@ -103,6 +106,7 @@ public class SpecificationImportService {
         this.systemBaseService = systemBaseService;
         this.systemModelService = systemModelService;
         this.specificationGroupService = specificationGroupService;
+        this.transactionHandler = transactionHandler;
         this.wsdlRootFileParser = wsdlRootFileParser;
     }
 
@@ -246,9 +250,10 @@ public class SpecificationImportService {
         }
     }
 
+    // The rollback runs on the future's completion thread, which has no session of its own.
     private void removeSpecificationGroup(String specificationGroupId) {
         try {
-            specificationGroupService.delete(specificationGroupId);
+            transactionHandler.runInNewTransaction(() -> specificationGroupService.delete(specificationGroupId));
         } catch (Exception exception) {
             log.warn("Failed to remove specification group {} after a failed import",
                     specificationGroupId, exception);
