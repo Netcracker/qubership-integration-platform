@@ -128,9 +128,7 @@ public class SystemModelService extends SystemModelBaseService {
                 throw new IllegalArgumentException("Specification used by one or more chains");
             }
 
-            SystemModel specification = specificationOptional.get();
-            systemModelRepository.delete(specification);
-            logModelAction(specification, specification.getSpecificationGroup(), LogOperation.DELETE);
+            unlinkAndDelete(specificationOptional.get());
         }
 
         return specificationOptional;
@@ -182,10 +180,7 @@ public class SystemModelService extends SystemModelBaseService {
             throw new SpecificationDeleteException("Specification used by one or more chains");
         }
 
-        SpecificationGroup specificationGroup = model.getSpecificationGroup();
-        specificationGroup.removeSystemModel(model);
-        systemModelRepository.delete(model);
-        logModelAction(model, specificationGroup, LogOperation.DELETE);
+        unlinkAndDelete(model);
     }
 
     private void enrichSystemModelWithChains(SystemModel model) {
