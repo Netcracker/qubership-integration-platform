@@ -61,7 +61,6 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
@@ -91,7 +90,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
         new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
     engine = mock(CompilerDagExecutionEngine.class);
     ChainSemanticGraphCompiler graphCompiler = mock(ChainSemanticGraphCompiler.class);
-    when(graphCompiler.compile(any(), any(), any()))
+    when(graphCompiler.compile(any(), any(), any(), any()))
         .thenReturn(successfulEngineResult().graph());
     when(engine.execute(
             any(CompilerDagExecutionRequest.class), any(String.class), any(BiConsumer.class)))
@@ -145,6 +144,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             List.of(),
             manifestRef));
 
+    storeBrief(ordersBriefWith(List.of()));
     runner.execute(
         samplePlan(),
         sampleRevision(),
@@ -210,22 +210,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
   }
 
   @Test
-  void executeRejectsALiveMappingIntentCollectionThatDiffersFromTheRevision() {
-    storeBrief(
-        ordersBriefWith(
-            List.of(
-                new MappingIntent(
-                    "map-live",
-                    "trigger-http",
-                    MappingPort.OUTPUT,
-                    "call-1",
-                    MappingPort.REQUEST,
-                    List.of(
-                        new MappingIntentRule(
-                            "$.orderId",
-                            "$.orderId",
-                            null,
-                            MappingRuleStatus.USER_DEFINED))))));
+  void executeFailsWhenRequirementBriefIsMissing() {
+    persistRun();
 
     IllegalStateException thrown =
         assertThrows(
@@ -239,8 +225,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                     "attempt-1",
                     (skillId, status) -> {}));
 
-    assertTrue(
-        thrown.getMessage().contains("Live mapping-intent collection differs from the approved"));
+    assertTrue(thrown.getMessage().contains("committed RequirementBrief"), thrown.getMessage());
   }
 
   @Test
@@ -295,30 +280,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             ordersBriefWith(List.of(approved, placeholder)));
     storeBrief(canonical);
     persistRun();
-    ChainSemanticRevision base = SemanticFixtures.linearOrdersWithMapping();
-    MappingIntent projected =
-        new MappingIntent(
-            "map-init",
-            "edge-1",
-            MappingPort.OUTPUT,
-            "edge-1",
-            MappingPort.REQUEST,
-            canonical.mappingIntents().getFirst().rules());
     ChainSemanticRevision revision =
-        new ChainSemanticRevision(
-            base.schemaVersion(),
-            base.revisionId(),
-            base.chainIdentity(),
-            base.compilerContractVersion(),
-            base.entryPoints(),
-            base.nodes(),
-            base.regions(),
-            base.executionEdges(),
-            base.containment(),
-            List.of(projected),
-            base.constraints(),
-            base.assumptions(),
-            base.citations());
+        SemanticFixtures.withoutMappingBodies(SemanticFixtures.linearOrdersWithMapping());
 
     runner.execute(
         samplePlan(),
@@ -330,64 +293,6 @@ class DefaultApprovedCompilerExecutionRunnerTest {
 
     assertEquals(1, canonical.mappingIntents().size());
     assertEquals(2, canonical.mappingIntents().getFirst().rules().size());
-  }
-
-  @Test
-  void executeRejectsLiveMappingIntentsWhenTheMappingIntentIdSetDiffers() {
-    storeBrief(
-        ordersBriefWith(
-            List.of(
-                new MappingIntent(
-                    "map-other",
-                    "trigger-http",
-                    MappingPort.OUTPUT,
-                    "node-call",
-                    MappingPort.REQUEST,
-                    List.of(new MappingIntentRule("id", "customerId", null))))));
-
-    IllegalStateException thrown =
-        assertThrows(
-            IllegalStateException.class,
-            () ->
-                runner.execute(
-                    samplePlan(),
-                    SemanticFixtures.linearOrdersWithMapping(),
-                    List.of(sampleBinding()),
-                    sampleManifest(),
-                    "attempt-1",
-                    (skillId, status) -> {}));
-
-    assertTrue(
-        thrown.getMessage().contains("Live mapping-intent collection differs from the approved"));
-  }
-
-  @Test
-  void executeRejectsLiveMappingIntentsWhenRulesDifferFromTheRevision() {
-    storeBrief(
-        ordersBriefWith(
-            List.of(
-                new MappingIntent(
-                    "map-init",
-                    "trigger-http",
-                    MappingPort.OUTPUT,
-                    "node-call",
-                    MappingPort.REQUEST,
-                    List.of(new MappingIntentRule("id", "orderId", null))))));
-
-    IllegalStateException thrown =
-        assertThrows(
-            IllegalStateException.class,
-            () ->
-                runner.execute(
-                    samplePlan(),
-                    SemanticFixtures.linearOrdersWithMapping(),
-                    List.of(sampleBinding()),
-                    sampleManifest(),
-                    "attempt-1",
-                    (skillId, status) -> {}));
-
-    assertTrue(
-        thrown.getMessage().contains("Live mapping-intent collection differs from the approved"));
   }
 
   private static CompilerDagExecutionResult successfulEngineResult() {

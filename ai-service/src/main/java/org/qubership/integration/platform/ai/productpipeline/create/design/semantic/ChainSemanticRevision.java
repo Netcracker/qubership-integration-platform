@@ -4,6 +4,7 @@ import java.util.List;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignArtifacts;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
  * Immutable full-chain semantic revision. Unsupported schema versions fail closed.
@@ -42,5 +43,16 @@ public record ChainSemanticRevision(
     constraints = DesignArtifacts.copyList(constraints);
     assumptions = DesignArtifacts.copyList(assumptions);
     citations = DesignArtifacts.copyList(citations);
+  }
+
+  /**
+   * Mapping rule bodies. The requirement brief is authoritative when present. A stored
+   * {@link #mappingIntents()} list is the legacy snapshot for older payloads.
+   */
+  public List<MappingIntent> mappingBodies(RequirementBrief brief) {
+    if (brief != null) {
+      return brief.mappingIntents();
+    }
+    return mappingIntents();
   }
 }

@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class DesignPlanProjectorTest {
@@ -349,6 +350,32 @@ class DesignPlanProjectorTest {
         projector.project(new DesignPlanReport("1", report), revision, pin(revision));
     assertEquals("map-a", projected.steps().get(2).mappingIntentId());
     assertEquals("map-b", projected.steps().get(3).mappingIntentId());
+  }
+
+  @Test
+  void bindsMappingStepsFromBriefWhenRevisionStoresSitesOnly() {
+    ChainSemanticRevision withBodies = SemanticFixtures.linearOrdersWithMapping();
+    ChainSemanticRevision revision = SemanticFixtures.withoutMappingBodies(withBodies);
+    RequirementBrief brief =
+        new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withMappingIntents(withBodies.mappingIntents());
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-init (cip-script-generator mappingIntentId=map-init)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), brief);
+
+    assertTrue(revision.mappingIntents().isEmpty());
+    assertEquals("map-init", projected.steps().get(2).mappingIntentId());
   }
 
   @Test

@@ -27,13 +27,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagE
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerExecutionSeed;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -81,7 +78,10 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
           "Approved design plan does not match the approved semantic revision");
     }
     RequirementBrief storedBrief = loadStoredBrief(runManifest.runId());
-    rejectLiveMappingIntentMismatch(storedBrief, revision);
+    if (storedBrief == null) {
+      throw new IllegalStateException(
+          "design-execution requires a committed RequirementBrief");
+    }
     BiConsumer<String, String> progress =
         skillProgress == null ? (skillId, status) -> {} : skillProgress;
     CompilerRunPin pin = requirePin(runManifest);
@@ -95,7 +95,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             pin.compilerContractVersion() != null
                 ? pin.compilerContractVersion()
                 : CompilerContract.V1);
-    ChainPlanGraph graph = graphCompiler.compile(revision, contract, resolvedBindings);
+    ChainPlanGraph graph = graphCompiler.compile(revision, contract, resolvedBindings, storedBrief);
     RequirementBrief brief =
         DesignExecutionBriefFactory.build(
             storedBrief,
@@ -116,39 +116,6 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             List.of(),
             seed);
     return engine.execute(request, attemptId, progress).await().indefinitely();
-  }
-
-  private static void rejectLiveMappingIntentMismatch(
-      RequirementBrief storedBrief, ChainSemanticRevision revision) {
-    if (storedBrief == null || storedBrief.mappingIntents().isEmpty()) {
-      return;
-    }
-    if (!projectLiveMappingIntents(storedBrief.mappingIntents(), revision)
-        .equals(revision.mappingIntents())) {
-      throw new IllegalStateException(
-          "Live mapping-intent collection differs from the approved semantic revision");
-    }
-  }
-
-  private static List<MappingIntent> projectLiveMappingIntents(
-      List<MappingIntent> liveIntents, ChainSemanticRevision revision) {
-    LinkedHashMap<String, SemanticExecutionEdge> siteByIntent = new LinkedHashMap<>();
-    for (SemanticExecutionEdge edge : revision.executionEdges()) {
-      String mappingId = edge.mappingId();
-      if (mappingId == null || mappingId.isBlank()) {
-        continue;
-      }
-      siteByIntent.putIfAbsent(mappingId, edge);
-    }
-    List<MappingIntent> projected = new ArrayList<>(liveIntents.size());
-    for (MappingIntent intent : liveIntents) {
-      SemanticExecutionEdge site = siteByIntent.get(intent.mappingIntentId());
-      projected.add(
-          site == null
-              ? intent
-              : ChainSemanticCaptureAdapter.projectOntoCarryingEdge(intent, site));
-    }
-    return projected;
   }
 
   private RequirementBrief loadStoredBrief(String runId) {

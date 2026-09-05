@@ -37,6 +37,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class DefaultChainSemanticGraphCompilerTest {
@@ -262,6 +263,21 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals("map-body", MappingExecutionSite.mappingId(node(graph, "op-shared")));
     assertEquals("edge-call", MappingExecutionSite.semanticEdgeId(node(graph, "op-shared")));
     assertNull(MappingExecutionSite.mappingIntentId(node(graph, "call-1")));
+  }
+
+  @Test
+  void compilesSiteOnlyRevisionWhenBriefHoldsMappingBodies() {
+    ChainSemanticRevision revision =
+        SemanticFixtures.withoutMappingBodies(linearMappedRevision());
+    RequirementBrief brief =
+        new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withMappingIntents(linearMappedRevision().mappingIntents());
+
+    ChainPlanGraph graph =
+        compiler.compile(revision, CONTRACT, List.of(binding("call-1")), brief);
+
+    assertTrue(revision.mappingIntents().isEmpty());
+    assertEquals("map-body", MappingExecutionSite.mappingIntentId(node(graph, "op-shared")));
   }
 
   @Test

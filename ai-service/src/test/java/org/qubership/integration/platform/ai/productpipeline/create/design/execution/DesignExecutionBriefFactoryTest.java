@@ -127,6 +127,16 @@ class DesignExecutionBriefFactoryTest {
   }
 
   @Test
+  void doesNotCopyRevisionMappingBodiesWhenStoredBriefHasNone() {
+    RequirementBrief stored =
+        new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary");
+    RequirementBrief brief =
+        DesignExecutionBriefFactory.build(stored, SemanticFixtures.linearOrdersWithMapping());
+
+    assertTrue(brief.mappingIntents().isEmpty());
+  }
+
+  @Test
   void firstTurnCarriesNoRepairEvidence() {
     RequirementBrief withoutRepair =
         DesignExecutionBriefFactory.build(null, sampleRevision(), null, null);

@@ -828,7 +828,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       throw new IllegalStateException("contract failure: " + applied.validationResult().summary());
     }
     GraphPatchArtifact patchArtifact = graphPatchArtifactFactory.create(context, patch, applied.graph());
-    rejectBlankRequiredScriptBodies(workspace, node, applied.graph());
+    rejectBlankRequiredScriptBodies(workspace, node, applied.graph(), context);
     Reference durableRef = persistGraphPatch(request.runId(), pinned.manifest(), patchArtifact);
     if (patchArtifact.applicability() == PatchApplicability.APPLICABLE) {
       patchLedger.addApplicable(
@@ -860,7 +860,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   }
 
   private void rejectBlankRequiredScriptBodies(
-      SkillWorkspace workspace, ResolvedCompilerNode node, ChainPlanGraph graph) {
+      SkillWorkspace workspace,
+      ResolvedCompilerNode node,
+      ChainPlanGraph graph,
+      GraphPatchExecutionContext context) {
     if (mappingGenerationPipeline == null
         || node == null
         || !MappingGenerationPipeline.SCRIPT_GENERATOR.equals(node.skillId())) {
@@ -868,7 +871,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     }
     List<String> blank =
         mappingGenerationPipeline.requiredBlankScriptNodeIds(
-            node.skillId(), semanticRevision(workspace), graph);
+            node.skillId(), semanticRevision(workspace), graph, context);
     if (!blank.isEmpty()) {
       throw new IllegalStateException(
           "contract failure: " + MappingGenerationPipeline.missingScriptBodiesMessage(blank));

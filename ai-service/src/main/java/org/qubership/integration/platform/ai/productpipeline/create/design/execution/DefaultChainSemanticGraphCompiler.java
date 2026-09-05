@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
@@ -51,10 +52,19 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       ChainSemanticRevision revision,
       CompilerContract contract,
       List<ResolvedServiceCallBinding> bindings) {
+    return compile(revision, contract, bindings, null);
+  }
+
+  @Override
+  public ChainPlanGraph compile(
+      ChainSemanticRevision revision,
+      CompilerContract contract,
+      List<ResolvedServiceCallBinding> bindings,
+      RequirementBrief brief) {
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(contract, "contract");
     Objects.requireNonNull(bindings, "bindings");
-    validator.validate(revision, contract);
+    validator.validate(revision, contract, brief);
 
     Map<String, SemanticNode> nodesById = new LinkedHashMap<>();
     List<SemanticNode.ServiceCall> calls = new ArrayList<>();
