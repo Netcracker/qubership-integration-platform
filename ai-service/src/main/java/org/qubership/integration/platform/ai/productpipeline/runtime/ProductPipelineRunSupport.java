@@ -650,10 +650,6 @@ public final class ProductPipelineRunSupport {
   }
 
   private RequirementBrief approvedRequirementBrief(String runId) {
-    Map<String, Object> attributes = attributesByRun.get(runId);
-    if (attributes != null && attributes.get("requirementBrief") instanceof RequirementBrief brief) {
-      return brief;
-    }
     return artifactStore
         .latest(runId, Kind.REQUIREMENT_BRIEF)
         .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
@@ -912,18 +908,13 @@ public final class ProductPipelineRunSupport {
 
   private Multi<PipelineSignal> acceptMappingGapPassThrough(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
-    Optional<Revision> storedBrief = artifactStore.latest(command.runId(), Kind.REQUIREMENT_BRIEF);
-    Map<String, Object> attributes =
-        attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
-    RequirementBrief brief =
-        attributes.get("requirementBrief") instanceof RequirementBrief fromAttributes
-            ? fromAttributes
-            : storedBrief
-                .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "mapping-gap pass-through requires a committed RequirementBrief"));
+    RequirementBrief brief = approvedRequirementBrief(command.runId());
+    if (brief == null) {
+      return Multi.createFrom()
+          .failure(
+              new IllegalStateException(
+                  "mapping-gap pass-through requires a committed RequirementBrief"));
+    }
     persistMappingGapBrief(doc, command, MappingGapCoverage.skipUncovered(brief));
     commitStatus(
         doc,
@@ -2689,12 +2680,10 @@ public final class ProductPipelineRunSupport {
         .latest(runId, Kind.REQUIREMENT_BRIEF)
         .ifPresent(
             revision -> {
-              if (!attributes.containsKey("requirementBrief")) {
-                attributes.put(
-                    "requirementBrief",
-                    artifactStore.payload(revision, RequirementBrief.class));
-                attributes.put("requirementBriefContentHash", revision.contentHash());
-              }
+              attributes.put(
+                  "requirementBrief",
+                  artifactStore.payload(revision, RequirementBrief.class));
+              attributes.put("requirementBriefContentHash", revision.contentHash());
             });
     List<UserInput> allInputs =
         artifactStore.history(runId, Kind.USER_INPUT).stream()
