@@ -1934,12 +1934,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       if (ref.kind() == Kind.REQUIREMENT_DRAFT) {
         attributes.put(
             "approvedDraft", artifactStore.payload(revision.get(), RequirementDraft.class));
-      } else if (ref.kind() == Kind.REQUIREMENT_BRIEF) {
-        if (!attributes.containsKey("requirementBrief")) {
-          attributes.put(
-              "requirementBrief", artifactStore.payload(revision.get(), RequirementBrief.class));
-        }
-        attributes.put("requirementBriefContentHash", ref.contentHash());
       } else if (ref.kind() == Kind.USER_INPUT) {
         UserInput input = artifactStore.payload(revision.get(), UserInput.class);
         MappingGapPassThroughConfirmation.parse(input.text())
@@ -1952,8 +1946,25 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             artifactStore.payload(revision.get(), ChainSemanticRevision.class));
       }
     }
+    putLatestRequirementBrief(runId, attributes);
     attributesByRun.put(runId, attributes);
     return attributes;
+  }
+
+  /**
+   * The current requirement brief is the artifact log tip. In-memory attributes and a stage input
+   * ref can lag behind mapping-gap or analysis recapture, so they are not the correctness source.
+   */
+  private void putLatestRequirementBrief(String runId, Map<String, Object> attributes) {
+    artifactStore
+        .latest(runId, Kind.REQUIREMENT_BRIEF)
+        .ifPresent(
+            revision -> {
+              attributes.put(
+                  "requirementBrief",
+                  artifactStore.payload(revision, RequirementBrief.class));
+              attributes.put("requirementBriefContentHash", revision.contentHash());
+            });
   }
 
   /**
