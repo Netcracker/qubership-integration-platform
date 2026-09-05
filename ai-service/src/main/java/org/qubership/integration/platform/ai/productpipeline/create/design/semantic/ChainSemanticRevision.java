@@ -46,13 +46,13 @@ public record ChainSemanticRevision(
   }
 
   /**
-   * Mapping rule bodies. The requirement brief is authoritative when present. A stored
-   * {@link #mappingIntents()} list is the legacy snapshot for older payloads.
+   * Mapping rule bodies from the requirement brief. A stored {@link #mappingIntents()} list is
+   * ignored; new captures persist it empty. Callers that have no brief get an empty list.
    */
   public List<MappingIntent> mappingBodies(RequirementBrief brief) {
-    if (brief != null) {
-      return brief.mappingIntents();
+    if (brief == null) {
+      return List.of();
     }
-    return mappingIntents();
+    return brief.mappingIntents();
   }
 }

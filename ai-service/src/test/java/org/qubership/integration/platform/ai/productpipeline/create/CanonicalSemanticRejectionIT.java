@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
@@ -149,7 +150,12 @@ class CanonicalSemanticRejectionIT {
   }
 
   private static void rejectAggregate() {
-    SEMANTIC_VALIDATOR.validate(aggregateRevision(), CONTRACT);
+    ChainSemanticRevision revision = aggregateRevision();
+    SEMANTIC_VALIDATOR.validate(
+        revision,
+        CONTRACT,
+        new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withMappingIntents(revision.mappingIntents()));
   }
 
   private static void rejectZeroBranchAsyncSplit() {

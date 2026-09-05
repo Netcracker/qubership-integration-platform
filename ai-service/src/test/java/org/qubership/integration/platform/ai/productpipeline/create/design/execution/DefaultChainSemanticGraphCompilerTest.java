@@ -113,7 +113,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void addTimeSchemaDefaultsApplyToEveryCompiledNodeType() {
     ChainPlanGraph graph =
-        compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
+        compileMapped(linearMappedRevision(), List.of(binding("call-1")));
 
     assertEquals("NONE", property(node(graph, "trigger-http"), "accessControlType"));
     assertEquals("0", property(node(graph, "call-1"), "retryCount"));
@@ -226,7 +226,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void writesReservedIdentityOnServiceCallNodes() {
     ChainPlanGraph graph =
-        compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
+        compileMapped(linearMappedRevision(), List.of(binding("call-1")));
 
     ChainPlanNode call = node(graph, "call-1");
     assertEquals("call-1", call.serviceCallId().orElseThrow());
@@ -245,7 +245,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void identityOverlayKeepsAddTimeServiceCallProperties() {
     ChainPlanGraph graph =
-        compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
+        compileMapped(linearMappedRevision(), List.of(binding("call-1")));
 
     ChainPlanNode call = node(graph, "call-1");
     assertEquals("0", property(call, "retryCount"));
@@ -257,7 +257,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void pinsMappingIdentityOnTheTransformSite() {
     ChainPlanGraph graph =
-        compiler.compile(linearMappedRevision(), CONTRACT, List.of(binding("call-1")));
+        compileMapped(linearMappedRevision(), List.of(binding("call-1")));
 
     assertEquals("map-body", MappingExecutionSite.mappingIntentId(node(graph, "op-shared")));
     assertEquals("map-body", MappingExecutionSite.mappingId(node(graph, "op-shared")));
@@ -285,7 +285,7 @@ class DefaultChainSemanticGraphCompilerTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> compiler.compile(linearMappedRevision(), CONTRACT, List.of()));
+            () -> compileMapped(linearMappedRevision(), List.of()));
     assertEquals("missing catalog binding for serviceCallId=call-1", error.getMessage());
   }
 
@@ -636,6 +636,14 @@ class DefaultChainSemanticGraphCompilerTest {
             new SemanticContainment("try-catch-1", "catch-body", "catch-2"),
             new SemanticContainment("try-catch-1", "finally-script", "finally-2")),
         List.of());
+  }
+
+  private ChainPlanGraph compileMapped(
+      ChainSemanticRevision revision, List<ResolvedServiceCallBinding> bindings) {
+    RequirementBrief brief =
+        new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withMappingIntents(revision.mappingIntents());
+    return compiler.compile(revision, CONTRACT, bindings, brief);
   }
 
   private static ChainSemanticRevision linearMappedRevision() {
