@@ -124,7 +124,6 @@ class ProductPipelineHaltQuestionTest {
   @Test
   void aBareGoBackStillReopensTheDiagnosedOwner() {
     haltOnPlanningValidation(answeringAgent());
-    type("requirement-analysis");
 
     type("go back");
 
@@ -153,13 +152,14 @@ class ProductPipelineHaltQuestionTest {
   @Test
   void aHaltMessageReadAsAnInstructionExecutesTheDiagnosedRepairPath() {
     haltOnPlanningValidation(FakeFailureNarrativeAgent.owner("", "requirement-analysis"));
-    type("requirement-analysis");
 
-    type("use the other scheduler");
+    type("use the other scheduler and go back to requirement-analysis");
 
     assertEquals("requirement-analysis", run().run().currentStageId());
     assertEquals(RunStatus.RUNNING, run().run().status());
-    assertEquals("use the other scheduler", support.haltFollowUpText(RUN_ID).orElseThrow());
+    assertEquals(
+        "use the other scheduler and go back to requirement-analysis",
+        support.haltFollowUpText(RUN_ID).orElseThrow());
   }
 
   /** Drives the run to a recoverable halt at planning and returns the prompt it halted on. */

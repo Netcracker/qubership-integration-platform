@@ -72,6 +72,9 @@ public final class RecoveryExecutor {
     String failedStageId = failedStage == null ? stageId : failedStage.stageId();
     String producerStageId = producerStageForFault(decision.faultArtifactRef(), failedStageId);
     if (producerStageId.equals(failedStageId)) {
+      producerStageId = previousGenerativeStageId(failedStageId);
+    }
+    if (producerStageId.equals(failedStageId) || producerStageId.isBlank()) {
       return new StageDecision.Retry(stageId, Duration.ZERO);
     }
     return new StageDecision.ReopenProducer(stageId, producerStageId);
@@ -90,7 +93,8 @@ public final class RecoveryExecutor {
       return failedStageId;
     }
     return switch (fault.kind()) {
-      case REQUIREMENT_BRIEF, REQUIREMENT_DRAFT -> "requirement-analysis";
+      case REQUIREMENT_DRAFT -> "requirement-discovery";
+      case REQUIREMENT_BRIEF -> "requirement-analysis";
       case IMPLEMENTATION_PLAN, DESIGN_PLAN_REPORT, DESIGN_EXECUTION_PLAN -> "design-planning";
       case CHAIN_PLAN_GRAPH,
               GRAPH_PATCH_ARTIFACT,
@@ -106,6 +110,21 @@ public final class RecoveryExecutor {
               VALIDATED_EXECUTION_BUNDLE,
               MATERIALIZATION_REQUEST ->
           "design-execution";
+      default -> failedStageId;
+    };
+  }
+
+  static String previousGenerativeStageId(String failedStageId) {
+    if (failedStageId == null || failedStageId.isBlank()) {
+      return "";
+    }
+    return switch (failedStageId) {
+      case "design-execution" -> "design-planning";
+      case "design-planning", "planning" -> "requirement-analysis";
+      case "design-input" -> "requirement-analysis";
+      case "requirement-analysis", "analysis" -> "requirement-discovery";
+      case "import-stage", "uploaded-spec-import", "specification-import" ->
+          "requirement-discovery";
       default -> failedStageId;
     };
   }

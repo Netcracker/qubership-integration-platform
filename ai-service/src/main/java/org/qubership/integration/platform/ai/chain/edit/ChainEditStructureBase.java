@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.Objects;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlan;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 
 /**
@@ -11,10 +12,15 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
  * publishes this before the structure stage runs and clears it afterwards; a CREATE run leaves it
  * absent and its capture is validated as the whole graph it is.
  */
-public record ChainEditStructureBase(ChainPlanGraph baseGraph, ChainEditIntent intent) {
+public record ChainEditStructureBase(
+    ChainPlanGraph baseGraph, ChainEditIntent intent, ChainEditStructuralPlan structuralPlan) {
 
   public ChainEditStructureBase {
     Objects.requireNonNull(baseGraph, "baseGraph");
     Objects.requireNonNull(intent, "intent");
+  }
+
+  public ChainEditStructureBase(ChainPlanGraph baseGraph, ChainEditIntent intent) {
+    this(baseGraph, intent, null);
   }
 }

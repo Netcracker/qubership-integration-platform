@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.integration.catalog.materialize;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
@@ -60,7 +61,7 @@ public class UploadedSpecAutoImporter {
     ensureDefaultEnvironment(system.id(), catalogSystemType);
 
     Optional<CatalogRestClient.SpecificationGroupDto> existingGroup =
-        findExistingSpecificationGroup(system.id(), specName);
+        findReusableSpecificationGroup(system.id(), specName);
 
     String specificationId;
     String specificationGroupId;
@@ -130,22 +131,49 @@ public class UploadedSpecAutoImporter {
     }
   }
 
-  private Optional<CatalogRestClient.SpecificationGroupDto> findExistingSpecificationGroup(
-      String systemId, String groupName) {
+  /**
+   * Reuse the existing group on a catalog system when the OpenAPI title matches the group name, or
+   * when the group was named from a longer filename that still starts with that title.
+   */
+  private Optional<CatalogRestClient.SpecificationGroupDto> findReusableSpecificationGroup(
+      String systemId, String specName) {
     List<CatalogRestClient.SpecificationGroupDto> groups =
         catalogRestClient.getSpecificationGroups(systemId);
-    if (groups == null) {
+    if (groups == null || specName == null || specName.isBlank()) {
       return Optional.empty();
     }
-    return groups.stream()
-        .filter(
-            g ->
-                g != null
-                    && g.id() != null
-                    && !g.id().isBlank()
-                    && g.name() != null
-                    && g.name().equalsIgnoreCase(groupName))
-        .findFirst();
+    Optional<CatalogRestClient.SpecificationGroupDto> exact =
+        groups.stream()
+            .filter(
+                g ->
+                    g != null
+                        && g.id() != null
+                        && !g.id().isBlank()
+                        && g.name() != null
+                        && g.name().equalsIgnoreCase(specName))
+            .findFirst();
+    if (exact.isPresent()) {
+      return exact;
+    }
+    String needle = specName.toLowerCase(Locale.ROOT);
+    List<CatalogRestClient.SpecificationGroupDto> prefixed =
+        groups.stream()
+            .filter(
+                g ->
+                    g != null
+                        && g.id() != null
+                        && !g.id().isBlank()
+                        && g.name() != null)
+            .filter(
+                g -> {
+                  String name = g.name().toLowerCase(Locale.ROOT);
+                  return name.startsWith(needle + " ");
+                })
+            .toList();
+    if (prefixed.size() == 1) {
+      return Optional.of(prefixed.getFirst());
+    }
+    return Optional.empty();
   }
 
   private Optional<CatalogRestClient.SpecificationDto> findExistingSpecificationInGroup(

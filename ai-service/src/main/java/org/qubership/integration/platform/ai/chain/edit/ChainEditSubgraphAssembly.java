@@ -191,9 +191,11 @@ public final class ChainEditSubgraphAssembly {
       ChainPlanEdge rewired =
           ChainEditBoundaryWiring.rewireMovedEndpoint(
               existing, assembledById, baseById.keySet(), ends);
-      ChainPlanEdge kept = rewired == null ? existing : rewired;
-      if (connections.add(connectionKey(kept))) {
-        edges.add(kept);
+      if (rewired == null) {
+        continue;
+      }
+      if (connections.add(connectionKey(rewired))) {
+        edges.add(rewired);
       }
     }
     edges.addAll(bodyEdges);

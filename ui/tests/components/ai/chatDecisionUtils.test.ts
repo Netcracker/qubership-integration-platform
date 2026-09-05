@@ -14,6 +14,8 @@ import {
   reconcileDecisionMessages,
   recoveryCardActions,
   removeDecision,
+  unansweredDecision,
+  composerDraftText,
   visibleDecisionNarrative,
   visibleMissingEvidence,
 } from "../../../src/components/ai/chatDecisionUtils.ts";
@@ -397,6 +399,51 @@ describe("hasUnansweredDecision", () => {
         },
       ]),
     ).toBe(true);
+  });
+});
+
+describe("composerDraftText", () => {
+  it("should prefer the visible textarea when React state is empty", () => {
+    expect(composerDraftText("", "Use Salesforce WFM-1.0.0")).toBe(
+      "Use Salesforce WFM-1.0.0",
+    );
+  });
+
+  it("should use React state when the textarea is empty", () => {
+    expect(composerDraftText("typed in React", "")).toBe("typed in React");
+  });
+
+  it("should prefer the textarea when both React and the DOM have text", () => {
+    expect(composerDraftText("stale React", "visible draft")).toBe(
+      "visible draft",
+    );
+  });
+});
+
+describe("unansweredDecision", () => {
+  it("should return the last open card", () => {
+    const older = buildDecision({ id: "gate-1" });
+    const latest = buildDecision({ id: "gate-2", kind: "clarify" });
+    expect(
+      unansweredDecision([
+        { role: "assistant", content: "", decision: older },
+        { role: "assistant", content: "choose a spec", decision: latest },
+      ]),
+    ).toBe(latest);
+  });
+
+  it("should skip an answered card and return an older open one", () => {
+    const open = buildDecision({ id: "gate-1" });
+    const answered = buildDecision({
+      id: "gate-2",
+      answeredAction: "retry",
+    });
+    expect(
+      unansweredDecision([
+        { role: "assistant", content: "", decision: open },
+        { role: "assistant", content: "", decision: answered },
+      ]),
+    ).toBe(open);
   });
 });
 

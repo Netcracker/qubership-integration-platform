@@ -120,7 +120,9 @@ describe("AiDecisionCard", () => {
         onAnswer={onAnswer}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Import specification" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Import specification" }),
+    );
     expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
   });
 
@@ -321,8 +323,8 @@ describe("AiDecisionCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(onAnswer).not.toHaveBeenCalled();
-    expect(onSubmitClarification).toHaveBeenCalledWith("retry");
+    expect(onAnswer).toHaveBeenCalledWith("retry", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
   it("should render a contextual retry with collapsed technical details and semantic actions", () => {
@@ -717,8 +719,8 @@ describe("AiDecisionCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Revise" }));
 
-    expect(onAnswer).not.toHaveBeenCalled();
-    expect(onSubmitClarification).toHaveBeenCalledWith("revise");
+    expect(onAnswer).toHaveBeenCalledWith("revise", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
   it("should send a command action through onAnswer even on a clarify card", () => {
@@ -745,9 +747,7 @@ describe("AiDecisionCard", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Import as internal" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Import as internal" }));
 
     expect(onSubmitClarification).not.toHaveBeenCalled();
     expect(onAnswer).toHaveBeenCalledWith("import-specification-internal", "");

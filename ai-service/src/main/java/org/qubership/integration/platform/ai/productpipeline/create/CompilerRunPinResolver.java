@@ -38,13 +38,13 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 /**
  * Resolves and verifies the compiler DAG pin for product profiles that declare a compiler-pipeline
  * policy. For {@code create-chain@2}, also pins design-process skills that sit outside the compiler
- * DAG ({@code cip-design-planner}, {@code cip-design-executor}, {@code cip-design-generator}).
+ * DAG ({@code cip-design-planner}, {@code cip-design-executor}, {@code cip-chain-edit-planner}).
  */
 public final class CompilerRunPinResolver {
 
   /** Design skills required on create-chain@2 run pins but absent from the compiler DAG. */
   public static final List<String> CREATE_CHAIN_V2_DESIGN_SKILLS =
-      List.of("cip-design-planner", "cip-design-executor");
+      List.of("cip-design-planner", "cip-design-executor", "cip-chain-edit-planner");
 
   /** Supplies content hashes for design skills loaded outside the compiler pipeline index. */
   @FunctionalInterface

@@ -5,12 +5,17 @@ import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditPlannerRequest;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlan;
+import org.qubership.integration.platform.ai.chain.edit.planning.CipChainEditPlannerAdapter;
+import org.qubership.integration.platform.ai.chain.edit.planning.CipChainEditPlannerRequestBuilder;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -20,9 +25,11 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.PlannerContractException;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -68,6 +75,7 @@ public class ChainEditCompiler {
   private static final Logger LOG = Logger.getLogger(ChainEditCompiler.class);
   private static final String STRUCTURE_GENERATOR = "cip-structure-generator";
   private static final String SERVICE_CALL_TYPE = "service-call";
+  private static final String TRY_CATCH_FINALLY = "try-catch-finally-2";
 
   private final ChainEditIntentResolver intentResolver;
   private final ServiceCallBindingResolver bindingResolver;
@@ -80,6 +88,36 @@ public class ChainEditCompiler {
   private final CaptureSession captureSession;
   private final DeterministicElementSchemaService schemaService;
   private final CompilerValidationPipeline validationPipeline;
+  private final CipChainEditPlannerAdapter structuralPlanner;
+  private final CipChainEditPlannerRequestBuilder plannerRequestBuilder;
+
+  public ChainEditCompiler(
+      ChainEditIntentResolver intentResolver,
+      ServiceCallBindingResolver bindingResolver,
+      CompilerDagExecutionEngine engine,
+      CompilerRunPinResolver runPinResolver,
+      ProductPipelineProfileCatalog profileCatalog,
+      KnowledgeContextProvider knowledgeContextProvider,
+      CatalogMutationGateway catalogMutationGateway,
+      RequirementDraftStore requirementDraftStore,
+      CaptureSession captureSession,
+      DeterministicElementSchemaService schemaService,
+      CompilerValidationPipeline validationPipeline) {
+    this(
+        intentResolver,
+        bindingResolver,
+        engine,
+        runPinResolver,
+        profileCatalog,
+        knowledgeContextProvider,
+        catalogMutationGateway,
+        requirementDraftStore,
+        captureSession,
+        schemaService,
+        validationPipeline,
+        null,
+        null);
+  }
 
   @Inject
   @SuppressWarnings("java:S107")
@@ -94,7 +132,9 @@ public class ChainEditCompiler {
       RequirementDraftStore requirementDraftStore,
       CaptureSession captureSession,
       DeterministicElementSchemaService schemaService,
-      CompilerValidationPipeline validationPipeline) {
+      CompilerValidationPipeline validationPipeline,
+      CipChainEditPlannerAdapter structuralPlanner,
+      CipChainEditPlannerRequestBuilder plannerRequestBuilder) {
     this.intentResolver = Objects.requireNonNull(intentResolver, "intentResolver");
     this.bindingResolver = Objects.requireNonNull(bindingResolver, "bindingResolver");
     this.engine = Objects.requireNonNull(engine, "engine");
@@ -107,6 +147,8 @@ public class ChainEditCompiler {
     this.captureSession = Objects.requireNonNull(captureSession, "captureSession");
     this.schemaService = Objects.requireNonNull(schemaService, "schemaService");
     this.validationPipeline = Objects.requireNonNull(validationPipeline, "validationPipeline");
+    this.structuralPlanner = structuralPlanner;
+    this.plannerRequestBuilder = plannerRequestBuilder;
   }
 
   /**
@@ -505,9 +547,56 @@ public class ChainEditCompiler {
     ImportedChainPlan imported = request.imported();
     List<ResolvedServiceCallBinding> bindings =
         importedBinding == null ? List.of() : List.of(importedBinding);
+    ChainEditIntent effectiveIntent = intent;
+    ChainEditStructuralPlan structuralPlan = null;
+    if (needsStructuralPlanner(intent) && structuralPlanner != null) {
+      String pinnedHash =
+          pin.skillSha256ById() == null
+              ? null
+              : pin.skillSha256ById().get(CipChainEditPlannerAdapter.SKILL_ID);
+      if (pinnedHash == null || pinnedHash.isBlank()) {
+        return new ChainEditOutcome.CompilationFailure(
+            "The compiler package this edit needs is unavailable: pinned skill hash for "
+                + CipChainEditPlannerAdapter.SKILL_ID
+                + " is missing.");
+      }
+      Map<String, OperationSchemaMaps> schemas =
+              plannerRequestBuilder == null
+                  ? Map.of()
+                  : plannerRequestBuilder.loadSchemas(imported.graph(), bindings);
+      try {
+        structuralPlan =
+            ChainEditSkillProgress.call(
+                progress,
+                CipChainEditPlannerAdapter.SKILL_ID,
+                () ->
+                    structuralPlanner.plan(
+                        new ChainEditPlannerRequest(
+                            request.conversationId(),
+                            pinnedHash,
+                            request.userRequest(),
+                            imported.graph(),
+                            intent,
+                            bindings,
+                            schemas)));
+      } catch (PlannerContractException e) {
+        return new ChainEditOutcome.CompilationFailure(describeFailure(e));
+      }
+      if (structuralPlan.clarify()) {
+        return new ChainEditOutcome.Clarification(
+            structuralPlan.clarificationQuestion(),
+            structuralPlan.clarificationChoices(),
+            asHeld(intent, structuralPlan.ambiguities()));
+      }
+      List<String> expanded = structuralPlan.expandedTargetNodeIds();
+      if (!expanded.equals(intent.targetNodeIds())) {
+        effectiveIntent = intent.withTargets(expanded);
+      }
+    }
     CompilerDagExecutionResult structureResult;
     try {
-      structureResult = runStructureStage(request, intent, bindings, pin, progress);
+      structureResult =
+          runStructureStage(request, effectiveIntent, bindings, structuralPlan, pin, progress);
     } catch (RuntimeException e) {
       LOG.errorf(e, "Chain edit structure generation failed runId=%s", request.editRunId());
       return new ChainEditOutcome.CompilationFailure(describeFailure(e));
@@ -543,7 +632,7 @@ public class ChainEditCompiler {
 
     List<GeneratorPlan> plans =
         ChainEditCapabilitySelection.structuralGeneratorPlans(
-            pin.resolvedDag(), imported.graph(), structured, intent);
+            pin.resolvedDag(), imported.graph(), structured, effectiveIntent);
     if (plans.isEmpty() && sameNodeIds(imported.graph(), structured)) {
       return new ChainEditOutcome.CompilationFailure(
           "The structure stage did not add the requested elements.");
@@ -554,7 +643,7 @@ public class ChainEditCompiler {
     skillIds.addAll(plans.stream().map(GeneratorPlan::skillId).toList());
     return runCompiler(
         request,
-        intent,
+        effectiveIntent,
         bindings,
         plans,
         List.copyOf(skillIds),
@@ -562,6 +651,7 @@ public class ChainEditCompiler {
         structureResult.executedSkillIds(),
         pin,
         structured,
+        structuralPlan,
         progress);
   }
 
@@ -663,6 +753,7 @@ public class ChainEditCompiler {
       ChainEditRequest request,
       ChainEditIntent intent,
       List<ResolvedServiceCallBinding> bindings,
+      ChainEditStructuralPlan structuralPlan,
       CompilerRunPin pin,
       BiConsumer<String, String> progress) {
     ImportedChainPlan imported = request.imported();
@@ -674,7 +765,8 @@ public class ChainEditCompiler {
             imported.materializationMap(),
             intent,
             bindings,
-            Set.of());
+            Set.of(),
+            structuralPlan);
     ResolvedCompilerDag dag =
         ChainEditCompilerDag.structureOnly(pin.resolvedDag(), seed.presentArtifactTypes());
     RunManifest manifest =
@@ -685,7 +777,8 @@ public class ChainEditCompiler {
     CaptureKey structureBaseKey =
         CaptureKey.conversation(
             CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, request.conversationId());
-    captureSession.set(structureBaseKey, new ChainEditStructureBase(imported.graph(), intent));
+    captureSession.set(
+        structureBaseKey, new ChainEditStructureBase(imported.graph(), intent, structuralPlan));
     try {
       return engine
           .execute(
@@ -873,6 +966,33 @@ public class ChainEditCompiler {
       CompilerRunPin pin,
       ChainPlanGraph seedGraph,
       BiConsumer<String, String> progress) {
+    return runCompiler(
+        request,
+        intent,
+        bindings,
+        generatorPlans,
+        approvedSkillIds,
+        extraPreSatisfiedSkillIds,
+        executedPrefix,
+        pin,
+        seedGraph,
+        null,
+        progress);
+  }
+
+  @SuppressWarnings("java:S107")
+  private ChainEditOutcome runCompiler(
+      ChainEditRequest request,
+      ChainEditIntent intent,
+      List<ResolvedServiceCallBinding> bindings,
+      List<GeneratorPlan> generatorPlans,
+      List<String> approvedSkillIds,
+      Set<String> extraPreSatisfiedSkillIds,
+      List<String> executedPrefix,
+      CompilerRunPin pin,
+      ChainPlanGraph seedGraph,
+      ChainEditStructuralPlan structuralPlan,
+      BiConsumer<String, String> progress) {
     ImportedChainPlan imported = request.imported();
     String runId = request.editRunId();
     CompilerExecutionSeed seed =
@@ -883,7 +1003,8 @@ public class ChainEditCompiler {
                 imported.materializationMap(),
                 intent,
                 bindings,
-                extraPreSatisfiedSkillIds)
+                extraPreSatisfiedSkillIds,
+                structuralPlan)
             .with(targetScopedPlan(generatorPlans));
 
     ResolvedCompilerDag dag;
@@ -990,6 +1111,11 @@ public class ChainEditCompiler {
         "chain-edit-seed",
         new SkillArtifactPayload.GeneratorPlanManifestPayload(
             new GeneratorPlanManifest("edit", List.copyOf(plans))));
+  }
+
+  private static boolean needsStructuralPlanner(ChainEditIntent intent) {
+    return intent.disposition() == ChainEditDisposition.NEST
+        && TRY_CATCH_FINALLY.equals(intent.requestedElementType());
   }
 
   private CompilerRunPin resolvePin(String conversationId) {

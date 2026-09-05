@@ -50,10 +50,11 @@ class S3ServiceTest {
   }
 
   private static ListObjectsV2Response page(String nextToken, String key) {
-    return ListObjectsV2Response.builder()
-        .nextContinuationToken(nextToken)
-        .contents(
-            software.amazon.awssdk.services.s3.model.S3Object.builder().key(key).build())
-        .build();
+    return (ListObjectsV2Response)
+        ListObjectsV2Response.builder()
+            .nextContinuationToken(nextToken)
+            .contents(
+                software.amazon.awssdk.services.s3.model.S3Object.builder().key(key).build())
+            .build();
   }
 }

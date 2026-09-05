@@ -163,11 +163,38 @@ export function recoveryCardActions(decision: ChatDecision): string[] {
 }
 
 export function hasUnansweredDecision(messages: ChatMessage[]): boolean {
-  return messages.some(
-    (message) =>
-      message.decision !== undefined &&
-      message.decision.answeredAction === undefined,
-  );
+  return unansweredDecision(messages) !== undefined;
+}
+
+/**
+ * Last decision card that still needs an answer. Composer Send uses this to
+ * post typed text as a clarification instead of dropping the open gate.
+ */
+export function unansweredDecision(
+  messages: ChatMessage[],
+): ChatDecision | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const decision = messages[i].decision;
+    if (decision && decision.answeredAction === undefined) {
+      return decision;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Prefer the visible textarea. Automation and paste can set the DOM value
+ * without updating React state; Send must still read what the user sees.
+ */
+export function composerDraftText(
+  reactValue: string,
+  nativeValue: string | undefined | null,
+): string {
+  const native = (nativeValue ?? "").trim();
+  if (native) {
+    return native;
+  }
+  return reactValue.trim();
 }
 
 export function isActionableDecision(decision: ChatDecision): boolean {

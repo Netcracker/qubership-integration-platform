@@ -16,6 +16,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -528,6 +529,26 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void uploadedImportMarkerDoesNotNameApiHub() {
+    assertEquals(
+        ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER,
+        ChatDecisionService.transcriptMarker(
+            command(
+                ChatEvent.IMPORT_EXTERNAL_ACTION,
+                UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+                "hash",
+                null)));
+    assertEquals(
+        ChatEvent.UPLOADED_IMPORT_MARKER,
+        ChatDecisionService.transcriptMarker(
+            command(
+                ChatEvent.IMPORT_INTERNAL_ACTION,
+                UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+                "hash",
+                null)));
+  }
+
+  @Test
   void rememberImportChoiceWritesExternalOnTheDraft() {
     RequirementDraftStore drafts = new RequirementDraftStore();
     drafts.put("conv-1", new RequirementDraft(false, "GeoSite").withImportIntent(true));
@@ -858,6 +879,13 @@ class ChatDecisionServiceTest {
         ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
     verify(facade).continueWithInput(input.capture());
     assertEquals(PipelineGates.RETRY_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
+  void retryProgressNamesGoingBackOneStep() {
+    assertEquals(
+        "Going back one step.",
+        ChatDecisionService.haltResumeProgress(PipelineGates.RETRY_ACTION));
   }
 
   @Test

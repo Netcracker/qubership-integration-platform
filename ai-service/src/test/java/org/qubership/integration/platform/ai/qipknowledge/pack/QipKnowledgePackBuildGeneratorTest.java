@@ -72,6 +72,7 @@ class QipKnowledgePackBuildGeneratorTest {
     assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-structure-generator"));
     assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-design-planner"));
     assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-design-executor"));
+    assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-chain-edit-planner"));
 
     var designPlanner =
         repository.loadCapabilityRegistry().capabilities().stream()
@@ -101,6 +102,8 @@ class QipKnowledgePackBuildGeneratorTest {
         repository.loadManifest().supportedCapabilityIds().contains("cip-design-planner"));
     assertTrue(
         repository.loadManifest().supportedCapabilityIds().contains("cip-design-executor"));
+    assertTrue(
+        repository.loadManifest().supportedCapabilityIds().contains("cip-chain-edit-planner"));
 
     var pipelineIndex = repository.loadCompilerPipelineIndex();
     assertEquals(2, pipelineIndex.schemaVersion());

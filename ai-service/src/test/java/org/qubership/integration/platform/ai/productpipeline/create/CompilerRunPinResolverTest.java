@@ -102,6 +102,24 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void createChainV2PinsChainEditPlannerOutsideTheDag() {
+    CompilerRunPinResolver v2Resolver =
+        new CompilerRunPinResolver(
+            readySchemaV2IndexFixture(), skillId -> "hash-" + skillId);
+
+    CompilerRunPin pin = v2Resolver.resolve(createChainV2Profile(), fullKnowledgeContext);
+
+    assertEquals(
+        "hash-cip-chain-edit-planner",
+        pin.skillSha256ById().get("cip-chain-edit-planner"));
+    assertEquals("hash-cip-design-planner", pin.skillSha256ById().get("cip-design-planner"));
+    assertEquals("hash-cip-design-executor", pin.skillSha256ById().get("cip-design-executor"));
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .noneMatch(node -> "cip-chain-edit-planner".equals(node.skillId())));
+  }
+
+  @Test
   void rejectsRequiredNodeThatIsNotRuntimeReady() {
     CompilerRunPinResolver unresolvedResolver =
         resolverFor(indexWithUnresolvedRequiredNode("cip-structure-generator"));
@@ -499,6 +517,24 @@ class CompilerRunPinResolverTest {
 
   private static CompilerRunPinResolver resolverFor(CompilerPipelineIndex index) {
     return new CompilerRunPinResolver(index);
+  }
+
+  private static ProductPipelineProfile createChainV2Profile() {
+    return new ProductPipelineProfile(
+        1,
+        "create-chain",
+        "2",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(),
+        new TerminalPolicy("planning", "PLAN_APPROVED"),
+        List.of(),
+        new CompilerPipelinePolicy(
+            List.of(2),
+            List.of("Discovery", "Planning", "Generation", "Assembly", "Validation"),
+            List.of(new ArtifactTypeRef("requirement-brief", 1)),
+            List.of(
+                new ArtifactTypeRef("graph-assembly-result", 1),
+                new ArtifactTypeRef("compiler-validation-bundle", 1))));
   }
 
   private static ProductPipelineProfile createChainProfile() {

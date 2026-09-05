@@ -240,8 +240,11 @@ public class ChatDecisionService {
           case ChatEvent.CANCEL_DEPLOY_ACTION -> "Do not deploy the chain";
           case ChatEvent.UNDEPLOY_ACTION -> "Undeploy the chain from domain " + domainName;
           case ChatEvent.CANCEL_UNDEPLOY_ACTION -> "Leave the live deployment in place";
-          case ChatEvent.IMPORT_ACTION, ChatEvent.IMPORT_INTERNAL_ACTION -> ChatEvent.IMPORT_MARKER;
-          case ChatEvent.IMPORT_EXTERNAL_ACTION -> ChatEvent.IMPORT_EXTERNAL_MARKER;
+          case ChatEvent.IMPORT_ACTION, ChatEvent.IMPORT_INTERNAL_ACTION,
+                  ChatEvent.IMPORT_EXTERNAL_ACTION ->
+              ChatEvent.importTranscriptMarker(
+                  command.getAction(),
+                  UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType()));
           case ChatEvent.RETRY_CREATION_ACTION -> "Retry chain creation";
           case ChatEvent.EDIT_REQUIREMENTS_ACTION -> "Edit the requirements";
           case ChatEvent.REBUILD_PLAN_ACTION -> "Rebuild the plan";
@@ -376,7 +379,7 @@ public class ChatDecisionService {
       return "Revising the current stage.";
     }
     if (PipelineGates.RETRY_ACTION.equals(action)) {
-      return "Retrying the current stage.";
+      return "Going back one step.";
     }
     return "Resuming the current stage.";
   }
@@ -571,7 +574,7 @@ public class ChatDecisionService {
         continue;
       }
       String text = message.content() == null ? "" : message.content();
-      if (text.startsWith("Approved ") || text.startsWith("Answered ")) {
+      if (ChatEvent.isSyntheticDecisionTurn(text)) {
         continue;
       }
       return text;

@@ -116,10 +116,13 @@ class HaltExitGuaranteeMatrixTest {
                         || signal instanceof PipelineSignal.Message),
         signals.toString());
     String prompt = latestWaitingPrompt();
-    assertEquals(PipelineGates.RECOVERY_UNCLASSIFIED, PipelineGates.gateOf(prompt).orElseThrow());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(prompt).orElseThrow());
+    assertEquals(
+        HaltRecoveryGuard.NAMED_STAGE_OUTSIDE_CANDIDATE_SET.name(),
+        PipelineGates.guardOf(prompt).orElseThrow());
     assertTrue(
         PipelineGates.strip(prompt)
-            .contains("Creation stopped without a recoverable cause."),
+            .contains(HaltRecoveryGuard.NAMED_STAGE_OUTSIDE_CANDIDATE_SET.cardSentence()),
         prompt);
     assertTrue(PipelineGates.ownerCandidatesOf(prompt).isEmpty());
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
@@ -197,10 +200,9 @@ class HaltExitGuaranteeMatrixTest {
     int callsBefore = planningCalls.get();
 
     type("requirement-analysis");
-    type(PipelineGates.REVISE_ACTION);
 
-    assertEquals("planning", run().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, run().run().status());
     assertEquals(callsBefore, planningCalls.get());
   }
 

@@ -179,6 +179,23 @@ class CompilerSkillAddonBuildSupportTest {
           runtime-skill: true
         ```
         """);
+    Files.writeString(
+        addonRoot.resolve("skills/cip-chain-edit-planner.addon.md"),
+        """
+        # cip-chain-edit-planner addon
+
+        - Input artifacts: `CHAIN_PLAN_GRAPH`, `CHAIN_EDIT_INTENT`
+        - Output artifacts: `CHAIN_EDIT_STRUCTURAL_PLAN`
+
+        ## Runtime metadata
+
+        ```yaml
+        runtime:
+          promoted: true
+          category: runtime
+          runtime-skill: true
+        ```
+        """);
 
     CompilerSkillAddonBuildSupport.materialize(addonRoot, outputDir);
 
@@ -194,6 +211,9 @@ class CompilerSkillAddonBuildSupportTest {
     assertTrue(index.skills().get("cip-design-executor").runtimeMetadata().promoted());
     assertEquals(
         null, index.skills().get("cip-design-executor").runtimeMetadata().captureTool());
+    assertTrue(index.skills().get("cip-chain-edit-planner").runtimeMetadata().promoted());
+    assertEquals(
+        null, index.skills().get("cip-chain-edit-planner").runtimeMetadata().captureTool());
   }
 
   @Test

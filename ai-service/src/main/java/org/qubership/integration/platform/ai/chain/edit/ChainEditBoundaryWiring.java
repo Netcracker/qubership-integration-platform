@@ -14,7 +14,8 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
  * <p>A capture may drop the connections of a node it displaces, so this rebuilds them from the
  * subgraph's shape instead of taking the capture's edge list on trust. Incoming hops attach to the
  * subgraph's entry, outgoing hops leave from its exit, and a connection whose both ends moved into
- * the subgraph is left as it was.
+ * the same new branch is left as it was. Ends that landed in different branches drop the inherited
+ * edge.
  *
  * <p>Every method here takes the new elements and the imported graph, never the edit intent: the
  * structure merge decides which elements were displaced and why, and only hands this class the
@@ -89,8 +90,9 @@ public final class ChainEditBoundaryWiring {
    * Rebuilds a dropped connection only when an endpoint actually moved into the new subgraph.
    *
    * <p>Incoming hops attach to the subgraph entry; outgoing hops leave from the exit. A connection
-   * whose two ends nested into the same new container stays as it was: both endpoints are still
-   * siblings, just one level deeper.
+   * whose two ends nested into the same new branch stays as it was: both endpoints are still
+   * siblings. Ends that moved into different branches, such as try-2 and finally-2, drop the
+   * inherited edge; the wrapper's doFinally hop is catalog-defined.
    *
    * <p>An insertion that keeps the address elements where they are is different. The capture
    * replaces the address edge with the new subgraph, and neither endpoint moves, so putting that
@@ -101,20 +103,25 @@ public final class ChainEditBoundaryWiring {
       Map<String, ChainPlanNode> nodesById,
       Set<String> baseNodeIds,
       SubgraphEnds ends) {
+    String fromBranch = newBranchOf(edge.fromNodeId(), nodesById, baseNodeIds);
+    String toBranch = newBranchOf(edge.toNodeId(), nodesById, baseNodeIds);
+    boolean fromMoved = !Objects.equals(fromBranch, edge.fromNodeId());
+    boolean toMoved = !Objects.equals(toBranch, edge.toNodeId());
+    if (fromMoved && toMoved) {
+      if (Objects.equals(fromBranch, toBranch) && !baseNodeIds.contains(fromBranch)) {
+        return edge;
+      }
+      return null;
+    }
     String fromContainer = newContainerOf(edge.fromNodeId(), nodesById, baseNodeIds);
     String toContainer = newContainerOf(edge.toNodeId(), nodesById, baseNodeIds);
-    if (Objects.equals(fromContainer, toContainer) && !baseNodeIds.contains(fromContainer)) {
-      return edge;
-    }
-    boolean fromMoved = !Objects.equals(fromContainer, edge.fromNodeId());
-    boolean toMoved = !Objects.equals(toContainer, edge.toNodeId());
     if (!fromMoved && !toMoved) {
-      return null;
+      return edge;
     }
     String from = fromMoved ? firstNonBlank(ends.exit(), fromContainer) : edge.fromNodeId();
     String to = toMoved ? firstNonBlank(ends.entry(), toContainer) : edge.toNodeId();
     if (Objects.equals(from, edge.fromNodeId()) && Objects.equals(to, edge.toNodeId())) {
-      return null;
+      return edge;
     }
     return new ChainPlanEdge(edge.edgeId(), from, to, edge.scopeNodeId());
   }
@@ -139,6 +146,23 @@ public final class ChainEditBoundaryWiring {
       node = nodesById.get(parentId);
     }
     return outermost == null ? nodeId : outermost;
+  }
+
+  /**
+   * The first new parent of {@code nodeId}, which is the branch it moved into, or {@code nodeId}
+   * when it did not move.
+   */
+  private static String newBranchOf(
+      String nodeId, Map<String, ChainPlanNode> nodesById, Set<String> baseNodeIds) {
+    ChainPlanNode node = nodesById.get(nodeId);
+    if (node == null) {
+      return nodeId;
+    }
+    String parentId = node.parentNodeId();
+    if (parentId == null || parentId.isBlank() || baseNodeIds.contains(parentId)) {
+      return nodeId;
+    }
+    return parentId;
   }
 
   private static String uniqueSurfaceEnd(Set<String> surface, Set<String> connected) {

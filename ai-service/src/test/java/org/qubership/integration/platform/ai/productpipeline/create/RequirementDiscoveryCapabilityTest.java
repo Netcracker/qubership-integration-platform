@@ -782,6 +782,161 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertEquals("", completed.get().outcome().message());
+    assertTrue(completed.get().outcome().candidates().isEmpty());
+  }
+
+  @Test
+  void approvedUploadedSpecsStayWhenOutboundFlowIsUnboundWithoutServiceCallFact() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft incomplete =
+        new RequirementDraft(
+                false,
+                "Call OM onTaskStart then Salesforce WFM createTask.",
+                DraftDecision.NEEDS_INPUT,
+                List.of("Which catalog createTask operation should be used?"),
+                "brainstorming",
+                "1",
+                null,
+                null,
+                false,
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.GOAL,
+                        "chain",
+                        "Create OM to Salesforce WFM"),
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "salesforce-create-task",
+                        "Call Salesforce WFM createTask"),
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "salesforce-create-task",
+                        "Reuse the existing Salesforce WFM specification")),
+                false)
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("on-task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+                        new Interaction(
+                            "salesforce-create-task",
+                            Direction.OUTBOUND,
+                            "Salesforce WFM",
+                            "createTask",
+                            "")),
+                    List.of(new Transition("on-task-start", "salesforce-create-task"))));
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "conv-uploaded-spec-unbound-flow", List.of("sessions/conv/salesforce-wfm.json"));
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            null,
+            (conversationId, userText) -> {
+              store.beginTurn(conversationId);
+              store.put(conversationId, incomplete);
+              store.markCaptured(conversationId);
+              ProductCapabilityCaptureContext.offerDraft(incomplete);
+              return Multi.createFrom().empty();
+            },
+            conversations);
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-uploaded-spec-unbound-flow",
+            "conv-uploaded-spec-unbound-flow",
+            "requirement-discovery",
+            "exec-uploaded-spec-unbound-flow",
+            "attempt-uploaded-spec-unbound-flow",
+            discoveryProfile(
+                List.of(new ArtifactTypeRef("requirement-draft", 2)), List.of()),
+            null,
+            List.of(),
+            Map.of("userText", "Create OM to Salesforce WFM with the attached spec"));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability
+        .execute(context)
+        .subscribe()
+        .with(
+            signal -> {
+              if (signal instanceof CapabilitySignal.Completed c) {
+                completed.set(c);
+              }
+            });
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertEquals("", completed.get().outcome().message());
+    assertTrue(completed.get().outcome().candidates().isEmpty());
+  }
+
+  @Test
+  void approvedUploadedSpecsHandoffWhenFactsHaveNoUnboundServiceCall() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft incomplete =
+        new RequirementDraft(
+            false,
+            "Create OM to Salesforce WFM with the attached spec.",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Import the uploaded specification?"),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(
+                RequirementFact.of(
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.GOAL,
+                    "chain",
+                    "Create OM to Salesforce WFM")),
+            false);
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "conv-uploaded-spec-goal", List.of("sessions/conv/salesforce-wfm.json"));
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            null,
+            (conversationId, userText) -> {
+              store.beginTurn(conversationId);
+              store.put(conversationId, incomplete);
+              store.markCaptured(conversationId);
+              ProductCapabilityCaptureContext.offerDraft(incomplete);
+              return Multi.createFrom().empty();
+            },
+            conversations);
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-uploaded-spec-goal",
+            "conv-uploaded-spec-goal",
+            "requirement-discovery",
+            "exec-uploaded-spec-goal",
+            "attempt-uploaded-spec-goal",
+            discoveryProfile(
+                List.of(new ArtifactTypeRef("requirement-draft", 2)), List.of()),
+            null,
+            List.of(),
+            Map.of("userText", "Create OM to Salesforce WFM with the attached spec"));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability
+        .execute(context)
+        .subscribe()
+        .with(
+            signal -> {
+              if (signal instanceof CapabilitySignal.Completed c) {
+                completed.set(c);
+              }
+            });
+
     assertEquals(StageOutcomeClass.CANDIDATE, completed.get().outcome().outcomeClass());
     assertEquals(1, completed.get().outcome().candidates().size());
     assertEquals(
