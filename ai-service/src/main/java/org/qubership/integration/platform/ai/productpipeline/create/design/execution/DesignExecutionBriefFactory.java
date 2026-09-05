@@ -15,7 +15,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
  *
  * <p>The brief stays user context. The compiled graph is the compiler input. This factory prefers
  * the stored analysis brief and uses the revision identity only when no stored brief exists. It
- * does not invent trigger or step facts from the revision.
+ * does not invent trigger or step facts from the revision. Mapping rule bodies come from the
+ * stored brief; a missing brief at create is a contract failure in the execution runner.
  */
 public final class DesignExecutionBriefFactory {
 
@@ -113,9 +114,7 @@ public final class DesignExecutionBriefFactory {
             brief.entryPoints(),
             brief.serviceCalls(),
             brief.requirements(),
-            brief.mappingIntents().isEmpty()
-                ? revision.mappingIntents()
-                : brief.mappingIntents(),
+            brief.mappingIntents(),
             brief.flow(),
             brief.catalogBindings()));
   }
@@ -137,7 +136,7 @@ public final class DesignExecutionBriefFactory {
             List.of(),
             List.of(),
             List.of(),
-            revision.mappingIntents()));
+            List.of()));
   }
 
   private static String firstNonBlank(String... values) {

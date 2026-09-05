@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
@@ -54,6 +55,14 @@ public final class DesignPlanProjector {
 
   public DesignExecutionPlan project(
       DesignPlanReport report, ChainSemanticRevision revision, CompilerRunPin pin) {
+    return project(report, revision, pin, null);
+  }
+
+  public DesignExecutionPlan project(
+      DesignPlanReport report,
+      ChainSemanticRevision revision,
+      CompilerRunPin pin,
+      RequirementBrief brief) {
     Objects.requireNonNull(report, "report");
     Objects.requireNonNull(revision, "revision");
     Objects.requireNonNull(pin, "pin");
@@ -71,12 +80,12 @@ public final class DesignPlanProjector {
     // Upstream design-planner still names cip-chain-validator; the runtime skill catalog
     // decomposed that gate into the pinned Validation producers. Rewrite before catalog checks.
     parsed = rewriteChainValidatorAlias(parsed, nodesBySkill);
-    parsed = projectScriptGeneratorSteps(parsed, revision);
+    parsed = projectScriptGeneratorSteps(parsed, revision, brief);
     validateDisabledTransformationGenerator(parsed);
     validateUnknownSkills(parsed, nodesBySkill);
     validateNoCatalogCycles(nodesBySkill, selectedSkills(parsed));
     validateTriggerCoverage(parsed);
-    validateScriptMappingCoverage(parsed, revision);
+    validateScriptMappingCoverage(parsed, revision, brief);
     validateBehaviorScriptCoverage(parsed, revision);
 
     List<DesignExecutionPlan.Step> steps = new ArrayList<>();
@@ -289,11 +298,11 @@ public final class DesignPlanProjector {
    * script requires an owner. It is not a post-drop retention pass.
    */
   private static ParsedPlannerReport projectScriptGeneratorSteps(
-      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
+      ParsedPlannerReport parsed, ChainSemanticRevision revision, RequirementBrief brief) {
     List<String> behaviorOwned =
         DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
     boolean needsBehaviorOwner = !behaviorOwned.isEmpty();
-    List<MappingIntent> remaining = new ArrayList<>(revision.mappingIntents());
+    List<MappingIntent> remaining = new ArrayList<>(revision.mappingBodies(brief));
     for (ParsedPlannerReport.Step step : parsed.steps()) {
       if (!hasMappingGeneratorSkill(step) || step.mappingIntentId().isBlank()) {
         continue;
@@ -301,7 +310,7 @@ public final class DesignPlanProjector {
       remaining.removeIf(intent -> intent.mappingIntentId().equals(step.mappingIntentId()));
     }
     Set<String> knownIds = new HashSet<>();
-    for (MappingIntent intent : revision.mappingIntents()) {
+    for (MappingIntent intent : revision.mappingBodies(brief)) {
       knownIds.add(intent.mappingIntentId());
     }
     boolean changed = false;
@@ -405,9 +414,9 @@ public final class DesignPlanProjector {
   }
 
   private static void validateScriptMappingCoverage(
-      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
+      ParsedPlannerReport parsed, ChainSemanticRevision revision, RequirementBrief brief) {
     List<ParsedPlannerReport.Step> mappingSteps = collectMappingGeneratorSteps(parsed);
-    List<MappingIntent> intents = revision.mappingIntents();
+    List<MappingIntent> intents = revision.mappingBodies(brief);
     if (intents.isEmpty()) {
       rejectUnexpectedMappingSteps(mappingSteps);
       return;

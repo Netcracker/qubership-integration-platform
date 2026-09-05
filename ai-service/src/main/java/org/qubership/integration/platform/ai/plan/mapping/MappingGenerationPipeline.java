@@ -78,9 +78,9 @@ public class MappingGenerationPipeline {
     if (!isMappingGenerator(skillId) || revision == null || compilationId == null) {
       return Result.ready(context, List.of(), "");
     }
-    List<MappingIntent> intents = orderedIntents(intentsFor(skillId, revision), context);
+    List<MappingIntent> intents = orderedIntents(intentsFor(skillId, revision, context), context);
     String behaviorContext = "";
-    List<String> requiredBlanks = requiredBlankScriptNodeIds(skillId, revision, graphOf(context));
+    List<String> requiredBlanks = requiredBlankScriptNodeIds(skillId, revision, graphOf(context), context);
     if (SCRIPT_GENERATOR.equals(skillId) && !requiredBlanks.isEmpty()) {
       behaviorContext =
           contextBuilder.renderBehaviorScriptGenerationContext(
@@ -137,7 +137,8 @@ public class MappingGenerationPipeline {
           hop.intent().mappingIntentId(),
           JsonSchemaMappingContractFactory.from(hop.schemas().source().schema()));
     }
-    List<MappingIntent> revisionIntents = revision.mappingIntents();
+    List<MappingIntent> revisionIntents =
+        revision.mappingBodies(context == null ? null : context.requirementBrief());
     StringBuilder rendered = new StringBuilder();
     for (FrozenHop hop : hops) {
       if (!rendered.isEmpty()) {
@@ -176,13 +177,21 @@ public class MappingGenerationPipeline {
    */
   public List<String> requiredBlankScriptNodeIds(
       String skillId, ChainSemanticRevision revision, ChainPlanGraph graph) {
+    return requiredBlankScriptNodeIds(skillId, revision, graph, null);
+  }
+
+  public List<String> requiredBlankScriptNodeIds(
+      String skillId,
+      ChainSemanticRevision revision,
+      ChainPlanGraph graph,
+      GraphPatchExecutionContext context) {
     if (!SCRIPT_GENERATOR.equals(skillId) || graph == null || graph.nodes() == null) {
       return List.of();
     }
     Set<String> blanks = new LinkedHashSet<>();
     Set<String> mappingIntentIds = new LinkedHashSet<>();
     if (revision != null) {
-      for (MappingIntent intent : intentsFor(skillId, revision)) {
+      for (MappingIntent intent : intentsFor(skillId, revision, context)) {
         mappingIntentIds.add(intent.mappingIntentId());
       }
       for (String nodeId :
@@ -260,9 +269,11 @@ public class MappingGenerationPipeline {
     return false;
   }
 
-  private static List<MappingIntent> intentsFor(String skillId, ChainSemanticRevision revision) {
+  private static List<MappingIntent> intentsFor(
+      String skillId, ChainSemanticRevision revision, GraphPatchExecutionContext context) {
     List<MappingIntent> matched = new ArrayList<>();
-    for (MappingIntent intent : revision.mappingIntents()) {
+    for (MappingIntent intent :
+        revision.mappingBodies(context == null ? null : context.requirementBrief())) {
       if (belongsToSkill(intent, skillId)) {
         matched.add(intent);
       }

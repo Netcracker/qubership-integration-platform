@@ -468,7 +468,7 @@ class OneBriefLogTipTest {
   private DefaultApprovedCompilerExecutionRunner executionRunner() {
     CompilerDagExecutionEngine engine = mock(CompilerDagExecutionEngine.class);
     ChainSemanticGraphCompiler graphCompiler = mock(ChainSemanticGraphCompiler.class);
-    when(graphCompiler.compile(any(), any(), any())).thenReturn(engineGraph());
+    when(graphCompiler.compile(any(), any(), any(), any())).thenReturn(engineGraph());
     when(engine.execute(
             any(CompilerDagExecutionRequest.class), any(String.class), any(BiConsumer.class)))
         .thenReturn(Uni.createFrom().item(successfulEngineResult()));

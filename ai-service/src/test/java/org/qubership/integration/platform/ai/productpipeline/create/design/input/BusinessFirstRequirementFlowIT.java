@@ -71,10 +71,11 @@ class BusinessFirstRequirementFlowIT {
                 node ->
                     node instanceof SemanticNode.Operation operation
                         && "generic-barrier".equals(operation.elementType())));
-    MappingIntent captured = revision.mappingIntents().getFirst();
-    assertEquals(MappingPort.RESPONSE, captured.sourcePort());
-    assertEquals(MappingPort.REQUEST, captured.targetPort());
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    assertTrue(revision.mappingIntents().isEmpty());
+    assertTrue(
+        revision.executionEdges().stream()
+            .anyMatch(edge -> mapping.mappingIntentId().equals(edge.mappingId())));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
   }
 
   private static ChainSemanticCapture rockyMappedCapture(String mappingIntentId) {

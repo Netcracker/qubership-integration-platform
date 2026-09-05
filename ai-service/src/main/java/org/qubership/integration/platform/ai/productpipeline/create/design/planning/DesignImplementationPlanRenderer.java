@@ -8,6 +8,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
  * Renders the user-facing {@link ImplementationPlan} from the exact planner report and typed
@@ -17,6 +18,14 @@ public final class DesignImplementationPlanRenderer {
 
   public ImplementationPlan render(
       DesignPlanReport report, DesignExecutionPlan projection, ChainSemanticRevision revision) {
+    return render(report, projection, revision, null);
+  }
+
+  public ImplementationPlan render(
+      DesignPlanReport report,
+      DesignExecutionPlan projection,
+      ChainSemanticRevision revision,
+      RequirementBrief brief) {
     Objects.requireNonNull(report, "report");
     Objects.requireNonNull(projection, "projection");
     Objects.requireNonNull(revision, "revision");
@@ -84,9 +93,9 @@ public final class DesignImplementationPlanRenderer {
       body.append('\n').append("## Trigger").append('\n').append("- ").append(triggerFact).append('\n');
     }
 
-    if (!revision.mappingIntents().isEmpty()) {
+    if (!revision.mappingBodies(brief).isEmpty()) {
       body.append('\n').append("## Approved mapping intents").append('\n');
-      for (MappingIntent mapping : revision.mappingIntents()) {
+      for (MappingIntent mapping : revision.mappingBodies(brief)) {
         String mappingFact =
             mapping.mappingIntentId()
                 + " "
