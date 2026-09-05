@@ -139,6 +139,7 @@ public final class ProductPipelineRunSupport {
           Kind.IMPLEMENTATION_PLAN,
           Kind.CHAIN_PLAN_GRAPH,
           Kind.CHAIN_SEMANTIC_REVISION,
+          Kind.IDS_DOCUMENT,
           Kind.GRAPH_PATCH_ARTIFACT,
           Kind.GRAPH_ASSEMBLY_RESULT,
           Kind.COMPILER_VALIDATION_BUNDLE,
