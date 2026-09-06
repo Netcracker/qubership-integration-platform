@@ -48,6 +48,26 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void missingApprovedDraftReopensRequirementDiscovery() {
+    ProducerOwnedRecovery.Route route =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                "requirement-analysis",
+                StageOutcomeClass.MISSING_MANDATORY_INPUT,
+                RecoveryCause.of(RecoveryCauseCode.MISSING_MANDATORY_INPUT),
+                List.of(
+                    new OwnerCandidate("requirement-analysis", "requirement-brief"),
+                    new OwnerCandidate("requirement-discovery", "requirement-draft")),
+                false,
+                0,
+                1,
+                Optional.empty()));
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("requirement-discovery", route.producerStageId());
+  }
+
+  @Test
   void anInvalidApprovedBriefReopensRequirementAnalysis() {
     ProducerOwnedRecovery.Route route =
         route(

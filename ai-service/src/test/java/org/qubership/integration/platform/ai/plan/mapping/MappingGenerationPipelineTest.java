@@ -102,7 +102,8 @@ class MappingGenerationPipelineTest {
     persistSide("trigger-http", MappingPort.OUTPUT, orderSchema);
     persistSide("call-1", MappingPort.REQUEST, orderSchema);
     MappingIntent intent = identityOrderId();
-    GraphPatchExecutionContext context = sampleContext(List.of(pinnedSourceRef()));
+    GraphPatchExecutionContext context =
+        sampleContext(List.of(pinnedSourceRef()), List.of(intent));
 
     MappingGenerationPipeline.Result prepared =
         pipeline.prepare(
@@ -144,7 +145,7 @@ class MappingGenerationPipelineTest {
             SCRIPT_SKILL,
             revisionWith(intent),
             List.of(binding()),
-            sampleContext(List.of()));
+            sampleContext(List.of(), List.of(intent)));
 
     assertFalse(prepared.blocked(), prepared.blockedMessage());
     assertTrue(artifacts.history(COMPILATION_ID, Kind.MAPPING_SCHEMA_SIDE).isEmpty());
@@ -170,7 +171,7 @@ class MappingGenerationPipelineTest {
             SCRIPT_SKILL,
             revisionWith(unresolved),
             List.of(binding()),
-            sampleContext(List.of()));
+            sampleContext(List.of(), List.of(unresolved)));
 
     assertTrue(prepared.blocked());
     assertTrue(
@@ -224,7 +225,8 @@ class MappingGenerationPipelineTest {
             "graph-1",
             "compiler-1",
             "24.4",
-            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary")
+                .withMappingIntents(List.of(downstream, upstream)),
             List.of(),
             graph,
             GraphPatchOwnershipPolicy.denyAll(),
@@ -291,7 +293,7 @@ class MappingGenerationPipelineTest {
             List.of(
                 binding("node-call-a", "call-a", "op-a"),
                 binding("node-call-b", "call-b", "op-b")),
-            sampleContext(List.of()));
+            sampleContext(List.of(), List.of(intent)));
 
     assertFalse(prepared.blocked(), prepared.blockedMessage());
     assertTrue(prepared.mappingGenerationContext().contains("Replace the complete script body"));
@@ -320,7 +322,7 @@ class MappingGenerationPipelineTest {
             SCRIPT_SKILL,
             revisionWith(unresolved),
             List.of(binding()),
-            sampleContext(List.of()));
+            sampleContext(List.of(), List.of(unresolved)));
 
     assertTrue(prepared.blocked());
     assertTrue(
@@ -364,6 +366,33 @@ class MappingGenerationPipelineTest {
     assertFalse(prepared.blocked(), prepared.blockedMessage());
     assertTrue(prepared.mappingGenerationContext().isBlank());
     assertTrue(prepared.envelopeRefs().isEmpty());
+  }
+
+  @Test
+  void prepareReadsMappingBodiesFromTheBriefWhenRevisionListIsEmpty() {
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "", "commandType", "Set to completeTask.", MappingRuleStatus.USER_DEFINED)));
+    ChainSemanticRevision revision = SemanticFixtures.withoutMappingBodies(revisionWith(intent));
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            revision,
+            List.of(binding()),
+            sampleContext(List.of(), List.of(intent)));
+
+    assertTrue(revision.mappingIntents().isEmpty());
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertFalse(prepared.mappingGenerationContext().isBlank());
   }
 
   @Test
@@ -590,6 +619,11 @@ class MappingGenerationPipelineTest {
   }
 
   private static GraphPatchExecutionContext sampleContext(List<Reference> consumed) {
+    return sampleContext(consumed, List.of());
+  }
+
+  private static GraphPatchExecutionContext sampleContext(
+      List<Reference> consumed, List<MappingIntent> mappingIntents) {
     ChainPlanGraph graph =
         new ChainPlanGraph("1.0", new ChainSection("id", "name"), List.of(), List.of());
     return new GraphPatchExecutionContext(
@@ -599,7 +633,8 @@ class MappingGenerationPipelineTest {
         "graph-1",
         "compiler-1",
         "24.4",
-        new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+        new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withMappingIntents(mappingIntents),
         consumed,
         graph,
         GraphPatchOwnershipPolicy.denyAll(),

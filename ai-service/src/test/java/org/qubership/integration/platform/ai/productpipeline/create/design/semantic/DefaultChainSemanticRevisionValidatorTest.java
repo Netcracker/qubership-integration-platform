@@ -36,7 +36,8 @@ class DefaultChainSemanticRevisionValidatorTest {
   void rejectsInvalidRevisions(String unused, ChainSemanticRevision revision, String message) {
     IllegalArgumentException error =
         assertThrows(
-            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT));
+            IllegalArgumentException.class,
+            () -> validator.validate(revision, CONTRACT, briefFrom(revision)));
     assertTrue(error.getMessage().startsWith("Invalid chain semantic revision:"));
     assertTrue(error.getMessage().contains(message), error.getMessage());
   }
@@ -111,21 +112,21 @@ class DefaultChainSemanticRevisionValidatorTest {
 
   @Test
   void acceptsLinearSequenceAndSingleBranchAsyncSplit() {
-    assertDoesNotThrow(() -> validator.validate(linearRevision(), CONTRACT));
-    assertDoesNotThrow(() -> validator.validate(asyncSplitOneBranchRevision(), CONTRACT));
-    assertDoesNotThrow(() -> validator.validate(typedLoopRevision(), CONTRACT));
+    assertDoesNotThrow(() -> validate(linearRevision()));
+    assertDoesNotThrow(() -> validate(asyncSplitOneBranchRevision()));
+    assertDoesNotThrow(() -> validate(typedLoopRevision()));
   }
 
   @Test
   void acceptsTypedReconvergenceAndSyncSplit() {
-    assertDoesNotThrow(() -> validator.validate(typedReconvergeRevision(), CONTRACT));
-    assertDoesNotThrow(() -> validator.validate(syncSplitRevision(), CONTRACT));
+    assertDoesNotThrow(() -> validate(typedReconvergeRevision()));
+    assertDoesNotThrow(() -> validate(syncSplitRevision()));
   }
 
   @Test
   void acceptsRetryAndErrorScope() {
-    assertDoesNotThrow(() -> validator.validate(retryRevision(), CONTRACT));
-    assertDoesNotThrow(() -> validator.validate(errorScopeRevision("catch-all"), CONTRACT));
+    assertDoesNotThrow(() -> validate(retryRevision()));
+    assertDoesNotThrow(() -> validate(errorScopeRevision("catch-all")));
   }
 
   @Test
@@ -133,7 +134,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(revisionWithDuplicateServiceCallId(), CONTRACT));
+            () -> validate(revisionWithDuplicateServiceCallId()));
     assertTrue(error.getMessage().contains("Duplicate serviceCallId: call-1"), error.getMessage());
   }
 
@@ -142,7 +143,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(revisionWithOrphanMapping(), CONTRACT));
+            () -> validate(revisionWithOrphanMapping()));
     assertTrue(error.getMessage().contains("orphan mapping intent: map-orphan"), error.getMessage());
   }
 
@@ -151,13 +152,13 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(revisionWithOrphanScript(), CONTRACT));
+            () -> validate(revisionWithOrphanScript()));
     assertTrue(error.getMessage().contains("orphan script: orphan-script"), error.getMessage());
   }
 
   @Test
   void mappingOwnedScriptStaysOneToOneWithMappingIntent() {
-    assertDoesNotThrow(() -> validator.validate(linearRevision(), CONTRACT));
+    assertDoesNotThrow(() -> validate(linearRevision()));
   }
 
   @Test
@@ -165,7 +166,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(revisionWithScriptBoundToTwoIntents(), CONTRACT));
+            () -> validate(revisionWithScriptBoundToTwoIntents()));
     assertTrue(error.getMessage().contains("op-shared"), error.getMessage());
     assertTrue(error.getMessage().contains("mapping"), error.getMessage());
   }
@@ -205,7 +206,7 @@ class DefaultChainSemanticRevisionValidatorTest {
 
   @Test
   void acceptsErrorHandlingScriptInApprovedRegion() {
-    assertDoesNotThrow(() -> validator.validate(errorScopeRevision("catch-all"), CONTRACT));
+    assertDoesNotThrow(() -> validate(errorScopeRevision("catch-all")));
   }
 
   @Test
@@ -213,7 +214,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(revisionWithUnknownElement(), CONTRACT));
+            () -> validate(revisionWithUnknownElement()));
     assertTrue(error.getMessage().contains("Unknown contract element: choice"), error.getMessage());
   }
 
@@ -222,7 +223,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(revisionWithHiddenJoin(), CONTRACT));
+            () -> validate(revisionWithHiddenJoin()));
     assertTrue(
         error.getMessage().contains("Unsupported topology: generic-barrier"), error.getMessage());
   }
@@ -242,7 +243,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(linearRevision(), oldSchema));
+            () -> validator.validate(linearRevision(), oldSchema, briefFrom(linearRevision())));
     assertTrue(error.getMessage().contains("semantic schema version"), error.getMessage());
     assertTrue(error.getMessage().contains("normalized-design-flow/v1"), error.getMessage());
   }
@@ -252,7 +253,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(revisionWithMissingRoute(), CONTRACT));
+            () -> validate(revisionWithMissingRoute()));
     assertTrue(error.getMessage().contains("missing a route"), error.getMessage());
   }
 
@@ -278,7 +279,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     IllegalArgumentException error =
         assertThrows(
             IllegalArgumentException.class,
-            () -> validator.validate(linearRevision(), otherContract));
+            () -> validator.validate(linearRevision(), otherContract, briefFrom(linearRevision())));
     assertTrue(error.getMessage().contains("compiler contract version"), error.getMessage());
     assertTrue(
         error.getMessage().contains("create-chain-compiler-contract/v0"), error.getMessage());
@@ -397,6 +398,15 @@ class DefaultChainSemanticRevisionValidatorTest {
         edges,
         linear.containment(),
         List.of(mapping("map-a", "edge-entry"), mapping("map-b", "edge-call")));
+  }
+
+  private void validate(ChainSemanticRevision revision) {
+    validator.validate(revision, CONTRACT, briefFrom(revision));
+  }
+
+  private static RequirementBrief briefFrom(ChainSemanticRevision revision) {
+    return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(revision.mappingIntents());
   }
 
   private static RequirementBrief briefWithFact(RequirementFact fact) {

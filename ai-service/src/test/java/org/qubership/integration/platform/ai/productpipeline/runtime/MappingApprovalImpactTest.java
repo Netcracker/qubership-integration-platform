@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,6 +43,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation.TransitionRef;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
@@ -118,6 +120,7 @@ class MappingApprovalImpactTest {
     String envelopeHash = committedHash(Kind.MAPPING_ENVELOPE);
     String patchHash = committedHash(Kind.GRAPH_PATCH_ARTIFACT);
     String validationHash = committedHash(Kind.COMPILER_VALIDATION_BUNDLE);
+    String idsHash = committedHash(Kind.IDS_DOCUMENT);
     SemanticRecoveryState.RemainingAttempts before = remaining();
 
     type(CHANGE_MESSAGE);
@@ -140,10 +143,52 @@ class MappingApprovalImpactTest {
     assertTrue(hashes.contains(envelopeHash));
     assertTrue(hashes.contains(patchHash));
     assertTrue(hashes.contains(validationHash));
+    assertTrue(hashes.contains(idsHash));
     RequirementBrief updated = (RequirementBrief) attributes.get("requirementBrief");
     assertEquals("$.title", updated.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    RequirementBrief stored =
+        artifactStore
+            .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+            .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+            .orElseThrow();
+    assertEquals("$.title", stored.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertNotEquals(briefHash, committedHash(Kind.REQUIREMENT_BRIEF));
     assertEquals(CHANGE_MESSAGE, attributes.get("userText"));
     assertEquals(before, remaining());
+  }
+
+  @Test
+  void mappingChangeAfterCaptureReopensAnalysisAndSupersedesRevisionAndIds() {
+    useFourStageRuntime();
+    waitAtPlanningApproval();
+    String briefHash = committedHash(Kind.REQUIREMENT_BRIEF);
+    String revisionHash = committedHash(Kind.CHAIN_SEMANTIC_REVISION);
+    String idsHash = committedHash(Kind.IDS_DOCUMENT);
+    String planHash = committedHash(Kind.IMPLEMENTATION_PLAN);
+
+    type(CHANGE_MESSAGE);
+
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, run().run().status());
+    assertEquals(StageStatus.RUNNING, snapshot("requirement-analysis").status());
+    assertEquals(StageStatus.PENDING, snapshot("design-input").status());
+    assertEquals(StageStatus.PENDING, snapshot("planning").status());
+    assertTrue(snapshot("design-input").outputRefs().isEmpty());
+    assertTrue(snapshot("planning").outputRefs().isEmpty());
+    Map<String, Object> attributes = support.runAttributes(RUN_ID);
+    assertEquals(briefHash, attributes.get(ProductPipelineRunSupport.SUPERSEDED_BRIEF_CONTENT_HASH_ATTR));
+    Object superseded = attributes.get(ProductPipelineRunSupport.SUPERSEDED_ARTIFACT_HASHES_ATTR);
+    assertInstanceOf(List.class, superseded);
+    List<?> hashes = (List<?>) superseded;
+    assertTrue(hashes.contains(revisionHash));
+    assertTrue(hashes.contains(idsHash));
+    assertTrue(hashes.contains(planHash));
+    RequirementBrief stored =
+        artifactStore
+            .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+            .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+            .orElseThrow();
+    assertEquals("$.title", stored.mappingIntents().getFirst().rules().getFirst().sourcePath());
   }
 
   @Test
@@ -231,6 +276,24 @@ class MappingApprovalImpactTest {
     assertEquals("planning", run().run().currentStageId());
   }
 
+  private void useFourStageRuntime() {
+    profile = fourStageProfile();
+    support =
+        ProductPipelineRunSupport.builder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(
+                        analysisCapability(),
+                        designInputCapability(),
+                        planningCapability(),
+                        executionCapability())),
+                clock)
+            .mappingTurnAdapter((brief, message) -> mappingAdapter.interpret(brief, message))
+            .build();
+    runtime = new CreateChainTestOrchestrator(support, runStore);
+  }
+
   private void storeDownstreamArtifacts() {
     append(
         Kind.CHAIN_SEMANTIC_REVISION,
@@ -240,6 +303,7 @@ class MappingApprovalImpactTest {
     append(Kind.MAPPING_ENVELOPE, "1", Map.of("digest", "envelope-1"));
     append(Kind.GRAPH_PATCH_ARTIFACT, "1", Map.of("patchId", "patch-1"));
     append(Kind.COMPILER_VALIDATION_BUNDLE, "1", Map.of("bundle", "ok"));
+    append(Kind.IDS_DOCUMENT, "1", sampleIds());
   }
 
   private void append(Kind kind, String schemaVersion, Object payload) {
@@ -354,11 +418,35 @@ class MappingApprovalImpactTest {
             null));
   }
 
+  private static StageCapability designInputCapability() {
+    return new ScriptedCapability(
+        "design-input",
+        new StageOutcome(
+            StageOutcomeClass.SUCCEEDED,
+            List.of(
+                new ArtifactCandidate(
+                    Kind.CHAIN_SEMANTIC_REVISION, SemanticFixtures.linearOrders(), List.of()),
+                new ArtifactCandidate(Kind.IDS_DOCUMENT, sampleIds(), List.of())),
+            "revision ready",
+            null));
+  }
+
   private static StageCapability executionCapability() {
     return new ScriptedCapability(
         "design-execution",
         new StageOutcome(
             StageOutcomeClass.CONTRACT_FAILURE, List.of(), "execution must not run", null));
+  }
+
+  private static IdsDocument sampleIds() {
+    return new IdsDocument(
+        "1",
+        IdsDocument.Mode.DERIVED,
+        "brief-1",
+        "source-hash",
+        "flow-hash",
+        "design-generator@1",
+        "# ids");
   }
 
   private static RequirementBrief mappedBrief() {
@@ -431,6 +519,55 @@ class MappingApprovalImpactTest {
         List.of("requirement-analysis", "planning", "design-execution"));
   }
 
+  private static ProductPipelineProfile fourStageProfile() {
+    ArtifactTypeRef userInput = new ArtifactTypeRef("user-input", 1);
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef semantic = new ArtifactTypeRef("chain-semantic-revision", 1);
+    ArtifactTypeRef ids = new ArtifactTypeRef("ids-document", 1);
+    ArtifactTypeRef plan = new ArtifactTypeRef("implementation-plan", 1);
+    ArtifactTypeRef graph = new ArtifactTypeRef("chain-plan-graph", 1);
+    return new ProductPipelineProfile(
+        1,
+        "test-mapping-approval-impact-capture",
+        "1",
+        List.of(userInput),
+        List.of(
+            new ProfileStage(
+                "requirement-analysis",
+                "requirement-analysis",
+                List.of(userInput),
+                List.of(brief),
+                new ApprovalPolicy(brief, List.of(brief)),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-input",
+                "design-input",
+                List.of(brief),
+                List.of(semantic, ids),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "planning",
+                "planning",
+                List.of(brief, semantic),
+                List.of(plan),
+                new ApprovalPolicy(plan, List.of(plan)),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-execution",
+                "design-execution",
+                List.of(plan),
+                List.of(graph),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-execution", "CHAIN_READY"),
+        List.of("requirement-analysis", "design-input", "planning", "design-execution"));
+  }
+
   private RunManifest manifest() {
     return new RunManifest(
         RUN_ID,
@@ -444,6 +581,7 @@ class MappingApprovalImpactTest {
         "baseline-sha",
         List.of(
             new DependencyClosureEntry("requirement-analysis", "1", "c1"),
+            new DependencyClosureEntry("design-input", "1", "c1b"),
             new DependencyClosureEntry("planning", "1", "c2"),
             new DependencyClosureEntry("design-execution", "1", "c3")),
         "closure-sha",

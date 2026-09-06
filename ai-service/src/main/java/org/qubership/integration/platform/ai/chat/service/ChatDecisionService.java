@@ -240,7 +240,11 @@ public class ChatDecisionService {
           case ChatEvent.CANCEL_DEPLOY_ACTION -> "Do not deploy the chain";
           case ChatEvent.UNDEPLOY_ACTION -> "Undeploy the chain from domain " + domainName;
           case ChatEvent.CANCEL_UNDEPLOY_ACTION -> "Leave the live deployment in place";
-          case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
+          case ChatEvent.IMPORT_ACTION, ChatEvent.IMPORT_INTERNAL_ACTION,
+                  ChatEvent.IMPORT_EXTERNAL_ACTION ->
+              ChatEvent.importTranscriptMarker(
+                  command.getAction(),
+                  UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType()));
           case ChatEvent.RETRY_CREATION_ACTION -> "Retry chain creation";
           case ChatEvent.EDIT_REQUIREMENTS_ACTION -> "Edit the requirements";
           case ChatEvent.REBUILD_PLAN_ACTION -> "Rebuild the plan";
@@ -253,6 +257,19 @@ public class ChatDecisionService {
         };
     String comment = command.getComment() == null ? "" : command.getComment().strip();
     return comment.isEmpty() ? marker : marker + "\n\n" + comment;
+  }
+
+  public void rememberImportChoice(String conversationId, ChatDecisionCommand command) {
+    if (command == null) {
+      return;
+    }
+    String action = command.getAction();
+    if (ChatEvent.isImportAction(action)
+        || (UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType())
+            && ChatEvent.APPROVE_ACTION.equals(action))) {
+      draftStore.rememberPreferredSystemType(
+          conversationId, ChatEvent.systemTypeForImportAction(action));
+    }
   }
 
   public Multi<ChatEvent> apply(String conversationId, ChatDecisionCommand command) {
@@ -362,7 +379,7 @@ public class ChatDecisionService {
       return "Revising the current stage.";
     }
     if (PipelineGates.RETRY_ACTION.equals(action)) {
-      return "Retrying the current stage.";
+      return "Going back one step.";
     }
     return "Resuming the current stage.";
   }
@@ -394,7 +411,7 @@ public class ChatDecisionService {
    * action the card actually offers. New recovery cards never list stage ids.
    */
   private boolean isOpenClarifyChoice(String conversationId, String action) {
-    if (action == null || action.isBlank() || ChatEvent.IMPORT_ACTION.equals(action)) {
+    if (action == null || action.isBlank() || ChatEvent.isImportAction(action)) {
       return false;
     }
     return openDecision(conversationId)
@@ -517,9 +534,10 @@ public class ChatDecisionService {
           conversationId);
       return Multi.createFrom().empty();
     }
-    if (!ChatEvent.APPROVE_ACTION.equals(action)) {
+    if (!ChatEvent.isImportAction(action) && !ChatEvent.APPROVE_ACTION.equals(action)) {
       return Multi.createFrom().empty();
     }
+    rememberImportChoice(conversationId, command);
     ChatEvent.Decision decision =
         new ChatEvent.Decision(
             UploadedSpecsApprovalHandler.ARTIFACT_TYPE + ":" + command.getArtifactHash(),
@@ -556,7 +574,7 @@ public class ChatDecisionService {
         continue;
       }
       String text = message.content() == null ? "" : message.content();
-      if (text.startsWith("Approved ") || text.startsWith("Answered ")) {
+      if (ChatEvent.isSyntheticDecisionTurn(text)) {
         continue;
       }
       return text;

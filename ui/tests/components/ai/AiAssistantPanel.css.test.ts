@@ -73,6 +73,16 @@ describe("AiAssistantPanel.css polish contracts", () => {
 
     const content = declarationsFor(css, ".ai-message-list__content");
     expect(content).toContain("min-height: 100%");
+
+    const drawerBody = declarationsFor(
+      css,
+      ".ai-assistant-drawer .ant-drawer-body",
+    );
+    expect(drawerBody).toContain("min-width: 0");
+
+    const card = declarationsFor(css, ".ai-decision-card");
+    expect(card).toContain("max-width: 100%");
+    expect(card).toContain("min-width: 0");
   });
 
   it("should right-align Copy and Regenerate on assistant turns", () => {

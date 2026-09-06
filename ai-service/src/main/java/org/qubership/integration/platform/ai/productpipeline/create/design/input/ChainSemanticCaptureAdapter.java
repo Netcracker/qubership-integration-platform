@@ -19,7 +19,6 @@ import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
-import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
@@ -121,7 +120,7 @@ public class ChainSemanticCaptureAdapter {
     List<MappingIntent> mappingIntents = mappingIntents(authoritative, edges, nodes);
     List<SemanticContainment> containment = containment(capture, nodeIds);
 
-    ChainSemanticRevision provisional =
+    ChainSemanticRevision forIdentity =
         new ChainSemanticRevision(
             contract.semanticSchemaVersion(),
             seedRevisionId(runId, contract),
@@ -136,8 +135,21 @@ public class ChainSemanticCaptureAdapter {
             authoritative.constraints(),
             authoritative.assumptions(),
             authoritative.citations());
-    return withRevisionId(
-        provisional, REVISION_ID_PREFIX + canonicalizer.sha256(provisional).substring(0, 32));
+    String revisionId = REVISION_ID_PREFIX + canonicalizer.sha256(forIdentity).substring(0, 32);
+    return new ChainSemanticRevision(
+        forIdentity.schemaVersion(),
+        revisionId,
+        forIdentity.chainIdentity(),
+        forIdentity.compilerContractVersion(),
+        forIdentity.entryPoints(),
+        forIdentity.nodes(),
+        forIdentity.regions(),
+        forIdentity.executionEdges(),
+        forIdentity.containment(),
+        List.of(),
+        forIdentity.constraints(),
+        forIdentity.assumptions(),
+        forIdentity.citations());
   }
 
   // Nodes
@@ -512,7 +524,7 @@ public class ChainSemanticCaptureAdapter {
   private static List<MappingIntent> mappingIntents(
       RequirementBrief brief, List<SemanticExecutionEdge> edges, List<SemanticNode> nodes) {
     Map<String, MappingIntent> approved = new LinkedHashMap<>();
-    for (MappingIntent intent : RequirementBriefProjector.collapseMappingIntents(brief)) {
+    for (MappingIntent intent : brief.mappingIntents()) {
       if (intent != null && !intent.mappingIntentId().isBlank()) {
         approved.put(intent.mappingIntentId(), intent);
       }
@@ -629,24 +641,6 @@ public class ChainSemanticCaptureAdapter {
   private static String seedRevisionId(String runId, CompilerContract contract) {
     return REVISION_ID_PREFIX
         + sha256Hex(runId + KEY_SEPARATOR + contract.sha256()).substring(0, 32);
-  }
-
-  private static ChainSemanticRevision withRevisionId(
-      ChainSemanticRevision revision, String revisionId) {
-    return new ChainSemanticRevision(
-        revision.schemaVersion(),
-        revisionId,
-        revision.chainIdentity(),
-        revision.compilerContractVersion(),
-        revision.entryPoints(),
-        revision.nodes(),
-        revision.regions(),
-        revision.executionEdges(),
-        revision.containment(),
-        revision.mappingIntents(),
-        revision.constraints(),
-        revision.assumptions(),
-        revision.citations());
   }
 
   private static String chainIdentity(ChainSemanticCapture capture, RequirementBrief brief) {

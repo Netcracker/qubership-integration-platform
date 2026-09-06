@@ -141,6 +141,18 @@ class PipelineGatesTest {
   }
 
   @Test
+  void aRetryClickThatStillCarriesAnInlinedAttachmentIsAHaltCardAction() {
+    String retryWithSpec =
+        "retry\n\n---\n\n- `Salesforce WFM.json` (inlined)\n\n{\"openapi\":\"3.0.0\"}";
+
+    assertEquals(PipelineGates.RETRY_ACTION, PipelineGates.haltCardAction(retryWithSpec));
+    assertTrue(PipelineGates.isHaltCardAction(retryWithSpec));
+    assertEquals(PipelineGates.RETRY_ACTION, PipelineGates.haltCardAction("retry"));
+    assertEquals("", PipelineGates.haltCardAction("retry the import"));
+    assertEquals("", PipelineGates.haltCardAction("retry-creation"));
+  }
+
+  @Test
   void anUntaggedPromptNamesNoGateAndSurvivesStripping() {
     assertTrue(PipelineGates.gateOf("Which system receives the message?").isEmpty());
     assertEquals(

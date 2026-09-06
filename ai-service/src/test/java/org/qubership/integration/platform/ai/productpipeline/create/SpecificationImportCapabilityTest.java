@@ -115,6 +115,34 @@ class SpecificationImportCapabilityTest {
   }
 
   @Test
+  void importsWithDraftPreferredSystemType() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    ConversationCatalogCache catalogCache = mock(ConversationCatalogCache.class);
+    RequirementDraft draft = pendingDraft().withPreferredSystemType("EXTERNAL");
+    RequirementDraft bound =
+        draft.withBoundInteraction(
+            "call-geosite", bindingHint("call-geosite", "GeoSite catalog",
+                new ResolvedCatalogBinding("sys", "spec", "group", "op", "EXTERNAL")));
+    when(store.get("conv-1")).thenReturn(Optional.of(draft), Optional.of(bound));
+    when(gateway.importApiHubSpecification(eq("conv-1"), any(), eq("EXTERNAL")))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new ApiHubSpecificationImportResult(
+                        "sys", "spec", "group", "imp-1", "GeoSite", Optional.of("op"),
+                        "EXTERNAL")));
+
+    CapabilitySignal.Completed completed =
+        run(
+            new SpecificationImportCapability(gateway, store, catalogCache),
+            Map.of("approvedDraft", draft, "userText", ChatEvent.IMPORT_EXTERNAL_MARKER));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    verify(gateway).importApiHubSpecification(eq("conv-1"), any(), eq("EXTERNAL"));
+  }
+
+  @Test
   void importsOnDecisionMarkerAndMutatesDraft() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     RequirementDraftStore store = mock(RequirementDraftStore.class);
@@ -130,7 +158,7 @@ class SpecificationImportCapabilityTest {
     ApiHubSpecificationImportResult result =
         new ApiHubSpecificationImportResult(
             "sys", "spec", "group", "imp-1", "GeoSite", Optional.of("op"));
-    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class)))
+    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class), eq("INTERNAL")))
         .thenReturn(Uni.createFrom().item(result));
 
     CapabilitySignal.Completed completed =
@@ -144,7 +172,7 @@ class SpecificationImportCapabilityTest {
     assertNull(produced.apiHubCandidate());
     assertFalse(produced.importIntent());
     assertEquals("sys", produced.catalogBindings().getFirst().systemId());
-    verify(gateway).importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class));
+    verify(gateway).importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class), eq("INTERNAL"));
     verify(store).applyImportResult(eq("conv-1"), any(), any());
   }
 
@@ -155,7 +183,7 @@ class SpecificationImportCapabilityTest {
     RequirementDraft draft = pendingDraft();
     RequirementDraft afterFail = draft.clearApiHubCandidate().withImportIntent(true);
     when(store.get("conv-1")).thenReturn(Optional.of(draft), Optional.of(afterFail));
-    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class)))
+    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class), eq("INTERNAL")))
         .thenReturn(Uni.createFrom().failure(new RuntimeException("catalog rejected")));
 
     CapabilitySignal.Completed completed =
@@ -238,7 +266,7 @@ class SpecificationImportCapabilityTest {
     ApiHubSpecificationImportResult result =
         new ApiHubSpecificationImportResult(
             "sys-om", "spec-om", "group-om", "imp-1", "OM", Optional.of("op-onTaskResult"));
-    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class)))
+    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class), eq("INTERNAL")))
         .thenReturn(Uni.createFrom().item(result));
 
     CapabilitySignal.Completed completed =

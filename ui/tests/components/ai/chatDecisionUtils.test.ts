@@ -6,10 +6,16 @@ import {
   appendDecision,
   decisionCardText,
   findDecision,
+  hasUnansweredDecision,
+  isBlankClarifyHalt,
   isDecisionMessage,
   markDecisionAnswered,
+  openingUserAssignment,
   reconcileDecisionMessages,
+  recoveryCardActions,
   removeDecision,
+  unansweredDecision,
+  composerDraftText,
   visibleDecisionNarrative,
   visibleMissingEvidence,
 } from "../../../src/components/ai/chatDecisionUtils.ts";
@@ -346,5 +352,111 @@ describe("decision entry round trip through the session store", () => {
 
     const decisionMessage = reloaded?.messages.find(isDecisionMessage);
     expect(decisionMessage?.decision).toEqual(decision);
+  });
+});
+
+describe("recoveryCardActions", () => {
+  it("should default regeneratable halts to Retry creation and End run", () => {
+    expect(
+      recoveryCardActions(
+        buildDecision({
+          kind: "clarify",
+          question: "needs regeneration",
+          actions: [],
+          recovery: {
+            category: "regeneratable-execution-failure",
+            title: "Creation output needs regeneration",
+            summary: "The capture was rejected.",
+            preservedWork: "Saved.",
+            technicalDetails: "",
+          },
+        }),
+      ),
+    ).toEqual(["retry-creation", "stop-with-report"]);
+  });
+});
+
+describe("openingUserAssignment", () => {
+  it("should return the first user message", () => {
+    expect(
+      openingUserAssignment([
+        { role: "user", content: "Create OM to Salesforce WFM" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "no" },
+      ]),
+    ).toBe("Create OM to Salesforce WFM");
+  });
+});
+
+describe("hasUnansweredDecision", () => {
+  it("should be true when a card is still open", () => {
+    expect(
+      hasUnansweredDecision([
+        {
+          role: "assistant",
+          content: "",
+          decision: buildDecision(),
+        },
+      ]),
+    ).toBe(true);
+  });
+});
+
+describe("composerDraftText", () => {
+  it("should prefer the visible textarea when React state is empty", () => {
+    expect(composerDraftText("", "Use Salesforce WFM-1.0.0")).toBe(
+      "Use Salesforce WFM-1.0.0",
+    );
+  });
+
+  it("should use React state when the textarea is empty", () => {
+    expect(composerDraftText("typed in React", "")).toBe("typed in React");
+  });
+
+  it("should prefer the textarea when both React and the DOM have text", () => {
+    expect(composerDraftText("stale React", "visible draft")).toBe(
+      "visible draft",
+    );
+  });
+});
+
+describe("unansweredDecision", () => {
+  it("should return the last open card", () => {
+    const older = buildDecision({ id: "gate-1" });
+    const latest = buildDecision({ id: "gate-2", kind: "clarify" });
+    expect(
+      unansweredDecision([
+        { role: "assistant", content: "", decision: older },
+        { role: "assistant", content: "choose a spec", decision: latest },
+      ]),
+    ).toBe(latest);
+  });
+
+  it("should skip an answered card and return an older open one", () => {
+    const open = buildDecision({ id: "gate-1" });
+    const answered = buildDecision({
+      id: "gate-2",
+      answeredAction: "retry",
+    });
+    expect(
+      unansweredDecision([
+        { role: "assistant", content: "", decision: open },
+        { role: "assistant", content: "", decision: answered },
+      ]),
+    ).toBe(open);
+  });
+});
+
+describe("isBlankClarifyHalt", () => {
+  it("should detect an empty free-text clarify", () => {
+    expect(
+      isBlankClarifyHalt(
+        buildDecision({
+          kind: "clarify",
+          question: "   ",
+          actions: [],
+        }),
+      ),
+    ).toBe(true);
   });
 });

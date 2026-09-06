@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlan;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -190,6 +191,27 @@ public record CompilerExecutionSeed(
       ChainEditIntent intent,
       List<ResolvedServiceCallBinding> bindings,
       Set<String> extraPreSatisfiedSkillIds) {
+    return forEdit(
+        workspaceId,
+        userRequest,
+        importedGraph,
+        materializationMap,
+        intent,
+        bindings,
+        extraPreSatisfiedSkillIds,
+        null);
+  }
+
+  @SuppressWarnings("java:S107")
+  public static CompilerExecutionSeed forEdit(
+      String workspaceId,
+      String userRequest,
+      ChainPlanGraph importedGraph,
+      MaterializationMap materializationMap,
+      ChainEditIntent intent,
+      List<ResolvedServiceCallBinding> bindings,
+      Set<String> extraPreSatisfiedSkillIds,
+      ChainEditStructuralPlan structuralPlan) {
     Objects.requireNonNull(importedGraph, "importedGraph");
     Objects.requireNonNull(intent, "intent");
     String text = userRequest == null ? "" : userRequest;
@@ -228,6 +250,13 @@ public record CompilerExecutionSeed(
             SEED_PRODUCER,
             new SkillArtifactPayload.ServiceCallBindingsPayload(
                 bindings == null ? List.of() : bindings)));
+    if (structuralPlan != null) {
+      artifacts.add(
+          SkillArtifact.of(
+              SkillArtifactType.CHAIN_EDIT_STRUCTURAL_PLAN,
+              SEED_PRODUCER,
+              new SkillArtifactPayload.ChainEditStructuralPlanPayload(structuralPlan)));
+    }
     LinkedHashSet<String> preSatisfied = new LinkedHashSet<>(EDIT_PRE_SATISFIED_SKILLS);
     if (intent.requiresStructureStage()) {
       preSatisfied.remove(STRUCTURE_GENERATOR_SKILL);

@@ -56,9 +56,14 @@ import {
 } from "./chatMessageUtils.ts";
 import {
   appendDecision,
+  composerDraftText,
+  hasUnansweredDecision,
+  isActionableDecision,
   markDecisionAnswered,
+  openingUserAssignment,
   reconcileDecisionMessages,
   removeDecision,
+  unansweredDecision,
   visibleDecisionNarrative,
 } from "./chatDecisionUtils.ts";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
@@ -523,6 +528,7 @@ export const AiAssistant: React.FC = () => {
             currentMessages,
             chunk.errorMessage,
             accumulatedContent,
+            hasUnansweredDecision(currentMessages) ? "valid" : "stale",
           );
           currentMessages = attachActivityToLastAssistant(
             currentMessages,
@@ -675,7 +681,12 @@ export const AiAssistant: React.FC = () => {
         setProviderError(errorMsg);
         sessionStore.updateSessionMessages(
           sessionId,
-          appendTurnFailure(messages, errorMsg),
+          appendTurnFailure(
+            messages,
+            errorMsg,
+            undefined,
+            hasUnansweredDecision(messages) ? "valid" : "stale",
+          ),
         );
         refreshSessions();
         sendInProgressRef.current = false;
@@ -696,16 +707,18 @@ export const AiAssistant: React.FC = () => {
 
         // Merge attachment URLs and object keys from previous sends
         const prevUrls = currentSessionData?.lastAttachmentUrls ?? [];
-        const incoming = attachmentUrls ?? [];
-        const mergedAttachmentUrls =
-          prevUrls.length || incoming.length
+        const prevKeys = currentSessionData?.lastAttachmentObjectKeys ?? [];
+        const incoming = decision ? [] : (attachmentUrls ?? []);
+        const mergedAttachmentUrls = decision
+          ? undefined
+          : prevUrls.length || incoming.length
             ? [...new Set([...prevUrls, ...incoming])]
             : undefined;
 
-        const prevKeys = currentSessionData?.lastAttachmentObjectKeys ?? [];
-        const incomingKeys = attachmentObjectKeys ?? [];
-        const mergedAttachmentObjectKeys =
-          prevKeys.length || incomingKeys.length
+        const incomingKeys = decision ? [] : (attachmentObjectKeys ?? []);
+        const mergedAttachmentObjectKeys = decision
+          ? undefined
+          : prevKeys.length || incomingKeys.length
             ? [...new Set([...prevKeys, ...incomingKeys])]
             : undefined;
 
@@ -781,7 +794,12 @@ export const AiAssistant: React.FC = () => {
         }
         sessionStore.updateSessionMessages(
           sessionId,
-          appendTurnFailure(sessionMessages, message),
+          appendTurnFailure(
+            sessionMessages,
+            message,
+            undefined,
+            hasUnansweredDecision(sessionMessages) ? "valid" : "stale",
+          ),
         );
         refreshSessions();
       } finally {
@@ -829,6 +847,27 @@ export const AiAssistant: React.FC = () => {
     setCurrentSessionId(newSession.id);
     refreshSessions();
   };
+
+  const handleStartSameTask = useCallback(() => {
+    if (!currentSessionId || isLoading || isStreaming) return;
+    const session = sessionStore.getSession(currentSessionId);
+    if (!session) return;
+    const assignment = openingUserAssignment(session.messages);
+    if (!assignment) return;
+    const newSession = sessionStore.createSession();
+    setCurrentSessionId(newSession.id);
+    refreshSessions();
+    const userMessage: ChatMessage = { role: "user", content: assignment };
+    sessionStore.updateSessionMessages(newSession.id, [userMessage]);
+    void sendToProvider(newSession.id, [userMessage]);
+  }, [
+    currentSessionId,
+    isLoading,
+    isStreaming,
+    sessionStore,
+    refreshSessions,
+    sendToProvider,
+  ]);
 
   const handleSessionChange = (sessionId: string) => {
     sessionStore.setLastActiveSessionId(sessionId);
@@ -973,9 +1012,10 @@ export const AiAssistant: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const handleSend = useCallback(async () => {
-    const rawValue =
-      inputValue || inputRef.current?.resizableTextArea?.textArea?.value || "";
-    const messageText = rawValue.trim();
+    const messageText = composerDraftText(
+      inputValue,
+      inputRef.current?.resizableTextArea?.textArea?.value,
+    );
     if (
       (!messageText && attachedFiles.length === 0) ||
       isLoading ||
@@ -990,6 +1030,13 @@ export const AiAssistant: React.FC = () => {
 
     const session = sessionStore.getSession(sessionId);
     if (!session) return;
+
+    const openDecision = unansweredDecision(session.messages);
+    if (openDecision && messageText && attachedFiles.length === 0) {
+      setInputValue("");
+      await handleClarificationSubmit(openDecision, messageText);
+      return;
+    }
 
     let attachmentUrls: string[] | undefined;
     let attachmentObjectKeys: string[] | undefined;
@@ -1062,6 +1109,7 @@ export const AiAssistant: React.FC = () => {
     isLoading,
     isStreaming,
     attachedFiles,
+    handleClarificationSubmit,
     refreshSessions,
     sendToProvider,
     sessionStore,
@@ -1504,10 +1552,14 @@ export const AiAssistant: React.FC = () => {
                       message.role === "assistant" &&
                       !isErrorBubble &&
                       Boolean(narrativeContent.trim());
+                    const hideChromeRecovery =
+                      message.decision !== undefined &&
+                      isActionableDecision(message.decision);
                     const showRegenerate =
                       message.role === "assistant" &&
                       index === lastAssistantVisibleIndex &&
-                      turnIdle;
+                      turnIdle &&
+                      !hideChromeRecovery;
 
                     return (
                       <div
@@ -1553,6 +1605,24 @@ export const AiAssistant: React.FC = () => {
                                   {message.detail}
                                 </Typography.Paragraph>
                               ) : null}
+                              {message.content.includes(
+                                "Reload this conversation",
+                              ) ? (
+                                <Button
+                                  size="small"
+                                  className="ai-message__reload"
+                                  onClick={() =>
+                                    void reconcileOpenDecision(
+                                      sessionStore.getSession(
+                                        currentSessionId ?? "",
+                                      )?.conversationId,
+                                      currentSessionId,
+                                    )
+                                  }
+                                >
+                                  Reload this conversation
+                                </Button>
+                              ) : null}
                             </div>
                           )}
                           {!isErrorBubble && narrativeContent.trim() && (
@@ -1564,6 +1634,7 @@ export const AiAssistant: React.FC = () => {
                             <AiDecisionCard
                               decision={message.decision}
                               busy={isLoading || isStreaming}
+                              onStartSameTask={handleStartSameTask}
                               onAnswer={(action, comment) =>
                                 void handleDecisionAnswer(
                                   message.decision!,
@@ -1763,6 +1834,7 @@ export const AiAssistant: React.FC = () => {
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              onInput={(e) => setInputValue(e.currentTarget.value)}
               placeholder={`Ask ${assistantName} about this chain...`}
               autoSize={{ minRows: 1, maxRows: 8 }}
               onKeyDown={(e) => {

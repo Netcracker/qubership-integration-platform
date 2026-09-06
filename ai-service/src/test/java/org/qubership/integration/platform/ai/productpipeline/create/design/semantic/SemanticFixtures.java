@@ -254,6 +254,24 @@ public final class SemanticFixtures {
         List.of());
   }
 
+  /** Same topology and edge mapping sites, without a stored mapping-intent array. */
+  public static ChainSemanticRevision withoutMappingBodies(ChainSemanticRevision revision) {
+    return new ChainSemanticRevision(
+        revision.schemaVersion(),
+        revision.revisionId(),
+        revision.chainIdentity(),
+        revision.compilerContractVersion(),
+        revision.entryPoints(),
+        revision.nodes(),
+        revision.regions(),
+        revision.executionEdges(),
+        revision.containment(),
+        List.of(),
+        revision.constraints(),
+        revision.assumptions(),
+        revision.citations());
+  }
+
   /**
    * Two independent entry points that share one downstream operation. Each trigger starts its own
    * exchange; the shared node is not a barrier join.

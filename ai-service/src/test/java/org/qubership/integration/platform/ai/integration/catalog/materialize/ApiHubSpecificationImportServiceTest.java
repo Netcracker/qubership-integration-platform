@@ -195,6 +195,72 @@ class ApiHubSpecificationImportServiceTest {
   }
 
   @Test
+  void importFromRefsCreatesExternalSystemWithoutSlashEnvironment() {
+    ApiHubRequirementRefs refs =
+        new ApiHubRequirementRefs(
+            "S.ActProv.SvcCat",
+            "2026.1@1",
+            "op-get",
+            "api",
+            null,
+            "Service Catalog Management",
+            "Service Catalog");
+    when(catalogRestClient.searchSystems(any())).thenReturn(List.of());
+    when(catalogRestClient.createSystem(
+            new CatalogCreateSystemRequest("Service Catalog Management", "EXTERNAL")))
+        .thenReturn(
+            new CatalogRestClient.SystemDto(
+                "new-sys", "Service Catalog Management", "EXTERNAL", null));
+    when(catalogRestClient.getApiSpecifications("new-sys")).thenReturn(List.of());
+    when(apiHubMcpTools.fetchApiHubDocument(any(), any(), any(), any()))
+        .thenReturn(
+            new ApiHubDocumentPayload(
+                "{\"openapi\":\"3.0.0\"}".getBytes(StandardCharsets.UTF_8), "openapi.json"));
+    when(catalogSpecificationImporter.importOpenApiDocument(any(), any(), any(), any(), any()))
+        .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-2", "group-2", "imp-2"));
+    when(apiHubMcpTools.fetchOperationOpenApiJson(any(), any(), any(), any()))
+        .thenReturn("{\"paths\":{}}".getBytes(StandardCharsets.UTF_8));
+    when(catalogCache.refreshOperations(any(), any(), any())).thenReturn(List.of());
+
+    ApiHubSpecificationImportResult result =
+        service.importFromRefs("conv-ext", refs, "EXTERNAL");
+
+    assertEquals("EXTERNAL", result.systemType());
+    verify(catalogRestClient)
+        .createSystem(new CatalogCreateSystemRequest("Service Catalog Management", "EXTERNAL"));
+    verify(catalogRestClient, never()).createEnvironment(any(), any());
+  }
+
+  @Test
+  void importFromRefsReusesExistingSystemTypeWhenNameMatches() {
+    ApiHubRequirementRefs refs =
+        new ApiHubRequirementRefs(
+            "S.ActProv.SvcCat", "2026.1@1", "op-get", "api", null, "Service Catalog Management",
+            "Service Catalog");
+    when(catalogRestClient.searchSystems(any()))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SystemDto(
+                    "sys-uuid", "Service Catalog Management", "INTERNAL", null)));
+    when(catalogRestClient.getEnvironments("sys-uuid")).thenReturn(List.of());
+    when(catalogRestClient.getApiSpecifications("sys-uuid")).thenReturn(List.of());
+    when(apiHubMcpTools.fetchApiHubDocument(any(), any(), any(), any()))
+        .thenReturn(
+            new ApiHubDocumentPayload("{}".getBytes(StandardCharsets.UTF_8), "openapi.json"));
+    when(catalogSpecificationImporter.importOpenApiDocument(any(), any(), any(), any(), any()))
+        .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "group-1", "imp-1"));
+    when(apiHubMcpTools.fetchOperationOpenApiJson(any(), any(), any(), any()))
+        .thenReturn("{\"paths\":{}}".getBytes(StandardCharsets.UTF_8));
+    when(catalogCache.refreshOperations(any(), any(), any())).thenReturn(List.of());
+
+    ApiHubSpecificationImportResult result =
+        service.importFromRefs("conv-1", refs, "EXTERNAL");
+
+    assertEquals("INTERNAL", result.systemType());
+    verify(catalogRestClient, never()).createSystem(any());
+  }
+
+  @Test
   void belongsToSpecificationGroupMatchesGroupIdNotModelName() {
     CatalogRestClient.SpecificationDto spec =
         new CatalogRestClient.SpecificationDto(

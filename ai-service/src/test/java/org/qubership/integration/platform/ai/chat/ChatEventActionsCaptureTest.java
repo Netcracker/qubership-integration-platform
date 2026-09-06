@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.chat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -124,6 +126,16 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void uploadedImportMarkersDoNotConfirmApiHubImport() {
+    assertFalse(ChatEvent.UPLOADED_IMPORT_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertFalse(ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertTrue(ChatEvent.IMPORT_EXTERNAL_MARKER.startsWith(ChatEvent.IMPORT_MARKER));
+    assertTrue(ChatEvent.isSyntheticDecisionTurn(ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER));
+    assertTrue(ChatEvent.isSyntheticDecisionTurn(ChatEvent.IMPORT_MARKER));
+    assertFalse(ChatEvent.isSyntheticDecisionTurn("Create a CIP chain OM to Salesforce WFM ext01"));
+  }
+
+  @Test
   void mappingGapWithoutASourceHidesPassThroughAndDescribeActions() {
     assertEquals(
         List.of(),
@@ -148,5 +160,21 @@ class ChatEventActionsCaptureTest {
   @Test
   void mappingGapDescribeHasNoEnumerableActions() {
     assertNull(ChatEvent.actionsForGate(PipelineGates.MAPPING_GAP_DESCRIBE));
+  }
+
+  @Test
+  void importGateOffersInternalAndExternalActions() {
+    assertEquals(
+        List.of(ChatEvent.IMPORT_INTERNAL_ACTION, ChatEvent.IMPORT_EXTERNAL_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.IMPORT_SPECIFICATION));
+  }
+
+  @Test
+  void systemTypeForImportActionMapsTypedButtons() {
+    assertEquals("EXTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_EXTERNAL_ACTION));
+    assertEquals("INTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_INTERNAL_ACTION));
+    assertEquals("INTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_ACTION));
+    assertTrue(ChatEvent.isImportAction(ChatEvent.IMPORT_EXTERNAL_ACTION));
+    assertFalse(ChatEvent.isImportAction(ChatEvent.APPROVE_ACTION));
   }
 }

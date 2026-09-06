@@ -33,7 +33,8 @@ public class S3Service {
   public S3Object getObject(String key) {
     var resp =
         s3.getObject(
-            GetObjectRequest.builder().bucket(config.storage().bucketName()).key(key).build());
+            (GetObjectRequest)
+                GetObjectRequest.builder().bucket(config.storage().bucketName()).key(key).build());
     String filename = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
     String ct =
         resp.response().contentType() != null
@@ -56,7 +57,8 @@ public class S3Service {
   public byte[] readObjectBytes(String key) {
     var resp =
         s3.getObject(
-            GetObjectRequest.builder().bucket(config.storage().bucketName()).key(key).build());
+            (GetObjectRequest)
+                GetObjectRequest.builder().bucket(config.storage().bucketName()).key(key).build());
     try (var stream = resp) {
       return stream.readAllBytes();
     } catch (IOException e) {
@@ -67,12 +69,13 @@ public class S3Service {
   /** Stores an arbitrary object and returns its key. */
   public String putObject(String key, InputStream body, long size, String contentType) {
     PutObjectRequest put =
-        PutObjectRequest.builder()
-            .bucket(config.storage().bucketName())
-            .key(key)
-            .contentType(contentType)
-            .contentLength(size)
-            .build();
+        (PutObjectRequest)
+            PutObjectRequest.builder()
+                .bucket(config.storage().bucketName())
+                .key(key)
+                .contentType(contentType)
+                .contentLength(size)
+                .build();
     s3.putObject(put, RequestBody.fromInputStream(body, size));
     return key;
   }
@@ -81,7 +84,8 @@ public class S3Service {
   public ConditionallyVersionedObject getObjectBytesVersioned(String key) {
     var resp =
         s3.getObject(
-            GetObjectRequest.builder().bucket(config.storage().bucketName()).key(key).build());
+            (GetObjectRequest)
+                GetObjectRequest.builder().bucket(config.storage().bucketName()).key(key).build());
     try (var stream = resp) {
       byte[] content = stream.readAllBytes();
       String etag = resp.response().eTag();
@@ -109,7 +113,7 @@ public class S3Service {
     } else {
       builder.ifMatch(expectedEtag);
     }
-    s3.putObject(builder.build(), RequestBody.fromInputStream(body, size));
+    s3.putObject((PutObjectRequest) builder.build(), RequestBody.fromInputStream(body, size));
   }
 
   /** Object payload plus opaque S3 ETag. */
@@ -132,11 +136,12 @@ public class S3Service {
     do {
       var response =
           s3.listObjectsV2(
-              ListObjectsV2Request.builder()
-                  .bucket(config.storage().bucketName())
-                  .prefix(prefix)
-                  .continuationToken(continuationToken)
-                  .build());
+              (ListObjectsV2Request)
+                  ListObjectsV2Request.builder()
+                      .bucket(config.storage().bucketName())
+                      .prefix(prefix)
+                      .continuationToken(continuationToken)
+                      .build());
       response.contents().forEach(object -> keys.add(object.key()));
       continuationToken = response.nextContinuationToken();
     } while (continuationToken != null);
@@ -151,11 +156,12 @@ public class S3Service {
   public String putDesignIdsMarkdown(String markdownBody) {
     String key = "ids-designs/" + UUID.randomUUID() + "/ids.md";
     PutObjectRequest put =
-        PutObjectRequest.builder()
-            .bucket(config.storage().bucketName())
-            .key(key)
-            .contentType("text/markdown; charset=utf-8")
-            .build();
+        (PutObjectRequest)
+            PutObjectRequest.builder()
+                .bucket(config.storage().bucketName())
+                .key(key)
+                .contentType("text/markdown; charset=utf-8")
+                .build();
     s3.putObject(put, RequestBody.fromString(markdownBody, StandardCharsets.UTF_8));
     return key;
   }

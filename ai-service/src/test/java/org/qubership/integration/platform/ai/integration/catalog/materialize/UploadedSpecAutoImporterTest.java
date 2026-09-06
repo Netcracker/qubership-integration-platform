@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.integration.catalog.materialize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
@@ -182,6 +183,43 @@ class UploadedSpecAutoImporterTest {
   }
 
   @Test
+  void reusesExistingGroupWhenTitleIsPrefixOfGroupName() {
+    S3Service s3 = mock(S3Service.class);
+    CatalogRestClient client = mock(CatalogRestClient.class);
+    CatalogSpecificationImporter importer = mock(CatalogSpecificationImporter.class);
+    ConversationCatalogCache cache = mock(ConversationCatalogCache.class);
+
+    when(s3.readObjectBytes("key"))
+        .thenReturn("{\"info\":{\"title\":\"Salesforce WFM\"}}".getBytes());
+    when(client.searchSystems(any()))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-1", "Salesforce WFM", "EXTERNAL", null)));
+    when(client.getSpecificationGroups("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationGroupDto(
+                    "sg-spec", "Salesforce WFM Specification")));
+    when(client.getApiSpecifications("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationDto(
+                    "spec-1", "Salesforce WFM Specification", "sg-spec", "sys-1")));
+
+    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecImportOutcome outcome =
+        service.importSpec(
+            "conv-1", new UploadedSpecAttachment("key", "Salesforce WFM.json"), "EXTERNAL");
+
+    assertEquals("sys-1", outcome.systemId());
+    assertEquals("spec-1", outcome.specificationId());
+    assertEquals("sg-spec", outcome.specificationGroupId());
+    assertEquals(true, outcome.reused());
+    verify(importer, never()).importOpenApiDocument(any(), any(), any(), any(), any());
+    verify(importer, never()).importOpenApiDocumentIntoGroup(any(), any(), any(), any());
+    verify(client, never()).createSystem(any());
+  }
+
+  @Test
   void reusesExistingSystemWithTitleDerivedName() {
     S3Service s3 = mock(S3Service.class);
     CatalogRestClient client = mock(CatalogRestClient.class);
@@ -209,5 +247,48 @@ class UploadedSpecAutoImporterTest {
     assertEquals(false, outcome.reused());
     verify(client, never()).createSystem(any());
     verify(client).getSpecificationGroups("sys-1");
+  }
+
+  @Test
+  void reusesExternalSystemWithoutCreatingDefaultEnvironmentWhenRequestIsInternal() {
+    S3Service s3 = mock(S3Service.class);
+    CatalogRestClient client = mock(CatalogRestClient.class);
+    CatalogSpecificationImporter importer = mock(CatalogSpecificationImporter.class);
+    ConversationCatalogCache cache = mock(ConversationCatalogCache.class);
+
+    when(s3.readObjectBytes("key")).thenReturn("{}".getBytes());
+    when(client.searchSystems(any()))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-1", "orders-api", "EXTERNAL", null)));
+    when(client.getSpecificationGroups("sys-1")).thenReturn(List.of());
+    when(importer.importOpenApiDocument(eq("sys-1"), eq("orders-api"), isNull(), any(), any()))
+        .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
+
+    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"), "INTERNAL");
+
+    verify(client, never()).createSystem(any());
+    verify(client, never()).createEnvironment(any(), any());
+  }
+
+  @Test
+  void createsExternalSystemWithoutDefaultEnvironment() {
+    S3Service s3 = mock(S3Service.class);
+    CatalogRestClient client = mock(CatalogRestClient.class);
+    CatalogSpecificationImporter importer = mock(CatalogSpecificationImporter.class);
+    ConversationCatalogCache cache = mock(ConversationCatalogCache.class);
+    when(s3.readObjectBytes("key")).thenReturn("{}".getBytes());
+    when(client.searchSystems(any())).thenReturn(List.of());
+    when(client.createSystem(new CatalogCreateSystemRequest("orders-api", "EXTERNAL")))
+        .thenReturn(new CatalogRestClient.SystemDto("sys-1", "orders-api", "EXTERNAL", null));
+    when(client.getSpecificationGroups("sys-1")).thenReturn(List.of());
+    when(importer.importOpenApiDocument(eq("sys-1"), eq("orders-api"), isNull(), any(), any()))
+        .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
+
+    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"), "EXTERNAL");
+
+    verify(client).createSystem(new CatalogCreateSystemRequest("orders-api", "EXTERNAL"));
+    verify(client, never()).createEnvironment(any(), any());
   }
 }

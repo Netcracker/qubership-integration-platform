@@ -4,6 +4,8 @@ import type { ChatDecision } from "../../ai/modelProviders/types.ts";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 import {
   decisionCardText,
+  isBlankClarifyHalt,
+  recoveryCardActions,
   visibleMissingEvidence,
 } from "./chatDecisionUtils.ts";
 
@@ -18,6 +20,8 @@ const ACTION_LABELS: Record<string, string> = {
   "apply-chain-patch": "Apply",
   "create-chain": "Create chain",
   "import-specification": "Import specification",
+  "import-specification-internal": "Import as internal",
+  "import-specification-external": "Import as external",
   "request-changes": "Request changes",
   "deploy-chain": "Deploy",
   "cancel-deploy": "Not now",
@@ -67,6 +71,10 @@ const COMMAND_ACTIONS = new Set([
   "session-logging-info",
   "session-logging-debug",
   "import-specification",
+  "import-specification-internal",
+  "import-specification-external",
+  "retry",
+  "revise",
   "retry-creation",
   "edit-requirements",
   "rebuild-plan",
@@ -80,6 +88,8 @@ const PRIMARY_ACTIONS = new Set([
   "apply-chain-patch",
   "create-chain",
   "import-specification",
+  "import-specification-internal",
+  "import-specification-external",
   "deploy-chain",
   "redeploy-chain",
   "undeploy-chain",
@@ -142,6 +152,10 @@ export interface AiDecisionCardProps {
   onSubmitClarification?: (text: string) => void;
   /** Disables the buttons while a request is already in flight. */
   busy?: boolean;
+  /** After End run, start a new conversation with the same opening assignment. */
+  onStartSameTask?: () => void;
+  /** When true, halt buttons stay visible but do not fire. */
+  stale?: boolean;
 }
 
 /** A gate the run stopped at, rendered inside the transcript so it stays in history. */
@@ -150,18 +164,25 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   onAnswer,
   onSubmitClarification,
   busy = false,
+  onStartSameTask,
+  stale = false,
 }) => {
   const isClarify = decision.kind === "clarify";
   const isMappingGapClarify =
     isClarify && decision.actions.includes("pass_through");
-  const isFreeTextClarify = isClarify && decision.actions.length === 0;
+  const blankClarifyHalt = isBlankClarifyHalt(decision);
+  const isFreeTextClarify =
+    isClarify &&
+    decision.actions.length === 0 &&
+    !decision.recovery &&
+    !blankClarifyHalt;
   const answeredAction = decision.answeredAction;
   const titleId = useId();
   const summaryId = useId();
   const [text, setText] = useState("");
   // Guards against a double click sending the answer twice before `busy` catches up.
   const clickedRef = useRef(false);
-  const disabled = busy || answeredAction !== undefined;
+  const disabled = busy || stale || answeredAction !== undefined;
 
   const handleClick = (action: string) => {
     if (disabled || clickedRef.current) return;
@@ -190,27 +211,57 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   const cardText = decisionCardText(decision);
   const missingEvidence = visibleMissingEvidence(decision);
   const showTextArea = isFreeTextClarify || isMappingGapClarify || !isClarify;
+  const showYesNoHint =
+    isFreeTextClarify && /yes or no|yes\/no/i.test(cardText);
 
-  const recoveryDetails = decision.recovery
+  const haltDecision: ChatDecision = blankClarifyHalt
+    ? {
+        ...decision,
+        actions: ["stop-with-report"],
+        recovery: {
+          category: "unclassified-failure",
+          title: "Creation cannot continue",
+          summary:
+            "Creation stopped without a question to answer. End the run or start again.",
+          preservedWork: "Your approved requirements and plan are saved.",
+          technicalDetails: "",
+        },
+      }
+    : decision;
+  const recovery = haltDecision.recovery;
+  const recoveryActions = recovery
+    ? recoveryCardActions(haltDecision)
+    : labeledActions(decision.actions);
+  const recoveryDetails = recovery
     ? [
-        decision.recovery.technicalDetails
-          ? `Raw error: ${decision.recovery.technicalDetails}`
+        recovery.technicalDetails
+          ? `Raw error: ${recovery.technicalDetails}`
           : "",
-        decision.recovery.failedStageId
-          ? `Internal stage: ${decision.recovery.failedStageId}`
+        recovery.failedStageId
+          ? `Internal stage: ${recovery.failedStageId}`
           : "",
-        decision.recovery.runId
-          ? `Run identifier: ${decision.recovery.runId}`
-          : "",
+        recovery.runId ? `Run identifier: ${recovery.runId}` : "",
       ]
         .filter(Boolean)
         .join("\n")
     : "";
-  const retryDelaySeconds = decision.recovery?.retryDelayMs
-    ? Math.ceil(decision.recovery.retryDelayMs / 1000)
+  const retryDelaySeconds = recovery?.retryDelayMs
+    ? Math.ceil(recovery.retryDelayMs / 1000)
     : 0;
+  const sameTaskFooter =
+    answeredAction === "stop-with-report" && onStartSameTask ? (
+      <div className="ai-decision-card__same-task">
+        <Typography.Paragraph type="secondary">
+          This run is closed. You can keep the report or start a new creation
+          with the same task.
+        </Typography.Paragraph>
+        <Button size="small" type="primary" onClick={onStartSameTask}>
+          Start new creation with the same task
+        </Button>
+      </div>
+    ) : null;
 
-  if (decision.recovery) {
+  if (recovery) {
     return (
       <div
         className="ai-decision-card ai-decision-card--recovery"
@@ -220,13 +271,11 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         aria-describedby={summaryId}
       >
         <Typography.Title id={titleId} level={5}>
-          {decision.recovery.title}
+          {recovery.title}
         </Typography.Title>
         <div id={summaryId} className="ai-decision-card__recovery-summary">
-          <MarkdownRenderer>{decision.recovery.summary}</MarkdownRenderer>
-          <Typography.Paragraph>
-            {decision.recovery.preservedWork}
-          </Typography.Paragraph>
+          <MarkdownRenderer>{recovery.summary}</MarkdownRenderer>
+          <Typography.Paragraph>{recovery.preservedWork}</Typography.Paragraph>
           {retryDelaySeconds > 0 ? (
             <Typography.Text type="secondary">
               Retry in {retryDelaySeconds}{" "}
@@ -243,12 +292,15 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         ) : null}
 
         {answeredAction !== undefined ? (
-          <Typography.Text type="secondary">
-            {answeredLabel(decision)}
-          </Typography.Text>
+          <>
+            <Typography.Text type="secondary">
+              {answeredLabel(decision)}
+            </Typography.Text>
+            {sameTaskFooter}
+          </>
         ) : (
           <Space className="ai-decision-card__actions" wrap>
-            {labeledActions(decision.actions).map((action) => (
+            {recoveryActions.map((action) => (
               <Button
                 key={action}
                 size="small"
@@ -307,6 +359,14 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
               onChange={(e) => setText(e.target.value)}
               disabled={disabled}
             />
+          ) : null}
+          {showYesNoHint ? (
+            <Typography.Paragraph
+              type="secondary"
+              className="ai-decision-card__clarify-hint"
+            >
+              Enter yes or no to enable Submit.
+            </Typography.Paragraph>
           ) : null}
           <Space className="ai-decision-card__actions" wrap>
             {isFreeTextClarify ? (

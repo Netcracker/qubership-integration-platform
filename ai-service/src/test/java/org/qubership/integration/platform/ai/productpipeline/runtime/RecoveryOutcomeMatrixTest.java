@@ -244,9 +244,9 @@ class RecoveryOutcomeMatrixTest {
     execute(runtime, "design-input");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
-    assertEquals("regeneratable-execution-failure", presented.category());
+    assertEquals("requirement-brief-defect", presented.category());
     assertEquals(
-        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         presented.offeredActions());
     assertFalse(presented.offeredActions().contains("submit"));
     assertFalse(presented.offeredActions().contains("design-input"));
@@ -274,9 +274,9 @@ class RecoveryOutcomeMatrixTest {
     execute(runtime, "design-execution");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
-    assertEquals("regeneratable-execution-failure", presented.category());
+    assertEquals("plan-artifact-defect", presented.category());
     assertEquals(
-        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         presented.offeredActions());
     assertFalse(presented.offeredActions().contains("design-execution"));
     endRun(runtime);

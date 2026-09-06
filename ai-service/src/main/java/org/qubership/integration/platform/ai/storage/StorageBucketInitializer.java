@@ -39,14 +39,15 @@ public class StorageBucketInitializer {
     String bucket = config.storage().bucketName();
     try {
       try {
-        s3.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
+        s3.headBucket((HeadBucketRequest) HeadBucketRequest.builder().bucket(bucket).build());
         LOG.infof("Storage bucket exists: %s", bucket);
       } catch (S3Exception e) {
         if (!"NoSuchBucket".equals(e.awsErrorDetails().errorCode())) {
           throw e;
         }
         LOG.infof("Creating storage bucket: %s", bucket);
-        s3.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
+        s3.createBucket(
+            (CreateBucketRequest) CreateBucketRequest.builder().bucket(bucket).build());
       }
     } catch (SdkException e) {
       LOG.warnf(

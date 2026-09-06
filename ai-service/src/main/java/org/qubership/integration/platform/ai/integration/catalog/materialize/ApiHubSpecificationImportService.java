@@ -52,6 +52,11 @@ public class ApiHubSpecificationImportService {
 
   public ApiHubSpecificationImportResult importFromRefs(
       String conversationId, ApiHubRequirementRefs refs) {
+    return importFromRefs(conversationId, refs, ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE);
+  }
+
+  public ApiHubSpecificationImportResult importFromRefs(
+      String conversationId, ApiHubRequirementRefs refs, String systemType) {
     if (refs == null || !refs.hasImportableRefs()) {
       throw new IllegalArgumentException(
           "API Hub refs are incomplete: packageId, version, and operationId or documentId are"
@@ -59,14 +64,14 @@ public class ApiHubSpecificationImportService {
     }
 
     String systemName = refs.catalogSystemName();
-    String systemType = ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE;
     String groupName = refs.specificationGroupName();
 
-    String systemId = findOrCreateSystem(conversationId, systemName, systemType);
-    ensureDefaultEnvironment(systemId, systemType, systemName);
+    ResolvedSystem system = findOrCreateSystem(conversationId, systemName, systemType);
+    ensureDefaultEnvironment(system.id(), system.type(), systemName);
 
     Optional<ApiHubSpecificationImportResult> reused =
-        reuseExistingCatalogSpecification(conversationId, systemId, groupName, refs);
+        reuseExistingCatalogSpecification(
+            conversationId, system.id(), system.type(), groupName, refs);
     if (reused.isPresent()) {
       return reused.get();
     }
@@ -80,14 +85,16 @@ public class ApiHubSpecificationImportService {
 
     CatalogSpecificationImporter.ImportOutcome imported =
         catalogSpecificationImporter.importOpenApiDocument(
-            systemId, groupName, null, document.content(), document.fileName());
+            system.id(), groupName, null, document.content(), document.fileName());
 
-    return finalizeImport(conversationId, refs, systemId, groupName, imported);
+    return finalizeImport(
+        conversationId, refs, system.id(), system.type(), groupName, imported);
   }
 
   private Optional<ApiHubSpecificationImportResult> reuseExistingCatalogSpecification(
       String conversationId,
       String systemId,
+      String systemType,
       String groupName,
       ApiHubRequirementRefs refs) {
     List<CatalogRestClient.SpecificationDto> specs =
@@ -116,6 +123,7 @@ public class ApiHubSpecificationImportService {
               conversationId,
               refs,
               systemId,
+              systemType,
               groupName,
               spec.id(),
               spec.specificationGroupId(),
@@ -149,6 +157,7 @@ public class ApiHubSpecificationImportService {
       String conversationId,
       ApiHubRequirementRefs refs,
       String systemId,
+      String systemType,
       String groupName,
       CatalogSpecificationImporter.ImportOutcome imported) {
     ApiHubSpecificationImportResult result =
@@ -156,6 +165,7 @@ public class ApiHubSpecificationImportService {
             conversationId,
             refs,
             systemId,
+            systemType,
             groupName,
             imported.specificationId(),
             imported.specificationGroupId(),
@@ -180,6 +190,7 @@ public class ApiHubSpecificationImportService {
       String conversationId,
       ApiHubRequirementRefs refs,
       String systemId,
+      String systemType,
       String groupName,
       String specificationId,
       String specificationGroupId,
@@ -189,7 +200,7 @@ public class ApiHubSpecificationImportService {
           conversationId,
           List.of(
               new CatalogRestClient.SystemDto(
-                  systemId, refs.catalogSystemName(), ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE, null)));
+                  systemId, refs.catalogSystemName(), systemType, null)));
       catalogCache.rememberSpecifications(
           conversationId,
           List.of(
@@ -207,7 +218,8 @@ public class ApiHubSpecificationImportService {
         specificationGroupId,
         importId,
         groupName,
-        catalogOperationId);
+        catalogOperationId,
+        systemType);
   }
 
   private Optional<String> resolveCatalogOperationId(
@@ -286,16 +298,19 @@ public class ApiHubSpecificationImportService {
     return opMethod.equalsIgnoreCase(wanted.method()) && opPath.equals(wanted.path());
   }
 
-  private String findOrCreateSystem(String conversationId, String systemName, String systemType) {
-    Optional<String> existing = findSystemByName(conversationId, systemName);
+  private ResolvedSystem findOrCreateSystem(
+      String conversationId, String systemName, String requestedType) {
+    Optional<ResolvedSystem> existing = findSystemByName(conversationId, systemName);
     if (existing.isPresent()) {
+      ResolvedSystem system = existing.get();
       LOG.infof(
           "IMPORT_SPECIFICATION: reusing catalog system systemId=%s name=%s",
-          existing.get(),
+          system.id(),
           systemName);
-      return existing.get();
+      return system;
     }
 
+    String systemType = normalizeSystemType(requestedType);
     CatalogRestClient.SystemDto created =
         catalogRestClient.createSystem(new CatalogCreateSystemRequest(systemName, systemType));
     if (created == null || CatalogStrings.blankToNull(created.id()) == null) {
@@ -310,10 +325,10 @@ public class ApiHubSpecificationImportService {
       catalogCache.rememberSystems(conversationId, List.of(created));
       catalogCache.rememberActiveSystemId(conversationId, created.id());
     }
-    return created.id();
+    return new ResolvedSystem(created.id(), normalizeSystemType(created.type(), systemType));
   }
 
-  private Optional<String> findSystemByName(String conversationId, String systemName) {
+  private Optional<ResolvedSystem> findSystemByName(String conversationId, String systemName) {
     List<CatalogRestClient.SystemDto> found =
         catalogRestClient.searchSystems(new CatalogSystemSearchRequest(systemName));
     if (found == null || found.isEmpty()) {
@@ -327,10 +342,21 @@ public class ApiHubSpecificationImportService {
         if (conversationId != null && !conversationId.isBlank()) {
           catalogCache.rememberSystems(conversationId, List.of(system));
         }
-        return Optional.of(system.id());
+        return Optional.of(
+            new ResolvedSystem(system.id(), normalizeSystemType(system.type(), null)));
       }
     }
     return Optional.empty();
+  }
+
+  private static String normalizeSystemType(String systemType) {
+    return normalizeSystemType(systemType, ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE);
+  }
+
+  private static String normalizeSystemType(String systemType, String fallback) {
+    String normalized =
+        systemType == null ? "" : systemType.trim().toUpperCase(Locale.ROOT);
+    return normalized.isEmpty() ? fallback : normalized;
   }
 
   private void ensureDefaultEnvironment(String systemId, String systemType, String systemName) {
@@ -357,4 +383,6 @@ public class ApiHubSpecificationImportService {
   }
 
   private record PathMethod(String path, String method) {}
+
+  private record ResolvedSystem(String id, String type) {}
 }

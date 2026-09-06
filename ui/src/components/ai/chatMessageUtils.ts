@@ -232,12 +232,25 @@ export function isErrorVariantMessage(message: ChatMessage): boolean {
   return message.variant === "error";
 }
 
-export function buildTurnFailureMessage(detail: string): ChatMessage {
+export function turnFailureContent(decisionCard?: "valid" | "stale"): string {
+  if (decisionCard === "valid") {
+    return `${TURN_FAILURE_SUMMARY} The decision card above is still valid.`;
+  }
+  if (decisionCard === "stale") {
+    return `${TURN_FAILURE_SUMMARY} Reload this conversation to continue.`;
+  }
+  return TURN_FAILURE_SUMMARY;
+}
+
+export function buildTurnFailureMessage(
+  detail: string,
+  decisionCard?: "valid" | "stale",
+): ChatMessage {
   const trimmed = detail.trim();
   return {
     role: "assistant",
     variant: "error",
-    content: TURN_FAILURE_SUMMARY,
+    content: turnFailureContent(decisionCard),
     ...(trimmed ? { detail: trimmed } : {}),
   };
 }
@@ -256,6 +269,7 @@ export function appendTurnFailure(
   messages: ChatMessage[],
   detail: string,
   partialAssistantContent?: string,
+  decisionCard?: "valid" | "stale",
 ): ChatMessage[] {
   let next = [...messages];
   const partial = partialAssistantContent?.trim();
@@ -271,7 +285,7 @@ export function appendTurnFailure(
       next = next.slice(0, -1);
     }
   }
-  return [...next, buildTurnFailureMessage(detail)];
+  return [...next, buildTurnFailureMessage(detail, decisionCard)];
 }
 
 export type StreamingDoneOptions = {

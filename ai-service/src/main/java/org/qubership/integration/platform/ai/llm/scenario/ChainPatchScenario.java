@@ -119,7 +119,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     if (decision != null && ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(decision.getAction())) {
       return streamCompile(progress -> applyAnsweredPatch(conversationId, decision));
     }
-    if (decision != null && ChatEvent.IMPORT_ACTION.equals(decision.getAction())) {
+    if (decision != null && ChatEvent.isImportAction(decision.getAction())) {
       return streamCompile(progress -> resumeAfterImport(request, conversationId, progress));
     }
     if (decision != null && ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(decision.getAction())) {

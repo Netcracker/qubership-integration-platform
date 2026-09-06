@@ -15,6 +15,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedOperation;
@@ -139,23 +140,20 @@ class ChainSemanticCaptureAdapterTest {
 
   @Test
   void rewritesMappingRefsFromFactIdsOntoTheCarryingEdge() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.briefWithMapping();
     ChainSemanticRevision revision =
-        adapt(
-            ChainSemanticCaptureFixtures.mappedCapture(),
-            ChainSemanticCaptureFixtures.briefWithMapping());
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(), brief);
 
-    MappingIntent projected = revision.mappingIntents().getFirst();
     SemanticExecutionEdge site =
         revision.executionEdges().stream()
             .filter(edge -> ChainSemanticCaptureFixtures.MAPPING_INTENT_ID.equals(edge.mappingId()))
             .findFirst()
             .orElseThrow();
-    assertEquals(site.edgeId(), projected.sourceRef());
-    assertEquals(site.edgeId(), projected.targetRef());
-    assertEquals(MappingPort.OUTPUT, projected.sourcePort());
-    assertEquals(MappingPort.REQUEST, projected.targetPort());
-    assertEquals(List.of(new MappingIntentRule("id", "orderId", null)), projected.rules());
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    assertTrue(revision.mappingIntents().isEmpty());
+    assertEquals(ChainSemanticCaptureFixtures.MAPPING_INTENT_ID, site.mappingId());
+    assertEquals("trigger-1", brief.mappingIntents().getFirst().sourceRef());
+    assertEquals("fact-call", brief.mappingIntents().getFirst().targetRef());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
   }
 
   @Test
@@ -169,19 +167,57 @@ class ChainSemanticCaptureAdapterTest {
             "edge-495d48ab0cc3cf30",
             MappingPort.REQUEST,
             List.of(new MappingIntentRule("processInstanceId", "orderId", "alias")));
-    RequirementBrief brief =
+    RequirementBrief raw =
         ChainSemanticCaptureFixtures.briefWithMapping()
             .withMappingIntents(List.of(approved, placeholder));
 
-    ChainSemanticRevision revision =
-        adapt(ChainSemanticCaptureFixtures.mappedCapture(), brief);
+    String missingSite =
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> adapt(ChainSemanticCaptureFixtures.mappedCapture(), raw))
+            .getMessage();
+    assertTrue(missingSite.contains("process-instance-to-process-id"), missingSite);
 
-    assertEquals(1, revision.mappingIntents().size());
+    RequirementBrief canonical = RequirementBriefProjector.canonicalizeMappingIntents(raw);
+    ChainSemanticRevision revision =
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(), canonical);
+
+    assertTrue(revision.mappingIntents().isEmpty());
     assertEquals(
         ChainSemanticCaptureFixtures.MAPPING_INTENT_ID,
-        revision.mappingIntents().getFirst().mappingIntentId());
-    assertEquals(2, revision.mappingIntents().getFirst().rules().size());
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+        revision.executionEdges().stream()
+            .map(SemanticExecutionEdge::mappingId)
+            .filter(ChainSemanticCaptureFixtures.MAPPING_INTENT_ID::equals)
+            .findFirst()
+            .orElse(null));
+    assertEquals(1, canonical.mappingIntents().size());
+    assertEquals(2, canonical.mappingIntents().getFirst().rules().size());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, canonical);
+  }
+
+  @Test
+  void mappingRuleChangeMovesRevisionIdWithoutStoringBodies() {
+    RequirementBrief first = ChainSemanticCaptureFixtures.briefWithMapping();
+    MappingIntent original = first.mappingIntents().getFirst();
+    RequirementBrief second =
+        first.withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    original.mappingIntentId(),
+                    original.sourceRef(),
+                    original.sourcePort(),
+                    original.targetRef(),
+                    original.targetPort(),
+                    List.of(new MappingIntentRule("id", "customerId", null)))));
+
+    ChainSemanticRevision before =
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(), first);
+    ChainSemanticRevision after =
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(), second);
+
+    assertTrue(before.mappingIntents().isEmpty());
+    assertTrue(after.mappingIntents().isEmpty());
+    assertNotEquals(before.revisionId(), after.revisionId());
   }
 
   @Test

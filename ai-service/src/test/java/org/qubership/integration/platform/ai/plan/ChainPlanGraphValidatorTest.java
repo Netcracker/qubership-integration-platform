@@ -333,6 +333,75 @@ class ChainPlanGraphValidatorTest {
   }
 
   @Test
+  void acceptsSuccessorOutsideTryWhenWrapperAlreadyContainsTheWrappedCall() {
+    List<String> errors =
+        validator.validate(
+            new ChainPlanGraph(
+                "1.0",
+                new ChainSection("Orders", "Orders"),
+                List.of(
+                    new ChainPlanNode("trigger", "http-trigger", "HTTP trigger", null, null, List.of()),
+                    new ChainPlanNode("tcff", "try-catch-finally-2", "Error handler", null, null, List.of()),
+                    new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of()),
+                    new ChainPlanNode("catch", "catch-2", "Catch", "tcff", null, List.of()),
+                    new ChainPlanNode("call", "service-call", "Call orders", "try", null, List.of()),
+                    new ChainPlanNode("normalize", "script", "Normalize payload", null, null, List.of())),
+                List.of(
+                    new ChainPlanEdge("trigger-to-wrapper", "trigger", "tcff", null),
+                    new ChainPlanEdge("wrapper-to-successor", "tcff", "normalize", null))));
+
+    assertEquals(List.of(), errors);
+  }
+
+  @Test
+  void acceptsPredecessorScriptWiredThroughTryCatchWrapper() {
+    List<String> errors =
+        validator.validate(
+            new ChainPlanGraph(
+                "1.0",
+                new ChainSection("Orders", "Orders"),
+                List.of(
+                    new ChainPlanNode("trigger", "async-api-trigger", "task-start", null, null, List.of()),
+                    new ChainPlanNode("map-in", "script", "Map request", null, null, List.of()),
+                    new ChainPlanNode("tcff", "try-catch-finally-2", "Error handler", null, null, List.of()),
+                    new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of()),
+                    new ChainPlanNode("catch", "catch-2", "Catch", "tcff", null, List.of()),
+                    new ChainPlanNode("call", "service-call", "create-task", "try", null, List.of()),
+                    new ChainPlanNode("map-out", "script", "Map response", null, null, List.of()),
+                    new ChainPlanNode("result", "service-call", "task-result", null, null, List.of())),
+                List.of(
+                    new ChainPlanEdge("trigger-to-map", "trigger", "map-in", null),
+                    new ChainPlanEdge("map-to-wrapper", "map-in", "tcff", null),
+                    new ChainPlanEdge("wrapper-to-map-out", "tcff", "map-out", null),
+                    new ChainPlanEdge("map-out-to-result", "map-out", "result", null))));
+
+    assertEquals(List.of(), errors);
+  }
+
+  @Test
+  void effectiveParentNodeIdLeavesSuccessorOutsideOccupiedTry() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Orders", "Orders"),
+            List.of(
+                new ChainPlanNode("tcff", "try-catch-finally-2", "Error handler", null, null, List.of()),
+                new ChainPlanNode("try", "try-2", "Try", "tcff", null, List.of()),
+                new ChainPlanNode("call", "service-call", "Call orders", "try", null, List.of()),
+                new ChainPlanNode("normalize", "script", "Normalize payload", null, null, List.of())),
+            List.of(new ChainPlanEdge("wrapper-to-successor", "tcff", "normalize", null)));
+
+    assertEquals(
+        null,
+        ChainPlanGraphValidator.effectiveParentNodeId(
+            graph.nodes().stream()
+                .filter(n -> "normalize".equals(n.nodeId()))
+                .findFirst()
+                .orElseThrow(),
+            graph));
+  }
+
+  @Test
   void acceptsConditionWithTwoDirectIfChildrenAndOptionalElse() {
     List<String> errors =
         validator.validate(
