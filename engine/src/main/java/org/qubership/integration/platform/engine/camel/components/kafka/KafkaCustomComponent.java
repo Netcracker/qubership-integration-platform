@@ -49,6 +49,8 @@ public class KafkaCustomComponent extends DefaultComponent implements SSLContext
     @Metadata(autowired = true, label = "consumer,advanced", required = true)
     private BlueGreenStatePublisher blueGreenStatePublisher;
 
+    public KafkaCustomComponent() {}
+
     public KafkaCustomComponent(CamelContext context) {
         super(context);
     }

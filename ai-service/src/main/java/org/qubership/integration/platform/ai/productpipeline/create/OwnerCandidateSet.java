@@ -24,6 +24,7 @@ public final class OwnerCandidateSet {
       Set.of("implementation-plan", "design-execution-plan", "design-plan-report");
 
   private static final Set<String> BRIEF_ARTIFACT_TYPES = Set.of("requirement-brief");
+  private static final Set<String> DRAFT_ARTIFACT_TYPES = Set.of("requirement-draft");
 
   private static final Pattern GO_BACK_TO_TARGET =
       Pattern.compile(
@@ -386,6 +387,38 @@ public final class OwnerCandidateSet {
   static Optional<String> briefProducerStageId(
       List<OwnerCandidate> candidates, String failedStageId) {
     return producerStageId(candidates, failedStageId, BRIEF_ARTIFACT_TYPES);
+  }
+
+  static Optional<String> draftProducerStageId(
+      List<OwnerCandidate> candidates, String failedStageId) {
+    return producerStageId(candidates, failedStageId, DRAFT_ARTIFACT_TYPES);
+  }
+
+  /**
+   * Stage that authored the inputs the failed stage consumed. Skips import and catalog write
+   * stages so Retry lands before the model turn, not on a generated artifact.
+   */
+  public static Optional<String> previousGenerativeStageId(
+      ProductPipelineProfile profile, String failedStageId) {
+    int failedIndex = indexOf(profile, failedStageId);
+    if (failedIndex <= 0) {
+      return Optional.empty();
+    }
+    for (int i = failedIndex - 1; i >= 0; i--) {
+      String stageId = profile.stages().get(i).stageId();
+      if (!isNonGenerativeStage(stageId)) {
+        return Optional.of(stageId);
+      }
+    }
+    return Optional.empty();
+  }
+
+  static boolean isNonGenerativeStage(String stageId) {
+    return "import-stage".equals(stageId)
+        || "uploaded-spec-import".equals(stageId)
+        || "specification-import".equals(stageId)
+        || "materialization".equals(stageId)
+        || "catalog-binding".equals(stageId);
   }
 
   private static Optional<String> producerStageId(

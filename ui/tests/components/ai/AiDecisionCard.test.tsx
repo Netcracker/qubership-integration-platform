@@ -84,7 +84,7 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("approve", "Looks good to me");
   });
 
-  it("should render the import action as a primary button and send it on click", () => {
+  it("should send import-specification-external from the import card", () => {
     const onAnswer = jest.fn();
     render(
       <AiDecisionCard
@@ -95,19 +95,34 @@ describe("AiDecisionCard", () => {
           artifactType: undefined,
           artifactHash: undefined,
           revision: 0,
-          actions: ["import-specification"],
+          actions: [
+            "import-specification-internal",
+            "import-specification-external",
+          ],
         })}
         onAnswer={onAnswer}
       />,
     );
 
-    const importButton = screen.getByRole("button", {
-      name: "Import specification",
-    });
-    expect(importButton.className).toMatch(/ant-btn-primary/);
-    fireEvent.click(importButton);
+    const external = screen.getByRole("button", { name: "Import as external" });
+    expect(external.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(external);
+    expect(onAnswer).toHaveBeenCalledWith("import-specification-external", "");
+  });
 
-    expect(onAnswer).toHaveBeenCalledTimes(1);
+  it("should still label the legacy import-specification action", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          actions: ["import-specification"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Import specification" }),
+    );
     expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
   });
 
@@ -308,8 +323,8 @@ describe("AiDecisionCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    expect(onAnswer).not.toHaveBeenCalled();
-    expect(onSubmitClarification).toHaveBeenCalledWith("retry");
+    expect(onAnswer).toHaveBeenCalledWith("retry", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
   it("should render a contextual retry with collapsed technical details and semantic actions", () => {
@@ -561,9 +576,7 @@ describe("AiDecisionCard", () => {
     expect(fold).toHaveTextContent(
       "Raw error: mapping intent mismatch between live revision and approved chain semantic revision",
     );
-    expect(
-      screen.getByText("Creation cannot continue"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Creation cannot continue")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Retry creation" }),
     ).not.toBeInTheDocument();
@@ -706,8 +719,8 @@ describe("AiDecisionCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Revise" }));
 
-    expect(onAnswer).not.toHaveBeenCalled();
-    expect(onSubmitClarification).toHaveBeenCalledWith("revise");
+    expect(onAnswer).toHaveBeenCalledWith("revise", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
   it("should send a command action through onAnswer even on a clarify card", () => {
@@ -721,7 +734,10 @@ describe("AiDecisionCard", () => {
       reason:
         "Import the API Hub specification into the runtime catalog before planning?",
       missingEvidence: [],
-      actions: ["import-specification"],
+      actions: [
+        "import-specification-internal",
+        "import-specification-external",
+      ],
     });
     render(
       <AiDecisionCard
@@ -731,12 +747,10 @@ describe("AiDecisionCard", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Import specification" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Import as internal" }));
 
     expect(onSubmitClarification).not.toHaveBeenCalled();
-    expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
+    expect(onAnswer).toHaveBeenCalledWith("import-specification-internal", "");
   });
 
   it("should render Pass through and Describe mappings for a mapping-gap clarify gate", () => {
@@ -848,5 +862,105 @@ describe("AiDecisionCard", () => {
     expect(
       screen.queryByRole("button", { name: "Submit" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("should fill Retry creation and End run when a regeneratable halt has no labeled actions", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation output needs regeneration",
+          actions: [],
+          recovery: {
+            category: "regeneratable-execution-failure",
+            title: "Creation output needs regeneration",
+            summary: "The capture was rejected.",
+            preservedWork: "Your approved requirements and plan are saved.",
+            technicalDetails: "CONTRACT_SHAPE",
+          },
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Retry creation" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should treat a blank clarify as End run instead of a dead Submit", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "",
+          actions: [],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should hint that yes or no enables Submit on a free-text clarify", () => {
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Should I write an IDS? Answer yes or no.",
+          actions: [],
+        })}
+        onAnswer={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Enter yes or no to enable Submit."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
+  });
+
+  it("should offer a same-task creation after End run", () => {
+    const onStartSameTask = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation cannot continue",
+          actions: ["stop-with-report"],
+          answeredAction: "stop-with-report",
+          recovery: {
+            category: "unclassified-failure",
+            title: "Creation cannot continue",
+            summary: "The approved plan did not produce a chain patch.",
+            preservedWork: "Your approved requirements and plan are saved.",
+            technicalDetails: "GRAPH_PATCH_ARTIFACT",
+          },
+        })}
+        onAnswer={jest.fn()}
+        onStartSameTask={onStartSameTask}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Start new creation with the same task",
+      }),
+    );
+    expect(onStartSameTask).toHaveBeenCalled();
   });
 });

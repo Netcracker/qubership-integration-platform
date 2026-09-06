@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
  * Shared create-chain design-planning capability. Runs the pinned planner, projects the catalog
@@ -130,6 +131,7 @@ public class DesignPlanningCapability implements StageCapability {
     try {
       IdsDocument ids = requireIds(context);
       ChainSemanticRevision revision = requireRevision(context);
+      RequirementBrief brief = requireBrief(context);
       RunManifest runManifest = requireRunManifest(context);
       CompilerRunPin pin = requireCompilerPin(runManifest);
       String pinnedSkillHash = pin.skillSha256ById().get(CipDesignPlannerAdapter.SKILL_ID);
@@ -148,11 +150,11 @@ public class DesignPlanningCapability implements StageCapability {
           planner.plan(
               new PlannerRequest(
                   context.conversationId(),
-                  buildPlannerInput(ids, revision, release),
+                  buildPlannerInput(ids, revision, release, brief),
                   pinnedSkillHash,
                   repairEvidenceText));
-      projection = projector.project(report, revision, pin);
-      ImplementationPlan rendering = renderer.render(report, projection, revision);
+      projection = projector.project(report, revision, pin, brief);
+      ImplementationPlan rendering = renderer.render(report, projection, revision, brief);
 
       Reference idsRef = requireInputRef(context.inputRefs(), Kind.IDS_DOCUMENT);
       Reference revisionRef = requireInputRef(context.inputRefs(), Kind.CHAIN_SEMANTIC_REVISION);
@@ -242,6 +244,14 @@ public class DesignPlanningCapability implements StageCapability {
       return revision;
     }
     throw new PlannerContractException("CHAIN_SEMANTIC_REVISION is required for design planning");
+  }
+
+  private static RequirementBrief requireBrief(StageExecutionContext context) {
+    Object value = context.attributes().get("requirementBrief");
+    if (value instanceof RequirementBrief brief) {
+      return brief;
+    }
+    throw new PlannerContractException("REQUIREMENT_BRIEF is required for design planning");
   }
 
   private static RunManifest requireRunManifest(StageExecutionContext context) {
@@ -339,6 +349,11 @@ public class DesignPlanningCapability implements StageCapability {
    */
   static String buildPlannerInput(
       IdsDocument ids, ChainSemanticRevision revision, String release) {
+    return buildPlannerInput(ids, revision, release, null);
+  }
+
+  static String buildPlannerInput(
+      IdsDocument ids, ChainSemanticRevision revision, String release, RequirementBrief brief) {
     return """
         API release: %s
         Semantic revision id: %s
@@ -352,12 +367,12 @@ public class DesignPlanningCapability implements StageCapability {
             release,
             revision.revisionId(),
             revision.chainIdentity(),
-            describeRevision(revision),
+            describeRevision(revision, brief),
             ids.markdown())
         .trim();
   }
 
-  private static String describeRevision(ChainSemanticRevision revision) {
+  private static String describeRevision(ChainSemanticRevision revision, RequirementBrief brief) {
     StringBuilder text = new StringBuilder();
     text.append("Chain semantic revision. The plan is validated against it.\n\n");
 
@@ -391,7 +406,7 @@ public class DesignPlanningCapability implements StageCapability {
       text.append('\n');
     }
 
-    if (revision.mappingIntents().isEmpty()) {
+    if (revision.mappingBodies(brief).isEmpty()) {
       text.append("\nNo mapping intents. Do not plan mapping scripts.\n");
       List<String> behaviorOwned =
           DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
@@ -408,7 +423,7 @@ public class DesignPlanningCapability implements StageCapability {
               + "Naming the skill without that token fails projection. Do not invent ids. "
               + "Do not plan cip-transformation-generator. Mapper-2 is off; use"
               + " cip-script-generator.\n");
-      for (MappingIntent mapping : revision.mappingIntents()) {
+      for (MappingIntent mapping : revision.mappingBodies(brief)) {
         text.append("- ")
             .append(mapping.mappingIntentId())
             .append(" mappingIntentId=")

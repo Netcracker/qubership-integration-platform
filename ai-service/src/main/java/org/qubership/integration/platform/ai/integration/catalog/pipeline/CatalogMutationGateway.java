@@ -56,12 +56,25 @@ public class CatalogMutationGateway {
 
   public Uni<ApiHubSpecificationImportResult> importApiHubSpecification(
       String conversationId, ApiHubRequirementRefs refs) {
-    return onWorker(() -> apiHubSpecificationImportService.importFromRefs(conversationId, refs));
+    return importApiHubSpecification(
+        conversationId, refs, ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE);
+  }
+
+  public Uni<ApiHubSpecificationImportResult> importApiHubSpecification(
+      String conversationId, ApiHubRequirementRefs refs, String systemType) {
+    return onWorker(
+        () -> apiHubSpecificationImportService.importFromRefs(conversationId, refs, systemType));
   }
 
   public Uni<UploadedSpecImportOutcome> importUploadedSpec(
       String conversationId, UploadedSpecAttachment attachment) {
-    return onWorker(() -> uploadedSpecAutoImporter.importSpec(conversationId, attachment));
+    return importUploadedSpec(conversationId, attachment, "INTERNAL");
+  }
+
+  public Uni<UploadedSpecImportOutcome> importUploadedSpec(
+      String conversationId, UploadedSpecAttachment attachment, String systemType) {
+    return onWorker(
+        () -> uploadedSpecAutoImporter.importSpec(conversationId, attachment, systemType));
   }
 
   private static <T> Uni<T> onWorker(Supplier<T> work) {

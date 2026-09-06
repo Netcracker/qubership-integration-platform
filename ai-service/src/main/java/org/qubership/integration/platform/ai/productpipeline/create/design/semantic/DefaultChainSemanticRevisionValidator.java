@@ -56,7 +56,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateContainment(revision, contract, index, errors);
     validateRegions(revision, contract, index, errors);
     validateHiddenJoins(revision, index, errors);
-    validateMappings(revision, index, errors);
+    validateMappings(revision, brief, index, errors);
     validateScriptOwnership(revision, index, brief, errors);
     if (!errors.isEmpty()) {
       throw new IllegalArgumentException(
@@ -617,7 +617,10 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
   }
 
   private static void validateMappings(
-      ChainSemanticRevision revision, Index index, List<String> errors) {
+      ChainSemanticRevision revision,
+      RequirementBrief brief,
+      Index index,
+      List<String> errors) {
     Map<String, List<SemanticExecutionEdge>> sitesByIntent = new LinkedHashMap<>();
     for (SemanticExecutionEdge edge : revision.executionEdges()) {
       if (edge.mappingId() == null || edge.mappingId().isBlank()) {
@@ -626,11 +629,13 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       sitesByIntent.computeIfAbsent(edge.mappingId(), ignored -> new ArrayList<>()).add(edge);
     }
     Set<String> intentIds = new HashSet<>();
-    for (MappingIntent intent : revision.mappingIntents()) {
+    for (MappingIntent intent : revision.mappingBodies(brief)) {
       if (!intentIds.add(intent.mappingIntentId())) {
         errors.add("Duplicate mapping intent: " + intent.mappingIntentId());
       }
-      validateMappingRefs(intent, index, errors);
+      if (brief == null) {
+        validateMappingRefs(intent, index, errors);
+      }
       validateMappingSite(
           intent.mappingIntentId(),
           sitesByIntent.getOrDefault(intent.mappingIntentId(), List.of()),

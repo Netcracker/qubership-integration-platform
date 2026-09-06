@@ -4,6 +4,9 @@ import java.util.List;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditDisposition;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlan;
+import org.qubership.integration.platform.ai.chain.edit.planning.CatchBranchRole;
+import org.qubership.integration.platform.ai.chain.edit.planning.FailureDeliveryStrategy;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
@@ -62,6 +65,11 @@ public final class ChainEditSkillContext {
 
     StringBuilder body = new StringBuilder();
     body.append("Edit intent (this run changes an existing chain, not a new one):\n");
+    ChainEditStructuralPlan structuralPlan =
+        workspace
+            .get(SkillArtifactType.CHAIN_EDIT_STRUCTURAL_PLAN)
+            .map(a -> ((SkillArtifactPayload.ChainEditStructuralPlanPayload) a.payload()).plan())
+            .orElse(null);
     if (intent != null) {
       body.append("- action: ").append(intent.action()).append('\n');
       body.append("- target element ids: ")
@@ -77,6 +85,9 @@ public final class ChainEditSkillContext {
       if (intent.action() == ChainEditAction.CONFIGURE && !intent.propertyKeys().isEmpty()) {
         body.append("- property keys: ").append(String.join(", ", intent.propertyKeys())).append('\n');
       }
+    }
+    if (structuralPlan != null) {
+      appendStructuralPlan(body, structuralPlan);
     }
     if (intent != null
         && intent.action() == ChainEditAction.ADD_ELEMENTS
@@ -190,5 +201,42 @@ public final class ChainEditSkillContext {
           "Change only the target element ids. Every other element and connection stays as it is.\n");
     }
     return body.toString();
+  }
+
+  private static void appendStructuralPlan(StringBuilder body, ChainEditStructuralPlan plan) {
+    body.append("Validated structural plan (follow these branch assignments; do not choose a")
+        .append(" failure-delivery strategy again):\n");
+    body.append("- failureDelivery: ").append(plan.failureDelivery()).append('\n');
+    body.append("- original target ids: ")
+        .append(String.join(", ", plan.originalTargetNodeIds()))
+        .append('\n');
+    body.append("- tryMoveExisting: ")
+        .append(String.join(", ", plan.tryMoveExisting()))
+        .append('\n');
+    body.append("- catchRole: ").append(plan.catchRole()).append('\n');
+    if (plan.catchScriptLabel() != null) {
+      body.append("- catchScriptLabel: ").append(plan.catchScriptLabel()).append('\n');
+    }
+    body.append("- finallyMoveExisting: ")
+        .append(String.join(", ", plan.finallyMoveExisting()))
+        .append('\n');
+    if (plan.reporterNodeId() != null) {
+      body.append("- reporterNodeId: ").append(plan.reporterNodeId()).append('\n');
+    }
+    if (plan.reporterSchemaVariant() != null) {
+      body.append("- reporterSchemaVariant: ").append(plan.reporterSchemaVariant()).append('\n');
+    }
+    if (plan.failureDelivery() == FailureDeliveryStrategy.OM_TASK_RESULT) {
+      body.append(
+          "Catch script: build the named reporter schema variant from existing exchange"
+              + " properties. Do not use the HTTP CamelHttpResponseCode template.\n");
+    } else if (plan.failureDelivery() == FailureDeliveryStrategy.HTTP_RESPONSE) {
+      body.append(
+          "Catch script: use the HTTP error-response template (CamelHttpResponseCode + JSON"
+              + " error body). Do not expose a stack trace.\n");
+    }
+    if (plan.catchRole() == CatchBranchRole.NEW_SCRIPT) {
+      body.append("Create the catch script in catch-2. Do not move an existing id into catch-2.\n");
+    }
   }
 }

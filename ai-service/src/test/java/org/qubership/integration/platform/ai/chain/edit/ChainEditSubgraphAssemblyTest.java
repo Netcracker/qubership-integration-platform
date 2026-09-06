@@ -78,6 +78,46 @@ class ChainEditSubgraphAssemblyTest {
   }
 
   @Test
+  void anOmWrapKeepsTryInternalEdgesAndDropsTheCrossBranchReporterEdge() {
+    ChainPlanGraph imported =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("OM", "OM"),
+            List.of(
+                new ChainPlanNode(TRIGGER, "async-api-trigger", "Task start", null, 1, List.of()),
+                new ChainPlanNode(CALL, "service-call", "Create task", null, 2, List.of()),
+                new ChainPlanNode(SCRIPT, "script", "Success payload", null, 3, List.of()),
+                new ChainPlanNode(REPLY, "service-call", "Task result", null, 4, List.of())),
+            List.of(
+                new ChainPlanEdge("start-to-call", TRIGGER, CALL, null),
+                new ChainPlanEdge("call-to-success", CALL, SCRIPT, null),
+                new ChainPlanEdge("success-to-reporter", SCRIPT, REPLY, null)));
+    ChainEditSubgraph capture =
+        new ChainEditSubgraph(
+            "try-catch-finally-2",
+            "Error handler",
+            List.of(
+                tryBranch(CALL, SCRIPT),
+                catchBranch("java.lang.Exception", null, "failed-payload"),
+                new ChainEditSubgraphBranch(
+                    "finally-2", "Finally", List.of(), null, List.of(REPLY), null)));
+
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            imported, capture, wrap(CALL, SCRIPT, REPLY), permissiveCache());
+
+    String tryBranchId = nodeOfType(assembled, "try-2").nodeId();
+    String finallyBranchId = nodeOfType(assembled, "finally-2").nodeId();
+    String container = nodeOfType(assembled, "try-catch-finally-2").nodeId();
+    assertEquals(tryBranchId, node(assembled, CALL).parentNodeId());
+    assertEquals(tryBranchId, node(assembled, SCRIPT).parentNodeId());
+    assertEquals(finallyBranchId, node(assembled, REPLY).parentNodeId());
+    assertTrue(connects(assembled, CALL, SCRIPT), assembled.edges().toString());
+    assertFalse(connects(assembled, SCRIPT, REPLY), assembled.edges().toString());
+    assertTrue(connects(assembled, TRIGGER, container), assembled.edges().toString());
+  }
+
+  @Test
   void anExistingElementKeepsEverythingTheChainAlreadyGivesIt() {
     ChainPlanGraph assembled =
         ChainEditSubgraphAssembly.assemble(

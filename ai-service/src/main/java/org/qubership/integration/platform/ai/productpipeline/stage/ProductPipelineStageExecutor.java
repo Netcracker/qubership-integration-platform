@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,6 +25,7 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
@@ -140,6 +142,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       "The same problem came back. Repeating the same request will not help.";
   static final String UNCLASSIFIED_RECOVERY_SUMMARY =
       "Creation stopped without a recoverable cause. Repeating the same request will not help.";
+  static final String MISSING_GRAPH_PATCH_SUMMARY =
+      "The approved plan did not produce a chain patch. Repeating the same request will not help.";
   private static final String PROGRESS_HALTED = "halted";
   private static final String PROGRESS_NONE = "none";
 
@@ -1044,7 +1048,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             stage,
             refs,
             PipelineGates.RECOVERY_UNCLASSIFIED,
-            UNCLASSIFIED_RECOVERY_SUMMARY,
+            unclassifiedRecoverySummary(
+                findings.isBlank() ? evidence : findings),
             terminalRecoveryDetails(
                 findings.isBlank() ? evidence : findings,
                 evidence,
@@ -1168,6 +1173,51 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         body);
   }
 
+  private static RecoveryDecision captureReviseBriefDecision(
+      RecoveryEvidence evidence, String summary) {
+    Reference fault =
+        evidence.rejectedArtifactRefs().isEmpty()
+            ? null
+            : evidence.rejectedArtifactRefs().getFirst();
+    return new RecoveryDecision(
+        RecoveryCauseClass.BRIEF_DEFECT,
+        fault,
+        List.of(evidence.failureId()),
+        RecoveryAction.REVISE_BRIEF,
+        List.of(),
+        "",
+        contractShapeOperatorSummary(summary));
+  }
+
+  static String contractShapeOperatorSummary(String findings) {
+    String body = findings == null ? "" : findings.strip();
+    String guidance =
+        "Edit the requirements if this node or path is wrong. Retrying the same capture will not"
+            + " change this classification.";
+    if (body.isBlank()) {
+      return "The captured topology was rejected. " + guidance;
+    }
+    return body + " " + guidance;
+  }
+
+  static String unclassifiedRecoverySummary(String details) {
+    if (details == null || details.isBlank()) {
+      return UNCLASSIFIED_RECOVERY_SUMMARY;
+    }
+    String upper = details.toUpperCase(Locale.ROOT);
+    String lower = details.toLowerCase(Locale.ROOT);
+    if (upper.contains("GRAPH_PATCH_ARTIFACT") && lower.contains("missing producer")) {
+      return MISSING_GRAPH_PATCH_SUMMARY;
+    }
+    if (lower.contains("skill did not complete")
+        && (lower.contains("did not capture a graph patch")
+            || lower.contains("did not capture a script body repair patch")
+            || upper.contains("GRAPH_PATCH"))) {
+      return MISSING_GRAPH_PATCH_SUMMARY;
+    }
+    return UNCLASSIFIED_RECOVERY_SUMMARY;
+  }
+
   private StageExecutionResult recoverValidationFailure(
       ProductPipelineRunDocument doc,
       ProfileStage stage,
@@ -1222,7 +1272,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RecoveryEvidence recoveryEvidence = acceptedRecovery.evidence();
     RecoveryDecision accepted = acceptedRecovery.decision();
     if (accepted == null) {
-      if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
+      if ("design-input".equals(stage.stageId())
+          && cause != null
+          && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE) {
+        accepted =
+            captureReviseBriefDecision(
+                recoveryEvidence, findings.isBlank() ? evidenceText : findings);
+      } else if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
         accepted =
             captureRegenerateDecision(
                 recoveryEvidence, findings.isBlank() ? evidenceText : findings);
@@ -1240,8 +1296,30 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (accepted.action() == RecoveryAction.ASK_USER
         && usesStructuredContractRecovery(stage, StageOutcomeClass.CONTRACT_FAILURE, cause)) {
+      if ("design-input".equals(stage.stageId())
+          && cause != null
+          && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE) {
+        accepted =
+            captureReviseBriefDecision(
+                recoveryEvidence,
+                accepted.userSummary() == null || accepted.userSummary().isBlank()
+                    ? (findings.isBlank() ? evidenceText : findings)
+                    : accepted.userSummary());
+      } else {
+        accepted =
+            captureRegenerateDecision(
+                recoveryEvidence,
+                accepted.userSummary() == null || accepted.userSummary().isBlank()
+                    ? (findings.isBlank() ? evidenceText : findings)
+                    : accepted.userSummary());
+      }
+    }
+    if ("design-input".equals(stage.stageId())
+        && cause != null
+        && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
+        && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
       accepted =
-          captureRegenerateDecision(
+          captureReviseBriefDecision(
               recoveryEvidence,
               accepted.userSummary() == null || accepted.userSummary().isBlank()
                   ? (findings.isBlank() ? evidenceText : findings)
@@ -1250,7 +1328,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
     boolean identicalRejection = false;
     List<Reference> priorAttemptRefs = List.of();
-    if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
+    if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
+        || accepted.action() == RecoveryAction.REVISE_BRIEF) {
       String briefIdentity = briefRevisionIdentity(recoveryEvidence);
       RecoveryAttemptKey key =
           recoveryLedger.key(stage.stageId(), cause, briefIdentity, doc.transitions());
@@ -1404,7 +1483,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           stage,
           refs,
           PipelineGates.RECOVERY_UNCLASSIFIED,
-          UNCLASSIFIED_RECOVERY_SUMMARY,
+          unclassifiedRecoverySummary(
+              findings.isBlank() ? evidenceText : findings),
           terminalRecoveryDetails(
               findings.isBlank() ? evidenceText : findings,
               evidenceText,
@@ -1747,7 +1827,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       }
       String previousGate =
           PipelineGates.gateOf(transitions.get(index - 1).reason()).orElse("");
-      if (PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(previousGate)
+      if ((PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(previousGate)
+              || PipelineGates.RECOVERY_REVISE_BRIEF.equals(previousGate))
           && reason.startsWith(PRODUCER_REPAIR_REASON_PREFIX)) {
         return true;
       }
@@ -1854,27 +1935,37 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       if (ref.kind() == Kind.REQUIREMENT_DRAFT) {
         attributes.put(
             "approvedDraft", artifactStore.payload(revision.get(), RequirementDraft.class));
-      } else if (ref.kind() == Kind.REQUIREMENT_BRIEF) {
-        if (!attributes.containsKey("requirementBrief")) {
-          attributes.put(
-              "requirementBrief", artifactStore.payload(revision.get(), RequirementBrief.class));
-        }
-        attributes.put("requirementBriefContentHash", ref.contentHash());
       } else if (ref.kind() == Kind.USER_INPUT) {
         UserInput input = artifactStore.payload(revision.get(), UserInput.class);
         MappingGapPassThroughConfirmation.parse(input.text())
             .ifPresent(confirmation -> attributes.put("mappingGapPassThrough", confirmation));
       } else if (ref.kind() == Kind.IDS_DOCUMENT && !attributes.containsKey("idsDocument")) {
         attributes.put("idsDocument", artifactStore.payload(revision.get(), IdsDocument.class));
-      } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION
-          && !attributes.containsKey("chainSemanticRevision")) {
+      } else if (ref.kind() == Kind.CHAIN_SEMANTIC_REVISION) {
         attributes.put(
             "chainSemanticRevision",
             artifactStore.payload(revision.get(), ChainSemanticRevision.class));
       }
     }
+    putLatestRequirementBrief(runId, attributes);
     attributesByRun.put(runId, attributes);
     return attributes;
+  }
+
+  /**
+   * The current requirement brief is the artifact log tip. In-memory attributes and a stage input
+   * ref can lag behind mapping-gap or analysis recapture, so they are not the correctness source.
+   */
+  private void putLatestRequirementBrief(String runId, Map<String, Object> attributes) {
+    artifactStore
+        .latest(runId, Kind.REQUIREMENT_BRIEF)
+        .ifPresent(
+            revision -> {
+              attributes.put(
+                  "requirementBrief",
+                  artifactStore.payload(revision, RequirementBrief.class));
+              attributes.put("requirementBriefContentHash", revision.contentHash());
+            });
   }
 
   /**
@@ -2250,13 +2341,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                   artifactEnvelopeSchema(kind, candidate.typeRef()),
                   stage.capabilityId() == null ? "bypass" : stage.capabilityId(),
                   "1",
-                  candidate.candidate().payload(),
+                  committedPayload(kind, candidate.candidate().payload()),
                   candidate.candidate().inputs(),
                   null,
                   provenance(runId, stage.stageId(), stage.capabilityId())));
       refs.add(revision.reference());
     }
     return List.copyOf(refs);
+  }
+
+  private static Object committedPayload(Kind kind, Object payload) {
+    if (kind == Kind.REQUIREMENT_BRIEF && payload instanceof RequirementBrief brief) {
+      return RequirementBriefProjector.canonicalizeMappingIntents(brief);
+    }
+    return payload;
   }
 
   private List<Reference> committedInputs(ProductPipelineRunDocument doc) {

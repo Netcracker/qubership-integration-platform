@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -88,7 +89,7 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
         new ProductPipelineArtifactStore(
             new org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts(
                 new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore(),
-                new ObjectMapper(),
+                new ObjectMapper().registerModule(new JavaTimeModule()),
                 java.time.Clock.systemUTC())));
   }
 

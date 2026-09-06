@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditScopeException;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditStructureBase;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditSubgraphAssembly;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlanValidator;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -279,6 +280,21 @@ public class ChainStructureCaptureTool {
               CaptureFailureClass.PERMANENT,
               "This run plans a new chain, so there is nothing to add a subgraph to."
                   + " Call captureChainStructure with the whole graph instead."));
+    }
+    if (editBase.structuralPlan() != null) {
+      try {
+        new ChainEditStructuralPlanValidator()
+            .assertCaptureMatches(editBase.structuralPlan(), subgraph);
+      } catch (IllegalArgumentException e) {
+        return finish(
+            conversationId,
+            startMs,
+            repairable(
+                conversationId,
+                subgraph,
+                CaptureFailureClass.CORRECTABLE,
+                "Structure validation failed:\n" + e.getMessage()));
+      }
     }
     ChainStructure shaped;
     try {

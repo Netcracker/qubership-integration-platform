@@ -21,8 +21,9 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
  * @param path HTTP path
  * @param operationHint operation name, or the raw operation query when no name was given
  * @param release specification version the author requires, for example {@code 2024.4}
- * @param namedInRequest other operation names the same request already used, including payload
- *     command names that are not catalog keys
+ * @param namedInRequest other names from the same request: sibling operations, payload command
+ *     names that are not catalog keys, or a catalog {@code integrationOperationId} the author
+ *     already chose
  */
 public record CatalogQuery(
     String systemHint,

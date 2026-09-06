@@ -57,6 +57,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
@@ -448,12 +449,30 @@ class DesignPlanningCapabilityTest {
   void plannerInputRequiresLiteralMappingIntentIdToken() {
     String input =
         DesignPlanningCapability.buildPlannerInput(
-            sampleIds(), SemanticFixtures.linearOrdersWithMapping(), "2024.4");
+            sampleIds(),
+            SemanticFixtures.linearOrdersWithMapping(),
+            "2024.4",
+            sampleBrief()
+                .withMappingIntents(SemanticFixtures.linearOrdersWithMapping().mappingIntents()));
 
     assertTrue(input.contains("mappingIntentId=<id>"), input);
     assertTrue(input.contains("mappingIntentId=map-init"), input);
     assertTrue(input.contains("Do not plan cip-transformation-generator"), input);
     assertFalse(input.contains("cip-transformation-generator mappingIntentId="), input);
+  }
+
+  @Test
+  void plannerInputListsBriefMappingsWhenRevisionStoresSitesOnly() {
+    ChainSemanticRevision revision =
+        SemanticFixtures.withoutMappingBodies(SemanticFixtures.linearOrdersWithMapping());
+    RequirementBrief brief =
+        sampleBrief().withMappingIntents(SemanticFixtures.linearOrdersWithMapping().mappingIntents());
+
+    String input =
+        DesignPlanningCapability.buildPlannerInput(sampleIds(), revision, "2024.4", brief);
+
+    assertTrue(input.contains("mappingIntentId=map-init"), input);
+    assertTrue(revision.mappingIntents().isEmpty());
   }
 
   @Test
@@ -598,7 +617,13 @@ class DesignPlanningCapabilityTest {
         profile,
         sampleManifest(),
         List.of(idsRef, revisionRef),
-        Map.of("idsDocument", ids, "chainSemanticRevision", revision));
+        Map.of(
+            "idsDocument",
+            ids,
+            "chainSemanticRevision",
+            revision,
+            "requirementBrief",
+            sampleBrief()));
   }
 
   /** Appends a plan report the way the runtime records the output of a halted planning attempt. */
@@ -668,7 +693,8 @@ class DesignPlanningCapabilityTest {
                 List.of(new ArtifactTypeRef("user-input", 1)),
                 List.of(
                     new ArtifactTypeRef("ids-document", 1),
-                    new ArtifactTypeRef("chain-semantic-revision", 1)),
+                    new ArtifactTypeRef("chain-semantic-revision", 1),
+                    new ArtifactTypeRef("requirement-brief", 1)),
                 null,
                 null,
                 new RetryPolicy(0, 1L)),
@@ -781,6 +807,11 @@ class DesignPlanningCapabilityTest {
     return SemanticFixtures.linearOrders();
   }
 
+  private static RequirementBrief sampleBrief() {
+    return new RequirementBrief(
+        "Orders", List.of(), List.of(), List.of(), List.of(), "summary");
+  }
+
   private static CompilerRunPin samplePin(
       ChainSemanticRevision revision,
       ResolvedCompilerDag dag,
@@ -836,7 +867,9 @@ class DesignPlanningCapabilityTest {
                       List.of(
                           new ArtifactCandidate(Kind.IDS_DOCUMENT, sampleIds(), List.of()),
                           new ArtifactCandidate(
-                              Kind.CHAIN_SEMANTIC_REVISION, sampleRevision(), List.of())),
+                              Kind.CHAIN_SEMANTIC_REVISION, sampleRevision(), List.of()),
+                          new ArtifactCandidate(
+                              Kind.REQUIREMENT_BRIEF, sampleBrief(), List.of())),
                       "seeded design inputs",
                       null)));
     }

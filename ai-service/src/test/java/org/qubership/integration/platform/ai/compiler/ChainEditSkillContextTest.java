@@ -10,6 +10,9 @@ import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCall
 import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditDisposition;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
+import org.qubership.integration.platform.ai.chain.edit.planning.CatchBranchRole;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlan;
+import org.qubership.integration.platform.ai.chain.edit.planning.FailureDeliveryStrategy;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
@@ -43,6 +46,51 @@ class ChainEditSkillContextTest {
     assertTrue(rendered.contains("moveExisting"), rendered);
     assertTrue(rendered.contains("A wrapped element is only an id"), rendered);
     assertFalse(rendered.contains("parentNodeId"), rendered);
+  }
+
+  @Test
+  void aValidatedStructuralPlanIsRenderedAsBranchAssignments() {
+    InMemorySkillWorkspace workspace = new InMemorySkillWorkspace("wrap-om-call");
+    workspace.put(
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_EDIT_INTENT,
+            "chain-edit-intent",
+            new SkillArtifactPayload.ChainEditIntentPayload(
+                new ChainEditIntent(
+                    ChainEditAction.ADD_ELEMENTS,
+                    List.of("call-1", "success-1", "task-result"),
+                    "Add error handling to the service call",
+                    null,
+                    "try-catch-finally-2",
+                    null,
+                    List.of(),
+                    List.of(),
+                    ChainEditDisposition.NEST))));
+    workspace.put(
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_EDIT_STRUCTURAL_PLAN,
+            "cip-chain-edit-planner",
+            new SkillArtifactPayload.ChainEditStructuralPlanPayload(
+                new ChainEditStructuralPlan(
+                    FailureDeliveryStrategy.OM_TASK_RESULT,
+                    List.of("call-1"),
+                    List.of("call-1", "success-1"),
+                    CatchBranchRole.NEW_SCRIPT,
+                    "Prepare failed task result",
+                    List.of("task-result"),
+                    "task-result",
+                    "task-failed",
+                    List.of(),
+                    null,
+                    List.of(),
+                    "unique onTaskResult"))));
+
+    String rendered = ChainEditSkillContext.render(workspace);
+
+    assertTrue(rendered.contains("Validated structural plan"), rendered);
+    assertTrue(rendered.contains("tryMoveExisting"), rendered);
+    assertTrue(rendered.contains("task-failed"), rendered);
+    assertTrue(rendered.contains("Do not use the HTTP CamelHttpResponseCode template"), rendered);
   }
 
   @Test

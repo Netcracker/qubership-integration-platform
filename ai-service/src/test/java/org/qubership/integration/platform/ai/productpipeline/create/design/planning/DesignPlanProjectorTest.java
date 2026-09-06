@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class DesignPlanProjectorTest {
@@ -346,9 +347,35 @@ class DesignPlanProjectorTest {
         """
             .trim();
     DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
     assertEquals("map-a", projected.steps().get(2).mappingIntentId());
     assertEquals("map-b", projected.steps().get(3).mappingIntentId());
+  }
+
+  @Test
+  void bindsMappingStepsFromBriefWhenRevisionStoresSitesOnly() {
+    ChainSemanticRevision withBodies = SemanticFixtures.linearOrdersWithMapping();
+    ChainSemanticRevision revision = SemanticFixtures.withoutMappingBodies(withBodies);
+    RequirementBrief brief =
+        new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withMappingIntents(withBodies.mappingIntents());
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Encode mapping map-init (cip-script-generator mappingIntentId=map-init)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), brief);
+
+    assertTrue(revision.mappingIntents().isEmpty());
+    assertEquals("map-init", projected.steps().get(2).mappingIntentId());
   }
 
   @Test
@@ -367,7 +394,7 @@ class DesignPlanProjectorTest {
         """
             .trim();
     DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
     assertEquals("map-a", projected.steps().get(2).mappingIntentId());
     assertEquals("map-b", projected.steps().get(3).mappingIntentId());
   }
@@ -389,7 +416,7 @@ class DesignPlanProjectorTest {
         """
             .trim();
     DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
     List<String> mappingIds =
         projected.steps().stream()
             .map(DesignExecutionPlan.Step::mappingIntentId)
@@ -415,7 +442,7 @@ class DesignPlanProjectorTest {
         """
             .trim();
     DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
     List<String> mappingIds =
         projected.steps().stream()
             .map(DesignExecutionPlan.Step::mappingIntentId)
@@ -442,7 +469,7 @@ class DesignPlanProjectorTest {
         PlannerContractException.class,
         () ->
             projector.project(
-                new DesignPlanReport("1", reportWithOneScriptStep), revision, pin(revision)));
+                new DesignPlanReport("1", reportWithOneScriptStep), revision, pin(revision), briefFrom(revision)));
   }
 
   @Test
@@ -461,7 +488,7 @@ class DesignPlanProjectorTest {
             .trim();
     assertThrows(
         PlannerContractException.class,
-        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision)));
   }
 
   @Test
@@ -483,7 +510,7 @@ class DesignPlanProjectorTest {
     PlannerContractException thrown =
         assertThrows(
             PlannerContractException.class,
-            () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+            () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision)));
 
     assertTrue(
         thrown.getMessage().contains("cip-transformation-generator"), thrown.getMessage());
@@ -506,7 +533,7 @@ class DesignPlanProjectorTest {
         """
             .trim();
     DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
     assertTrue(
         projected.steps().stream()
             .noneMatch(step -> step.owningSkillIds().contains("cip-script-generator")));
@@ -527,7 +554,7 @@ class DesignPlanProjectorTest {
         """
             .trim();
     DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
     List<DesignExecutionPlan.Step> scriptSteps =
         projected.steps().stream()
             .filter(step -> step.owningSkillIds().contains("cip-script-generator"))
@@ -554,7 +581,7 @@ class DesignPlanProjectorTest {
     PlannerContractException ex =
         assertThrows(
             PlannerContractException.class,
-            () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+            () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision)));
     assertTrue(ex.getMessage().contains("cip-script-generator"), ex.getMessage());
     assertTrue(ex.getMessage().contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), ex.getMessage());
   }
@@ -573,7 +600,7 @@ class DesignPlanProjectorTest {
         """
             .trim();
     DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision));
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
     DesignExecutionPlan.Step mixed =
         projected.steps().stream()
             .filter(step -> step.owningSkillIds().contains("cip-service-call-generator"))
@@ -615,7 +642,7 @@ class DesignPlanProjectorTest {
             .trim();
     assertThrows(
         PlannerContractException.class,
-        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision)));
+        () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision)));
   }
 
   @Test
@@ -638,7 +665,8 @@ class DesignPlanProjectorTest {
                 projector.project(
                     new DesignPlanReport("1", report),
                     SemanticFixtures.linearOrdersWithMapping(),
-                    samplePin(SemanticFixtures.linearOrdersWithMapping(), sampleDag())));
+                    samplePin(SemanticFixtures.linearOrdersWithMapping(), sampleDag()),
+                    briefFrom(SemanticFixtures.linearOrdersWithMapping())));
     assertTrue(ex.getMessage().contains("script"));
   }
 
@@ -753,6 +781,11 @@ class DesignPlanProjectorTest {
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();
+  }
+
+  private static RequirementBrief briefFrom(ChainSemanticRevision revision) {
+    return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(revision.mappingIntents());
   }
 
   private static CompilerRunPin pin(ChainSemanticRevision revision) {

@@ -221,8 +221,11 @@ public class ChainPlanGraphValidator {
    * Resolves catalog containment parent for skeleton materialization. Uses
    * explicit
    * {@link ChainPlanNode#parentNodeId()} when set; otherwise infers from incoming
-   * flow edges
-   * (for example try-catch-finally-2 → script implies parent try-2).
+   * flow edges.
+   * An edge from try-2 or catch-2 still implies the target belongs in that shell.
+   * An edge from try-catch-finally-2 implies try-2 only when that try branch has
+   * no inner flow yet; once a wrap already sits inside try-2, the same edge is
+   * the wrapper's exit to the next sibling.
    */
   public static String effectiveParentNodeId(ChainPlanNode node, ChainPlanGraph graph) {
     if (node == null) {
@@ -358,7 +361,9 @@ public class ChainPlanGraphValidator {
       return false;
     }
     if (parent == null) {
-      return !isTriggerElementType(type) && !ChainElementFamilies.TRY_CATCH_WRAPPER.contains(type);
+      // After NEST, the wrapper replaces the wrapped call on the root path. Neighbors stay
+      // outside and keep edges to the wrapper, so the wrapper must count as a flow sibling.
+      return !isTriggerElementType(type);
     }
     String parentType = trim(parent.type());
     if ("condition".equals(parentType) || "choice".equals(parentType)) {
@@ -501,10 +506,39 @@ public class ChainPlanGraphValidator {
     if ("catch-2".equals(fromType) && "script".equals(toType)) {
       return from.nodeId();
     }
-    if (ChainElementFamilies.TRY_CATCH_WRAPPER.contains(fromType) && TRY_INNER_FLOW_TYPES.contains(toType)) {
-      return findTryChildId(nodesById, from.nodeId());
+    if (ChainElementFamilies.TRY_CATCH_WRAPPER.contains(fromType)
+        && TRY_INNER_FLOW_TYPES.contains(toType)) {
+      String tryNodeId = findTryChildId(nodesById, from.nodeId());
+      if (tryNodeId == null) {
+        return null;
+      }
+      if (tryBranchHasOtherInnerFlow(nodesById, tryNodeId, to.nodeId())) {
+        return null;
+      }
+      return tryNodeId;
     }
     return null;
+  }
+
+  /**
+   * True when {@code try-2} already contains a flow node other than {@code nodeId}.
+   * A wrap that moved a service-call into try-2 then rewires the old outgoing hop
+   * onto the wrapper; that hop is an exit, not a request to pull the successor in.
+   */
+  private static boolean tryBranchHasOtherInnerFlow(
+      Map<String, ChainPlanNode> nodesById, String tryNodeId, String nodeId) {
+    for (ChainPlanNode node : nodesById.values()) {
+      if (nodeId.equals(node.nodeId())) {
+        continue;
+      }
+      if (!tryNodeId.equals(blankToNull(node.parentNodeId()))) {
+        continue;
+      }
+      if (TRY_INNER_FLOW_TYPES.contains(trim(node.type()))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static String findTryChildId(Map<String, ChainPlanNode> nodesById, String wrapperNodeId) {

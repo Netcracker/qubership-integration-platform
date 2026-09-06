@@ -151,6 +151,7 @@ public final class CompilerSkillAddonBuildSupport {
     return "cip-chain-assembler".equals(skillId)
         || "cip-design-planner".equals(skillId)
         || "cip-design-executor".equals(skillId)
+        || "cip-chain-edit-planner".equals(skillId)
         || (skillId != null && skillId.endsWith("-validator"));
   }
 }

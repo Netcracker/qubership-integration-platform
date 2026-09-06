@@ -152,7 +152,8 @@ public class SpecificationImportCapability implements StageCapability {
             Multi.createFrom()
                 .uni(
                     catalogMutationGateway
-                        .importApiHubSpecification(conversationId, refs)
+                        .importApiHubSpecification(
+                            conversationId, refs, draft.resolvedPreferredSystemType())
                         .map(
                             result -> {
                               ResolvedCatalogBinding binding =

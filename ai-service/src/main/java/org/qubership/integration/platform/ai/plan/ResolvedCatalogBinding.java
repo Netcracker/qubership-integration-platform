@@ -34,7 +34,7 @@ public record ResolvedCatalogBinding(
         result.specificationId(),
         result.specificationGroupId(),
         result.catalogOperationId().orElse(null),
-        ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE);
+        result.systemType());
   }
 
   public Optional<String> optionalOperationId() {

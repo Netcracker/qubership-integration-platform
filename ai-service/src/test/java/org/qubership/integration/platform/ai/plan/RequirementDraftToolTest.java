@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
@@ -1490,6 +1491,64 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void capturePinsCreateTaskFromTheLatestUserOperationId() {
+    String titleOpId =
+        "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM-1.0.0-createTask";
+    CatalogOperationLookup lookup = tiedCreateTaskLookup(titleOpId);
+    ConversationService conversations = new ConversationService();
+    conversations.addMessage(
+        "draft-conv", ConversationMessage.assistant("Which createTask should I bind?"));
+    conversations.addMessage("draft-conv", ConversationMessage.user(titleOpId));
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, resolutions, conversations, lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            flowCapture(true, DraftDecision.READY_FOR_PLAN, rockyFlow()));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, stored.decision());
+    assertTrue(stored.readyForPlan());
+    assertTrue(
+        stored.catalogBindings().stream()
+            .anyMatch(
+                hint ->
+                    "create-task".equals(hint.interactionId())
+                        && "op-create".equals(hint.integrationOperationId())),
+        stored.catalogBindings().toString());
+    assertTrue(result.contains("Requirement draft captured"), result);
+    assertFalse(result.contains("has no catalog binding"), result);
+  }
+
+  @Test
+  void captureLeavesCreateTaskUnboundWhenTheLatestUserMessageDoesNotNameAnId() {
+    String titleOpId =
+        "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM-1.0.0-createTask";
+    CatalogOperationLookup lookup = tiedCreateTaskLookup(titleOpId);
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, resolutions, lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            flowCapture(true, DraftDecision.READY_FOR_PLAN, rockyFlow()));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertFalse(stored.readyForPlan());
+    assertTrue(result.contains("interactionId=create-task"), result);
+    assertFalse(
+        stored.catalogBindings().stream()
+            .anyMatch(hint -> "create-task".equals(hint.interactionId())),
+        stored.catalogBindings().toString());
+  }
+
+  @Test
   void needsInputCaptureEchoesCatalogBoundAfterExactLocalMatches() {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     when(lookup.resolve(org.mockito.ArgumentMatchers.any(CatalogQuery.class)))
@@ -1632,7 +1691,8 @@ class RequirementDraftToolTest {
             null,
             null,
             flow,
-            List.of(v2)));
+            List.of(v2),
+            null));
 
     assertTrue(
         tool.captureRequirementDraft(
@@ -1709,6 +1769,35 @@ class RequirementDraftToolTest {
     return new RequirementFlow(
         List.of(new Interaction("orders-http", Direction.INBOUND, "Caller", "GET /orders", "")),
         List.of());
+  }
+
+  private static CatalogOperationLookup tiedCreateTaskLookup(String titleOpId) {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(org.mockito.ArgumentMatchers.any(CatalogQuery.class)))
+        .thenAnswer(
+            invocation -> {
+              CatalogQuery query = invocation.getArgument(0);
+              String operation = query.operationHint();
+              if ("onTaskStart".equals(operation)) {
+                return new CatalogLookupResult.Exact(omStartMatch());
+              }
+              if ("onTaskResult".equals(operation)) {
+                return new CatalogLookupResult.Exact(omResultMatch());
+              }
+              if ("createTask".equals(operation)) {
+                boolean namedChosen =
+                    query.namedInRequest().stream().anyMatch(named -> named.contains(titleOpId));
+                if (namedChosen) {
+                  return new CatalogLookupResult.Exact(salesforceMatch());
+                }
+                return new CatalogLookupResult.Ambiguous(
+                    List.of(
+                        titleOpId,
+                        "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM Specification-1.0.0-createTask"));
+              }
+              return new CatalogLookupResult.None();
+            });
+    return lookup;
   }
 
   private static CatalogMatch omStartMatch() {

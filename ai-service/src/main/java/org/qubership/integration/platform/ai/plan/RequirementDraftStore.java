@@ -284,6 +284,15 @@ public class RequirementDraftStore {
     put(conversationId, current.clearApiHubCandidate().withImportIntent(true));
   }
 
+  public void rememberPreferredSystemType(String conversationId, String systemType) {
+    RequirementDraft current = get(conversationId).orElse(null);
+    if (current == null) {
+      put(conversationId, new RequirementDraft(false, "").withPreferredSystemType(systemType));
+      return;
+    }
+    put(conversationId, current.withPreferredSystemType(systemType));
+  }
+
   /** Ensures durable import intent is set when cold IMPORT soft-advances into gather. */
   public void ensureImportIntent(String conversationId) {
     ensureImportIntent(conversationId, null);
@@ -321,7 +330,8 @@ public class RequirementDraftStore {
               next.apiHubCandidateInteractionId(),
               next.idsRequested(),
               next.flow(),
-              next.catalogBindings());
+              next.catalogBindings(),
+              next.preferredSystemType());
     }
     if (next != current) {
       put(conversationId, next);

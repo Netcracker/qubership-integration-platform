@@ -14,6 +14,13 @@ class ActivityDisplayLabelsTest {
   }
 
   @Test
+  void chainEditPlannerUsesExactLabel() {
+    assertEquals(
+        "Planning the structural change",
+        ActivityDisplayLabels.of("skill", "cip-chain-edit-planner"));
+  }
+
+  @Test
   void knownToolUsesTable() {
     assertEquals(
         "Searching for a service", ActivityDisplayLabels.of("tool", "searchCatalogSystems"));

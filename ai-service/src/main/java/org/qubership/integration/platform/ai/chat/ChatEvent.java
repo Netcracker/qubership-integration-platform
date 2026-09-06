@@ -26,6 +26,51 @@ public sealed interface ChatEvent {
   /** Imports the selected API Hub specification into the runtime catalog. */
   String IMPORT_ACTION = "import-specification";
 
+  String IMPORT_INTERNAL_ACTION = "import-specification-internal";
+
+  String IMPORT_EXTERNAL_ACTION = "import-specification-external";
+
+  List<String> IMPORT_ACTIONS = List.of(IMPORT_INTERNAL_ACTION, IMPORT_EXTERNAL_ACTION);
+
+  /** Transcript when the reader confirms an API Hub import as an external catalog system. */
+  String IMPORT_EXTERNAL_MARKER = "Import the API Hub specification as an external service";
+
+  /** Transcript when the reader confirms an uploaded-spec card as an internal catalog system. */
+  String UPLOADED_IMPORT_MARKER = "Import the uploaded specification as an internal service";
+
+  /** Transcript when the reader confirms an uploaded-spec card as an external catalog system. */
+  String UPLOADED_IMPORT_EXTERNAL_MARKER =
+      "Import the uploaded specification as an external service";
+
+  static boolean isImportAction(String action) {
+    return IMPORT_ACTION.equals(action)
+        || IMPORT_INTERNAL_ACTION.equals(action)
+        || IMPORT_EXTERNAL_ACTION.equals(action);
+  }
+
+  static String systemTypeForImportAction(String action) {
+    return IMPORT_EXTERNAL_ACTION.equals(action) ? "EXTERNAL" : "INTERNAL";
+  }
+
+  static String importTranscriptMarker(String action, boolean uploadedSpecCard) {
+    if (IMPORT_EXTERNAL_ACTION.equals(action)) {
+      return uploadedSpecCard ? UPLOADED_IMPORT_EXTERNAL_MARKER : IMPORT_EXTERNAL_MARKER;
+    }
+    return uploadedSpecCard ? UPLOADED_IMPORT_MARKER : IMPORT_MARKER;
+  }
+
+  static boolean isSyntheticDecisionTurn(String text) {
+    if (text == null || text.isBlank()) {
+      return false;
+    }
+    String stripped = text.strip();
+    return stripped.startsWith("Approved ")
+        || stripped.startsWith("Answered ")
+        || stripped.startsWith(IMPORT_MARKER)
+        || stripped.startsWith(UPLOADED_IMPORT_MARKER)
+        || stripped.startsWith(UPLOADED_IMPORT_EXTERNAL_MARKER);
+  }
+
   /** Writes a proposed change into a chain the user already has: irreversible, so never a model's. */
   String APPLY_CHAIN_PATCH_ACTION = "apply-chain-patch";
 
@@ -314,7 +359,7 @@ public sealed interface ChatEvent {
         0L,
         null,
         List.of(),
-        List.of(IMPORT_ACTION));
+        IMPORT_ACTIONS);
   }
 
   /**
@@ -457,7 +502,7 @@ public sealed interface ChatEvent {
       return null;
     }
     return switch (gateId) {
-      case PipelineGates.IMPORT_SPECIFICATION -> List.of(IMPORT_ACTION);
+      case PipelineGates.IMPORT_SPECIFICATION -> IMPORT_ACTIONS;
       case PipelineGates.IDS_PATH_CHOICE -> IDS_PATH_CHOICE_ACTIONS;
       case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
       case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);

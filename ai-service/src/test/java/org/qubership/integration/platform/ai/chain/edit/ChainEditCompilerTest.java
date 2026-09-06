@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +23,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.chain.edit.planning.CatchBranchRole;
+import org.qubership.integration.platform.ai.chain.edit.planning.ChainEditStructuralPlan;
+import org.qubership.integration.platform.ai.chain.edit.planning.CipChainEditPlannerAdapter;
+import org.qubership.integration.platform.ai.chain.edit.planning.FailureDeliveryStrategy;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
@@ -159,6 +164,7 @@ class ChainEditCompilerTest {
             profileCatalog,
             knowledge,
             catalogMutationGateway,
+            null,
             new CaptureSession(),
             DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()),
             realValidationPipeline());
@@ -1525,6 +1531,76 @@ class ChainEditCompilerTest {
   }
 
   @Test
+  void aStructuralPlannerRunsOnceAndExpandsWrapScopeInTheProposal() {
+    CipChainEditPlannerAdapter planner = mock(CipChainEditPlannerAdapter.class);
+    ChainEditStructuralPlan plan =
+        new ChainEditStructuralPlan(
+            FailureDeliveryStrategy.HTTP_RESPONSE,
+            List.of(TARGET),
+            List.of(TARGET, UNRELATED),
+            CatchBranchRole.NEW_SCRIPT,
+            "Return error",
+            List.of(),
+            null,
+            null,
+            List.of(),
+            null,
+            List.of(),
+            "HTTP wrap of the adjacent calls");
+    when(planner.plan(any())).thenReturn(plan);
+    ProductPipelineProfileCatalog profiles = mock(ProductPipelineProfileCatalog.class);
+    when(profiles.require(any(), any())).thenReturn(mock(ProductPipelineProfile.class));
+    ChainEditIntentAgent agent =
+        (elements, transcriptWindow, pinnedFailure, userRequest) -> intentReply;
+    compiler =
+        new ChainEditCompiler(
+            new ChainEditIntentResolver(agent),
+            new ServiceCallBindingResolver(catalogRestClient, readTool, apiHub),
+            engine,
+            runPinResolver,
+            profiles,
+            conversationId ->
+                new KnowledgeQueryContext(
+                    new KnowledgePackageRef(
+                        "artifact", "1.0.0", "1.0.0", "checksum", "CERTIFIED", "sha256:cert")),
+            catalogMutationGateway,
+            null,
+            new CaptureSession(),
+            DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()),
+            realValidationPipeline(),
+            planner,
+            null);
+
+    intentReply = wrapCapture(TARGET);
+    ChainPlanGraph assembled =
+        ChainEditSubgraphAssembly.assemble(
+            importedGraph(),
+            errorHandlingSubgraph(TARGET, UNRELATED),
+            wrapIntent(TARGET, UNRELATED),
+            permissiveCache());
+    engine.scriptedResults.add(structureOnlyResult(assembled));
+    engine.scriptedResults.add(
+        configuredResult(
+            List.of(STRUCTURE_GENERATOR, ERROR_HANDLING_GENERATOR, "cip-chain-assembler"),
+            assembled));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    verify(planner, times(1)).plan(any());
+    assertEquals(List.of(TARGET, UNRELATED), proposal.intent().targetNodeIds());
+    assertTrue(
+        engine.recordedRequests().stream()
+            .anyMatch(
+                recorded ->
+                    recorded
+                        .seed()
+                        .presentArtifactTypes()
+                        .contains(SkillArtifactType.CHAIN_EDIT_STRUCTURAL_PLAN.name())),
+        engine.recordedRequests().toString());
+  }
+
+  @Test
   void aWrappedElementKeepsItsOutgoingConnectionThroughTheContainer() {
     intentReply = wrapCapture(TARGET);
     ChainPlanGraph assembled =
@@ -1954,7 +2030,7 @@ class ChainEditCompilerTest {
 
   @Test
   void anApprovedImportResumesTheSameEditWithAnApiHubBinding() {
-    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+    when(catalogMutationGateway.importApiHubSpecification(any(), any(), any()))
         .thenReturn(
             Uni.createFrom()
                 .item(
@@ -1985,7 +2061,7 @@ class ChainEditCompilerTest {
 
   @Test
   void anApprovedImportKeepsTheImportedOccurrenceOwner() {
-    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+    when(catalogMutationGateway.importApiHubSpecification(any(), any(), any()))
         .thenReturn(
             Uni.createFrom()
                 .item(
@@ -2037,7 +2113,7 @@ class ChainEditCompilerTest {
 
   @Test
   void anImportThatNamesNoOperationChangesNothing() {
-    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+    when(catalogMutationGateway.importApiHubSpecification(any(), any(), any()))
         .thenReturn(
             Uni.createFrom()
                 .item(
@@ -2755,7 +2831,8 @@ class ChainEditCompilerTest {
             List.of(),
             "dag-digest");
     return new CompilerRunPin(
-        "compiler-v2", "1.0.0", "package-digest", 2, "v1", "index-digest", dag, List.of(), Map.of(), Map.of(), List.of(),
+        "compiler-v2", "1.0.0", "package-digest", 2, "v1", "index-digest", dag, List.of(),
+        Map.of("cip-chain-edit-planner", "planner-hash"), Map.of(), List.of(),
         null,
         null,
         null,
@@ -2860,6 +2937,10 @@ class ChainEditCompilerTest {
         new java.util.ArrayDeque<>();
     private boolean validationValid = true;
     private RuntimeException failure;
+
+    private List<CompilerDagExecutionRequest> recordedRequests() {
+      return List.copyOf(requests);
+    }
 
     @Override
     public Uni<CompilerDagExecutionResult> execute(

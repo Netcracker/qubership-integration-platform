@@ -16,6 +16,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -505,7 +506,9 @@ class ChatDecisionServiceTest {
         new ChatDecisionService(facade, questionStore(), drafts).openDecision("conv-1").orElseThrow();
 
     assertEquals("import:pkg.geosite", decision.id());
-    assertEquals(List.of(ChatEvent.IMPORT_ACTION), decision.actions());
+    assertEquals(
+        List.of(ChatEvent.IMPORT_INTERNAL_ACTION, ChatEvent.IMPORT_EXTERNAL_ACTION),
+        decision.actions());
     assertTrue(decision.question().contains("GeoSite"), decision.question());
   }
 
@@ -515,6 +518,45 @@ class ChatDecisionServiceTest {
         ChatEvent.IMPORT_MARKER,
         ChatDecisionService.transcriptMarker(
             command(ChatEvent.IMPORT_ACTION, null, null, null)));
+  }
+
+  @Test
+  void markerNamesExternalImportWithoutGuessingAtWording() {
+    assertEquals(
+        ChatEvent.IMPORT_EXTERNAL_MARKER,
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.IMPORT_EXTERNAL_ACTION, null, null, null)));
+  }
+
+  @Test
+  void uploadedImportMarkerDoesNotNameApiHub() {
+    assertEquals(
+        ChatEvent.UPLOADED_IMPORT_EXTERNAL_MARKER,
+        ChatDecisionService.transcriptMarker(
+            command(
+                ChatEvent.IMPORT_EXTERNAL_ACTION,
+                UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+                "hash",
+                null)));
+    assertEquals(
+        ChatEvent.UPLOADED_IMPORT_MARKER,
+        ChatDecisionService.transcriptMarker(
+            command(
+                ChatEvent.IMPORT_INTERNAL_ACTION,
+                UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+                "hash",
+                null)));
+  }
+
+  @Test
+  void rememberImportChoiceWritesExternalOnTheDraft() {
+    RequirementDraftStore drafts = new RequirementDraftStore();
+    drafts.put("conv-1", new RequirementDraft(false, "GeoSite").withImportIntent(true));
+    ChatDecisionService service =
+        new ChatDecisionService(mock(CreateChainApplicationFacade.class), questionStore(), drafts);
+    ChatDecisionCommand command = command(ChatEvent.IMPORT_EXTERNAL_ACTION, null, null, null);
+    service.rememberImportChoice("conv-1", command);
+    assertEquals("EXTERNAL", drafts.get("conv-1").orElseThrow().preferredSystemType());
   }
 
   @Test
@@ -774,7 +816,9 @@ class ChatDecisionServiceTest {
             .orElseThrow();
 
     assertEquals("clarify", decision.kind());
-    assertEquals(List.of(ChatEvent.IMPORT_ACTION), decision.actions());
+    assertEquals(
+        List.of(ChatEvent.IMPORT_INTERNAL_ACTION, ChatEvent.IMPORT_EXTERNAL_ACTION),
+        decision.actions());
   }
 
   @Test
@@ -835,6 +879,13 @@ class ChatDecisionServiceTest {
         ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
     verify(facade).continueWithInput(input.capture());
     assertEquals(PipelineGates.RETRY_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
+  void retryProgressNamesGoingBackOneStep() {
+    assertEquals(
+        "Going back one step.",
+        ChatDecisionService.haltResumeProgress(PipelineGates.RETRY_ACTION));
   }
 
   @Test

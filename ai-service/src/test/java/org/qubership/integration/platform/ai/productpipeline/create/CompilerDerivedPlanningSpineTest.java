@@ -21,12 +21,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.ChainStructureCaptureTool;
+import org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationPass;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -38,10 +40,10 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPatte
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
-import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutor;
@@ -67,8 +69,7 @@ class CompilerDerivedPlanningSpineTest {
   @BeforeEach
   void setUp() {
     PlanCompilationTestSupport.Runtime runtime = PlanCompilationTestSupport.memory();
-    workspaceStore =
-        new InMemorySkillWorkspaceStore(new ChainPlanStore());
+    workspaceStore = new InMemorySkillWorkspaceStore(runtime.chainPlanStore());
     skillRegistry = mock(SkillExecutorRegistry.class);
     javaAdapterRegistry = mock(CompilerNodeExecutionAdapterRegistry.class);
     bindingStore = mock(CreateRunBindingStore.class);
@@ -97,7 +98,8 @@ class CompilerDerivedPlanningSpineTest {
             bindingStore,
             packRepository,
             graphAssemblyService,
-            validationPipeline);
+            validationPipeline,
+            new ProductPipelineArtifactStore(runtime.artifacts()));
   }
 
   @Test
@@ -391,7 +393,8 @@ class CompilerDerivedPlanningSpineTest {
     ResolvedCompilerDag dag = dagWithMandatoryNamingThenAssembly();
     when(bindingStore.load(conversationId))
         .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
-    when(skillRegistry.require("cip-naming-generator")).thenReturn(new FailedNamingExecutor());
+    FailedNamingExecutor namingExecutor = new FailedNamingExecutor();
+    when(skillRegistry.require("cip-naming-generator")).thenReturn(namingExecutor);
 
     CompilerNodeExecutionAdapter assemblyAdapter = mock(CompilerNodeExecutionAdapter.class);
     when(javaAdapterRegistry.require("graph-assembly")).thenReturn(assemblyAdapter);
@@ -432,14 +435,104 @@ class CompilerDerivedPlanningSpineTest {
     assertEquals(
         List.of("cip-naming-generator", "cip-chain-assembler", "cip-structural-validator"),
         outcome.executedSkillIds());
+    assertEquals(2, namingExecutor.runCount());
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     assertTrue(workspace.get(SkillArtifactType.NAMING_MANIFEST).isPresent());
     assertEquals(
-        "Prior.Internal.Chain",
+                    "Prior.Internal.Chain",
         ((SkillArtifactPayload.NamingManifestPayload)
                 workspace.get(SkillArtifactType.NAMING_MANIFEST).orElseThrow().payload())
             .manifest()
             .chainName());
+  }
+
+  @Test
+  void fallbackCoversDeclaredOutputsRequiresPatchWhenCaptureToolIsGraphPatch() {
+    ResolvedCompilerNode emptyProduces =
+        graphPatchNode("cip-error-handling-generator", List.of());
+    assertFalse(
+        DefaultCompilerDagExecutionEngine.fallbackCoversDeclaredOutputs(
+            emptyProduces, List.of()));
+    assertTrue(
+        DefaultCompilerDagExecutionEngine.fallbackCoversDeclaredOutputs(
+            emptyProduces, List.of(emptyGraphPatchArtifact("cip-error-handling-generator"))));
+
+    ResolvedCompilerNode producesPatch =
+        graphPatchNode(
+            "cip-service-call-generator", List.of(SkillArtifactType.GRAPH_PATCH.name()));
+    assertFalse(
+        DefaultCompilerDagExecutionEngine.fallbackCoversDeclaredOutputs(
+            producesPatch, List.of()));
+    assertTrue(
+        DefaultCompilerDagExecutionEngine.fallbackCoversDeclaredOutputs(
+            producesPatch, List.of(emptyGraphPatchArtifact("cip-service-call-generator"))));
+  }
+
+  @Test
+  void haltsWhenGraphPatchCaptureFailsAfterRetry() {
+    String conversationId = "conv-graph-patch-fail-closed";
+    String skillId = "cip-error-handling-generator";
+    ResolvedCompilerDag dag = dagWithGraphPatchThenAssembly(skillId);
+    when(bindingStore.load(conversationId))
+        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    FailedGraphPatchExecutor executor = new FailedGraphPatchExecutor(skillId);
+    when(skillRegistry.require(skillId)).thenReturn(executor);
+    seedStructureAndGraph(conversationId);
+
+    IllegalStateException failure =
+        assertThrows(
+            IllegalStateException.class,
+            () -> spine.execute(request(conversationId)).await().indefinitely());
+
+    assertEquals(2, executor.runCount());
+    assertTrue(failure.getMessage().contains(skillId), failure.getMessage());
+    assertTrue(failure.getMessage().contains("status=FAILED"), failure.getMessage());
+    assertTrue(
+        failure.getMessage().contains(CompilerGraphPatchTool.CAPTURE_REQUIRED_MESSAGE),
+        failure.getMessage());
+    verifyNoInteractions(javaAdapterRegistry);
+  }
+
+  @Test
+  void retriesGraphPatchCaptureOnceThenContinues() {
+    String conversationId = "conv-graph-patch-retry";
+    String skillId = "cip-script-generator";
+    ResolvedCompilerDag dag = dagWithGraphPatchThenAssembly(skillId);
+    when(bindingStore.load(conversationId))
+        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    RetryingGraphPatchExecutor executor = new RetryingGraphPatchExecutor(skillId);
+    when(skillRegistry.require(skillId)).thenReturn(executor);
+
+    CompilerNodeExecutionAdapter assemblyAdapter = mock(CompilerNodeExecutionAdapter.class);
+    when(javaAdapterRegistry.require("graph-assembly")).thenReturn(assemblyAdapter);
+    when(assemblyAdapter.execute(eq(node(dag, "cip-chain-assembler")), org.mockito.Mockito.any()))
+        .thenReturn(new CompilerNodeExecutionResult(List.of(), List.of()));
+
+    CompilerNodeExecutionAdapter validatorAdapter = mock(CompilerNodeExecutionAdapter.class);
+    when(javaAdapterRegistry.require("structural-validation")).thenReturn(validatorAdapter);
+    when(validatorAdapter.execute(eq(node(dag, "cip-structural-validator")), org.mockito.Mockito.any()))
+        .thenReturn(
+            new CompilerNodeExecutionResult(
+                List.of(
+                    SkillArtifact.of(
+                        SkillArtifactType.PRE_BUILD_VALIDATION,
+                        "cip-structural-validator",
+                        new SkillArtifactPayload.ValidationResultPayload(
+                            new ValidationResult(true, List.of(), "ok")))),
+                List.of()));
+    seedStructureAndGraph(conversationId);
+
+    var outcome = spine.execute(request(conversationId)).await().indefinitely();
+
+    assertEquals(2, executor.runCount());
+    assertEquals(
+        List.of(skillId, "cip-chain-assembler", "cip-structural-validator"),
+        outcome.executedSkillIds());
+    assertTrue(
+        workspaceStore
+            .getOrCreate(conversationId)
+            .get(SkillArtifactType.GRAPH_PATCH)
+            .isPresent());
   }
 
   @Test
@@ -666,6 +759,103 @@ class CompilerDerivedPlanningSpineTest {
         "naming-fail-open");
   }
 
+  private static ResolvedCompilerDag dagWithGraphPatchThenAssembly(String skillId) {
+    return new ResolvedCompilerDag(
+        List.of(
+            graphPatchNode(skillId, List.of(SkillArtifactType.GRAPH_PATCH.name())),
+            new ResolvedCompilerNode(
+                "cip-chain-assembler",
+                "Assembly",
+                null,
+                List.of(SkillArtifactType.GRAPH_PATCH.name()),
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(skillId),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                1,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "graph-assembly"),
+            new ResolvedCompilerNode(
+                "cip-structural-validator",
+                "Validation",
+                null,
+                List.of(SkillArtifactType.GRAPH_ASSEMBLY_RESULT.name()),
+                List.of(SkillArtifactType.PRE_BUILD_VALIDATION.name()),
+                List.of("cip-chain-assembler"),
+                null,
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                2,
+                0,
+                true,
+                CompilerNodeExecutionMode.JAVA_ADAPTER,
+                "structural-validation")),
+        List.of(),
+        "graph-patch-retry");
+  }
+
+  private static ResolvedCompilerNode graphPatchNode(String skillId, List<String> produces) {
+    return new ResolvedCompilerNode(
+        skillId,
+        "Generation",
+        "GEN-10",
+        List.of(SkillArtifactType.REQUIREMENT_BRIEF.name()),
+        produces,
+        List.of("cip-requirement-analyzer"),
+        "captureGraphPatch",
+        List.of(),
+        List.of(),
+        true,
+        List.of(),
+        0,
+        0,
+        true,
+        CompilerNodeExecutionMode.LLM_SKILL,
+        null);
+  }
+
+  private static SkillArtifact emptyGraphPatchArtifact(String skillId) {
+    return SkillArtifact.of(
+        SkillArtifactType.GRAPH_PATCH,
+        skillId,
+        new SkillArtifactPayload.GraphPatchPayload(emptyGraphPatch(skillId)));
+  }
+
+  private static GraphPatch emptyGraphPatch(String skillId) {
+    return new GraphPatch(
+        "retry-ok",
+        skillId,
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "Retry produced a graph patch");
+  }
+
+  private void seedStructureAndGraph(String conversationId) {
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_STRUCTURE,
+            "seed",
+            new SkillArtifactPayload.ChainStructurePayload(
+                new ChainStructure(graphForAssembly(), List.of(), List.of()))));
+    workspaceStore.putArtifact(
+        conversationId,
+        SkillArtifact.of(
+            SkillArtifactType.CHAIN_PLAN_GRAPH,
+            "seed",
+            new SkillArtifactPayload.ChainPlanGraphPayload(graphForAssembly())));
+  }
+
   private static ResolvedCompilerDag dagWithStructureThenAssembly() {
     return new ResolvedCompilerDag(
         List.of(
@@ -838,6 +1028,8 @@ class CompilerDerivedPlanningSpineTest {
   }
 
   private static final class FailedNamingExecutor implements SkillExecutor {
+    private final AtomicInteger runs = new AtomicInteger();
+
     @Override
     public String skillId() {
       return "cip-naming-generator";
@@ -860,7 +1052,97 @@ class CompilerDerivedPlanningSpineTest {
 
     @Override
     public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      runs.incrementAndGet();
       return Uni.createFrom().item(SkillExecutionResult.failed("naming capture contract failure"));
+    }
+
+    int runCount() {
+      return runs.get();
+    }
+  }
+
+  private static final class FailedGraphPatchExecutor implements SkillExecutor {
+    private final String skillId;
+    private final AtomicInteger runs = new AtomicInteger();
+
+    private FailedGraphPatchExecutor(String skillId) {
+      this.skillId = skillId;
+    }
+
+    @Override
+    public String skillId() {
+      return skillId;
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.CHAIN_PLAN_GRAPH);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.GRAPH_PATCH);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      runs.incrementAndGet();
+      return Uni.createFrom()
+          .item(SkillExecutionResult.failed(CompilerGraphPatchTool.CAPTURE_REQUIRED_MESSAGE));
+    }
+
+    int runCount() {
+      return runs.get();
+    }
+  }
+
+  private static final class RetryingGraphPatchExecutor implements SkillExecutor {
+    private final String skillId;
+    private final AtomicInteger runs = new AtomicInteger();
+
+    private RetryingGraphPatchExecutor(String skillId) {
+      this.skillId = skillId;
+    }
+
+    @Override
+    public String skillId() {
+      return skillId;
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.CHAIN_PLAN_GRAPH);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.GRAPH_PATCH);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      if (runs.incrementAndGet() == 1) {
+        return Uni.createFrom()
+            .item(SkillExecutionResult.failed(CompilerGraphPatchTool.CAPTURE_REQUIRED_MESSAGE));
+      }
+      return Uni.createFrom()
+          .item(
+              SkillExecutionResult.completed(
+                  List.of(emptyGraphPatchArtifact(skillId)), "captured"));
+    }
+
+    int runCount() {
+      return runs.get();
     }
   }
 
