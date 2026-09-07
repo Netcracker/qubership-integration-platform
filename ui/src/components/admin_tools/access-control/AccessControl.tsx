@@ -16,13 +16,14 @@ import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import {
   AccessControlType,
   AccessControl as AccessControlData,
-  AccessControlBulkDeployRequest,
   AccessControlProperty,
 } from "../../../api/apiTypes.ts";
 import { useAccessControl } from "../../../hooks/useAccessControl.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
 import { AbacAttributesPopUp } from "./AbacAttributesPopUp.tsx";
 import { AddDeleteRolesPopUp } from "./AddDeleteRolesPopUp.tsx";
+import { chainIdsOf } from "./accessControlRequests.ts";
+import { api } from "../../../api/api.ts";
 import { useNavigate } from "react-router";
 import {
   DeploymentsCumulativeState,
@@ -84,7 +85,6 @@ export const AccessControl: React.FC = () => {
     accessControlData,
     setAccessControlData,
     getAccessControl,
-    bulkDeployAccessControl,
     loadMore,
     allDataLoaded,
   } = useAccessControl(filters);
@@ -146,16 +146,10 @@ export const AccessControl: React.FC = () => {
     }
 
     try {
-      const bulkDeployRequests: AccessControlBulkDeployRequest[] =
-        recordsToDeploy.map((record) => ({
-          chainId: record.chainId,
-          unsavedChanges: record.unsavedChanges,
-        }));
+      const chainIds = chainIdsOf(recordsToDeploy);
+      await api.bulkDeployChainsAccessControl(chainIds);
 
-      await bulkDeployAccessControl(bulkDeployRequests);
-
-      const chainToDeploy = new Set(recordsToDeploy.map((r) => r.chainId));
-      setDeployedChainIds(new Set(chainToDeploy));
+      setDeployedChainIds(new Set(chainIds));
 
       if (accessControlData?.roles) {
         const deployedChainIds = new Set(
@@ -177,6 +171,8 @@ export const AccessControl: React.FC = () => {
         "Failed to deploy chains",
         err instanceof Error ? err : new Error(String(err)),
       );
+      // A chain that fails no longer stops the rest, so some of the batch may have deployed.
+      await getAccessControl();
     }
   };
 
