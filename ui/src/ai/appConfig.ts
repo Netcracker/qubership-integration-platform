@@ -42,7 +42,7 @@ export function useIsAiServiceAvailable(): boolean {
       return;
     }
     const base = url.replace(/\/$/, "");
-    fetch(`${base}/q/health`, { method: "GET" })
+    fetch(`${base}/q/health`, { method: "GET", credentials: "omit" })
       .then((response) => {
         setIsAiServiceAvailable(response.ok);
       })
