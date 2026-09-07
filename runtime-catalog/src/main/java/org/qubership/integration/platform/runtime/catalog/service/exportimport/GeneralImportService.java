@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
@@ -52,9 +53,17 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.ARCH_PARENT_DIR;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CHAINS_ARCH_PARENT_DIR;
+
 @Slf4j
 @Service
 public class GeneralImportService {
+
+    private static final String VARIABLES_ARCH_PARENT_DIR = "variables";
+    private static final String NOTHING_TO_IMPORT_MESSAGE =
+            "Nothing to import: the archive contains no chains, services, variables, or import instructions."
+                    + " Expected chains/<id>/, services/<id>/, variables/common-variables.yaml, or ";
 
     private final CommonVariablesService commonVariablesService;
     private final SystemExportImportService systemExportImportService;
@@ -182,6 +191,11 @@ public class GeneralImportService {
 
             log.info("Import session {} started", importId);
 
+            if (containsNothingImportable(importDirectory)) {
+                throw new RuntimeException(
+                        NOTHING_TO_IMPORT_MESSAGE + importInstructionsService.getInstructionsFileName());
+            }
+
             ArrayList<ImportInstructionResult> importInstructionResults = new ArrayList<>();
 
             File importInstructionsConfigFile = new File(importDirectory, importInstructionsService.getInstructionsFileName());
@@ -240,6 +254,15 @@ public class GeneralImportService {
         }
 
         importSessionService.saveImportSession(importSession);
+    }
+
+    // Each clause mirrors the reader it stands for: chains are read per directory, while plain,
+    // context and MCP services all live under the services directory.
+    private boolean containsNothingImportable(File importDirectory) {
+        return ArrayUtils.isEmpty(new File(importDirectory, CHAINS_ARCH_PARENT_DIR).listFiles(File::isDirectory))
+                && ArrayUtils.isEmpty(new File(importDirectory, ARCH_PARENT_DIR).listFiles())
+                && ArrayUtils.isEmpty(new File(importDirectory, VARIABLES_ARCH_PARENT_DIR).listFiles())
+                && !new File(importDirectory, importInstructionsService.getInstructionsFileName()).exists();
     }
 
     private File unpackDirectory(MultipartFile file) {
