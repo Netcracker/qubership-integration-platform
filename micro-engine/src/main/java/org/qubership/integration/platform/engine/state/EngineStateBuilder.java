@@ -15,6 +15,7 @@ import org.qubership.integration.platform.engine.model.engine.EngineState;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -94,7 +95,14 @@ public class EngineStateBuilder {
                                 ? ErrorCode.UNEXPECTED_DEPLOYMENT_ERROR.getCode()
                                 : null
                 )
+                .createdWhen(toEpochMillis(deploymentInfo.getTimestamp()))
+                .createdBy(deploymentInfo.getCreatedBy())
                 .build();
+    }
+
+    /** The DSL carries the build timestamp in seconds; the catalog reports deployment times in millis. */
+    private static Long toEpochMillis(Long epochSeconds) {
+        return epochSeconds == null ? null : TimeUnit.SECONDS.toMillis(epochSeconds);
     }
 
     private DeploymentStatus buildDeploymentStatus(SourceLoadStateTracker.SourceLoadState sourceLoadState) {

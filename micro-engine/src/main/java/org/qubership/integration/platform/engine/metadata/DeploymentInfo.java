@@ -13,6 +13,7 @@ public class DeploymentInfo {
     private String id;
     private String name;
     private Long timestamp;
+    private String createdBy;
     private ChainInfo chain;
     private SnapshotInfo snapshot;
 }

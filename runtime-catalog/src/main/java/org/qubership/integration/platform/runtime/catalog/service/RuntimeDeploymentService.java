@@ -28,6 +28,7 @@ import org.qubership.integration.platform.runtime.catalog.model.domains.DomainTy
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentRuntime;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.RuntimeDeploymentState;
+import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
@@ -147,6 +148,8 @@ public class RuntimeDeploymentService {
                                         .domain(engineInfo.getDomain())
                                         .domainType(engineInfo.getDomainType())
                                         .serviceName(engineInfo.getEngineDeploymentName())
+                                        .createdWhen(deploymentInfo.getCreatedWhen())
+                                        .createdBy(asUser(deploymentInfo))
                                         .runtime(DeploymentRuntime.builder()
                                                 .states(Collections.singletonMap(
                                                         engineInfo.getHost(),
@@ -166,6 +169,19 @@ public class RuntimeDeploymentService {
                         (d1, d2) ->
                             d1.toBuilder().runtime(d1.getRuntime().merge(d2.getRuntime())).build()
                 )).values();
+    }
+
+    /**
+     * The creator a micro engine reports, or {@code null} for a deployment made before the
+     * generated resource started carrying one.
+     */
+    private static UserDTO asUser(DeploymentInfo deploymentInfo) {
+        if (deploymentInfo.getCreatedBy() == null) {
+            return null;
+        }
+        return UserDTO.builder()
+                .username(deploymentInfo.getCreatedBy())
+                .build();
     }
 
     public void provideEnginesStateUpdate(Collection<EngineState> newStateList) {

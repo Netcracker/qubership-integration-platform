@@ -19,10 +19,12 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -50,6 +52,7 @@ public class MicroDomainResourceBuildContextFactory {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
+    private final AuditorAware<User> auditor;
     private final boolean hostResourcesEnabled;
 
     @Autowired
@@ -74,6 +77,8 @@ public class MicroDomainResourceBuildContextFactory {
             @Qualifier("httpRouteEgressNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
 
+            AuditorAware<User> auditor,
+
             @Value("${qip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
     ) {
         this.snapshotRepository = snapshotRepository;
@@ -84,6 +89,7 @@ public class MicroDomainResourceBuildContextFactory {
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
         this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
         this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
+        this.auditor = auditor;
         this.hostResourcesEnabled = hostResourcesEnabled;
     }
 
@@ -155,6 +161,11 @@ public class MicroDomainResourceBuildContextFactory {
                 .build();
     }
 
+    /**
+     * The creator is captured here, while the caller's request is still in scope: a micro domain
+     * keeps no deployment row of its own, so the user who deployed is reported back from the
+     * generated resource, and nothing downstream of this build knows who asked for it.
+     */
     private BuildInfo createBuildInfo(ResourceBuildOptions options) {
         String id = UUID.randomUUID().toString();
         Instant timestamp = Instant.now();
@@ -162,10 +173,12 @@ public class MicroDomainResourceBuildContextFactory {
                 .id(id)
                 .timestamp(timestamp)
                 .build();
+        User createdBy = auditor.getCurrentAuditor().orElse(null);
         return BuildInfo.builder()
                 .id(id)
                 .timestamp(timestamp)
                 .name(buildNamingStrategy.getName(buildNamingContext))
+                .createdBy(createdBy == null ? null : createdBy.getUsername())
                 .options(options)
                 .build();
     }

@@ -41,6 +41,8 @@ class EngineStateBuilderTest {
     private static final String CHAIN_NAME = "Test chain";
     private static final String SNAPSHOT_NAME = "V8";
     public static final String DEPLOYMENT_ID = "ab181758-32d9-4743-9201-ff63f48ad452";
+    private static final long BUILD_TIMESTAMP_SECONDS = 1_785_916_930L;
+    private static final String CREATED_BY = "cpq-admin";
 
     @Mock
     private EngineInfo engineInfo;
@@ -96,6 +98,35 @@ class EngineStateBuilderTest {
         assertEquals(SNAPSHOT_ID, deploymentInfo.getSnapshotId());
         assertEquals(SNAPSHOT_NAME, deploymentInfo.getSnapshotName());
         assertNull(deploymentInfo.getChainStatusCode());
+        assertEquals(Long.valueOf(BUILD_TIMESTAMP_SECONDS * 1000), deploymentInfo.getCreatedWhen(),
+            "the DSL carries the build timestamp in seconds, the state must report millis");
+        assertEquals(CREATED_BY, deploymentInfo.getCreatedBy());
+    }
+
+    @Test
+    void shouldReportNoCreationDetailsWhenTheDeploymentInfoCarriesNone() {
+        SourceDefinition sourceDefinition = sourceDefinitionWithIdOnly();
+        SourceLoadStateTracker.SourceLoadState loadState = loadState(
+            SourceLoadStateTracker.SourceLoadStage.SUCCESS,
+            null
+        );
+        org.qubership.integration.platform.engine.metadata.DeploymentInfo metadataDeploymentInfo =
+            org.qubership.integration.platform.engine.metadata.DeploymentInfo.builder()
+                .id(DEPLOYMENT_ID)
+                .chain(ChainInfo.builder().id(CHAIN_ID).name(CHAIN_NAME).build())
+                .snapshot(SnapshotInfo.builder().id(SNAPSHOT_ID).name(SNAPSHOT_NAME).build())
+                .build();
+
+        when(sourceLoadStateTracker.getSourceDefinitions()).thenReturn(Set.of(sourceDefinition));
+        when(sourceLoadStateTracker.getLoadState(SNAPSHOT_ID)).thenReturn(loadState);
+        when(registry.findByType(org.qubership.integration.platform.engine.metadata.DeploymentInfo.class))
+            .thenReturn(Set.of(metadataDeploymentInfo));
+
+        EngineState engineState = builder.build(camelContext);
+
+        DeploymentInfo deploymentInfo = engineState.getDeployments().get(DEPLOYMENT_ID).getDeploymentInfo();
+        assertNull(deploymentInfo.getCreatedWhen());
+        assertNull(deploymentInfo.getCreatedBy());
     }
 
     @Test
@@ -220,6 +251,8 @@ class EngineStateBuilderTest {
         ) {
         return org.qubership.integration.platform.engine.metadata.DeploymentInfo.builder()
             .id(EngineStateBuilderTest.DEPLOYMENT_ID)
+            .timestamp(BUILD_TIMESTAMP_SECONDS)
+            .createdBy(CREATED_BY)
             .chain(ChainInfo.builder()
                 .id(CHAIN_ID)
                 .name(CHAIN_NAME)
