@@ -1611,14 +1611,14 @@ export const AiAssistant: React.FC = () => {
                                 <Button
                                   size="small"
                                   className="ai-message__reload"
-                                  onClick={() =>
+                                  onClick={() => {
+                                    if (!currentSessionId) return;
                                     void reconcileOpenDecision(
-                                      sessionStore.getSession(
-                                        currentSessionId ?? "",
-                                      )?.conversationId,
+                                      sessionStore.getSession(currentSessionId)
+                                        ?.conversationId,
                                       currentSessionId,
-                                    )
-                                  }
+                                    );
+                                  }}
                                 >
                                   Reload this conversation
                                 </Button>
