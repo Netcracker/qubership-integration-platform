@@ -11,6 +11,8 @@ export type ChainDiffViewControlsProps = {
   selectedChangeId?: string;
   onSelectChange: (id: string) => void;
   onViewTypeChange: (value: DiffViewType) => void;
+  onPreviousChange?: () => void;
+  onNextChange?: () => void;
 };
 
 export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
@@ -18,6 +20,8 @@ export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
   selectedChangeId,
   onSelectChange,
   onViewTypeChange,
+  onPreviousChange,
+  onNextChange,
 }): React.ReactNode => {
   const [isFirstChange, setIsFirstChange] = useState<boolean>(false);
   const [isLastChange, setIsLastChange] = useState<boolean>(false);
@@ -39,19 +43,27 @@ export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
   }, [selectedChangeId, changes]);
 
   const goToPreviousChange = useCallback(() => {
+    if (onPreviousChange) {
+      onPreviousChange();
+      return;
+    }
     const idx = changes.findIndex((c) => c.id === selectedChangeId);
     const prevIdx = idx > 0 ? idx - 1 : 0;
     const id = changes[prevIdx]?.id;
     onSelectChange(id);
-  }, [changes, selectedChangeId, onSelectChange]);
+  }, [changes, selectedChangeId, onSelectChange, onPreviousChange]);
 
-  const gotToNextChange = useCallback(() => {
+  const goToNextChange = useCallback(() => {
+    if (onNextChange) {
+      onNextChange();
+      return;
+    }
     const idx = changes.findIndex((c) => c.id === selectedChangeId);
     const lastIdx = changes.length - 1;
     const nextIdx = idx < 0 || idx === lastIdx ? lastIdx : idx + 1;
     const id = changes[nextIdx]?.id;
     onSelectChange(id);
-  }, [changes, selectedChangeId, onSelectChange]);
+  }, [changes, selectedChangeId, onSelectChange, onNextChange]);
 
   return (
     <Flex vertical={false} align={"center"} justify={"space-between"} gap={24}>
@@ -60,7 +72,7 @@ export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
           <Button
             icon={<OverridableIcon name={"previousChange"} />}
             type={"text"}
-            disabled={isFirstChange}
+            disabled={onPreviousChange ? changes.length === 0 : isFirstChange}
             onClick={goToPreviousChange}
           />
         </Tooltip>
@@ -68,8 +80,8 @@ export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
           <Button
             icon={<OverridableIcon name={"nextChange"} />}
             type={"text"}
-            disabled={isLastChange}
-            onClick={gotToNextChange}
+            disabled={onNextChange ? changes.length === 0 : isLastChange}
+            onClick={goToNextChange}
           />
         </Tooltip>
       </Flex>
