@@ -323,7 +323,7 @@ public class FolderService {
         return folderRepository.findAllFoldersToRootParentFolder(openedFolderId);
     }
 
-    public Folder setActualizedFolderState(Folder folderState){
+    public Folder setActualizedFolderState(Folder folderState) {
         if (folderState.getParentFolder() != null) {
             Folder actualizedParentFolder = setActualizedFolderState(folderState.getParentFolder());
             folderState.setParentFolder(actualizedParentFolder);
