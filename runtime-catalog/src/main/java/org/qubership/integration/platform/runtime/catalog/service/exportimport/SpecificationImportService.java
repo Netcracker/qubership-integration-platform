@@ -32,6 +32,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportWarningException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -39,6 +40,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ConfigParameterService;
+import org.qubership.integration.platform.runtime.catalog.service.SpecificationGroupService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.OperationParserService;
@@ -78,6 +80,8 @@ public class SpecificationImportService {
     private final ObjectMapper objectMapper;
     private final SystemBaseService systemBaseService;
     private final SystemModelBaseService systemModelService;
+    private final SpecificationGroupService specificationGroupService;
+    private final TransactionHandler transactionHandler;
     private final WsdlRootFileParser wsdlRootFileParser;
 
     @Autowired
@@ -89,6 +93,8 @@ public class SpecificationImportService {
                                       @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
                                       SystemBaseService systemBaseService,
                                       SystemModelBaseService systemModelService,
+                                      SpecificationGroupService specificationGroupService,
+                                      TransactionHandler transactionHandler,
                                       WsdlRootFileParser wsdlRootFileParser
     ) {
         this.operationParserService = operationParserService;
@@ -99,6 +105,8 @@ public class SpecificationImportService {
         this.objectMapper = objectMapper;
         this.systemBaseService = systemBaseService;
         this.systemModelService = systemModelService;
+        this.specificationGroupService = specificationGroupService;
+        this.transactionHandler = transactionHandler;
         this.wsdlRootFileParser = wsdlRootFileParser;
     }
 
@@ -121,12 +129,12 @@ public class SpecificationImportService {
         if (sessionStatus.isBusiness()) {
             throw new SpecificationImportException(sessionStatus.getErrorMessage());
         }
+        // Keep a failed status so a repeat poll still reports the cause.
+        // deleteObsoleteImportSessionStatuses() drops it later.
         if (!StringUtils.isBlank(sessionStatus.getErrorMessage())) {
-            deleteImportSessionStatus(importId);
             throw new SpecificationImportException(sessionStatus.getErrorMessage(), sessionStatus.getStackTrace());
         }
         if (!StringUtils.isBlank(sessionStatus.getWarningMessage())) {
-            deleteImportSessionStatus(importId);
             throw new SpecificationImportWarningException(sessionStatus.getWarningMessage(), sessionStatus.getStackTrace());
         }
         if (sessionStatus.isImportIsDone()) {
@@ -141,6 +149,10 @@ public class SpecificationImportService {
     }
 
     public String importSpecification(String specificationGroupId, MultipartFile[] files) {
+        return importSpecification(specificationGroupId, files, false);
+    }
+
+    public String importSpecification(String specificationGroupId, MultipartFile[] files, boolean removeGroupOnFailure) {
         deleteObsoleteImportSessionStatuses();
         IntegrationSystem system = specificationGroupRepository.getReferenceById(specificationGroupId).getSystem();
 
@@ -183,6 +195,9 @@ public class SpecificationImportService {
                 onImportSpecificationTaskComplete(importId, e, message.toString());
                 if (e != null) {
                     specificationSourceRepository.deleteAll(specificationSources);
+                    if (removeGroupOnFailure) {
+                        removeSpecificationGroup(specificationGroupId);
+                    }
                 }
             });
         } catch (Exception e) {
@@ -224,8 +239,24 @@ public class SpecificationImportService {
             systemModelService.patchModelWithCompiledLibrary(model);
             return systemModelService.save(model);
         } catch (Exception exception) {
-            systemModelService.delete(model);
+            // The caller reports this exception, so anything the rollback throws must not replace it.
+            try {
+                systemModelService.delete(model);
+            } catch (Exception deleteException) {
+                log.error("Failed to remove specification {} after a failed import", model.getId(), deleteException);
+                exception.addSuppressed(deleteException);
+            }
             throw exception;
+        }
+    }
+
+    // The rollback runs on the future's completion thread, which has no session of its own.
+    private void removeSpecificationGroup(String specificationGroupId) {
+        try {
+            transactionHandler.runInNewTransaction(() -> specificationGroupService.delete(specificationGroupId));
+        } catch (Exception exception) {
+            log.warn("Failed to remove specification group {} after a failed import",
+                    specificationGroupId, exception);
         }
     }
 
@@ -287,22 +318,25 @@ public class SpecificationImportService {
         String stackTrace = null;
         boolean business = false;
         if (nonNull(exception)) {
-            if (nonNull(exception.getCause())) {
-                exception = exception.getCause();
-            }
-            errorMessage = exception.getMessage();
-            if (exception instanceof CatalogRuntimeException catalogRuntimeException
+            Throwable cause = nonNull(exception.getCause()) ? exception.getCause() : exception;
+            errorMessage = cause.getMessage();
+            if (cause instanceof CatalogRuntimeException catalogRuntimeException
                     && catalogRuntimeException.getOriginalException() != null) {
                 errorMessage += ". " + catalogRuntimeException.getOriginalException().getMessage();
             }
             if (StringUtils.isNotBlank(additionalMessage)) {
                 errorMessage += " " + additionalMessage;
             }
-            business = exception instanceof SpecificationSimilarVersionException;
-            if (exception instanceof CatalogRuntimeException catalogRuntimeException) {
+            business = cause instanceof SpecificationSimilarVersionException;
+            if (cause instanceof CatalogRuntimeException catalogRuntimeException) {
                 stackTrace = Optional.ofNullable(catalogRuntimeException.getOriginalException())
                         .map(ExceptionUtils::getStackTrace)
                         .orElse(null);
+            }
+            if (business) {
+                log.warn("Specification import {} rejected: {}", importId, errorMessage);
+            } else {
+                log.error("Specification import {} failed: {}", importId, errorMessage, exception);
             }
         }
         saveImportSessionStatus(importId, true, errorMessage, additionalMessage, stackTrace, business);
