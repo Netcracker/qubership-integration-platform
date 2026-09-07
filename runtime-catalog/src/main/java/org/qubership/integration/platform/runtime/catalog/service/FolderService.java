@@ -323,20 +323,20 @@ public class FolderService {
         return folderRepository.findAllFoldersToRootParentFolder(openedFolderId);
     }
 
-    public Folder setActualizedFolderState(Folder folderState) {
-        List<Folder> actualizedFolderList = new LinkedList<>(folderState
-                .getFolderList()
-                .stream()
-                .map(folderRepository::persist)
-                .toList());
-
-        folderState.setFolderList(actualizedFolderList);
-
+    public Folder setActualizedFolderState(Folder folderState){
         if (folderState.getParentFolder() != null) {
             Folder actualizedParentFolder = setActualizedFolderState(folderState.getParentFolder());
             folderState.setParentFolder(actualizedParentFolder);
         }
 
-        return folderRepository.persist(folderState);
+        Folder existingFolder = folderState.getId() != null
+            ? folderRepository.findById(folderState.getId()).orElse(null)
+            : null;
+        if (existingFolder == folderState) {
+            return folderState;
+        }
+
+        folderRepository.actualizeObjectState(existingFolder, folderState);
+        return folderState;
     }
 }
