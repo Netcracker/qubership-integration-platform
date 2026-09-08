@@ -32,6 +32,8 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 import { capitalize } from "../../misc/format-utils.ts";
 import { GenericServiceListPage } from "./GenericServiceListPage.tsx";
+import { ServiceDiscoveryButton } from "./ui/ServiceDiscoveryButton.tsx";
+import { Require } from "../../permissions/Require.tsx";
 
 const STORAGE_KEY = "servicesListTable";
 
@@ -450,7 +452,23 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
           })()}
         />
       }
-      extraActions={[filterButton, servicesTable.FilterButton()]}
+      extraActions={[
+        ...(tab === "internal"
+          ? [
+              <Require key="service-discovery" permissions={{ service: ["execute"] }}>
+                <ServiceDiscoveryButton
+                  onSystemsDiscovered={(systemIds: string[]) => {
+                    if (systemIds.length > 0) {
+                      void loadServices();
+                    }
+                  }}
+                />
+              </Require>,
+            ]
+          : []),
+        filterButton,
+        servicesTable.FilterButton(),
+      ]}
       serviceType={getSystemType(tab)}
       onCreate={(name, description) => handleCreate(name, description)}
       onSearch={(value) => setSearchString(value)}
