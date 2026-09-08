@@ -76,6 +76,13 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 15
+          # The readiness group carries readinessState alone. Probing /actuator/health
+          # instead would gate traffic on every dependency the service reports.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            timeoutSeconds: 5
           name: {{ .Release.Name }}-sessions-management
           ports:
             - containerPort: 8080
