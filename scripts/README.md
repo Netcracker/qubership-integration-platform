@@ -12,7 +12,9 @@ locally to see what a release would do.
 - The **platform version** lives in the root `pom.xml` `<revision>`. One wave publishes the four backend services under
   it, tags the drop `v<platform-version>`, and titles the GitHub Release with it.
 - In-repo libraries (`qip-integration-build-pipeline`, `qip-checkstyle`) are pinned by property, not by the reactor
-  version. Their release moves the pins in the same bump commit.
+  version. Their release moves the pins in the same bump commit. The pins name the last release either way, but
+  runtime-catalog appends `${changelist}` to the library pin so a normal build resolves the development coordinate
+  from the reactor; `qip-checkstyle` is a plugin dependency and is never in a reactor, so its pin is used as is.
 
 ## The scripts
 
