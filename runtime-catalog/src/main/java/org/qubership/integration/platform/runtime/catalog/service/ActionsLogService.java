@@ -19,9 +19,11 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.InvalidEnumConstantException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogSearchCriteria;
+import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.ActionsLogMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -68,13 +70,10 @@ public class ActionsLogService {
         List<ActionLogFilterRequestDTO> filters =
             request.getFilters() != null ? request.getFilters() : Collections.emptyList();
 
-        try {
-            List<ActionLog> rows = actionLogRepository.findActionLogsByFilter(offset, limit, filters);
-            return new ActionLogSearchResponse(offset + rows.size(), actionsLogMapper.asDTO(rows));
-        } catch (InvalidEnumConstantException e) {
-            log.debug(e.getMessage());
-            return new ActionLogSearchResponse(offset, Collections.emptyList());
-        }
+        validateFilters(filters);
+
+        List<ActionLog> rows = actionLogRepository.findActionLogsByFilter(offset, limit, filters);
+        return new ActionLogSearchResponse(offset + rows.size(), actionsLogMapper.asDTO(rows));
     }
 
     private int normalizeLimit(int limit) {
@@ -85,20 +84,35 @@ public class ActionsLogService {
     }
 
     public Pair<Long, List<ActionLog>> findBySearchRequest(ActionLogSearchCriteria request) {
-        try {
-            List<ActionLog> actionLogsByFilter = actionLogRepository.findActionLogsByFilter(
-                    request.getOffsetTime(),
-                    request.getRangeTime(),
-                    request.getFilters());
+        validateFilters(request.getFilters());
 
-            long recordsAfterRange = actionLogRepository.getRecordsCountAfterTime(
-                    new Timestamp(request.getOffsetTime().getTime() - request.getRangeTime()),
-                    request.getFilters());
+        List<ActionLog> actionLogsByFilter = actionLogRepository.findActionLogsByFilter(
+                request.getOffsetTime(),
+                request.getRangeTime(),
+                request.getFilters());
 
-            return Pair.of(recordsAfterRange, actionLogsByFilter);
-        } catch (InvalidEnumConstantException e) {
-            log.debug(e.getMessage());
-            return Pair.of(0L, Collections.emptyList());
+        long recordsAfterRange = actionLogRepository.getRecordsCountAfterTime(
+                new Timestamp(request.getOffsetTime().getTime() - request.getRangeTime()),
+                request.getFilters());
+
+        return Pair.of(recordsAfterRange, actionLogsByFilter);
+    }
+
+    /** A condition a column cannot translate used to answer 500, or 200 with the whole table. */
+    private void validateFilters(List<ActionLogFilterRequestDTO> filters) {
+        for (ActionLogFilterRequestDTO filter : filters) {
+            ActionLogFilterColumn column = filter.getColumn();
+            FilterCondition condition = filter.getCondition();
+            if (column == null) {
+                throw new BadRequestException("Filter column is required");
+            }
+            if (condition == null) {
+                throw new BadRequestException("Filter condition is required for column " + column);
+            }
+            if (!column.getSupportedConditions().contains(condition)) {
+                throw new BadRequestException("Filter condition " + condition + " is not supported for column "
+                        + column + ". Supported conditions: " + column.getSupportedConditions());
+            }
         }
     }
 
