@@ -95,19 +95,6 @@ class GeneralImportServiceTest {
         );
     }
 
-    private void stubAsyncDependenciesForImportId(String importId) {
-        when(commonVariablesService.importVariables(any(File.class), any()))
-                .thenReturn(ImportVariablesResult.builder().variables(List.of()).instructions(List.of()).build());
-        when(systemExportImportService.importSystems(any(File.class), any(), eq(importId), any()))
-                .thenReturn(new ImportSystemsAndInstructionsResult(List.of(), List.of()));
-        when(contextExportImportService.importContextService(any(File.class), any(), eq(importId)))
-                .thenReturn(new ImportContextServiceAndInstructionsResult(List.of(), List.of()));
-        when(mcpSystemImportExportService.importSystems(any(File.class), any(), eq(importId)))
-                .thenReturn(new ImportSystemsAndInstructionsResult(List.of(), List.of()));
-        when(chainImportService.importChains(any(File.class), any(), eq(importId), any(), anyBoolean()))
-                .thenReturn(new ImportChainsAndInstructionsResult(List.of(), List.of()));
-    }
-
     private void stubAsyncDependenciesForAnyImportId() {
         stubAsyncDependenciesWithMcpResults(List.of());
     }
@@ -293,7 +280,7 @@ class GeneralImportServiceTest {
         when(importInstructionsService.getInstructionsFileName()).thenReturn("import-instructions.json");
         GeneralImportService service = createService();
         String fixed = "correlation-id-xyz";
-        stubAsyncDependenciesForImportId(fixed);
+        stubAsyncDependenciesForAnyImportId();
         CountDownLatch latch = latchForSave();
 
         String result = service.importDirectoryAsync(dir, req, Set.of("tech-label"), true, fixed);
