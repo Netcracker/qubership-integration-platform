@@ -81,7 +81,6 @@ spec:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
           name: {{ .Release.Name }}-testing-service

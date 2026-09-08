@@ -145,7 +145,6 @@ spec:
             httpGet:
               path: /actuator/health/readiness
               port: 8080
-            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
           name: qip-runtime-catalog
