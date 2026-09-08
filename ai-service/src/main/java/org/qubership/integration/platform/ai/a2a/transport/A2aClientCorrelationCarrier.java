@@ -38,14 +38,20 @@ public final class A2aClientCorrelationCarrier {
     }
   }
 
-  /**
-   * Inserts a new per-request entry and returns its server-owned identity. Always succeeds with a
-   * distinct holder; never shares state with another concurrent request.
-   */
   public static Binding bind(String taskId, String contextId) {
+    return bind(taskId, contextId, null);
+  }
+
+  /**
+   * Binds client correlation ids and optionally the inbound catalog {@code Authorization} header.
+   *
+   * <p>The authorization value survives asynchronous executor dispatch after the Vert.x handler
+   * returns, unlike {@link org.qubership.integration.platform.ai.integration.catalog.auth.InboundCatalogAuthorization}.
+   */
+  public static Binding bind(String taskId, String contextId, String catalogAuthorization) {
     String requestId = UUID.randomUUID().toString();
     Holder holder = new Holder(blankToNull(taskId), blankToNull(contextId));
-    ENTRIES.put(requestId, new Entry(holder, Instant.now()));
+    ENTRIES.put(requestId, new Entry(holder, Instant.now(), blankToNull(catalogAuthorization)));
     return new Binding(requestId, holder);
   }
 
@@ -60,6 +66,19 @@ public final class A2aClientCorrelationCarrier {
     purgeExpired(Instant.now());
     Entry entry = ENTRIES.get(requestId);
     return entry == null ? new Holder(null, null) : entry.holder();
+  }
+
+  /** Returns catalog authorization captured for this A2A request, when present and not expired. */
+  public static java.util.Optional<String> catalogAuthorization(String requestId) {
+    if (requestId == null || requestId.isBlank()) {
+      return java.util.Optional.empty();
+    }
+    purgeExpired(Instant.now());
+    Entry entry = ENTRIES.get(requestId);
+    if (entry == null || entry.catalogAuthorization() == null || entry.catalogAuthorization().isBlank()) {
+      return java.util.Optional.empty();
+    }
+    return java.util.Optional.of(entry.catalogAuthorization());
   }
 
   /**
@@ -104,5 +123,5 @@ public final class A2aClientCorrelationCarrier {
     return value == null || value.isBlank() ? null : value;
   }
 
-  private record Entry(Holder holder, Instant boundAt) {}
+  private record Entry(Holder holder, Instant boundAt, String catalogAuthorization) {}
 }

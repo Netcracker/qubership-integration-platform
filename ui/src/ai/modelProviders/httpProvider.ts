@@ -9,6 +9,10 @@ import {
 import { parseCipSseBlock } from "./sseParsing.ts";
 import axios, { AxiosError } from "axios";
 import { getHeadersForContext } from "../../api/rest/requestHeadersInterceptor.ts";
+import {
+  clearCatalogAuthRefresh,
+  registerCatalogAuthRefresh,
+} from "./catalogAuthRefresh.ts";
 
 const capabilities: ProviderCapabilities = {
   supportsStreaming: true,
@@ -165,6 +169,7 @@ export class HttpAiModelProvider implements AiModelProvider {
           : "Failed to receive streaming response";
       onChunk({ type: "error", errorMessage: message });
     } finally {
+      clearCatalogAuthRefresh();
       if (!request.abortSignal) {
         controller.abort();
       }
@@ -281,6 +286,13 @@ export class HttpAiModelProvider implements AiModelProvider {
     onChunk: (chunk: StreamingChunk) => void,
   ): void {
     for (const chunk of parseCipSseBlock(block)) {
+      if (chunk.type === "meta" && chunk.conversationId) {
+        registerCatalogAuthRefresh(
+          chunk.conversationId,
+          this.serviceUrl,
+          () => getBearerHeader(this.serviceUrl, "/api/v1/chat"),
+        );
+      }
       onChunk(chunk);
     }
   }

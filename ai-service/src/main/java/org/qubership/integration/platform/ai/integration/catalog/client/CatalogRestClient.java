@@ -12,8 +12,10 @@ import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
+import org.eclipse.microprofile.rest.client.annotation.RegisterClientHeaders;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationHeadersFactory;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainSearchRequest;
@@ -40,6 +42,7 @@ import java.util.Map;
  * runtime-catalog directly, {@code http://host:8080} + {@code /v1/chains} is correct.
  */
 @RegisterRestClient(configKey = "catalog-api")
+@RegisterClientHeaders(CatalogAuthorizationHeadersFactory.class)
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
 @RegisterProvider(CatalogResponseExceptionMapper.class)
 @Consumes(MediaType.APPLICATION_JSON)

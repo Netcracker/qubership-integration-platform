@@ -59,6 +59,7 @@ public class ChatExecutionService {
   private final PendingRedeployStore pendingRedeployStore;
   private final OpenChainTurnContextFactory openChainTurnContextFactory;
   private final LastAssistantTurnStore lastAssistantTurnStore;
+  private final CatalogAuthorizationBinder catalogAuthorizationBinder;
 
   public ChatExecutionService(
       ScenarioRouter router,
@@ -72,11 +73,13 @@ public class ChatExecutionService {
       ChatDecisionService decisionService,
       PendingRedeployStore pendingRedeployStore,
       OpenChainTurnContextFactory openChainTurnContextFactory,
-      LastAssistantTurnStore lastAssistantTurnStore) {
+      LastAssistantTurnStore lastAssistantTurnStore,
+      CatalogAuthorizationBinder catalogAuthorizationBinder) {
     this.decisionService = decisionService;
     this.pendingRedeployStore = pendingRedeployStore;
     this.openChainTurnContextFactory = openChainTurnContextFactory;
     this.lastAssistantTurnStore = lastAssistantTurnStore;
+    this.catalogAuthorizationBinder = catalogAuthorizationBinder;
     this.router = router;
     this.conversationService = conversationService;
     this.effectiveUserTextService = effectiveUserTextService;
@@ -167,6 +170,7 @@ public class ChatExecutionService {
         request.getConversationId() != null ? request.getConversationId() : UUID.randomUUID().toString();
 
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+    catalogAuthorizationBinder.bindConversation(conversationId);
 
     conversationService.getOrCreate(conversationId);
     // Repair dangling tool_calls left by prior ToolArgumentsException / aborted tool turns so the
@@ -296,6 +300,7 @@ public class ChatExecutionService {
                     describeActivePlan(finalConversationId));
               }
               MDC.remove(ChatMdc.CONVERSATION_ID);
+              catalogAuthorizationBinder.clearConversation(finalConversationId);
             })
         .onCompletion()
         .continueWith("event: done\ndata: " + conversationId + "\n\n")

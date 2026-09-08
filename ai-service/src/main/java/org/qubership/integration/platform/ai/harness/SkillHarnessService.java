@@ -12,6 +12,8 @@ import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialS
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.service.CatalogAuthorizationBinder;
 import org.qubership.integration.platform.ai.llm.agent.HarnessSkillAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 
@@ -25,19 +27,24 @@ public class SkillHarnessService {
   private final CompilerSkillDocumentService documentService;
   private final CompilerSkillAddonRepository addonRepository;
   private final HarnessSkillAgent harnessSkillAgent;
+  private final CatalogAuthorizationBinder catalogAuthorizationBinder;
 
   @Inject
   public SkillHarnessService(
       CompilerSkillDocumentService documentService,
       CompilerSkillAddonRepository addonRepository,
-      HarnessSkillAgent harnessSkillAgent) {
+      HarnessSkillAgent harnessSkillAgent,
+      CatalogAuthorizationBinder catalogAuthorizationBinder) {
     this.documentService = documentService;
     this.addonRepository = addonRepository;
     this.harnessSkillAgent = harnessSkillAgent;
+    this.catalogAuthorizationBinder = catalogAuthorizationBinder;
   }
 
   public SkillHarnessResponse run(SkillHarnessRequest request) {
     String conversationId = resolveConversationId(request.conversationId());
+    catalogAuthorizationBinder.bindConversation(conversationId);
+    ToolSession.bind(conversationId);
     try {
       CompilerSkillDocument document = documentService.loadByCapabilityId(request.skillId());
       String userMessage = buildUserMessage(document, request);
@@ -52,6 +59,9 @@ public class SkillHarnessService {
           request.skillId());
       return new SkillHarnessResponse(
           conversationId, SkillHarnessStatus.FAILED, failureMessage(e));
+    } finally {
+      catalogAuthorizationBinder.clearConversation(conversationId);
+      ToolSession.clear();
     }
   }
 

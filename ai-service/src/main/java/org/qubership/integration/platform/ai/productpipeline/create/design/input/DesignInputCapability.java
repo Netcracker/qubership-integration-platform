@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationContext;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
@@ -230,7 +231,7 @@ public class DesignInputCapability implements StageCapability {
     }
     return String.join(
         "",
-        ToolSession.propagateBinding(toolSessionContext, stream)
+        CatalogAuthorizationContext.propagateWithToolSession(toolSessionContext, stream)
             .collect()
             .asList()
             .await()

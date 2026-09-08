@@ -17,6 +17,7 @@ import org.a2aproject.sdk.server.common.quarkus.VersionRouter;
 import org.a2aproject.sdk.server.common.quarkus.VertxSecurityHelper;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.integration.catalog.auth.InboundCatalogAuthorization;
 
 /**
  * Mirrors the SDK JSON-RPC handler at {@code POST /rpc}.
@@ -69,11 +70,14 @@ public class A2aJsonRpcPathAlias {
 
   private void dispatch(RoutingContext ctx) {
     try {
+      InboundCatalogAuthorization.set(ctx.request().getHeader("Authorization"));
       vertxSecurityHelper.runInRequestContextDeferred(ctx, () -> invokeForVersion(ctx));
     } catch (UnauthorizedException | ForbiddenException e) {
       vertxSecurityHelper.handleAuthError(ctx, e);
     } catch (Exception e) {
       VertxSecurityHelper.handleGenericError(ctx);
+    } finally {
+      InboundCatalogAuthorization.clear();
     }
   }
 

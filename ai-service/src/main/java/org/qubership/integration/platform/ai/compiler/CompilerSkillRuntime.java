@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationContext;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
@@ -262,7 +263,7 @@ public class CompilerSkillRuntime {
     Multi<String> agentStream =
         ToolInvocationSink.propagateBinding(
             toolSinkContext,
-            ToolSession.propagateBinding(
+            CatalogAuthorizationContext.propagateWithToolSession(
                 toolSessionContext,
                 agentStreamFor(
                     route,

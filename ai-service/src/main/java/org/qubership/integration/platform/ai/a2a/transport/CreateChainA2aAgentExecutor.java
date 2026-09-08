@@ -46,6 +46,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.service.CatalogAuthorizationBinder;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 
 /**
@@ -67,6 +69,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
   private final A2aFeatureGate featureGate;
   private final A2aDispatchCrashGate crashGate;
   private final DispatchLeaseHeartbeat leaseHeartbeat;
+  private final CatalogAuthorizationBinder catalogAuthorizationBinder;
   private final AtomicInteger facadeInvocations = new AtomicInteger();
   private final java.util.concurrent.ConcurrentHashMap<java.util.UUID, ActiveExecution>
       activeExecutions = new java.util.concurrent.ConcurrentHashMap<>();
@@ -83,7 +86,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       A2aMessageReceiptRepository receiptRepository,
       CallerContextProvider callerContextProvider,
       TaskAccessPolicy accessPolicy) {
-    this(facade, persister, receiptRepository, callerContextProvider, accessPolicy, null, null, null);
+    this(facade, persister, receiptRepository, callerContextProvider, accessPolicy, null, null, null, null);
   }
 
   public CreateChainA2aAgentExecutor(
@@ -100,6 +103,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         callerContextProvider,
         accessPolicy,
         featureGate,
+        null,
         null,
         null);
   }
@@ -120,6 +124,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         accessPolicy,
         featureGate,
         crashGate,
+        null,
         null);
   }
 
@@ -132,6 +137,28 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       A2aFeatureGate featureGate,
       A2aDispatchCrashGate crashGate,
       DispatchLeaseHeartbeat leaseHeartbeat) {
+    this(
+        facade,
+        persister,
+        receiptRepository,
+        callerContextProvider,
+        accessPolicy,
+        featureGate,
+        crashGate,
+        leaseHeartbeat,
+        null);
+  }
+
+  public CreateChainA2aAgentExecutor(
+      CreateChainApplicationFacade facade,
+      A2aTaskSnapshotPersister persister,
+      A2aMessageReceiptRepository receiptRepository,
+      CallerContextProvider callerContextProvider,
+      TaskAccessPolicy accessPolicy,
+      A2aFeatureGate featureGate,
+      A2aDispatchCrashGate crashGate,
+      DispatchLeaseHeartbeat leaseHeartbeat,
+      CatalogAuthorizationBinder catalogAuthorizationBinder) {
     this.facade = Objects.requireNonNull(facade, "facade");
     this.persister = Objects.requireNonNull(persister, "persister");
     this.receiptRepository = Objects.requireNonNull(receiptRepository, "receiptRepository");
@@ -140,6 +167,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     this.featureGate = featureGate;
     this.crashGate = crashGate;
     this.leaseHeartbeat = leaseHeartbeat;
+    this.catalogAuthorizationBinder = catalogAuthorizationBinder;
   }
 
   /** Test seam: counts facade command invocations after idempotent receipt acceptance. */
@@ -215,6 +243,24 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       throw A2aProtocolErrorMapper.malformedStructuredData("Message is required");
     }
 
+    String authConversationId =
+        contextId != null && !contextId.isBlank() ? contextId : taskId;
+    bindCatalogAuth(authConversationId, context);
+    try {
+      executeBound(context, emitter, caller, taskId, contextId, message);
+    } finally {
+      clearCatalogAuth(authConversationId);
+    }
+  }
+
+  private void executeBound(
+      RequestContext context,
+      AgentEmitter emitter,
+      CallerContext caller,
+      String taskId,
+      String contextId,
+      Message message)
+      throws A2AError {
     boolean isNew = context.getTask() == null;
     TaskOperation operation = isNew ? TaskOperation.CREATE : resolveContinueOperation(message);
     try {
@@ -378,6 +424,25 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     } finally {
       A2aClientCorrelationCarrier.clear(requestCorrelationId);
     }
+  }
+
+  private void bindCatalogAuth(String conversationId, RequestContext context) throws A2AError {
+    if (catalogAuthorizationBinder == null) {
+      return;
+    }
+    if (!catalogAuthorizationBinder.bindConversation(
+        conversationId, requestCorrelationId(context))) {
+      throw A2aProtocolErrorMapper.authorizationRequired();
+    }
+    ToolSession.bind(conversationId);
+  }
+
+  private void clearCatalogAuth(String conversationId) {
+    if (catalogAuthorizationBinder == null) {
+      return;
+    }
+    catalogAuthorizationBinder.clearConversation(conversationId);
+    ToolSession.clear();
   }
 
   @Override

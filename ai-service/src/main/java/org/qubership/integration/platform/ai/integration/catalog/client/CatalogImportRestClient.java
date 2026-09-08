@@ -18,8 +18,10 @@ import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
+import org.eclipse.microprofile.rest.client.annotation.RegisterClientHeaders;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationHeadersFactory;
 import org.jboss.resteasy.reactive.MultipartForm;
 
 /**
@@ -30,6 +32,7 @@ import org.jboss.resteasy.reactive.MultipartForm;
  * not JSON.
  */
 @RegisterRestClient(configKey = "catalog-api")
+@RegisterClientHeaders(CatalogAuthorizationHeadersFactory.class)
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
 @RegisterProvider(CatalogResponseExceptionMapper.class)
 @Produces(MediaType.APPLICATION_JSON)

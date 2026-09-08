@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationContext;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -375,7 +376,7 @@ public class RequirementAnalysisCapability implements StageCapability {
     Multi<ChatEvent> agentStream;
     try {
       agentStream =
-          ToolSession.propagateBinding(toolSessionContext, runAnalyzer(context, approved));
+          CatalogAuthorizationContext.propagateWithToolSession(toolSessionContext, runAnalyzer(context, approved));
     } catch (KnowledgeClientException e) {
       ProductCapabilityCaptureContext.unbind(context.conversationId());
       ToolSession.clear();

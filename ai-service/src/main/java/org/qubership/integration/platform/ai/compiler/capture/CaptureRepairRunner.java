@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationContext;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 /** Runs agent chat streams with bounded capture repair turns. */
@@ -141,7 +142,8 @@ public class CaptureRepairRunner {
         message ->
             ToolInvocationSink.propagateBinding(
                 toolSinkContext,
-                ToolSession.propagateBinding(toolSessionContext, agentChat.apply(message)));
+                CatalogAuthorizationContext.propagateWithToolSession(
+                    toolSessionContext, agentChat.apply(message)));
     return runAttempt(
         boundAgentChat,
         captureAccepted,

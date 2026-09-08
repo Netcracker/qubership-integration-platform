@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentServi
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.chat.service.CatalogAuthorizationBinder;
 import org.qubership.integration.platform.ai.llm.agent.HarnessSkillAgent;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapabilityPhase;
@@ -38,7 +39,12 @@ class SkillHarnessServiceTest {
     documentService = mock(CompilerSkillDocumentService.class);
     addonRepository = mock(CompilerSkillAddonRepository.class);
     harnessSkillAgent = mock(HarnessSkillAgent.class);
-    service = new SkillHarnessService(documentService, addonRepository, harnessSkillAgent);
+    service =
+        new SkillHarnessService(
+            documentService,
+            addonRepository,
+            harnessSkillAgent,
+            mock(CatalogAuthorizationBinder.class));
     when(harnessSkillAgent.chat(anyString(), anyString()))
         .thenReturn(Multi.createFrom().item("ok"));
   }

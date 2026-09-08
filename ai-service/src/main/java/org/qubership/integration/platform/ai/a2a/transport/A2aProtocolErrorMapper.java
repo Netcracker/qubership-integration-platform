@@ -40,6 +40,10 @@ public final class A2aProtocolErrorMapper {
         detail == null || detail.isBlank() ? "Malformed structured data" : detail);
   }
 
+  public static A2AError authorizationRequired() {
+    return new InvalidParamsError("Authorization header with a Bearer token is required");
+  }
+
   /**
    * Same caller-scoped {@code messageId} reused with a different command fingerprint.
    */

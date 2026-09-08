@@ -60,6 +60,11 @@ export {
 } from "./monaco-worker-config";
 export { configureMonacoLoader } from "./monaco-loader-config";
 export type { MonacoLoaderConfig } from "./monaco-loader-config";
+export {
+  registerCatalogAuthRefresh,
+  clearCatalogAuthRefresh,
+  pushCatalogAuthRefresh,
+} from "./ai/modelProviders/catalogAuthRefresh.ts";
 export { ResourceTypes, Operations } from "./permissions/types";
 export type {
   ResourceType,

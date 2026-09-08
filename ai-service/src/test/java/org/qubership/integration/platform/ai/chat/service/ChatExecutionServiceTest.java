@@ -722,7 +722,8 @@ class ChatExecutionServiceTest {
         decisions,
         pending,
         turnContextFactory,
-        new org.qubership.integration.platform.ai.chat.LastAssistantTurnStore());
+        new org.qubership.integration.platform.ai.chat.LastAssistantTurnStore(),
+        mock(CatalogAuthorizationBinder.class));
   }
 
   private static ChainPlanGraph sampleGraph(String chainName) {

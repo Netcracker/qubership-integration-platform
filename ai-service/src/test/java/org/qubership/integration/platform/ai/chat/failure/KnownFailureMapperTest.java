@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletionException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationMissingException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 
 class KnownFailureMapperTest {
@@ -105,9 +106,41 @@ class KnownFailureMapperTest {
     assertFalse(mapped.safeText().contains("internal"));
   }
 
+  @Test
+  void catalog401MapsToSessionExpiredCopy() {
+    KnownFailure mapped =
+        mapper.tryMap(catalogStatus(401, "{}"), CatalogOperation.LOOKUP).orElseThrow();
+    assertEquals(KnownFailureMapper.CATALOG_UNAUTHORIZED_MESSAGE, mapped.safeText());
+  }
+
+  @Test
+  void catalog403MapsToPermissionCopy() {
+    KnownFailure mapped =
+        mapper.tryMap(catalogStatus(403, "{}"), CatalogOperation.LOOKUP).orElseThrow();
+    assertEquals(KnownFailureMapper.CATALOG_FORBIDDEN_MESSAGE, mapped.safeText());
+  }
+
+  @Test
+  void missingAuthorizationMapsToUserSafeCopy() {
+    KnownFailure mapped =
+        mapper
+            .tryMap(new CatalogAuthorizationMissingException(), CatalogOperation.LOOKUP)
+            .orElseThrow();
+    assertEquals(CatalogAuthorizationMissingException.USER_MESSAGE, mapped.safeText());
+  }
+
   private static CatalogNonRetryableResponseException catalog400(String json) {
     Response response =
         Response.status(400)
+            .type("application/json")
+            .entity(json.getBytes(StandardCharsets.UTF_8))
+            .build();
+    return new CatalogNonRetryableResponseException(response);
+  }
+
+  private static CatalogNonRetryableResponseException catalogStatus(int status, String json) {
+    Response response =
+        Response.status(status)
             .type("application/json")
             .entity(json.getBytes(StandardCharsets.UTF_8))
             .build();

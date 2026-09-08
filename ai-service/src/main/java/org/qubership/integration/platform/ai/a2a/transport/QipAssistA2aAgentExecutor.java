@@ -37,8 +37,10 @@ import org.qubership.integration.platform.ai.a2a.access.TaskOperation;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.chat.service.CatalogAuthorizationBinder;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 
 /**
@@ -74,6 +76,7 @@ public final class QipAssistA2aAgentExecutor implements AgentExecutor {
   private final TaskAccessPolicy accessPolicy;
   private final A2aFeatureGate featureGate;
   private final Duration turnBudget;
+  private final CatalogAuthorizationBinder catalogAuthorizationBinder;
 
   public QipAssistA2aAgentExecutor(
       ScenarioRouter router,
@@ -81,7 +84,8 @@ public final class QipAssistA2aAgentExecutor implements AgentExecutor {
       CallerContextProvider callerContextProvider,
       TaskAccessPolicy accessPolicy,
       A2aFeatureGate featureGate,
-      Duration turnBudget) {
+      Duration turnBudget,
+      CatalogAuthorizationBinder catalogAuthorizationBinder) {
     this.router = Objects.requireNonNull(router, "router");
     this.conversations = Objects.requireNonNull(conversations, "conversations");
     this.callerContextProvider =
@@ -89,6 +93,8 @@ public final class QipAssistA2aAgentExecutor implements AgentExecutor {
     this.accessPolicy = Objects.requireNonNull(accessPolicy, "accessPolicy");
     this.featureGate = featureGate;
     this.turnBudget = Objects.requireNonNull(turnBudget, "turnBudget");
+    this.catalogAuthorizationBinder =
+        Objects.requireNonNull(catalogAuthorizationBinder, "catalogAuthorizationBinder");
   }
 
   @Override
@@ -129,8 +135,20 @@ public final class QipAssistA2aAgentExecutor implements AgentExecutor {
     String callerContextId =
         A2aClientCorrelationCarrier.lookup(requestCorrelationId(context)).contextId();
     ResolvedContext resolved = resolveConversationId(callerContextId, contextId, userText);
-    TurnResult turn = runTurn(userText, resolved.conversationId());
-    String answer = turn.answer(resolved.conversationId(), taskId);
+    String conversationId = resolved.conversationId();
+    if (!catalogAuthorizationBinder.bindConversation(
+        conversationId, requestCorrelationId(context))) {
+      throw A2aProtocolErrorMapper.authorizationRequired();
+    }
+    ToolSession.bind(conversationId);
+    TurnResult turn;
+    try {
+      turn = runTurn(userText, conversationId);
+    } finally {
+      catalogAuthorizationBinder.clearConversation(conversationId);
+      ToolSession.clear();
+    }
+    String answer = turn.answer(conversationId, taskId);
 
     LOG.infof(
         "A2A assist turn taskId=%s conversationId=%s source=%s completed=%s answerChars=%d"
@@ -244,8 +262,6 @@ public final class QipAssistA2aAgentExecutor implements AgentExecutor {
     request.setMessage(userText);
 
     List<String> tokens = java.util.Collections.synchronizedList(new ArrayList<>());
-    // Ordered and de-duplicated: the same skill reports running and finished, and the caller wants
-    // the sequence of work, not a tally.
     Set<String> skills = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
     AtomicReference<String> activity = new AtomicReference<>();
     AtomicReference<String> error = new AtomicReference<>();
@@ -300,13 +316,6 @@ public final class QipAssistA2aAgentExecutor implements AgentExecutor {
       Thread.currentThread().interrupt();
       completed = false;
     }
-    // Tokens are stream fragments, not messages: RequirementAnalysisCapability maps an LLM agent
-    // stream word by word into ChatEvent.Token, and the spacing lives inside the fragments. Any
-    // separator inserted here shatters the answer into one word per line.
-    //
-    // ponytail: two consecutive logical messages therefore run together at the seam ("outline?I've
-    // captured"). The boundary is not visible in ChatEvent, so marking it needs a new event kind
-    // rather than a guess here.
     return new TurnResult(
         String.join("", tokens).trim(),
         error.get(),

@@ -40,6 +40,7 @@ import org.qubership.integration.platform.ai.a2a.access.TaskOperation;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
+import org.qubership.integration.platform.ai.integration.catalog.auth.InboundCatalogAuthorization;
 import org.qubership.integration.platform.ai.a2a.transport.A2aInboundMessageParser.InboundCommand;
 
 /**
@@ -277,7 +278,10 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
             ? "absent"
             : message.contextId());
     A2aClientCorrelationCarrier.Binding binding =
-        A2aClientCorrelationCarrier.bind(message.taskId(), message.contextId());
+        A2aClientCorrelationCarrier.bind(
+            message.taskId(),
+            message.contextId(),
+            InboundCatalogAuthorization.current().orElse(null));
     Map<String, Object> metadata = new LinkedHashMap<>();
     if (params.metadata() != null) {
       metadata.putAll(params.metadata());

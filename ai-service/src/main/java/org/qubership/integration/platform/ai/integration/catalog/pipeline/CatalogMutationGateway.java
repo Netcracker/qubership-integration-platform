@@ -1,10 +1,13 @@
 package org.qubership.integration.platform.ai.integration.catalog.pipeline;
 
+import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.function.Supplier;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationContext;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
@@ -78,6 +81,9 @@ public class CatalogMutationGateway {
   }
 
   private static <T> Uni<T> onWorker(Supplier<T> work) {
-    return Uni.createFrom().item(work).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    Context toolSessionContext = ToolSession.attachedContext();
+    return CatalogAuthorizationContext.propagateWithToolSession(
+        toolSessionContext,
+        Uni.createFrom().item(work).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()));
   }
 }

@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationMissingException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 
@@ -19,6 +20,15 @@ public class KnownFailureMapper {
   public static final String CATALOG_TIMEOUT_MESSAGE =
       "Couldn't finish this catalog request. The catalog did not respond in time. Try again.";
 
+  public static final String CATALOG_UNAUTHORIZED_MESSAGE =
+      "Your session expired. Sign in again and retry.";
+
+  public static final String CATALOG_FORBIDDEN_MESSAGE =
+      "You do not have sufficient catalog permissions for this operation.";
+
+  public static final String CATALOG_AUTH_MISSING_MESSAGE =
+      CatalogAuthorizationMissingException.USER_MESSAGE;
+
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   public Optional<KnownFailure> tryMap(Throwable error, CatalogOperation operation) {
@@ -26,6 +36,10 @@ public class KnownFailureMapper {
     TimeoutException timeout = findTimeout(unwrapped);
     if (timeout != null) {
       return Optional.of(new KnownFailure(CATALOG_TIMEOUT_MESSAGE, diagnostic(timeout)));
+    }
+    CatalogAuthorizationMissingException missingAuth = findMissingAuth(unwrapped);
+    if (missingAuth != null) {
+      return Optional.of(new KnownFailure(CATALOG_AUTH_MISSING_MESSAGE, diagnostic(missingAuth)));
     }
     CatalogNonRetryableResponseException refused = findCatalogRefusal(unwrapped);
     if (refused != null) {
@@ -36,6 +50,13 @@ public class KnownFailureMapper {
 
   private KnownFailure mapCatalogRefusal(
       CatalogNonRetryableResponseException refused, CatalogOperation operation) {
+    int status = refused.getResponse().getStatus();
+    if (status == 401) {
+      return new KnownFailure(CATALOG_UNAUTHORIZED_MESSAGE, diagnostic(refused));
+    }
+    if (status == 403) {
+      return new KnownFailure(CATALOG_FORBIDDEN_MESSAGE, diagnostic(refused));
+    }
     String prefix = "Couldn't " + operation.verb();
     String body = CatalogRestSupport.readResponseBodySnippet(refused.getResponse());
     if (body == null || body.isBlank()) {
@@ -82,6 +103,17 @@ public class KnownFailureMapper {
     while (current != null) {
       if (current instanceof TimeoutException timeout) {
         return timeout;
+      }
+      current = current.getCause();
+    }
+    return null;
+  }
+
+  private static CatalogAuthorizationMissingException findMissingAuth(Throwable error) {
+    Throwable current = error;
+    while (current != null) {
+      if (current instanceof CatalogAuthorizationMissingException missing) {
+        return missing;
       }
       current = current.getCause();
     }

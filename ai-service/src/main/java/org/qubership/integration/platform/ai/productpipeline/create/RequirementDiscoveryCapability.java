@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import io.smallrye.mutiny.Context;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.integration.catalog.auth.CatalogAuthorizationContext;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -127,7 +128,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     String skillId = RequirementDraftTool.SOURCE_SKILL_ID;
     SkillActivitySupport.bindParents(skillId);
     Multi<ChatEvent> agentStream =
-        ToolSession.propagateBinding(
+        CatalogAuthorizationContext.propagateWithToolSession(
             toolSessionContext,
             runGather(
                 conversationId,
