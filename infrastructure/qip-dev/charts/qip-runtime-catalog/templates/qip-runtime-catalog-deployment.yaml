@@ -139,6 +139,15 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 15
+          # The readiness group carries readinessState alone. Probing /actuator/health
+          # instead would gate traffic on every dependency the service reports.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
           name: qip-runtime-catalog
           ports:
             - containerPort: 8080
