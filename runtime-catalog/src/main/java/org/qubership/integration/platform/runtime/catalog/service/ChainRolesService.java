@@ -20,12 +20,14 @@ import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AbacRoleChangeException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.ChainRuntimeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.DeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.filter.ChainElementFilterColumn;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -97,6 +99,7 @@ public class ChainRolesService {
         if (offset < 0 || limit < 1) {
             return new ChainRolesResponse(0, Collections.emptyList());
         }
+        validateFilters(filters);
 
         List<ChainElement> elementList = elementRepository.findElementsByFilter(offset, limit, List.of(CamelNames.HTTP_TRIGGER_COMPONENT), filters, isImplementedOnly);
         List<ChainRolesDTO> chainRolesResponse = chainRolesMapper.asChainRolesResponses(elementList);
@@ -137,6 +140,24 @@ public class ChainRolesService {
             }
         }
         reportRedeployFailures(failures, chains.size());
+    }
+
+    /** Rejects a filter the query cannot express, so the caller never gets the unfiltered table back. */
+    private void validateFilters(List<ChainElementFilterRequestDTO> filters) {
+        for (ChainElementFilterRequestDTO filter : filters) {
+            ChainElementFilterColumn column = filter.getColumn();
+            FilterCondition condition = filter.getCondition();
+            if (column == null) {
+                throw new BadRequestException("Filter column is required");
+            }
+            if (condition == null) {
+                throw new BadRequestException("Filter condition is required for column " + column);
+            }
+            if (!column.getSupportedConditions().contains(condition)) {
+                throw new BadRequestException("Filter condition " + condition + " is not supported for column "
+                        + column + ". Supported conditions: " + column.getSupportedConditions());
+            }
+        }
     }
 
     private record RoleUpdate(ChainElement element, Set<String> roles) {

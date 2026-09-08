@@ -8,12 +8,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AbacRoleChangeException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
+import org.qubership.integration.platform.runtime.catalog.model.filter.ChainElementFilterColumn;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementFilterRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.DeploymentRequest;
@@ -21,11 +26,15 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ChainRo
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -276,6 +285,48 @@ class ChainRolesServiceTest {
                 .hasMessageContaining(OTHER_CHAIN_ID);
 
         verify(deploymentService).createAll(deploymentEntities, THIRD_CHAIN_ID, snapshot);
+    }
+
+    @Test
+    @DisplayName("A condition the column cannot translate is rejected instead of silently dropped")
+    void findAllChainByHttpTriggerRejectsUnsupportedCondition() {
+        ChainElementSearchCriteria request = searchCriteria(ChainElementFilterColumn.CHAIN, FilterCondition.IS);
+
+        assertThatThrownBy(() -> chainRolesService.findAllChainByHttpTrigger(request, false))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("IS")
+                .hasMessageContaining("CHAIN");
+
+        verifyNoInteractions(elementRepository);
+    }
+
+    @Test
+    @DisplayName("A filter with no column is rejected rather than reaching the query")
+    void findAllChainByHttpTriggerRejectsMissingColumn() {
+        ChainElementSearchCriteria request = searchCriteria(null, FilterCondition.IS);
+
+        assertThatThrownBy(() -> chainRolesService.findAllChainByHttpTrigger(request, false))
+                .isInstanceOf(BadRequestException.class);
+
+        verifyNoInteractions(elementRepository);
+    }
+
+    @Test
+    @DisplayName("A condition the column supports still reaches the query")
+    void findAllChainByHttpTriggerRunsSupportedCondition() {
+        ChainElementSearchCriteria request = searchCriteria(ChainElementFilterColumn.CHAIN, FilterCondition.CONTAINS);
+        when(elementRepository.findElementsByFilter(anyInt(), anyInt(), anyList(), anyList(), anyBoolean()))
+                .thenReturn(List.of());
+        when(chainRolesMapper.asChainRolesResponses(List.of())).thenReturn(List.of());
+
+        assertThat(chainRolesService.findAllChainByHttpTrigger(request, false).getRoles()).isEmpty();
+    }
+
+    private ChainElementSearchCriteria searchCriteria(ChainElementFilterColumn column, FilterCondition condition) {
+        ChainElementFilterRequestDTO filter = new ChainElementFilterRequestDTO();
+        filter.setColumn(column);
+        filter.setCondition(condition);
+        return new ChainElementSearchCriteria(0, 30, new ArrayList<>(List.of(filter)));
     }
 
     private Chain chain(String chainId) {

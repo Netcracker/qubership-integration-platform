@@ -17,14 +17,31 @@
 package org.qubership.integration.platform.runtime.catalog.model.filter;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Getter;
+
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+
+import static org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition.*;
 
 @Schema(description = "Column on which filter will be applied")
 public enum ChainElementFilterColumn {
-    ENDPOINT,
-    TYPE,
-    ROLES,
-    CHAIN,
-    CHAIN_STATUS,
-    ROLES_RESOURCE,
-    ACCESS_CONTROL_TYPE
+    ENDPOINT(IS, IS_NOT, CONTAINS, DOES_NOT_CONTAIN, STARTS_WITH, ENDS_WITH, EMPTY),
+    TYPE(IN, NOT_IN),
+    ROLES(IS, IS_NOT, CONTAINS, DOES_NOT_CONTAIN, EMPTY, NOT_EMPTY),
+    CHAIN(CONTAINS, DOES_NOT_CONTAIN, STARTS_WITH, ENDS_WITH),
+    CHAIN_STATUS(IS, IS_NOT, IN, NOT_IN),
+    ROLES_RESOURCE(IS, IS_NOT, CONTAINS, DOES_NOT_CONTAIN, EMPTY, NOT_EMPTY),
+    ACCESS_CONTROL_TYPE(IS, IS_NOT);
+
+    // Conditions the query builders translate; anything else is rejected before the query runs.
+    // EnumSet iterates in declaration order, which is the order the error message reports.
+    @Getter
+    private final Set<FilterCondition> supportedConditions;
+
+    ChainElementFilterColumn(FilterCondition... supportedConditions) {
+        this.supportedConditions = Collections.unmodifiableSet(EnumSet.copyOf(List.of(supportedConditions)));
+    }
 }
