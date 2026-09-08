@@ -24,23 +24,44 @@ properties:
         title: Queue(s) Name
         description: >
           The queue(s) to use for consuming messages (separated by comma).
+      routingKey:
+        type: string
+        title: Routing Key
+        description: >
+          The routing key that binds the queue to the exchange. The chain does not create the
+          binding; declare it through MaaS or on the broker.
       acknowledgeMode:
         $ref: "#/definitions/AcknowledgeMode"
       exchangeType:
         $ref: "#/definitions/ExchangeType"
         title: Exchange Type
+        description: >
+          The type the exchange is declared with. The chain does not create the exchange; declare it
+          through MaaS or on the broker.
       deadLetterExchange:
         type: string
         title: Dead Letter Exchange
+        description: >
+          The exchange rejected messages are routed to. Dead lettering is an argument of the queue,
+          set when the queue is declared, so declare the queue with it through MaaS or on the broker.
       deadLetterExchangeType:
         $ref: "#/definitions/ExchangeType"
         title: Dead Letter Exchange Type
+        description: >
+          The type the dead letter exchange is declared with. The chain does not create the exchange;
+          declare it through MaaS or on the broker.
       deadLetterQueue:
         type: string
         title: Dead Letter Queue
+        description: >
+          The queue rejected messages are routed to. The chain does not create it; declare it through
+          MaaS or on the broker.
       deadLetterRoutingKey:
         type: string
         title: Dead Letter Routing Key
+        description: >
+          The routing key that binds the dead letter queue to the dead letter exchange. The chain
+          does not create the binding; declare it through MaaS or on the broker.
     required:
       - queues
 definitions:

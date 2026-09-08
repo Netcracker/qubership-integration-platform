@@ -87,7 +87,6 @@ import {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
   GeneralImportInstructions,
   ImportInstruction,
   ImportInstructionRequest,
@@ -2151,24 +2150,18 @@ export class RestApi implements Api {
 
   updateHttpTriggerAccessControl = async (
     searchRequest: AccessControlUpdateRequest[],
-  ): Promise<AccessControlResponse> => {
-    const response = await this.instance.put<AccessControlResponse>(
+  ): Promise<void> => {
+    await this.instance.put<void>(
       `${this.v1()}/catalog/chains/roles`,
       searchRequest,
     );
-
-    return response.data;
   };
 
-  bulkDeployChainsAccessControl = async (
-    searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<AccessControlResponse> => {
-    const response = await this.instance.put<AccessControlResponse>(
+  bulkDeployChainsAccessControl = async (chainIds: string[]): Promise<void> => {
+    await this.instance.put<void>(
       `${this.v1()}/catalog/chains/roles/redeploy`,
-      searchRequest,
+      chainIds,
     );
-
-    return response.data;
   };
 
   runServiceDiscovery = async (): Promise<unknown> => {

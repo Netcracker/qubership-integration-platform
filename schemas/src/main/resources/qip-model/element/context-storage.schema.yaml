@@ -32,7 +32,7 @@ properties:
           - const: DELETE
             title: Delete context
         title: Operation
-        default: SET
+        default: GET
     allOf:
       - if:
           properties:

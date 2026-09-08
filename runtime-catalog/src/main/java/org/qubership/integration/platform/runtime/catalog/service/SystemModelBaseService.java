@@ -48,6 +48,7 @@ import java.util.jar.Manifest;
 import javax.annotation.Nullable;
 
 import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 @Slf4j
 @Service
@@ -126,9 +127,21 @@ public class SystemModelBaseService {
         return model;
     }
 
+    // Callers hand in a detached model, so reload it before unlinking.
     @Transactional
     public void delete(SystemModel model) {
+        systemModelRepository.findById(model.getId()).ifPresent(this::unlinkAndDelete);
+    }
+
+    // SpecificationGroup cascades ALL: a model left in its collection is re-persisted at flush,
+    // which cancels the delete.
+    protected void unlinkAndDelete(SystemModel model) {
+        SpecificationGroup specificationGroup = model.getSpecificationGroup();
+        if (nonNull(specificationGroup)) {
+            specificationGroup.removeSystemModel(model);
+        }
         systemModelRepository.delete(model);
+        logModelAction(model, specificationGroup, LogOperation.DELETE);
     }
 
     @Transactional

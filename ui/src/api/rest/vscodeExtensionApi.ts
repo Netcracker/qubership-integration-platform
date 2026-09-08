@@ -1095,13 +1095,13 @@ export class VSCodeExtensionApi implements Api {
     );
   };
 
-  updateHttpTriggerAccessControl = (): Promise<AccessControlResponse> => {
+  updateHttpTriggerAccessControl = (): Promise<void> => {
     return Promise.reject(
       new Error("Method updateHttpTriggerAccessControl not implemented."),
     );
   };
 
-  bulkDeployChainsAccessControl = (): Promise<AccessControlResponse> => {
+  bulkDeployChainsAccessControl = (): Promise<void> => {
     return Promise.reject(
       new Error("Method bulkDeployChainsAccessControl not implemented."),
     );

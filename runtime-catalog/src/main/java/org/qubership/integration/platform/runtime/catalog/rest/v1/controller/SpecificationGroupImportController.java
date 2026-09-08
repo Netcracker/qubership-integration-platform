@@ -58,7 +58,7 @@ public class SpecificationGroupImportController {
     ) {
         SpecificationGroup specificationGroup = specificationGroupService.createAndSaveSpecificationGroup(
                 systemId, specificationName, protocol, files);
-        String importId = specificationImportService.importSpecification(specificationGroup.getId(), files);
+        String importId = specificationImportService.importSpecification(specificationGroup.getId(), files, true);
         ImportSpecificationDTO responseDTO = new ImportSpecificationDTO(importId, false);
         responseDTO.setSpecificationGroupId(specificationGroup.getId());
 
