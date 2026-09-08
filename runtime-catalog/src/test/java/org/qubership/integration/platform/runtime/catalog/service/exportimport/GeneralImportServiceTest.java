@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportContextServiceAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariablesResult;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.exportimport.instructions.GeneralInstructionsMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
@@ -108,6 +109,10 @@ class GeneralImportServiceTest {
     }
 
     private void stubAsyncDependenciesForAnyImportId() {
+        stubAsyncDependenciesForAnyImportId(List.of());
+    }
+
+    private void stubAsyncDependenciesForAnyImportId(List<ImportSystemResult> mcpResults) {
         when(commonVariablesService.importVariables(any(File.class), any()))
                 .thenReturn(ImportVariablesResult.builder().variables(List.of()).instructions(List.of()).build());
         when(systemExportImportService.importSystems(any(File.class), any(), anyString(), any()))
@@ -115,7 +120,7 @@ class GeneralImportServiceTest {
         when(contextExportImportService.importContextService(any(File.class), any(), anyString()))
                 .thenReturn(new ImportContextServiceAndInstructionsResult(List.of(), List.of()));
         when(mcpSystemImportExportService.importSystems(any(File.class), any(), anyString()))
-                .thenReturn(new ImportSystemsAndInstructionsResult(List.of(), List.of()));
+                .thenReturn(new ImportSystemsAndInstructionsResult(mcpResults, List.of()));
         when(chainImportService.importChains(any(File.class), any(), anyString(), any(), anyBoolean()))
                 .thenReturn(new ImportChainsAndInstructionsResult(List.of(), List.of()));
     }
@@ -356,13 +361,34 @@ class GeneralImportServiceTest {
     @DisplayName("importDirectoryAsync accepts an archive that only carries a services directory")
     @Test
     void importDirectoryAsyncAcceptsServicesOnlyArchive(@TempDir Path tmp) throws Exception {
-        File dir = tmp.resolve("services-only").toFile();
-        File serviceDir = new File(dir, ARCH_PARENT_DIR + File.separator + "service-id");
-        serviceDir.mkdirs();
-        Files.writeString(serviceDir.toPath().resolve("service-id.mcp-service.qip.yaml"), "id: service-id\n");
+        File dir = mcpServiceArchive(tmp, "services-only");
         stubAsyncDependenciesForAnyImportId();
 
         assertThat(runImportAndCaptureSession(dir).getError()).isNull();
+    }
+
+    @DisplayName("importDirectoryAsync reports the MCP services it imported")
+    @Test
+    void importDirectoryAsyncReportsImportedMcpServices(@TempDir Path tmp) throws Exception {
+        File dir = mcpServiceArchive(tmp, "mcp-only");
+        ImportSystemResult mcpResult = new ImportSystemResult();
+        mcpResult.setId("mcp-id");
+        mcpResult.setName("mcp-name");
+        stubAsyncDependenciesForAnyImportId(List.of(mcpResult));
+
+        ImportSession session = runImportAndCaptureSession(dir);
+
+        assertThat(session.getError()).isNull();
+        assertThat(session.getResult().getMcpService()).singleElement()
+                .satisfies(result -> assertThat(result.getId()).isEqualTo("mcp-id"));
+    }
+
+    private File mcpServiceArchive(Path parent, String name) throws Exception {
+        File dir = parent.resolve(name).toFile();
+        File serviceDir = new File(dir, ARCH_PARENT_DIR + File.separator + "service-id");
+        serviceDir.mkdirs();
+        Files.writeString(serviceDir.toPath().resolve("service-id.mcp-service.qip.yaml"), "id: service-id\n");
+        return dir;
     }
 
     @DisplayName("importDirectoryAsync accepts an archive that only carries import instructions")

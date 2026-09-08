@@ -221,11 +221,13 @@ public class GeneralImportService {
             importInstructionResults.addAll(importChainsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importSystemsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importChainsAndContextInstructionsResult.instructionResults());
+            importInstructionResults.addAll(importMcpSystemsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(variablesResult.getInstructions());
             return ImportResult.builder()
                     .chains(importChainsAndInstructionsResult.chainResults())
                     .systems(importSystemsAndInstructionsResult.importSystemResults())
                     .contextService(importChainsAndContextInstructionsResult.importSystemResults())
+                    .mcpService(importMcpSystemsAndInstructionsResult.importSystemResults())
                     .variables(variablesResult.getVariables())
                     .instructionsResult(importInstructionResults)
                     .build();

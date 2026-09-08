@@ -645,6 +645,7 @@ export type ImportResult = {
   chains: ImportChainResult[];
   systems: ImportSystemResult[];
   contextService?: ImportSystemResult[];
+  mcpService?: ImportSystemResult[];
   variables: ImportVariableResult[];
   instructionsResult: ImportInstructionResult[];
 };
