@@ -90,6 +90,22 @@ jobs:
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
 
+      # runtime-catalog pins integration-build-pipeline at its development
+      # coordinate, and the deploy below builds one module with no reactor.
+      # Publishing the library first gives that build the matching bytes (deploy
+      # installs locally too) and leaves consumers of the published SNAPSHOT a
+      # library SNAPSHOT they can actually resolve.
+      - name: Deploy the pinned library SNAPSHOT
+        if: ${{ inputs.module == 'runtime-catalog' }}
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -f integration-build-pipeline/pom.xml deploy -Pgithub \
+            -Dmaven.test.skip=true -Dmaven.javadoc.skip=true \
+            -Dgpg.skip=true -Dcheckstyle.skip=true
+
       - name: Deploy SNAPSHOT to GitHub Packages
         working-directory: ${{ inputs.module }}
         env:
