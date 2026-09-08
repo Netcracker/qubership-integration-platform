@@ -78,7 +78,7 @@ public class TracingService {
     }
 
     private static void setXRequestTag(Map<String, String> customTags) {
-        String xRequestId = MDC.get(ContextHeaders.REQUEST_ID_HEADER);
+        String xRequestId = MDC.get(ContextHeaders.REQUEST_ID);
         if (!StringUtils.isEmpty(xRequestId)) {
             customTags.put(X_REQUEST_ID, xRequestId);
         }
