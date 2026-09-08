@@ -46,8 +46,7 @@ const changes = [c1, c2, c3];
 
 const prevBtn = () =>
   screen.getByTestId("icon-previousChange").closest("button")!;
-const nextBtn = () =>
-  screen.getByTestId("icon-nextChange").closest("button")!;
+const nextBtn = () => screen.getByTestId("icon-nextChange").closest("button")!;
 
 describe("ChainDiffViewControls", () => {
   it("should disable the Previous button when the selected change is the first in the list", () => {
@@ -203,6 +202,44 @@ describe("ChainDiffViewControls", () => {
     fireEvent.click(nextBtn());
 
     expect(onSelectChange).toHaveBeenCalledWith("c3");
+  });
+
+  it("should use the custom Previous handler for text diff navigation", () => {
+    const onPreviousChange = jest.fn();
+    const onSelectChange = jest.fn();
+    render(
+      <ChainDiffViewControls
+        changes={changes}
+        selectedChangeId="c1"
+        onSelectChange={onSelectChange}
+        onViewTypeChange={jest.fn()}
+        onPreviousChange={onPreviousChange}
+      />,
+    );
+
+    fireEvent.click(prevBtn());
+
+    expect(onPreviousChange).toHaveBeenCalledTimes(1);
+    expect(onSelectChange).not.toHaveBeenCalled();
+  });
+
+  it("should use the custom Next handler for text diff navigation", () => {
+    const onNextChange = jest.fn();
+    const onSelectChange = jest.fn();
+    render(
+      <ChainDiffViewControls
+        changes={changes}
+        selectedChangeId="c3"
+        onSelectChange={onSelectChange}
+        onViewTypeChange={jest.fn()}
+        onNextChange={onNextChange}
+      />,
+    );
+
+    fireEvent.click(nextBtn());
+
+    expect(onNextChange).toHaveBeenCalledTimes(1);
+    expect(onSelectChange).not.toHaveBeenCalled();
   });
 
   it("should call onViewTypeChange with table when the Table option is selected", () => {

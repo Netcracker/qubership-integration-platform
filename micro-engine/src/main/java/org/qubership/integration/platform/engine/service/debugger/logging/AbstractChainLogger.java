@@ -10,7 +10,6 @@ import org.apache.camel.support.http.HttpUtil;
 import org.apache.camel.tracing.ActiveSpanManager;
 import org.apache.camel.tracing.SpanAdapter;
 import org.apache.commons.lang3.StringUtils;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.logging.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.logging.ExtendedErrorLoggerFactory;
@@ -50,12 +49,9 @@ import javax.annotation.Nullable;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.SERVICE_CALL_DEFAULT_RETRY_DELAY;
 
 @Slf4j
-public abstract class AbstractChainLogger {
+public abstract class AbstractChainLogger extends AbstractTruncatedFieldLogger {
     public static final String MDC_TRACE_ID = "trace_id";
     public static final String MDC_SNAP_ID = "span_id";
-
-    @ConfigProperty(name = "qip.logging.fields-max-size")
-    Integer fieldValueMaxSize;
 
     @SuppressWarnings("checkstyle:ConstantName")
     protected final ExtendedErrorLogger chainLogger = ExtendedErrorLoggerFactory.getLogger(this.getClass());
@@ -115,8 +111,11 @@ public abstract class AbstractChainLogger {
             return;
         }
 
-        ElementInfo elementInfo = MetadataUtil.getBeanForElement(exchange, nodeId, ElementInfo.class);
-        ChainElementType type = ChainElementType.fromString(elementInfo.getType());
+        java.util.Optional<ElementInfo> elementInfoOpt = MetadataUtil.lookupBeanForElement(exchange, nodeId, ElementInfo.class);
+        if (elementInfoOpt.isEmpty()) {
+            return;
+        }
+        ChainElementType type = ChainElementType.fromString(elementInfoOpt.get().getType());
         LoggedPayloadValues loggedPayloadValues = getLoggedPayloadValues(payload, runtimeProperties);
 
         switch (type) {
@@ -149,8 +148,11 @@ public abstract class AbstractChainLogger {
             long timeTaken) {
         boolean failedOperation = DebuggerUtils.isFailedOperation(exchange);
         if (runtimeProperties.getLogLoggingLevel().isInfoLevel() || failedOperation) {
-            ElementInfo elementInfo = MetadataUtil.getBeanForElement(exchange, nodeId, ElementInfo.class);
-            ChainElementType type = ChainElementType.fromString(elementInfo.getType());
+            java.util.Optional<ElementInfo> elementInfoOpt2 = MetadataUtil.lookupBeanForElement(exchange, nodeId, ElementInfo.class);
+            if (elementInfoOpt2.isEmpty()) {
+                return;
+            }
+            ChainElementType type = ChainElementType.fromString(elementInfoOpt2.get().getType());
             LoggedPayloadValues loggedPayloadValues = getLoggedPayloadValues(payload, runtimeProperties);
 
             switch (type) {
@@ -398,14 +400,6 @@ public abstract class AbstractChainLogger {
             chainLogger.error("Failed to get retry parameters.", ex);
             return new RetryParameters(0, 0, 0, false);
         }
-    }
-
-    protected String truncateValue(String value) {
-        if (fieldValueMaxSize != null && fieldValueMaxSize >= 0 && value != null) {
-            return StringUtils.abbreviate(value, fieldValueMaxSize + 3);
-        }
-
-        return value;
     }
 
     public abstract void logExchange(String message, LoggedPayloadValues loggedPayloadValues);

@@ -3,18 +3,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: {{ .Release.Name }}-testing-service
-  name: {{ .Release.Name }}-testing-service
+    app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
+  name: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-testing-service
+      app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
   strategy: {}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-testing-service
+        app: {{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}
     spec:
       containers:
         - env:

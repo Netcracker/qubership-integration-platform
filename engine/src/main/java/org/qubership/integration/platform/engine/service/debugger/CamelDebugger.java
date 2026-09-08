@@ -40,6 +40,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelNames;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.model.logging.SessionLogDetails;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.model.sessionsreporting.EventSourceType;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
@@ -48,6 +49,7 @@ import org.qubership.integration.platform.engine.service.*;
 import org.qubership.integration.platform.engine.service.debugger.kafkareporting.SessionsKafkaReportingService;
 import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
+import org.qubership.integration.platform.engine.service.debugger.sessions.JsonSessionStepCoordinator;
 import org.qubership.integration.platform.engine.service.debugger.sessions.SessionsService;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
@@ -86,6 +88,7 @@ public class CamelDebugger extends DefaultDebugger {
     private final CamelDebuggerPropertiesService propertiesService;
     private final CamelExchangeContextPropagation exchangeContextPropagation;
     private final BlueGreenStateService blueGreenStateService;
+    private final JsonSessionStepCoordinator jsonSessionStepCoordinator;
     @Setter
     @Getter
     private String deploymentId;
@@ -103,7 +106,8 @@ public class CamelDebugger extends DefaultDebugger {
             VariablesService variablesService,
             CamelDebuggerPropertiesService propertiesService,
             CamelExchangeContextPropagation exchangeContextPropagation,
-            BlueGreenStateService blueGreenStateService
+            BlueGreenStateService blueGreenStateService,
+            JsonSessionStepCoordinator jsonSessionStepCoordinator
     ) {
         this.serverConfiguration = serverConfiguration;
         this.tracingService = tracingService;
@@ -117,6 +121,7 @@ public class CamelDebugger extends DefaultDebugger {
         this.propertiesService = propertiesService;
         this.exchangeContextPropagation = exchangeContextPropagation;
         this.blueGreenStateService = blueGreenStateService;
+        this.jsonSessionStepCoordinator = jsonSessionStepCoordinator;
     }
 
     @Override
@@ -261,94 +266,161 @@ public class CamelDebugger extends DefaultDebugger {
 
         initOrActivatePropagatedContext(exchange);
 
+        String nodeId = definition.getId();
+        String elementId = DebuggerUtils.getNodeIdFormatted(nodeId);
+
+        setLoggerContext(exchange, dbgProperties, nodeId);
+
+        if (IdentifierUtils.isValidUUID(elementId)) {
+            handleElementAfterProcess(exchange, dbgProperties, nodeId, elementId, timeTaken);
+        }
+
+        return super.afterProcess(exchange, processor, definition, timeTaken);
+    }
+
+    private void handleElementAfterProcess(Exchange exchange,
+            CamelDebuggerProperties dbgProperties, String nodeId, String elementId,
+            long timeTaken) {
+        Map<String, String> elementProperties = dbgProperties.getElementProperty(elementId);
+        ChainElementType chainElementType = ChainElementType.fromString(
+                elementProperties.get(ChainProperties.ELEMENT_TYPE));
+
+        boolean isElementForSessionsLevel = ChainElementType.isElementForInfoSessionsLevel(chainElementType);
+
+        setFailedElementId(exchange, elementProperties);
+
         SessionsLoggingLevel actualSessionLevel = dbgProperties.getRuntimeProperties(exchange)
                 .calculateSessionLevel(exchange);
         LogLoggingLevel logLoggingLevel = dbgProperties.getRuntimeProperties(exchange)
                 .getLogLoggingLevel();
-
-        String nodeId = definition.getId();
-
-        setLoggerContext(exchange, dbgProperties, nodeId);
-
         boolean sessionShouldBeLogged = exchange.getProperty(
-                CamelConstants.Properties.SESSION_SHOULD_BE_LOGGED,
-                Boolean.class);
+                CamelConstants.Properties.SESSION_SHOULD_BE_LOGGED, Boolean.class);
+        SessionLogDetails details = dbgProperties.getRuntimeProperties(exchange)
+                .getSessionLogDetails();
 
-        if (IdentifierUtils.isValidUUID(nodeId)) {
-            Map<String, String> elementProperties = dbgProperties.getElementProperty(nodeId);
-            ChainElementType chainElementType = ChainElementType.fromString(
-                    elementProperties.get(ChainProperties.ELEMENT_TYPE));
+        LoggingPayload payload = extractLoggingPayloadIfNeeded(exchange, dbgProperties,
+                actualSessionLevel, logLoggingLevel, sessionShouldBeLogged,
+                isElementForSessionsLevel, details);
 
-            Map<String, String> headersForLogging = Collections.emptyMap();
-            Map<String, SessionElementProperty> exchangePropertiesForLogging = Collections.emptyMap();
-            String bodyForLogging = null;
+        handleJsonStepLogging(exchange, dbgProperties, nodeId, elementId, payload);
 
-            boolean isElementForSessionsLevel = ChainElementType.isElementForInfoSessionsLevel(
-                    chainElementType);
+        handleSessionTraceLogging(exchange, dbgProperties, nodeId, payload,
+                isElementForSessionsLevel);
 
-            setFailedElementId(exchange, elementProperties);
+        logAfterProcessSafe(exchange, dbgProperties, nodeId, payload, timeTaken);
+    }
 
-            if ((sessionShouldBeLogged && SessionsLoggingLevel.hasPayload(actualSessionLevel, isElementForSessionsLevel))
-                    || logLoggingLevel.isInfoLevel()
-                    || DebuggerUtils.isFailedOperation(exchange)) {
-                headersForLogging = payloadExtractor.extractHeadersForLogging(exchange,
-                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
-                                .isMaskingEnabled());
-                bodyForLogging = payloadExtractor.extractBodyForLogging(exchange,
-                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
-                                .isMaskingEnabled());
-                exchangePropertiesForLogging = payloadExtractor.extractExchangePropertiesForLogging(
-                        exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
-                        dbgProperties.getRuntimeProperties(exchange)
-                                .isMaskingEnabled());
-            }
-
-            switch (actualSessionLevel) {
-                case INFO:
-                    if (!isElementForSessionsLevel) {
-                        break;
-                    }
-                case DEBUG:
-                    if (sessionShouldBeLogged) {
-                        String sessionId = exchange.getProperty(CamelConstants.Properties.SESSION_ID)
-                                .toString();
-                        String splitIdChain = (String) exchange.getProperty(
-                                CamelConstants.Properties.SPLIT_ID_CHAIN);
-                        String sessionElementId = ((Map<String, String>) exchange.getProperty(
-                                CamelConstants.Properties.ELEMENT_EXECUTION_MAP)).get(DebuggerUtils.getNodeIdForExecutionMap(nodeId, splitIdChain));
-                        if (sessionElementId == null) {
-                            sessionElementId = ((Map<String, String>) exchange.getProperty(
-                                    CamelConstants.Properties.ELEMENT_EXECUTION_MAP)).get(nodeId);
-                        }
-                        sessionsService.logSessionElementAfter(
-                                exchange,
-                                null,
-                                sessionId,
-                                sessionElementId,
-                                bodyForLogging, headersForLogging,
-                                payloadExtractor.extractContextForLogging(
-                                        MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
-                                        dbgProperties.getRuntimeProperties(exchange)
-                                                .isMaskingEnabled()),
-                                exchangePropertiesForLogging);
-                    }
-                    break;
-                default:
-                    break;
-            }
-
-            try {
-                chainLogger.logAfterProcess(
-                        exchange, dbgProperties, bodyForLogging, headersForLogging,
-                        exchangePropertiesForLogging, nodeId,
-                        timeTaken
-                );
-            } catch (Exception e) {
-                log.warn("Failed to log after process", e);
-            }
+    private LoggingPayload extractLoggingPayloadIfNeeded(Exchange exchange,
+            CamelDebuggerProperties dbgProperties, SessionsLoggingLevel actualSessionLevel,
+            LogLoggingLevel logLoggingLevel, boolean sessionShouldBeLogged,
+            boolean isElementForSessionsLevel, SessionLogDetails details) {
+        boolean shouldExtract = shouldExtractPayload(sessionShouldBeLogged, actualSessionLevel,
+                isElementForSessionsLevel, logLoggingLevel, exchange, details);
+        if (!shouldExtract) {
+            return new LoggingPayload(null, Collections.emptyMap(), Collections.emptyMap());
         }
+        Set<String> maskedFields = MaskedFieldUtils.getMaskedFields(
+                exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY));
+        boolean maskingEnabled = dbgProperties.getRuntimeProperties(exchange).isMaskingEnabled();
+        Map<String, String> headersForLogging = payloadExtractor.extractHeadersForLogging(
+                exchange, maskedFields, maskingEnabled);
+        String bodyForLogging = payloadExtractor.extractBodyForLogging(
+                exchange, maskedFields, maskingEnabled);
+        Map<String, SessionElementProperty> exchangePropertiesForLogging =
+                payloadExtractor.extractExchangePropertiesForLogging(exchange, maskedFields, maskingEnabled);
+        return new LoggingPayload(bodyForLogging, headersForLogging, exchangePropertiesForLogging);
+    }
 
-        return super.afterProcess(exchange, processor, definition, timeTaken);
+    private boolean shouldExtractPayload(boolean sessionShouldBeLogged,
+            SessionsLoggingLevel actualSessionLevel, boolean isElementForSessionsLevel,
+            LogLoggingLevel logLoggingLevel, Exchange exchange, SessionLogDetails details) {
+        return (sessionShouldBeLogged
+                && SessionsLoggingLevel.hasPayload(actualSessionLevel, isElementForSessionsLevel))
+                || logLoggingLevel.isInfoLevel()
+                || DebuggerUtils.isFailedOperation(exchange)
+                || details != SessionLogDetails.OFF;
+    }
+
+    private String resolveSessionElementId(Exchange exchange, String nodeId) {
+        String splitIdChain = (String) exchange.getProperty(CamelConstants.Properties.SPLIT_ID_CHAIN);
+        @SuppressWarnings("unchecked")
+        Map<String, String> executionMap = (Map<String, String>) exchange.getProperty(
+                CamelConstants.Properties.ELEMENT_EXECUTION_MAP);
+        if (executionMap == null) {
+            return null;
+        }
+        String sessionElementId = executionMap.get(
+                DebuggerUtils.getNodeIdForExecutionMap(nodeId, splitIdChain));
+        if (sessionElementId == null) {
+            sessionElementId = executionMap.get(nodeId);
+        }
+        return sessionElementId;
+    }
+
+    private void handleJsonStepLogging(Exchange exchange, CamelDebuggerProperties dbgProperties,
+            String nodeId, String elementId, LoggingPayload payload) {
+        String sessionId = exchange.getProperty(CamelConstants.Properties.SESSION_ID, String.class);
+        if (sessionId == null) {
+            return;
+        }
+        String sessionElementId = resolveSessionElementId(exchange, nodeId);
+        jsonSessionStepCoordinator.handleElementJsonLogging(exchange, dbgProperties, nodeId, elementId,
+                sessionId, sessionElementId,
+                new JsonSessionStepCoordinator.LoggingPayload(payload.bodyForLogging(),
+                        payload.headersForLogging(), payload.exchangePropertiesForLogging()));
+    }
+
+    @SuppressWarnings("checkstyle:FallThrough")
+    private void handleSessionTraceLogging(Exchange exchange, CamelDebuggerProperties dbgProperties,
+            String nodeId, LoggingPayload payload,
+            boolean isElementForSessionsLevel) {
+        SessionsLoggingLevel actualSessionLevel = dbgProperties.getRuntimeProperties(exchange)
+                .calculateSessionLevel(exchange);
+        boolean sessionShouldBeLogged = exchange.getProperty(
+                CamelConstants.Properties.SESSION_SHOULD_BE_LOGGED, Boolean.class);
+        switch (actualSessionLevel) {
+            case INFO:
+                if (!isElementForSessionsLevel) {
+                    break;
+                }
+            case DEBUG:
+                if (sessionShouldBeLogged) {
+                    String sessionId = exchange.getProperty(
+                            CamelConstants.Properties.SESSION_ID).toString();
+                    String sessionElementId = resolveSessionElementId(exchange, nodeId);
+                    sessionsService.logSessionElementAfter(
+                            exchange,
+                            null,
+                            sessionId,
+                            sessionElementId,
+                            payload.bodyForLogging(), payload.headersForLogging(),
+                            payloadExtractor.extractContextForLogging(
+                                    MaskedFieldUtils.getMaskedFields(
+                                            exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
+                                    dbgProperties.getRuntimeProperties(exchange).isMaskingEnabled()),
+                            payload.exchangePropertiesForLogging());
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void logAfterProcessSafe(Exchange exchange, CamelDebuggerProperties dbgProperties,
+            String nodeId, LoggingPayload payload, long timeTaken) {
+        try {
+            chainLogger.logAfterProcess(
+                    exchange, dbgProperties, payload.bodyForLogging(),
+                    payload.headersForLogging(), payload.exchangePropertiesForLogging(),
+                    nodeId, timeTaken);
+        } catch (Exception e) {
+            log.warn("Failed to log after process", e);
+        }
+    }
+
+    private record LoggingPayload(String bodyForLogging,
+            Map<String, String> headersForLogging,
+            Map<String, SessionElementProperty> exchangePropertiesForLogging) {
     }
 
     private void exchangeCreated(Exchange exchange, CamelDebuggerProperties dbgProperties) {
@@ -396,6 +468,8 @@ public class CamelDebugger extends DefaultDebugger {
                 parentSessionId = checkpoint.map(Checkpoint::getSession).map(SessionInfo::getId)
                         .orElse(null);
             }
+
+            chainLogger.setLoggerContext(exchange, dbgProperties, null, tracingService.isTracingEnabled());
 
             Session session = sessionsService.startSession(exchange, dbgProperties, sessionId,
                     parentSessionId, started,
@@ -450,7 +524,6 @@ public class CamelDebugger extends DefaultDebugger {
         String stepId = DebuggerUtils.getNodeIdFormatted(fullStepId);
         String stepName = DebuggerUtils.getStepNameFormatted(fullStepId);
         String stepChainElementId = DebuggerUtils.getStepChainElementId(fullStepId);
-
         String sessionElementId = UUID.randomUUID().toString();
         ChainElementType elementType = ChainElementType.fromString(
                 dbgProperties.getElementProperty(stepId).get(
@@ -492,6 +565,29 @@ public class CamelDebugger extends DefaultDebugger {
         }
 
         exchange.getProperty(CamelConstants.Properties.STEPS, Deque.class).push(sessionElementId);
+
+        registerStepNodeId(exchange, sessionElementId, stepId, stepChainElementId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void registerStepNodeId(Exchange exchange, String sessionElementId, String stepId,
+            String stepChainElementId) {
+        Map<String, String> stepNodeIds = exchange.getProperty(
+                CamelConstants.Properties.SESSION_STEP_NODE_IDS, Map.class);
+        if (stepNodeIds == null) {
+            stepNodeIds = new ConcurrentHashMap<>();
+            exchange.setProperty(CamelConstants.Properties.SESSION_STEP_NODE_IDS, stepNodeIds);
+        }
+        stepNodeIds.put(sessionElementId, stepId);
+
+        Set<String> stepIds = exchange.getProperty(
+                CamelConstants.Properties.SESSION_STEP_IDS, Set.class);
+        if (stepIds == null) {
+            stepIds = ConcurrentHashMap.newKeySet();
+            exchange.setProperty(CamelConstants.Properties.SESSION_STEP_IDS, stepIds);
+        }
+        stepIds.add(DebuggerUtils.getNodeIdFormatted(stepId));
+        stepIds.add(DebuggerUtils.getNodeIdFormatted(stepChainElementId));
     }
 
     @SuppressWarnings("checkstyle:FallThrough")
@@ -509,50 +605,80 @@ public class CamelDebugger extends DefaultDebugger {
                 Boolean.class);
 
         metricsService.processElementFinishMetrics(exchange, dbgProperties, stepId, stepName,
-                elementType,
-                failed);
+                elementType, failed);
 
         setFailedElementId(exchange, dbgProperties.getElementProperty(stepId));
 
         setLoggerContext(exchange, dbgProperties, stepId);
         logAfterStepFinished(exchange, dbgProperties, stepName, stepId, elementType);
 
+        Deque<String> steps = exchange.getProperty(CamelConstants.Properties.STEPS, Deque.class);
+        String stepSessionElementId = steps != null && !steps.isEmpty() ? steps.peek() : null;
+
+        handleJsonStepFinishedLogging(exchange, dbgProperties, fullStepId, stepSessionElementId);
+
+        handleStepSessionCleanup(exchange, dbgProperties, sessionShouldBeLogged, failed,
+                stepSessionElementId, elementType, sessionId);
+
+        popStep(steps);
+
+        handleCheckpointReporting(exchange, dbgProperties, sessionId, elementType, failed);
+    }
+
+    private void handleJsonStepFinishedLogging(Exchange exchange,
+            CamelDebuggerProperties dbgProperties, String fullStepId,
+            String stepSessionElementId) {
+        jsonSessionStepCoordinator.handleStepFinishedJsonLogging(exchange, dbgProperties, fullStepId,
+                stepSessionElementId);
+    }
+
+    @SuppressWarnings("checkstyle:FallThrough")
+    private void handleStepSessionCleanup(Exchange exchange,
+            CamelDebuggerProperties dbgProperties, boolean sessionShouldBeLogged,
+            boolean failed, String stepSessionElementId, ChainElementType elementType, String sessionId) {
         switch (dbgProperties.getRuntimeProperties(exchange).calculateSessionLevel(exchange)) {
             case INFO:
                 if (!ChainElementType.isElementForInfoSessionsLevel(elementType)) {
                     break;
                 }
             case DEBUG:
-                if (sessionShouldBeLogged) {
-                    String sessionElementId = ((Deque<String>) exchange.getProperty(
-                            CamelConstants.Properties.STEPS)).pop();
-                    if (failed) {
-                        DebuggerUtils.removeStepPropertyFromAllExchanges(exchange,
-                                sessionElementId);
-                    }
-                    sessionsService.logSessionElementAfter(exchange, null, sessionId, sessionElementId,
+                if (sessionShouldBeLogged && failed) {
+                    DebuggerUtils.removeStepPropertyFromAllExchanges(exchange, stepSessionElementId);
+                }
+                if (sessionShouldBeLogged && stepSessionElementId != null) {
+                    sessionsService.logSessionElementAfter(exchange, null, sessionId, stepSessionElementId,
                             MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
-                            dbgProperties.getRuntimeProperties(exchange)
-                                    .isMaskingEnabled());
+                            dbgProperties.getRuntimeProperties(exchange).isMaskingEnabled());
                 }
                 break;
             default:
                 break;
         }
+    }
 
-        // detect checkpoint context saver
-        if (!failed && dbgProperties.getRuntimeProperties(exchange).isDptEventsEnabled()
-                && elementType == ChainElementType.CHECKPOINT
-                && !exchange.getProperty(CamelConstants.Properties.CHECKPOINT_IS_TRIGGER_STEP, false, Boolean.class)
-                && sessionsKafkaReportingService.isPresent()
-        ) {
-            String parentSessionId = exchange.getProperty(
-                    CamelConstants.Properties.CHECKPOINT_INTERNAL_PARENT_SESSION_ID, String.class);
-            String originalSessionId = exchange.getProperty(
-                    CamelConstants.Properties.CHECKPOINT_INTERNAL_ORIGINAL_SESSION_ID, String.class);
-            sessionsKafkaReportingService.get().addToQueue(exchange, dbgProperties, sessionId, originalSessionId, parentSessionId,
-                    EventSourceType.SESSION_CHECKPOINT_PASSED);
+    private void popStep(Deque<String> steps) {
+        if (steps != null && !steps.isEmpty()) {
+            steps.pop();
         }
+    }
+
+    private void handleCheckpointReporting(Exchange exchange,
+            CamelDebuggerProperties dbgProperties, String sessionId,
+            ChainElementType elementType, boolean failed) {
+        if (failed
+                || !dbgProperties.getRuntimeProperties(exchange).isDptEventsEnabled()
+                || elementType != ChainElementType.CHECKPOINT
+                || Boolean.TRUE.equals(exchange.getProperty(
+                        CamelConstants.Properties.CHECKPOINT_IS_TRIGGER_STEP, false, Boolean.class))
+                || sessionsKafkaReportingService.isEmpty()) {
+            return;
+        }
+        String parentSessionId = exchange.getProperty(
+                CamelConstants.Properties.CHECKPOINT_INTERNAL_PARENT_SESSION_ID, String.class);
+        String originalSessionId = exchange.getProperty(
+                CamelConstants.Properties.CHECKPOINT_INTERNAL_ORIGINAL_SESSION_ID, String.class);
+        sessionsKafkaReportingService.get().addToQueue(exchange, dbgProperties, sessionId,
+                originalSessionId, parentSessionId, EventSourceType.SESSION_CHECKPOINT_PASSED);
     }
 
     private void logBeforeStepStarted(

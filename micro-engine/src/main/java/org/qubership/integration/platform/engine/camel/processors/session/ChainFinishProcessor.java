@@ -46,7 +46,9 @@ import org.qubership.integration.platform.engine.util.ExchangeUtil;
 import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -108,104 +110,141 @@ public class ChainFinishProcessor implements Processor {
         String sessionId = ExchangeUtil.getSessionId(exchange);
         Boolean isMainExchange = exchange.getProperty(Properties.IS_MAIN_EXCHANGE, false, Boolean.class);
 
-        if (isMainExchange) {
-            String started = exchange.getProperty(CamelConstants.Properties.START_TIME, String.class);
-
-            long syncDuration = Duration.between(LocalDateTime.parse(started), LocalDateTime.now()).toMillis();
-
-            syncDurationMap.merge(sessionId, syncDuration, Long::sum);
-        }
+        trackSyncDurationIfMainExchange(exchange, sessionId, isMainExchange);
 
         // finish session if this is the last thread
         if (sessionActiveThreadCounter == null || sessionActiveThreadCounter.decrementAndGet() <= 0) {
-            CamelDebugger camelDebugger = ((CamelDebugger) exchange.getContext().getDebugger());
-            ChainRuntimeProperties runtimeProperties = propertiesService.getRuntimeProperties(exchange);
+            finishLastThread(exchange, sessionId, threadsStatuses, chainInfo);
+        }
+    }
 
-            ExecutionStatus executionStatus = ExecutionStatus.COMPLETED_NORMALLY;
-            for (Entry<Long, ExecutionStatus> entry : threadsStatuses.entrySet()) {
-                executionStatus = ExecutionStatus.computeHigherPriorityStatus(entry.getValue(), executionStatus);
+    private void trackSyncDurationIfMainExchange(Exchange exchange, String sessionId, Boolean isMainExchange) {
+        if (Boolean.TRUE.equals(isMainExchange)) {
+            Long startedMs = exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class);
+            long syncDuration;
+            if (startedMs != null) {
+                syncDuration = System.currentTimeMillis() - startedMs;
+            } else {
+                String started = exchange.getProperty(CamelConstants.Properties.START_TIME, String.class);
+                syncDuration = Duration.between(
+                        LocalDateTime.parse(started).atZone(ZoneId.systemDefault()).toInstant(),
+                        Instant.now()).toMillis();
             }
+            syncDurationMap.merge(sessionId, syncDuration, Long::sum);
+        }
+    }
 
-            String started = exchange.getProperty(CamelConstants.Properties.START_TIME,
-                String.class);
-            String finished = LocalDateTime.now().toString();
-            SessionsLoggingLevel sessionLevel = runtimeProperties.calculateSessionLevel(exchange);
-            long duration = Duration.between(LocalDateTime.parse(started),
-                LocalDateTime.parse(finished)).toMillis();
+    private void finishLastThread(Exchange exchange, String sessionId,
+            Map<Long, ExecutionStatus> threadsStatuses, ChainInfo chainInfo) {
+        CamelDebugger camelDebugger = ((CamelDebugger) exchange.getContext().getDebugger());
+        ChainRuntimeProperties runtimeProperties = propertiesService.getRuntimeProperties(exchange);
 
-            if (ExecutionStatus.COMPLETED_WITH_ERRORS.equals(executionStatus) && (
-                sessionLevel == SessionsLoggingLevel.ERROR
-                    || sessionLevel == SessionsLoggingLevel.INFO)) {
-                sessionsService.ifPresent(svc -> {
-                    String sessionElementId = svc.moveFromSingleElCacheToCommonCache(sessionId);
-                    if (StringUtils.isNotEmpty(sessionElementId)) {
-                        svc.logSessionElementAfter(
-                                exchange,
-                                exchange.getProperty(Properties.LAST_EXCEPTION, Exception.class),
-                                sessionId, sessionElementId);
-                    }
-                });
-            }
+        ExecutionStatus executionStatus = aggregateExecutionStatus(threadsStatuses);
 
-            camelDebugger.finishCheckpointSession(exchange, sessionId, executionStatus, duration);
+        String started = exchange.getProperty(CamelConstants.Properties.START_TIME, String.class);
+        String finished = LocalDateTime.now(ZoneId.systemDefault()).toString();
+        SessionsLoggingLevel sessionLevel = runtimeProperties.calculateSessionLevel(exchange);
+        Long startedMs = exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class);
+        long duration;
+        if (startedMs != null) {
+            duration = System.currentTimeMillis() - startedMs;
+        } else {
+            duration = Duration.between(
+                    LocalDateTime.parse(started).atZone(ZoneId.systemDefault()).toInstant(),
+                    LocalDateTime.parse(finished).atZone(ZoneId.systemDefault()).toInstant()).toMillis();
+        }
 
-            ExecutionStatus finalExecutionStatus = executionStatus;
+        handleSingleElementLogging(exchange, sessionId, executionStatus, sessionLevel);
+        camelDebugger.finishCheckpointSession(exchange, sessionId, executionStatus, duration);
+        ExecutionStatus finalExecutionStatus = executionStatus;
+        sessionsService.ifPresent(svc -> svc.finishSession(exchange, finalExecutionStatus, finished, duration,
+                syncDurationMap.getOrDefault(sessionId, 0L)));
+        syncDurationMap.remove(sessionId);
+        handleExchangeLogging(exchange, runtimeProperties, executionStatus, duration);
+        handleDptEvents(exchange, sessionId, runtimeProperties, executionStatus);
+        handleMetrics(exchange, chainInfo, executionStatus, duration);
+        handleSds(exchange, executionStatus);
+    }
+
+    private ExecutionStatus aggregateExecutionStatus(Map<Long, ExecutionStatus> threadsStatuses) {
+        ExecutionStatus executionStatus = ExecutionStatus.COMPLETED_NORMALLY;
+        for (Entry<Long, ExecutionStatus> entry : threadsStatuses.entrySet()) {
+            executionStatus = ExecutionStatus.computeHigherPriorityStatus(entry.getValue(), executionStatus);
+        }
+        return executionStatus;
+    }
+
+    private void handleSingleElementLogging(Exchange exchange, String sessionId,
+            ExecutionStatus executionStatus, SessionsLoggingLevel sessionLevel) {
+        if (ExecutionStatus.COMPLETED_WITH_ERRORS.equals(executionStatus)
+                && (sessionLevel == SessionsLoggingLevel.ERROR || sessionLevel == SessionsLoggingLevel.INFO)) {
             sessionsService.ifPresent(svc -> {
-                svc.finishSession(exchange, finalExecutionStatus, finished, duration,
-                        syncDurationMap.getOrDefault(sessionId, 0L));
+                String sessionElementId = svc.moveFromSingleElCacheToCommonCache(sessionId);
+                if (StringUtils.isNotEmpty(sessionElementId)) {
+                    svc.logSessionElementAfter(
+                            exchange,
+                            exchange.getProperty(Properties.LAST_EXCEPTION, Exception.class),
+                            sessionId, sessionElementId);
+                }
             });
+        }
+    }
 
-            syncDurationMap.remove(sessionId);
+    private void handleExchangeLogging(Exchange exchange,
+            ChainRuntimeProperties runtimeProperties, ExecutionStatus executionStatus, long duration) {
+        org.qubership.integration.platform.engine.model.logging.SessionLogDetails details = runtimeProperties.getSessionLogDetails();
+        if (details == null) {
+            details = org.qubership.integration.platform.engine.model.logging.SessionLogDetails.OFF;
+        }
+        if (runtimeProperties.getLogLoggingLevel().isInfoLevel()
+                || details.isExchangeLogEnabled()) {
+            chainLogger.logExchangeFinished(exchange, executionStatus, duration);
+        }
+    }
 
-            if (runtimeProperties.getLogLoggingLevel().isInfoLevel()) {
-                chainLogger.logExchangeFinished(exchange, executionStatus, duration);
-            }
-
-            if (runtimeProperties.isDptEventsEnabled() && sessionsKafkaReportingService.isPresent()) {
-                try {
-                    String parentSessionId = exchange.getProperty(
-                        CamelConstants.Properties.CHECKPOINT_INTERNAL_PARENT_SESSION_ID,
-                        String.class);
-                    String originalSessionId = exchange.getProperty(
-                        CamelConstants.Properties.CHECKPOINT_INTERNAL_ORIGINAL_SESSION_ID,
-                        String.class);
-                    sessionsKafkaReportingService.get().sendFinishedEvent(exchange, sessionId,
-                        originalSessionId, parentSessionId,
-                        executionStatus);
-                } catch (Exception e) {
-                    log.error("Failed to send DPT events", e);
-                }
-            }
-
-            if (ExecutionStatus.COMPLETED_WITH_WARNINGS.equals(executionStatus)
-                    || ExecutionStatus.COMPLETED_WITH_ERRORS.equals(executionStatus)) {
-                try {
-                    metricsService.processChainFailure(
-                            chainInfo,
-                            exchange.getProperty(Properties.LAST_EXCEPTION_ERROR_CODE, ErrorCode.UNEXPECTED_BUSINESS_ERROR, ErrorCode.class)
-                    );
-                } catch (Exception e) {
-                    log.warn("Failed to create chains failures metric data", e);
-                }
-            }
-
+    private void handleDptEvents(Exchange exchange, String sessionId,
+            ChainRuntimeProperties runtimeProperties, ExecutionStatus executionStatus) {
+        if (runtimeProperties.isDptEventsEnabled() && sessionsKafkaReportingService.isPresent()) {
             try {
-                metricsService.processSessionFinish(chainInfo, executionStatus.toString(),
-                    duration);
+                String parentSessionId = exchange.getProperty(
+                    CamelConstants.Properties.CHECKPOINT_INTERNAL_PARENT_SESSION_ID, String.class);
+                String originalSessionId = exchange.getProperty(
+                    CamelConstants.Properties.CHECKPOINT_INTERNAL_ORIGINAL_SESSION_ID, String.class);
+                sessionsKafkaReportingService.get().sendFinishedEvent(exchange, sessionId,
+                    originalSessionId, parentSessionId, executionStatus);
             } catch (Exception e) {
-                log.warn("Failed to create metrics data", e);
+                log.error("Failed to send DPT events", e);
             }
+        }
+    }
 
-            String sdsExecutionId = exchange.getProperty(CamelConstants.Properties.SDS_EXECUTION_ID_PROP, String.class);
-            if (sdsExecutionId != null) {
-                if (sdsService.isPresent()) {
-                    if (ExecutionStatus.COMPLETED_WITH_ERRORS.equals(executionStatus)) {
-                        sdsService.get().setJobInstanceFailed(sdsExecutionId,
-                            DebuggerUtils.getExceptionFromExchange(exchange));
-                    } else {
-                        sdsService.get().setJobInstanceFinished(sdsExecutionId);
-                    }
-                }
+    private void handleMetrics(Exchange exchange, ChainInfo chainInfo,
+            ExecutionStatus executionStatus, long duration) {
+        if (ExecutionStatus.COMPLETED_WITH_WARNINGS.equals(executionStatus)
+                || ExecutionStatus.COMPLETED_WITH_ERRORS.equals(executionStatus)) {
+            try {
+                metricsService.processChainFailure(
+                        chainInfo,
+                        exchange.getProperty(Properties.LAST_EXCEPTION_ERROR_CODE, ErrorCode.UNEXPECTED_BUSINESS_ERROR, ErrorCode.class));
+            } catch (Exception e) {
+                log.warn("Failed to create chains failures metric data", e);
+            }
+        }
+        try {
+            metricsService.processSessionFinish(chainInfo, executionStatus.toString(), duration);
+        } catch (Exception e) {
+            log.warn("Failed to create metrics data", e);
+        }
+    }
+
+    private void handleSds(Exchange exchange, ExecutionStatus executionStatus) {
+        String sdsExecutionId = exchange.getProperty(CamelConstants.Properties.SDS_EXECUTION_ID_PROP, String.class);
+        if (sdsExecutionId != null && sdsService.isPresent()) {
+            if (ExecutionStatus.COMPLETED_WITH_ERRORS.equals(executionStatus)) {
+                sdsService.get().setJobInstanceFailed(sdsExecutionId,
+                    DebuggerUtils.getExceptionFromExchange(exchange));
+            } else {
+                sdsService.get().setJobInstanceFinished(sdsExecutionId);
             }
         }
     }

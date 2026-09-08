@@ -8,12 +8,12 @@ elements:
     element-type: "mail-sender"
     original-id: "ae36db8a-54e3-4a95-a67d-967aac5d7806"
     properties:
-      cc: ["copy-to@test.mail"]
-      to: ["to@test.mail"]
-      bcc: ["copy-to@test.mail"]
+      cc: ["copy-to@example.com"]
+      to: ["to@example.com"]
+      bcc: ["copy-to@example.com"]
       url: "http://localhost:8080"
-      from: "from@test.mail"
-      replyTo: ["reply-to@test.mail"]
+      from: "from@example.com"
+      replyTo: ["reply-to@example.com"]
       subject: "Test mail"
       password: "user"
       username: "user"

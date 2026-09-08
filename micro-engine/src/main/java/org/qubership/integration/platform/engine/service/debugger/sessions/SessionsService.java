@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -26,7 +27,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.metadata.*;
 import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
-import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
@@ -42,12 +42,14 @@ import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePr
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.ExchangeUtil;
-import org.springframework.lang.Nullable;
+import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
+import javax.annotation.Nullable;
 
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
 
@@ -58,35 +60,48 @@ public class SessionsService {
     private final OpenSearchWriter writer;
     private final EngineInfo engineInfo;
     private final ChainRuntimePropertiesService chainRuntimePropertiesService;
+    private final Optional<SessionStepLogger> sessionStepLogger;
     private final Random random = new Random();
 
     @ConfigProperty(name = "qip.sessions.sampler.probabilistic")
     double samplerProbabilistic;
 
-    @Inject
     public SessionsService(
             PayloadExtractor extractor,
             OpenSearchWriter writer,
             EngineInfo engineInfo,
             ChainRuntimePropertiesService chainRuntimePropertiesService
     ) {
+        this(extractor, writer, engineInfo, chainRuntimePropertiesService, (Instance<SessionStepLogger>) null);
+    }
+
+    @Inject
+    public SessionsService(
+            PayloadExtractor extractor,
+            OpenSearchWriter writer,
+            EngineInfo engineInfo,
+            ChainRuntimePropertiesService chainRuntimePropertiesService,
+            Instance<SessionStepLogger> sessionStepLoggerInstance
+    ) {
         this.extractor = extractor;
         this.writer = writer;
         this.engineInfo = engineInfo;
         this.chainRuntimePropertiesService = chainRuntimePropertiesService;
+        this.sessionStepLogger = sessionStepLoggerInstance == null ? Optional.empty() : InjectUtil.injectOptional(sessionStepLoggerInstance);
     }
 
     public Session startSession(Exchange exchange, String parentSessionId) {
-        LocalDateTime startTime = LocalDateTime.now();
-        Long startedMillis = System.currentTimeMillis();
+        return startSession(exchange, UUID.randomUUID().toString(), parentSessionId, LocalDateTime.now(ZoneId.systemDefault()).toString());
+    }
 
+    public Session startSession(Exchange exchange, String sessionId, String parentSessionId, String started) {
         DeploymentInfo deploymentInfo = MetadataUtil.getBean(exchange, DeploymentInfo.class);
         ChainInfo chainInfo = deploymentInfo.getChain();
         SnapshotInfo snapshotInfo = deploymentInfo.getSnapshot();
         ChainRuntimeProperties runtimeProperties = chainRuntimePropertiesService.getRuntimeProperties(exchange);
         SessionsLoggingLevel sessionLevel = runtimeProperties.calculateSessionLevel(exchange);
         Session session = Session.builder()
-            .id(UUID.randomUUID().toString())
+            .id(sessionId)
             .externalId(
                 exchange.getMessage().getHeader(Headers.EXTERNAL_SESSION_CIP_ID, String.class))
             .domain(engineInfo.getDomain())
@@ -94,7 +109,7 @@ public class SessionsService {
             .engineAddress(engineInfo.getHost())
             .chainId(chainInfo.getId())
             .chainName(chainInfo.getName())
-            .started(startTime.toString())
+            .started(started)
             .executionStatus(ExecutionStatus.IN_PROGRESS)
             .loggingLevel(sessionLevel.toString())
             .snapshotName(snapshotInfo.getName())
@@ -104,6 +119,8 @@ public class SessionsService {
         if (sessionLevel != SessionsLoggingLevel.OFF) {
             writer.putSessionToCache(session);
         }
+        sessionStepLogger.ifPresent(logger ->
+            logger.logSessionStart(session, runtimeProperties.getSessionLogDetails()));
         return session;
     }
 
@@ -323,26 +340,38 @@ public class SessionsService {
         if (sessionElement == null) {
             return;
         }
+        populateAfterFields(exchange, externalException, sessionElement, payload);
 
+        writer.scheduleElementToLogAndCache(sessionElement);
+
+        if (exchange.getProperty(CORRELATION_ID) != null) {
+            Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(ExchangeUtil.getSessionId(exchange));
+            String correlationId = String.valueOf(exchange.getProperty(CORRELATION_ID));
+            if (sessionPair != null && sessionPair.getRight() != null) {
+                sessionPair.getRight().setCorrelationId(correlationId);
+            }
+        }
+    }
+
+    public void recordStepAfter(SessionStepLogContext ctx) {
+        sessionStepLogger.ifPresent(logger -> logger.recordStepAfter(ctx));
+    }
+
+    public void recordStepAfterForStep(SessionStepLogContext ctx) {
+        sessionStepLogger.ifPresent(logger -> logger.recordStepAfterForStep(ctx));
+    }
+
+    private void populateAfterFields(Exchange exchange, Exception externalException,
+            SessionElementElastic sessionElement, Payload payload) {
         String finished = LocalDateTime.now().toString();
         sessionElement.setFinished(finished);
         sessionElement.setBodyAfter(payload.getBody());
         sessionElement.setHeadersAfter(extractor.convertToJson(payload.getHeaders()));
         sessionElement.setPropertiesAfter(extractor.convertToJson(payload.getProperties()));
         sessionElement.setContextAfter(extractor.convertToJson(payload.getContext()));
-        Exception exception = exchange.getException() != null ? exchange.getException() : externalException;
-
-        if (ChainElementType.isExceptionHandleElement(ChainElementType.fromString(sessionElement.getCamelElementName()))
-                    && exception == null
-                    && Boolean.TRUE.equals(exchange.getProperty(Properties.ELEMENT_WARNING, Boolean.class))) {
-            sessionElement.setExecutionStatus(ExecutionStatus.COMPLETED_WITH_WARNINGS);
-        } else {
-            sessionElement.setExecutionStatus(exception != null
-                ? ExecutionStatus.COMPLETED_WITH_ERRORS
-                : ExecutionStatus.COMPLETED_NORMALLY);
-        }
+        sessionElement.setExecutionStatus(DebuggerUtils.computeExecutionStatus(exchange, externalException,
+                sessionElement.getCamelElementName()));
         if (Boolean.TRUE.equals(exchange.getProperty(Properties.ELEMENT_FAILED, Boolean.class))) {
-            sessionElement.setExecutionStatus(ExecutionStatus.COMPLETED_WITH_ERRORS);
             Exception elementException = exchange.getProperty(Exchange.EXCEPTION_CAUGHT,
                     Exception.class);
             if (elementException != null) {
@@ -353,18 +382,9 @@ public class SessionsService {
             Duration.between(LocalDateTime.parse(sessionElement.getStarted()),
                 LocalDateTime.parse(finished)).toMillis());
 
+        Exception exception = exchange.getException() != null ? exchange.getException() : externalException;
         if (exception != null) {
             sessionElement.setExceptionInfo(new ExceptionInfo(exception));
-        }
-
-        writer.scheduleElementToLogAndCache(sessionElement);
-
-        if (exchange.getProperty(CORRELATION_ID) != null) {
-            Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(ExchangeUtil.getSessionId(exchange));
-            String correlationId = String.valueOf(exchange.getProperty(CORRELATION_ID));
-            if (sessionPair != null && sessionPair.getRight() != null) {
-                sessionPair.getRight().setCorrelationId(correlationId);
-            }
         }
     }
 

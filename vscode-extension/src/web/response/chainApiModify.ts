@@ -49,6 +49,11 @@ import {
   transferToSwimlaneValidations,
 } from "./swimlaneUtils";
 import { OrderedElementService } from "../api-services/OrderedElementService";
+import {
+  cleanupOrphanPropertyFiles,
+  collectFilenamesFromElementTree,
+  deleteElementsPropertyFiles,
+} from "./resourceUtils";
 
 export async function updateChain(
   fileUri: Uri,
@@ -97,13 +102,43 @@ export async function updateChain(
   return await getChain(fileUri, chainId);
 }
 
+// The group container has no library entry of its own.
+const CONTAINER_TYPE_NAME = "container";
+
+/**
+ * Tells whether a parent can hold the given child types, the way the runtime
+ * catalog decides it: the parent must be a container, and a container that
+ * declares `allowedChildren` accepts only the types it lists. A parent that
+ * fails this test is connected to the elements instead of nesting them.
+ */
+async function acceptsChildren(
+  parent: ElementSchema,
+  childTypes: string[],
+): Promise<boolean> {
+  const parentType = parent.type as unknown as string;
+  if (parentType === CONTAINER_TYPE_NAME) {
+    return true;
+  }
+
+  const libraryData = await getLibraryElementByType(parentType);
+  if (!libraryData.container) {
+    return false;
+  }
+
+  const allowedChildren = libraryData.allowedChildren ?? {};
+  return (
+    Object.keys(allowedChildren).length === 0 ||
+    childTypes.every((childType) => childType in allowedChildren)
+  );
+}
+
 async function checkRestrictions(
   element: ElementSchema,
   elements: ElementSchema[],
 ) {
   const elementType = element.type as unknown as string;
   const libraryData =
-    elementType === "container"
+    elementType === CONTAINER_TYPE_NAME
       ? undefined
       : await getLibraryElementByType(elementType);
   if (!libraryData) {
@@ -120,7 +155,7 @@ async function checkRestrictions(
     const parentElement = findElementById(elements, parentElementId)?.element;
     if (parentElement) {
       const libraryParentData =
-        (parentElement.type as unknown as string) === "container"
+        (parentElement.type as unknown as string) === CONTAINER_TYPE_NAME
           ? undefined
           : await getLibraryElementByType(
               parentElement.type as unknown as string,
@@ -228,6 +263,9 @@ export async function updateElement(
     throw Error("ElementId not found");
   }
 
+  const oldFilenames = new Set<string>();
+  collectFilenamesFromElementTree([element], oldFilenames);
+
   const isChangeParent =
     elementWithParentId?.parentId !== elementRequest.parentElementId;
 
@@ -257,6 +295,11 @@ export async function updateElement(
     { element, parentElementId: elementWithParentId?.parentId },
     elementRequest,
   );
+  const newFilenames = new Set<string>();
+  {
+    const newElementForCollect = { ...element, properties: elementRequest.properties as ElementSchema["properties"] } as ElementSchema;
+    collectFilenamesFromElementTree([newElementForCollect], newFilenames);
+  }
   (element as any).properties = elementRequest.properties;
 
   element.parentElementId = elementRequest.parentElementId;
@@ -275,6 +318,8 @@ export async function updateElement(
 
   await writeElementProperties(fileUri, element);
   await fileApi.writeMainChain(fileUri, chain);
+
+  await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, chain.content.elements as ElementSchema[]);
 
   const updatedElement = await getElement(fileUri, chainId, elementId);
   if (diff?.updatedElements?.length) {
@@ -299,15 +344,50 @@ export async function transferElement(
   }
 
   const chainElements = chain.content.elements as ElementSchema[];
+
+  // A target that cannot hold the elements gets connected to them instead, and
+  // nothing moves.
+  if (elementRequest.parentId) {
+    const targetElement = findElementByIdOrError(
+      chainElements,
+      elementRequest.parentId,
+    ).element;
+    const transferredTypes = elementRequest.elements.map(
+      (elementId) =>
+        findElementByIdOrError(chainElements, elementId).element
+          .type as unknown as string,
+    );
+    if (!(await acceptsChildren(targetElement, transferredTypes))) {
+      return await connectToTransferTarget(
+        fileUri,
+        chain,
+        targetElement,
+        elementRequest.elements,
+      );
+    }
+    validateNotTransferIntoItself(
+      chainElements,
+      targetElement,
+      elementRequest.elements,
+    );
+  }
+
+  // A move that stays among group containers and the canvas leaves every
+  // dependency drawable, so the runtime catalog skips the dependency check for
+  // it and runs the check only when an element group is on either end.
+  const isGroupContainerTransfer =
+    elementRequest.elements.every((elementId) =>
+      isRootOrGroupContainer(
+        chainElements,
+        findElementById(chainElements, elementId)?.parentId,
+      ),
+    ) && isRootOrGroupContainer(chainElements, elementRequest.parentId);
+
   for (const elementId of elementRequest.elements) {
-    let element: ElementSchema | undefined = findElementById(
+    let element: ElementSchema | undefined = findElementByIdOrError(
       chainElements,
       elementId,
-    )?.element;
-    if (!element) {
-      console.error(`Element Id ${elementId} not found`);
-      throw new Error(`Element Id ${elementId} not found`);
-    }
+    ).element;
 
     if (isTransferOutOfSwimlane(elementRequest, element, chain)) {
       continue;
@@ -317,22 +397,13 @@ export async function transferElement(
 
     element = findAndRemoveElementById(chainElements, elementId)!;
 
-    (chain.content.dependencies as [])?.forEach((dependency: Dependency) => {
-      // TODO change to dependency schema
-      if (dependency.from === elementId || dependency.to === elementId) {
-        if (
-          !elementRequest.elements.includes(dependency.from) ||
-          !elementRequest.elements.includes(dependency.to)
-        ) {
-          console.error(
-            `Element ${elementId} not found has outside dependencies`,
-          );
-          throw Error(
-            `Element ${elementId} not found has outside dependencies`,
-          );
-        }
-      }
-    });
+    if (!isGroupContainerTransfer) {
+      validateNoOutsideDependencies(
+        chain.content.dependencies as Dependency[], // TODO change to dependency schema
+        elementId,
+        elementRequest.elements,
+      );
+    }
 
     let parentElement = undefined;
     if (elementRequest.parentId) {
@@ -365,6 +436,109 @@ export async function transferElement(
 
   return {
     updatedElements: updatedElements,
+  };
+}
+
+function validateNoOutsideDependencies(
+  dependencies: Dependency[] | undefined,
+  elementId: string,
+  transferredIds: string[],
+) {
+  dependencies?.forEach((dependency: Dependency) => {
+    if (dependency.from === elementId || dependency.to === elementId) {
+      if (
+        !transferredIds.includes(dependency.from) ||
+        !transferredIds.includes(dependency.to)
+      ) {
+        const message = `Element ${elementId} has dependencies outside the transferred elements`;
+        console.error(message);
+        throw Error(message);
+      }
+    }
+  });
+}
+
+/**
+ * Tells whether the given parent is the canvas or a group container, the two
+ * places between which the runtime catalog moves elements without checking
+ * their dependencies.
+ */
+function isRootOrGroupContainer(
+  elements: ElementSchema[],
+  parentId: string | null | undefined,
+): boolean {
+  if (!parentId) {
+    return true;
+  }
+
+  return (
+    (findElementById(elements, parentId)?.element.type as unknown as string) ===
+    CONTAINER_TYPE_NAME
+  );
+}
+
+function validateNotTransferIntoItself(
+  chainElements: ElementSchema[],
+  target: ElementSchema,
+  transferredIds: string[],
+) {
+  let current = findElementById(chainElements, target.id);
+  while (current) {
+    if (transferredIds.includes(current.element.id)) {
+      throw Error("Element cannot be transferred into itself");
+    }
+    current = current.parentId
+      ? findElementById(chainElements, current.parentId)
+      : undefined;
+  }
+}
+
+async function checkAllowedInContainers(element: ElementSchema) {
+  const elementType = element.type as unknown as string;
+  if (elementType === CONTAINER_TYPE_NAME) {
+    return;
+  }
+
+  const libraryData = await getLibraryElementByType(elementType);
+  if (!libraryData.allowedInContainers) {
+    const message = `The ${libraryData.name} element cannot be inside a container`;
+    console.error(message);
+    throw Error(message);
+  }
+}
+
+/**
+ * Connects a transfer target to the transferred elements instead of nesting them,
+ * the way the runtime catalog does when the target is not a container. Elements
+ * that already have an input dependency keep it and are left alone.
+ */
+async function connectToTransferTarget(
+  fileUri: Uri,
+  chain: ChainSchema,
+  target: ElementSchema,
+  transferredIds: string[],
+): Promise<ActionDifference> {
+  const chainElements = chain.content.elements as ElementSchema[];
+  const dependencies = chain.content.dependencies as Dependency[] | undefined; // TODO change to dependency schema
+
+  validateNotTransferIntoItself(chainElements, target, transferredIds);
+
+  const createdDependencies: Dependency[] = [];
+  for (const elementId of transferredIds) {
+    const element = findElementByIdOrError(chainElements, elementId).element;
+    await checkAllowedInContainers(element);
+    validateNoOutsideDependencies(dependencies, elementId, transferredIds);
+
+    if (dependencies?.some((dependency) => dependency.to === elementId)) {
+      continue;
+    }
+    createdDependencies.push(await addDependency(chain, target.id, elementId));
+  }
+
+  await fileApi.writeMainChain(fileUri, chain);
+
+  return {
+    createdDependencies: createdDependencies.map(withDependencyId),
   };
 }
 
@@ -558,12 +732,33 @@ export async function createElement(
   if (elementRequest.type === SWIMLANE_TYPE_NAME) {
     return await createSwimlane(mainFolderUri, chain, elementRequest);
   }
-  const element = await getDefaultElementByType(chainId, elementRequest);
 
   if (!chain.content.elements) {
     chain.content.elements = [];
   }
   const chainElements = chain.content.elements as ElementSchema[];
+
+  // A parent that cannot hold the new element gets connected to it: the element
+  // is created next to the parent, in the parent's swimlane.
+  const parentElement = elementRequest.parentElementId
+    ? findElementByIdOrError(chainElements, elementRequest.parentElementId)
+        .element
+    : undefined;
+  const connectToParent =
+    parentElement !== undefined &&
+    !(await acceptsChildren(parentElement, [elementRequest.type]));
+  if (connectToParent) {
+    elementRequest = {
+      ...elementRequest,
+      swimlaneId: parentElement!.swimlaneId as string,
+    };
+  }
+
+  const element = await getDefaultElementByType(chainId, elementRequest);
+  if (connectToParent) {
+    element.parentElementId = undefined;
+  }
+
   const chainDiff: ActionDifference = {
     createdElements: [],
     updatedElements: [],
@@ -590,8 +785,12 @@ export async function createElement(
     chainElements,
   ).updatePriority({
     element,
-    parentElementId: elementRequest.parentElementId,
+    parentElementId: element.parentElementId as string | undefined,
   });
+
+  const newDependency = connectToParent
+    ? await addDependency(chain, parentElement!.id, element.id)
+    : undefined;
 
   await writeElementProperties(mainFolderUri, element);
   await fileApi.writeMainChain(mainFolderUri, chain);
@@ -599,6 +798,9 @@ export async function createElement(
   chainDiff.createdElements?.push(
     await getElement(mainFolderUri, chainId, element.id),
   );
+  if (newDependency) {
+    chainDiff.createdDependencies = [withDependencyId(newDependency)];
+  }
   return chainDiff;
 }
 
@@ -715,43 +917,6 @@ export function findAndRemoveElementById(
   return undefined;
 }
 
-async function deleteElementsPropertyFiles(
-  fileUri: Uri,
-  removedElements: any[],
-) {
-  async function handleServiceCallProperty(beforeAfterBlock: any) {
-    if (beforeAfterBlock.type === "script") {
-      beforeAfterBlock["script"] = await fileApi.removeFile(
-        fileUri,
-        beforeAfterBlock.propertiesFilename,
-      );
-    } else if (beforeAfterBlock.type?.startsWith("mapper")) {
-      await fileApi.removeFile(fileUri, beforeAfterBlock.propertiesFilename);
-    }
-  }
-
-  for (const element of removedElements) {
-    if (element.properties?.propertiesToExportInSeparateFile) {
-      await fileApi.removeFile(fileUri, element.properties.propertiesFilename);
-    }
-
-    if (element.type === "service-call") {
-      if (Array.isArray(element.properties.after)) {
-        for (const afterBlock of element.properties.after) {
-          await handleServiceCallProperty(afterBlock);
-        }
-      }
-      if (element.properties.before) {
-        await handleServiceCallProperty(element.properties.before);
-      }
-    }
-
-    if (element.children?.length) {
-      await deleteElementsPropertyFiles(fileUri, element.children);
-    }
-  }
-}
-
 export async function deleteElements(
   fileUri: Uri,
   chainId: string,
@@ -845,27 +1010,24 @@ async function deleteDependenciesForElement(
   }
 }
 
-export async function createConnection(
-  fileUri: Uri,
-  chainId: string,
-  connectionRequest: ConnectionRequest,
-): Promise<ActionDifference> {
-  const chain = await getMainChain(fileUri);
-  if (chain.id !== chainId) {
-    console.error(`ChainId mismatch`);
-    throw Error("ChainId mismatch");
-  }
-
+/**
+ * Validates a connection and appends it to the chain. The returned dependency is
+ * the stored one, so it carries no `id`: the id is derived from the endpoints and
+ * must stay out of the chain file. Stamp it with `withDependencyId` once the chain
+ * has been written.
+ */
+async function addDependency(
+  chain: ChainSchema,
+  from: string,
+  to: string,
+): Promise<Dependency> {
   if (!chain.content.dependencies) {
     chain.content.dependencies = [];
   }
   const chainDependencies = chain.content.dependencies as Dependency[]; // TODO change to dependency schema
   const chainElements = chain.content.elements as ElementSchema[];
 
-  const elementFrom = findElementById(
-    chainElements,
-    connectionRequest.from,
-  )?.element;
+  const elementFrom = findElementById(chainElements, from)?.element;
   if (!elementFrom) {
     console.error(`ElementId from not found`);
     throw Error("ElementId from not found");
@@ -878,10 +1040,7 @@ export async function createConnection(
     throw Error("Element from does not allow output connections");
   }
 
-  const elementTo = findElementById(
-    chainElements,
-    connectionRequest.to,
-  )?.element;
+  const elementTo = findElementById(chainElements, to)?.element;
   if (!elementTo) {
     console.error(`ElementId to not found`);
     throw Error("ElementId to not found");
@@ -895,7 +1054,7 @@ export async function createConnection(
   }
   if (
     libraryDataTo.inputQuantity === LibraryInputQuantity.ONE &&
-    chainDependencies?.find((d: Dependency) => d.to === connectionRequest.to)
+    chainDependencies?.find((d: Dependency) => d.to === to)
   ) {
     console.error(`Element to does not allow another connections`);
     throw Error("Element to does not allow another connections");
@@ -903,26 +1062,45 @@ export async function createConnection(
 
   const dependency: Dependency | undefined = chainDependencies?.find(
     (dependency: Dependency) =>
-      dependency.from === connectionRequest.from &&
-      dependency.to === connectionRequest.to,
+      dependency.from === from && dependency.to === to,
   );
   if (dependency) {
     console.error(`Connection already exist`);
     throw Error("Connection already exist");
   }
-  const newDependency: any = {
-    from: connectionRequest.from,
-    to: connectionRequest.to,
-  };
+  const newDependency: any = { from, to };
 
   chainDependencies.push(newDependency);
 
+  return newDependency;
+}
+
+// TODO Change to read dependency from file
+function withDependencyId(dependency: Dependency): Dependency {
+  return { ...dependency, id: getDependencyId(dependency) };
+}
+
+export async function createConnection(
+  fileUri: Uri,
+  chainId: string,
+  connectionRequest: ConnectionRequest,
+): Promise<ActionDifference> {
+  const chain = await getMainChain(fileUri);
+  if (chain.id !== chainId) {
+    console.error(`ChainId mismatch`);
+    throw Error("ChainId mismatch");
+  }
+
+  const newDependency = await addDependency(
+    chain,
+    connectionRequest.from,
+    connectionRequest.to,
+  );
+
   await fileApi.writeMainChain(fileUri, chain);
 
-  // TODO Change to read dependency from file
-  newDependency["id"] = getDependencyId(newDependency);
   return {
-    createdDependencies: [newDependency],
+    createdDependencies: [withDependencyId(newDependency)],
   };
 }
 

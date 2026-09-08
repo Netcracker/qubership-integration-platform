@@ -31,7 +31,8 @@ import java.util.List;
 @Mapper(
         componentModel = "spring",
         uses = {
-                MapperUtils.class
+                MapperUtils.class,
+                ChainBaseMapper.class
         }
 )
 public interface SystemMapper {

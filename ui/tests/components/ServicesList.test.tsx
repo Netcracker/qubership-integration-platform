@@ -195,11 +195,11 @@ describe("ServicesListPage", () => {
     messageInfoSpy.mockRestore();
   });
 
-  it("calls getServices on initial load when no search/filters", async () => {
+  it("asks the systems endpoint for chain usage on initial load", async () => {
     jest.useRealTimers();
     render(<ServicesList tab="external" />);
     await waitFor(() => {
-      expect(mockGetServices).toHaveBeenCalledWith("", false);
+      expect(mockGetServices).toHaveBeenCalledWith("", false, true);
     });
     expect(mockFilterSystems).not.toHaveBeenCalled();
     expect(mockSearchSystems).not.toHaveBeenCalled();
@@ -235,7 +235,7 @@ describe("ServicesListPage", () => {
     jest.advanceTimersByTime(500);
 
     await waitFor(() => {
-      expect(mockSearchSystems).toHaveBeenCalledWith("my-service");
+      expect(mockSearchSystems).toHaveBeenCalledWith("my-service", true);
     });
   });
 
@@ -245,7 +245,7 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="external" />);
 
     await waitFor(() => {
-      expect(mockFilterSystems).toHaveBeenCalledWith(mockFilters);
+      expect(mockFilterSystems).toHaveBeenCalledWith(mockFilters, true);
     });
   });
 
@@ -257,7 +257,7 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="internal" />);
 
     await waitFor(() => {
-      expect(mockGetServices).toHaveBeenCalledWith("", false);
+      expect(mockGetServices).toHaveBeenCalledWith("", false, true);
     });
   });
 

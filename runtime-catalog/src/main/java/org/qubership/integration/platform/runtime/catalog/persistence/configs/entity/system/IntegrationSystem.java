@@ -32,6 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.hibernate.proxy.HibernateProxy;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.util.CompareListUtils;
 
 import java.util.*;
@@ -81,6 +82,9 @@ public class IntegrationSystem extends AbstractSystemEntity {
             cascade = {PERSIST, REMOVE, MERGE}
     )
     private Set<IntegrationSystemLabel> labels = new LinkedHashSet<>();
+
+    @Transient
+    private List<Chain> chains;
 
     public IntegrationSystem(String id) {
         this();

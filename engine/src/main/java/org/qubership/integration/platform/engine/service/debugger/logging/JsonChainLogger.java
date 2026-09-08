@@ -15,10 +15,15 @@ import static net.logstash.logback.marker.Markers.append;
 @Component
 @ConditionalOnProperty(name = "qip.logging.format", havingValue = "json", matchIfMissing = true)
 public class JsonChainLogger extends AbstractChainLogger {
+
+    private final LogExchangeMarkers logExchangeMarkers;
+
     public JsonChainLogger(
             @Lazy TracingService tracingService,
-            Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider) {
+            Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider,
+            LogExchangeMarkers logExchangeMarkers) {
         super(tracingService, originatingBusinessIdProvider);
+        this.logExchangeMarkers = logExchangeMarkers;
     }
 
     @Override
@@ -118,9 +123,8 @@ public class JsonChainLogger extends AbstractChainLogger {
 
     private LogstashMarker buildExchangeMarkers(String bodyForLogging, Object headersForLogging,
             Object exchangePropertiesForLogging) {
-        return append("exchange_body", truncateValue(bodyForLogging))
-                .and(append("exchange_headers", truncateValue(headersForLogging.toString())))
-                .and(append("exchange_properties", truncateValue(exchangePropertiesForLogging.toString())));
+        return logExchangeMarkers.buildExchangeMarkers(bodyForLogging, headersForLogging.toString(),
+                exchangePropertiesForLogging.toString());
     }
 
     private Optional<ErrorCode> getErrorCode(Exception exception) {

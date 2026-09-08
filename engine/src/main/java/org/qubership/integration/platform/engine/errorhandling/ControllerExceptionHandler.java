@@ -42,6 +42,12 @@ public class ControllerExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception, false));
     }
 
+    @ExceptionHandler(ChainNotDeployedOnEngineException.class)
+    public ResponseEntity<ExceptionDTO> handleChainNotDeployedOnEngineException(
+        ChainNotDeployedOnEngineException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception, false));
+    }
+
     @ExceptionHandler(value = KubeApiException.class)
     public final ResponseEntity<ExceptionDTO> handleKubeApiException(
         EngineRuntimeException exception) {

@@ -44,6 +44,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ChainRo
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.function.Predicate;
@@ -68,8 +69,6 @@ public class ChainRolesService {
     private final DeploymentMapper deploymentMapper;
     private final SnapshotService snapshotService;
     private final ActionsLogService actionLogger;
-
-    private ChainRolesResponse chainRolesAndFilters;
 
     public ChainRolesService(ElementService elementService,
                              DeploymentService deploymentService,
@@ -108,98 +107,127 @@ public class ChainRolesService {
             chainRolesResponse = getChainsFilteredByStatus(chainRolesResponse, filters);
         }
 
-        return chainFilters(new ChainRolesResponse(offset + chainRolesResponse.size(), chainRolesResponse));
+        return new ChainRolesResponse(offset + chainRolesResponse.size(), chainRolesResponse);
     }
 
-
-    public ChainRolesResponse chainFilters(ChainRolesResponse chainRolesResponse) {
-        this.chainRolesAndFilters = chainRolesResponse;
-        return chainRolesAndFilters;
+    /** Applies the roles to every element of the batch, or to none of them. */
+    @Transactional
+    public void updateRoles(List<UpdateRolesRequest> request) {
+        resolveUpdates(request).forEach(update -> applyRoles(update.element(), update.roles()));
     }
 
-    public ChainRolesResponse updateRoles(List<UpdateRolesRequest> request) {
-        List<UpdateRolesRequest> updateRolesRequestLst = new ArrayList<>();
-        for (UpdateRolesRequest updateReq : request) {
+    /**
+     * An id that names no chain deploys nothing. Past that point the batch runs to the end: a chain
+     * that fails keeps its roles as unsaved changes and is named in the error.
+     */
+    public void redeploy(List<String> chainIds) {
+        List<Chain> chains = chainIds.stream()
+                .distinct()
+                .map(chainFinderService::findById)
+                .toList();
+
+        List<RuntimeException> failures = new ArrayList<>();
+        for (Chain chain : chains) {
             try {
-                ChainElement chainElement = elementService.findById(updateReq.getElementId());
-                List<String> newRoles = Lists.newArrayList(updateReq.getRoles());
-
-                String accessControlType = chainElement.getPropertyAsString(ACCESS_CONTROL_TYPE);
-                if (ACCESS_CONTROL_TYPE_ABAC.equals(accessControlType)) {
-                    throw new AbacRoleChangeException();
-                }
-
-                if (ACCESS_CONTROL_TYPE_NONE.equals(accessControlType) && !newRoles.isEmpty()) {
-                    chainElement.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_RBAC);
-                }
-
-                if (ACCESS_CONTROL_TYPE_RBAC.equals(accessControlType) && newRoles.isEmpty()) {
-                    chainElement.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_NONE);
-                }
-
-                chainElement.getProperties().put(ROLES, newRoles);
-                chainElement.getChain().setUnsavedChanges(true);
-                UpdateRolesRequest updateRolesRequest = new UpdateRolesRequest(chainElement.getChain().isUnsavedChanges(),
-                        chainElement.getChain().getId());
-                elementService.save(chainElement);
-                if (updateReq.getIsRedeploy()) {
-                    updateRolesRequestLst.add(updateRolesRequest);
-                }
-                actionLogger.logAction(ActionLog.builder()
-                        .entityType(EntityType.ELEMENT)
-                        .entityId(chainElement.getId())
-                        .entityName(chainElement.getName())
-                        .parentType(EntityType.CHAIN)
-                        .parentId(chainElement.getChain().getId())
-                        .parentName(chainElement.getChain().getName())
-                        .operation(LogOperation.UPDATE)
-                        .build());
-            } catch (AbacRoleChangeException exception) {
-                throw exception;
-            } catch (Exception exception) {
-                log.error("Error when updating roles: {}", exception.getLocalizedMessage());
+                redeployChain(chain);
+            } catch (RuntimeException exception) {
+                // Only the message survives into the aggregate error, so keep the trace here.
+                log.error("Unable to redeploy chain {}", chain.getId(), exception);
+                failures.add(exception);
             }
         }
-        return redeploy(updateRolesRequestLst);
+        reportRedeployFailures(failures, chains.size());
     }
 
-    public ChainRolesResponse redeploy(List<UpdateRolesRequest> request) {
-        request.stream()
-                .filter(UpdateRolesRequest::getUnsavedChanges)
-                .map(UpdateRolesRequest::getChainId)
-                .collect(Collectors.toSet()).forEach(chainId -> {
-                    Chain chain = chainFinderService.findById(chainId);
-                    try {
-                        List<Deployment> deployments = chain.getDeployments();
-                        List<DeploymentRequest> deploymentRequestLst = new ArrayList<>();
-                        Snapshot snapshot = snapshotService.build(chain.getId());
-                        if (deployments.isEmpty()) {
-                            DeploymentRequest deploymentRequest = chainRolesMapper.prepareDeploymentRequest(snapshot);
-                            deploymentRequestLst.add(deploymentRequest);
-                        } else {
-                            chain.getDeployments().get(0).setSnapshot(snapshot);
-                            deploymentRequestLst = chainRolesMapper.prepareDeploymentRequest(chain.getDeployments());
-                        }
-                        deploymentService.createAll(deploymentMapper.asEntities(deploymentRequestLst), chain.getId(), snapshot);
-                        chain.setUnsavedChanges(false);
-                        chain.setCurrentSnapshot(snapshot);
-                        chainService.update(chain);
-                    } catch (SnapshotCreationException exception) {
-                        ChainElement exceptionChainElement = chain.getElements()
-                                .stream()
-                                .filter(chainElement -> chainElement.getId().equals(exception.getElementId()))
-                                .findFirst()
-                                .orElse(null);
-                        throw new SnapshotCreationException("Unable to create snapshot for chain " + chainId + " :" + exception.getMessage(),
-                                chainId,
-                                exceptionChainElement,
-                                exception
-                        );
-                    } catch (Exception exception) {
-                        throw new DeploymentProcessingException("Unable to redeploy chain " + chainId + ":" + exception.getMessage(), exception);
-                    }
-                });
-        return chainRolesAndFilters;
+    private record RoleUpdate(ChainElement element, Set<String> roles) {
+    }
+
+    private List<RoleUpdate> resolveUpdates(List<UpdateRolesRequest> request) {
+        List<RoleUpdate> updates = new ArrayList<>(request.size());
+        for (UpdateRolesRequest updateRequest : request) {
+            ChainElement element = elementService.findById(updateRequest.getElementId());
+            if (ACCESS_CONTROL_TYPE_ABAC.equals(element.getPropertyAsString(ACCESS_CONTROL_TYPE))) {
+                throw new AbacRoleChangeException(element.getId());
+            }
+            updates.add(new RoleUpdate(element, updateRequest.getRoles()));
+        }
+        return updates;
+    }
+
+    private void applyRoles(ChainElement element, Set<String> roles) {
+        List<String> newRoles = Lists.newArrayList(roles);
+        String accessControlType = element.getPropertyAsString(ACCESS_CONTROL_TYPE);
+
+        if (ACCESS_CONTROL_TYPE_NONE.equals(accessControlType) && !newRoles.isEmpty()) {
+            element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_RBAC);
+        }
+
+        if (ACCESS_CONTROL_TYPE_RBAC.equals(accessControlType) && newRoles.isEmpty()) {
+            element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_NONE);
+        }
+
+        element.getProperties().put(ROLES, newRoles);
+        element.getChain().setUnsavedChanges(true);
+        elementService.save(element);
+
+        actionLogger.logAction(ActionLog.builder()
+                .entityType(EntityType.ELEMENT)
+                .entityId(element.getId())
+                .entityName(element.getName())
+                .parentType(EntityType.CHAIN)
+                .parentId(element.getChain().getId())
+                .parentName(element.getChain().getName())
+                .operation(LogOperation.UPDATE)
+                .build());
+    }
+
+    private void redeployChain(Chain chain) {
+        String chainId = chain.getId();
+        try {
+            List<Deployment> deployments = chain.getDeployments();
+            List<DeploymentRequest> deploymentRequestLst = new ArrayList<>();
+            Snapshot snapshot = snapshotService.build(chainId);
+            if (deployments.isEmpty()) {
+                DeploymentRequest deploymentRequest = chainRolesMapper.prepareDeploymentRequest(snapshot);
+                deploymentRequestLst.add(deploymentRequest);
+            } else {
+                deployments.get(0).setSnapshot(snapshot);
+                deploymentRequestLst = chainRolesMapper.prepareDeploymentRequest(deployments);
+            }
+            deploymentService.createAll(deploymentMapper.asEntities(deploymentRequestLst), chainId, snapshot);
+            chain.setUnsavedChanges(false);
+            chain.setCurrentSnapshot(snapshot);
+            chainService.update(chain);
+        } catch (SnapshotCreationException exception) {
+            ChainElement exceptionChainElement = chain.getElements()
+                    .stream()
+                    .filter(chainElement -> chainElement.getId().equals(exception.getElementId()))
+                    .findFirst()
+                    .orElse(null);
+            throw new SnapshotCreationException("Unable to create snapshot for chain " + chainId + " :" + exception.getMessage(),
+                    chainId,
+                    exceptionChainElement,
+                    exception
+            );
+        } catch (Exception exception) {
+            throw new DeploymentProcessingException("Unable to redeploy chain " + chainId + ":" + exception.getMessage(), exception);
+        }
+    }
+
+    private void reportRedeployFailures(List<RuntimeException> failures, int chainCount) {
+        if (failures.isEmpty()) {
+            return;
+        }
+        // A single failure keeps its own type, so the handler can still point at the broken element.
+        if (failures.size() == 1) {
+            throw failures.get(0);
+        }
+        // Every message already names its chain, so the count and the messages tell the whole story.
+        String details = failures.stream()
+                .map(Throwable::getMessage)
+                .collect(Collectors.joining("; "));
+        throw new DeploymentProcessingException("Unable to redeploy " + failures.size() + " of "
+                + chainCount + " chains. Chains that still carry unsaved changes: " + details);
     }
 
 

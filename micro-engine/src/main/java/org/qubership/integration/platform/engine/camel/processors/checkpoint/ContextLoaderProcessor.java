@@ -65,7 +65,8 @@ public class ContextLoaderProcessor implements Processor {
             CheckpointUtils.CheckpointInfo checkpointInfo = CheckpointUtils.extractTriggeredCheckpointInfo(exchange);
 
             Checkpoint checkpoint = checkpointInfo != null
-                    ? checkpointSessionService.findCheckpoint(checkpointInfo.sessionId(), checkpointInfo.chainId(), checkpointInfo.checkpointElementId())
+                    ? checkpointSessionService.findCheckpointForRestore(
+                            checkpointInfo.sessionId(), checkpointInfo.chainId(), checkpointInfo.checkpointElementId())
                     : null;
 
             if (checkpoint == null) {

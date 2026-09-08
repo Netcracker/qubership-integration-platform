@@ -6,6 +6,7 @@ import {
   ChainLoggingSettings,
   LogLoggingLevel,
   LogPayload,
+  SessionLogDetails,
   SessionsLoggingLevel,
 } from "../api/apiTypes.ts";
 import { capitalize } from "../misc/format-utils.ts";
@@ -147,6 +148,14 @@ export const LoggingSettings: React.FC = () => {
       };
     });
 
+  const sessionLogDetailsOptions: SelectProps<SessionLogDetails>["options"] =
+    Object.values(SessionLogDetails).map((value) => {
+      return {
+        value: value,
+        label: capitalize(value),
+      };
+    });
+
   const logLoggingLevelOptions: SelectProps<LogLoggingLevel>["options"] =
     Object.entries(LogLoggingLevel).map(([key, value]) => ({
       value: value,
@@ -217,6 +226,12 @@ export const LoggingSettings: React.FC = () => {
             <Select<SessionsLoggingLevel>
               disabled={!isCustom}
               options={sessionLevelOptions}
+            ></Select>
+          </Form.Item>
+          <Form.Item label="Session log details" name="sessionLogDetails">
+            <Select<SessionLogDetails>
+              disabled={!isCustom}
+              options={sessionLogDetailsOptions}
             ></Select>
           </Form.Item>
           <Form.Item label="Log level" name="logLoggingLevel">

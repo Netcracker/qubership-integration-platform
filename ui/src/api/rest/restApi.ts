@@ -87,7 +87,6 @@ import {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
   GeneralImportInstructions,
   ImportInstruction,
   ImportInstructionRequest,
@@ -1304,11 +1303,12 @@ export class RestApi implements Api {
   getServices = async (
     modelType: string,
     withSpec: boolean,
+    includeChainUsage = false,
   ): Promise<IntegrationSystem[]> => {
     const response = await this.instance.get<IntegrationSystem[]>(
       `${this.v1()}/systems-catalog/systems`,
       {
-        params: { modelType, withSpec },
+        params: { modelType, withSpec, includeChainUsage },
       },
     );
     return response.data;
@@ -1316,6 +1316,7 @@ export class RestApi implements Api {
 
   filterServices = async (
     filters: EntityFilterModel[],
+    includeChainUsage = false,
   ): Promise<IntegrationSystem[]> => {
     const body = filters.map((f) => ({
       column: f.column,
@@ -1325,16 +1326,19 @@ export class RestApi implements Api {
     const response = await this.instance.post<IntegrationSystem[]>(
       `${this.v1()}/systems-catalog/systems/filter`,
       body,
+      { params: { includeChainUsage } },
     );
     return response.data;
   };
 
   searchServices = async (
     searchCondition: string,
+    includeChainUsage = false,
   ): Promise<IntegrationSystem[]> => {
     const response = await this.instance.post<IntegrationSystem[]>(
       `${this.v1()}/systems-catalog/systems/search`,
       { searchCondition },
+      { params: { includeChainUsage } },
     );
     return response.data;
   };
@@ -2146,24 +2150,18 @@ export class RestApi implements Api {
 
   updateHttpTriggerAccessControl = async (
     searchRequest: AccessControlUpdateRequest[],
-  ): Promise<AccessControlResponse> => {
-    const response = await this.instance.put<AccessControlResponse>(
+  ): Promise<void> => {
+    await this.instance.put<void>(
       `${this.v1()}/catalog/chains/roles`,
       searchRequest,
     );
-
-    return response.data;
   };
 
-  bulkDeployChainsAccessControl = async (
-    searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<AccessControlResponse> => {
-    const response = await this.instance.put<AccessControlResponse>(
+  bulkDeployChainsAccessControl = async (chainIds: string[]): Promise<void> => {
+    await this.instance.put<void>(
       `${this.v1()}/catalog/chains/roles/redeploy`,
-      searchRequest,
+      chainIds,
     );
-
-    return response.data;
   };
 
   runServiceDiscovery = async (): Promise<unknown> => {

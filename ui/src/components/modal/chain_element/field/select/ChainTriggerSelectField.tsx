@@ -8,6 +8,7 @@ import { useNotificationService } from "../../../../../hooks/useNotificationServ
 import { api } from "../../../../../api/api";
 import { ElementWithChainName } from "../../../../../api/apiTypes";
 import { SelectTag } from "./SelectTag";
+import styles from "./selectOptionValue.module.css";
 
 const ChainTriggerSelectField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -35,15 +36,22 @@ const ChainTriggerSelectField: React.FC<
         setElementsMap(
           new Map(elements.map((element) => [element.id, element])),
         );
+        // Ordered the way the option reads: chain tag first, then trigger name.
+        const orderedElements = [...elements].sort(
+          (a, b) =>
+            a.chainName.localeCompare(b.chainName) ||
+            a.name.localeCompare(b.name),
+        );
         setOptions(
-          elements.map((element) => ({
+          orderedElements.map((element) => ({
             value: element.id,
-            labelString: element.name,
             label: (
-              <>
-                <SelectTag value={element.chainName} />
-                {element.name}
-              </>
+              <span className={styles.row}>
+                <span className={styles.chainCol}>
+                  <SelectTag value={element.chainName} />
+                </span>
+                <span className={styles.text}>{element.name}</span>
+              </span>
             ),
           })),
         );
@@ -58,6 +66,23 @@ const ChainTriggerSelectField: React.FC<
     };
     void loadChainTriggerElements();
   }, [notificationService]);
+
+  // Matched per field, so a query never spans the chain name and the trigger
+  // name: both are searched because triggers keep their default name.
+  const filterOption = useCallback(
+    (input: string, option?: { value?: string | number | null }) => {
+      const element = elementsMap.get(String(option?.value));
+      if (!element) {
+        return false;
+      }
+      const query = input.trim().toLowerCase();
+      return (
+        element.chainName.toLowerCase().includes(query) ||
+        element.name.toLowerCase().includes(query)
+      );
+    },
+    [elementsMap],
+  );
 
   const handleChange = useCallback(
     (newValue: string) => {
@@ -87,7 +112,7 @@ const ChainTriggerSelectField: React.FC<
       buttonTitle="Go to chain"
       buttonDisabled={!elementId}
       buttonOnClick={navigationPath}
-      selectOptionFilterProp="labelString"
+      selectFilterOption={filterOption}
     />
   );
 };

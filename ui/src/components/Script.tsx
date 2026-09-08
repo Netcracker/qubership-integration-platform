@@ -292,11 +292,11 @@ export const Script: React.FC<ScriptProps> = ({
     const node = document.createElement("div");
     node.className = "monaco-editor";
     node.style.zIndex = "10000";
+    node.style.pointerEvents = "auto";
     return node;
   });
 
   useEffect(() => {
-    document.body.appendChild(overflowWidgetsDomNode);
     return () => {
       overflowWidgetsDomNode.remove();
     };
@@ -314,8 +314,14 @@ export const Script: React.FC<ScriptProps> = ({
           configureGroovyLanguage(monaco);
           applyVSCodeThemeToMonaco(monaco);
         }}
-        onMount={(_editor, monaco: Monaco) => {
+        onMount={(editorInstance, monaco: Monaco) => {
           monacoRef.current = monaco;
+          // Keep Monaco overlays inside the modal focus boundary so focusing
+          // a menu does not return focus to the editor and close the menu.
+          const dialog = editorInstance
+            .getDomNode()
+            ?.closest<HTMLElement>('[role="dialog"][aria-modal="true"]');
+          (dialog ?? document.body).appendChild(overflowWidgetsDomNode);
         }}
         onChange={(value) => {
           if (!readOnly) {

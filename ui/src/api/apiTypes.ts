@@ -316,6 +316,7 @@ export type ChainLoggingProperties = {
   logPayload: LogPayload[];
   dptEventsEnabled: boolean;
   maskingEnabled: boolean;
+  sessionLogDetails?: SessionLogDetails;
 };
 
 export enum SessionsLoggingLevel {
@@ -323,6 +324,12 @@ export enum SessionsLoggingLevel {
   ERROR = "ERROR",
   INFO = "INFO",
   DEBUG = "DEBUG",
+}
+
+export enum SessionLogDetails {
+  SENDERS = "SENDERS",
+  FULL = "FULL",
+  OFF = "OFF",
 }
 
 export enum LogLoggingLevel {
@@ -1042,6 +1049,7 @@ export type IntegrationSystem = BaseEntity & {
   specification: string;
   labels?: EntityLabel[];
   discovered?: string;
+  chains?: BaseEntity[];
 };
 
 export type ContextSystem = BaseEntity & {
@@ -1253,18 +1261,12 @@ export type AccessControlSearchRequest = {
 
 export type AccessControlUpdateRequest = {
   elementId: string;
-  isRedeploy: boolean;
   roles: string[];
 };
 
 export type AccessControlResponse = {
   offset: number;
   roles: AccessControl[];
-};
-
-export type AccessControlBulkDeployRequest = {
-  chainId: string;
-  unsavedChanges: boolean;
 };
 
 export type AccessControl = {

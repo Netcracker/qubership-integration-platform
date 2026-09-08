@@ -7,6 +7,7 @@ import {
   ChainGraphNode,
   ChainGraphNodeData,
 } from "../../src/components/graph/nodes/ChainGraphNodeTypes";
+import { Position } from "@xyflow/react";
 import type { Edge, Node } from "@xyflow/react";
 
 const mockedGetLibraryElementByType = jest.fn();
@@ -22,6 +23,7 @@ import {
   applyHighlight,
   buildGraphNodes,
   collectChildren,
+  compareByZIndexAndArea,
   collectSubgraphByParents,
   computeNestedUnitCounts,
   depthOf,
@@ -34,7 +36,6 @@ import {
   getElementColor,
   getElementTypeTitle,
   getFakeNode,
-  getIntersectionParent,
   getLeastCommonParent,
   getLibraryElement,
   getNodeFromElement,
@@ -383,6 +384,31 @@ describe("buildGraphNodes", () => {
   test("handles empty list", () => {
     expect(buildGraphNodes([], [])).toEqual([]);
   });
+
+  test("should orient handles of every node when a direction is given", () => {
+    const tree: Element[] = [
+      makeElement({
+        id: "root",
+        type: "container",
+        children: [makeElement({ id: "c1", parentElementId: "root" })],
+      }),
+    ];
+
+    const nodes = buildGraphNodes(
+      tree,
+      [
+        makeLibraryElement({ name: "container", container: true }),
+        makeLibraryElement({ name: "script" }),
+      ],
+      "RIGHT",
+    );
+
+    for (const node of nodes) {
+      expect(node.sourcePosition).toBe(Position.Right);
+      expect(node.targetPosition).toBe(Position.Left);
+      expect(node.data.direction).toBe("RIGHT");
+    }
+  });
 });
 
 describe("collectChildren", () => {
@@ -401,8 +427,41 @@ describe("collectChildren", () => {
   });
 });
 
+describe("compareByZIndexAndArea", () => {
+  test("should order the higher zIndex first", () => {
+    const below = {
+      id: "below",
+      zIndex: 1,
+      width: 10,
+      height: 10,
+    } as Node;
+    const above = {
+      id: "above",
+      zIndex: 2,
+      width: 300,
+      height: 300,
+    } as Node;
+
+    expect([below, above].sort(compareByZIndexAndArea)[0].id).toBe("above");
+  });
+
+  test("should order the smaller area first when zIndex is equal", () => {
+    const big = { id: "big", width: 300, height: 300 } as Node;
+    const small = { id: "small", width: 100, height: 100 } as Node;
+
+    expect([big, small].sort(compareByZIndexAndArea)[0].id).toBe("small");
+  });
+
+  test("should treat a missing zIndex and size as zero", () => {
+    const sized = { id: "sized", width: 10, height: 10 } as Node;
+    const unsized = { id: "unsized" } as Node;
+
+    expect([sized, unsized].sort(compareByZIndexAndArea)[0].id).toBe("unsized");
+  });
+});
+
 describe("getPossibleGraphIntersection", () => {
-  test("picks smallest container/swimlane intersection, filtering dragged children", () => {
+  test("picks the topmost smallest intersection, filtering dragged children", () => {
     const big = {
       id: "big",
       type: "container",
@@ -415,7 +474,6 @@ describe("getPossibleGraphIntersection", () => {
       width: 100,
       height: 100,
     } as Node;
-    const unit = { id: "u", type: "unit", width: 50, height: 50 } as Node;
     const dragged = {
       id: "dragged",
       type: "container",
@@ -423,73 +481,24 @@ describe("getPossibleGraphIntersection", () => {
       height: 10,
     } as Node;
 
-    const res = getPossibleGraphIntersection(
-      [big, small, unit, dragged],
-      [dragged],
-    );
+    const res = getPossibleGraphIntersection([big, small, dragged], [dragged]);
     expect(res?.id).toBe("small");
   });
 
-  test("returns undefined when no valid intersections", () => {
-    expect(
-      getPossibleGraphIntersection([
-        { id: "u", type: "unit", width: 1, height: 1 } as Node,
-      ]),
-    ).toBeUndefined();
-  });
-});
+  test("picks a unit, which the backend turns into a connection", () => {
+    const container = {
+      id: "container",
+      type: "container",
+      width: 300,
+      height: 300,
+    } as Node;
+    const unit = { id: "u", type: "unit", width: 50, height: 50 } as Node;
 
-describe("getIntersectionParent", () => {
-  const dragged = {
-    id: "d",
-    data: { elementType: "script" },
-  } as unknown as Node;
-
-  test("returns parent when library element allows any children", () => {
-    const parent = {
-      id: "p",
-      data: { elementType: "customContainer" },
-    } as unknown as Node;
-    const lib = [
-      makeLibraryElement({ name: "customContainer", allowedChildren: {} }),
-    ];
-    expect(getIntersectionParent(dragged, parent, lib)?.id).toBe("p");
+    expect(getPossibleGraphIntersection([container, unit])?.id).toBe("u");
   });
 
-  test("returns parent when dragged type is in allowedChildren", () => {
-    const parent = {
-      id: "p",
-      data: { elementType: "customContainer" },
-    } as unknown as Node;
-    const lib = [
-      makeLibraryElement({
-        name: "customContainer",
-        allowedChildren: { script: "one" as never },
-      }),
-    ];
-    expect(getIntersectionParent(dragged, parent, lib)?.id).toBe("p");
-  });
-
-  test("returns undefined when dragged type not allowed", () => {
-    const parent = {
-      id: "p",
-      data: { elementType: "customContainer" },
-    } as unknown as Node;
-    const lib = [
-      makeLibraryElement({
-        name: "customContainer",
-        allowedChildren: { other: "one" as never },
-      }),
-    ];
-    expect(getIntersectionParent(dragged, parent, lib)).toBeUndefined();
-  });
-
-  test("returns parent for plain container element without descriptor", () => {
-    const parent = {
-      id: "p",
-      data: { elementType: "container" },
-    } as unknown as Node;
-    expect(getIntersectionParent(dragged, parent, [])?.id).toBe("p");
+  test("returns undefined when there are no intersections", () => {
+    expect(getPossibleGraphIntersection([])).toBeUndefined();
   });
 });
 

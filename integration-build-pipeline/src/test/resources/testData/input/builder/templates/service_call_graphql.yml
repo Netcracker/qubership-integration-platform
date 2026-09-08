@@ -1,0 +1,44 @@
+id: "f51bd105-7c6f-4964-a1d1-af1012629f8f"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "537229ca-486a-4a6a-b2cc-53d30fbc9a50"
+    name: "Service Call"
+    element-type: "service-call"
+    original-id: "6be5acfb-e126-4d27-9bc7-7e3fd8e4d0d4"
+    properties:
+      before:
+        type: "script"
+        script: "exchange.getMessage().setBody(\"testRequestBody\")"
+      retryCount: "1"
+      retryDelay: "5000"
+      systemType: "INTERNAL"
+      errorThrowing: true
+      connectionTimeout: "120000"
+      integrationSystemId: "55c27865-37bd-4a1f-bac0-29d5abf24595"
+      integrationOperationId: "092029c9-f82e-41cd-bda8-6b3b96fd4601"
+      integrationOperationPath: "/graphql"
+      integrationGqlQuery: "query Greeting { greeting { message } }"
+      integrationGqlQueryHeader: "CamelGraphQLQuery"
+      integrationGqlOperationName: "Greeting"
+      integrationGqlVariablesJSON: "{\n  \"name\": \"QIP\"\n}"
+      integrationGqlVariablesHeader: "CamelGraphQLVariables"
+      integrationOperationMethod: "POST"
+      integrationSpecificationId: "3e564aae-faa9-4c2f-8bc7-43faf71a290c"
+      integrationSpecificationGroupId: "d2031530-7ca3-4864-ac7c-88ba231ff9ef"
+      integrationOperationProtocolType: "graphql"
+      integrationOperationPathParameters: {}
+      integrationOperationQueryParameters: {}
+      integrationOperationSkipEmptyQueryParameters: false
+    service-environment:
+      id: "c8ed21f2-6eba-4ff6-ac89-18fac78a4bb6"
+      name: "GraphQL"
+      address: "http://graphql-service:8080"
+      systemId: "55c27865-37bd-4a1f-bac0-29d5abf24595"
+      properties: {}
+      sourceType: "MANUAL"
+      createdWhen: 1666715860344
+      description: null
+      modifiedWhen: 1669643915793
+      notActivated: false

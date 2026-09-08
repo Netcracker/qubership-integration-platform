@@ -23,6 +23,7 @@ import org.qubership.integration.platform.engine.configuration.camel.CamelServle
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodeException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.web.servlet.error.AbstractErrorController;
 import org.springframework.boot.autoconfigure.web.servlet.error.ErrorViewResolver;
 import org.springframework.boot.web.error.ErrorAttributeOptions;
@@ -38,9 +39,16 @@ import java.util.Map;
 @Controller
 @RequestMapping("${server.error.path:${error.path:/error}}")
 public class CustomErrorController extends AbstractErrorController {
+    private final String routesPrefix;
+
     @Autowired
-    public CustomErrorController(ErrorAttributes errorAttributes, List<ErrorViewResolver> errorViewResolvers) {
+    public CustomErrorController(
+        ErrorAttributes errorAttributes,
+        List<ErrorViewResolver> errorViewResolvers,
+        @Value("${qip.camel.routes.prefix}") String routesPrefix
+    ) {
         super(errorAttributes, errorViewResolvers);
+        this.routesPrefix = routesPrefix;
     }
 
     @RequestMapping
@@ -75,7 +83,9 @@ public class CustomErrorController extends AbstractErrorController {
 
     private boolean isChainRequest(HttpServletRequest request) {
         String requestUri = (String) request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
-        return !StringUtils.isBlank(requestUri) && requestUri.startsWith(
-            CamelServletConfiguration.CAMEL_ROUTES_PREFIX);
+        return !StringUtils.isBlank(requestUri) && (
+            requestUri.startsWith(CamelServletConfiguration.CAMEL_ROUTES_LEGACY_PREFIX)
+            || requestUri.startsWith(routesPrefix)
+        );
     }
 }

@@ -12,6 +12,7 @@ import { SessionElementDetails } from "../components/modal/SessionElementDetails
 import { downloadFile } from "../misc/download-utils.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
+import { buildGraphUrl } from "../misc/session-graph-utils.ts";
 import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
@@ -199,12 +200,7 @@ export const SessionPage: React.FC = () => {
             {session?.chainId && element.chainElementId ? (
               <OverridableIcon
                 name="link"
-                onClick={() =>
-                  window.open(
-                    `/chains/${element.actualElementChainId ?? session?.chainId}/graph/${element.chainElementId}`,
-                    "_blank",
-                  )
-                }
+                onClick={() => window.open(buildGraphUrl(element, session), "_blank")}
               />
             ) : null}
           </>

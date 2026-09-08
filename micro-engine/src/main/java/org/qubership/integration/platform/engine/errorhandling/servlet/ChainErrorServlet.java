@@ -20,7 +20,7 @@ import java.io.IOException;
 @Slf4j
 @WebServlet(urlPatterns = "/error")
 public class ChainErrorServlet extends HttpServlet {
-    @ConfigProperty(name = "qip.camel.routes-prefix")
+    @ConfigProperty(name = "qip.camel.routes.prefix")
     String camelRoutesPrefix;
 
     @Inject

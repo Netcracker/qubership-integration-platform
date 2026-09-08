@@ -1,10 +1,13 @@
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
+import jakarta.enterprise.inject.Instance;
 import org.apache.camel.Exchange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -21,8 +24,10 @@ import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
+import org.qubership.integration.platform.engine.model.engine.DomainType;
 import org.qubership.integration.platform.engine.model.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.logging.Payload;
+import org.qubership.integration.platform.engine.model.logging.SessionLogDetails;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
@@ -31,6 +36,7 @@ import org.qubership.integration.platform.engine.service.debugger.util.PayloadEx
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -38,14 +44,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
 
@@ -483,12 +494,497 @@ class SessionsServiceTest {
     }
 
     @Test
-    void shouldUseSamplerProbabilityWhenCheckingWhetherSessionShouldBeLogged() {
-        sessionsService.samplerProbabilistic = 1.0;
+    void shouldUseSamplerProbabilityWhenCheckingWhetherSessionShouldBeLogged() throws Exception {
+        setSamplerProbabilistic(1.0);
         assertTrue(sessionsService.sessionShouldBeLogged());
 
-        sessionsService.samplerProbabilistic = -1.0;
+        setSamplerProbabilistic(-1.0);
         assertFalse(sessionsService.sessionShouldBeLogged());
+    }
+
+    // -----------------------------------------------------------------------
+    // Merged from engine - adapted to micro (ChainRuntimeProperties, Payload, etc)
+    // -----------------------------------------------------------------------
+
+    @Test
+    void shouldFinishSessionWithExecutionStatusOverrideViaExchangeProperty() {
+        Exchange exchange = exchange();
+        exchange.setProperty(Properties.SESSION_ID, SESSION_ID);
+        Session session = session();
+        writer.putSessionToCache(session);
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(runtimeProperties(SessionsLoggingLevel.DEBUG));
+        exchange.setProperty(
+                CamelConstants.SYSTEM_PROPERTY_PREFIX + "executionStatus",
+                ExecutionStatus.COMPLETED_WITH_ERRORS
+        );
+
+        sessionsService.finishSession(exchange, ExecutionStatus.COMPLETED_NORMALLY, "2026-01-01T00:01:00", 1000L, 200L);
+
+        assertEquals(ExecutionStatus.COMPLETED_WITH_ERRORS, session.getExecutionStatus());
+    }
+
+    @Test
+    void shouldSetParentElementIdFromElementInfoWhenLoggingElementBefore() {
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        elementExecutionMap(exchange).put(PARENT_ELEMENT_ID, PARENT_ELEMENT_ID + "-session");
+        TestPayload payload = payload("body", Map.of(), Map.of(), Map.of());
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(runtimeProperties(SessionsLoggingLevel.DEBUG));
+        stubPayloadJson(payload, "h-json", "p-json", "c-json");
+        ElementInfo info = ElementInfo.builder()
+                .id(NODE_ID)
+                .name(ELEMENT_NAME)
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId(CHAIN_ID)
+                .parentId(PARENT_ELEMENT_ID)
+                .hasIntermediateParents(false)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, NODE_ID, ElementInfo.class))
+                    .thenReturn(info);
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, NODE_ID, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionElementBefore(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, payload);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals(PARENT_ELEMENT_ID + "-session", element.getParentElementId());
+    }
+
+    @Test
+    void shouldNotSetParentElementIdOnErrorLevelWhenLoggingElementBefore() {
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        TestPayload payload = payload("body", Map.of(), Map.of(), Map.of());
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(runtimeProperties(SessionsLoggingLevel.ERROR));
+        stubPayloadJson(payload, "h-json", "p-json", "c-json");
+        ElementInfo info = ElementInfo.builder()
+                .id(NODE_ID)
+                .name(ELEMENT_NAME)
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId(CHAIN_ID)
+                .parentId(PARENT_ELEMENT_ID)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, NODE_ID, ElementInfo.class))
+                    .thenReturn(info);
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, NODE_ID, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionElementBefore(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, payload);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertNull(element.getParentElementId());
+    }
+
+    @Test
+    void shouldResolveIntermediateParentWhenElementHasIntermediateParents() {
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        Map<String, String> executionMap = elementExecutionMap(exchange);
+        executionMap.put(PARENT_ELEMENT_ID, PARENT_SESSION_ID);
+        // Parent element in cache
+        SessionElementElastic parentElement = SessionElementElastic.builder()
+                .id(PARENT_SESSION_ID)
+                .sessionId(SESSION_ID)
+                .chainElementId(PARENT_ELEMENT_ID)
+                .executionStatus(ExecutionStatus.IN_PROGRESS)
+                .build();
+        // Intermediate child with same chainElementId, IN_PROGRESS and in executionMap
+        String intermediateId = "intermediate-session-element-1";
+        executionMap.put("intermediate-node", intermediateId);
+        SessionElementElastic intermediateElement = SessionElementElastic.builder()
+                .id(intermediateId)
+                .sessionId(SESSION_ID)
+                .chainElementId(PARENT_ELEMENT_ID)
+                .parentElementId(PARENT_SESSION_ID)
+                .executionStatus(ExecutionStatus.IN_PROGRESS)
+                .build();
+        writer.putSessionElementToCacheForTest(parentElement);
+        writer.putSessionElementToCacheForTest(intermediateElement);
+
+        TestPayload payload = payload("body", Map.of(), Map.of(), Map.of());
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(runtimeProperties(SessionsLoggingLevel.DEBUG));
+        stubPayloadJson(payload, "h-json", "p-json", "c-json");
+
+        ElementInfo info = ElementInfo.builder()
+                .id(NODE_ID)
+                .name(ELEMENT_NAME)
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId(CHAIN_ID)
+                .parentId(PARENT_ELEMENT_ID)
+                .hasIntermediateParents(true)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, NODE_ID, ElementInfo.class))
+                    .thenReturn(info);
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, NODE_ID, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionElementBefore(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, payload);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals(intermediateId, element.getParentElementId());
+    }
+
+    @Test
+    void shouldLogStepElementBeforeWithUuidStepIdAndElementInfo() {
+        String stepId = "11111111-1111-1111-1111-111111111111";
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        TestPayload payload = payload("extracted-step-body", Map.of("h", "v"), Map.of("c", "v"),
+                Map.of());
+        when(extractor.extractPayload(exchange)).thenReturn(payload);
+        stubPayloadJson(payload, "converted-json", "converted-json", "converted-json");
+        ElementInfo stepInfo = ElementInfo.builder()
+                .id(stepId)
+                .name("Step Name")
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId(CHAIN_ID)
+                .parentId(PARENT_ELEMENT_ID)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, stepId, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionStepElementBefore(exchange, SESSION_ID, ELEMENT_ID, stepId, stepInfo);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals(stepId, element.getChainElementId());
+        assertEquals("Step Name", element.getElementName());
+        assertEquals(ChainElementType.SERVICE_CALL.getText(), element.getCamelElementName());
+        assertEquals("extracted-step-body", element.getBodyBefore());
+        assertEquals("converted-json", element.getHeadersBefore());
+        assertEquals(ExecutionStatus.IN_PROGRESS, element.getExecutionStatus());
+    }
+
+    @Test
+    void shouldLogStepElementBeforeWithNonUuidStepIdUsesStepsPeek() {
+        String stepId = "custom-step";
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        // steps peek should be used as parent for non-uuid step
+        @SuppressWarnings("unchecked")
+        ArrayDeque<String> steps = (ArrayDeque<String>) exchange.getProperty(Properties.STEPS);
+        steps.push("parent-step-id");
+        TestPayload payload = payload("step-body", Map.of("h", "v"), Map.of("c", "v"), Map.of());
+        when(extractor.extractPayload(exchange)).thenReturn(payload);
+        stubPayloadJson(payload, "step-json", "step-json", "step-json");
+        ElementInfo stepInfo = ElementInfo.builder()
+                .id("22222222-2222-2222-2222-222222222222")
+                .name("Http Sender Step")
+                .type(ChainElementType.HTTP_SENDER.getText())
+                .chainId(CHAIN_ID)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, stepId, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+            // non-uuid path: stepName != elementInfo.id, so it uses STEPS peek
+            sessionsService.logSessionStepElementBefore(exchange, SESSION_ID, ELEMENT_ID, stepId, stepInfo);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals(stepId, element.getElementName());
+        assertEquals("parent-step-id", element.getParentElementId());
+        assertEquals(stepInfo.getId(), element.getChainElementId());
+        assertEquals(ChainElementType.HTTP_SENDER.getText(), element.getCamelElementName());
+    }
+
+    @Test
+    void shouldLogStepElementBeforeWithWireTapParentForStep() {
+        String stepId = "11111111-1111-1111-1111-111111111111";
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        elementExecutionMap(exchange).put("wire-parent", "wire-parent-element");
+        TestPayload payload = payload("step-body", Map.of("h", "v"), Map.of("c", "v"), Map.of());
+        when(extractor.extractPayload(exchange)).thenReturn(payload);
+        stubPayloadJson(payload, "step-json", "step-json", "step-json");
+        ElementInfo stepInfo = ElementInfo.builder()
+                .id(stepId)
+                .name("Step Name")
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId(CHAIN_ID)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, stepId, WireTapInfo.class))
+                    .thenReturn(Optional.of(WireTapInfo.builder().parentIds(List.of("wire-parent")).build()));
+
+            sessionsService.logSessionStepElementBefore(exchange, SESSION_ID, ELEMENT_ID, stepId, stepInfo);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals("wire-parent-element", element.getParentElementId());
+    }
+
+    @Test
+    void shouldDelegateSessionStartToLoggerWhenPresent() {
+        EngineInfo engineInfo = EngineInfo.builder().domain(DOMAIN).host(ENGINE).build();
+        @SuppressWarnings("unchecked")
+        Instance<SessionStepLogger> instance = mock(Instance.class);
+        SessionStepLogger logger = mock(SessionStepLogger.class);
+        lenient().when(instance.isAmbiguous()).thenReturn(false);
+        lenient().when(instance.stream()).thenReturn(Stream.of(logger));
+
+        TestOpenSearchWriter localWriter = new TestOpenSearchWriter();
+        SessionsService serviceWithLogger = new SessionsService(extractor, localWriter, engineInfo, chainRuntimePropertiesService, instance);
+
+        Exchange exchange = exchange();
+        exchange.getMessage().setHeader(Headers.EXTERNAL_SESSION_CIP_ID, EXTERNAL_SESSION_ID);
+        ChainRuntimeProperties props = runtimeProperties(SessionsLoggingLevel.DEBUG);
+        props.setSessionLogDetails(SessionLogDetails.FULL);
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange)).thenReturn(props);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBean(exchange, DeploymentInfo.class))
+                    .thenReturn(deploymentInfo());
+
+            Session session = serviceWithLogger.startSession(exchange, PARENT_SESSION_ID);
+
+            verify(logger).logSessionStart(session, SessionLogDetails.FULL);
+            assertNotNull(localWriter.getSessionFromCache(session.getId()));
+        }
+    }
+
+    @Test
+    void shouldStillDelegateSessionStartToLoggerWhenLevelIsOff() {
+        EngineInfo engineInfo = EngineInfo.builder().domain(DOMAIN).host(ENGINE).build();
+        @SuppressWarnings("unchecked")
+        Instance<SessionStepLogger> instance = mock(Instance.class);
+        SessionStepLogger logger = mock(SessionStepLogger.class);
+        lenient().when(instance.isAmbiguous()).thenReturn(false);
+        lenient().when(instance.stream()).thenReturn(Stream.of(logger));
+
+        TestOpenSearchWriter localWriter = new TestOpenSearchWriter();
+        SessionsService serviceWithLogger = new SessionsService(extractor, localWriter, engineInfo, chainRuntimePropertiesService, instance);
+
+        Exchange exchange = exchange();
+        ChainRuntimeProperties props = runtimeProperties(SessionsLoggingLevel.OFF);
+        props.setSessionLogDetails(SessionLogDetails.OFF);
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange)).thenReturn(props);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBean(exchange, DeploymentInfo.class))
+                    .thenReturn(deploymentInfo());
+
+            Session session = serviceWithLogger.startSession(exchange, null);
+
+            verify(logger).logSessionStart(session, SessionLogDetails.OFF);
+            assertNull(localWriter.getSessionFromCache(session.getId()));
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(SessionLogDetails.class)
+    void shouldDelegateSessionStartWithAllSessionLogDetails(SessionLogDetails details) {
+        EngineInfo engineInfo = EngineInfo.builder().domain(DOMAIN).host(ENGINE).build();
+        @SuppressWarnings("unchecked")
+        Instance<SessionStepLogger> instance = mock(Instance.class);
+        SessionStepLogger logger = mock(SessionStepLogger.class);
+        lenient().when(instance.isAmbiguous()).thenReturn(false);
+        lenient().when(instance.stream()).thenReturn(Stream.of(logger));
+
+        TestOpenSearchWriter localWriter = new TestOpenSearchWriter();
+        SessionsService serviceWithLogger = new SessionsService(extractor, localWriter, engineInfo, chainRuntimePropertiesService, instance);
+
+        Exchange exchange = exchange();
+        ChainRuntimeProperties props = runtimeProperties(details == SessionLogDetails.OFF ? SessionsLoggingLevel.OFF : SessionsLoggingLevel.DEBUG);
+        props.setSessionLogDetails(details);
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange)).thenReturn(props);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBean(exchange, DeploymentInfo.class))
+                    .thenReturn(deploymentInfo());
+
+            Session session = serviceWithLogger.startSession(exchange, null);
+
+            verify(logger).logSessionStart(session, details);
+        }
+    }
+
+    @Test
+    void shouldDelegateRecordStepAfterToLogger() {
+        @SuppressWarnings("unchecked")
+        Instance<SessionStepLogger> instance = mock(Instance.class);
+        SessionStepLogger logger = mock(SessionStepLogger.class);
+        lenient().when(instance.isAmbiguous()).thenReturn(false);
+        lenient().when(instance.stream()).thenReturn(Stream.of(logger));
+        EngineInfo engineInfo = EngineInfo.builder().domain(DOMAIN).host(ENGINE).build();
+        SessionsService serviceWithLogger = new SessionsService(extractor, writer, engineInfo, chainRuntimePropertiesService, instance);
+        Exchange exchange = exchange();
+        SessionStepLogContext ctx = new SessionStepLogContext(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, null, null,
+                "body", Map.of(), Map.of(), Map.of(), DOMAIN, DomainType.MICRO);
+
+        serviceWithLogger.recordStepAfter(ctx);
+
+        verify(logger).recordStepAfter(ctx);
+    }
+
+    @Test
+    void shouldDelegateRecordStepAfterForStepToLogger() {
+        @SuppressWarnings("unchecked")
+        Instance<SessionStepLogger> instance = mock(Instance.class);
+        SessionStepLogger logger = mock(SessionStepLogger.class);
+        lenient().when(instance.isAmbiguous()).thenReturn(false);
+        lenient().when(instance.stream()).thenReturn(Stream.of(logger));
+        EngineInfo engineInfo = EngineInfo.builder().domain(DOMAIN).host(ENGINE).build();
+        SessionsService serviceWithLogger = new SessionsService(extractor, writer, engineInfo, chainRuntimePropertiesService, instance);
+        Exchange exchange = exchange();
+        SessionStepLogContext ctx = new SessionStepLogContext(exchange, SESSION_ID, ELEMENT_ID, null, "stepName", "stepChainId",
+                "body", Map.of(), Map.of(), Map.of(), DOMAIN, DomainType.MICRO);
+
+        serviceWithLogger.recordStepAfterForStep(ctx);
+
+        verify(logger).recordStepAfterForStep(ctx);
+    }
+
+    @Test
+    void shouldDoNothingForRecordMethodsWhenLoggerAbsent() {
+        Exchange exchange = exchange();
+        SessionStepLogContext ctx = new SessionStepLogContext(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, null, null,
+                "body", Map.of(), Map.of(), Map.of(), DOMAIN, DomainType.MICRO);
+
+        assertDoesNotThrow(() -> sessionsService.recordStepAfter(ctx));
+        assertDoesNotThrow(() -> sessionsService.recordStepAfterForStep(ctx));
+        assertTrue(writer.scheduledElements().isEmpty());
+    }
+
+    @Test
+    void shouldUseExchangeExceptionOverExternalExceptionWhenPopulatingAfterFields() {
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        SessionElementElastic element = cachedElement(ELEMENT_ID, ExecutionStatus.IN_PROGRESS);
+        element.setCamelElementName(ChainElementType.SERVICE_CALL.getText());
+        writer.putSessionElementToCacheForTest(element);
+        exchange.setException(new IllegalArgumentException("exchange-exception"));
+        Exception external = new RuntimeException("external-exception");
+        TestPayload payload = payload("after-body", Map.of("h", "v"), Map.of("c", "v"),
+                Map.of("p", SessionElementProperty.builder().type("string").value("v").build()));
+        stubPayloadJson(payload, "h-json", "p-json", "c-json");
+
+        sessionsService.logSessionElementAfter(exchange, external, SESSION_ID, ELEMENT_ID, payload);
+
+        assertEquals(ExecutionStatus.COMPLETED_WITH_ERRORS, element.getExecutionStatus());
+        assertNotNull(element.getExceptionInfo());
+        assertEquals("exchange-exception", element.getExceptionInfo().getMessage());
+    }
+
+    @Test
+    void shouldDoNothingWhenLoggingElementAfterForMissingElement() {
+        Exchange exchange = exchange();
+
+        sessionsService.logSessionElementAfter(exchange, null, SESSION_ID, "missing-element-id",
+                payload("body-after", Map.of(), Map.of(), Map.of()));
+
+        assertTrue(writer.scheduledElements().isEmpty());
+    }
+
+    @Test
+    void shouldResolveActualElementChainIdFromElementInfo() {
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        TestPayload payload = payload("body", Map.of(), Map.of(), Map.of());
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(runtimeProperties(SessionsLoggingLevel.DEBUG));
+        stubPayloadJson(payload, "h-json", "p-json", "c-json");
+        ElementInfo info = ElementInfo.builder()
+                .id(NODE_ID)
+                .name(ELEMENT_NAME)
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId("custom-chain-id")
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, NODE_ID, ElementInfo.class))
+                    .thenReturn(info);
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, NODE_ID, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionElementBefore(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, payload);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals("custom-chain-id", element.getActualElementChainId());
+    }
+
+    @Test
+    void shouldKeepActualElementChainIdEvenWhenIsChainCallTriggered() {
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        exchange.setProperty(CamelConstants.Properties.IS_CHAIN_CALL_TRIGGERED_SESSION, true);
+        TestPayload payload = payload("body", Map.of(), Map.of(), Map.of());
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(runtimeProperties(SessionsLoggingLevel.DEBUG));
+        stubPayloadJson(payload, "h-json", "p-json", "c-json");
+        ElementInfo info = ElementInfo.builder()
+                .id(NODE_ID)
+                .name(ELEMENT_NAME)
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId(CHAIN_ID)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, NODE_ID, ElementInfo.class))
+                    .thenReturn(info);
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, NODE_ID, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionElementBefore(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, payload);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        // micro-engine always uses ElementInfo.chainId regardless of isChainCallTriggered flag
+        assertEquals(CHAIN_ID, element.getActualElementChainId());
+    }
+
+    @Test
+    void shouldUseExchangePropertyForSessionFinishedWhenFinishing() {
+        Exchange exchange = exchange();
+        // verify that STEPS peek fallback works when no parentId resolution
+        writer.putSessionToCache(session());
+        elementExecutionMap(exchange).clear();
+        TestPayload payload = payload("body", Map.of(), Map.of(), Map.of());
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(runtimeProperties(SessionsLoggingLevel.DEBUG));
+        stubPayloadJson(payload, "h-json", "p-json", "c-json");
+        ElementInfo info = ElementInfo.builder()
+                .id(NODE_ID)
+                .name(ELEMENT_NAME)
+                .type(ChainElementType.SERVICE_CALL.getText())
+                .chainId(CHAIN_ID)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, NODE_ID, ElementInfo.class))
+                    .thenReturn(info);
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, NODE_ID, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionElementBefore(exchange, SESSION_ID, ELEMENT_ID, NODE_ID, payload);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        // with empty execution map and no parentId, should fallback to STEPS peek (PARENT_ELEMENT_ID pushed in exchange())
+        assertEquals(PARENT_ELEMENT_ID, element.getParentElementId());
+    }
+
+    private void setSamplerProbabilistic(double value) throws Exception {
+        Field field = SessionsService.class.getDeclaredField("samplerProbabilistic");
+        field.setAccessible(true);
+        field.set(sessionsService, value);
     }
 
     private Exchange exchange() {
@@ -549,6 +1045,7 @@ class SessionsServiceTest {
                 .name(ELEMENT_NAME)
                 .type(ChainElementType.SERVICE_CALL.getText())
                 .chainId(CHAIN_ID)
+                .parentId(PARENT_ELEMENT_ID)
                 .build();
     }
 

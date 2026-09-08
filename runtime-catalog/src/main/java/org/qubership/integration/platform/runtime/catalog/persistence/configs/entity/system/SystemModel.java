@@ -60,9 +60,13 @@ public class SystemModel extends AbstractSystemEntity {
     @JoinColumn(name = "compiled_library_id")
     private CompiledLibrary compiledLibrary;
 
+    // Ordered by URL, then method, to match the sortColumns default in
+    // OperationController. The trailing id, which that default does not carry,
+    // makes the order total: a WSDL with two ports repeats a name at the same
+    // path and method, and Postgres can reorder such rows after an update.
     @Builder.Default
     @JsonManagedReference
-    @OrderBy("id")
+    @OrderBy("path, method, name, id")
     @OneToMany(mappedBy = "systemModel", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JsonIgnoreProperties({"modifiedWhen"})
     private List<Operation> operations = new LinkedList<>();

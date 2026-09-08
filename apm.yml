@@ -23,3 +23,10 @@ compilation:
     - .cursor/**
     - .agents/**
     - apm_modules/**
+    # Build output. Placement scores are ratios over every scanned directory, so
+    # leaving these in moves module guidance between AGENTS.md files depending on
+    # whether the tree has been built.
+    - "**/target/**"
+    - "**/coverage/**"
+    - ui/dist-lib/**
+    - ui/public/doc/**

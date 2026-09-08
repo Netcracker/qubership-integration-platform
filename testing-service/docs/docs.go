@@ -496,6 +496,7 @@ const docTemplate = `{
         },
         "/api/v1/mode": {
             "get": {
+                "description": "Reports whether this is a live installation. The flag is a hint for the front end,\nwhich hides the operations that are unsafe on one. The service enforces nothing:\nevery endpoint answers the same in either mode.",
                 "produces": [
                     "application/json"
                 ],

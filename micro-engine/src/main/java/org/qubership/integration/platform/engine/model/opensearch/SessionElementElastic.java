@@ -58,6 +58,7 @@ public class SessionElementElastic extends AbstractElementElastic {
     @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private String actualElementChainId;
 
+    @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private String chainName;
 
     @OpenSearchField(type = OpenSearchFieldType.Keyword)

@@ -19,6 +19,9 @@ func newServiceModeController(production bool) *serviceModeController {
 
 // GetMode
 // @Summary Get service mode
+// @Description Reports whether this is a live installation. The flag is a hint for the front end,
+// @Description which hides the operations that are unsafe on one. The service enforces nothing:
+// @Description every endpoint answers the same in either mode.
 // @ID getModeV1
 // @Tags V1, Service
 // @Produce json
