@@ -109,10 +109,10 @@ class GeneralImportServiceTest {
     }
 
     private void stubAsyncDependenciesForAnyImportId() {
-        stubAsyncDependenciesForAnyImportId(List.of());
+        stubAsyncDependenciesWithMcpResults(List.of());
     }
 
-    private void stubAsyncDependenciesForAnyImportId(List<ImportSystemResult> mcpResults) {
+    private void stubAsyncDependenciesWithMcpResults(List<ImportSystemResult> mcpResults) {
         when(commonVariablesService.importVariables(any(File.class), any()))
                 .thenReturn(ImportVariablesResult.builder().variables(List.of()).instructions(List.of()).build());
         when(systemExportImportService.importSystems(any(File.class), any(), anyString(), any()))
@@ -374,7 +374,7 @@ class GeneralImportServiceTest {
         ImportSystemResult mcpResult = new ImportSystemResult();
         mcpResult.setId("mcp-id");
         mcpResult.setName("mcp-name");
-        stubAsyncDependenciesForAnyImportId(List.of(mcpResult));
+        stubAsyncDependenciesWithMcpResults(List.of(mcpResult));
 
         ImportSession session = runImportAndCaptureSession(dir);
 
