@@ -52,6 +52,9 @@ public class ImportResult {
     @Schema(description = "List of results by each service")
     private List<ImportSystemResult> contextService = new ArrayList<>();
     @Builder.Default
+    @Schema(description = "List of results by each MCP service")
+    private List<ImportSystemResult> mcpService = new ArrayList<>();
+    @Builder.Default
     @Schema(description = "List of results by each variable")
     private List<ImportVariableResult> variables = new ArrayList<>();
     @Builder.Default
@@ -60,7 +63,7 @@ public class ImportResult {
 
     public boolean hasErrors() {
         return hasChainErrors() || hasSystemErrors() || hasContextServiceErrors()
-                || hasVariableErrors() || hasInstructionErrors();
+                || hasMcpServiceErrors() || hasVariableErrors() || hasInstructionErrors();
     }
 
     public boolean hasChainErrors() {
@@ -73,6 +76,10 @@ public class ImportResult {
 
     public boolean hasContextServiceErrors() {
         return contextService.stream().anyMatch(system -> ImportSystemStatus.ERROR.equals(system.getStatus()));
+    }
+
+    public boolean hasMcpServiceErrors() {
+        return mcpService.stream().anyMatch(system -> ImportSystemStatus.ERROR.equals(system.getStatus()));
     }
 
     private boolean hasVariableErrors() {
