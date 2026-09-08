@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-08-25T15:55:00.821768+00:00'
+generated_at: '2026-09-08T12:13:39.678280+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
@@ -142,7 +142,34 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:010f3bdd3877132292c3b2d791f55dee5755850d269414c8d29472c9f4e36889
+  content_hash: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
+- kind: project-relative
+  target: agents
+  value: .agents/skills/fix-issue/delivery.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
+- kind: project-relative
+  target: agents
+  value: .agents/skills/fix-issue/stack.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
+- kind: project-relative
+  target: agents
+  value: .agents/skills/fix-issue/verification.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
 - kind: project-relative
   target: agents
   value: .agents/skills/runtime-catalog-api-testing
@@ -610,7 +637,52 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:010f3bdd3877132292c3b2d791f55dee5755850d269414c8d29472c9f4e36889
+  content_hash: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
+- kind: project-relative
+  target: claude
+  value: .claude/skills/fix-issue/delivery.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/fix-issue/stack.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/fix-issue/verification.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
+- kind: project-relative
+  target: claude
+  value: .claude/skills/runtime-catalog-api-testing
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/runtime-catalog-api-testing/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
 - kind: project-relative
   target: claude
   value: .claude/skills/sonar-triage
@@ -987,6 +1059,9 @@ local_deployed_files:
 - .agents/skills/docs-authoring/SKILL.md
 - .agents/skills/fix-issue
 - .agents/skills/fix-issue/SKILL.md
+- .agents/skills/fix-issue/delivery.md
+- .agents/skills/fix-issue/stack.md
+- .agents/skills/fix-issue/verification.md
 - .agents/skills/runtime-catalog-api-testing
 - .agents/skills/runtime-catalog-api-testing/SKILL.md
 - .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc
@@ -1031,6 +1106,11 @@ local_deployed_files:
 - .claude/skills/docs-authoring/SKILL.md
 - .claude/skills/fix-issue
 - .claude/skills/fix-issue/SKILL.md
+- .claude/skills/fix-issue/delivery.md
+- .claude/skills/fix-issue/stack.md
+- .claude/skills/fix-issue/verification.md
+- .claude/skills/runtime-catalog-api-testing
+- .claude/skills/runtime-catalog-api-testing/SKILL.md
 - .claude/skills/sonar-triage
 - .claude/skills/sonar-triage/SKILL.md
 - .claude/skills/ui-api-and-utilities
@@ -1067,7 +1147,10 @@ local_deployed_files:
 local_deployed_file_hashes:
   .agents/skills/ci-fix/SKILL.md: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
   .agents/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
-  .agents/skills/fix-issue/SKILL.md: sha256:010f3bdd3877132292c3b2d791f55dee5755850d269414c8d29472c9f4e36889
+  .agents/skills/fix-issue/SKILL.md: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
+  .agents/skills/fix-issue/delivery.md: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
+  .agents/skills/fix-issue/stack.md: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
+  .agents/skills/fix-issue/verification.md: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
   .agents/skills/runtime-catalog-api-testing/SKILL.md: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
@@ -1090,7 +1173,7 @@ local_deployed_file_hashes:
   .claude/rules/micro-engine.md: sha256:6fa74db4709eb8beac8271ded9b9de349c12b9a0d210635080a1eb3ff7c5ac57
   .claude/rules/monorepo.md: sha256:a48b150de27757714f4610309012982863b2454485ab3dde402421c69841c6d1
   .claude/rules/qip-working-agreements.md: sha256:032b8293f253cad9698c6ce79844732a6d7ca632dd4a3c6b79e494372e84a62c
-  .claude/rules/runtime-catalog.md: sha256:e2069b789dcbaa0d33f2467dea408ec2c69fec73e590d39048132442cfae52c8
+  .claude/rules/runtime-catalog.md: sha256:bca290d54b0de0fd894c65425a9e2c5d7e4b3ea4deaf721ffdf6f6588d888980
   .claude/rules/schemas.md: sha256:2625b9b398e7239c8faeb3d1725ae27f58b2d835c79bcd91bdc801bba2ac1e37
   .claude/rules/sessions-management.md: sha256:a6bb162d05e5ae7a1d62521b1af5f17470aa501d758e5313cfd3d021110e68ec
   .claude/rules/sonar-triage.md: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
@@ -1101,7 +1184,11 @@ local_deployed_file_hashes:
   .claude/rules/vscode-extension.md: sha256:a00d5eecb511d4d2aaa675ca535621e9d604779cf9068bd2204e66b8f48a4517
   .claude/skills/ci-fix/SKILL.md: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
   .claude/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
-  .claude/skills/fix-issue/SKILL.md: sha256:010f3bdd3877132292c3b2d791f55dee5755850d269414c8d29472c9f4e36889
+  .claude/skills/fix-issue/SKILL.md: sha256:9aa3800c1b1c5b368289c3d705b5bf4e117596ec5cfca07e96334a92d42d8ff9
+  .claude/skills/fix-issue/delivery.md: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
+  .claude/skills/fix-issue/stack.md: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
+  .claude/skills/fix-issue/verification.md: sha256:e2fc4a1f2ae2f96283f9872cfecdcf7ab75ac2f843c9767dd1f945bc768747ca
+  .claude/skills/runtime-catalog-api-testing/SKILL.md: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
   .claude/skills/sonar-triage/SKILL.md: sha256:35f144fe5a8bc0f5407e922cb8b37c8a3f16d196bba7ba504f9f10cd4da18a31
   .claude/skills/ui-api-and-utilities/SKILL.md: sha256:83df8708d1821771414996df4ca1f45b138baa7a49415954ffeffb7d40c8b160
   .claude/skills/ui-component-patterns/SKILL.md: sha256:0f6140b7f00b3f887a1f9d5831a2c9a32cf31d0620e516d41383d43a5a373f9b
@@ -1120,7 +1207,7 @@ local_deployed_file_hashes:
   .cursor/rules/micro-engine.mdc: sha256:c2a4431e0e8f50232876969e97082f7641fd57204706f4913bed3ef0cded8fb4
   .cursor/rules/monorepo.mdc: sha256:18deef74645b5273685139cb5156279a719e33e3dcfcf60d18b97c117f164a87
   .cursor/rules/qip-working-agreements.mdc: sha256:0f536347592d1f0d9b4c3f9b42f4085ca510a9f294b9190684c06036e031e656
-  .cursor/rules/runtime-catalog.mdc: sha256:94662107f8cdd74fb122a33aa88511ca491a1b34cf00c352b93b06d5cbcd0d8a
+  .cursor/rules/runtime-catalog.mdc: sha256:d74872fbb06b8ea4436fa8144393a848f82735b38cd47ef2b3001fcf868453cd
   .cursor/rules/schemas.mdc: sha256:90dc8dc83afc5b2a660891f75a928ef50aed74079c9c6db1131d74593ebefe3c
   .cursor/rules/sessions-management.mdc: sha256:18d6fa651e0e11c936f5e2fd1bcef06240c2e57e69c75ac1fef9ad4c68fba466
   .cursor/rules/sonar-triage.mdc: sha256:63252e4db42c848cf96d30d5e0a1b822b217131f0daa03f9977c114e996b9015
