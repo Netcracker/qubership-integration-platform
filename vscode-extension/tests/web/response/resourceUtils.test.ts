@@ -138,14 +138,14 @@ describe("deleteElementsPropertyFiles", () => {
       } as unknown as ElementSchema,
     ];
     await deleteElementsPropertyFiles(fileUri, elements);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/body.txt");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "body.txt");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(1);
   });
 
   test("removes script before block and sets script property", async () => {
     const elements: ElementSchema[] = [serviceCall({ before: { type: "script", propertiesFilename: "s.groovy" } })];
     await deleteElementsPropertyFiles(fileUri, elements);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/s.groovy");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "s.groovy");
     // script assignment: element still mutated but removeFile mock returns undefined
     expect(elements[0].properties as unknown as Record<string, unknown>).toBeDefined();
   });
@@ -153,13 +153,13 @@ describe("deleteElementsPropertyFiles", () => {
   test("removes mapper after block", async () => {
     const elements: ElementSchema[] = [serviceCall({ after: [{ type: "mapper", propertiesFilename: "m.json" }] })];
     await deleteElementsPropertyFiles(fileUri, elements);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/m.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "m.json");
   });
 
   test("removes mapper with prefix mapper-xxx", async () => {
     const elements: ElementSchema[] = [serviceCall({ after: [{ type: "mapper-advanced", propertiesFilename: "m2.json" }] })];
     await deleteElementsPropertyFiles(fileUri, elements);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/m2.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "m2.json");
   });
 
   test("ignores blocks without filename", async () => {
@@ -180,7 +180,7 @@ describe("deleteElementsPropertyFiles", () => {
     const child = serviceCall({ after: [{ propertiesFilename: "child.json", type: "mapper" }] });
     const parent = otherElement("container", {}, [child]);
     await deleteElementsPropertyFiles(fileUri, [parent]);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/child.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "child.json");
   });
 
   test("handles top-level and service-call in same element (if both present)", async () => {
@@ -197,9 +197,9 @@ describe("deleteElementsPropertyFiles", () => {
       } as unknown as ElementSchema,
     ];
     await deleteElementsPropertyFiles(fileUri, elements);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/body.txt");
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/b.groovy");
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/a.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "body.txt");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "b.groovy");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "a.json");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(3);
   });
 
@@ -253,7 +253,7 @@ describe("deleteElementsPropertyFiles", () => {
     ];
     await deleteElementsPropertyFiles(fileUri, elements);
     // only the valid before block should trigger
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/ok.groovy");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "ok.groovy");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(1);
   });
 });
@@ -280,7 +280,7 @@ describe("cleanupOrphanPropertyFiles", () => {
     const newFilenames = new Set(["a.json"]);
     const chainElements: ElementSchema[] = [];
     await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, chainElements);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/b.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "b.json");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(1);
   });
 
@@ -289,9 +289,9 @@ describe("cleanupOrphanPropertyFiles", () => {
     const newFilenames = new Set<string>([]);
     const chainElements: ElementSchema[] = [];
     await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, chainElements);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/a.json");
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/b.json");
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/c.groovy");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "a.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "b.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "c.groovy");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(3);
   });
 
@@ -302,8 +302,8 @@ describe("cleanupOrphanPropertyFiles", () => {
     const child = serviceCall({ after: [{ propertiesFilename: "b.json", type: "mapper" }] });
     const chainElements: ElementSchema[] = [otherElement("container", {}, [child])];
     await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, chainElements);
-    expect(mockedRemoveFile).not.toHaveBeenCalledWith(fileUri, "resources/b.json");
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/c.json");
+    expect(mockedRemoveFile).not.toHaveBeenCalledWith(fileUri, "b.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "c.json");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(1);
   });
 
@@ -312,7 +312,7 @@ describe("cleanupOrphanPropertyFiles", () => {
     const oldFilenames = new Set(["a.json", "a.json"]);
     const newFilenames = new Set<string>([]);
     await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, []);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/a.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "a.json");
     expect(mockedRemoveFile).toHaveBeenCalledTimes(1);
   });
 
@@ -321,15 +321,15 @@ describe("cleanupOrphanPropertyFiles", () => {
     expect(mockedRemoveFile).not.toHaveBeenCalled();
   });
 
-  test("uses resources prefix via toResourcePath", async () => {
+  test("passes filename directly (fileApi handles resources fallback)", async () => {
     const oldFilenames = new Set(["myfile.json"]);
     await cleanupOrphanPropertyFiles(fileUri, oldFilenames, new Set(), []);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/myfile.json");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "myfile.json");
   });
 
   test("handles empty chainElements", async () => {
     const oldFilenames = new Set(["x.groovy"]);
     await cleanupOrphanPropertyFiles(fileUri, oldFilenames, new Set(), []);
-    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "resources/x.groovy");
+    expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "x.groovy");
   });
 });

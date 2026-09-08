@@ -6,10 +6,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function toResourcePath(filename: string): string {
-  return `resources/${filename}`;
-}
-
 function collectFilenamesFromServiceCallElement(
   element: ElementSchema,
   out: Set<string>,
@@ -67,16 +63,16 @@ export async function deleteElementsPropertyFiles(
     if (beforeAfterBlock.type === "script") {
       beforeAfterBlock["script"] = await fileApi.removeFile(
         fileUri,
-        toResourcePath(filename),
+        filename,
       );
     } else if (beforeAfterBlock.type?.startsWith("mapper")) {
-      await fileApi.removeFile(fileUri, toResourcePath(filename));
+      await fileApi.removeFile(fileUri, filename);
     }
   }
 
   for (const element of removedElements) {
     if (element.properties?.propertiesToExportInSeparateFile && typeof element.properties?.propertiesFilename === "string" && element.properties.propertiesFilename) {
-      await fileApi.removeFile(fileUri, toResourcePath(element.properties.propertiesFilename));
+      await fileApi.removeFile(fileUri, element.properties.propertiesFilename);
     }
 
     if (element.type === "service-call") {
@@ -118,6 +114,6 @@ export async function cleanupOrphanPropertyFiles(
     return;
   }
   for (const filename of new Set(orphans)) {
-    await fileApi.removeFile(fileUri, toResourcePath(filename));
+    await fileApi.removeFile(fileUri, filename);
   }
 }

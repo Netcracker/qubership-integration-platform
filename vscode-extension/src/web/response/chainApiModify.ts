@@ -1398,3 +1398,25 @@ export async function cloneElements(
 
   return result;
 }
+
+export async function deleteChain(chainFileUri: Uri) {
+  try {
+    const chain = await fileApi.getMainChain(chainFileUri);
+    const elements = chain.content.elements as ElementSchema[] | undefined;
+    if (elements?.length) {
+      await deleteElementsPropertyFiles(chainFileUri, elements);
+    }
+  } catch (e) {
+    console.error("Failed to cleanup resources before deleting chain", e);
+  }
+
+  const directoriesToRemove =
+    await fileApi.getDirectoriesToRemove(chainFileUri);
+  await fileApi.deleteFile(chainFileUri);
+
+  for (const dirToRemove of directoriesToRemove) {
+    try {
+      await fileApi.deleteFile(dirToRemove);
+    } catch (error) {}
+  }
+}

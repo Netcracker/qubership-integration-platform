@@ -339,23 +339,32 @@ export class VSCodeFileApi implements FileApi {
     }
   }
 
-  async readFile(parameters: any, propertiesFilename: string): Promise<string> {
-    const baseUri = parameters as Uri;
+  private async getFileUri(
+    baseUri: Uri,
+    propertiesFilename: string,
+  ): Promise<Uri> {
     const baseFolder = await this.getParentDirectoryUri(baseUri);
     const fileUri = this.addToPath(baseFolder, propertiesFilename);
-    let fileContent;
+
     try {
-      fileContent = await this.readFileContent(fileUri);
+      await vscode.workspace.fs.stat(fileUri);
+      return fileUri;
     } catch (error) {
       if (!propertiesFilename.includes(RESOURCES_FOLDER)) {
-        return await this.readFile(
+        return await this.getFileUri(
           baseUri,
           RESOURCES_FOLDER + "/" + propertiesFilename,
         );
       }
       throw error;
     }
-    return fileContent;
+  }
+
+  async readFile(parameters: any, propertiesFilename: string): Promise<string> {
+    const baseUri = parameters as Uri;
+    const fileUri = await this.getFileUri(baseUri, propertiesFilename);
+
+    return await this.readFileContent(fileUri);
   }
 
   async parseFile(fileUri: Uri): Promise<any> {
@@ -415,8 +424,7 @@ export class VSCodeFileApi implements FileApi {
     mainFolderUri: Uri,
     propertyFilename: string,
   ): Promise<void> {
-    const baseFolder = await this.getParentDirectoryUri(mainFolderUri);
-    const fileUri = vscode.Uri.joinPath(baseFolder, propertyFilename);
+    const fileUri = await this.getFileUri(mainFolderUri, propertyFilename);
     try {
       await this.deleteFile(fileUri);
     } catch (error) {
@@ -836,6 +844,17 @@ export class VSCodeFileApi implements FileApi {
   async getFileCreatedWhen(fileUri: Uri): Promise<number> {
     const fileStat = await vscode.workspace.fs.stat(fileUri);
     return fileStat.ctime;
+  }
+
+  async getDirectoriesToRemove(fileUri: Uri): Promise<Uri[]> {
+    const fileType = await this.getFileType(fileUri);
+    if ((fileType as unknown as QipFileType) === QipFileType.CHAIN) {
+      const chainDirectory = await this.getParentDirectoryUri(fileUri);
+      return chainDirectory === this.getRootDirectory()
+        ? []
+        : [vscode.Uri.joinPath(chainDirectory, RESOURCES_FOLDER), chainDirectory];
+    }
+    return [];
   }
 
   private hasFileWithExtension(entries: [string, number][], extension: string) {
