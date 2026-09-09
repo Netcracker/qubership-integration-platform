@@ -44,6 +44,62 @@ class RequirementBriefProjectorTest {
   }
 
   @Test
+  void assignsStableMappingIntentIdWhenCaptureOmitsIt() {
+    MappingIntent captured =
+        new MappingIntent(
+            "",
+            "create-task",
+            MappingPort.OUTPUT,
+            "task-result",
+            MappingPort.OUTPUT,
+            List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
+    RequirementBrief projected =
+        RequirementBriefProjector.project(
+            rockyBriefCandidate().withMappingIntents(List.of(captured)));
+
+    MappingIntent mapping = projected.mappingIntents().getFirst();
+    assertEquals("create-task-RESPONSE-to-task-result-REQUEST", mapping.mappingIntentId());
+    assertEquals(
+        mapping.mappingIntentId(),
+        RequirementBriefProjector.project(
+                rockyBriefCandidate().withMappingIntents(List.of(captured)))
+            .mappingIntents()
+            .getFirst()
+            .mappingIntentId());
+  }
+
+  @Test
+  void assignsDistinctIdsForBlankRequestAndResponseHops() {
+    MappingIntent request =
+        new MappingIntent(
+            "",
+            "trigger-onTaskStart",
+            MappingPort.OUTPUT,
+            "call-salesforce-createTask",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("name", "Subject", null)));
+    MappingIntent response =
+        new MappingIntent(
+            "",
+            "call-salesforce-createTask",
+            MappingPort.RESPONSE,
+            "call-om-onTaskResult",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("", "commandType", "Set to completeTask.")));
+
+    RequirementBrief projected =
+        RequirementBriefProjector.project(omSalesforceBrief(List.of(request, response)));
+
+    assertEquals(2, projected.mappingIntents().size());
+    assertEquals(
+        "trigger-onTaskStart-OUTPUT-to-call-salesforce-createTask-REQUEST",
+        projected.mappingIntents().getFirst().mappingIntentId());
+    assertEquals(
+        "call-salesforce-createTask-RESPONSE-to-call-om-onTaskResult-REQUEST",
+        projected.mappingIntents().get(1).mappingIntentId());
+  }
+
+  @Test
   void overwritesCapturedPortsFromFlowDirections() {
     MappingIntent capturedWrongPorts =
         new MappingIntent(

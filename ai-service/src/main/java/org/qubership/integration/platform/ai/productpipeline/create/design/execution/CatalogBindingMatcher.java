@@ -102,10 +102,7 @@ public class CatalogBindingMatcher {
           continue;
         }
         List<CatalogRestClient.OperationDto> ops =
-            CatalogStrings.blankToNull(conversationId) != null
-                ? catalogReadTool.listCatalogOperations(
-                    conversationId, spec.id(), system.id(), null)
-                : catalogReadTool.listCatalogOperations(spec.id(), system.id(), null);
+            listOperations(conversationId, spec.id(), system.id());
         for (CatalogRestClient.OperationDto op : ops) {
           if (op == null || CatalogStrings.blankToNull(op.id()) == null) {
             continue;
@@ -128,6 +125,67 @@ public class CatalogBindingMatcher {
         }
       }
     }
+    return toResult(matches);
+  }
+
+  /**
+   * Matches an operation on a catalog system and specification whose ids are already known, for
+   * example after an uploaded-spec import. Does not search systems by name.
+   */
+  public MatchResult matchImported(
+      String kind,
+      String systemId,
+      String specificationGroupId,
+      String specificationId,
+      String operationQuery,
+      String conversationId) {
+    if (!"service-call".equalsIgnoreCase(kind) && !"async-api-trigger".equalsIgnoreCase(kind)) {
+      return new MatchResult.None();
+    }
+    String query = CatalogStrings.blankToNull(operationQuery);
+    String sid = CatalogStrings.blankToNull(systemId);
+    String groupId = CatalogStrings.blankToNull(specificationGroupId);
+    String specId = CatalogStrings.blankToNull(specificationId);
+    if (query == null || sid == null || groupId == null || specId == null) {
+      return new MatchResult.None();
+    }
+    CatalogRestClient.SystemDto system = catalogReadTool.getCatalogSystem(sid).orElse(null);
+    if (system == null || CatalogStrings.blankToNull(system.id()) == null) {
+      return new MatchResult.None();
+    }
+    ParsedQuery parsed = parseQuery(query);
+    List<CatalogMatch> matches = new ArrayList<>();
+    for (CatalogRestClient.OperationDto op : listOperations(conversationId, specId, sid)) {
+      if (op == null || CatalogStrings.blankToNull(op.id()) == null) {
+        continue;
+      }
+      if (!operationAgrees(parsed, query, op)) {
+        continue;
+      }
+      matches.add(
+          new CatalogMatch(
+              sid,
+              groupId,
+              specId,
+              op.id(),
+              system.name(),
+              system.protocol(),
+              op.method(),
+              op.path(),
+              op.name(),
+              "catalog-read:" + sid + "/" + specId + "/" + op.id()));
+    }
+    return toResult(matches);
+  }
+
+  private List<CatalogRestClient.OperationDto> listOperations(
+      String conversationId, String specificationId, String systemId) {
+    return CatalogStrings.blankToNull(conversationId) != null
+        ? catalogReadTool.listCatalogOperations(conversationId, specificationId, systemId, null)
+        : catalogReadTool.listCatalogOperations(specificationId, systemId, null);
+  }
+
+  private static MatchResult toResult(List<CatalogMatch> matches) {
     if (matches.isEmpty()) {
       return new MatchResult.None();
     }

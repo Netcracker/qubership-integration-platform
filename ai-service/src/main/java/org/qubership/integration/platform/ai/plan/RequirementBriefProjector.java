@@ -54,7 +54,8 @@ public final class RequirementBriefProjector {
 
   /**
    * Mapping intents stored at brief commit. Drops identity pass-through, merges the same hop, and
-   * assigns ports from the approved flow. Capture and execute must not collapse again.
+   * assigns ports and mappingIntentId from the approved flow. Capture and execute must not
+   * collapse again.
    */
   public static RequirementBrief canonicalizeMappingIntents(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
@@ -62,7 +63,7 @@ public final class RequirementBriefProjector {
   }
 
   private static List<MappingIntent> mappingIntentsFor(RequirementBrief brief) {
-    return assignPorts(collapseMappingIntents(brief), brief.flow());
+    return assignMappingIntentIds(assignPorts(collapseMappingIntents(brief), brief.flow()));
   }
 
   /**
@@ -105,6 +106,57 @@ public final class RequirementBriefProjector {
       return MappingPort.OUTPUT;
     }
     return asSource ? MappingPort.RESPONSE : MappingPort.REQUEST;
+  }
+
+  /**
+   * Mapping intent ids are server-owned. Capture may omit them; the hop is enough to mint a stable
+   * id after ports are assigned.
+   */
+  static List<MappingIntent> assignMappingIntentIds(List<MappingIntent> intents) {
+    if (intents == null || intents.isEmpty()) {
+      return List.of();
+    }
+    Set<String> used = new LinkedHashSet<>();
+    for (MappingIntent intent : intents) {
+      if (intent != null && !intent.mappingIntentId().isBlank()) {
+        used.add(intent.mappingIntentId());
+      }
+    }
+    List<MappingIntent> assigned = new ArrayList<>(intents.size());
+    for (MappingIntent intent : intents) {
+      if (intent == null || !intent.mappingIntentId().isBlank()) {
+        assigned.add(intent);
+        continue;
+      }
+      String minted = uniqueMappingIntentId(intent, used);
+      used.add(minted);
+      assigned.add(intent.withMappingIntentId(minted));
+    }
+    return List.copyOf(assigned);
+  }
+
+  private static String uniqueMappingIntentId(MappingIntent intent, Set<String> used) {
+    String base = mappingIntentIdFromHop(intent);
+    if (!used.contains(base)) {
+      return base;
+    }
+    int suffix = 2;
+    String candidate = base + "-" + suffix;
+    while (used.contains(candidate)) {
+      suffix++;
+      candidate = base + "-" + suffix;
+    }
+    return candidate;
+  }
+
+  private static String mappingIntentIdFromHop(MappingIntent intent) {
+    return intent.sourceRef()
+        + "-"
+        + portKey(intent.sourcePort())
+        + "-to-"
+        + intent.targetRef()
+        + "-"
+        + portKey(intent.targetPort());
   }
 
   /**

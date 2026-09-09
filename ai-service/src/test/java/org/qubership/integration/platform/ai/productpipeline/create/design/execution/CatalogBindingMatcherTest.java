@@ -2,11 +2,13 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -120,5 +122,38 @@ class CatalogBindingMatcherTest {
     assertEquals("op-start", exact.match().integrationOperationId());
     verify(catalogReadTool).listCatalogOperations("conv-1", "spec", "sys", null);
     verify(catalogReadTool, never()).listCatalogOperations("spec", "sys", null);
+  }
+
+  @Test
+  void matchesImportedSpecBySystemIdWithoutSearchingByName() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto(
+            "38845d96", "Salesforce WFM Auth Task API", "INTERNAL", "http");
+    CatalogRestClient.OperationDto op =
+        new CatalogRestClient.OperationDto(
+            "op-create-task", "createTask", "POST", "/sobjects/Task", null);
+
+    when(catalogReadTool.getCatalogSystem("38845d96")).thenReturn(Optional.of(system));
+    when(catalogReadTool.listCatalogOperations("conv-1", "spec-sf", "38845d96", null))
+        .thenReturn(List.of(op));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.matchImported(
+            "service-call",
+            "38845d96",
+            "group-sf",
+            "spec-sf",
+            "createTask",
+            "conv-1");
+
+    CatalogBindingMatcher.MatchResult.Exact exact =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Exact.class, result);
+    CatalogMatch match = exact.match();
+    assertEquals("op-create-task", match.integrationOperationId());
+    assertEquals("38845d96", match.systemId());
+    assertEquals("group-sf", match.specificationGroupId());
+    assertEquals("spec-sf", match.specificationId());
+    verify(catalogReadTool, never()).searchCatalogSystems(any());
+    verify(catalogReadTool, never()).getApiSpecifications(any());
   }
 }

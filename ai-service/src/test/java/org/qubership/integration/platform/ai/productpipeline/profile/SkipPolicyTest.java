@@ -15,6 +15,10 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 class SkipPolicyTest {
 
@@ -146,6 +150,65 @@ class SkipPolicyTest {
     assertEquals(
         Optional.of(SkipPolicy.SkipAction.REQUIREMENT_DRAFT_PASSTHROUGH),
         skip.evaluate(new SkipPolicy.SkipEvaluationContext(draft)));
+  }
+
+  @Test
+  void catalogBindingPresentDoesNotSkipWhenFlowStillHasUnboundOutbound() {
+    SkipPolicy skip = new SkipPolicy(List.of(SkipPolicy.CATALOG_BINDING_PRESENT));
+    RequirementDraft draft =
+        omWfmDraft().withBoundInteraction("create-salesforce-task", restHint("create-salesforce-task"));
+
+    assertFalse(skip.matches(draft));
+  }
+
+  @Test
+  void catalogBindingPresentSkipsWhenEveryOutboundInteractionIsBound() {
+    SkipPolicy skip = new SkipPolicy(List.of(SkipPolicy.CATALOG_BINDING_PRESENT));
+    RequirementDraft draft =
+        omWfmDraft()
+            .withBoundInteraction("create-salesforce-task", restHint("create-salesforce-task"))
+            .withBoundInteraction("return-task-result", restHint("return-task-result"));
+
+    assertTrue(skip.matches(draft));
+  }
+
+  private static RequirementDraft omWfmDraft() {
+    return new RequirementDraft(
+            true, "OM to Salesforce WFM", DraftDecision.READY_FOR_PLAN, List.of(), "brainstorming", "1")
+        .withFlow(
+            new RequirementFlow(
+                List.of(
+                    new Interaction(
+                        "on-task-start", Direction.INBOUND, "Caller", "POST /tasks", ""),
+                    new Interaction(
+                        "create-salesforce-task",
+                        Direction.OUTBOUND,
+                        "Salesforce WFM",
+                        "createTask",
+                        ""),
+                    new Interaction(
+                        "return-task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                List.of(
+                    new Transition("on-task-start", "create-salesforce-task"),
+                    new Transition("create-salesforce-task", "return-task-result"))));
+  }
+
+  private static CatalogBindingHint restHint(String interactionId) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        interactionId,
+        "POST /ops/" + interactionId,
+        "sys",
+        "group",
+        "spec",
+        "op-" + interactionId,
+        "rest",
+        "POST",
+        "/ops/" + interactionId,
+        "catalog",
+        Instant.EPOCH,
+        "test");
   }
 
   private static ApiHubRequirementRefs candidate() {

@@ -107,7 +107,7 @@ public class RequirementBriefTool {
        Put preserve or echo rules on the transition that writes the target payload.\
        Never invent identity copies for fields the user did not\
        mention. Use the approved interactionId values as sourceRef and targetRef. Do not set\
-       mapping ports; the server assigns them from the approved flow.
+       mapping ports or mappingIntentId; the server assigns both from the approved hop.
       Minimal example:
       {
         "goal": "Expose a greeting HTTP endpoint",

@@ -180,7 +180,11 @@ final class ChainSemanticCaptureFixtures {
   }
 
   static ChainSemanticCapture mappedCapture() {
-    return capture(MAPPING_INTENT_ID);
+    return mappedCapture(MAPPING_INTENT_ID);
+  }
+
+  static ChainSemanticCapture mappedCapture(String mappingIntentId) {
+    return capture(mappingIntentId);
   }
 
   private static ChainSemanticCapture capture(String mappingIntentId) {

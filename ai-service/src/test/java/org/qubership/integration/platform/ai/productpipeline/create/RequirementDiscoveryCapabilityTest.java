@@ -782,13 +782,15 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
-    assertEquals("", completed.get().outcome().message());
-    assertTrue(completed.get().outcome().candidates().isEmpty());
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.get().outcome().outcomeClass());
+    assertEquals(1, completed.get().outcome().candidates().size());
+    assertEquals(
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT,
+        completed.get().outcome().candidates().get(0).kind());
   }
 
   @Test
-  void approvedUploadedSpecsStayWhenOutboundFlowIsUnboundWithoutServiceCallFact() {
+  void approvedUploadedSpecsHandoffWhenOutboundFlowIsUnboundWithoutServiceCallFact() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraft incomplete =
         new RequirementDraft(
@@ -870,9 +872,11 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
-    assertEquals("", completed.get().outcome().message());
-    assertTrue(completed.get().outcome().candidates().isEmpty());
+    assertEquals(StageOutcomeClass.CANDIDATE, completed.get().outcome().outcomeClass());
+    assertEquals(1, completed.get().outcome().candidates().size());
+    assertEquals(
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT,
+        completed.get().outcome().candidates().get(0).kind());
   }
 
   @Test

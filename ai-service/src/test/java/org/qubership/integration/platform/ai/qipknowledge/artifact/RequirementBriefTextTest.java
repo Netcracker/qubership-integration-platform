@@ -212,6 +212,40 @@ class RequirementBriefTextTest {
   }
 
   @Test
+  void omitsMappingIntentIdTokenWhenTheIdIsBlank() {
+    RequirementBrief brief =
+        new RequirementBrief(
+                "Proxy inventory",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "Map an HTTP request to an inventory call",
+                null,
+                null,
+                List.of())
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "",
+                        "step-trigger",
+                        MappingPort.OUTPUT,
+                        "step-call",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.request.id",
+                                "$.headers.X-Request-Id",
+                                "string(value)")))));
+
+    String formatted = RequirementBriefText.format(brief);
+
+    assertFalse(formatted.contains("mappingIntentId="), formatted);
+    assertTrue(
+        formatted.contains("- step-trigger/OUTPUT -> step-call/REQUEST"), formatted);
+  }
+
+  @Test
   void legacyJsonWithoutDataMappingsDecodesToEmptyList() throws Exception {
     String legacyJson =
         """

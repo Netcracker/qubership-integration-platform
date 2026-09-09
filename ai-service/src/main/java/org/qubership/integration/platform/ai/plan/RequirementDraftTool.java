@@ -447,7 +447,8 @@ public class RequirementDraftTool {
           positiveCalls.isEmpty()
               && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
       if (decision == DraftDecision.READY_FOR_PLAN
-          && !capturedFlow.interactions().isEmpty()) {
+          && !capturedFlow.interactions().isEmpty()
+          && !hasAllowedUploadedSpecs(conversationId)) {
         Optional<String> bindingError =
             RequirementFlowValidator.validateBindings(capturedFlow, facts, catalogBindings);
         if (bindingError.isPresent()) {
@@ -629,7 +630,7 @@ public class RequirementDraftTool {
             FACTS_SOFT_DOWNGRADE_PREFIX + FACTS_SOFT_DOWNGRADE_HINT + " " + storedPreview);
       }
       String unresolved =
-          capturedFlow.interactions().isEmpty()
+          capturedFlow.interactions().isEmpty() || hasAllowedUploadedSpecs(conversationId)
               ? ""
               : describeUnresolvedInteractions(capturedFlow, capturedFacts, catalogBindings);
       if (!catalogBindings.isEmpty() || !unresolved.isEmpty()) {

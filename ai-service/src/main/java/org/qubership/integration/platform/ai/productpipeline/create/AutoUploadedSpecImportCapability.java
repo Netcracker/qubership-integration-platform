@@ -25,6 +25,8 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -250,8 +252,9 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
           outcomes.size(),
           context.conversationId());
     }
-    UploadedSpecImportOutcome first = outcomes.stream().filter(Objects::nonNull).findFirst().orElse(null);
-    return succeeded(context, "Uploaded API specifications imported", first);
+    List<UploadedSpecImportOutcome> imported =
+        outcomes.stream().filter(Objects::nonNull).toList();
+    return succeeded(context, "Uploaded API specifications imported", imported);
   }
 
   private Optional<CompilationArtifacts.Reference> findApprovalReference(
@@ -316,13 +319,16 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
   }
 
   private CapabilitySignal.Completed succeeded(
-      StageExecutionContext context, String message, UploadedSpecImportOutcome outcome) {
+      StageExecutionContext context,
+      String message,
+      List<UploadedSpecImportOutcome> imported) {
     RequirementDraft draft = resolveDraft(context);
     if (draft == null) {
       return completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, message));
     }
     RequirementDraft updatedDraft = draft;
-    FactRewrite rewrite = rewriteFactsAndHints(updatedDraft, context.conversationId());
+    FactRewrite rewrite =
+        rewriteFactsAndHints(updatedDraft, context.conversationId(), imported);
     RequirementDraft rewrittenDraft = rewrite.draft();
     if (draftStore != null) {
       draftStore.put(context.conversationId(), rewrittenDraft);
@@ -345,19 +351,20 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
 
   /**
    * Rewrites uploaded-spec SERVICE_CALL facts into a catalog-bound form and emits a catalog-binding
-   * hint for each exact local-catalog match. The imported specification is already in the runtime
-   * catalog, so a read-only match is enough to pin the integration operation id.
+   * hint for each exact match on an imported system and specification id. The import outcome already
+   * holds those ids, so the matcher does not search catalog systems by name.
    */
-  private FactRewrite rewriteFactsAndHints(RequirementDraft draft, String conversationId) {
-    if (catalogBindingMatcher == null
-        || draft == null
-        || draft.facts() == null
-        || draft.facts().isEmpty()) {
+  private FactRewrite rewriteFactsAndHints(
+      RequirementDraft draft,
+      String conversationId,
+      List<UploadedSpecImportOutcome> imported) {
+    if (catalogBindingMatcher == null || draft == null) {
       return new FactRewrite(List.of(), draft);
     }
     List<ArtifactCandidate> hints = new ArrayList<>();
     List<RequirementFact> rewrittenFacts = new ArrayList<>();
-    for (RequirementFact call : draft.facts()) {
+    List<RequirementFact> facts = draft.facts() == null ? List.of() : draft.facts();
+    for (RequirementFact call : facts) {
       if (call == null
           || call.polarity() != RequirementFactPolarity.POSITIVE
           || call.kind() != RequirementFactKind.SERVICE_CALL
@@ -379,8 +386,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         operationQuery = parsed.operationId() + " " + parsed.channel();
       }
       CatalogBindingMatcher.MatchResult match =
-          catalogBindingMatcher.match(
-              "service-call", serviceName, operationQuery, conversationId);
+          matchImportedSpecs(operationQuery, conversationId, imported);
       LOG.infof(
           "auto-uploaded-spec-import: probing fact factId=%s service=%s query=%s match=%s",
           call.sourceFactId(),
@@ -415,6 +421,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
               catalogHint(call, hit, boundText),
               List.of()));
     }
+    addFlowBindingHints(draft.flow(), hints, conversationId, imported);
     RequirementDraft rewritten = draft.withFacts(List.copyOf(rewrittenFacts));
     for (ArtifactCandidate candidate : hints) {
       if (!(candidate.payload() instanceof CatalogBindingHint hint)) {
@@ -423,6 +430,91 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       rewritten = rewritten.withBoundInteraction(hint.interactionId(), hint);
     }
     return new FactRewrite(List.copyOf(hints), rewritten);
+  }
+
+  private void addFlowBindingHints(
+      RequirementFlow flow,
+      List<ArtifactCandidate> hints,
+      String conversationId,
+      List<UploadedSpecImportOutcome> imported) {
+    if (flow == null || flow.interactions().isEmpty()) {
+      return;
+    }
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      if (interaction == null || interaction.direction() != Direction.OUTBOUND) {
+        continue;
+      }
+      if (alreadyBound(hints, interaction.interactionId())) {
+        continue;
+      }
+      String serviceName = blankToNull(interaction.participant());
+      String operationQuery = blankToNull(interaction.operation());
+      if (operationQuery == null) {
+        continue;
+      }
+      CatalogBindingMatcher.MatchResult match =
+          matchImportedSpecs(operationQuery, conversationId, imported);
+      LOG.infof(
+          "auto-uploaded-spec-import: probing flow interactionId=%s service=%s query=%s match=%s",
+          interaction.interactionId(),
+          serviceName,
+          operationQuery,
+          match.getClass().getSimpleName());
+      if (!(match instanceof CatalogBindingMatcher.MatchResult.Exact exact)) {
+        continue;
+      }
+      CatalogMatch hit = exact.match();
+      String release =
+          hit.systemName() == null || hit.systemName().isBlank() ? "default" : hit.systemName();
+      try {
+        hints.add(
+            new ArtifactCandidate(
+                CompilationArtifacts.Kind.CATALOG_BINDING_HINT,
+                CatalogBindingHint.from(interaction, hit, release, Instant.now()),
+                List.of()));
+      } catch (IllegalArgumentException e) {
+        LOG.warnf(
+            e,
+            "auto-uploaded-spec-import: skipped flow bind interactionId=%s",
+            interaction.interactionId());
+      }
+    }
+  }
+
+  private CatalogBindingMatcher.MatchResult matchImportedSpecs(
+      String operationQuery,
+      String conversationId,
+      List<UploadedSpecImportOutcome> imported) {
+    if (imported == null || imported.isEmpty()) {
+      return new CatalogBindingMatcher.MatchResult.None();
+    }
+    for (UploadedSpecImportOutcome outcome : imported) {
+      if (outcome == null) {
+        continue;
+      }
+      CatalogBindingMatcher.MatchResult match =
+          catalogBindingMatcher.matchImported(
+              "service-call",
+              outcome.systemId(),
+              outcome.specificationGroupId(),
+              outcome.specificationId(),
+              operationQuery,
+              conversationId);
+      if (match instanceof CatalogBindingMatcher.MatchResult.Exact) {
+        return match;
+      }
+    }
+    return new CatalogBindingMatcher.MatchResult.None();
+  }
+
+  private static boolean alreadyBound(List<ArtifactCandidate> hints, String interactionId) {
+    for (ArtifactCandidate candidate : hints) {
+      if (candidate.payload() instanceof CatalogBindingHint hint
+          && interactionId.equals(hint.interactionId())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static CatalogBindingHint catalogHint(

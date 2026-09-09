@@ -701,8 +701,8 @@ public class RequirementAnalysisCapability implements StageCapability {
               + "that rule. One intent per approved flow transition. sourceRef and targetRef "
               + "must match a listed transition. Put preserve or echo rules on the transition "
               + "that writes the target payload. Never invent identity "
-              + "copies for fields the user did not mention. Do not set mapping ports; the "
-              + "server assigns them from the approved flow.\n\n");
+              + "copies for fields the user did not mention. Do not set mapping ports or "
+              + "mappingIntentId; the server assigns both from the approved hop.\n\n");
     } else {
       sb.append(
           "Leave mappingIntents empty. There are no projected outbound "
