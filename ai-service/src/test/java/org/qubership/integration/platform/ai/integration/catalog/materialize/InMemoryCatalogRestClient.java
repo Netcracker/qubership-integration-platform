@@ -141,6 +141,9 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public void createMaasKafkaTopic(String namespace, String topicClassifierName) {}
+
+  @Override
   public ChainLoggingPropertiesSetDto getLoggingProperties(String chainId) {
     ChainState chain = requireChain(chainId);
     return new ChainLoggingPropertiesSetDto(null, null, chain.loggingProperties);

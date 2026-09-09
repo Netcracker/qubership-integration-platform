@@ -177,7 +177,9 @@ class ChatExecutionServiceTest {
         ChatEvent.SESSION_LOGGING_OFF_ACTION,
         ChatEvent.SESSION_LOGGING_ERROR_ACTION,
         ChatEvent.SESSION_LOGGING_INFO_ACTION,
-        ChatEvent.SESSION_LOGGING_DEBUG_ACTION);
+        ChatEvent.SESSION_LOGGING_DEBUG_ACTION,
+        ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION,
+        ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION);
   }
 
   @Test

@@ -59,6 +59,11 @@ spec:
                 configMapKeyRef:
                   name: {{ .Release.Name }}-ai-service-env
                   key: CATALOG_URL
+            - name: NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: NAMESPACE
+                  name: {{ .Release.Name }}-env
             - name: STORAGE_INIT_BUCKET_ON_STARTUP
               valueFrom:
                 configMapKeyRef:

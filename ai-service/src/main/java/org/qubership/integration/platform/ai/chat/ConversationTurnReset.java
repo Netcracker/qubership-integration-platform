@@ -9,6 +9,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationMessa
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.evidence.ConversationEvidenceStore;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
@@ -47,6 +48,7 @@ public class ConversationTurnReset {
   private final PinnedFailureStore pinnedFailureStore;
   private final LastAssistantTurnStore lastAssistantTurnStore;
   private final ConversationApiHubCache conversationApiHubCache;
+  private final PendingRedeployStore pendingRedeployStore;
 
   @Inject
   ConversationTurnReset(
@@ -63,7 +65,8 @@ public class ConversationTurnReset {
       ConversationEvidenceStore conversationEvidenceStore,
       PinnedFailureStore pinnedFailureStore,
       LastAssistantTurnStore lastAssistantTurnStore,
-      ConversationApiHubCache conversationApiHubCache) {
+      ConversationApiHubCache conversationApiHubCache,
+      PendingRedeployStore pendingRedeployStore) {
     this.conversationService = conversationService;
     this.chatMemoryStore = chatMemoryStore;
     this.workspaceStore = workspaceStore;
@@ -78,6 +81,7 @@ public class ConversationTurnReset {
     this.pinnedFailureStore = pinnedFailureStore;
     this.lastAssistantTurnStore = lastAssistantTurnStore;
     this.conversationApiHubCache = conversationApiHubCache;
+    this.pendingRedeployStore = pendingRedeployStore;
   }
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
@@ -123,6 +127,7 @@ public class ConversationTurnReset {
 
     workspaceStore.clear(conversationId);
     conversationApiHubCache.clear(conversationId);
+    pendingRedeployStore.clear(conversationId);
   }
 
   private void clearChatMemory(String conversationId, Set<String> completedSkillIds) {

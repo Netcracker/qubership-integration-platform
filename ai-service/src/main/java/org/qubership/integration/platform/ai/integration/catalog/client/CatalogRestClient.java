@@ -116,6 +116,16 @@ public interface CatalogRestClient {
   void deleteDeployment(
       @PathParam("chainId") String chainId, @PathParam("deploymentId") String deploymentId);
 
+  /**
+   * Creates a Kafka MaaS topic the same way Dev Tools does. Catalog {@code getOrCreate} treats an
+   * existing classifier as success.
+   */
+  @POST
+  @Path("/v1/maas-actions/kafka")
+  void createMaasKafkaTopic(
+      @QueryParam("namespace") String namespace,
+      @QueryParam("topicClassifierName") String topicClassifierName);
+
   // ── Logging (chain tab, not a field on CreateDeploymentRequest) ──────────
 
   @GET
@@ -377,10 +387,23 @@ public interface CatalogRestClient {
   record DomainDto(String name, String type) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  record SystemDto(String id, String name, String type, String protocol) {}
+  record SystemDto(
+      String id, String name, String type, String protocol, String activeEnvironmentId) {
+
+    /** Keeps existing production call sites on the four-field constructor. */
+    public SystemDto(String id, String name, String type, String protocol) {
+      this(id, name, type, protocol, null);
+    }
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  record EnvironmentDto(String id, String name, String address) {}
+  record EnvironmentDto(String id, String name, String address, String sourceType) {
+
+    /** Keeps existing test and call sites on the three-field constructor. */
+    public EnvironmentDto(String id, String name, String address) {
+      this(id, name, address, null);
+    }
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SpecificationGroupDto(String id, String name) {}

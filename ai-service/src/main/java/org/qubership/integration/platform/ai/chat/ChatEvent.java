@@ -111,6 +111,12 @@ public sealed interface ChatEvent {
   /** Acknowledges a deployment failure without mutating the chain. */
   String DISMISS_DEPLOYMENT_FAILURE_ACTION = "dismiss-deployment-failure";
 
+  /** Creates missing Kafka MaaS topics the same way Dev Tools does. */
+  String CREATE_MAAS_KAFKA_TOPICS_ACTION = "create-maas-kafka-topics";
+
+  /** Leaves the chain and MaaS topics unchanged. */
+  String DISMISS_MAAS_KAFKA_TOPICS_ACTION = "dismiss-maas-kafka-topics";
+
   /** Session logging Off, chosen on the card that runs before createDeployment. */
   String SESSION_LOGGING_OFF_ACTION = "session-logging-off";
 
@@ -148,6 +154,9 @@ public sealed interface ChatEvent {
 
   /** Artifact type a session-logging card binds to. */
   String SESSION_LOGGING_ARTIFACT = "SESSION_LOGGING";
+
+  /** Artifact type a missing Kafka MaaS topics card binds to. */
+  String MAAS_KAFKA_TOPICS_ARTIFACT = "MAAS_KAFKA_TOPICS";
 
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
@@ -520,6 +529,26 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         SESSION_LOGGING_ACTIONS);
+  }
+
+  /**
+   * Missing Kafka MaaS topics, offered as Create topics / Not now after a deploy poll.
+   *
+   * <p>Bound to the pending operation, so a leftover card cannot create topics after the
+   * conversation has moved on.
+   */
+  static ChatEvent maasKafkaTopicsDecision(String operationId, String question) {
+    Objects.requireNonNull(operationId, "operationId");
+    return new Decision(
+        "maas-kafka-topics:" + operationId,
+        "clarify",
+        question == null ? "" : question.strip(),
+        MAAS_KAFKA_TOPICS_ARTIFACT,
+        operationId,
+        0L,
+        null,
+        List.of(),
+        List.of(CREATE_MAAS_KAFKA_TOPICS_ACTION, DISMISS_MAAS_KAFKA_TOPICS_ACTION));
   }
 
   /**
