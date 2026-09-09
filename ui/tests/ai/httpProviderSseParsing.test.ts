@@ -197,6 +197,25 @@ describe("parseCipSseBlock", () => {
     expect(decision?.actions).toEqual(["stop-with-report"]);
   });
 
+  it("parses uploaded-spec rows on a decision payload", () => {
+    const payload =
+      '{"id":"uploaded-specs-import-proposal:hash","kind":"approve",' +
+      '"question":"Import uploaded API specifications into the catalog?",' +
+      '"artifactType":"uploaded-specs-import-proposal","artifactHash":"hash",' +
+      '"revision":0,"actions":["import-specification","clarify"],' +
+      '"specs":[{"s3Key":"uploads/orders-api.yaml","displayName":"Orders API"},' +
+      '{"s3Key":"uploads/partner-events.yaml","displayName":"partner-events.yaml"}]}';
+    const decision = parseDecisionPayload(payload);
+    expect(decision?.specs).toEqual([
+      { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
+      {
+        s3Key: "uploads/partner-events.yaml",
+        displayName: "partner-events.yaml",
+      },
+    ]);
+    expect(decision?.actions).toEqual(["import-specification", "clarify"]);
+  });
+
   it("drops a decision when the kind is unknown", () => {
     expect(
       parseCipSseBlock('event: decision\ndata: {"id":"x","kind":"vote"}\n'),

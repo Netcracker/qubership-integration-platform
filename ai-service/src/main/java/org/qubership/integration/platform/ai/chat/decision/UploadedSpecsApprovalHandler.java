@@ -5,8 +5,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -57,8 +61,13 @@ public class UploadedSpecsApprovalHandler {
       throw new IllegalStateException("No uploaded specifications to approve for " + conversationId);
     }
 
-    List<String> displayNames =
-        keys.stream().map(this::resolveDisplayNameFromKey).toList();
+    List<ChatEvent.UploadedSpecItem> specs = new ArrayList<>();
+    List<String> displayNames = new ArrayList<>();
+    for (String key : keys) {
+      String displayName = resolveDisplayNameFromKey(key);
+      displayNames.add(displayName);
+      specs.add(new ChatEvent.UploadedSpecItem(key, displayName));
+    }
     String hash = hashKeys(keys);
 
     return new ChatEvent.Decision(
@@ -70,14 +79,63 @@ public class UploadedSpecsApprovalHandler {
         0L,
         null,
         List.of(),
-        List.of(
-            ChatEvent.IMPORT_INTERNAL_ACTION,
-            ChatEvent.IMPORT_EXTERNAL_ACTION,
-            "clarify"));
+        List.of(ChatEvent.IMPORT_ACTION, "clarify"),
+        null,
+        List.copyOf(specs));
+  }
+
+  /**
+   * Resolves INTERNAL or EXTERNAL for each allowed attachment key.
+   *
+   * <p>An empty or missing map applies {@link ChatEvent#systemTypeForImportAction(String)} to every
+   * allowed key. Extra map keys are ignored. Allowed keys missing from a present map default to
+   * INTERNAL. Unknown type values fail the command.
+   */
+  public Map<String, String> resolveSpecSystemTypes(
+      String action, Map<String, String> requested, List<String> allowedKeys) {
+    List<String> keys = allowedKeys == null ? List.of() : allowedKeys;
+    boolean mapPresent = requested != null && !requested.isEmpty();
+    if (mapPresent) {
+      for (String value : requested.values()) {
+        requireSystemType(value);
+      }
+    }
+    String fallback = ChatEvent.systemTypeForImportAction(action);
+    Map<String, String> resolved = new LinkedHashMap<>();
+    for (String key : keys) {
+      if (!mapPresent) {
+        resolved.put(key, fallback);
+        continue;
+      }
+      String raw = requested.get(key);
+      resolved.put(key, raw == null ? "INTERNAL" : requireSystemType(raw));
+    }
+    return Map.copyOf(resolved);
+  }
+
+  private static String requireSystemType(String value) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException(
+          "specSystemTypes values must be INTERNAL or EXTERNAL");
+    }
+    String normalized = value.trim().toUpperCase(Locale.ROOT);
+    if (!"INTERNAL".equals(normalized) && !"EXTERNAL".equals(normalized)) {
+      throw new IllegalArgumentException(
+          "specSystemTypes values must be INTERNAL or EXTERNAL: " + value);
+    }
+    return normalized;
   }
 
   /** Converts an approved decision into the record the auto-import stage reads. */
   public ApprovalRecordV2 toApprovalRecord(ChatEvent.Decision decision, List<String> attachmentKeys) {
+    return toApprovalRecord(decision, attachmentKeys, Map.of());
+  }
+
+  /** Converts an approved decision into the record the auto-import stage reads. */
+  public ApprovalRecordV2 toApprovalRecord(
+      ChatEvent.Decision decision,
+      List<String> attachmentKeys,
+      Map<String, String> specSystemTypes) {
     Objects.requireNonNull(decision, "decision");
     CompilationArtifacts.Reference target =
         new CompilationArtifacts.Reference(
@@ -97,13 +155,14 @@ public class UploadedSpecsApprovalHandler {
         null,
         null,
         null,
-        attachmentKeys == null ? List.of() : List.copyOf(attachmentKeys));
+        attachmentKeys == null ? List.of() : List.copyOf(attachmentKeys),
+        specSystemTypes == null ? Map.of() : specSystemTypes);
   }
 
   /** Writes the approval record as an APPROVAL_RECORD artifact for the given run. */
   public CompilationArtifacts.Reference appendApprovalRecord(
       String runId, String conversationId, ChatEvent.Decision decision, ProductPipelineArtifactStore artifactStore) {
-    return appendApprovalRecord(runId, conversationId, decision, "user", artifactStore);
+    return appendApprovalRecord(runId, conversationId, decision, "user", null, null, artifactStore);
   }
 
   /** Writes the approval record as an APPROVAL_RECORD artifact for the given run and actor. */
@@ -113,13 +172,27 @@ public class UploadedSpecsApprovalHandler {
       ChatEvent.Decision decision,
       String actor,
       ProductPipelineArtifactStore artifactStore) {
+    return appendApprovalRecord(runId, conversationId, decision, actor, null, null, artifactStore);
+  }
+
+  /** Writes the approval record, resolving per-key system types from the decision command. */
+  public CompilationArtifacts.Reference appendApprovalRecord(
+      String runId,
+      String conversationId,
+      ChatEvent.Decision decision,
+      String actor,
+      String action,
+      Map<String, String> requestedTypes,
+      ProductPipelineArtifactStore artifactStore) {
     Objects.requireNonNull(runId, "runId");
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(decision, "decision");
     Objects.requireNonNull(artifactStore, "artifactStore");
 
     List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
-    ApprovalRecordV2 record = toApprovalRecord(decision, keys);
+    Map<String, String> specSystemTypes =
+        resolveSpecSystemTypes(action, requestedTypes, keys);
+    ApprovalRecordV2 record = toApprovalRecord(decision, keys, specSystemTypes);
 
     CompilationArtifacts.Revision revision =
         artifactStore.append(

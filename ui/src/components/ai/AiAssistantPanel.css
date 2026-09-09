@@ -782,6 +782,26 @@ button.ai-activity-inline__row:not(:disabled):hover {
   margin-bottom: 8px;
 }
 
+.ai-decision-card__specs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-decision-card__spec-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-decision-card__spec-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .ai-decision-card__actions {
   display: flex;
   flex-wrap: wrap;

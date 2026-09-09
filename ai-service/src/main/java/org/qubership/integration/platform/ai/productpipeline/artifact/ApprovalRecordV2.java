@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.artifact;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 
 /** Binds approval to one target, an exact approved candidate subset, and a full semantic pin. */
@@ -21,12 +22,52 @@ public record ApprovalRecordV2(
     String subjectSha256,
     String compilerContractVersion,
     String compilerContractSha256,
-    @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attachmentKeys) {
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> attachmentKeys,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, String> specSystemTypes) {
 
   public ApprovalRecordV2 {
     approvedCandidates =
         approvedCandidates == null ? List.of() : List.copyOf(approvedCandidates);
     attachmentKeys = attachmentKeys == null ? List.of() : List.copyOf(attachmentKeys);
+    specSystemTypes =
+        specSystemTypes == null || specSystemTypes.isEmpty()
+            ? Map.of()
+            : Map.copyOf(specSystemTypes);
+  }
+
+  public ApprovalRecordV2(
+      CompilationArtifacts.Reference target,
+      String targetContentHash,
+      List<CompilationArtifacts.Reference> approvedCandidates,
+      String actor,
+      String comment,
+      Instant approvedAt,
+      String bindingResolutionPolicy,
+      String bindingResolutionPolicyHash,
+      String subjectArtifactKind,
+      String subjectSchemaVersion,
+      String subjectRevisionId,
+      String subjectSha256,
+      String compilerContractVersion,
+      String compilerContractSha256,
+      List<String> attachmentKeys) {
+    this(
+        target,
+        targetContentHash,
+        approvedCandidates,
+        actor,
+        comment,
+        approvedAt,
+        bindingResolutionPolicy,
+        bindingResolutionPolicyHash,
+        subjectArtifactKind,
+        subjectSchemaVersion,
+        subjectRevisionId,
+        subjectSha256,
+        compilerContractVersion,
+        compilerContractSha256,
+        attachmentKeys,
+        Map.of());
   }
 
   public ApprovalRecordV2(

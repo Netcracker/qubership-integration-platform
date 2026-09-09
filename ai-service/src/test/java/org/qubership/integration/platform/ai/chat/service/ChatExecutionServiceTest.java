@@ -46,6 +46,7 @@ import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGate
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
@@ -330,6 +331,33 @@ class ChatExecutionServiceTest {
     assertTrue(frame.startsWith("event: decision\n"), frame);
     assertTrue(frame.contains("stop-with-report"), frame);
     assertTrue(frame.contains("That stage is not a candidate for this defect."), frame);
+  }
+
+  @Test
+  void uploadedSpecDecisionIncludesSpecsOnTheWire() {
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "uploaded-specs-import-proposal:hash",
+            "approve",
+            "Import uploaded API specifications into the catalog?",
+            UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+            "hash",
+            0L,
+            null,
+            List.of(),
+            List.of(ChatEvent.IMPORT_ACTION, "clarify"),
+            null,
+            List.of(
+                new ChatEvent.UploadedSpecItem("uploads/orders-api.yaml", "Orders API"),
+                new ChatEvent.UploadedSpecItem(
+                    "uploads/partner-events.yaml", "partner-events.yaml")));
+
+    String frame = ChatExecutionService.toSse(decision, new ObjectMapper());
+
+    assertTrue(frame.contains("\"specs\""), frame);
+    assertTrue(frame.contains("uploads/orders-api.yaml"), frame);
+    assertTrue(frame.contains("import-specification"), frame);
+    assertFalse(frame.contains("import-specification-internal"), frame);
   }
 
   @Test

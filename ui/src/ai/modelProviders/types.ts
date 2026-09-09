@@ -18,6 +18,15 @@ export interface PersistedActivitySnapshot {
   collapsed: boolean;
 }
 
+export type CatalogSystemType = "INTERNAL" | "EXTERNAL";
+
+/** One uploaded specification listed on an import decision card. */
+export interface ChatDecisionSpec {
+  s3Key: string;
+  displayName: string;
+  systemType?: CatalogSystemType;
+}
+
 /** Server-owned decision (approval gate or clarification) rendered as a card in the transcript. */
 export interface ChatDecision {
   /** Stable identity of the gate: reuse the server's value, never generate one client-side. */
@@ -34,6 +43,8 @@ export interface ChatDecision {
   missingEvidence?: string[];
   /** Actions the gate accepts, in display order, e.g. ["approve", "request-changes"]. */
   actions: string[];
+  /** Uploaded specifications for the import card. Absent on older servers. */
+  specs?: ChatDecisionSpec[];
   /** Contextual create-chain recovery authored and routed by the server. */
   recovery?: {
     category:
@@ -96,6 +107,7 @@ export interface ChatRequest {
     artifactHash?: string;
     revision?: number;
     comment?: string;
+    specSystemTypes?: Record<string, CatalogSystemType>;
   };
   context?: {
     type: "chain" | "service" | "operation";

@@ -90,6 +90,35 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
     if (isRecoveryPayload(parsed.recovery)) {
       decision.recovery = normalizeRecovery(parsed.recovery);
     }
+    if (Array.isArray(parsed.specs)) {
+      const specs = parsed.specs.flatMap((item) => {
+        if (typeof item !== "object" || item === null) {
+          return [];
+        }
+        const spec = item as Record<string, unknown>;
+        if (typeof spec.s3Key !== "string" || spec.s3Key.length === 0) {
+          return [];
+        }
+        const displayName =
+          typeof spec.displayName === "string" && spec.displayName.length > 0
+            ? spec.displayName
+            : spec.s3Key;
+        const systemType =
+          spec.systemType === "EXTERNAL" || spec.systemType === "INTERNAL"
+            ? spec.systemType
+            : undefined;
+        return [
+          {
+            s3Key: spec.s3Key,
+            displayName,
+            ...(systemType === undefined ? {} : { systemType }),
+          },
+        ];
+      });
+      if (specs.length > 0) {
+        decision.specs = specs;
+      }
+    }
     return decision;
   } catch {
     return null;

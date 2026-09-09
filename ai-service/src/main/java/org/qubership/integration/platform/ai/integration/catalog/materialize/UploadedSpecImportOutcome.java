@@ -8,5 +8,15 @@ public record UploadedSpecImportOutcome(
     String systemId,
     String specificationGroupId,
     String specificationId,
-    boolean reused) {
+    boolean reused,
+    boolean typeMismatchOnReuse) {
+
+  public UploadedSpecImportOutcome(
+      String s3Key,
+      String systemId,
+      String specificationGroupId,
+      String specificationId,
+      boolean reused) {
+    this(s3Key, systemId, specificationGroupId, specificationId, reused, false);
+  }
 }

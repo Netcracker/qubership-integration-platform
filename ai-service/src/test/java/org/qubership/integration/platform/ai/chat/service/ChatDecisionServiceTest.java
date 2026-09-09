@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.chat.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -10,19 +11,30 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
@@ -30,9 +42,11 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
+import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
 
@@ -557,6 +571,99 @@ class ChatDecisionServiceTest {
     ChatDecisionCommand command = command(ChatEvent.IMPORT_EXTERNAL_ACTION, null, null, null);
     service.rememberImportChoice("conv-1", command);
     assertEquals("EXTERNAL", drafts.get("conv-1").orElseThrow().preferredSystemType());
+  }
+
+  @Test
+  void uploadedSpecImportPersistsPerKeySystemTypes() {
+    ConversationService conversations = mock(ConversationService.class);
+    when(conversations.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/orders-api.yaml", "uploads/partner-events.yaml"));
+    when(conversations.getMessages("conv-1")).thenReturn(List.of());
+    ProductPipelineArtifactStore artifactStore = inMemoryArtifactStore();
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.start(any(StartCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().empty());
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
+    ChatDecisionService service =
+        uploadedSpecsDecisionService(facade, conversations, artifactStore, handler);
+    ChatDecisionCommand command =
+        command(
+            ChatEvent.IMPORT_ACTION,
+            UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+            "hash",
+            null);
+    command.setSpecSystemTypes(
+        Map.of(
+            "uploads/orders-api.yaml", "INTERNAL",
+            "uploads/partner-events.yaml", "EXTERNAL",
+            "uploads/extra.yaml", "EXTERNAL"));
+
+    service.apply("conv-1", command).collect().asList().await().indefinitely();
+
+    ApprovalRecordV2 stored = latestUploadedSpecsApproval(artifactStore, "conv-1");
+    assertEquals(
+        Map.of(
+            "uploads/orders-api.yaml", "INTERNAL",
+            "uploads/partner-events.yaml", "EXTERNAL"),
+        stored.specSystemTypes());
+  }
+
+  @Test
+  void uploadedSpecLegacyExternalActionTypesEveryKey() {
+    ConversationService conversations = mock(ConversationService.class);
+    when(conversations.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/orders-api.yaml", "uploads/partner-events.yaml"));
+    when(conversations.getMessages("conv-1")).thenReturn(List.of());
+    ProductPipelineArtifactStore artifactStore = inMemoryArtifactStore();
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.start(any(StartCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().empty());
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
+    ChatDecisionService service =
+        uploadedSpecsDecisionService(facade, conversations, artifactStore, handler);
+    ChatDecisionCommand command =
+        command(
+            ChatEvent.IMPORT_EXTERNAL_ACTION,
+            UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+            "hash",
+            null);
+
+    service.apply("conv-1", command).collect().asList().await().indefinitely();
+
+    ApprovalRecordV2 stored = latestUploadedSpecsApproval(artifactStore, "conv-1");
+    assertEquals(
+        Map.of(
+            "uploads/orders-api.yaml", "EXTERNAL",
+            "uploads/partner-events.yaml", "EXTERNAL"),
+        stored.specSystemTypes());
+  }
+
+  @Test
+  void uploadedSpecImportRejectsInvalidSystemType() {
+    ConversationService conversations = mock(ConversationService.class);
+    when(conversations.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/orders-api.yaml"));
+    ProductPipelineArtifactStore artifactStore = inMemoryArtifactStore();
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    ChatDecisionService service =
+        uploadedSpecsDecisionService(
+            mock(CreateChainApplicationFacade.class), conversations, artifactStore, handler);
+    ChatDecisionCommand command =
+        command(
+            ChatEvent.IMPORT_ACTION,
+            UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+            "hash",
+            null);
+    command.setSpecSystemTypes(Map.of("uploads/orders-api.yaml", "PUBLIC"));
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> service.apply("conv-1", command).collect().asList().await().indefinitely());
   }
 
   @Test
@@ -1290,5 +1397,42 @@ class ChatDecisionServiceTest {
     command.setRevision(3L);
     command.setComment(comment);
     return command;
+  }
+
+  private static ChatDecisionService uploadedSpecsDecisionService(
+      CreateChainApplicationFacade facade,
+      ConversationService conversations,
+      ProductPipelineArtifactStore artifactStore,
+      UploadedSpecsApprovalHandler handler) {
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.conversationService = conversations;
+    service.artifactStore = artifactStore;
+    service.uploadedSpecsApprovalHandler = handler;
+    return service;
+  }
+
+  private static ProductPipelineArtifactStore inMemoryArtifactStore() {
+    return new ProductPipelineArtifactStore(
+        new CompilationArtifacts(
+            new InMemoryArtifactBlobStore(),
+            new ObjectMapper().registerModule(new JavaTimeModule()),
+            Clock.fixed(Instant.parse("2026-09-09T10:00:00Z"), ZoneOffset.UTC)));
+  }
+
+  private static ApprovalRecordV2 latestUploadedSpecsApproval(
+      ProductPipelineArtifactStore artifactStore, String conversationId) {
+    String runId =
+        conversationId
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_ID
+            + "-"
+            + CreateRunSelectionService.CREATE_PROFILE_VERSION;
+    CompilationArtifacts.Revision revision =
+        artifactStore
+            .findLatestApprovalRecord(
+                runId, UploadedSpecsApprovalHandler.ARTIFACT_TYPE, null)
+            .orElseThrow();
+    return artifactStore.payload(revision, ApprovalRecordV2.class);
   }
 }

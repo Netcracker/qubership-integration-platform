@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.chat.decision;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -14,6 +15,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -71,11 +73,14 @@ class UploadedSpecsApprovalHandlerTest {
     assertTrue(decision.question().contains("Orders API"));
     assertTrue(decision.question().contains("Notifications Async API"));
     assertEquals(
-        List.of(
-            ChatEvent.IMPORT_INTERNAL_ACTION,
-            ChatEvent.IMPORT_EXTERNAL_ACTION,
-            "clarify"),
+        List.of(ChatEvent.IMPORT_ACTION, "clarify"),
         decision.actions());
+    assertEquals(
+        List.of(
+            new ChatEvent.UploadedSpecItem("uuid/orders-api.yaml", "Orders API"),
+            new ChatEvent.UploadedSpecItem(
+                "uuid/notifications-async.yaml", "Notifications Async API")),
+        decision.specs());
   }
 
   @Test
@@ -145,5 +150,80 @@ class UploadedSpecsApprovalHandlerTest {
     assertEquals(decision.artifactHash(), stored.target().contentHash());
     assertEquals(decision.id(), stored.target().artifactId());
     assertEquals("user", stored.actor());
+  }
+
+  @Test
+  void resolveSpecSystemTypesUsesActionWhenMapIsEmpty() {
+    UploadedSpecsApprovalHandler handler = handlerWithNoS3();
+    List<String> keys = List.of("uploads/a.yaml", "uploads/b.yaml");
+
+    assertEquals(
+        Map.of("uploads/a.yaml", "EXTERNAL", "uploads/b.yaml", "EXTERNAL"),
+        handler.resolveSpecSystemTypes(
+            ChatEvent.IMPORT_EXTERNAL_ACTION, Map.of(), keys));
+    assertEquals(
+        Map.of("uploads/a.yaml", "INTERNAL", "uploads/b.yaml", "INTERNAL"),
+        handler.resolveSpecSystemTypes(ChatEvent.IMPORT_ACTION, null, keys));
+  }
+
+  @Test
+  void resolveSpecSystemTypesIgnoresExtraKeysAndDefaultsMissingToInternal() {
+    UploadedSpecsApprovalHandler handler = handlerWithNoS3();
+    Map<String, String> requested =
+        Map.of(
+            "uploads/a.yaml", "external",
+            "uploads/other.yaml", "EXTERNAL");
+
+    assertEquals(
+        Map.of("uploads/a.yaml", "EXTERNAL", "uploads/b.yaml", "INTERNAL"),
+        handler.resolveSpecSystemTypes(
+            ChatEvent.IMPORT_ACTION,
+            requested,
+            List.of("uploads/a.yaml", "uploads/b.yaml")));
+  }
+
+  @Test
+  void resolveSpecSystemTypesRejectsInvalidValues() {
+    UploadedSpecsApprovalHandler handler = handlerWithNoS3();
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                handler.resolveSpecSystemTypes(
+                    ChatEvent.IMPORT_ACTION,
+                    Map.of("uploads/a.yaml", "PUBLIC"),
+                    List.of("uploads/a.yaml")));
+    assertTrue(error.getMessage().contains("INTERNAL"));
+  }
+
+  @Test
+  void toApprovalRecordPersistsResolvedMap() {
+    UploadedSpecsApprovalHandler handler = handlerWithNoS3();
+    ChatEvent.Decision decision =
+        new ChatEvent.Decision(
+            "uploaded-specs-import-proposal:hash",
+            "approve",
+            "Import?",
+            UploadedSpecsApprovalHandler.ARTIFACT_TYPE,
+            "hash",
+            0L,
+            null,
+            List.of(),
+            List.of(ChatEvent.IMPORT_ACTION, "clarify"));
+    ApprovalRecordV2 record =
+        handler.toApprovalRecord(
+            decision,
+            List.of("uploads/a.yaml", "uploads/b.yaml"),
+            Map.of("uploads/a.yaml", "INTERNAL", "uploads/b.yaml", "EXTERNAL"));
+
+    assertEquals(
+        Map.of("uploads/a.yaml", "INTERNAL", "uploads/b.yaml", "EXTERNAL"),
+        record.specSystemTypes());
+  }
+
+  private static UploadedSpecsApprovalHandler handlerWithNoS3() {
+    ConversationService conversationService = mock(ConversationService.class);
+    return new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
   }
 }

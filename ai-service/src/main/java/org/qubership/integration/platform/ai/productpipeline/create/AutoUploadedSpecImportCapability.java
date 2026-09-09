@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -168,19 +169,23 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     }
 
     SkillActivitySupport.bindParents(CAPABILITY_ID);
+    Map<String, String> specSystemTypes =
+        approvalRef.map(ref -> specSystemTypes(context, ref)).orElse(Map.of());
     return Multi.createBy()
         .concatenating()
         .streams(
             Multi.createFrom().item(SkillActivitySupport.running(CAPABILITY_ID)),
-            importAttachments(context, attachments))
+            importAttachments(context, attachments, specSystemTypes))
         .onTermination()
         .invoke((failure, cancelled) -> SkillActivitySupport.clearParents());
   }
 
   private Multi<CapabilitySignal> importAttachments(
-      StageExecutionContext context, List<UploadedSpecAttachment> attachments) {
+      StageExecutionContext context,
+      List<UploadedSpecAttachment> attachments,
+      Map<String, String> specSystemTypes) {
     String conversationId = context.conversationId();
-    String systemType =
+    String fallbackType =
         draftStore
             .get(conversationId)
             .map(RequirementDraft::resolvedPreferredSystemType)
@@ -192,7 +197,11 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             .transformToUniAndMerge(
                 attachment ->
                     catalogMutationGateway
-                        .importUploadedSpec(conversationId, attachment, systemType)
+                        .importUploadedSpec(
+                            conversationId,
+                            attachment,
+                            systemTypeForAttachment(
+                                attachment.s3Key(), specSystemTypes, fallbackType))
                         .onFailure()
                         .recoverWithItem(
                             error -> {
@@ -235,6 +244,28 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
                               StageOutcomeClass.NEEDS_INPUT,
                               "Failed to import uploaded API specifications")));
             });
+  }
+
+  private Map<String, String> specSystemTypes(
+      StageExecutionContext context, CompilationArtifacts.Reference approvalRef) {
+    return artifactStore
+        .get(context.runId(), approvalRef)
+        .map(revision -> artifactStore.payload(revision, ApprovalRecordV2.class))
+        .map(ApprovalRecordV2::specSystemTypes)
+        .filter(map -> map != null && !map.isEmpty())
+        .orElse(Map.of());
+  }
+
+  private static String systemTypeForAttachment(
+      String s3Key, Map<String, String> specSystemTypes, String fallbackType) {
+    if (specSystemTypes == null || specSystemTypes.isEmpty()) {
+      return fallbackType;
+    }
+    String typed = specSystemTypes.get(s3Key);
+    if (typed == null || typed.isBlank()) {
+      return "INTERNAL";
+    }
+    return typed;
   }
 
   private CapabilitySignal.Completed importOutcome(
