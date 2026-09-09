@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.persistence.configs.r
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.*;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementFilterRequestDTO;
@@ -35,6 +36,7 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
     private static final String INTERNAL_ROUTE_TYPE = "Internal";
     private static final String EXTERNAL_ROUTE_TYPE = "External";
     private static final String IMPLEMENTED_SERVICE_TYPE = "IMPLEMENTED";
+    private static final Set<String> ROUTE_TYPES = Set.of(INTERNAL_ROUTE_TYPE, EXTERNAL_ROUTE_TYPE, PRIVATE_ROUTE_TYPE);
     private static final String NAME_PROPERTY = "name";
     private static final String ROLES_PROPERTY = "roles";
     private static final String SYSTEM_TYPE_PROPERTY = "systemType";
@@ -248,7 +250,9 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
 
     private Predicate getInTypePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String[] filterValue) {
         Predicate typePredicate = null;
-        for (String value : filterValue) {
+        for (String rawValue : filterValue) {
+            // The UI sends "External, Private" as one value, so the space has to go before matching.
+            String value = rawValue.trim();
             switch (value) {
                 case INTERNAL_ROUTE_TYPE, EXTERNAL_ROUTE_TYPE -> {
                     Expression<Boolean> externalRouteExpression = getJsonPropertyBooleamExpression(builder, chainElementRoot, EXTERNAL_ROUTE_PROPERTY);
@@ -264,6 +268,8 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
                             : builder.or(typePredicate, builder.equal(privateRouteExpression, true));
 
                 }
+                default -> throw new BadRequestException("Route type " + value
+                        + " is not supported for column TYPE. Supported types: " + new TreeSet<>(ROUTE_TYPES));
             }
         }
         return typePredicate;
@@ -274,8 +280,6 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
     }
 
     private Predicate getIsRolesPredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
-        Expression<Object> jsonbFilterValue = builder.function("to_jsonb", Object.class, builder.literal(filterValue).as(String.class));
-
         Expression<Object> rolesJsonb = builder.function(
                 "jsonb_extract_path",
                 Object.class,
@@ -283,8 +287,10 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
                 builder.literal(ROLES_PROPERTY)
         );
 
+        // to_jsonb() takes anyelement, so Postgres cannot type the bound value and rejects the
+        // whole statement. jsonb_exists() takes text and answers the same question for a role array.
         return builder.isTrue(
-                builder.function("jsonb_contains", Boolean.class, rolesJsonb, jsonbFilterValue)
+                builder.function("jsonb_exists", Boolean.class, rolesJsonb, builder.literal(filterValue))
         );
     }
 

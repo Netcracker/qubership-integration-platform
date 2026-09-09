@@ -3172,6 +3172,11 @@ components:
           items:
             $ref: "#/components/schemas/ImportInstructionResult"
           type: "array"
+        mcpService:
+          description: "List of results by each MCP service"
+          items:
+            $ref: "#/components/schemas/ImportSystemResult"
+          type: "array"
         systems:
           description: "List of results by each service"
           items:

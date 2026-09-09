@@ -160,6 +160,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     () => [
       ...(importResult?.systems ?? []),
       ...(importResult?.contextService ?? []),
+      ...(importResult?.mcpService ?? []),
     ],
     [importResult],
   );
@@ -337,6 +338,14 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       if (importStatus.done) {
         setLoading(false);
         setProgress(100);
+        if (importStatus.error) {
+          notificationService.errorWithDetails(
+            "Import failed",
+            importStatus.error,
+            importStatus.error,
+          );
+          return;
+        }
         setImportResult(importStatus.result);
         // A small delay is added only to show a nice 100% progress bar.
         setTimeout(() => setStep(3), 500);

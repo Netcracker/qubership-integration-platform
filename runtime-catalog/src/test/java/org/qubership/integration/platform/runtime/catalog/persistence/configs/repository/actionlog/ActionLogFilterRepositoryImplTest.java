@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -133,6 +135,25 @@ class ActionLogFilterRepositoryImplTest {
 
         assertThat(result).containsExactly(log);
         verify(criteriaBuilder).equal(entityIdPath, "entity-1");
+    }
+
+    @Test
+    @DisplayName("A value outside the column's enum is rejected instead of escaping as a 500")
+    void findActionLogsByFilterRejectsValueOutsideEnum() {
+        ActionLogFilterRequestDTO filter = new ActionLogFilterRequestDTO();
+        filter.setColumn(ActionLogFilterColumn.ENTITY_TYPE);
+        filter.setCondition(FilterCondition.IN);
+        filter.setValue("NO_SUCH_TYPE");
+
+        when(entityManager.getCriteriaBuilder()).thenReturn(criteriaBuilder);
+        when(criteriaBuilder.createQuery(ActionLog.class)).thenReturn(criteriaQuery);
+        when(criteriaQuery.from(ActionLog.class)).thenReturn(root);
+        when(root.get("entityType")).thenReturn(entityIdPath);
+
+        assertThatThrownBy(() -> repository.findActionLogsByFilter(0, 100, List.of(filter)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("NO_SUCH_TYPE")
+                .hasMessageContaining("CHAIN");
     }
 
     private void stubEmptyFilterQuery() {

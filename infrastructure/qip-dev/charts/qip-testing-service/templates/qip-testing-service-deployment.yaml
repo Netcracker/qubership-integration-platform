@@ -77,6 +77,11 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            timeoutSeconds: 5
           name: {{ .Release.Name }}-testing-service
           ports:
             - containerPort: 8080

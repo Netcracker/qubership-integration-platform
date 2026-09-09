@@ -10,8 +10,12 @@
 #   2. parent/pom.xml <revision> == root pom <revision>
 #   3. every child's <parent><version> == parent/pom.xml <version>
 #   4. runtime-catalog's library pin == integration-build-pipeline's <revision>,
-#      so a reactor build resolves the library from source
-#   5. every qip-checkstyle pin == checkstyle's <revision>
+#      so a reactor build resolves the library from source (the dependency
+#      appends ${changelist}, so the pin names the release and the build the
+#      development coordinate)
+#   5. every qip-checkstyle pin == checkstyle's <revision>. No changelist there
+#      on purpose: checkstyle is a plugin dependency, never in a module's
+#      reactor, so its pin always names a published release.
 #
 # Deliberately NOT checked: that the backend services share one <revision>. That
 # is a postcondition of a full release-all wave, not a property at rest — a

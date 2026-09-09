@@ -3,12 +3,12 @@
   <modelVersion>4.0.0</modelVersion>
 
   <artifactId>qip-integration-build-pipeline</artifactId>
-  <!-- No changelist suffix: the revision below is a RELEASED version, and it is also what the working tree
-       builds — that is what lets runtime-catalog's pin resolve this module from the reactor. Two consequences
-       worth knowing: between releases the same coordinate names different bytes (a PR builds from source, a
-       release resolves the published jar), and a local `mvn install` overwrites the published artifact in
-       ~/.m2. -->
-  <version>${revision}</version>
+  <!-- Between releases the working tree is a SNAPSHOT, so the coordinate never names bytes that a published
+       release already claims. The revision property below holds the last released version (bump-before),
+       which makes 1.2.3-SNAPSHOT the in-development successor of 1.2.3. runtime-catalog pins that revision and
+       appends the same changelist, so a reactor build resolves this module from source. A release passes
+       -Dchangelist= on both sides and publishes the bare version. -->
+  <version>${revision}${changelist}</version>
   <packaging>jar</packaging>
 
   <name>QIP Integration Build Pipeline</name>
@@ -30,6 +30,7 @@
 
   <properties>
     <revision>1.2.3</revision>
+    <changelist>-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

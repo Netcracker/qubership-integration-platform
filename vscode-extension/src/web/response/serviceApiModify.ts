@@ -122,9 +122,9 @@ export async function updateService(
     );
     service.content.integrationSystemType = serviceRequest.type;
   }
-  if (serviceRequest.protocol !== undefined) {
-    service.content.protocol = serviceRequest.protocol.toUpperCase();
-  }
+  // No protocol here, matching the catalog's SystemRequestDTO. The UI spreads the whole service
+  // into this request, so taking it back would overwrite a stored SOAP with the `http` the read
+  // reports. Specification import sets it.
   if (serviceRequest.extendedProtocol !== undefined) {
     service.content.extendedProtocol = serviceRequest.extendedProtocol;
   }
