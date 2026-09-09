@@ -61,6 +61,36 @@ class ClasspathQipKnowledgePackRepositoryTest {
   }
 
   @Test
+  void loadManifestReadsClasspathOnce() {
+    QipKnowledgePackVersion version = new QipKnowledgePackVersion("test_v1", "test_v1");
+    java.util.concurrent.atomic.AtomicInteger opens = new java.util.concurrent.atomic.AtomicInteger();
+    ClassLoader delegate = new TestResourceClassLoader(version);
+    ClassLoader classLoader =
+        new ClassLoader(null) {
+          @Override
+          public java.io.InputStream getResourceAsStream(String name) {
+            opens.incrementAndGet();
+            return delegate.getResourceAsStream(name);
+          }
+        };
+    ClasspathQipKnowledgePackRepository repository =
+        new ClasspathQipKnowledgePackRepository(
+            version, classLoader, new ObjectMapper().registerModule(new JavaTimeModule()));
+
+    repository.loadManifest();
+    int afterFirstManifest = opens.get();
+    repository.loadManifest();
+    assertEquals(afterFirstManifest, opens.get());
+
+    repository.loadCapabilityRegistry();
+    int afterFirstRegistry = opens.get();
+    repository.loadCapabilityRegistry();
+    assertTrue(afterFirstManifest > 0);
+    assertTrue(afterFirstRegistry > afterFirstManifest);
+    assertEquals(afterFirstRegistry, opens.get());
+  }
+
+  @Test
   void failsFastWhenClasspathResourceIsMissing() {
     ClasspathQipKnowledgePackRepository repository =
         new ClasspathQipKnowledgePackRepository(new QipKnowledgePackVersion("missing", "missing"));

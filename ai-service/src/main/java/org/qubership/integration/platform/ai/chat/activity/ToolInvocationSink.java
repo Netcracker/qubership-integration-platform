@@ -69,6 +69,21 @@ public final class ToolInvocationSink {
   }
 
   public static void unbind() {
+    unbindThreadLocals(true);
+  }
+
+  /**
+   * Drops the conversation map entry even when this thread did not call {@link #bind}. Chat SSE
+   * termination can run on a different thread than the binder.
+   */
+  public static void unbind(String conversationId) {
+    if (conversationId != null && !conversationId.isBlank()) {
+      BY_CONVERSATION.remove(conversationId.trim());
+    }
+    unbindThreadLocals(false);
+  }
+
+  private static void unbindThreadLocals(boolean removeConversation) {
     int depth = bindDepth() - 1;
     if (depth > 0) {
       BIND_DEPTH.set(depth);
@@ -78,10 +93,10 @@ public final class ToolInvocationSink {
     BIND_DEPTH.remove();
     NESTED_PREVIOUS.remove();
     String registered = REGISTERED_CONVERSATION_ID.get();
-    if (registered != null) {
+    if (removeConversation && registered != null) {
       BY_CONVERSATION.remove(registered);
-      REGISTERED_CONVERSATION_ID.remove();
     }
+    REGISTERED_CONVERSATION_ID.remove();
     THREAD_BINDING.remove();
     THREAD_CONTEXT.remove();
     SUBSCRIBE_PATH_CONTEXT.remove();

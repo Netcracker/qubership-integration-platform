@@ -7,6 +7,8 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.time.temporal.ChronoUnit;
+import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
@@ -18,6 +20,7 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 @RegisterProvider(ApiHubOutboundLoggingFilter.class)
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
+@Timeout(value = 10, unit = ChronoUnit.SECONDS)
 public interface ApiHubMcpClient {
 
   /** POST JSON-RPC request to the configured MCP base URL (e.g. {@code .../api/v1/mcp/}). */

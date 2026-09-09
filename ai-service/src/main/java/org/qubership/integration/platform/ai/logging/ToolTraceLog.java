@@ -12,7 +12,12 @@ public final class ToolTraceLog {
 
   private ToolTraceLog() {}
 
+  static volatile Boolean logToolsOverride;
+
   public static boolean logToolsVerbose() {
+    if (logToolsOverride != null) {
+      return logToolsOverride;
+    }
     return ConfigProvider.getConfig()
         .getOptionalValue(CFG_LOG_TOOLS, Boolean.class)
         .orElse(true);
@@ -21,6 +26,9 @@ public final class ToolTraceLog {
   public static void logToolInvoke(
       Logger log, String toolName, String conversationId, String argsPreview) {
     ToolInvocationSink.onInvoke(toolName);
+    if (!logToolsVerbose()) {
+      return;
+    }
     String preview = formatArgsPreview(argsPreview);
     if (conversationId != null && !conversationId.isBlank()) {
       log.infof(
@@ -34,6 +42,9 @@ public final class ToolTraceLog {
   public static void logToolComplete(
       Logger log, String toolName, String conversationId, long durationMs, String resultPreview) {
     ToolInvocationSink.onComplete(toolName);
+    if (!logToolsVerbose()) {
+      return;
+    }
     String preview = AiTraceLog.preview(resultPreview, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS);
     if (conversationId != null && !conversationId.isBlank()) {
       if (durationMs >= 0) {

@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -27,6 +29,7 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
   private final QipKnowledgePackVersion activeVersion;
   private final ClassLoader classLoader;
   private final ObjectMapper objectMapper;
+  private final ConcurrentHashMap<String, Object> jsonByFile = new ConcurrentHashMap<>();
 
   public ClasspathQipKnowledgePackRepository(QipKnowledgePackVersion activeVersion) {
     this(
@@ -106,33 +109,41 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
 
   @Override
   public List<UnsupportedQipKnowledgeItem> loadUnsupportedItems() {
-    try {
-      return objectMapper.readValue(
-          readResource(QipKnowledgePackIndexLoader.UNSUPPORTED_ITEMS_FILE),
-          new TypeReference<List<UnsupportedQipKnowledgeItem>>() {});
-    } catch (IOException e) {
-      throw new IllegalStateException(
-          "Failed to load unsupported QIP knowledge items for version "
-              + activeVersion.normalized(),
-          e);
-    }
+    return cachedJson(
+        QipKnowledgePackIndexLoader.UNSUPPORTED_ITEMS_FILE,
+        () -> {
+          try {
+            return objectMapper.readValue(
+                readResource(QipKnowledgePackIndexLoader.UNSUPPORTED_ITEMS_FILE),
+                new TypeReference<List<UnsupportedQipKnowledgeItem>>() {});
+          } catch (IOException e) {
+            throw new IllegalStateException(
+                "Failed to load unsupported QIP knowledge items for version "
+                    + activeVersion.normalized(),
+                e);
+          }
+        });
   }
 
   @Override
   public List<String> loadRuntimePromotedSkillIds() {
-    try {
-      String resourcePath =
-          CLASSPATH_ROOT
-              + activeVersion.normalized()
-              + "/"
-              + QipKnowledgePackIndexLoader.RUNTIME_PROMOTED_SKILLS_FILE;
-      try (InputStream stream =
-          QipKnowledgePackIndexLoader.openClasspathResource(classLoader, resourcePath)) {
-        return objectMapper.readValue(stream, new TypeReference<List<String>>() {});
-      }
-    } catch (IOException e) {
-      return List.of();
-    }
+    return cachedJson(
+        QipKnowledgePackIndexLoader.RUNTIME_PROMOTED_SKILLS_FILE,
+        () -> {
+          try {
+            String resourcePath =
+                CLASSPATH_ROOT
+                    + activeVersion.normalized()
+                    + "/"
+                    + QipKnowledgePackIndexLoader.RUNTIME_PROMOTED_SKILLS_FILE;
+            try (InputStream stream =
+                QipKnowledgePackIndexLoader.openClasspathResource(classLoader, resourcePath)) {
+              return objectMapper.readValue(stream, new TypeReference<List<String>>() {});
+            }
+          } catch (IOException e) {
+            return List.of();
+          }
+        });
   }
 
   @Override
@@ -191,16 +202,25 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
   }
 
   private <T> T readJson(String fileName, Class<T> type) {
-    try {
-      return objectMapper.readValue(readResource(fileName), type);
-    } catch (IOException e) {
-      throw new IllegalStateException(
-          "Failed to load QIP knowledge index "
-              + fileName
-              + " for version "
-              + activeVersion.normalized(),
-          e);
-    }
+    return cachedJson(
+        fileName,
+        () -> {
+          try {
+            return objectMapper.readValue(readResource(fileName), type);
+          } catch (IOException e) {
+            throw new IllegalStateException(
+                "Failed to load QIP knowledge index "
+                    + fileName
+                    + " for version "
+                    + activeVersion.normalized(),
+                e);
+          }
+        });
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T> T cachedJson(String fileName, Supplier<T> loader) {
+    return (T) jsonByFile.computeIfAbsent(fileName, name -> loader.get());
   }
 
   private String readResource(String fileName) throws IOException {

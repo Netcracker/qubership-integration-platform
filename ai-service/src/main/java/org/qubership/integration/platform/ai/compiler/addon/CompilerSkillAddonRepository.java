@@ -26,6 +26,7 @@ public class CompilerSkillAddonRepository {
   private final Path filesystemBaseDir;
   private final ClassLoader classLoader;
   private final ObjectMapper objectMapper;
+  private volatile CompilerSkillAddonIndex cachedIndex;
 
   @Inject
   public CompilerSkillAddonRepository(QipKnowledgePackRepository repository) {
@@ -90,6 +91,20 @@ public class CompilerSkillAddonRepository {
   }
 
   private CompilerSkillAddonIndex loadIndex() {
+    CompilerSkillAddonIndex cached = cachedIndex;
+    if (cached != null) {
+      return cached;
+    }
+    synchronized (this) {
+      if (cachedIndex != null) {
+        return cachedIndex;
+      }
+      cachedIndex = readIndex();
+      return cachedIndex;
+    }
+  }
+
+  private CompilerSkillAddonIndex readIndex() {
     try {
       if (filesystemBaseDir != null) {
         Path indexFile = addonsDir().resolve(CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE);

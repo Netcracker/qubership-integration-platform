@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.plan.ChainPlanRepairDraftStore;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspaceStore;
+import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 
 /**
  * Single entry point for Edit/Regenerate/Clear turn resets: truncate or clear transcript messages
@@ -45,6 +46,7 @@ public class ConversationTurnReset {
   private final ConversationEvidenceStore conversationEvidenceStore;
   private final PinnedFailureStore pinnedFailureStore;
   private final LastAssistantTurnStore lastAssistantTurnStore;
+  private final ConversationApiHubCache conversationApiHubCache;
 
   @Inject
   ConversationTurnReset(
@@ -60,7 +62,8 @@ public class ConversationTurnReset {
       ConversationCatalogCache conversationCatalogCache,
       ConversationEvidenceStore conversationEvidenceStore,
       PinnedFailureStore pinnedFailureStore,
-      LastAssistantTurnStore lastAssistantTurnStore) {
+      LastAssistantTurnStore lastAssistantTurnStore,
+      ConversationApiHubCache conversationApiHubCache) {
     this.conversationService = conversationService;
     this.chatMemoryStore = chatMemoryStore;
     this.workspaceStore = workspaceStore;
@@ -74,6 +77,7 @@ public class ConversationTurnReset {
     this.conversationEvidenceStore = conversationEvidenceStore;
     this.pinnedFailureStore = pinnedFailureStore;
     this.lastAssistantTurnStore = lastAssistantTurnStore;
+    this.conversationApiHubCache = conversationApiHubCache;
   }
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
@@ -118,6 +122,7 @@ public class ConversationTurnReset {
     requirementDraftStore.clearTurnFlags(conversationId);
 
     workspaceStore.clear(conversationId);
+    conversationApiHubCache.clear(conversationId);
   }
 
   private void clearChatMemory(String conversationId, Set<String> completedSkillIds) {

@@ -34,6 +34,9 @@ public interface AppConfig {
   @WithName("create")
   CreateConfig create();
 
+  @WithName("conversation")
+  ConversationConfig conversation();
+
   /**
    * Runtime A2A rollout flag. Default false. When false, A2A discovery and invocation return a
    * deliberate disabled response; browser chat and persisted Task rows stay intact.
@@ -119,6 +122,12 @@ public interface AppConfig {
     @WithName("dispatch-renew-workers")
     @WithDefault("4")
     int dispatchRenewWorkers();
+  }
+
+  interface ConversationConfig {
+    @WithName("idle-timeout")
+    @WithDefault("PT1H")
+    java.time.Duration idleTimeout();
   }
 
   interface CreateConfig {

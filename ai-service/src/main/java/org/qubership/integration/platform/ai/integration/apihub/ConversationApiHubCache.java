@@ -1,8 +1,13 @@
 package org.qubership.integration.platform.ai.integration.apihub;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
 /**
@@ -15,8 +20,23 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
 @ApplicationScoped
 public class ConversationApiHubCache {
 
-  private final ConcurrentHashMap<String, ApiHubRequirementRefs> byConversation =
-      new ConcurrentHashMap<>();
+  private static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofHours(1);
+
+  private final Cache<String, ApiHubRequirementRefs> byConversation;
+
+  public ConversationApiHubCache() {
+    this(DEFAULT_IDLE_TIMEOUT, Ticker.systemTicker());
+  }
+
+  @Inject
+  public ConversationApiHubCache(AppConfig appConfig) {
+    this(appConfig.conversation().idleTimeout(), Ticker.systemTicker());
+  }
+
+  ConversationApiHubCache(Duration idleTimeout, Ticker ticker) {
+    this.byConversation =
+        Caffeine.newBuilder().expireAfterAccess(idleTimeout).ticker(ticker).build();
+  }
 
   public void rememberCandidate(String conversationId, ApiHubRequirementRefs refs) {
     String cid = CatalogStrings.blankToNull(conversationId);
@@ -31,13 +51,18 @@ public class ConversationApiHubCache {
     if (cid == null) {
       return Optional.empty();
     }
-    return Optional.ofNullable(byConversation.get(cid)).filter(ApiHubRequirementRefs::hasImportableRefs);
+    return Optional.ofNullable(byConversation.getIfPresent(cid))
+        .filter(ApiHubRequirementRefs::hasImportableRefs);
   }
 
   public void clear(String conversationId) {
     String cid = CatalogStrings.blankToNull(conversationId);
     if (cid != null) {
-      byConversation.remove(cid);
+      byConversation.invalidate(cid);
     }
+  }
+
+  void cleanUp() {
+    byConversation.cleanUp();
   }
 }

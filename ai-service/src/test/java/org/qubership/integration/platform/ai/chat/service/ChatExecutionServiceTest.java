@@ -602,6 +602,39 @@ class ChatExecutionServiceTest {
   }
 
   @Test
+  void successfulTurnDoesNotLoadRunForTrace() {
+    ProductPipelineRunStore isolated = mock(ProductPipelineRunStore.class);
+    ProductPipelineRunStore previous = runStore;
+    runStore = isolated;
+    try {
+      ScenarioRouter router = mock(ScenarioRouter.class);
+      when(router.route(any(), anyString()))
+          .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));
+      ChatDecisionService decisions = mock(ChatDecisionService.class);
+      when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+      ChatRequest request = new ChatRequest();
+      request.setConversationId("conv-no-trace-io");
+      request.setMessage("hello");
+
+      service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+      verify(isolated, never()).loadByConversation(anyString());
+    } finally {
+      runStore = previous;
+    }
+  }
+
+  @Test
+  void describeActiveRunForTraceReturnsRunId() {
+    ProductPipelineRunDocument created = createRun("run-trace-run-id");
+
+    assertEquals(
+        "run-trace-run-id",
+        ChatExecutionService.describeActiveRunForTrace(CONVERSATION_ID, runStore));
+    assertEquals(created.run().runId(), "run-trace-run-id");
+  }
+
+  @Test
   void chatTraceReadsProductRunWithoutLegacyBundleStore() {
     ProductPipelineRunDocument created = createRun("run-trace-1");
     appendGraph(created.run().runId(), sampleGraph("Greetings"));
