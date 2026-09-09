@@ -472,6 +472,9 @@ public class ChatExecutionService {
     if (decision.recovery() != null) {
       payload.put("recovery", decision.recovery());
     }
+    if (!decision.specs().isEmpty()) {
+      payload.put("specs", decision.specs());
+    }
     return payload;
   }
 

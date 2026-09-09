@@ -1,6 +1,10 @@
-import { Button, Input, List, Space, Typography } from "antd";
+import { Button, Input, List, Radio, Space, Typography } from "antd";
 import React, { useId, useRef, useState } from "react";
-import type { ChatDecision } from "../../ai/modelProviders/types.ts";
+import type {
+  CatalogSystemType,
+  ChatDecision,
+  ChatDecisionSpec,
+} from "../../ai/modelProviders/types.ts";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 import {
   decisionCardText,
@@ -22,6 +26,7 @@ const ACTION_LABELS: Record<string, string> = {
   "import-specification": "Import specification",
   "import-specification-internal": "Import as internal",
   "import-specification-external": "Import as external",
+  clarify: "Clarify",
   "request-changes": "Request changes",
   "deploy-chain": "Deploy",
   "cancel-deploy": "Not now",
@@ -113,6 +118,40 @@ function labeledActions(actions: string[]): string[] {
   return actions.filter((action) => ACTION_LABELS[action] !== undefined);
 }
 
+const LEGACY_IMPORT_ACTIONS = new Set([
+  "import-specification",
+  "import-specification-internal",
+  "import-specification-external",
+]);
+
+function defaultSpecSystemType(spec: ChatDecisionSpec): CatalogSystemType {
+  return spec.systemType === "EXTERNAL" ? "EXTERNAL" : "INTERNAL";
+}
+
+function initialSpecSystemTypes(
+  specs: ChatDecisionSpec[],
+): Record<string, CatalogSystemType> {
+  return Object.fromEntries(
+    specs.map((spec) => [spec.s3Key, defaultSpecSystemType(spec)]),
+  );
+}
+
+function perSpecImportActions(actions: string[]): string[] {
+  const rest = labeledActions(actions).filter(
+    (action) => !LEGACY_IMPORT_ACTIONS.has(action),
+  );
+  return ["import-specification", ...rest];
+}
+
+function specSystemTypesMap(
+  specs: ChatDecisionSpec[],
+  selected: Record<string, CatalogSystemType>,
+): Record<string, CatalogSystemType> {
+  return Object.fromEntries(
+    specs.map((spec) => [spec.s3Key, selected[spec.s3Key] ?? "INTERNAL"]),
+  );
+}
+
 function commentPlaceholder(
   isMappingGapClarify: boolean,
   isFreeTextClarify: boolean,
@@ -142,8 +181,12 @@ function answeredLabel(decision: ChatDecision): string {
 
 export interface AiDecisionCardProps {
   decision: ChatDecision;
-  /** Invoked with the clicked action and the (possibly empty) comment. Used for kind === "approve". */
-  onAnswer: (action: string, comment: string) => void;
+  /** Invoked with the clicked action, optional comment, and per-spec types on Import. */
+  onAnswer: (
+    action: string,
+    comment: string,
+    specSystemTypes?: Record<string, CatalogSystemType>,
+  ) => void;
   /**
    * Invoked with the typed text for kind === "clarify". The caller sends it as an ordinary chat
    * message rather than a decision command, since a clarification has no enumerable answer.
@@ -177,9 +220,14 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
     !decision.recovery &&
     !blankClarifyHalt;
   const answeredAction = decision.answeredAction;
+  const specRows = decision.specs ?? [];
+  const usePerSpecImport = specRows.length > 0;
   const titleId = useId();
   const summaryId = useId();
   const [text, setText] = useState("");
+  const [specTypes, setSpecTypes] = useState<Record<string, CatalogSystemType>>(
+    () => initialSpecSystemTypes(specRows),
+  );
   // Guards against a double click sending the answer twice before `busy` catches up.
   const clickedRef = useRef(false);
   const disabled = busy || stale || answeredAction !== undefined;
@@ -196,6 +244,10 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
     clickedRef.current = true;
     if (isClarify && !COMMAND_ACTIONS.has(action)) {
       onSubmitClarification?.(action);
+      return;
+    }
+    if (usePerSpecImport && action === "import-specification") {
+      onAnswer(action, text.trim(), specSystemTypesMap(specRows, specTypes));
       return;
     }
     onAnswer(action, text.trim());
@@ -347,6 +399,36 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         </Typography.Text>
       ) : (
         <>
+          {usePerSpecImport ? (
+            <div className="ai-decision-card__specs">
+              {specRows.map((spec) => (
+                <div className="ai-decision-card__spec-row" key={spec.s3Key}>
+                  <Typography.Text className="ai-decision-card__spec-name">
+                    {spec.displayName}
+                  </Typography.Text>
+                  <Radio.Group
+                    size="small"
+                    optionType="button"
+                    buttonStyle="solid"
+                    disabled={disabled}
+                    aria-label={`Catalog system type for ${spec.displayName}`}
+                    value={specTypes[spec.s3Key] ?? "INTERNAL"}
+                    options={[
+                      { label: "Internal", value: "INTERNAL" },
+                      { label: "External", value: "EXTERNAL" },
+                    ]}
+                    onChange={(event) => {
+                      const value = event.target.value as CatalogSystemType;
+                      setSpecTypes((current) => ({
+                        ...current,
+                        [spec.s3Key]: value,
+                      }));
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null}
           {showTextArea ? (
             <Input.TextArea
               className="ai-decision-card__comment"
@@ -379,7 +461,10 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                 Submit
               </Button>
             ) : (
-              labeledActions(decision.actions).map((action) => (
+              (usePerSpecImport
+                ? perSpecImportActions(decision.actions)
+                : labeledActions(decision.actions)
+              ).map((action) => (
                 <Button
                   key={action}
                   size="small"
@@ -390,7 +475,9 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                   }
                   onClick={() => handleClick(action)}
                 >
-                  {actionLabel(action)}
+                  {usePerSpecImport && action === "import-specification"
+                    ? "Import"
+                    : actionLabel(action)}
                 </Button>
               ))
             )}

@@ -26,6 +26,7 @@ import { getConfig } from "../../appConfig.ts";
 import { getDefaultAiProvider } from "../../ai/config.ts";
 import { getAiServiceUrl } from "../../ai/appConfig.ts";
 import type {
+  CatalogSystemType,
   ChatDecision,
   ChatMessage,
   ChatRequest,
@@ -924,7 +925,12 @@ export const AiAssistant: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const handleDecisionAnswer = useCallback(
-    async (decision: ChatDecision, action: string, comment: string) => {
+    async (
+      decision: ChatDecision,
+      action: string,
+      comment: string,
+      specSystemTypes?: Record<string, CatalogSystemType>,
+    ) => {
       if (!currentSessionId || sendInProgressRef.current) return;
       resumeFollowing();
       const session = sessionStore.getSession(currentSessionId);
@@ -951,6 +957,7 @@ export const AiAssistant: React.FC = () => {
           artifactHash: decision.artifactHash,
           revision: decision.revision,
           comment: comment || undefined,
+          ...(specSystemTypes === undefined ? {} : { specSystemTypes }),
         },
       );
     },
@@ -1635,11 +1642,12 @@ export const AiAssistant: React.FC = () => {
                               decision={message.decision}
                               busy={isLoading || isStreaming}
                               onStartSameTask={handleStartSameTask}
-                              onAnswer={(action, comment) =>
+                              onAnswer={(action, comment, specSystemTypes) =>
                                 void handleDecisionAnswer(
                                   message.decision!,
                                   action,
                                   comment,
+                                  specSystemTypes,
                                 )
                               }
                               onSubmitClarification={(text) =>

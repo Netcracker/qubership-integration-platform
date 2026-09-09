@@ -1,6 +1,10 @@
 import { Button, Tooltip, Typography } from "antd";
 import React from "react";
-import type { ChatDecision, ChatMessage } from "../../ai/modelProviders/types.ts";
+import type {
+  CatalogSystemType,
+  ChatDecision,
+  ChatMessage,
+} from "../../ai/modelProviders/types.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
@@ -30,6 +34,7 @@ export interface AiChatMessageListProps {
     decision: ChatDecision,
     action: string,
     comment: string,
+    specSystemTypes?: Record<string, CatalogSystemType>,
   ) => void;
 }
 
@@ -95,8 +100,13 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
                   <AiDecisionCard
                     decision={message.decision}
                     busy={isLoading || isStreaming}
-                    onAnswer={(action, comment) =>
-                      onDecisionAnswer(message.decision!, action, comment)
+                    onAnswer={(action, comment, specSystemTypes) =>
+                      onDecisionAnswer(
+                        message.decision!,
+                        action,
+                        comment,
+                        specSystemTypes,
+                      )
                     }
                   />
                 ) : null}

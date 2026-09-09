@@ -550,7 +550,13 @@ public class ChatDecisionService {
             List.of(),
             List.of("approve", "clarify"));
     uploadedSpecsApprovalHandler.appendApprovalRecord(
-        runIdFor(conversationId), conversationId, decision, "user", artifactStore);
+        runIdFor(conversationId),
+        conversationId,
+        decision,
+        "user",
+        action,
+        command.getSpecSystemTypes(),
+        artifactStore);
     LOG.infof(
         "Approved uploaded-specs import conversationId=%s runId=%s",
         conversationId, runIdFor(conversationId));

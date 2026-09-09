@@ -128,7 +128,7 @@ class AutoUploadedSpecImportCapabilityTest {
   }
 
   @Test
-  void importsWithPreferredExternalSystemType() {
+  void importsEachAttachmentWithApprovalSystemType() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
     ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
@@ -144,14 +144,119 @@ class AutoUploadedSpecImportCapabilityTest {
             handler,
             mock(CatalogBindingMatcher.class),
             draftStore);
-    RequirementDraft draft = draft().withPreferredSystemType("EXTERNAL");
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
-        .thenReturn(List.of("uploads/orders-api.yaml"));
+        .thenReturn(List.of("uploads/orders-api.yaml", "uploads/partner-events.yaml"));
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), any()))
+        .thenAnswer(
+            invocation -> {
+              UploadedSpecAttachment attachment = invocation.getArgument(1);
+              return Uni.createFrom()
+                  .item(
+                      new UploadedSpecImportOutcome(
+                          attachment.s3Key(), "sys", "group", "spec", false));
+            });
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(
+        artifactStore,
+        approvalRef,
+        handler.attachmentHash("conv-1"),
+        List.of(),
+        Map.of(
+            "uploads/orders-api.yaml", "INTERNAL",
+            "uploads/partner-events.yaml", "EXTERNAL"));
+
+    CapabilitySignal.Completed completed =
+        run(capability, draft().withPreferredSystemType("EXTERNAL"), List.of(approvalRef));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL"));
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/partner-events.yaml", "partner-events.yaml")),
+            eq("EXTERNAL"));
+  }
+
+  @Test
+  void importsBothAttachmentsAsExternalWhenApprovalHasNoMap() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
+    draftStore.put("conv-1", draft().withPreferredSystemType("EXTERNAL"));
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway,
+            conversationService,
+            artifactStore,
+            handler,
+            mock(CatalogBindingMatcher.class),
+            draftStore);
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/orders-api.yaml", "uploads/partner-events.yaml"));
     when(gateway.importUploadedSpec(
             eq("conv-1"), any(UploadedSpecAttachment.class), eq("EXTERNAL")))
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    CapabilitySignal.Completed completed =
+        run(capability, draft().withPreferredSystemType("EXTERNAL"), List.of(approvalRef));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("EXTERNAL"));
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/partner-events.yaml", "partner-events.yaml")),
+            eq("EXTERNAL"));
+  }
+
+  @Test
+  void succeedsWhenOneImportFailsAndAnotherSucceeds() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway,
+            conversationService,
+            artifactStore,
+            handler,
+            mock(CatalogBindingMatcher.class),
+            mock(RequirementDraftStore.class));
+    RequirementDraft draft = draft();
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/orders-api.yaml", "uploads/partner-events.yaml"));
+    when(gateway.importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL")))
+        .thenReturn(Uni.createFrom().failure(new RuntimeException("import failed")));
+    when(gateway.importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/partner-events.yaml", "partner-events.yaml")),
+            eq("INTERNAL")))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new UploadedSpecImportOutcome(
+                        "uploads/partner-events.yaml", "sys", "group", "spec", false)));
     CompilationArtifacts.Reference approvalRef = approvalRef();
     stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
 
@@ -162,7 +267,12 @@ class AutoUploadedSpecImportCapabilityTest {
         .importUploadedSpec(
             eq("conv-1"),
             eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
-            eq("EXTERNAL"));
+            eq("INTERNAL"));
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/partner-events.yaml", "partner-events.yaml")),
+            eq("INTERNAL"));
   }
 
   @Test
@@ -852,6 +962,15 @@ class AutoUploadedSpecImportCapabilityTest {
       CompilationArtifacts.Reference approvalRef,
       String hash,
       List<String> attachmentKeys) {
+    stubApprovedRecord(artifactStore, approvalRef, hash, attachmentKeys, Map.of());
+  }
+
+  private static void stubApprovedRecord(
+      ProductPipelineArtifactStore artifactStore,
+      CompilationArtifacts.Reference approvalRef,
+      String hash,
+      List<String> attachmentKeys,
+      Map<String, String> specSystemTypes) {
     CompilationArtifacts.Revision revision = mock(CompilationArtifacts.Revision.class);
     when(artifactStore.get("run-1", approvalRef)).thenReturn(Optional.of(revision));
     when(artifactStore.payload(revision, ApprovalRecordV2.class))
@@ -874,7 +993,8 @@ class AutoUploadedSpecImportCapabilityTest {
                 null,
                 null,
                 null,
-                attachmentKeys));
+                attachmentKeys,
+                specSystemTypes));
   }
 
   private static CompilationArtifacts.Reference approvalRef() {

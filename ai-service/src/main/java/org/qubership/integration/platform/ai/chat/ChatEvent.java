@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.chat;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.chat.activity.ActivityDisplayLabels;
@@ -180,6 +181,9 @@ public sealed interface ChatEvent {
   record Step(String id, String kind, String status, String label, String parentId)
       implements ChatEvent {}
 
+  /** One uploaded specification listed on the import decision card. */
+  record UploadedSpecItem(String s3Key, String displayName) {}
+
   /**
    * A gate the run stopped at, rendered as a card in the transcript (rendered as {@code event:
    * decision}).
@@ -199,7 +203,8 @@ public sealed interface ChatEvent {
       String reason,
       List<String> missingEvidence,
       List<String> actions,
-      RecoveryPresentation recovery)
+      RecoveryPresentation recovery,
+      @JsonInclude(JsonInclude.Include.NON_EMPTY) List<UploadedSpecItem> specs)
       implements ChatEvent {
 
     public Decision(
@@ -222,12 +227,39 @@ public sealed interface ChatEvent {
           reason,
           missingEvidence,
           actions,
-          null);
+          null,
+          List.of());
+    }
+
+    public Decision(
+        String id,
+        String kind,
+        String question,
+        String artifactType,
+        String artifactHash,
+        long revision,
+        String reason,
+        List<String> missingEvidence,
+        List<String> actions,
+        RecoveryPresentation recovery) {
+      this(
+          id,
+          kind,
+          question,
+          artifactType,
+          artifactHash,
+          revision,
+          reason,
+          missingEvidence,
+          actions,
+          recovery,
+          List.of());
     }
 
     public Decision {
       missingEvidence = missingEvidence == null ? List.of() : List.copyOf(missingEvidence);
       actions = actions == null ? List.of() : List.copyOf(actions);
+      specs = specs == null ? List.of() : List.copyOf(specs);
     }
   }
 

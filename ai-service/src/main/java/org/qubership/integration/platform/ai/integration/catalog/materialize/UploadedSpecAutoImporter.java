@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecTitleExtractor;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -23,6 +24,7 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 @ApplicationScoped
 public class UploadedSpecAutoImporter {
 
+  private static final Logger LOG = Logger.getLogger(UploadedSpecAutoImporter.class);
   private static final String DEFAULT_ENVIRONMENT = "default";
   private static final String SYSTEM_TYPE_INTERNAL = "INTERNAL";
 
@@ -57,7 +59,17 @@ public class UploadedSpecAutoImporter {
     String catalogSystemType =
         system.type() == null || system.type().isBlank()
             ? SYSTEM_TYPE_INTERNAL
-            : system.type();
+            : system.type().trim().toUpperCase(Locale.ROOT);
+    String requestedType =
+        systemType == null || systemType.isBlank()
+            ? SYSTEM_TYPE_INTERNAL
+            : systemType.trim().toUpperCase(Locale.ROOT);
+    boolean typeMismatchOnReuse = !catalogSystemType.equals(requestedType);
+    if (typeMismatchOnReuse) {
+      LOG.warnf(
+          "Reused catalog system %s keeps type %s; import requested %s conversationId=%s s3Key=%s",
+          system.id(), catalogSystemType, requestedType, conversationId, attachment.s3Key());
+    }
     ensureDefaultEnvironment(system.id(), catalogSystemType);
 
     Optional<CatalogRestClient.SpecificationGroupDto> existingGroup =
@@ -99,7 +111,12 @@ public class UploadedSpecAutoImporter {
                 specificationId, specName, specificationGroupId, system.id())));
 
     return new UploadedSpecImportOutcome(
-        attachment.s3Key(), system.id(), specificationGroupId, specificationId, reused);
+        attachment.s3Key(),
+        system.id(),
+        specificationGroupId,
+        specificationId,
+        reused,
+        typeMismatchOnReuse);
   }
 
   private CatalogRestClient.SystemDto findOrCreateSystem(String baseName, String systemType) {

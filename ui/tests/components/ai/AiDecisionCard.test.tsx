@@ -126,6 +126,86 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
   });
 
+  it("should send per-spec system types when Import is clicked", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          id: "uploaded-specs-import-proposal:hash",
+          question: "Import uploaded API specifications into the catalog?",
+          artifactType: "uploaded-specs-import-proposal",
+          artifactHash: "hash",
+          actions: ["import-specification", "clarify"],
+          specs: [
+            { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
+            {
+              s3Key: "uploads/partner-events.yaml",
+              displayName: "partner-events.yaml",
+            },
+          ],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(screen.getByText("Orders API")).toBeInTheDocument();
+    expect(screen.getByText("partner-events.yaml")).toBeInTheDocument();
+    const externalOptions = screen.getAllByRole("radio", { name: "External" });
+    fireEvent.click(externalOptions[1]);
+    fireEvent.change(screen.getByPlaceholderText("Add a comment (optional)"), {
+      target: { value: "Looks good" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer).toHaveBeenCalledWith(
+      "import-specification",
+      "Looks good",
+      {
+        "uploads/orders-api.yaml": "INTERNAL",
+        "uploads/partner-events.yaml": "EXTERNAL",
+      },
+    );
+  });
+
+  it("should send Import with INTERNAL for a single spec row", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          actions: ["import-specification", "clarify"],
+          specs: [
+            { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
+          ],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    expect(onAnswer).toHaveBeenCalledWith("import-specification", "", {
+      "uploads/orders-api.yaml": "INTERNAL",
+    });
+  });
+
+  it("should not send a type map when Clarify is clicked", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          actions: ["import-specification", "clarify"],
+          specs: [
+            { s3Key: "uploads/orders-api.yaml", displayName: "Orders API" },
+          ],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Clarify" }));
+    expect(onAnswer).toHaveBeenCalledWith("clarify", "");
+  });
+
   it("should render frozen with the chosen action once answered and hide the buttons", () => {
     const onAnswer = jest.fn();
     const decision = buildDecision({ answeredAction: "approve" });
