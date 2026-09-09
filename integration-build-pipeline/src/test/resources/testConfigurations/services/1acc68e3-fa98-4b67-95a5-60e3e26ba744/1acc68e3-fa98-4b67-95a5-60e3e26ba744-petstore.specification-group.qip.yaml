@@ -1,0 +1,7 @@
+---
+id: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore"
+$schema: "http://qubership.org/schemas/product/qip/specification-group"
+name: "petstore"
+content:
+  synchronization: false
+  parentId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744"

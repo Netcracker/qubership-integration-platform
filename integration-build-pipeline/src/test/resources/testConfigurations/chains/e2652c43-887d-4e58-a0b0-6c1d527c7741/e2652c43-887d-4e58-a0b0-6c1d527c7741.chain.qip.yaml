@@ -1,0 +1,96 @@
+---
+id: "e2652c43-887d-4e58-a0b0-6c1d527c7741"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "try-catch-finally"
+content:
+  labels: []
+  elements:
+  - id: "7bb7fece-7b9e-440b-abe7-ac736163df59"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "7bb7fece-7b9e-440b-abe7-ac736163df59"
+  - id: "c07de370-1481-405f-909e-524adadc9c26"
+    name: "Try-Catch-Finally"
+    type: "try-catch-finally-2"
+    children:
+    - id: "39cb73db-b553-480b-baee-8ab6e5348e8a"
+      name: "Try"
+      type: "try-2"
+      children:
+      - id: "0533ce79-4a44-4774-bed8-3fa73e1c051c"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-0533ce79-4a44-4774-bed8-3fa73e1c051c.groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "284ed2f4-d72e-46a6-8014-5d21b51bcf9c"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-284ed2f4-d72e-46a6-8014-5d21b51bcf9c.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "3f24dc53-a3af-4050-820b-b79123bc845c"
+      name: "Catch IndexOutOfBoundsException"
+      type: "catch-2"
+      children:
+      - id: "a5bb6cb9-6335-4f34-a47b-a40c4c45dcba"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-a5bb6cb9-6335-4f34-a47b-a40c4c45dcba.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.IndexOutOfBoundsException"
+        priority: 1
+    - id: "8fd055ec-e45a-4afa-857a-77e933b0af1e"
+      name: "Catch"
+      type: "catch-2"
+      children:
+      - id: "2bf46b85-8b62-4b2d-b1e1-384bddb7c3cf"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-2bf46b85-8b62-4b2d-b1e1-384bddb7c3cf.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.Exception"
+        priority: 2
+    - id: "90e14b52-2a76-468c-8f3f-64865e56b8f9"
+      name: "Finally"
+      type: "finally-2"
+      children:
+      - id: "b5634381-404d-4469-9a7a-e8b9905d8a16"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-b5634381-404d-4469-9a7a-e8b9905d8a16.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "d887c6c7-de28-4805-82dc-286be7d34f02"
+      name: "Catch ArithmeticException"
+      type: "catch-2"
+      children:
+      - id: "e2e54742-9994-4649-b565-931a0678cb05"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-e2e54742-9994-4649-b565-931a0678cb05.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.ArithmeticException"
+        priority: 0
+  dependencies:
+  - from: "284ed2f4-d72e-46a6-8014-5d21b51bcf9c"
+    to: "0533ce79-4a44-4774-bed8-3fa73e1c051c"
+  - from: "7bb7fece-7b9e-440b-abe7-ac736163df59"
+    to: "c07de370-1481-405f-909e-524adadc9c26"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

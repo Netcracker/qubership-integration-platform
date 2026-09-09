@@ -1,0 +1,31 @@
+---
+id: "a475991a-8642-4e16-bd6f-4277a6e1809f"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "kafka-sender"
+content:
+  labels: []
+  elements:
+  - id: "20e7a133-e482-4ac0-afdf-26ae1f1f152d"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "20e7a133-e482-4ac0-afdf-26ae1f1f152d"
+  - id: "54d13e67-3526-4c03-b8ce-e9c62888a1a3"
+    name: "Kafka Sender"
+    type: "kafka-sender-2"
+    properties:
+      brokers: "kafka-custom"
+      connectionSourceType: "manual"
+      key: "order-id"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      propagateContext: true
+      saslMechanism: "GSSAPI"
+      securityProtocol: "PLAINTEXT"
+      sslProtocol: "TLS"
+      topics: "test-topic"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  dependencies:
+  - from: "20e7a133-e482-4ac0-afdf-26ae1f1f152d"
+    to: "54d13e67-3526-4c03-b8ce-e9c62888a1a3"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

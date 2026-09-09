@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "async-branches"
+    provider: "async-flow"
+scenarios:
+  - id: "returns-before-branches-and-executes-all-branches"
+    endpointUri: "cip-chain:bb9d39c1-7457-4c89-9856-27aa84313212"
+    body: "Original"
+    headers:
+      X-Test-Request: "request-value"
+    expectedBody: "Original"
+    expectedHeaders:
+      X-Test-Request: "request-value"
+    expectedAbsentHeaders:
+      - "X-Branch-Name-1"
+      - "X-Branch-Name-2"
+    interactions:
+      - fixture: "async-branches"
+        expectedExchanges:
+          - count: 1
+            body: "Main branch"
+            headers:
+              X-Test-Request: "request-value"
+              X-Branch-Name-1: "Main"
+          - count: 1
+            body: "Secondary branch"
+            headers:
+              X-Test-Request: "request-value"
+              X-Branch-Name-2: "Secondary"

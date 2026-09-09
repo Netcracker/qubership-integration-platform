@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+scenarios:
+  - id: "propagates-exchange-through-four-reuse-references"
+    endpointUri: "cip-chain:241f78fa-58e3-4f86-b844-111ccf97bb97"
+    body: "body"
+    headers:
+      X-Reuse-Trace: "header"
+    properties:
+      reuseTrace: "property"
+    expectedBody: "body|reuse|reuse|reuse|reuse"
+    expectedHeaders:
+      X-Reuse-Trace: "header|reuse|reuse|reuse|reuse"
+    expectedProperties:
+      reuseTrace: "property|reuse|reuse|reuse|reuse"
+      reuseCount: 4

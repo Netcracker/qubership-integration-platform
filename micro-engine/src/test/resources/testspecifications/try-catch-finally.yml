@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+scenarios:
+  - id: "completes-try-and-runs-finally"
+    endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
+    body: "Original"
+    properties:
+      exceptionType: ""
+    expectedBody: "Chain completed successfully"
+    expectedHeaders:
+      X-Finally-Step: "true"
+    expectedProperties:
+      internalProperty_element_warning: "false"
+  - id: "handles-arithmetic-exception-and-runs-finally"
+    endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
+    body: "Original"
+    properties:
+      exceptionType: "arithmetic"
+    expectedBody: "ArithmeticException occurred"
+    expectedHeaders:
+      X-Finally-Step: "true"
+    expectedProperties:
+      internalProperty_element_warning: "true"
+  - id: "handles-index-out-of-bounds-exception-and-runs-finally"
+    endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
+    body: "Original"
+    properties:
+      exceptionType: "index"
+    expectedBody: "IndexOutOfBoundsException occurred"
+    expectedHeaders:
+      X-Finally-Step: "true"
+    expectedProperties:
+      internalProperty_element_warning: "true"
+  - id: "handles-generic-exception-and-runs-finally"
+    endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
+    body: "Original"
+    properties:
+      exceptionType: "other"
+    expectedBody: "Exception occurred"
+    expectedHeaders:
+      X-Finally-Step: "true"
+    expectedProperties:
+      internalProperty_element_warning: "true"
+  - id: "handles-missing-exception-type-and-runs-finally"
+    endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
+    body: "Original"
+    expectedBody: "Exception occurred"
+    expectedHeaders:
+      X-Finally-Step: "true"
+    expectedProperties:
+      internalProperty_element_warning: "true"

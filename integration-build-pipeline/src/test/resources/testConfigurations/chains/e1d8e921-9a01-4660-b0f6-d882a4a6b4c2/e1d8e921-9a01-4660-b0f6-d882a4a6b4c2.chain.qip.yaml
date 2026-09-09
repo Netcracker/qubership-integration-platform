@@ -1,0 +1,31 @@
+---
+id: "e1d8e921-9a01-4660-b0f6-d882a4a6b4c2"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "jms-sender"
+content:
+  labels: []
+  elements:
+  - id: "89e76247-1a97-4bbf-a418-b0d4104c96e3"
+    name: "JMS Sender"
+    type: "jms-sender"
+    properties:
+      acknowledgmentMode: "AUTO_ACKNOWLEDGE"
+      connectionFactoryName: "jms/BulkQuotationRequest/connectionfactory"
+      destinationName: "jms/BulkQuotationRequest/queue"
+      destinationType: "queue"
+      initialContextFactory: "org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory"
+      jmsMessageType: "Bytes"
+      password: "test"
+      propagateContext: true
+      providerUrl: "snapshot:jms"
+      username: "test"
+  - id: "8b2411a4-4bcb-4cc5-bb11-bfede4b74334"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "8b2411a4-4bcb-4cc5-bb11-bfede4b74334"
+  dependencies:
+  - from: "8b2411a4-4bcb-4cc5-bb11-bfede4b74334"
+    to: "89e76247-1a97-4bbf-a418-b0d4104c96e3"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

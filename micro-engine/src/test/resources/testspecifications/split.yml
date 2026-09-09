@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "main-branch-barrier"
+    provider: "parallel-barrier"
+    sourceElementId: "269d4de8-29a6-412d-9dbf-a451f765bbe1"
+  - id: "secondary-branch-barrier"
+    provider: "parallel-barrier"
+    sourceElementId: "a80b36b2-df11-4f7c-a946-542061ed8de0"
+scenarios:
+  - id: "executes-branches-in-parallel-and-aggregates-results"
+    endpointUri: "cip-chain:1a029906-e0f8-457f-9a2e-d805e0f933e6"
+    body: "Original"
+    headers:
+      X-Request-Id: "split-request-id"
+      accept: "application/json"
+    properties:
+      splitRequestProperty: "split-request-property"
+    expectedBody: {"main": "Main branch", "secondary": "Secondary branch"}
+    expectedHeaders:
+      CamelHttpResponseCode: "200"
+      X-Request-Id: "split-request-id"
+      accept: "application/json"
+      secondary.accept: "application/json"
+      X-Branch-Name-1: "Main"
+      secondary.X-Branch-Name-2: "Secondary"
+    expectedProperties:
+      splitRequestProperty: "split-request-property"
+    interactions:
+      - fixture: "main-branch-barrier"
+        expectedRequest:
+          count: 1
+          body: "Original"
+          headers:
+            X-Request-Id: "split-request-id"
+          properties:
+            splitRequestProperty: "split-request-property"
+      - fixture: "secondary-branch-barrier"
+        expectedRequest:
+          count: 1
+          body: "Original"
+          headers:
+            X-Request-Id: "split-request-id"
+          properties:
+            splitRequestProperty: "split-request-property"

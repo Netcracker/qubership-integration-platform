@@ -1,0 +1,43 @@
+---
+id: "9bf3dbf1-09b4-4469-b4b7-3a9cc18e73b4"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "header-modification"
+content:
+  labels: []
+  elements:
+  - id: "1056cfed-69e4-4ab8-8023-25875ee47f2e"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        X-Add-This-Header: "thisValue"
+      headerModificationToRemove: []
+  - id: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+  - id: "aa27fb4a-e9a7-4a12-a8c0-9acb9442f3c4"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToRemove:
+      - "X-Remove-This-Header"
+  - id: "c74b44da-f6b6-467b-96f0-a20f83a52df0"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        X-Update-Headers: "newValue"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "aa27fb4a-e9a7-4a12-a8c0-9acb9442f3c4"
+    to: "1056cfed-69e4-4ab8-8023-25875ee47f2e"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "aa27fb4a-e9a7-4a12-a8c0-9acb9442f3c4"
+  - from: "118a309c-68e5-4b08-b0c8-ed6043927b2e"
+    to: "c74b44da-f6b6-467b-96f0-a20f83a52df0"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

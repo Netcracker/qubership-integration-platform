@@ -26,6 +26,11 @@ Since for a Quarkus application a part of configuration is applied in build-time
 * prod - for production
 * development,no-m2m - for local development
 
+## Component tests
+
+See [Component tests for micro-engine snapshots](TESTING.md) for the catalog-to-runtime
+test flow, local commands, and scenario authoring.
+
 ## Configuration
 
 Application parameters can be set by environment variables.

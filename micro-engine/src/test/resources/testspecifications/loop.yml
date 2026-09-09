@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+scenarios:
+  - id: "loop-completes"
+    endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
+    body: "Original"
+    expectedProperties:
+      increment: 10
+      counter: 0
+
+  - id: "enforces-maximum-iteration-limit"
+    endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
+    invocations:
+      - id: "fails-before-sixteenth-iteration"
+        body: "Original"
+        properties:
+          counter: 16
+        expectedFailure:
+          type: "org.qubership.integration.platform.engine.camel.exceptions.IterationLimitException"
+          message: "Maximum number of iterations reached"
+          cause: null
+        expectedProperties:
+          increment: 15
+          counter: 1

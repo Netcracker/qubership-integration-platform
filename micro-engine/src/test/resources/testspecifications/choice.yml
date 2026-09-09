@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+scenarios:
+  - id: "choice-if"
+    endpointUri: "cip-chain:49a56894-0819-4cdc-8f46-178070bc9b10"
+    body: "Original"
+    headers:
+      X-Test-Request: "request-value"
+    properties:
+      condition: true
+    expectedBody: "If"
+    expectedHeaders:
+      X-Test-Request: "request-value"
+  - id: "choice-else"
+    endpointUri: "cip-chain:49a56894-0819-4cdc-8f46-178070bc9b10"
+    body: "Original"
+    headers:
+      X-Test-Request: "request-value"
+    properties:
+      condition: false
+    expectedBody: "Else"
+    expectedHeaders:
+      X-Test-Request: "request-value"

@@ -63,7 +63,7 @@
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-text.version>1.11.0</commons-text.version>
-        <protobuf-java.version>3.25.9</protobuf-java.version>
+        <protobuf-java.version>4.33.2</protobuf-java.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
         <json-filter.version>4.0.1</json-filter.version>
         <atlasmap.version>2.5.2</atlasmap.version>
@@ -76,6 +76,7 @@
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <wiremock.version>3.13.2</wiremock.version>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
         <quarkiverse.loggingjson.version>3.5.0</quarkiverse.loggingjson.version>
@@ -681,6 +682,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>${wiremock.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
@@ -708,6 +715,11 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -887,6 +899,7 @@
                     <includes>
                         <include>**/*Test.java</include>
                     </includes>
+                    <groups>!component</groups>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
@@ -910,6 +923,7 @@
                     <includes>
                         <include>**/*IT.java</include>
                     </includes>
+                    <groups>!component</groups>
                     <skipITs>${skipITs}</skipITs>
                     <systemPropertyVariables>
                         <native.image.path>${project.build.directory}/${project.build.finalName}-runner
@@ -1043,6 +1057,30 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>snapshotTests</id>
+            <properties>
+                <snapshot.bundle.directory>
+                    ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
+                </snapshot.bundle.directory>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>component</groups>
+                            <includes combine.self="override">
+                                <include>**/MicroEngineSnapshotRouteExecutionTest.java</include>
+                            </includes>
+                            <systemPropertyVariables>
+                                <route.contract.dir>${snapshot.bundle.directory}</route.contract.dir>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <!-- Maven Central -->
         <!-- mvn deploy -P central -->
         <profile>
