@@ -19,6 +19,7 @@ public record LastAssistantTurn(Kind kind, String text) {
     DEPLOY_PROCESSING,
     DEPLOY_OK,
     DEPLOY_FAILED,
+    DEPLOY_MISSING_TOPICS,
     DESCRIBE,
     DECISION,
     OTHER

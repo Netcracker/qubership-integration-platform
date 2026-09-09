@@ -754,6 +754,30 @@ class ChatDecisionServiceTest {
             command(ChatEvent.SESSION_LOGGING_DEBUG_ACTION, "SESSION_LOGGING", "op-1", null)));
   }
 
+  @Test
+  void markerNamesCreateMaasKafkaTopicsWithoutGuessingAtWording() {
+    assertEquals(
+        "Create the missing Kafka MaaS topics",
+        ChatDecisionService.transcriptMarker(
+            command(
+                ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION,
+                "MAAS_KAFKA_TOPICS",
+                "op-1",
+                null)));
+  }
+
+  @Test
+  void markerNamesDismissMaasKafkaTopicsWithoutGuessingAtWording() {
+    assertEquals(
+        "Leave the chain and MaaS topics unchanged",
+        ChatDecisionService.transcriptMarker(
+            command(
+                ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION,
+                "MAAS_KAFKA_TOPICS",
+                "op-1",
+                null)));
+  }
+
   /**
    * Creating the chain can fail after the plan was approved. The run must stay at the
    * implementation gate with creation as its only action, never in a half-state the reader cannot

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.chain.deploy;
 
+import java.util.List;
+
 /**
  * A replacement or removal shown to the reader and waiting to be answered.
  *
@@ -7,6 +9,7 @@ package org.qubership.integration.platform.ai.chain.deploy;
  * to a card the conversation has moved past. {@code undeploy} marks a removal rather than a
  * replace, including a domain wait that resumes into undeploy. {@code waitingForLoggingLevel} is
  * the session-logging card that runs after the reader has committed to deploy or redeploy.
+ * {@code waitingForMaasTopics} is the Kafka MaaS topic card; create and dismiss require it.
  */
 public record PendingRedeploy(
     String chainId,
@@ -16,7 +19,13 @@ public record PendingRedeploy(
     String snapshotId,
     boolean confirmFirstDeploy,
     boolean undeploy,
-    boolean waitingForLoggingLevel) {
+    boolean waitingForLoggingLevel,
+    boolean waitingForMaasTopics,
+    List<MaasKafkaTopicsFollowUp.TopicPair> maasTopics) {
+
+  public PendingRedeploy {
+    maasTopics = maasTopics == null ? List.of() : List.copyOf(maasTopics);
+  }
 
   public PendingRedeploy(
       String chainId,
@@ -24,7 +33,17 @@ public record PendingRedeploy(
       String existingDeploymentId,
       String operationId,
       String snapshotId) {
-    this(chainId, domain, existingDeploymentId, operationId, snapshotId, false, false, false);
+    this(
+        chainId,
+        domain,
+        existingDeploymentId,
+        operationId,
+        snapshotId,
+        false,
+        false,
+        false,
+        false,
+        List.of());
   }
 
   public PendingRedeploy(
@@ -42,7 +61,9 @@ public record PendingRedeploy(
         snapshotId,
         confirmFirstDeploy,
         false,
-        false);
+        false,
+        false,
+        List.of());
   }
 
   public PendingRedeploy(
@@ -61,7 +82,31 @@ public record PendingRedeploy(
         snapshotId,
         confirmFirstDeploy,
         undeploy,
-        false);
+        false,
+        false,
+        List.of());
+  }
+
+  public PendingRedeploy(
+      String chainId,
+      String domain,
+      String existingDeploymentId,
+      String operationId,
+      String snapshotId,
+      boolean confirmFirstDeploy,
+      boolean undeploy,
+      boolean waitingForLoggingLevel) {
+    this(
+        chainId,
+        domain,
+        existingDeploymentId,
+        operationId,
+        snapshotId,
+        confirmFirstDeploy,
+        undeploy,
+        waitingForLoggingLevel,
+        false,
+        List.of());
   }
 
   /** A token wait for the reader to name an engine domain on the next turn. */
@@ -92,6 +137,29 @@ public record PendingRedeploy(
       String snapshotId) {
     return new PendingRedeploy(
         chainId, domain, existingDeploymentId, operationId, snapshotId, false, false, true);
+  }
+
+  /**
+   * After a Kafka/MaaS missing-topic follow-up, wait for Create topics or Not now. Create and
+   * dismiss require this flag and a matching {@code operationId}.
+   */
+  public static PendingRedeploy maasTopicsWait(
+      String chainId,
+      String domain,
+      String snapshotId,
+      String operationId,
+      List<MaasKafkaTopicsFollowUp.TopicPair> topics) {
+    return new PendingRedeploy(
+        chainId,
+        domain,
+        null,
+        operationId,
+        snapshotId,
+        false,
+        false,
+        false,
+        true,
+        topics);
   }
 
   public boolean waitingForDomain() {

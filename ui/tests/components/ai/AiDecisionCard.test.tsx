@@ -780,6 +780,52 @@ describe("AiDecisionCard", () => {
     expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
+  it("should send Create topics as the primary command when a MaaS Kafka card is shown", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question:
+            "Deploy is waiting because these Kafka MaaS topics are missing: `orders-in` in `qip-dev`. Create them?",
+          missingEvidence: [],
+          actions: ["create-maas-kafka-topics", "dismiss-maas-kafka-topics"],
+        })}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    const create = screen.getByRole("button", { name: "Create topics" });
+    expect(create.className).toMatch(/ant-btn-primary/);
+    const dismiss = screen.getByRole("button", { name: "Not now" });
+    expect(dismiss.className).not.toMatch(/ant-btn-primary/);
+    fireEvent.click(create);
+
+    expect(onAnswer).toHaveBeenCalledWith("create-maas-kafka-topics", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+  });
+
+  it("should send Not now as a typed dismiss when a MaaS Kafka card is shown", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Create missing Kafka MaaS topics?",
+          missingEvidence: [],
+          actions: ["create-maas-kafka-topics", "dismiss-maas-kafka-topics"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+
+    expect(onAnswer).toHaveBeenCalledWith("dismiss-maas-kafka-topics", "");
+  });
+
   it("should render Revise for a stage-revise clarify gate", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();

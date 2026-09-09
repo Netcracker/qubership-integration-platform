@@ -253,6 +253,10 @@ public class ChatDecisionService {
           case ChatEvent.SESSION_LOGGING_ERROR_ACTION -> "Set session logging to Error";
           case ChatEvent.SESSION_LOGGING_INFO_ACTION -> "Set session logging to Info";
           case ChatEvent.SESSION_LOGGING_DEBUG_ACTION -> "Set session logging to Debug";
+          case ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION ->
+              "Create the missing Kafka MaaS topics";
+          case ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION ->
+              "Leave the chain and MaaS topics unchanged";
           default -> "Answered " + command.getAction();
         };
     String comment = command.getComment() == null ? "" : command.getComment().strip();

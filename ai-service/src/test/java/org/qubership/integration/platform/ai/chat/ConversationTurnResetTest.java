@@ -11,8 +11,12 @@ import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chain.deploy.MaasKafkaTopicsFollowUp;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
+import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.evidence.ConversationEvidenceStore;
@@ -42,6 +46,7 @@ class ConversationTurnResetTest {
   private InMemorySkillWorkspaceStore workspaceStore;
   private ChainPlanStore chainPlanStore;
   private ConversationApiHubCache apiHubCache;
+  private PendingRedeployStore pendingRedeployStore;
 
   @BeforeEach
   void setUp() {
@@ -54,6 +59,7 @@ class ConversationTurnResetTest {
     conversationService = new ConversationService();
     pinnedFailureStore = new PinnedFailureStore();
     apiHubCache = new ConversationApiHubCache();
+    pendingRedeployStore = new PendingRedeployStore();
     reset =
         new ConversationTurnReset(
             conversationService,
@@ -69,7 +75,8 @@ class ConversationTurnResetTest {
             new ConversationEvidenceStore(),
             pinnedFailureStore,
             new LastAssistantTurnStore(),
-            apiHubCache);
+            apiHubCache,
+            pendingRedeployStore);
   }
 
   @Test
@@ -158,5 +165,46 @@ class ConversationTurnResetTest {
     reset.fullReset(CONVERSATION_ID);
 
     assertTrue(apiHubCache.latestCandidate(CONVERSATION_ID).isEmpty());
+  }
+
+  @Test
+  void fullResetClearsPendingRedeploy() {
+    pendingRedeployStore.put(
+        CONVERSATION_ID,
+        PendingRedeploy.maasTopicsWait(
+            "chain-a",
+            "default",
+            "snap-1",
+            "op-1",
+            List.of(new MaasKafkaTopicsFollowUp.TopicPair("qip-dev", "orders-in"))));
+    pendingRedeployStore.put(
+        "other-conv",
+        PendingRedeploy.maasTopicsWait(
+            "chain-b",
+            "default",
+            "snap-2",
+            "op-2",
+            List.of(new MaasKafkaTopicsFollowUp.TopicPair("qip-dev", "orders-out"))));
+
+    reset.fullReset(CONVERSATION_ID);
+
+    assertTrue(pendingRedeployStore.find(CONVERSATION_ID).isEmpty());
+    assertTrue(pendingRedeployStore.find("other-conv").isPresent());
+  }
+
+  @Test
+  void artifactInventoryResetClearsPendingRedeploy() {
+    pendingRedeployStore.put(
+        CONVERSATION_ID,
+        PendingRedeploy.maasTopicsWait(
+            "chain-a",
+            "default",
+            "snap-1",
+            "op-1",
+            List.of(new MaasKafkaTopicsFollowUp.TopicPair("qip-dev", "orders-in"))));
+
+    reset.truncateAndReset(CONVERSATION_ID, 0);
+
+    assertTrue(pendingRedeployStore.find(CONVERSATION_ID).isEmpty());
   }
 }

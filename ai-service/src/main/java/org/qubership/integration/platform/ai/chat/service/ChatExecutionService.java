@@ -116,6 +116,8 @@ public class ChatExecutionService {
         || ChatEvent.REFRESH_DEPLOYMENT_ACTION.equals(action)
         || ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(action)
         || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action)
+        || ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION.equals(action)
+        || ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION.equals(action)
         || ChatEvent.SESSION_LOGGING_ACTIONS.contains(action);
   }
 
@@ -142,6 +144,8 @@ public class ChatExecutionService {
         || ChatEvent.CANCEL_UNDEPLOY_ACTION.equals(action)
         || ChatEvent.REFRESH_DEPLOYMENT_ACTION.equals(action)
         || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action)
+        || ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION.equals(action)
+        || ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION.equals(action)
         || ChatEvent.SESSION_LOGGING_ACTIONS.contains(action)) {
       request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
     }

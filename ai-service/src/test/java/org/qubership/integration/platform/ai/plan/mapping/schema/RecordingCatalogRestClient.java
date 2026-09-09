@@ -300,6 +300,11 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public void createMaasKafkaTopic(String namespace, String topicClassifierName) {
+    throw unsupported("createMaasKafkaTopic");
+  }
+
+  @Override
   public ChainLoggingPropertiesSetDto getLoggingProperties(String chainId) {
     throw unsupported("getLoggingProperties");
   }

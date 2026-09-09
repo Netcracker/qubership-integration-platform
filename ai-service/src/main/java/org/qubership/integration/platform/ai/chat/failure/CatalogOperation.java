@@ -8,7 +8,8 @@ public enum CatalogOperation {
   STATUS("read deployment status"),
   LOGGING("save session logging"),
   FACTS("load chain facts"),
-  LOOKUP("find that chain");
+  LOOKUP("find that chain"),
+  CREATE_MAAS_KAFKA_TOPIC("create this Kafka MaaS topic");
 
   private final String verb;
 

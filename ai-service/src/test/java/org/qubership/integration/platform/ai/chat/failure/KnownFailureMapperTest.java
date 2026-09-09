@@ -84,6 +84,14 @@ class KnownFailureMapperTest {
   }
 
   @Test
+  void catalog400OnMaasTopicCreateUsesDedicatedVerb() {
+    KnownFailure mapped =
+        mapper.tryMap(catalog400(""), CatalogOperation.CREATE_MAAS_KAFKA_TOPIC).orElseThrow();
+
+    assertEquals("Couldn't create this Kafka MaaS topic.", mapped.safeText());
+  }
+
+  @Test
   void catalog400MissingBodyIsShortRefusalWithoutRawDump() {
     CatalogNonRetryableResponseException refused = catalog400("");
 

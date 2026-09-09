@@ -14,7 +14,9 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.CurrentSnapshotDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DomainDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.EnvironmentDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.SnapshotDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.SystemDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateChainRequest;
 
 class CatalogDeploySurfaceTest {
@@ -129,6 +131,47 @@ class CatalogDeploySurfaceTest {
 
     catalog.deleteDeployment(chain.id(), first.id());
     assertEquals(List.of(second), catalog.listDeployments(chain.id()));
+  }
+
+  @Test
+  void deserializesSystemActiveEnvironmentIdAndEnvironmentSourceType() throws Exception {
+    SystemDto system =
+        objectMapper.readValue(
+            """
+            {
+              "id": "sys-1",
+              "name": "Kafka",
+              "type": "INTERNAL",
+              "protocol": "kafka",
+              "activeEnvironmentId": "env-1",
+              "description": "ignored"
+            }
+            """,
+            SystemDto.class);
+    EnvironmentDto environment =
+        objectMapper.readValue(
+            """
+            {
+              "id": "env-1",
+              "name": "maas",
+              "address": null,
+              "sourceType": "MAAS_BY_CLASSIFIER",
+              "systemId": "sys-1"
+            }
+            """,
+            EnvironmentDto.class);
+
+    assertEquals("sys-1", system.id());
+    assertEquals("env-1", system.activeEnvironmentId());
+    assertEquals("env-1", environment.id());
+    assertEquals("MAAS_BY_CLASSIFIER", environment.sourceType());
+  }
+
+  @Test
+  void fourArgSystemDtoLeavesActiveEnvironmentIdNull() {
+    SystemDto system = new SystemDto("sys-1", "Kafka", "INTERNAL", "kafka");
+
+    assertNull(system.activeEnvironmentId());
   }
 
   @Test
