@@ -171,10 +171,6 @@ public class RuntimeDeploymentService {
                 )).values();
     }
 
-    /**
-     * The creator a micro engine reports, or {@code null} for a deployment made before the
-     * generated resource started carrying one.
-     */
     private static UserDTO asUser(DeploymentInfo deploymentInfo) {
         if (deploymentInfo.getCreatedBy() == null) {
             return null;

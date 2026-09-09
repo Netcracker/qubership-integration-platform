@@ -100,7 +100,6 @@ public class EngineStateBuilder {
                 .build();
     }
 
-    /** The DSL carries the build timestamp in seconds; the catalog reports deployment times in millis. */
     private static Long toEpochMillis(Long epochSeconds) {
         return epochSeconds == null ? null : TimeUnit.SECONDS.toMillis(epochSeconds);
     }

@@ -161,11 +161,6 @@ public class MicroDomainResourceBuildContextFactory {
                 .build();
     }
 
-    /**
-     * The creator is captured here, while the caller's request is still in scope: a micro domain
-     * keeps no deployment row of its own, so the user who deployed is reported back from the
-     * generated resource, and nothing downstream of this build knows who asked for it.
-     */
     private BuildInfo createBuildInfo(ResourceBuildOptions options) {
         String id = UUID.randomUUID().toString();
         Instant timestamp = Instant.now();
