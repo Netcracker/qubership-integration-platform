@@ -33,7 +33,9 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
+import org.springframework.data.domain.AuditorAware;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -77,6 +80,7 @@ class MicroDomainResourceBuildContextFactoryTest {
     private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
     private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
+    private AuditorAware<User> auditor;
     private MicroDomainResourceBuildContextFactory factory;
 
     @BeforeEach
@@ -90,6 +94,8 @@ class MicroDomainResourceBuildContextFactoryTest {
         httpRoutePublicNamingStrategy = mock(NamingStrategy.class);
         httpRoutePrivateNamingStrategy = mock(NamingStrategy.class);
         httpRouteEgressNamingStrategy = mock(NamingStrategy.class);
+        auditor = mock(AuditorAware.class);
+        when(auditor.getCurrentAuditor()).thenReturn(Optional.empty());
         when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of());
         when(buildNamingStrategy.getName(any())).thenReturn(BUILD_NAME);
         when(httpRoutePublicNamingStrategy.getName(any())).thenReturn(PUBLIC_ROUTE_NAME);
@@ -108,6 +114,7 @@ class MicroDomainResourceBuildContextFactoryTest {
                 httpRoutePublicNamingStrategy,
                 httpRoutePrivateNamingStrategy,
                 httpRouteEgressNamingStrategy,
+                auditor,
                 hostResourcesEnabled);
     }
 
@@ -184,6 +191,26 @@ class MicroDomainResourceBuildContextFactoryTest {
         assertTrue(context.getData().isEmpty());
         verify(snapshotRepository).findAllByIdIn(List.of("snap-1"));
         verify(microDomainService, never()).getMainIntegrationResources(any());
+    }
+
+    @DisplayName("Stamps the requesting user onto the build, since a micro domain keeps no deployment row to audit")
+    @Test
+    void buildsContextWithTheCurrentUserAsCreator() {
+        when(auditor.getCurrentAuditor()).thenReturn(Optional.of(new User("user-1", "cpq-admin")));
+
+        ResourceBuildContext<List<Snapshot>> context =
+                factory.createResourceBuildContext(request(options()), false).context();
+
+        assertEquals("cpq-admin", context.getBuildInfo().getCreatedBy());
+    }
+
+    @DisplayName("Leaves the creator unset when there is no current user")
+    @Test
+    void buildsContextWithoutCreatorWhenTheAuditorIsEmpty() {
+        ResourceBuildContext<List<Snapshot>> context =
+                factory.createResourceBuildContext(request(options()), false).context();
+
+        assertNull(context.getBuildInfo().getCreatedBy());
     }
 
     @DisplayName("Leaves the options untouched when appending finds no existing resources")
