@@ -28,6 +28,8 @@ import org.qubership.integration.platform.ai.plan.ChainPlanRepairDraftStore;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspaceStore;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 
 class ConversationTurnResetTest {
 
@@ -39,6 +41,7 @@ class ConversationTurnResetTest {
   private PinnedFailureStore pinnedFailureStore;
   private InMemorySkillWorkspaceStore workspaceStore;
   private ChainPlanStore chainPlanStore;
+  private ConversationApiHubCache apiHubCache;
 
   @BeforeEach
   void setUp() {
@@ -50,6 +53,7 @@ class ConversationTurnResetTest {
     workspaceStore = new InMemorySkillWorkspaceStore(chainPlanStore);
     conversationService = new ConversationService();
     pinnedFailureStore = new PinnedFailureStore();
+    apiHubCache = new ConversationApiHubCache();
     reset =
         new ConversationTurnReset(
             conversationService,
@@ -64,7 +68,8 @@ class ConversationTurnResetTest {
             mock(ConversationCatalogCache.class),
             new ConversationEvidenceStore(),
             pinnedFailureStore,
-            new LastAssistantTurnStore());
+            new LastAssistantTurnStore(),
+            apiHubCache);
   }
 
   @Test
@@ -141,5 +146,17 @@ class ConversationTurnResetTest {
 
     assertEquals(
         SAFE_TEXT, pinnedFailureStore.find(CONVERSATION_ID, "chain-a").orElseThrow().safeText());
+  }
+
+  @Test
+  void fullResetClearsApiHubCache() {
+    apiHubCache.rememberCandidate(
+        CONVERSATION_ID,
+        new ApiHubRequirementRefs("pkg", "v1", "op-1", null, "rest", "Pkg", "Spec"));
+    assertTrue(apiHubCache.latestCandidate(CONVERSATION_ID).isPresent());
+
+    reset.fullReset(CONVERSATION_ID);
+
+    assertTrue(apiHubCache.latestCandidate(CONVERSATION_ID).isEmpty());
   }
 }

@@ -274,4 +274,31 @@ class ToolInvocationSinkTest {
     ToolInvocationSink.unbindIfBound();
     ToolInvocationSink.onInvoke("captureGraphPatch");
   }
+
+  @Test
+  void unbindConversationIdFromAnotherThreadDropsTheMap() throws Exception {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, "skill:cip-http-generator", "conv-cross");
+    Thread other = new Thread(() -> ToolInvocationSink.unbind("conv-cross"));
+    other.start();
+    other.join(5_000);
+    try {
+      Thread worker =
+          new Thread(
+              () -> {
+                org.qubership.integration.platform.ai.chat.ToolSession.bind("conv-cross");
+                try {
+                  ToolInvocationSink.onInvoke("captureGraphPatch");
+                } finally {
+                  org.qubership.integration.platform.ai.chat.ToolSession.clear();
+                }
+              });
+      worker.start();
+      worker.join(5_000);
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertTrue(out.isEmpty());
+  }
 }

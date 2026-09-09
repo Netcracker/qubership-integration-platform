@@ -32,7 +32,12 @@ public class CatalogOutboundLoggingFilter implements ClientRequestFilter, Client
   private static final String CFG_LOG_RESPONSE_BODY = "qip.ai.catalog.log-response-body";
   private static final int ERROR_BODY_LOG_MAX = 4096;
 
+  static volatile Boolean logResponseBodyOverride;
+
   private static boolean logCatalogResponseBodyAtInfo() {
+    if (logResponseBodyOverride != null) {
+      return logResponseBodyOverride;
+    }
     return ConfigProvider.getConfig()
         .getOptionalValue(CFG_LOG_RESPONSE_BODY, Boolean.class)
         .orElse(true);
@@ -83,6 +88,10 @@ public class CatalogOutboundLoggingFilter implements ClientRequestFilter, Client
     if (!responseContext.hasEntity()) {
       return;
     }
+    boolean logBodyAtInfo = logCatalogResponseBodyAtInfo();
+    if (status < 400 && !logBodyAtInfo) {
+      return;
+    }
     byte[] buf = responseContext.getEntityStream().readAllBytes();
     responseContext.setEntityStream(new ByteArrayInputStream(buf));
     if (buf.length == 0) {
@@ -96,15 +105,9 @@ public class CatalogOutboundLoggingFilter implements ClientRequestFilter, Client
       LOG.warnf("Catalog outbound error body [%s]: %s", rid, snippet);
       return;
     }
-    if (logCatalogResponseBodyAtInfo()) {
-      LOG.infof(
-          "Catalog outbound response body [%s]: %s",
-          rid, AiTraceLog.previewOneLine(body, AiTraceLog.DEFAULT_CATALOG_RESPONSE_INFO_CHARS));
-    } else if (LOG.isDebugEnabled()) {
-      LOG.debugf(
-          "Catalog outbound response body [%s]: %s",
-          rid, AiTraceLog.preview(body, AiTraceLog.DEFAULT_HTTP_BODY_DEBUG_CHARS));
-    }
+    LOG.infof(
+        "Catalog outbound response body [%s]: %s",
+        rid, AiTraceLog.previewOneLine(body, AiTraceLog.DEFAULT_CATALOG_RESPONSE_INFO_CHARS));
   }
 
   /** Visible for tests — {@code POST /v1/chains} style label, no query or body. */

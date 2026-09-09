@@ -67,6 +67,13 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void describeElementPatchSchemaReturnsSameJsonOnSecondCall() {
+    String first = service.describeElementPatchSchema("http-trigger");
+    String second = service.describeElementPatchSchema("http-trigger");
+    assertEquals(first, second);
+  }
+
+  @Test
   void coercesHttpTriggerBooleanPropertyBeforeValidation() throws Exception {
     Object externalRoute =
         service.coercePatchPropertyValue("http-trigger", "externalRoute", "true");

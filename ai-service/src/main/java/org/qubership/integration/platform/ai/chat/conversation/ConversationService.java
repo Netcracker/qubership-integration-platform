@@ -1,20 +1,43 @@
 package org.qubership.integration.platform.ai.chat.conversation;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.qubership.integration.platform.ai.chat.attachment.AttachmentKeys;
-
+import jakarta.inject.Inject;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.qubership.integration.platform.ai.chat.attachment.AttachmentKeys;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 @ApplicationScoped
 public class ConversationService {
 
-  private final ConcurrentHashMap<String, ConversationState> conversations =
-      new ConcurrentHashMap<>();
+  private static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofHours(1);
+
+  private final Cache<String, ConversationState> conversations;
+
+  public ConversationService() {
+    this(DEFAULT_IDLE_TIMEOUT, Ticker.systemTicker());
+  }
+
+  @Inject
+  public ConversationService(AppConfig appConfig) {
+    this(appConfig.conversation().idleTimeout(), Ticker.systemTicker());
+  }
+
+  ConversationService(Duration idleTimeout, Ticker ticker) {
+    this.conversations =
+        Caffeine.newBuilder()
+            .expireAfterAccess(idleTimeout)
+            .ticker(ticker)
+            .build();
+  }
 
   private static final class ConversationState {
     final List<ConversationMessage> messages = new ArrayList<>();
@@ -23,19 +46,18 @@ public class ConversationService {
   }
 
   public void getOrCreate(String conversationId) {
-    conversations.computeIfAbsent(conversationId, __ -> new ConversationState());
+    conversations.get(conversationId, __ -> new ConversationState());
   }
 
   public void addMessage(String conversationId, ConversationMessage message) {
-    ConversationState state =
-        conversations.computeIfAbsent(conversationId, __ -> new ConversationState());
+    ConversationState state = conversations.get(conversationId, __ -> new ConversationState());
     synchronized (state.messages) {
       state.messages.add(message);
     }
   }
 
   public List<ConversationMessage> getMessages(String conversationId) {
-    ConversationState state = conversations.get(conversationId);
+    ConversationState state = conversations.getIfPresent(conversationId);
     if (state == null) {
       return List.of();
     }
@@ -50,7 +72,7 @@ public class ConversationService {
    * entry.
    */
   public void truncateAfter(String conversationId, int afterMessageIndex) {
-    ConversationState state = conversations.get(conversationId);
+    ConversationState state = conversations.getIfPresent(conversationId);
     if (state == null) {
       return;
     }
@@ -68,7 +90,7 @@ public class ConversationService {
 
   /** Clears the message list while keeping the conversation entry. */
   public void clearMessages(String conversationId) {
-    ConversationState state = conversations.get(conversationId);
+    ConversationState state = conversations.getIfPresent(conversationId);
     if (state == null) {
       return;
     }
@@ -82,8 +104,7 @@ public class ConversationService {
     if (keys == null || keys.isEmpty()) {
       return;
     }
-    ConversationState state =
-        conversations.computeIfAbsent(conversationId, __ -> new ConversationState());
+    ConversationState state = conversations.get(conversationId, __ -> new ConversationState());
     for (String k : keys) {
       if (AttachmentKeys.isSafe(k)) {
         state.allowedAttachmentKeys.add(k);
@@ -92,7 +113,7 @@ public class ConversationService {
   }
 
   public boolean isAttachmentKeyMaterialized(String conversationId, String key) {
-    ConversationState state = conversations.get(conversationId);
+    ConversationState state = conversations.getIfPresent(conversationId);
     return state != null && key != null && state.materializedAttachmentKeys.contains(key);
   }
 
@@ -100,7 +121,7 @@ public class ConversationService {
     if (keys == null || keys.isEmpty()) {
       return;
     }
-    ConversationState state = conversations.get(conversationId);
+    ConversationState state = conversations.getIfPresent(conversationId);
     if (state == null) {
       return;
     }
@@ -113,12 +134,14 @@ public class ConversationService {
 
   /** S3 object keys registered for this conversation (uploads / prior turns). */
   public List<String> getAllowedAttachmentKeys(String conversationId) {
-    ConversationState state = conversations.get(conversationId);
+    ConversationState state = conversations.getIfPresent(conversationId);
     if (state == null || state.allowedAttachmentKeys.isEmpty()) {
       return List.of();
     }
-    return state.allowedAttachmentKeys.stream()
-        .sorted()
-        .collect(Collectors.toList());
+    return state.allowedAttachmentKeys.stream().sorted().collect(Collectors.toList());
+  }
+
+  void cleanUp() {
+    conversations.cleanUp();
   }
 }

@@ -290,10 +290,10 @@ public class ChatExecutionService {
               if (failure != null) {
                 LOG.warnf(
                     failure,
-                    "Chat stream ended with failure (%s) for conversationId=%s — activePlan=%s",
+                    "Chat stream ended with failure (%s) for conversationId=%s — activeRun=%s",
                     PATH_LABEL,
                     finalConversationId,
-                    describeActivePlan(finalConversationId));
+                    describeActiveRun(finalConversationId));
               }
               MDC.remove(ChatMdc.CONVERSATION_ID);
             })
@@ -304,10 +304,10 @@ public class ChatExecutionService {
             err -> {
               LOG.errorf(
                   err,
-                  "Chat stream failed (%s) for conversationId=%s, activePlan=%s",
+                  "Chat stream failed (%s) for conversationId=%s, activeRun=%s",
                   PATH_LABEL,
                   finalConversationId,
-                  describeActivePlan(finalConversationId));
+                  describeActiveRun(finalConversationId));
               MDC.remove(ChatMdc.CONVERSATION_ID);
               return recoverFailedSse(finalConversationId, err);
             });
@@ -356,7 +356,7 @@ public class ChatExecutionService {
               emitter.onTermination(
                   () -> {
                     LlmRateLimitBackoffSink.unbind();
-                    ToolInvocationSink.unbind();
+                    ToolInvocationSink.unbind(conversationId);
                   });
               Cancellable subscription =
                   routed.subscribe().with(emitter::emit, emitter::fail, emitter::complete);
@@ -367,11 +367,8 @@ public class ChatExecutionService {
   private void logAiTurnStart(String conversationId) {
     int historySize = conversationService.getMessages(conversationId).size();
     LOG.infof(
-        "AI turn: path=%s, conversationId=%s, historyMessages=%d, activePlan=%s",
-        PATH_LABEL,
-        conversationId,
-        historySize,
-        describeActivePlan(conversationId));
+        "AI turn: path=%s, conversationId=%s, historyMessages=%d",
+        PATH_LABEL, conversationId, historySize);
   }
 
   private void logAssistantResultIfEnabled(String conversationId, String text) {
@@ -390,8 +387,16 @@ public class ChatExecutionService {
         AiTraceLog.preview(text, maxChars));
   }
 
-  private String describeActivePlan(String conversationId) {
-    return describeActivePlanForTrace(conversationId, runStore, artifactStore);
+  private String describeActiveRun(String conversationId) {
+    return describeActiveRunForTrace(conversationId, runStore);
+  }
+
+  static String describeActiveRunForTrace(
+      String conversationId, ProductPipelineRunStore runStore) {
+    return runStore
+        .loadByConversation(conversationId)
+        .map(doc -> doc.run().runId())
+        .orElse("(none)");
   }
 
   static String describeActivePlanForTrace(

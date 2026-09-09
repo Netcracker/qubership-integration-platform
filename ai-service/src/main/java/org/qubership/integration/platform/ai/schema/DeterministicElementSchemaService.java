@@ -17,6 +17,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
@@ -46,6 +47,9 @@ public class DeterministicElementSchemaService {
   @Inject
   ObjectMapper objectMapper;
 
+  private final ConcurrentHashMap<String, String> patchSchemaJsonByElementType =
+      new ConcurrentHashMap<>();
+
   /** Wires dependencies for unit tests without CDI. */
   public static DeterministicElementSchemaService createForUnitTests(ObjectMapper objectMapper) {
     SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
@@ -61,11 +65,15 @@ public class DeterministicElementSchemaService {
   }
 
   public String describeElementPatchSchema(String elementType) {
+    if (elementType == null || elementType.isBlank()) {
+      return errorJson(ERROR_ELEMENT_TYPE_REQUIRED);
+    }
+    return patchSchemaJsonByElementType.computeIfAbsent(
+        elementType.trim(), this::buildElementPatchSchemaJson);
+  }
+
+  private String buildElementPatchSchemaJson(String trimmed) {
     try {
-      if (elementType == null || elementType.isBlank()) {
-        return errorJson(ERROR_ELEMENT_TYPE_REQUIRED);
-      }
-      String trimmed = elementType.trim();
       if (!schemaResourceLoader.existsElementSchema(trimmed)) {
         return errorJson(ERROR_SCHEMA_NOT_FOUND_PREFIX + trimmed);
       }

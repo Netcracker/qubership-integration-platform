@@ -8,8 +8,14 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import org.jboss.logging.Logger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 
 class ToolTraceLogTest {
 
@@ -59,5 +65,28 @@ class ToolTraceLogTest {
             });
 
     assertEquals(value.toString(), AiTraceLog.previewJson(objectMapper, value, 100));
+  }
+
+  @AfterEach
+  void tearDown() {
+    ToolTraceLog.logToolsOverride = null;
+    ToolInvocationSink.unbind();
+  }
+
+  @Test
+  void disabledToolLogsStillEmitSinkEvents() {
+    ToolTraceLog.logToolsOverride = false;
+    Logger log = mock(Logger.class);
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add);
+    try {
+      ToolTraceLog.logToolInvoke(log, "captureSelectedPattern", "conv-1", "{\"x\":1}");
+      ToolTraceLog.logToolComplete(log, "captureSelectedPattern", "conv-1", 12L, "{\"ok\":true}");
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertEquals(2, out.size());
+    org.mockito.Mockito.verifyNoInteractions(log);
   }
 }

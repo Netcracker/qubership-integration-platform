@@ -140,9 +140,10 @@ public class ScenarioRouter {
     // Resolved before the CREATE run is offered the turn, because a turn about a chain that already
     // exists is not the run's to take -- not even mid-run, when the chain in question is the one
     // the run has just built and the reader has moved on to changing it.
+    boolean hasChain = hasOpenChain(request, conversationId);
     RoutingOutcome aboutOpenChain = null;
-    if (chainContextExtractor.hasChainContext(request, conversationId)) {
-      aboutOpenChain = resolveRouting(request, conversationId);
+    if (hasChain) {
+      aboutOpenChain = resolveRouting(request, conversationId, hasChain);
       if (!isOpenChainScenario(aboutOpenChain.scenarioType())) {
         aboutOpenChain = null;
       }
@@ -165,7 +166,7 @@ public class ScenarioRouter {
     }
 
     RoutingOutcome outcome =
-        aboutOpenChain != null ? aboutOpenChain : resolveRouting(request, conversationId);
+        aboutOpenChain != null ? aboutOpenChain : resolveRouting(request, conversationId, hasChain);
     if (outcome.errorMessage() != null) {
       LOG.warnf(
           "Routing error response conversationId=%s message=%s",
@@ -184,7 +185,7 @@ public class ScenarioRouter {
     if (createRunSelectionService != null
         && productPipelineChatAdapter != null
         && isMisleadingCreateHint(classified)
-        && chainContextExtractor.hasChainContext(request, conversationId)) {
+        && hasChain) {
       // The classifier does not receive the open-chain attachment, so a change request on a catalog
       // chain is often labeled GATHER_REQUIREMENTS / CREATE_CHAIN_PLAN. Starting CREATE here would
       // interview the reader about a new integration. An unfinished CREATE run still keeps the
@@ -285,7 +286,19 @@ public class ScenarioRouter {
         .isPresent();
   }
 
+  private boolean hasOpenChain(ChatRequest request, String conversationId) {
+    if (request != null && request.getOpenChainTurnContext() != null) {
+      return true;
+    }
+    return chainContextExtractor.hasChainContext(request, conversationId);
+  }
+
   RoutingOutcome resolveRouting(ChatRequest request, String conversationId) {
+    return resolveRouting(request, conversationId, hasOpenChain(request, conversationId));
+  }
+
+  RoutingOutcome resolveRouting(
+      ChatRequest request, String conversationId, boolean hasChainContext) {
     ConversationPhase phase = conversationPhaseResolver.resolve(conversationId);
 
     Optional<RoutingOutcome> managedImport =
@@ -295,7 +308,6 @@ public class ScenarioRouter {
       return applyPostRoutingEffects(managedImport.get(), conversationId);
     }
 
-    boolean hasChainContext = chainContextExtractor.hasChainContext(request, conversationId);
     ScenarioType hint = request.getScenarioHint();
     // The UI hints the page it is on, not what the reader asked for. IMPLEMENT_CHAIN has no
     // handler, so obeying it with a chain open falls through to CREATE_CHAIN_PLAN and a new

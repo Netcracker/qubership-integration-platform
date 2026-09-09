@@ -295,6 +295,56 @@ class ScenarioRouterTest {
     org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
     org.mockito.Mockito.verify(handler)
         .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
+    org.mockito.Mockito.verify(chainContextExtractor, org.mockito.Mockito.times(1))
+        .hasChainContext(any(), anyString());
+  }
+
+  @Test
+  void routeSkipsExtractorWhenOpenChainTurnContextIsSet() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(false);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("add a script after Return greeting");
+    request.setOpenChainTurnContext(
+        new org.qubership.integration.platform.ai.chat.OpenChainTurnContext(
+            CONVERSATION_ID,
+            "11111111-1111-1111-1111-111111111111",
+            "add a script after Return greeting",
+            "",
+            java.util.Optional.empty(),
+            java.util.Optional.empty(),
+            false));
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(chainContextExtractor, org.mockito.Mockito.never())
+        .hasChainContext(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
   }
 
   /**
@@ -345,6 +395,8 @@ class ScenarioRouterTest {
         .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
     org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
         .classify(any(), anyString(), any());
+    org.mockito.Mockito.verify(chainContextExtractor, org.mockito.Mockito.times(1))
+        .hasChainContext(any(), anyString());
   }
 
   @Test
